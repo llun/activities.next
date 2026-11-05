@@ -2,7 +2,6 @@ import type { Span } from '@opentelemetry/api'
 
 import type { Database } from '@/lib/database/types'
 import { DELIVER_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
-import { getDomainFromUrl } from '@/lib/services/federation/domainPolicy'
 import { getQueue } from '@/lib/services/queue'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -67,36 +66,25 @@ export const enqueueDeliveries = async ({
 }: EnqueueDeliveriesParams): Promise<void> => {
   const uniqueInboxes = Array.from(new Set(inboxes))
 
-  let unavailableDomains = new Set<string>()
-  const candidateDomains = Array.from(
-    new Set(
-      uniqueInboxes
-        .map((inbox) => getDomainFromUrl(inbox))
-        .filter((domain): domain is string => Boolean(domain))
-    )
-  )
-
-  if (candidateDomains.length > 0) {
+  let unavailableInboxes = new Set<string>()
+  if (uniqueInboxes.length > 0) {
     try {
-      const unavailable = await database.getUnavailableDomains({
-        domains: candidateDomains
-      })
-      unavailableDomains = new Set(unavailable)
+      unavailableInboxes = new Set(
+        await database.getUnavailableInboxes({
+          inboxes: uniqueInboxes
+        })
+      )
     } catch (error) {
       logger.error(
         { err: toLoggableError(error) },
-        'enqueueDeliveries: failed to read unavailable domains, proceeding without filter'
+        'enqueueDeliveries: failed to read unavailable inboxes, proceeding without filter'
       )
     }
   }
 
-  const targetInboxes =
-    unavailableDomains.size === 0
-      ? uniqueInboxes
-      : uniqueInboxes.filter((inbox) => {
-          const domain = getDomainFromUrl(inbox)
-          return !domain || !unavailableDomains.has(domain)
-        })
+  const targetInboxes = uniqueInboxes.filter(
+    (inbox) => !unavailableInboxes.has(inbox)
+  )
 
   const skippedUnavailableCount = uniqueInboxes.length - targetInboxes.length
   span?.setAttribute('fanout.inbox_count', targetInboxes.length)

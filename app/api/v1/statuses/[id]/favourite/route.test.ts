@@ -382,6 +382,6 @@ describe('POST /api/v1/statuses/[id]/favourite', () => {
         return url === EXTERNAL_ACTOR1_INBOX
       })
     ).toBe(true)
-    await database.clearDeliveryFailures({ domain: 'llun.dev' })
+    await database.clearDeliveryFailuresForDomain({ domain: 'llun.dev' })
   })
 })

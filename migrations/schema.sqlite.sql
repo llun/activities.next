@@ -346,5 +346,5 @@ CREATE INDEX "account_import_items_import_state_position_idx" on "account_import
 CREATE TABLE IF NOT EXISTS "deleted_attachment_media" ("attachmentId" varchar(255) primary key, "actorId" varchar(255) not null, "mediaId" integer not null, "createdAt" datetime default CURRENT_TIMESTAMP not null);
 CREATE INDEX "deleted_attachment_media_createdAt_idx" on "deleted_attachment_media" ("createdAt");
 CREATE INDEX "deleted_attachment_media_actorId_idx" on "deleted_attachment_media" ("actorId");
-CREATE TABLE IF NOT EXISTS "delivery_domain_failures" ("domain" text primary key, "failureDays" integer default 0 not null, "lastFailureDay" text, "firstFailureAt" datetime not null, "lastFailureAt" datetime not null, "unavailableSince" datetime, "lastError" text, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
-CREATE INDEX "delivery_domain_failures_unavailable_since_idx" on "delivery_domain_failures" ("unavailableSince");
+CREATE TABLE IF NOT EXISTS "delivery_inbox_failures" ("inbox" text primary key, "domain" text not null, "failureDays" integer default 0 not null, "lastFailureDay" text, "firstFailureAt" datetime not null, "lastFailureAt" datetime not null, "unavailableSince" datetime, "lastError" text, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
+CREATE INDEX "delivery_inbox_failures_domain_idx" on "delivery_inbox_failures" ("domain");

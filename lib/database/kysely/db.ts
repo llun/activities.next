@@ -390,11 +390,12 @@ export interface DeletedAttachmentMedia {
   mediaId: number
 }
 
-export interface DeliveryDomainFailures {
+export interface DeliveryInboxFailures {
   createdAt: WithDefault<Timestamp>
   domain: string
   failureDays: WithDefault<number>
   firstFailureAt: Timestamp
+  inbox: string
   lastError: Nullable<string>
   lastFailureAt: Timestamp
   lastFailureDay: Nullable<string>
@@ -1540,7 +1541,7 @@ export interface DB {
   customEmojis: CustomEmojis
   dead_letter_jobs: DeadLetterJobs
   deleted_attachment_media: DeletedAttachmentMedia
-  delivery_domain_failures: DeliveryDomainFailures
+  delivery_inbox_failures: DeliveryInboxFailures
   direct_conversation_memberships: DirectConversationMemberships
   direct_conversation_participants: DirectConversationParticipants
   direct_conversation_statuses: DirectConversationStatuses

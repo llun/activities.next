@@ -1,18 +1,28 @@
 import {
+  type ClearDeliveryFailuresForDomainParams,
   type ClearDeliveryFailuresParams,
   DELIVERY_FAILURE_DAYS_THRESHOLD,
-  type GetUnavailableDomainsParams,
-  type IsDomainUnavailableParams,
+  DELIVERY_UNAVAILABLE_PROBE_INTERVAL_MS,
+  type GetUnavailableInboxesParams,
+  type IsInboxUnavailableParams,
   MAX_DELIVERY_LAST_ERROR_LENGTH,
   type RecordDeliveryFailureParams
-} from '@/lib/database/domains/deliveryDomains/types'
+} from '@/lib/database/domains/deliveryInboxes/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
-import { forUpdate } from '@/lib/database/kysely/dialect'
+import { forUpdate, timestampValue } from '@/lib/database/kysely/dialect'
 import { selectInChunks } from '@/lib/database/kysely/inList'
+import { getDomainFromUrl } from '@/lib/services/federation/domainPolicy'
 
 const normalizeDomain = (domain: string): string => domain.trim().toLowerCase()
 
 const formatUtcDay = (date: Date): string => date.toISOString().slice(0, 10)
+
+const toDate = (now?: number | Date): Date =>
+  now instanceof Date ? now : new Date(now ?? Date.now())
+
+// Failed within the probe interval: older failures allow delivery probes.
+const probeCutoff = (now?: number | Date): Date =>
+  new Date(toDate(now).getTime() - DELIVERY_UNAVAILABLE_PROBE_INTERVAL_MS)
 
 const normalizeLastError = (
   error: string | null | undefined
@@ -25,10 +35,10 @@ const normalizeLastError = (
 
 export const recordDeliveryFailure = async (
   db: Db,
-  { domain, error, now }: RecordDeliveryFailureParams
+  { inbox, error, now }: RecordDeliveryFailureParams
 ): Promise<boolean> => {
-  const normalized = normalizeDomain(domain)
-  if (!normalized) return false
+  const domain = getDomainFromUrl(inbox)
+  if (!domain) return false
 
   const nowDate = now instanceof Date ? now : new Date(now ?? Date.now())
   const dayKey = formatUtcDay(nowDate)
@@ -37,9 +47,10 @@ export const recordDeliveryFailure = async (
   return inTransaction(db, async (trx) => {
     for (let attempt = 0; attempt < 3; attempt++) {
       await trx
-        .insertInto('delivery_domain_failures')
+        .insertInto('delivery_inbox_failures')
         .values({
-          domain: normalized,
+          inbox,
+          domain,
           failureDays: 0,
           lastFailureDay: null,
           firstFailureAt: nowDate,
@@ -49,20 +60,20 @@ export const recordDeliveryFailure = async (
           createdAt: nowDate,
           updatedAt: nowDate
         })
-        .onConflict((oc) => oc.column('domain').doNothing())
+        .onConflict((oc) => oc.column('inbox').doNothing())
         .execute()
 
       const row = await forUpdate(
         trx,
         trx
-          .selectFrom('delivery_domain_failures')
+          .selectFrom('delivery_inbox_failures')
           .select([
-            'domain',
+            'inbox',
             'failureDays',
             'lastFailureDay',
             'unavailableSince'
           ])
-          .where('domain', '=', normalized)
+          .where('inbox', '=', inbox)
       ).executeTakeFirst()
 
       if (!row) {
@@ -81,7 +92,7 @@ export const recordDeliveryFailure = async (
         !wasUnavailable && nextFailureDays >= DELIVERY_FAILURE_DAYS_THRESHOLD
 
       await trx
-        .updateTable('delivery_domain_failures')
+        .updateTable('delivery_inbox_failures')
         .set({
           failureDays: nextFailureDays,
           lastFailureDay: nextLastFailureDay,
@@ -91,7 +102,7 @@ export const recordDeliveryFailure = async (
           lastError,
           updatedAt: nowDate
         })
-        .where('domain', '=', normalized)
+        .where('inbox', '=', inbox)
         .execute()
 
       return markedUnavailableNow
@@ -103,59 +114,84 @@ export const recordDeliveryFailure = async (
 
 export const clearDeliveryFailures = async (
   db: Db,
-  { domain }: ClearDeliveryFailuresParams
+  { inbox }: ClearDeliveryFailuresParams
+): Promise<void> => {
+  // Avoid taking SQLite's write lock when this frequently called clear has no row.
+  const existing = await db
+    .selectFrom('delivery_inbox_failures')
+    .select('inbox')
+    .where('inbox', '=', inbox)
+    .limit(1)
+    .executeTakeFirst()
+  if (!existing) return
+
+  await db
+    .deleteFrom('delivery_inbox_failures')
+    .where('inbox', '=', inbox)
+    .execute()
+}
+
+export const clearDeliveryFailuresForDomain = async (
+  db: Db,
+  { domain }: ClearDeliveryFailuresForDomainParams
 ): Promise<void> => {
   const normalized = normalizeDomain(domain)
   if (!normalized) return
 
+  const existing = await db
+    .selectFrom('delivery_inbox_failures')
+    .select('inbox')
+    .where('domain', '=', normalized)
+    .limit(1)
+    .executeTakeFirst()
+  if (!existing) return
+
   await db
-    .deleteFrom('delivery_domain_failures')
+    .deleteFrom('delivery_inbox_failures')
     .where('domain', '=', normalized)
     .execute()
 }
 
-export const getUnavailableDomains = async (
+export const getUnavailableInboxes = async (
   db: Db,
-  { domains }: GetUnavailableDomainsParams
+  { inboxes, now }: GetUnavailableInboxesParams
 ): Promise<string[]> => {
-  const normalized = Array.from(
-    new Set(domains.map(normalizeDomain).filter(Boolean))
-  )
-  if (normalized.length === 0) return []
+  const uniqueInboxes = Array.from(new Set(inboxes))
+  if (uniqueInboxes.length === 0) return []
 
-  const rows = await selectInChunks(db, normalized, (chunk) =>
+  const rows = await selectInChunks(db, uniqueInboxes, (chunk) =>
     db
-      .selectFrom('delivery_domain_failures')
-      .select('domain')
-      .where('domain', 'in', chunk)
+      .selectFrom('delivery_inbox_failures')
+      .select('inbox')
+      .where('inbox', 'in', chunk)
       .where('unavailableSince', 'is not', null)
+      .where('lastFailureAt', '>', timestampValue(probeCutoff(now)))
       .execute()
   )
 
-  return rows.map((row) => row.domain)
+  return rows.map((row) => row.inbox)
 }
 
-export const isDomainUnavailable = async (
+export const isInboxUnavailable = async (
   db: Db,
-  { domain }: IsDomainUnavailableParams
+  { inbox, now }: IsInboxUnavailableParams
 ): Promise<boolean> => {
-  const normalized = normalizeDomain(domain)
-  if (!normalized) return false
-
   const row = await db
-    .selectFrom('delivery_domain_failures')
-    .select('domain')
-    .where('domain', '=', normalized)
+    .selectFrom('delivery_inbox_failures')
+    .select('inbox')
+    .where('inbox', '=', inbox)
     .where('unavailableSince', 'is not', null)
+    .where('lastFailureAt', '>', timestampValue(probeCutoff(now)))
     .limit(1)
     .executeTakeFirst()
 
   return Boolean(row)
 }
 
-export const deliveryDomainsQueries = {
+export const deliveryInboxesQueries = {
   recordDeliveryFailure,
   clearDeliveryFailures,
-  getUnavailableDomains,
-  isDomainUnavailable
+  clearDeliveryFailuresForDomain,
+  getUnavailableInboxes,
+  isInboxUnavailable
 }

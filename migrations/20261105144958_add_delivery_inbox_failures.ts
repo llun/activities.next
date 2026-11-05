@@ -1,9 +1,9 @@
 import { type Kysely, SqliteAdapter, sql } from 'kysely'
 
-// Adds `delivery_domain_failures`: per-domain outbound ActivityPub delivery
+// Adds `delivery_inbox_failures`: per-inbox outbound ActivityPub delivery
 // health state. Counts distinct UTC days (`lastFailureDay`, `YYYY-MM-DD`) on
 // which salvageable delivery failures occurred without an intervening success,
-// and marks the domain unavailable (`unavailableSince`) once the threshold is
+// and marks the inbox unavailable (`unavailableSince`) once the threshold is
 // reached so outbound fan-outs and queued deliveries skip dead servers until a
 // 2xx delivery or verified inbound request clears the row.
 
@@ -13,9 +13,10 @@ export const up = async (db: Kysely<any>): Promise<void> => {
   const timestampType = isSqlite ? 'datetime' : 'timestamptz'
 
   await db.schema
-    .createTable('delivery_domain_failures')
+    .createTable('delivery_inbox_failures')
     .ifNotExists()
-    .addColumn('domain', 'text', (col) => col.primaryKey())
+    .addColumn('inbox', 'text', (col) => col.primaryKey())
+    .addColumn('domain', 'text', (col) => col.notNull())
     .addColumn('failureDays', 'integer', (col) => col.notNull().defaultTo(0))
     .addColumn('lastFailureDay', 'text')
     .addColumn('firstFailureAt', timestampType, (col) => col.notNull())
@@ -31,18 +32,13 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .execute()
 
   await db.schema
-    .createIndex('delivery_domain_failures_unavailable_since_idx')
-    .ifNotExists()
-    .on('delivery_domain_failures')
-    .column('unavailableSince')
+    .createIndex('delivery_inbox_failures_domain_idx')
+    .on('delivery_inbox_failures')
+    .column('domain')
     .execute()
 }
 
 // oxlint-disable-next-line typescript/no-explicit-any
 export const down = async (db: Kysely<any>): Promise<void> => {
-  await db.schema
-    .dropIndex('delivery_domain_failures_unavailable_since_idx')
-    .ifExists()
-    .execute()
-  await db.schema.dropTable('delivery_domain_failures').ifExists().execute()
+  await db.schema.dropTable('delivery_inbox_failures').ifExists().execute()
 }

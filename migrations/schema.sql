@@ -401,7 +401,8 @@ CREATE TABLE public.deleted_attachment_media (
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE TABLE public.delivery_domain_failures (
+CREATE TABLE public.delivery_inbox_failures (
+    inbox text NOT NULL,
     domain text NOT NULL,
     "failureDays" integer DEFAULT 0 NOT NULL,
     "lastFailureDay" text,
@@ -1753,8 +1754,8 @@ ALTER TABLE ONLY public.dead_letter_jobs
 ALTER TABLE ONLY public.deleted_attachment_media
     ADD CONSTRAINT deleted_attachment_media_pkey PRIMARY KEY ("attachmentId");
 
-ALTER TABLE ONLY public.delivery_domain_failures
-    ADD CONSTRAINT delivery_domain_failures_pkey PRIMARY KEY (domain);
+ALTER TABLE ONLY public.delivery_inbox_failures
+    ADD CONSTRAINT delivery_inbox_failures_pkey PRIMARY KEY (inbox);
 
 ALTER TABLE ONLY public.direct_conversation_memberships
     ADD CONSTRAINT direct_conversation_memberships_pkey PRIMARY KEY (id);
@@ -2204,7 +2205,7 @@ CREATE INDEX "deleted_attachment_media_actorId_idx" ON public.deleted_attachment
 
 CREATE INDEX "deleted_attachment_media_createdAt_idx" ON public.deleted_attachment_media USING btree ("createdAt");
 
-CREATE INDEX delivery_domain_failures_unavailable_since_idx ON public.delivery_domain_failures USING btree ("unavailableSince");
+CREATE INDEX delivery_inbox_failures_domain_idx ON public.delivery_inbox_failures USING btree (domain);
 
 CREATE INDEX direct_conversation_status ON public.direct_conversation_statuses USING btree ("statusId");
 

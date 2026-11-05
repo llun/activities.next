@@ -38,18 +38,18 @@ export const deliverActivityJob: JobHandle = createJobHandle(
     span?.setAttribute('actorId', actorId)
 
     if (domain) {
-      let domainUnavailable = false
+      let inboxUnavailable = false
       try {
-        domainUnavailable = await database.isDomainUnavailable({ domain })
+        inboxUnavailable = await database.isInboxUnavailable({ inbox })
       } catch (trackingError) {
         logger.error(
           { err: toLoggableError(trackingError), domain, inbox },
-          'DeliverActivityJob: failed to check domain availability'
+          'DeliverActivityJob: failed to check inbox availability'
         )
       }
 
-      if (domainUnavailable) {
-        span?.addEvent('delivery_skipped_unavailable_domain', {
+      if (inboxUnavailable) {
+        span?.addEvent('delivery_skipped_unavailable_inbox', {
           'delivery.inbox': inbox,
           'delivery.domain': domain,
           'delivery.actor_id': actorId,
@@ -57,7 +57,7 @@ export const deliverActivityJob: JobHandle = createJobHandle(
         })
         logger.info(
           { inbox, domain, actorId },
-          'DeliverActivityJob: skipping delivery to unavailable domain'
+          'DeliverActivityJob: skipping delivery to unavailable inbox'
         )
         return
       }
@@ -87,20 +87,20 @@ export const deliverActivityJob: JobHandle = createJobHandle(
       if (!domain) return
       try {
         const markedUnavailable = await database.recordDeliveryFailure({
-          domain,
+          inbox,
           error: reason,
           now: Date.now()
         })
         if (markedUnavailable) {
           logger.warn(
             { domain, inbox },
-            'DeliverActivityJob: domain marked unavailable after repeated delivery failures'
+            'DeliverActivityJob: inbox marked unavailable after repeated delivery failures'
           )
         }
       } catch (trackingError) {
         logger.error(
           { err: toLoggableError(trackingError), domain, inbox },
-          'DeliverActivityJob: failed to record domain delivery failure'
+          'DeliverActivityJob: failed to record inbox delivery failure'
         )
       }
     }
@@ -122,11 +122,11 @@ export const deliverActivityJob: JobHandle = createJobHandle(
       if (statusCode !== undefined && statusCode >= 200 && statusCode < 300) {
         if (domain) {
           try {
-            await database.clearDeliveryFailures({ domain })
+            await database.clearDeliveryFailures({ inbox })
           } catch (trackingError) {
             logger.error(
               { err: toLoggableError(trackingError), domain, inbox },
-              'DeliverActivityJob: failed to clear domain delivery failures'
+              'DeliverActivityJob: failed to clear inbox delivery failures'
             )
           }
         }
@@ -139,7 +139,9 @@ export const deliverActivityJob: JobHandle = createJobHandle(
 
       const classification = classifyDeliveryError({ statusCode })
       if (classification.disposition === DeliveryDisposition.SALVAGEABLE) {
-        await recordSalvageableFailure(classification.reason)
+        if (statusCode !== 401) {
+          await recordSalvageableFailure(classification.reason)
+        }
         const errMessage = `Delivery to ${inbox} failed with salvageable status ${statusCode}`
         span?.addEvent('delivery_salvageable_failure', {
           'delivery.inbox': inbox,

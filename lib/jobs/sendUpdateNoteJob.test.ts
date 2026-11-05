@@ -1,5 +1,5 @@
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
-import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryDomains/types'
+import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryInboxes/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   DELIVER_ACTIVITY_JOB_NAME,
@@ -59,7 +59,7 @@ describe('Send update note job', () => {
     vi.clearAllMocks()
     publish.mockReset().mockResolvedValue(undefined)
     mockQueue(false)
-    await db.deleteFrom('delivery_domain_failures').execute()
+    await db.deleteFrom('delivery_inbox_failures').execute()
     if (actor1?.id) {
       await db
         .deleteFrom('follows')
@@ -86,11 +86,14 @@ describe('Send update note job', () => {
       sharedInbox: 'https://dead.example/inbox',
       status: FollowStatus.enum.Accepted
     })
+    const failureAt = Date.now()
     for (let day = 1; day <= DELIVERY_FAILURE_DAYS_THRESHOLD; day++) {
       await database.recordDeliveryFailure({
-        domain: 'dead.example',
+        inbox: 'https://dead.example/inbox',
         error: 'HTTP 503',
-        now: Date.parse(`2026-11-0${day}T00:00:00.000Z`)
+        now:
+          failureAt -
+          (DELIVERY_FAILURE_DAYS_THRESHOLD - day) * 24 * 60 * 60 * 1000
       })
     }
 

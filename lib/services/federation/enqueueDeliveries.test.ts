@@ -19,17 +19,17 @@ vi.mock('@/lib/services/queue', () => ({
 describe('enqueueDeliveries', () => {
   let harness: ReturnType<typeof setupRecordingTracer>
   const publish = vi.fn()
-  const getUnavailableDomains = vi.fn()
+  const getUnavailableInboxes = vi.fn()
 
   const mockDatabase = {
-    getUnavailableDomains
+    getUnavailableInboxes
   } as unknown as Database
 
   beforeEach(() => {
     vi.clearAllMocks()
     harness = setupRecordingTracer()
     publish.mockResolvedValue(undefined)
-    getUnavailableDomains.mockResolvedValue([])
+    getUnavailableInboxes.mockResolvedValue([])
     mockGetQueue.mockReturnValue({
       runsInline: false,
       dropsDelayedJobs: false,
@@ -42,8 +42,11 @@ describe('enqueueDeliveries', () => {
     harness.cleanup()
   })
 
-  it('deduplicates inboxes, drops unavailable domains, and records skipped count on the span', async () => {
-    getUnavailableDomains.mockResolvedValue(['dead.example'])
+  it('deduplicates inboxes, drops unavailable inboxes, and records skipped count on the span', async () => {
+    getUnavailableInboxes.mockResolvedValue([
+      'https://DEAD.example/users/test1/inbox',
+      'https://dead.example/inbox'
+    ])
 
     await withSpan('test', 'fanout', {}, async (span) => {
       await enqueueDeliveries({
@@ -55,17 +58,23 @@ describe('enqueueDeliveries', () => {
           'https://live.example/inbox',
           'https://live.example/inbox',
           'https://DEAD.example/users/test1/inbox',
-          'https://dead.example/inbox'
+          'https://dead.example/inbox',
+          'https://dead.example/healthy-inbox'
         ],
         span,
         statusId: 'https://llun.test/statuses/1'
       })
     })
 
-    expect(getUnavailableDomains).toHaveBeenCalledWith({
-      domains: ['live.example', 'dead.example']
+    expect(getUnavailableInboxes).toHaveBeenCalledWith({
+      inboxes: [
+        'https://live.example/inbox',
+        'https://DEAD.example/users/test1/inbox',
+        'https://dead.example/inbox',
+        'https://dead.example/healthy-inbox'
+      ]
     })
-    expect(publish).toHaveBeenCalledTimes(1)
+    expect(publish).toHaveBeenCalledTimes(2)
     expect(publish).toHaveBeenCalledWith({
       id: getDeliveryJobId('parent-1', 'https://live.example/inbox'),
       name: DELIVER_ACTIVITY_JOB_NAME,
@@ -77,15 +86,15 @@ describe('enqueueDeliveries', () => {
     })
 
     const span = harness.recordedSpans.find((s) => s.name === 'test.fanout')
-    expect(span?.attributes['fanout.inbox_count']).toBe(1)
+    expect(span?.attributes['fanout.inbox_count']).toBe(2)
     expect(span?.attributes['fanout.skipped_unavailable_count']).toBe(2)
     const started = span?.events.find((e) => e.name === 'fanout_started')
     expect(started?.attributes?.['fanout.skipped_unavailable_count']).toBe(2)
   })
 
-  it('proceeds with all inboxes and logs err when getUnavailableDomains throws', async () => {
+  it('proceeds with all inboxes and logs err when getUnavailableInboxes throws', async () => {
     const errorSpy = vi.spyOn(logger, 'error')
-    getUnavailableDomains.mockRejectedValue(new Error('lookup failed'))
+    getUnavailableInboxes.mockRejectedValue(new Error('lookup failed'))
 
     await enqueueDeliveries({
       database: mockDatabase,
@@ -100,7 +109,7 @@ describe('enqueueDeliveries', () => {
       expect.objectContaining({
         err: expect.objectContaining({ message: 'lookup failed' })
       }),
-      'enqueueDeliveries: failed to read unavailable domains, proceeding without filter'
+      'enqueueDeliveries: failed to read unavailable inboxes, proceeding without filter'
     )
     errorSpy.mockRestore()
   })

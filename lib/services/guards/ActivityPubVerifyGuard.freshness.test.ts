@@ -10,11 +10,11 @@ import {
 } from './ActivityPubVerifyGuard.testUtils'
 
 const mockCanFederateWithDomain = vi.fn()
-const mockClearDeliveryFailures = vi.fn()
+const mockClearDeliveryFailuresForDomain = vi.fn()
 const mockGetActorFromId = vi.fn()
 const mockDatabase = {
-  clearDeliveryFailures: (...params: unknown[]) =>
-    mockClearDeliveryFailures(...params),
+  clearDeliveryFailuresForDomain: (...params: unknown[]) =>
+    mockClearDeliveryFailuresForDomain(...params),
   getActorFromId: (...params: unknown[]) => mockGetActorFromId(...params)
 }
 const mockGetSenderPublicKey = vi.fn()
@@ -66,7 +66,7 @@ describe('ActivityPubVerifySenderGuard', () => {
     harness = setupRecordingTracer()
     vi.clearAllMocks()
     mockCanFederateWithDomain.mockResolvedValue(true)
-    mockClearDeliveryFailures.mockResolvedValue(undefined)
+    mockClearDeliveryFailuresForDomain.mockResolvedValue(undefined)
     mockGetSenderPublicKey.mockResolvedValue('public-key')
     mockGetSenderPublicKeyDetails.mockResolvedValue({
       owner: 'https://remote.test/users/alice',

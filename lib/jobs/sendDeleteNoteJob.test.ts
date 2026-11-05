@@ -1,4 +1,4 @@
-import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryDomains/types'
+import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryInboxes/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { JOBS } from '@/lib/jobs'
 import {
@@ -57,7 +57,7 @@ describe('sendDeleteNoteJob', () => {
     vi.clearAllMocks()
     publish.mockReset().mockResolvedValue(undefined)
     mockQueue(false)
-    await db.deleteFrom('delivery_domain_failures').execute()
+    await db.deleteFrom('delivery_inbox_failures').execute()
   })
 
   it('is registered under its job name', () => {
@@ -66,7 +66,7 @@ describe('sendDeleteNoteJob', () => {
 
   // Every delivery case below deliberately uses a statusId that is not in the
   // database: the row is always gone by the time this job runs.
-  it('publishes the delete activity for a status that no longer exists and skips unavailable domains', async () => {
+  it('publishes the delete activity for a status that no longer exists and skips unavailable inboxes', async () => {
     if (!actor1) fail('Actor1 is required')
     const statusId = `${actor1.id}/statuses/already-deleted`
 
@@ -75,12 +75,14 @@ describe('sendDeleteNoteJob', () => {
       database.getStatus({ statusId, withReplies: false })
     ).resolves.toBeNull()
 
-    const externalDomain = new URL(EXTERNAL_ACTOR1_INBOX).hostname
+    const failureAt = Date.now()
     for (let day = 1; day <= DELIVERY_FAILURE_DAYS_THRESHOLD; day++) {
       await database.recordDeliveryFailure({
-        domain: externalDomain,
+        inbox: EXTERNAL_ACTOR1_INBOX,
         error: 'HTTP 503',
-        now: Date.parse(`2026-11-0${day}T00:00:00.000Z`)
+        now:
+          failureAt -
+          (DELIVERY_FAILURE_DAYS_THRESHOLD - day) * 24 * 60 * 60 * 1000
       })
     }
 

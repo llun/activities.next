@@ -1003,13 +1003,14 @@ export type {
 } from '@/lib/database/domains/bulkImport/types'
 
 // ============================================================================
-// Delivery Domains Database
+// Delivery Inboxes Database
 // ============================================================================
 
 export type {
   ClearDeliveryFailuresParams,
-  DeliveryDomainsDatabase,
-  GetUnavailableDomainsParams,
-  IsDomainUnavailableParams,
+  ClearDeliveryFailuresForDomainParams,
+  DeliveryInboxesDatabase,
+  GetUnavailableInboxesParams,
+  IsInboxUnavailableParams,
   RecordDeliveryFailureParams
-} from '@/lib/database/domains/deliveryDomains/types'
+} from '@/lib/database/domains/deliveryInboxes/types'

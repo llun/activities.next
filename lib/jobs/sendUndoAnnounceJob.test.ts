@@ -1,4 +1,4 @@
-import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryDomains/types'
+import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryInboxes/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { JOBS } from '@/lib/jobs'
 import {
@@ -51,7 +51,7 @@ describe('sendUndoAnnounceJob', () => {
       publish,
       handle: vi.fn()
     })
-    await db.deleteFrom('delivery_domain_failures').execute()
+    await db.deleteFrom('delivery_inbox_failures').execute()
     if (actor1?.id) {
       await db
         .deleteFrom('follows')
@@ -69,7 +69,7 @@ describe('sendUndoAnnounceJob', () => {
   // hard-deletes it before publishing - so the ids below are deliberately absent
   // from the database. Seeding the announce here (as this test used to) makes
   // the job pass against code that always fails in production.
-  it('publishes the undo for an announce that no longer exists and skips unavailable domains', async () => {
+  it('publishes the undo for an announce that no longer exists and skips unavailable inboxes', async () => {
     if (!actor1) fail('Actor1 is required')
     const announceId = `${actor1.id}/statuses/announce-already-deleted`
     const originalStatusId = 'https://somewhere.test/actors/friend/statuses/1'
@@ -86,11 +86,14 @@ describe('sendUndoAnnounceJob', () => {
       sharedInbox: 'https://dead.example/inbox',
       status: FollowStatus.enum.Accepted
     })
+    const failureAt = Date.now()
     for (let day = 1; day <= DELIVERY_FAILURE_DAYS_THRESHOLD; day++) {
       await database.recordDeliveryFailure({
-        domain: 'dead.example',
+        inbox: 'https://dead.example/inbox',
         error: 'HTTP 503',
-        now: Date.parse(`2026-11-0${day}T00:00:00.000Z`)
+        now:
+          failureAt -
+          (DELIVERY_FAILURE_DAYS_THRESHOLD - day) * 24 * 60 * 60 * 1000
       })
     }
 

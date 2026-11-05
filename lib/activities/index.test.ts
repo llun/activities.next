@@ -32,7 +32,6 @@ import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
 import { DELIVER_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
-import { getDeliveryJobId } from '@/lib/services/federation/enqueueDeliveries'
 import { getQueue } from '@/lib/services/queue'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
@@ -89,7 +88,7 @@ describe('activities', () => {
   beforeEach(async () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
-    await database.clearDeliveryFailures({ domain: 'somewhere.test' })
+    await database.clearDeliveryFailuresForDomain({ domain: 'somewhere.test' })
   })
 
   describe('getNote', () => {
@@ -878,7 +877,7 @@ describe('activities', () => {
       vi.restoreAllMocks()
     })
 
-    it('publishes DELIVER_ACTIVITY with deterministic ids for sendLike, sendUndoLike, sendReaction, sendUndoReaction, and sendPollVotes', async () => {
+    it('publishes DELIVER_ACTIVITY with per-call ids for sendLike, sendUndoLike, sendReaction, sendUndoReaction, and sendPollVotes', async () => {
       if (!actor1) fail('Actor1 is required')
       const queue = getQueue()
       const publishSpy = vi.spyOn(queue, 'publish').mockResolvedValue(undefined)
@@ -928,6 +927,7 @@ describe('activities', () => {
       })
 
       expect(publishSpy).toHaveBeenCalledTimes(6)
+      expect(new Set(publishSpy.mock.calls.map(([msg]) => msg.id)).size).toBe(6)
       for (const [msg] of publishSpy.mock.calls) {
         expect(msg.name).toBe(DELIVER_ACTIVITY_JOB_NAME)
         const data = msg.data as {
@@ -937,8 +937,29 @@ describe('activities', () => {
         }
         expect(data.inbox).toBe(targetInbox)
         expect(data.actorId).toBe(actor1.id)
-        expect(msg.id).toBe(getDeliveryJobId(data.activity.id, targetInbox))
+        expect(msg.id).toEqual(expect.any(String))
       }
+    })
+
+    it('publishes different delivery job ids for two sendLike calls on the same status', async () => {
+      if (!actor1) fail('Actor1 is required')
+      const publishSpy = vi
+        .spyOn(getQueue(), 'publish')
+        .mockResolvedValue(undefined)
+      const status = {
+        id: 'https://somewhere.test/statuses/repeated-like',
+        actorId: 'https://somewhere.test/actors/author',
+        actor: {
+          id: 'https://somewhere.test/actors/author',
+          inboxUrl: 'https://somewhere.test/actors/author/inbox'
+        }
+      } as unknown as Status
+      await sendLike({ currentActor: actor1, status })
+      await sendLike({ currentActor: actor1, status })
+      expect(publishSpy).toHaveBeenCalledTimes(2)
+      const [first, second] = publishSpy.mock.calls.map(([message]) => message)
+      expect(first.data).toEqual(second.data)
+      expect(first.id).not.toBe(second.id)
     })
 
     it('swallows and logs inline NoQueue salvageable failures without throwing', async () => {

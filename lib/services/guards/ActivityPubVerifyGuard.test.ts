@@ -13,11 +13,11 @@ import {
 } from './ActivityPubVerifyGuard.testUtils'
 
 const mockCanFederateWithDomain = vi.fn()
-const mockClearDeliveryFailures = vi.fn()
+const mockClearDeliveryFailuresForDomain = vi.fn()
 const mockGetActorFromId = vi.fn()
 const mockDatabase = {
-  clearDeliveryFailures: (...params: unknown[]) =>
-    mockClearDeliveryFailures(...params),
+  clearDeliveryFailuresForDomain: (...params: unknown[]) =>
+    mockClearDeliveryFailuresForDomain(...params),
   getActorFromId: (...params: unknown[]) => mockGetActorFromId(...params)
 }
 const mockGetSenderPublicKey = vi.fn()
@@ -69,7 +69,7 @@ describe('ActivityPubVerifySenderGuard', () => {
     harness = setupRecordingTracer()
     vi.clearAllMocks()
     mockCanFederateWithDomain.mockResolvedValue(true)
-    mockClearDeliveryFailures.mockResolvedValue(undefined)
+    mockClearDeliveryFailuresForDomain.mockResolvedValue(undefined)
     mockGetSenderPublicKey.mockResolvedValue('public-key')
     mockGetSenderPublicKeyDetails.mockResolvedValue({
       owner: 'https://remote.test/users/alice',
@@ -945,8 +945,8 @@ describe('ActivityPubVerifySenderGuard', () => {
       )
 
       expect(response.status).toBe(200)
-      expect(mockClearDeliveryFailures).toHaveBeenCalledTimes(1)
-      expect(mockClearDeliveryFailures).toHaveBeenCalledWith({
+      expect(mockClearDeliveryFailuresForDomain).toHaveBeenCalledTimes(1)
+      expect(mockClearDeliveryFailuresForDomain).toHaveBeenCalledWith({
         domain: 'forwarder.test'
       })
       expect(handler).toHaveBeenCalledTimes(1)
@@ -975,7 +975,7 @@ describe('ActivityPubVerifySenderGuard', () => {
       )
 
       expect(response.status).toBe(401)
-      expect(mockClearDeliveryFailures).not.toHaveBeenCalled()
+      expect(mockClearDeliveryFailuresForDomain).not.toHaveBeenCalled()
       expect(handler).not.toHaveBeenCalled()
     })
 
@@ -1002,18 +1002,18 @@ describe('ActivityPubVerifySenderGuard', () => {
       )
 
       expect(response.status).toBe(401)
-      expect(mockClearDeliveryFailures).not.toHaveBeenCalled()
+      expect(mockClearDeliveryFailuresForDomain).not.toHaveBeenCalled()
       expect(handler).not.toHaveBeenCalled()
     })
 
-    it('logs err and still passes verified request to handler when clearDeliveryFailures throws', async () => {
+    it('logs err and still passes verified request to handler when clearDeliveryFailuresForDomain throws', async () => {
       const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
       mockGetSenderPublicKeyDetails.mockResolvedValue({
         owner: 'https://remote.test/users/sender1',
         publicKey: 'public-key'
       })
       mockVerify.mockResolvedValue(true)
-      mockClearDeliveryFailures.mockRejectedValueOnce(
+      mockClearDeliveryFailuresForDomain.mockRejectedValueOnce(
         new Error('db write unavailable')
       )
 

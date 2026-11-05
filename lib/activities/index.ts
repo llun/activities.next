@@ -1069,7 +1069,10 @@ const publishInteractionDelivery = async ({
 }): Promise<void> => {
   try {
     await getQueue().publish({
-      id: getDeliveryJobId(activityId, inbox),
+      // A fresh id per call: the activity id is stable per actor and status
+      // (an Undo names it), and the queue dedups job ids for days, so
+      // like, unlike, like again would drop the second Like.
+      id: getDeliveryJobId(`${activityId}#${crypto.randomUUID()}`, inbox),
       name: DELIVER_ACTIVITY_JOB_NAME,
       data: {
         inbox,

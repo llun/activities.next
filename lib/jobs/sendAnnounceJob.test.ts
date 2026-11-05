@@ -1,4 +1,4 @@
-import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryDomains/types'
+import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryInboxes/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   DELIVER_ACTIVITY_JOB_NAME,
@@ -48,7 +48,7 @@ describe('sendAnnounceJob', () => {
       publish,
       handle: vi.fn()
     })
-    await db.deleteFrom('delivery_domain_failures').execute()
+    await db.deleteFrom('delivery_inbox_failures').execute()
     if (actor1?.id) {
       await db
         .deleteFrom('follows')
@@ -103,7 +103,7 @@ describe('sendAnnounceJob', () => {
     expect(publish).not.toHaveBeenCalled()
   })
 
-  it('publishes Announce to available follower inboxes with dedup ids and skips unavailable domains', async () => {
+  it('publishes Announce to available follower inboxes with dedup ids and skips unavailable inboxes', async () => {
     if (!actor1) fail('Actor1 is required')
 
     await database.createFollow({
@@ -113,11 +113,14 @@ describe('sendAnnounceJob', () => {
       sharedInbox: 'https://dead.example/inbox',
       status: FollowStatus.enum.Accepted
     })
+    const failureAt = Date.now()
     for (let day = 1; day <= DELIVERY_FAILURE_DAYS_THRESHOLD; day++) {
       await database.recordDeliveryFailure({
-        domain: 'dead.example',
+        inbox: 'https://dead.example/inbox',
         error: 'HTTP 503',
-        now: Date.parse(`2026-11-0${day}T00:00:00.000Z`)
+        now:
+          failureAt -
+          (DELIVERY_FAILURE_DAYS_THRESHOLD - day) * 24 * 60 * 60 * 1000
       })
     }
 

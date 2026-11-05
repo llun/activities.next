@@ -19,7 +19,7 @@ import * as addActorHandles from './20261025141323_add_actor_handles'
 import * as addAccountImports from './20261027134549_add_account_imports'
 import * as addAttachmentsIsRouteMap from './20261104133123_add_attachments_is_route_map'
 import * as addDeletedAttachmentMedia from './20261105034530_add_deleted_attachment_media'
-import * as addDeliveryDomainFailures from './20261105144958_add_delivery_domain_failures'
+import * as addDeliveryInboxFailures from './20261105144958_add_delivery_inbox_failures'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -48,5 +48,5 @@ export const migrations: MigrationRegistry = {
   '20261027134549_add_account_imports': addAccountImports,
   '20261104133123_add_attachments_is_route_map': addAttachmentsIsRouteMap,
   '20261105034530_add_deleted_attachment_media': addDeletedAttachmentMedia,
-  '20261105144958_add_delivery_domain_failures': addDeliveryDomainFailures
+  '20261105144958_add_delivery_inbox_failures': addDeliveryInboxFailures
 } satisfies Record<MigrationName, MigrationModule>

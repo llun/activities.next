@@ -751,7 +751,9 @@ export const ActivityPubVerifySenderGuard =
     const verifiedSenderDomain = getDomainFromUrl(verifiedSenderActorId)
     if (verifiedSenderDomain) {
       try {
-        await database.clearDeliveryFailures({ domain: verifiedSenderDomain })
+        await database.clearDeliveryFailuresForDomain({
+          domain: verifiedSenderDomain
+        })
       } catch (error) {
         logger.error({
           err: toLoggableError(error),
