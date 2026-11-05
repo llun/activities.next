@@ -7,9 +7,10 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
  * Builds the ActivityPub wire `content` HTML for a status across both inbox
  * delivery (`getNoteFromStatus`) and fetch/archive surfaces (`toActivityPubObject`).
  *
- * Local statuses store Markdown source in `text` (or pre-rendered HTML on newly
- * created polls, which `convertMarkdownText` preserves), while stored remote
- * statuses already hold sanitized HTML and must not be run through Markdown.
+ * Local statuses store Markdown source in `text` (or HTML on polls and on
+ * statuses imported from a Mastodon archive, which `convertMarkdownText` passes
+ * through), while stored remote statuses hold the HTML as received (stored raw,
+ * sanitized only at render) and must not be run through Markdown.
  */
 export const getStatusWireContent = (status: Status): string => {
   const actualStatus = getOriginalStatus(status)

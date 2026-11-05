@@ -1410,7 +1410,7 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
     converting stored Markdown with `convertMarkdownText` for local statuses (`isLocalActor`) so
     fetched and delivered local Notes and poll Questions carry the same rendered HTML `content` (and
     matching `contentMap`), while stored remote statuses (such as replies embedded in `/replies`)
-    keep their sanitized HTML unchanged.
+    keep their stored HTML unchanged (stored as received; it is sanitized only at render).
   - The same wire-content builder applies `addQuoteFallbackToContent`, which prepends Mastodon's legacy quote fallback — `<p
 class="quote-inline">RE: <a href="…">…</a></p>` — to both emitters' `content` and the Mastodon
     API status/edit serializers on a live (pending/accepted) edge, preferring the original status

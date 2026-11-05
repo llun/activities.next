@@ -3170,7 +3170,7 @@ validation as status creation and never substitutes `detectedLanguage`. Both
 `getNoteFromStatus` and `toActivityPubObject` build `content` through
 `getStatusWireContent`, so fetched and delivered local Notes and poll Questions
 carry the same rendered HTML `content` (including quote fallback) and matching
-`contentMap`, while embedded remote replies keep their stored sanitized HTML;
+`contentMap`, while embedded remote replies keep their stored HTML as received (sanitized only at render);
 `summaryMap` likewise matches `summary`.
 The ActivityStreams context already declares both maps as language containers.
 
