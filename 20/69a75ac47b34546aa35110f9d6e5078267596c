@@ -1,0 +1,69 @@
+lib/components/media-details/subject-suggestions.test.tsx
+  s_2b1a50e2f9b981::t_2c4a532490accf 1-103
+lib/services/gallery/lookups/lookupCache.ts
+  s_2b1a50e2f9b981::t_30c741681c8458 23
+  s_2b1a50e2f9b981::t_bd1b73a4b57878 11
+lib/services/gallery/subjects/suggestSubjects.test.ts
+  s_2b1a50e2f9b981::t_c413659e06f365 220-221
+  s_2b1a50e2f9b981::t_bd1b73a4b57878 228-230,243-246,248,250-256,281-287
+  s_2b1a50e2f9b981::t_ef219a9b012315 5,8-9,158-162,164-165,172-175,180,184-219,222-227,231-242,247,249,257-280,288-364
+  s_2b1a50e2f9b981::t_1aaede1125ac44 365
+app/api/v1/media/[id]/subject-suggestions/route.test.ts
+  s_2b1a50e2f9b981::t_6a79616010f7fa 145-152,186-187,231-232,237-259
+  s_2b1a50e2f9b981::t_74d43308b3f883 260-261
+lib/components/media-details/subject-suggestions.tsx
+  s_2b1a50e2f9b981::t_cf9c48f5019ea0 10-13,68-82,108,174-180,225,233
+  s_2b1a50e2f9b981::t_bd1b73a4b57878 3,226-232
+app/api/v1/gallery/taxa/route.test.ts
+  s_2b1a50e2f9b981::t_b9842a15b0b521 99-100
+lib/database/domains/media/rows.test.ts
+  s_2b1a50e2f9b981::t_3a61656f501edd 1-72
+lib/services/gallery/subjects/suggestSubjects.ts
+  s_2b1a50e2f9b981::t_c1691aa1ff695e 10-13,18,36-51,144-147,210-245,251-252,267,270-274,283,311,320-322
+  s_2b1a50e2f9b981::t_bd1b73a4b57878 312
+  s_2b1a50e2f9b981::t_a4932be3745212 313
+lib/services/gallery/subjects/subjectContext.ts
+  s_2b1a50e2f9b981::t_9432c3472cab37 1-49
+lib/types/database/gallery.ts
+  s_2b1a50e2f9b981::t_72d171edf48f13 129-132,135-145
+lib/services/accountImport/schemas/index.ts
+  s_2b1a50e2f9b981::t_a8f10ae611a834 528-529,534-545
+lib/services/medias/types.ts
+  s_2b1a50e2f9b981::t_a8f10ae611a834 160-162,165-173
+lib/database/domains/media/rows.ts
+  s_2b1a50e2f9b981::t_a8f10ae611a834 267-276,281-291,298-300
+docs/maintenance.md
+  s_2b1a50e2f9b981::t_a28c3949038167 1036,1183
+app/api/v1/media/[id]/subject-suggestions/route.ts
+  s_2b1a50e2f9b981::t_5d12dd695eb951 6,187-192
+lib/services/gallery/lookups/gbif.test.ts
+  s_2b1a50e2f9b981::t_bd1b73a4b57878 548-551
+  s_2b1a50e2f9b981::t_ce7d595c2c0650 544-547,552-641
+docs/architecture.md
+  s_2b1a50e2f9b981::t_b329f557bb53ca 1350
+  s_2b1a50e2f9b981::t_a28c3949038167 1347-1348
+lib/services/gallery/lookups/gbif.ts
+  s_2b1a50e2f9b981::t_30c741681c8458 104-109,222-232,568-606
+lib/services/gallery/subjects/subjectContext.test.ts
+  s_2b1a50e2f9b981::t_72b154922ad5bf 3-5,9-12,15-30,34-43,45,49-75
+  s_2b1a50e2f9b981::t_7319cf328d2ac4 1-2,6-8,13-14,44,46-48
+  s_2b1a50e2f9b981::t_bd1b73a4b57878 31-33
+docs/environment-variables.md
+  s_2b1a50e2f9b981::t_d2adfae715b534 242-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2069a75ac47b34546aa35110f9d6e5078267596c",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
