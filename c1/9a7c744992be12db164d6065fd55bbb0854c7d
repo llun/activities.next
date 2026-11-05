@@ -1,0 +1,21 @@
+lib/components/photo-editor/PhotoEditPreview.tsx
+  s_2b1a50e2f9b981::t_99314aac99df14 60-61
+lib/services/medias/edit/editable.ts
+  s_2b1a50e2f9b981::t_123365857eda06 20-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c19a7c744992be12db164d6065fd55bbb0854c7d",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
