@@ -1,0 +1,28 @@
+docs/environment-variables.md
+  s_2b1a50e2f9b981::t_b86c0d53c98d08 121
+  s_2b1a50e2f9b981::t_cc053ce255378d 119-120,122
+docs/architecture.md
+  s_2b1a50e2f9b981::t_52e4594e009e3f 181
+lib/services/auth/auth.ts
+  s_2b1a50e2f9b981::t_d36acc6983d1d9 200-201,217-219
+lib/services/gallery/lookups/rateLimit.test.ts
+  s_2b1a50e2f9b981::t_9c1c3fb088a996 256,264-267,271-272
+lib/services/gallery/lookups/rateLimit.ts
+  s_2b1a50e2f9b981::t_9c63e145dced25 138,203-213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b235ba7717007156125c40d0cf49a769e82e3666",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
