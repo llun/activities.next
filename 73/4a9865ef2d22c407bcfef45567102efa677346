@@ -1,0 +1,59 @@
+app/api/users/[username]/collections/featured/route.test.ts
+  s_2b1a50e2f9b981::t_d65650dc4c6fc4 8
+app/api/users/[username]/collections/featured/route.ts
+  s_2b1a50e2f9b981::t_4e7594f1534ee6 9,13
+app/api/users/[username]/outbox/route.test.ts
+  s_2b1a50e2f9b981::t_0a108aee422da6 7,9,183-228
+app/api/users/[username]/outbox/route.ts
+  s_2b1a50e2f9b981::t_7b26ff15fc5e5d 12,17
+app/api/users/[username]/statuses/[statusId]/replies/route.test.ts
+  s_2b1a50e2f9b981::t_a188c078d3cc94 7,132-193
+app/api/users/[username]/statuses/[statusId]/replies/route.ts
+  s_2b1a50e2f9b981::t_6a876bb68c41b1 8,11
+app/api/users/[username]/statuses/[statusId]/route.test.ts
+  s_2b1a50e2f9b981::t_64386414d2ab15 11,14,55-58,95-96,98,113,134,141-187
+app/api/users/[username]/statuses/[statusId]/route.ts
+  s_2b1a50e2f9b981::t_a2dd5fb712745a 10,18
+app/api/v1/accounts/outbox/route.ts
+  s_2b1a50e2f9b981::t_cff0d258b64039 29
+docs/architecture.md
+  s_2b1a50e2f9b981::t_11307fbe231af9 3169-3174
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_7cf484bc0d56aa 1409-1414
+lib/actions/createNoteEmoji.test.ts
+  s_2b1a50e2f9b981::t_09d414577da5a1 12,14
+lib/actions/like.test.ts
+  s_2b1a50e2f9b981::t_710217d953d6c5 9-10
+lib/activities/pollQuestion.test.ts
+  s_2b1a50e2f9b981::t_5a6a95c441d205 2,4,167-182
+lib/services/accountArchive/actorArchive.ts
+  s_2b1a50e2f9b981::t_0e94c99ebf5284 31,36
+lib/types/domain/status.test.ts
+  s_2b1a50e2f9b981::t_4e5f971c3a82e9 17,21,336,404
+lib/types/domain/status.ts
+  s_2b1a50e2f9b981::t_356876bfa8bd8c 16,19
+lib/utils/getNoteFromStatus.test.ts
+  s_2b1a50e2f9b981::t_1cb3acefc02c6e 4,7,18,29-32,332-386
+lib/utils/getNoteFromStatus.ts
+  s_2b1a50e2f9b981::t_04208816da4ff4 20-21,39,50
+lib/utils/getStatusWireContent.ts
+  s_2b1a50e2f9b981::t_4375b07afa9f25 1-20
+lib/utils/toActivityPubObject.ts
+  s_2b1a50e2f9b981::t_8f3638fc36b356 1-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "734a9865ef2d22c407bcfef45567102efa677346",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
