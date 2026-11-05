@@ -178,9 +178,10 @@ const performPollSync = async ({
       choices,
       ...(endAt !== undefined ? { endAt } : {}),
       ...(remoteUpdatedAt !== undefined ? { remoteUpdatedAt } : {}),
-      // The decision above used this read; an Update that commits before the
-      // write lands makes this write a no-op.
-      ...(current ? { expectedRemoteUpdatedAt: storedUpdatedAt ?? null } : {})
+      // Every decision above, the tallies' positions included, used this read;
+      // an explicit Update that commits before the write lands always moves
+      // the stored `updated`, which makes this write a no-op.
+      expectedRemoteUpdatedAt: storedUpdatedAt ?? null
     })
 
     failedPollSyncsAt.delete(status.id)

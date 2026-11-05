@@ -346,7 +346,9 @@ describe('syncRemotePoll', () => {
     expect(params).not.toHaveProperty('text')
     expect(params).not.toHaveProperty('summary')
     expect(params).not.toHaveProperty('endAt')
-    expect(params).not.toHaveProperty('expectedRemoteUpdatedAt')
+    // Its tallies were placed against this read, so the write is still
+    // conditional: an option reset landing first makes it a no-op.
+    expect(params.expectedRemoteUpdatedAt).toBeNull()
   })
 
   it('compares against the row re-read after the fetch, so an Update committed meanwhile is not reverted', async () => {

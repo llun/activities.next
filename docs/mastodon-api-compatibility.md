@@ -2096,10 +2096,11 @@ remote poll (`syncRemotePoll`) follow Mastodon's
   stored ones (an option edit is left whole to its Update). It records the
   fetched `updated` as `remoteUpdatedAt` when it is newer under the same match,
   so a late, older Update cannot revert what the fetch applied, while an Update
-  that changes the options stays explicit and still applies. Its write passes
-  the `remoteUpdatedAt` it read as `expectedRemoteUpdatedAt`: `updatePoll`
-  reads and locks the row in its own transaction and, when an Update committed
-  in between, writes nothing, not even the tallies.
+  that changes the options stays explicit and still applies. Every write it
+  makes, a tally-only one included, passes the `remoteUpdatedAt` it read as
+  `expectedRemoteUpdatedAt`: `updatePoll` reads and locks the row in its own
+  transaction and, when an explicit Update committed in between (which always
+  moves that value), writes nothing, not even the tallies.
 - **Deadline.** A parseable string `closed` wins over `endTime`; any other
   truthy `closed` (a bare boolean, which the `Question` schema accepts) means
   the poll closed at processing time — unless the stored `endAt` has already
