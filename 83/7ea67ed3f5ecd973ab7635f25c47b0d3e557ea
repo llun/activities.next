@@ -1,0 +1,29 @@
+lib/components/settings/FitnessTrainingZonesSettings.tsx
+  s_2b1a50e2f9b981::t_4e3c3f09020883 198
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_2b1a50e2f9b981::t_68c01841836870 522,524-525,1056
+  s_2b1a50e2f9b981::t_7430fbe2158ca1 42-45
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_2b1a50e2f9b981::t_1e9a7c437eae45 336-364
+app/(timeline)/[actor]/[status]/ActivityDistributionRow.tsx
+  s_2b1a50e2f9b981::t_68c01841836870 247-256,292-297,302
+  s_2b1a50e2f9b981::t_4e3c3f09020883 316,326
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_2b1a50e2f9b981::t_4e3c3f09020883 219,250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "837ea67ed3f5ecd973ab7635f25c47b0d3e557ea",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
