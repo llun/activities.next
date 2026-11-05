@@ -134,6 +134,10 @@ export interface WindowCounterOptions {
   // when every held key is protected a NEW key is refused until a window
   // expires. Unset, any key may be evicted.
   protectCountsFrom?: number
+  // With protectCountsFrom: whether a full map of protected keys refuses new
+  // keys (true, the default) or evicts the oldest one anyway (false). Read on
+  // each overflow, so it can follow runtime config.
+  refuseWhenAllProtected?: boolean | (() => boolean)
 }
 
 export type WindowCounterResult =
@@ -154,7 +158,8 @@ export const createWindowCounter = ({
   limit,
   windowMs,
   maxKeys = 1000,
-  protectCountsFrom = Number.POSITIVE_INFINITY
+  protectCountsFrom = Number.POSITIVE_INFINITY,
+  refuseWhenAllProtected = true
 }: WindowCounterOptions): WindowCounter => {
   const windows = new Map<string, { count: number; resetAt: number }>()
 
@@ -189,6 +194,14 @@ export const createWindowCounter = ({
             break
           }
         }
+      }
+      const refuse =
+        typeof refuseWhenAllProtected === 'function'
+          ? refuseWhenAllProtected()
+          : refuseWhenAllProtected
+      if (windows.size >= maxKeys && !refuse) {
+        const oldest = windows.keys().next().value
+        if (oldest !== undefined) windows.delete(oldest)
       }
       if (windows.size >= maxKeys) {
         let soonest = Number.POSITIVE_INFINITY

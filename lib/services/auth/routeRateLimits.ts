@@ -15,6 +15,7 @@
 import { NextRequest } from 'next/server'
 import { createHash } from 'node:crypto'
 
+import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
 import {
   WindowCounter,
   WindowCounterResult,
@@ -53,9 +54,12 @@ const signInByEmail = createWindowCounter({
   // a victim's counter. A key that has seen a second attempt is never evicted:
   // a random-email flood only makes one-attempt keys and pushes out its own
   // kind, and a new key is refused only once every held key is protected,
-  // which takes 200,000 targeted attempts (the other buckets here key on IPs or
-  // signed-in accounts and keep plain eviction).
-  protectCountsFrom: 2
+  // which takes 200,000 targeted attempts. Without per-IP limits one source
+  // could make those too, so then the oldest key is evicted as a last resort
+  // rather than stalling sign-in for everyone (the other buckets here key on
+  // IPs or signed-in accounts and keep plain eviction).
+  protectCountsFrom: 2,
+  refuseWhenAllProtected: () => getTrustProxyIpHeadersConfig()
 })
 const passwordResetRequestByIp = counter(PASSWORD_RESET_LIMIT, FIVE_MINUTES_MS)
 const passwordResetByIp = counter(PASSWORD_RESET_LIMIT, FIVE_MINUTES_MS)

@@ -3,7 +3,11 @@ import { normalizePathname } from '@better-auth/core/utils/url'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
-import { APIError, createAuthMiddleware } from 'better-auth/api'
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx
+} from 'better-auth/api'
 import { jwt, twoFactor } from 'better-auth/plugins'
 
 import { getBaseURL, getConfig } from '@/lib/config'
@@ -11,7 +15,10 @@ import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
 import { getDatabase, getKysely } from '@/lib/database'
 import { comparePassword, hashPassword } from '@/lib/services/auth/passwordHash'
-import { checkSignInEmailRateLimit } from '@/lib/services/auth/routeRateLimits'
+import {
+  checkPasswordChangeRateLimit,
+  checkSignInEmailRateLimit
+} from '@/lib/services/auth/routeRateLimits'
 import { getActiveServedDomainNames } from '@/lib/services/domains/servedDomainSnapshot'
 import { UsableScopes } from '@/lib/types/database/operations'
 import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
@@ -183,18 +190,40 @@ const buildKnownEndpointPathMatcher = (
 // own `ip|path` limiter (which answers first when it trips) and answers the
 // same way it does: 429, `{ message }` body and `X-Retry-After`. Never log the
 // email here.
-const signInEmailRateLimitHook = createAuthMiddleware(async (ctx) => {
-  if (ctx.path !== '/sign-in/email') return
-  const email = (ctx.body as { email?: unknown } | undefined)?.email
-  if (typeof email !== 'string') return
-  const result = checkSignInEmailRateLimit(email)
-  if (result.allowed) return
-  const retryAfter = String(result.retryAfterSeconds)
-  throw new APIError(
+// Two-factor endpoints that check the session user's current password: they
+// share the app's password-change account bucket, so a session cannot guess the
+// password here around that route's limit (the plugin's own per-IP rule is off
+// without a trusted IP).
+const PASSWORD_CHALLENGE_PATHS = new Set([
+  '/two-factor/enable',
+  '/two-factor/disable',
+  '/two-factor/get-totp-uri'
+])
+
+const tooManyRequests = (retryAfterSeconds: number) => {
+  const retryAfter = String(retryAfterSeconds)
+  return new APIError(
     'TOO_MANY_REQUESTS',
     { message: 'Too many requests. Please try again later.' },
     { 'Retry-After': retryAfter, 'X-Retry-After': retryAfter }
   )
+}
+
+const signInEmailRateLimitHook = createAuthMiddleware(async (ctx) => {
+  if (PASSWORD_CHALLENGE_PATHS.has(ctx.path)) {
+    // The user id is the account id (`account.fields.userId: 'accountId'`), the
+    // key the app's own password routes use.
+    const session = await getSessionFromCtx(ctx, { disableRefresh: true })
+    if (!session) return
+    const result = checkPasswordChangeRateLimit(session.user.id)
+    if (!result.allowed) throw tooManyRequests(result.retryAfterSeconds)
+    return
+  }
+  if (ctx.path !== '/sign-in/email') return
+  const email = (ctx.body as { email?: unknown } | undefined)?.email
+  if (typeof email !== 'string') return
+  const result = checkSignInEmailRateLimit(email)
+  if (!result.allowed) throw tooManyRequests(result.retryAfterSeconds)
 })
 
 // `serviceName` is the visited domain's name (see `resolveAuthServiceName`):

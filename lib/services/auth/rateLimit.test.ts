@@ -7,6 +7,7 @@ import {
   createTestDatabase
 } from '@/lib/database/testing/createTestDatabase'
 import {
+  PASSWORD_CHANGE_LIMIT,
   SIGN_IN_EMAIL_LIMIT,
   resetRouteRateLimitsForTests
 } from '@/lib/services/auth/routeRateLimits'
@@ -213,6 +214,36 @@ describe('better-auth rate limits', () => {
       'x-forwarded-for': '198.51.100.21'
     })
     expect(otherIp.status).not.toBe(429)
+  })
+
+  it('charges wrong-password two-factor enables to the password-change account bucket', async () => {
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    const signIn = await postAuth('/sign-in/email', {
+      email: EMAIL,
+      password: PASSWORD
+    })
+    expect(signIn.status).toBe(200)
+    const cookie = signIn.headers
+      .getSetCookie()
+      .map((value) => value.split(';')[0])
+      .join('; ')
+
+    for (let i = 0; i < PASSWORD_CHANGE_LIMIT; i += 1) {
+      const attempt = await postAuth(
+        '/two-factor/enable',
+        { password: 'wrong-password' },
+        { cookie }
+      )
+      expect(attempt.status).toBe(400)
+    }
+    const limited = await postAuth(
+      '/two-factor/enable',
+      { password: PASSWORD },
+      { cookie }
+    )
+    expect(limited.status).toBe(429)
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
   })
 
   it.each([
