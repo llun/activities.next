@@ -101,19 +101,57 @@ describe('GET /api/v1/fitness/records', () => {
     expect(mockDb.getFitnessPersonalRecords).not.toHaveBeenCalled()
   })
 
-  it('reads only the signed-in actor’s own records for the range', async () => {
-    const response = await get('?range=90d')
-    const body = await response.json()
+  describe('with the clock at 5 November 2026', () => {
+    const NOW = Date.UTC(2026, 10, 5, 12, 30)
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(NOW)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('reads the last 90 days of the signed-in actor’s own records', async () => {
+      const response = await get('?range=90d')
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(mockDb.getFitnessPersonalRecords).toHaveBeenCalledTimes(1)
+      expect(mockDb.getFitnessPersonalRecords).toHaveBeenCalledWith({
+        actorId: ACTOR1_ID,
+        since: NOW - 90 * 24 * 60 * 60 * 1000
+      })
+      expect(body.range).toBe('90d')
+      expect(body.power).toHaveLength(5)
+      expect(body.distance).toHaveLength(5)
+    })
+
+    it('reads this year from 1 January UTC', async () => {
+      const response = await get('?range=year')
+
+      expect(response.status).toBe(200)
+      expect(mockDb.getFitnessPersonalRecords).toHaveBeenCalledWith({
+        actorId: ACTOR1_ID,
+        since: Date.UTC(2026, 0, 1)
+      })
+      expect((await response.json()).range).toBe('year')
+    })
+  })
+
+  it('ignores any actor named in the query and reads the session actor', async () => {
+    const other = encodeURIComponent('https://llun.test/users/other')
+    const response = await get(
+      `?range=all&actorId=${other}&actor_id=${other}&id=${other}`
+    )
 
     expect(response.status).toBe(200)
     expect(mockDb.getFitnessPersonalRecords).toHaveBeenCalledTimes(1)
     expect(mockDb.getFitnessPersonalRecords).toHaveBeenCalledWith({
       actorId: ACTOR1_ID,
-      since: expect.any(Number)
+      since: null
     })
-    expect(body.range).toBe('90d')
-    expect(body.power).toHaveLength(5)
-    expect(body.distance).toHaveLength(5)
   })
 
   it('defaults to all time', async () => {

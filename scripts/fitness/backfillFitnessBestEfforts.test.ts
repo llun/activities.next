@@ -58,10 +58,12 @@ describe('backfillFitnessBestEffortsScript', () => {
   let sequence = 0
   const createActivity = async ({
     activityType,
-    posted = true
+    posted = true,
+    primary = true
   }: {
     activityType: string
     posted?: boolean
+    primary?: boolean
   }) => {
     sequence += 1
     const statusId = `${ACTOR1_ID}/statuses/backfill-${sequence}`
@@ -89,8 +91,26 @@ describe('backfillFitnessBestEffortsScript', () => {
       activityStartTime: new Date(Date.UTC(2026, 3, sequence))
     })
     await database.updateFitnessFileProcessingStatus(file!.id, 'completed')
+    if (!primary) await database.updateFitnessFilePrimary(file!.id, false)
     return { fitnessFileId: file!.id, statusId }
   }
+
+  // A cached 10 minute ride at `watts`, the only new file a run will see.
+  const createCachedRide = async (watts: number, primary = true) => {
+    const ride = await createActivity({ activityType: 'ride', primary })
+    await savePreParsedRouteData(database, {
+      fitnessFileId: ride.fitnessFileId,
+      actorId: ACTOR1_ID,
+      payload: {
+        version: 1,
+        totalDurationSeconds: 600,
+        powerSeries: new Array(600).fill(watts)
+      }
+    })
+    return ride
+  }
+  const effortsOf = (fitnessFileId: string) =>
+    database.getFitnessBestEfforts({ fitnessFileIds: [fitnessFileId] })
 
   it('fills efforts from the cached route data or the stored file, then resumes', async () => {
     // Cached route data: a 10 minute ride at 240 W.
@@ -184,5 +204,58 @@ describe('backfillFitnessBestEffortsScript', () => {
     ).toBe(0)
     expect(save).not.toHaveBeenCalled()
     expect(parseFitnessFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('writes nothing on a dry run', async () => {
+    const ride = await createCachedRide(200)
+    const save = vi.spyOn(scriptDatabase, 'replaceFitnessBestEfforts')
+    save.mockClear()
+
+    expect(
+      await backfillFitnessBestEffortsScript([
+        '--actor-id',
+        ACTOR1_ID,
+        '--dry-run'
+      ])
+    ).toBe(0)
+
+    expect(save).not.toHaveBeenCalled()
+    expect(await effortsOf(ride.fitnessFileId)).toEqual([])
+  })
+
+  it('recomputes a filled file with --force', async () => {
+    const ride = await createCachedRide(300)
+    await backfillFitnessBestEffortsScript(['--actor-id', ACTOR1_ID])
+    expect(await effortsOf(ride.fitnessFileId)).toContainEqual(
+      expect.objectContaining({ key: 5, value: 300 })
+    )
+
+    // The cache changes under it (a newer parser, say): only --force rereads.
+    await savePreParsedRouteData(database, {
+      fitnessFileId: ride.fitnessFileId,
+      actorId: ACTOR1_ID,
+      payload: {
+        version: 1,
+        totalDurationSeconds: 600,
+        powerSeries: new Array(600).fill(350)
+      }
+    })
+    await backfillFitnessBestEffortsScript(['--actor-id', ACTOR1_ID])
+    expect(await effortsOf(ride.fitnessFileId)).toContainEqual(
+      expect.objectContaining({ key: 5, value: 300 })
+    )
+
+    await backfillFitnessBestEffortsScript(['--actor-id', ACTOR1_ID, '--force'])
+    expect(await effortsOf(ride.fitnessFileId)).toContainEqual(
+      expect.objectContaining({ key: 5, value: 350 })
+    )
+  })
+
+  it('skips secondary recordings, which never count', async () => {
+    const secondary = await createCachedRide(250, false)
+
+    await backfillFitnessBestEffortsScript(['--actor-id', ACTOR1_ID])
+
+    expect(await effortsOf(secondary.fitnessFileId)).toEqual([])
   })
 })

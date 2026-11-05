@@ -84,7 +84,7 @@ describe('PersonalRecordsView', () => {
     expect(within(runs).getAllByText('No run long enough yet')).toHaveLength(3)
 
     expect(
-      screen.getByRole('heading', { name: 'Ride · best power' })
+      screen.getByRole('heading', { name: 'Best power' })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: 'Run · fastest' })
@@ -126,6 +126,30 @@ describe('PersonalRecordsView', () => {
       'aria-checked',
       'true'
     )
+  })
+
+  it('hides the previous range’s records when a range switch fails', async () => {
+    vi.mocked(getFitnessRecords)
+      .mockResolvedValueOnce(
+        records('all', {
+          power: [
+            held(5, 900, 'All-time sprint'),
+            ...[60, 300, 1200, 3600].map(empty)
+          ]
+        })
+      )
+      .mockRejectedValueOnce(new Error('Failed to load records.'))
+
+    render(<PersonalRecordsView />)
+    expect(await screen.findByText('All-time sprint')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Last 90 days' }))
+
+    expect(
+      await screen.findByText('We couldn’t load your records')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('All-time sprint')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
   })
 
   it('shows the loading state, then an error with a retry', async () => {

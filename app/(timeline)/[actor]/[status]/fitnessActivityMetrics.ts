@@ -12,6 +12,10 @@ import {
   median,
   prefixSums
 } from '@/lib/fitness/bestEfforts'
+import {
+  cumulativeDistances,
+  haversineMeters
+} from '@/lib/fitness/cumulativeDistance'
 import { isRunActivity } from '@/lib/services/fitness-files/sportTypes'
 
 import {
@@ -25,6 +29,7 @@ export {
   computeBestEfforts,
   estimateRecordingSeconds,
   estimateSampleSeconds,
+  haversineMeters,
   isRunActivity
 }
 
@@ -70,24 +75,6 @@ export interface ActivityPoint {
 export interface TimeRange {
   startSeconds: number
   endSeconds: number
-}
-
-const EARTH_RADIUS_METERS = 6_371_000
-
-const toRadians = (degrees: number) => (degrees * Math.PI) / 180
-
-export const haversineMeters = (
-  from: { lat: number; lng: number },
-  to: { lat: number; lng: number }
-): number => {
-  const dLat = toRadians(to.lat - from.lat)
-  const dLng = toRadians(to.lng - from.lng)
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRadians(from.lat)) *
-      Math.cos(toRadians(to.lat)) *
-      Math.sin(dLng / 2) ** 2
-  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(a)))
 }
 
 /**
@@ -149,31 +136,12 @@ export const buildActivityTimeline = ({
   if (source.length === 0) return []
 
   const sorted = [...source].sort((a, b) => a.elapsedSeconds - b.elapsedSeconds)
-  let distance = 0
-  let hasDistance = false
+  const distances = cumulativeDistances(sorted)
 
-  const points = sorted.map((sample, index): ActivityPoint => {
-    const previous = index > 0 ? sorted[index - 1] : null
-    if (isFiniteNumber(sample.distanceMeters)) {
-      distance = sample.distanceMeters
-      hasDistance = true
-    } else if (previous) {
-      if (hasCoordinates(sample) && hasCoordinates(previous)) {
-        distance += haversineMeters(previous, sample)
-        hasDistance = true
-      } else if (isFiniteNumber(sample.speed)) {
-        const seconds = Math.max(
-          0,
-          sample.elapsedSeconds - previous.elapsedSeconds
-        )
-        distance += (sample.speed / 3.6) * seconds
-        hasDistance = true
-      }
-    }
-
+  return sorted.map((sample, index): ActivityPoint => {
     const point: ActivityPoint = {
       elapsedSeconds: sample.elapsedSeconds,
-      distanceMeters: distance
+      distanceMeters: distances ? distances[index] : null
     }
     if (isFiniteNumber(sample.timestamp)) point.timestamp = sample.timestamp
     if (hasCoordinates(sample)) {
@@ -197,11 +165,6 @@ export const buildActivityTimeline = ({
     }
     return point
   })
-
-  if (!hasDistance) {
-    return points.map((point) => ({ ...point, distanceMeters: null }))
-  }
-  return points
 }
 
 /** Half the distance window a grade is measured over, either side of a point. */

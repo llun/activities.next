@@ -4,9 +4,11 @@
  *
  * Pure and dependency-free on purpose: the activity page computes them in the
  * browser from the route-data payload, and the fitness file processor computes
- * the same numbers on the server and stores them in `fitness_best_efforts`
- * for the Records page and the PR badge. One copy of the maths is what keeps
- * the page's figures and the stored records the same numbers.
+ * them on the server and stores them in `fitness_best_efforts` for the Records
+ * page and the PR badge. One copy of the maths keeps the two close, not
+ * identical: the server times power against the cached samples (up to 15,000
+ * points) and the page against the served 1,500, so on a paused or sparse
+ * recording the two can differ by a watt or two.
  */
 
 export interface PowerEffort {

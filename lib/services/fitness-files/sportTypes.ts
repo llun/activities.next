@@ -253,6 +253,12 @@ export const normalizeActivityTypeToSportKey = (
   return rule ? rule.key : null
 }
 
+/** Runs and trail runs: the activities with pace, steps and run best efforts. */
+export const isRunActivity = (activityType?: string | null): boolean => {
+  const key = normalizeActivityTypeToSportKey(activityType)
+  return key === 'run' || key === 'trail_run'
+}
+
 /**
  * Non-gear activity types that are stored in canonical normalized form.
  *
@@ -261,12 +267,6 @@ export const normalizeActivityTypeToSportKey = (
  * We normalize common activities (training, rowing, other) to lowercase
  * canonical tokens so dialects (e.g. WeightTraining, Other, Rowing) collapse.
  */
-/** Runs and trail runs: the activities with pace, steps and run best efforts. */
-export const isRunActivity = (activityType?: string | null): boolean => {
-  const key = normalizeActivityTypeToSportKey(activityType)
-  return key === 'run' || key === 'trail_run'
-}
-
 export const NON_GEAR_STORED_ACTIVITY_TYPES = [
   'swim',
   'training',

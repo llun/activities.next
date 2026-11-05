@@ -47,26 +47,31 @@ const RecordRow: FC<{
   formatValue: (value: number) => string
   missingText: string
 }> = ({ label, entry, formatValue, missingText }) => (
-  <FramedListItem className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-    <span className="w-28 shrink-0 text-muted-foreground">{label}</span>
+  // One line from `sm` (label, value, title, date). On a phone the label and
+  // value share the first line and the title and date take the whole second
+  // one, so a long title is not squeezed down to its first letter.
+  <FramedListItem className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-x-4 gap-y-0.5 text-sm sm:grid-cols-[7rem_5rem_minmax(0,1fr)]">
+    <span className="text-muted-foreground">{label}</span>
     {entry.value !== null && entry.activity ? (
       <>
-        <span className="w-20 shrink-0 font-semibold tabular-nums">
+        <span className="font-semibold tabular-nums">
           {formatValue(entry.value)}
         </span>
-        <Link
-          href={entry.activity.statusPath}
-          prefetch={false}
-          className="min-w-0 flex-1 truncate hover:underline"
-        >
-          {entry.activity.title}
-        </Link>
-        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-          {dateFormatter.format(entry.activity.activityDate)}
+        <span className="col-span-2 flex min-w-0 items-baseline gap-3 sm:col-span-1">
+          <Link
+            href={entry.activity.statusPath}
+            prefetch={false}
+            className="min-w-0 flex-1 truncate hover:underline"
+          >
+            {entry.activity.title}
+          </Link>
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            {dateFormatter.format(entry.activity.activityDate)}
+          </span>
         </span>
       </>
     ) : (
-      <span className="flex-1 text-muted-foreground">
+      <span className="text-muted-foreground sm:col-span-2">
         <span aria-hidden="true">—</span>
         <span className="ml-3">{missingText}</span>
       </span>
@@ -97,7 +102,7 @@ export const RecordsSkeleton: FC = () => (
 )
 
 /**
- * The owner's records: best power per duration from rides (any activity with
+ * The owner's records: best power per duration (from any activity with
  * power) and fastest times per distance from runs, over a chosen range.
  */
 export const PersonalRecordsView: FC = () => {
@@ -118,6 +123,8 @@ export const PersonalRecordsView: FC = () => {
       })
       .catch((loadError) => {
         if (cancelled) return
+        // Never leave the previous range's records under this range's error.
+        setRecords(null)
         setError(
           loadError instanceof Error
             ? loadError.message
@@ -178,7 +185,7 @@ export const PersonalRecordsView: FC = () => {
             </EmptyState>
           ) : (
             <>
-              <Section title="Ride · best power">
+              <Section title="Best power">
                 <FramedList aria-label="Best power">
                   {records.power.map((entry) => (
                     <RecordRow

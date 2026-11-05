@@ -8,8 +8,10 @@
  * no current cache row is parsed from storage once and its cache written, as
  * `backfillFitnessRouteData.ts` does. Pages through the actor's completed files
  * 200 at a time and skips files that already have efforts unless `--force`, so
- * an interrupted run picks up where it stopped. A file with no power and no
- * run distance stores nothing and is looked at again on the next run.
+ * an interrupted run picks up where it stopped. Secondary (non-primary)
+ * recordings are skipped: they never count toward a record. A file with no
+ * power and no run distance stores nothing and is looked at again on the next
+ * run (a read of its cached route data, cheap).
  *
  * Usage:
  *   NODE_ENV=production scripts/fitness/backfillFitnessBestEfforts.ts \
@@ -151,8 +153,11 @@ async function backfillFitnessBestEffortsScript(args = process.argv.slice(2)) {
 
       for (const file of page) {
         const statusId = file.statusId
+        // A secondary recording never counts toward a record, so it is not
+        // worth a read.
         if (
           file.deletedAt ||
+          file.isPrimary === false ||
           !statusId ||
           !isParseableFitnessFileType(file.fileType) ||
           done.has(file.id)

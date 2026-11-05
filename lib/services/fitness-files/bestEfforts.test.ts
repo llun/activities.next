@@ -1,3 +1,4 @@
+import { buildActivityTimeline } from '@/app/(timeline)/[actor]/[status]/fitnessActivityMetrics'
 import type { PreParsedRouteDataPayload } from '@/lib/services/fitness-files/fileRouteDataCache'
 
 import {
@@ -74,6 +75,41 @@ describe('toEffortTimeline', () => {
     })
     expect(timeline[0].distanceMeters).toBe(0)
     expect(timeline[1].distanceMeters).toBeCloseTo(1112, 0)
+  })
+
+  it('reads distance exactly as the activity page timeline does', () => {
+    // One payload with all three sources: file distance, then a GPS-only
+    // stretch, then a speed-only stretch with no track.
+    const routeSamples = [
+      { lat: 52, lng: 5, elapsedSeconds: 0, distanceMeters: 0 },
+      { lat: 52, lng: 5.001, elapsedSeconds: 10, distanceMeters: 70 },
+      { lat: 52, lng: 5.002, elapsedSeconds: 20 },
+      { lat: 52.001, lng: 5.002, elapsedSeconds: 30, speed: 12 }
+    ]
+    const metricSamples = [
+      { elapsedSeconds: 0, speed: 10 },
+      { elapsedSeconds: 30, speed: 10 },
+      { elapsedSeconds: 60, distanceMeters: 200 },
+      { elapsedSeconds: 90, speed: 20 }
+    ]
+    for (const payload of [
+      { version: 1, totalDurationSeconds: 30, routeSamples },
+      { version: 1, totalDurationSeconds: 90, metricSamples }
+    ] as PreParsedRouteDataPayload[]) {
+      const page = buildActivityTimeline({
+        samples: (payload.routeSamples ?? []).map((sample) => ({
+          ...sample,
+          isHiddenByPrivacy: false
+        })),
+        metricSamples: payload.metricSamples
+      })
+      expect(toEffortTimeline(payload)).toEqual(
+        page.map(({ elapsedSeconds, distanceMeters }) => ({
+          elapsedSeconds,
+          distanceMeters
+        }))
+      )
+    }
   })
 
   it('reports no distance when nothing can measure it', () => {

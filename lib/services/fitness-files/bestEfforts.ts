@@ -6,7 +6,7 @@ import {
   estimateSampleSeconds,
   resolveRecordingSeconds
 } from '@/lib/fitness/bestEfforts'
-import { haversineDistanceMeters } from '@/lib/services/fitness-files/activityData'
+import { cumulativeDistances } from '@/lib/fitness/cumulativeDistance'
 import type {
   PreParsedMetricSample,
   PreParsedRouteDataPayload,
@@ -14,20 +14,9 @@ import type {
 } from '@/lib/services/fitness-files/fileRouteDataCache'
 import { isRunActivity } from '@/lib/services/fitness-files/sportTypes'
 
-const isFiniteNumber = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isFinite(value)
-
-const hasCoordinates = (
-  sample: PreParsedRouteSample | PreParsedMetricSample
-): sample is PreParsedRouteSample =>
-  isFiniteNumber((sample as PreParsedRouteSample).lat) &&
-  isFiniteNumber((sample as PreParsedRouteSample).lng)
-
 /**
- * Elapsed time and cumulative distance per point, read the way the activity
- * page reads its timeline: the file's own distance where a point has it,
- * otherwise measured along the GPS track, or speed integrated over time with
- * no track. Every distance is null when none of that is possible.
+ * Elapsed time and cumulative distance per point, read through the same
+ * `cumulativeDistances` as the activity page's timeline.
  */
 export const toEffortTimeline = (payload: PreParsedRouteDataPayload) => {
   const source: Array<PreParsedRouteSample | PreParsedMetricSample> =
@@ -35,31 +24,11 @@ export const toEffortTimeline = (payload: PreParsedRouteDataPayload) => {
       ? payload.routeSamples
       : (payload.metricSamples ?? [])
   const sorted = [...source].sort((a, b) => a.elapsedSeconds - b.elapsedSeconds)
-  let distance = 0
-  let hasDistance = false
-  const points = sorted.map((sample, index) => {
-    const previous = index > 0 ? sorted[index - 1] : null
-    if (isFiniteNumber(sample.distanceMeters)) {
-      distance = sample.distanceMeters
-      hasDistance = true
-    } else if (previous) {
-      if (hasCoordinates(sample) && hasCoordinates(previous)) {
-        distance += haversineDistanceMeters(previous, sample)
-        hasDistance = true
-      } else if (isFiniteNumber(sample.speed)) {
-        const seconds = Math.max(
-          0,
-          sample.elapsedSeconds - previous.elapsedSeconds
-        )
-        distance += (sample.speed / 3.6) * seconds
-        hasDistance = true
-      }
-    }
-    return { elapsedSeconds: sample.elapsedSeconds, distanceMeters: distance }
-  })
-  return hasDistance
-    ? points
-    : points.map((point) => ({ ...point, distanceMeters: null }))
+  const distances = cumulativeDistances(sorted)
+  return sorted.map((sample, index) => ({
+    elapsedSeconds: sample.elapsedSeconds,
+    distanceMeters: distances ? distances[index] : null
+  }))
 }
 
 /**
