@@ -8,9 +8,13 @@ import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
 import { getActivityPresentation } from '@/lib/services/fitness-files/activityPresentation'
+import { saveFitnessBestEfforts } from '@/lib/services/fitness-files/bestEfforts'
 import { deleteEmailMapImage } from '@/lib/services/fitness-files/emailMapImage'
 import { writeFitnessFileRoute } from '@/lib/services/fitness-files/fileRouteCache'
-import { savePreParsedRouteData } from '@/lib/services/fitness-files/fileRouteDataCache'
+import {
+  createPreParsedRouteDataPayload,
+  savePreParsedRouteData
+} from '@/lib/services/fitness-files/fileRouteDataCache'
 import { generateMapImage } from '@/lib/services/fitness-files/generateMapImage'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
@@ -520,11 +524,14 @@ const processFitnessFileJobUnlocked = createJobHandle(
         })
       }
 
+      // Built once: the route-data cache stores it and the best efforts below
+      // are computed from it, so both read the same samples.
+      const routeDataPayload = createPreParsedRouteDataPayload(activityData)
       try {
         await savePreParsedRouteData(database, {
           fitnessFileId,
           actorId,
-          activityData
+          payload: routeDataPayload
         })
       } catch (error) {
         logger.warn({
@@ -565,6 +572,33 @@ const processFitnessFileJobUnlocked = createJobHandle(
           ? { deviceName: activityData.deviceName }
           : {})
       })
+
+      // The file's best efforts for the Records page and the PR badge, rewritten
+      // on every run so a reprocess replaces them. After the activity columns
+      // above, because records are dated by the start time just stored.
+      // Best-effort like the route caches: a failure leaves this activity out
+      // of the records until `scripts/fitness/backfillFitnessBestEfforts.ts`
+      // or the next reprocess writes them, and never fails a good import.
+      try {
+        await saveFitnessBestEfforts(database, {
+          fitnessFileId,
+          actorId,
+          statusId,
+          activityType: activityData.activityType,
+          activityDate:
+            activityData.startTime?.getTime() ?? fitnessFile.createdAt,
+          movingTimeSeconds: activityData.movingTimeSeconds,
+          payload: routeDataPayload
+        })
+      } catch (error) {
+        logger.warn({
+          message: 'Failed to store the fitness file best efforts',
+          actorId,
+          statusId,
+          fitnessFileId,
+          err: toLoggableError(error)
+        })
+      }
 
       await linkFitnessFileDeviceGear({
         database,

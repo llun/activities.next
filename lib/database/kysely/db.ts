@@ -525,6 +525,18 @@ export interface Filters {
   updatedAt: WithDefault<Nullable<Timestamp>>
 }
 
+export interface FitnessBestEfforts {
+  activityDate: Timestamp
+  activityType: Nullable<string>
+  actorId: string
+  createdAt: WithDefault<Timestamp>
+  fitnessFileId: string
+  key: number
+  kind: string
+  statusId: string
+  value: number
+}
+
 export interface FitnessFileRouteData {
   actorId: string
   createdAt: WithDefault<Timestamp>
@@ -1564,6 +1576,7 @@ export interface DB {
   filter_keywords: FilterKeywords
   filter_statuses: FilterStatuses
   filters: Filters
+  fitness_best_efforts: FitnessBestEfforts
   fitness_file_route_data: FitnessFileRouteData
   fitness_file_routes: FitnessFileRoutes
   fitness_files: FitnessFiles

@@ -165,6 +165,11 @@ export const deleteFitnessFile = (
       .deleteFrom('fitness_file_route_data')
       .where('fitnessFileId', '=', id)
       .execute()
+    // Best efforts too, so a deleted activity stops holding a record.
+    await trx
+      .deleteFrom('fitness_best_efforts')
+      .where('fitnessFileId', '=', id)
+      .execute()
 
     if (accountId) {
       await decreaseCounterValue(

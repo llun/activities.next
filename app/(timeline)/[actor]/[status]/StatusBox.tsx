@@ -65,6 +65,8 @@ interface Props {
   hasMoreAncestors?: boolean
   hasMoreDescendants?: boolean
   fitnessFiles?: StatusFitnessFileItem[]
+  /** Owner only: per fitness file, the power durations that are all-time bests. */
+  personalRecordDurations?: Record<string, number[]>
   /** The fitness author's zone inputs, for the activity's zone charts. */
   trainingZones?: TrainingZoneSettings | null
 }
@@ -82,6 +84,7 @@ export const StatusBox: FC<Props> = ({
   hasMoreAncestors,
   hasMoreDescendants,
   fitnessFiles,
+  personalRecordDurations,
   trainingZones
 }) => {
   const router = useRouter()
@@ -119,6 +122,7 @@ export const StatusBox: FC<Props> = ({
             hasMoreDescendants={hasMoreDescendants}
             isMediaUploadEnabled={isMediaUploadEnabled}
             initialFitnessFiles={fitnessFiles}
+            personalRecordDurations={personalRecordDurations}
             trainingZones={trainingZones}
             onShowAttachment={(allMedias, index) => {
               setModalMedias({

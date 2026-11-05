@@ -5,6 +5,7 @@ import { ActorHandleDatabase } from '@/lib/database/domains/actorHandle/types'
 import { ActorMigrationDatabase } from '@/lib/database/domains/actorMigration/types'
 import { BulkImportDatabase } from '@/lib/database/domains/bulkImport/types'
 import { DeliveryInboxesDatabase } from '@/lib/database/domains/deliveryInboxes/types'
+import { FitnessBestEffortDatabase } from '@/lib/database/domains/fitnessBestEffort/types'
 import { FitnessFileDatabase } from '@/lib/database/domains/fitnessFile/types'
 import { FitnessFileRouteDatabase } from '@/lib/database/domains/fitnessFileRoute/types'
 import { FitnessFileRouteDataDatabase } from '@/lib/database/domains/fitnessFileRouteData/types'
@@ -85,6 +86,7 @@ export type Database = AccountDatabase &
   AnnouncementDatabase &
   InstanceActivityDatabase &
   InstanceRuleDatabase &
+  FitnessBestEffortDatabase &
   FitnessFileDatabase &
   FitnessFileRouteDatabase &
   FitnessFileRouteDataDatabase &

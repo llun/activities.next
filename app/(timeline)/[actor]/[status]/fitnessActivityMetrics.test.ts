@@ -11,7 +11,6 @@ import {
   buildClimbSplits,
   buildLapSplits,
   buildPowerDistribution,
-  computeBestEfforts,
   computeDecouplingPercent,
   computeGradeSeries,
   computeLeftRightBalance,
@@ -298,22 +297,6 @@ describe('computeNormalizedPower', () => {
 
   it('returns null for a ride shorter than 30 s', () => {
     expect(computeNormalizedPower([100, 200])).toBeNull()
-  })
-})
-
-describe('computeBestEfforts', () => {
-  it('finds the best average for each duration that fits', () => {
-    const power = [...new Array(60).fill(100), ...new Array(5).fill(500)]
-    expect(computeBestEfforts(power, 1, [5, 60, 300])).toEqual([
-      { durationSeconds: 5, watts: 500 },
-      { durationSeconds: 60, watts: Math.round((55 * 100 + 5 * 500) / 60) }
-    ])
-  })
-
-  it('scales the window to sparse recordings', () => {
-    expect(computeBestEfforts([100, 400, 100], 5, [5])).toEqual([
-      { durationSeconds: 5, watts: 400 }
-    ])
   })
 })
 
