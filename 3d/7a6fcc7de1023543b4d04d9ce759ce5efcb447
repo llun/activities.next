@@ -1,0 +1,49 @@
+app/(timeline)/fitness/records/PersonalRecordsView.test.tsx
+  s_2b1a50e2f9b981::t_5a1f81ebbae277 131-154
+  s_2b1a50e2f9b981::t_d86143833878b6 87
+lib/fitness/cumulativeDistance.ts
+  s_2b1a50e2f9b981::t_c2a60a55f3de1c 1-76
+app/api/v1/fitness/records/route.test.ts
+  s_2b1a50e2f9b981::t_d6413357634ae0 104-147,153
+lib/services/fitness-files/bestEfforts.test.ts
+  s_2b1a50e2f9b981::t_6c7d340e423ee7 1,80-112
+  s_2b1a50e2f9b981::t_82bbc06529d3ed 113-114
+lib/services/fitness-files/sportTypes.ts
+  s_2b1a50e2f9b981::t_7b7b9ce43ed1cb 256-261
+app/(timeline)/fitness/records/PersonalRecordsView.tsx
+  s_2b1a50e2f9b981::t_cafe9ed54d50a8 50-54,57,60-70,74,126-127,188
+  s_2b1a50e2f9b981::t_9f2e9398454cd6 105
+lib/services/fitness-files/bestEfforts.ts
+  s_2b1a50e2f9b981::t_c2a60a55f3de1c 9,18-19,27-31
+scripts/fitness/backfillFitnessBestEfforts.test.ts
+  s_2b1a50e2f9b981::t_d8eff9ba318d40 61-62,66,94,98-114,208-247,249-260
+  s_2b1a50e2f9b981::t_6f589f6ec8f2c2 248
+app/(timeline)/[actor]/[status]/fitnessActivityMetrics.ts
+  s_2b1a50e2f9b981::t_c2a60a55f3de1c 15-18,32,139,141,144
+lib/fitness/cumulativeDistance.test.ts
+  s_2b1a50e2f9b981::t_6c7d340e423ee7 1-42
+lib/fitness/bestEfforts.ts
+  s_2b1a50e2f9b981::t_46b9c7c65c8af7 7-11
+docs/fitness-file-storage.md
+  s_2b1a50e2f9b981::t_d86143833878b6 110,116,450
+scripts/fitness/backfillFitnessBestEfforts.ts
+  s_2b1a50e2f9b981::t_46b9c7c65c8af7 11-14,156-157,160
+app/(timeline)/[actor]/[status]/page.personalRecords.test.tsx
+  s_2b1a50e2f9b981::t_36b9db9efc31c3 1-300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d7a6fcc7de1023543b4d04d9ce759ce5efcb447",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
