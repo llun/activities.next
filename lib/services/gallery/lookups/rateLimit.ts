@@ -123,7 +123,10 @@ export const createLimiter = ({
 export interface WindowCounterOptions {
   limit: number
   windowMs: number
-  // The map is bounded: past this many keys the oldest window is dropped.
+  // The map is bounded: once this many live keys are held, a NEW key is
+  // refused until a window expires. A live key is never evicted, or a flood of
+  // fresh keys (random sign-in emails, say) could push a victim's counter out
+  // and reset their allowance.
   maxKeys?: number
 }
 
@@ -148,29 +151,40 @@ export const createWindowCounter = ({
 }: WindowCounterOptions): WindowCounter => {
   const windows = new Map<string, { count: number; resetAt: number }>()
 
+  const retryAfterSeconds = (resetAt: number, now: number) =>
+    Math.max(1, Math.ceil((resetAt - now) / 1000))
+
   const consume = (key: string): WindowCounterResult => {
     const now = Date.now()
     const current = windows.get(key)
-    if (!current || current.resetAt <= now) {
-      // Re-insert so Map order stays oldest-first.
-      windows.delete(key)
-      windows.set(key, { count: 1, resetAt: now + windowMs })
-      if (windows.size > maxKeys) {
-        const oldest = windows.keys().next().value
-        if (oldest !== undefined) windows.delete(oldest)
+    if (current && current.resetAt > now) {
+      if (current.count >= limit) {
+        return {
+          allowed: false,
+          retryAfterSeconds: retryAfterSeconds(current.resetAt, now)
+        }
       }
+      current.count += 1
       return { allowed: true }
     }
-    if (current.count >= limit) {
-      return {
-        allowed: false,
-        retryAfterSeconds: Math.max(
-          1,
-          Math.ceil((current.resetAt - now) / 1000)
-        )
+    // A new key, or one whose window has passed.
+    if (current) windows.delete(key)
+    if (windows.size >= maxKeys) {
+      for (const [other, window] of windows) {
+        if (window.resetAt <= now) windows.delete(other)
+      }
+      if (windows.size >= maxKeys) {
+        let soonest = Number.POSITIVE_INFINITY
+        for (const window of windows.values()) {
+          soonest = Math.min(soonest, window.resetAt)
+        }
+        return {
+          allowed: false,
+          retryAfterSeconds: retryAfterSeconds(soonest, now)
+        }
       }
     }
-    current.count += 1
+    windows.set(key, { count: 1, resetAt: now + windowMs })
     return { allowed: true }
   }
 

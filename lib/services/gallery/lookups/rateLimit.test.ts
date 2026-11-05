@@ -218,19 +218,36 @@ describe('createWindowCounter', () => {
     })
   })
 
-  it('stays bounded by dropping the oldest key', () => {
+  it('refuses a new key while full of live keys instead of evicting one, and accepts it once a window expires', () => {
     const counter = createWindowCounter({
-      limit: 1,
+      limit: 2,
       windowMs: 60_000,
       maxKeys: 2
     })
-    counter.tryHit('a')
-    counter.tryHit('b')
-    counter.tryHit('c')
+    expect(counter.consume('a')).toEqual({ allowed: true })
+    vi.advanceTimersByTime(10_000)
+    expect(counter.consume('b')).toEqual({ allowed: true })
 
-    // "a" was evicted, so it counts as new again; "c" is still limited.
-    expect(counter.tryHit('a')).toBe(true)
-    expect(counter.tryHit('c')).toBe(false)
+    // Full: "c" is refused until the soonest live window ("a", 50 s) ends.
+    expect(counter.consume('c')).toEqual({
+      allowed: false,
+      retryAfterSeconds: 50
+    })
+    // "a" kept its count: one more hit allowed, then limited.
+    expect(counter.consume('a')).toEqual({ allowed: true })
+    expect(counter.consume('a')).toEqual({
+      allowed: false,
+      retryAfterSeconds: 50
+    })
+
+    vi.advanceTimersByTime(50_001)
+    // "a" expired, so its slot is freed for "c"; "b" is still live.
+    expect(counter.consume('c')).toEqual({ allowed: true })
+    expect(counter.consume('d')).toEqual({
+      allowed: false,
+      retryAfterSeconds: 10
+    })
+    expect(counter.consume('b')).toEqual({ allowed: true })
   })
 })
 

@@ -62,16 +62,21 @@ describe('getTrustedClientIp', () => {
       ).toBeUndefined()
     })
 
-    it('takes the leftmost x-forwarded-for entry when that header is pinned, and reads fly-client-ip as one value', () => {
+    it('takes the right-most x-forwarded-for entry when that header is pinned, and reads fly-client-ip as one value', () => {
       mockHeader.mockReturnValue('x-forwarded-for')
+      // The client sent "198.51.100.9"; the trusted proxy appended the real
+      // address last.
       expect(
         getTrustedClientIp(
           request({
             'cf-connecting-ip': '203.0.113.1',
-            'x-forwarded-for': ' 203.0.113.3 , 10.0.0.1'
+            'x-forwarded-for': '198.51.100.9, 203.0.113.3 , '
           })
         )
       ).toBe('203.0.113.3')
+      expect(
+        getTrustedClientIp(request({ 'x-forwarded-for': '203.0.113.4' }))
+      ).toBe('203.0.113.4')
 
       mockHeader.mockReturnValue('fly-client-ip')
       expect(

@@ -6,22 +6,23 @@ import {
   getTrustProxyIpHeadersConfig
 } from '@/lib/config/trustProxyIpHeaders'
 
-// `x-forwarded-for` yields its leftmost entry (the original client behind a
-// proxy that overwrites the header); every other header is read as one value.
+// `x-forwarded-for` is a list. Pinned (`ACTIVITIES_TRUST_PROXY_IP_HEADER`),
+// its right-most entry is read: the one the single trusted proxy appended,
+// which the client cannot choose. The unpinned compatibility chain keeps its
+// documented left-most reading. Every other header is one value.
 const readClientIpHeader = (
   req: NextRequest | Request,
-  name: string
+  name: string,
+  pinned: boolean
 ): string | undefined => {
   const value = req.headers.get(name)
   if (!value) return undefined
-  const ip =
-    name === 'x-forwarded-for'
-      ? value
-          .split(',')
-          .map((entry) => entry.trim())
-          .find(Boolean)
-      : value.trim()
-  return ip || undefined
+  if (name !== 'x-forwarded-for') return value.trim() || undefined
+  const entries = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  return pinned ? entries.at(-1) : entries[0]
 }
 
 /**
@@ -40,12 +41,12 @@ export const getTrustedClientIp = (
   if (!getTrustProxyIpHeadersConfig()) return undefined
 
   const pinnedHeader = getTrustProxyIpHeaderConfig()
-  if (pinnedHeader) return readClientIpHeader(req, pinnedHeader)
+  if (pinnedHeader) return readClientIpHeader(req, pinnedHeader, true)
 
   return (
-    readClientIpHeader(req, 'cf-connecting-ip') ??
-    readClientIpHeader(req, 'x-real-ip') ??
-    readClientIpHeader(req, 'x-forwarded-for')
+    readClientIpHeader(req, 'cf-connecting-ip', false) ??
+    readClientIpHeader(req, 'x-real-ip', false) ??
+    readClientIpHeader(req, 'x-forwarded-for', false)
   )
 }
 

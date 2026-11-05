@@ -194,10 +194,10 @@ describe('better-auth rate limits', () => {
       path: '/two-factor/send-otp',
       body: {}
     }
-  ])('rate-limits $path after 5 requests per IP', async ({ path, body }) => {
-    // Our own 5 / 5 min, not a Mastodon number; the plugin's account lockout
-    // applies on top.
-    for (let i = 0; i < 5; i += 1) {
+  ])('rate-limits $path after 25 requests per IP', async ({ path, body }) => {
+    // Shares the sign-in per-IP numbers; the plugin's per-account lockout
+    // (10 failures / 15 min) is what bounds guessing.
+    for (let i = 0; i < SIGN_IN_PER_IP_LIMIT; i += 1) {
       const res = await postAuth(path, body, {
         'x-forwarded-for': '198.51.100.20'
       })
@@ -388,6 +388,20 @@ describe('better-auth rate limits', () => {
       { 'x-forwarded-for': '198.51.100.52' }
     )
     expect(oauthTokenThrottled.status).toBe(429)
+  })
+
+  it('leaves an over-long sign-in email to better-auth instead of counting it', async () => {
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    const tooLong = `${'a'.repeat(250)}@example.com`
+
+    for (let i = 0; i <= SIGN_IN_EMAIL_LIMIT; i += 1) {
+      const attempt = await postAuth('/sign-in/email', {
+        email: tooLong,
+        password: 'wrong-password'
+      })
+      expect(attempt.status).not.toBe(429)
+    }
   })
 
   it('does not let X-Forwarded-For or internal-header spoofing reset the limit behind a trusted proxy header', async () => {

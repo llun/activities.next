@@ -13,6 +13,7 @@
 // email-change buckets keep the per-email `throttle_password_resets/email`
 // 5 / 30 min shape.
 import { NextRequest } from 'next/server'
+import { createHash } from 'node:crypto'
 
 import {
   WindowCounter,
@@ -38,7 +39,17 @@ export const SIGN_UP_LIMIT = 25
 const counter = (limit: number, windowMs: number) =>
   createWindowCounter({ limit, windowMs, maxKeys: MAX_KEYS })
 
-const signInByEmail = counter(SIGN_IN_EMAIL_LIMIT, ONE_HOUR_MS)
+// A full counter refuses new keys rather than evicting live ones, so a flood
+// of random emails would stall sign-in for addresses not yet counted. Keys are
+// 64-character digests, so 100,000 of them stay around 10 MB and raise that
+// flood to 100,000 requests (behind a trusted proxy, the per-IP rule caps one
+// source far below it).
+const SIGN_IN_EMAIL_MAX_KEYS = 100_000
+const signInByEmail = createWindowCounter({
+  limit: SIGN_IN_EMAIL_LIMIT,
+  windowMs: ONE_HOUR_MS,
+  maxKeys: SIGN_IN_EMAIL_MAX_KEYS
+})
 const passwordResetRequestByIp = counter(PASSWORD_RESET_LIMIT, FIVE_MINUTES_MS)
 const passwordResetByIp = counter(PASSWORD_RESET_LIMIT, FIVE_MINUTES_MS)
 const emailConfirmationByAccount = counter(
@@ -61,9 +72,22 @@ const consumeByIp = (
   return key ? byIp.consume(key) : { allowed: true }
 }
 
-// Every attempt counts, as Mastodon's does; the key is the normalised address.
-export const checkSignInEmailRateLimit = (email: string) =>
-  signInByEmail.consume(email.trim().toLowerCase())
+// RFC 5321's longest deliverable address; anything longer is not an account
+// and is left to better-auth's own validation, uncounted.
+const MAX_SIGN_IN_EMAIL_LENGTH = 254
+
+// Fixed-size key that holds no address: SHA-256 of the trimmed, lower-cased
+// email. Exported for its test only.
+export const signInEmailRateLimitKey = (email: string) =>
+  createHash('sha256').update(email.trim().toLowerCase()).digest('hex')
+
+// Every attempt counts, as Mastodon's does.
+export const checkSignInEmailRateLimit = (
+  email: string
+): WindowCounterResult => {
+  if (email.trim().length > MAX_SIGN_IN_EMAIL_LENGTH) return { allowed: true }
+  return signInByEmail.consume(signInEmailRateLimitKey(email))
+}
 
 export const checkPasswordResetRequestRateLimit = (req: NextRequest) =>
   consumeByIp(passwordResetRequestByIp, req)

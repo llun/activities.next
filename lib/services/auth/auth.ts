@@ -47,9 +47,10 @@ const TRUSTED_CLIENT_IP_HEADER = 'x-activities-trusted-client-ip'
 // - `/sign-in/email`: 25 attempts per 5 minutes per IP (Mastodon
 //   `throttle_login_attempts/ip`: 25 / 5 min), plus 25 per hour per email
 //   (Mastodon `throttle_login_attempts/email`), which needs no trusted IP.
-// - 2FA challenge endpoints: 5 attempts per 5 minutes per IP. This is our own
-//   number, not Mastodon's; the two-factor plugin's per-account failed-attempt
-//   lockout applies on top of it.
+// - 2FA challenge endpoints: the same 25 per 5 minutes per IP, so one NAT or
+//   IPv6 /64 does not lock out its sixth user; the two-factor plugin's
+//   per-account lockout (10 consecutive failures, 15 minutes, its defaults)
+//   is what bounds guessing.
 // - Other mounted better-auth endpoints under `/api/auth/*`: better-auth's
 //   per-IP defaults (100 / 10 s default, 3 / 10 s on `/sign-up*`,
 //   `/change-password*`, `/change-email*` and remaining `/two-factor/*` routes,
@@ -59,7 +60,6 @@ const TRUSTED_CLIENT_IP_HEADER = 'x-activities-trusted-client-ip'
 //   unbounded `ip|pathname` rows into `rateLimit`.
 const AUTH_GLOBAL_RATE_LIMIT = { window: 10, max: 100 } as const
 const AUTH_SIGN_IN_RATE_LIMIT = { window: 300, max: 25 } as const
-const AUTH_TWO_FACTOR_RATE_LIMIT = { window: 300, max: 5 } as const
 
 // Endpoints this app never uses (it serves its own `/api/v1/accounts/password/*`
 // and `/api/v1/emails/confirmations` routes, and mints OAuth tokens through
@@ -255,16 +255,16 @@ const buildAuth = (baseURL: string, serviceName: string) => {
       customRules: {
         '/sign-in/email': ruleWhenClientIpPresent(AUTH_SIGN_IN_RATE_LIMIT),
         '/two-factor/verify-totp': ruleWhenClientIpPresent(
-          AUTH_TWO_FACTOR_RATE_LIMIT
+          AUTH_SIGN_IN_RATE_LIMIT
         ),
         '/two-factor/verify-backup-code': ruleWhenClientIpPresent(
-          AUTH_TWO_FACTOR_RATE_LIMIT
+          AUTH_SIGN_IN_RATE_LIMIT
         ),
         '/two-factor/verify-otp': ruleWhenClientIpPresent(
-          AUTH_TWO_FACTOR_RATE_LIMIT
+          AUTH_SIGN_IN_RATE_LIMIT
         ),
         '/two-factor/send-otp': ruleWhenClientIpPresent(
-          AUTH_TWO_FACTOR_RATE_LIMIT
+          AUTH_SIGN_IN_RATE_LIMIT
         ),
         '/**': (request, currentRule) => {
           if (!hasVerifiedClientIp(request)) return false
