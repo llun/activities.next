@@ -237,8 +237,11 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
     // Nothing to look up for a landscape or an unnamed subject. Re-checked
     // here, the way the place rule will read it.
     if (!isSpeciesLike(details)) {
-      if ((details.subjectLookupStatus ?? null) !== null) {
-        await write({ subjectLookupStatus: null })
+      if (
+        (details.subjectLookupStatus ?? null) !== null ||
+        details.subjectTaxonRank != null
+      ) {
+        await write({ subjectLookupStatus: null, subjectTaxonRank: null })
       }
       return
     }
@@ -251,7 +254,7 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
       // status to pending) stays valid; only an unchecked one is marked.
       const status = details.subjectLookupStatus ?? null
       if (status !== 'resolved' && status !== 'no-match') {
-        await write({ subjectLookupStatus: 'disabled' })
+        await write({ subjectLookupStatus: 'disabled', subjectTaxonRank: null })
       }
       return
     }
@@ -275,7 +278,7 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
         err: toLoggableError(error)
       })
       try {
-        await write({ subjectLookupStatus: 'failed' })
+        await write({ subjectLookupStatus: 'failed', subjectTaxonRank: null })
       } catch (writeError) {
         logger.warn({
           message: 'Failed to record the failed subject lookup',

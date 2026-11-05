@@ -13,6 +13,7 @@ export const buildIndexRow = (
   subjectScientificName: null,
   subjectCategory: null,
   subjectTaxonKey: null,
+  subjectTaxonRank: null,
   subjectTaxonPath: null,
   subjectIucnCategory: null,
   subjectLookupStatus: null,

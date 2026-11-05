@@ -18,6 +18,7 @@ const details: MediaDetailsEntity = {
     scientificName: 'Ardea cinerea',
     category: 'bird',
     taxonKey: '2480',
+    taxonRank: null,
     taxonPath: ['Animalia', 'Chordata'],
     iucnCategory: null,
     threatStatus: 'not-threatened',
@@ -146,6 +147,7 @@ describe('applySavedToItem', () => {
       scientificName: 'Ardea cinerea',
       category: 'bird',
       taxonKey: '2480',
+      taxonRank: null,
       taxonPath: ['Animalia', 'Chordata']
     })
     expect(next.takenAt).toBe('2025-04-02T06:00:00.000Z')

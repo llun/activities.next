@@ -192,6 +192,7 @@ export interface GalleryIndexRow {
   subjectScientificName: string | null
   subjectCategory: MediaSubjectCategory | null
   subjectTaxonKey: string | null
+  subjectTaxonRank: string | null
   subjectTaxonPath: string[] | null
   // Owner-only facts: they decide the place rule and never leave the server.
   subjectIucnCategory: IucnCategory | null

@@ -99,6 +99,7 @@ describe('MediaDatabase details', () => {
         placePrecision: 'area',
         inGallery: true,
         subjectTaxonKey: null,
+        subjectTaxonRank: null,
         subjectTaxonPath: null,
         subjectIucnCategory: null,
         // A species-like subject is queued for its lookup, so its place is
@@ -358,6 +359,7 @@ describe('MediaDatabase details', () => {
           subjectScientificName: 'Rhinoplax vigil',
           // The old key named the old species, so it goes too.
           subjectTaxonKey: null,
+          subjectTaxonRank: null,
           subjectTaxonPath: null,
           subjectIucnCategory: null,
           subjectLookupStatus: 'pending',

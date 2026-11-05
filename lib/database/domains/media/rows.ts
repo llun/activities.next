@@ -121,6 +121,7 @@ export type MediaRow = {
   placePrecision?: string | null
   inGallery?: boolean | number | null
   subjectTaxonKey?: string | null
+  subjectTaxonRank?: string | null
   subjectTaxonPath?: string | null
   subjectIucnCategory?: string | null
   subjectLookupStatus?: string | null
@@ -325,6 +326,7 @@ export const parseMediaDetails = (data: MediaRow): MediaDetailsRecord => ({
   // SQLite hands the boolean back as 0/1.
   inGallery: Boolean(data.inGallery),
   subjectTaxonKey: data.subjectTaxonKey ?? null,
+  subjectTaxonRank: data.subjectTaxonRank ?? null,
   subjectTaxonPath: parseTaxonPath(data.subjectTaxonPath),
   subjectIucnCategory: parseIucnCategory(data.subjectIucnCategory),
   subjectLookupStatus: parseLookupStatus(data.subjectLookupStatus),
@@ -409,6 +411,7 @@ export const MEDIA_COLUMNS = [
   'placePrecision',
   'inGallery',
   'subjectTaxonKey',
+  'subjectTaxonRank',
   'subjectTaxonPath',
   'subjectIucnCategory',
   'subjectLookupStatus',

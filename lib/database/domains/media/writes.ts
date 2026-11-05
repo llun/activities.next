@@ -411,6 +411,7 @@ const getDetailsColumns = (
       subjectCategory: pick('subjectCategory'),
       subjectTaxonKey: pick('subjectTaxonKey')
     }
+    columns.subjectTaxonRank = null
     columns.subjectTaxonPath = null
     columns.subjectIucnCategory = null
     const speciesLike = isSpeciesLike(next)
@@ -997,6 +998,23 @@ export const setMediaSubjectLookup = async (
   }
   if (patch.subjectTaxonKey !== undefined) {
     updates.subjectTaxonKey = patch.subjectTaxonKey?.trim() || null
+  }
+  if (patch.subjectTaxonRank !== undefined) {
+    updates.subjectTaxonRank =
+      patch.subjectTaxonRank?.trim().toUpperCase() || null
+  } else if (
+    patch.subjectTaxonKey !== undefined &&
+    updates.subjectTaxonKey !== expect.subjectTaxonKey
+  ) {
+    // A replacement identity must never inherit another taxon's rank.
+    updates.subjectTaxonRank = null
+  }
+  if (
+    subjectLookupStatus === 'failed' ||
+    subjectLookupStatus === 'disabled' ||
+    subjectLookupStatus === null
+  ) {
+    updates.subjectTaxonRank = null
   }
   if (patch.subjectTaxonPath !== undefined) {
     const path = toTaxonPath(patch.subjectTaxonPath)

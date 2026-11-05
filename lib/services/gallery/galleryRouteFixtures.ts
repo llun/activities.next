@@ -67,7 +67,11 @@ export const seedGalleryRouteFixtures = async (
           subjectScientificName: media!.details.subjectScientificName,
           subjectTaxonKey: media!.details.subjectTaxonKey
         },
-        patch: { subjectLookupStatus: 'resolved', subjectIucnCategory: 'LC' }
+        patch: {
+          subjectLookupStatus: 'resolved',
+          subjectTaxonRank: 'SPECIES',
+          subjectIucnCategory: 'LC'
+        }
       })
     }
     await database.createAttachment({

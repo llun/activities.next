@@ -1016,7 +1016,8 @@ CREATE TABLE public.medias (
     "editedAt" timestamp with time zone,
     "editSaveId" character varying(36),
     "galleryAddedAt" timestamp with time zone,
-    "sortAt" timestamp with time zone
+    "sortAt" timestamp with time zone,
+    "subjectTaxonRank" text
 );
 
 CREATE SEQUENCE public.medias_id_seq

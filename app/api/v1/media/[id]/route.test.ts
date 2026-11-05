@@ -962,6 +962,7 @@ describe('/api/v1/media/[id]', () => {
         scientificName: 'Buceros bicornis',
         category: 'bird',
         taxonKey: '2481839',
+        taxonRank: null,
         taxonPath: null,
         iucnCategory: null,
         // Not checked yet: its place is withheld from everyone else.

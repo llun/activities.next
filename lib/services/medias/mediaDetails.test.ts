@@ -54,6 +54,7 @@ describe('buildOwnerMediaDetails', () => {
         scientificName: 'Alcedo atthis',
         category: 'bird',
         taxonKey: null,
+        taxonRank: null,
         taxonPath: null,
         iucnCategory: null,
         threatStatus: 'unchecked',
@@ -156,6 +157,7 @@ describe('buildOwnerMediaDetails', () => {
           confidence: 0.9,
           taxonKey: '2481839',
           rank: 'SPECIES',
+          taxonRank: null,
           taxonPath: ['Animalia', 'Chordata', 'Aves']
         }
       ],
@@ -187,6 +189,7 @@ describe('buildOwnerMediaDetails', () => {
       scientificName: 'Buceros bicornis',
       category: 'bird',
       taxonKey: '2481839',
+      taxonRank: null,
       taxonPath: ['Animalia', 'Chordata', 'Aves'],
       iucnCategory: 'VU',
       threatStatus: 'threatened',

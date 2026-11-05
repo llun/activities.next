@@ -282,6 +282,7 @@ export type SetMediaSubjectLookupParams = {
     // withheld.
     subjectIucnCategory?: IucnCategory | null
     subjectTaxonKey?: string | null
+    subjectTaxonRank?: string | null
     subjectTaxonPath?: string[] | null
     // Epoch milliseconds; defaults to now.
     subjectLookupAt?: number

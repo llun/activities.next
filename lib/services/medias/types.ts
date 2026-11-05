@@ -102,6 +102,7 @@ export const MediaDetailsEntity = z.object({
       category: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable(),
       taxonKey: z.string().nullable(),
       // Kingdom to family names, once the lookup resolved the taxon.
+      taxonRank: z.string().nullable().optional(),
       taxonPath: z.array(z.string()).nullable(),
       iucnCategory: z.enum(IUCN_CATEGORIES).nullable(),
       // Derived: `unchecked` while a species-like subject's place is withheld

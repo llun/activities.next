@@ -242,6 +242,7 @@ describe('buildPublicMediaDetails', () => {
         scientificName: 'Alcedo atthis',
         category: 'bird',
         taxonKey: null,
+        taxonRank: null,
         taxonPath: null
       },
       takenAt: '2024-05-06T07:08:09.000Z',
@@ -825,6 +826,7 @@ describe('buildPublicMediaDetails and threatened species', () => {
       scientificName: 'Buceros bicornis',
       category: 'bird',
       taxonKey: '2481839',
+      taxonRank: null,
       taxonPath: ['Animalia', 'Chordata', 'Aves', 'Bucerotiformes']
     })
   })

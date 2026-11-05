@@ -217,7 +217,10 @@ describe('a stored key whose record disagrees with the names', () => {
         subjectTaxonKey: '5380987'
       })
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     }
   )
@@ -237,7 +240,10 @@ describe('a stored key whose record disagrees with the names', () => {
       subjectTaxonKey: '2487879'
     })
 
-    expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+    expect(patch).toEqual({
+      subjectLookupStatus: 'failed',
+      subjectTaxonRank: null
+    })
     expect(withheld).toBe(true)
   })
 })

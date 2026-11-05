@@ -183,6 +183,7 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
         scientificName: 'Alcedo atthis',
         category: 'bird',
         taxonKey: null,
+        taxonRank: null,
         taxonPath: null
       },
       takenAt: '2024-05-06T07:08:09.000Z',

@@ -22,6 +22,7 @@ import * as addDeletedAttachmentMedia from './20261105034530_add_deleted_attachm
 import * as addAuthRateLimits from './20261105072156_add_auth_rate_limits'
 import * as addDeliveryInboxFailures from './20261105144958_add_delivery_inbox_failures'
 import * as addFitnessSettingsTrainingZones from './20261105174143_add_fitness_settings_training_zones'
+import * as addMediaSubjectTaxonRank from './20261105210627_add_media_subject_taxon_rank'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -53,5 +54,6 @@ export const migrations: MigrationRegistry = {
   '20261105072156_add_auth_rate_limits': addAuthRateLimits,
   '20261105144958_add_delivery_inbox_failures': addDeliveryInboxFailures,
   '20261105174143_add_fitness_settings_training_zones':
-    addFitnessSettingsTrainingZones
+    addFitnessSettingsTrainingZones,
+  '20261105210627_add_media_subject_taxon_rank': addMediaSubjectTaxonRank
 } satisfies Record<MigrationName, MigrationModule>

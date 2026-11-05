@@ -230,6 +230,7 @@ describe('GalleryMediaDatabase', () => {
           subjectLookupStatus: 'resolved',
           subjectIucnCategory: 'LC',
           subjectTaxonKey: '2475532',
+          subjectTaxonRank: 'SPECIES',
           subjectTaxonPath: ['Animalia', 'Chordata', 'Aves']
         }
       })
@@ -629,6 +630,7 @@ describe('GalleryMediaDatabase', () => {
           subjectScientificName: 'Alcedo atthis',
           subjectCategory: 'bird',
           subjectTaxonKey: '2475532',
+          subjectTaxonRank: 'SPECIES',
           subjectTaxonPath: ['Animalia', 'Chordata', 'Aves'],
           subjectIucnCategory: 'LC',
           subjectLookupStatus: 'resolved',
