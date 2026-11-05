@@ -73,8 +73,18 @@ describe.each([
     (language) => {
       const note = serialize(baseStatus({ language }))!
       expect(note.contentMap).toEqual({
-        [language.trim().replaceAll('_', '-')]: note.content
+        [Intl.getCanonicalLocales(language.trim().replaceAll('_', '-'))[0]]:
+          note.content
       })
+    }
+  )
+
+  it.each(['en-abcdefghi', 'zh_'])(
+    'omits the maps for %j, which is not a BCP 47 tag',
+    (language) => {
+      const note = serialize(baseStatus({ language, summary: 'CW' }))!
+      expect(note).not.toHaveProperty('contentMap')
+      expect(note).not.toHaveProperty('summaryMap')
     }
   )
 

@@ -1422,7 +1422,7 @@ class="quote-inline">RE: <a href="…">…</a></p>` — to both emitters' `conte
     ActivityStreams context defines. `focalPoint` needs `"@container": "@list"` or a processor is
     free to reorder the `[x, y]` pair.
   - Outbound Notes and Questions carry `contentMap` keyed by the status's valid
-    declared `language` (an underscore tag such as `zh_TW` is sent as `zh-TW`), as
+    declared `language` (canonicalised with `Intl.getCanonicalLocales`: `zh_TW` is sent as `zh-TW`, and a code BCP 47 rejects sends no map), as
     Mastodon does, plus `summaryMap` when the summary is non-empty (Mastodon reads
     `summaryMap` but does not send it on Notes). `getLanguageMapFields` reuses status creation's `parseLanguageCode`
     validation; an absent or invalid language emits neither map, and
