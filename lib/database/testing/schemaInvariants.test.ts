@@ -253,6 +253,15 @@ describe('schema invariants', () => {
           columns: ['actorId', 'sourceStatusId']
         }
       ],
+      // A bookmark folder's page is keyset-paged like All bookmarks.
+      [
+        'bookmarks_actor_folder_created_id',
+        {
+          table: 'bookmarks',
+          unique: false,
+          columns: ['actorId', 'folderId', 'createdAt', 'id']
+        }
+      ],
       // The app registration rate limit counts recent clients by reference.
       [
         'oauth_client_reference_id_idx',

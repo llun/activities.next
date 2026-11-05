@@ -1,3 +1,4 @@
+import { UNFILED_BOOKMARK_FOLDER } from '@/lib/services/bookmarks/constants'
 import { getBookmarkedStatusesPage } from '@/lib/services/bookmarks/getBookmarkedStatusesPage'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
@@ -7,7 +8,7 @@ import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { buildPaginationLinkHeader } from '@/lib/utils/paginationLinkHeader'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { ERROR_404, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -32,6 +33,27 @@ export const GET = traceApiRoute(
           : DEFAULT_LIMIT
       const format = url.searchParams.get('format')
 
+      // An Activities.next extension: one of the viewer's own folders, or
+      // `none` for the unfiled bookmarks. Without it the list is unchanged.
+      const folderParam = url.searchParams.get('folder_id') || undefined
+      if (
+        folderParam &&
+        folderParam !== UNFILED_BOOKMARK_FOLDER &&
+        !(await database.getBookmarkFolder({
+          id: folderParam,
+          actorId: currentActor.id
+        }))
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: ERROR_404,
+          responseStatusCode: 404
+        })
+      }
+      const folderId =
+        folderParam === UNFILED_BOOKMARK_FOLDER ? null : folderParam
+
       const { statuses, nextMaxBookmarkId, prevMinBookmarkId } =
         await getBookmarkedStatusesPage({
           database,
@@ -40,7 +62,8 @@ export const GET = traceApiRoute(
           limit,
           maxId: url.searchParams.get('max_id'),
           minId: url.searchParams.get('min_id'),
-          sinceId: url.searchParams.get('since_id')
+          sinceId: url.searchParams.get('since_id'),
+          folderId
         })
 
       if (format === TimelineFormat.enum.activities_next) {
@@ -66,7 +89,8 @@ export const GET = traceApiRoute(
         path: '/api/v1/bookmarks',
         limit,
         nextMaxId: nextMaxBookmarkId,
-        prevMinId: prevMinBookmarkId
+        prevMinId: prevMinBookmarkId,
+        extraParams: { folder_id: folderParam }
       })
 
       return apiResponse({

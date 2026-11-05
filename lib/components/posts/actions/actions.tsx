@@ -248,10 +248,15 @@ export const Actions: FC<Props> = ({
         extraItems={extraItems}
         // The compact row's "React to post" item mounts the lazy picker.
         onMenuOpen={isCompact ? preloadReactionPicker : undefined}
+        isBookmarked={bookmark.isBookmarked}
         onReply={onReply}
         onEdit={onEdit}
         onQuote={onQuote}
         onPostDeleted={onPostDeleted}
+        onBookmarkFolderChanged={(target, folderId) => {
+          bookmark.markBookmarked()
+          onBookmarkChanged?.(target, true, folderId)
+        }}
       />
     </div>
   )

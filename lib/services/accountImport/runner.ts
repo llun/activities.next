@@ -15,6 +15,7 @@ import {
   type AccountImportPhaseContext,
   inspectAccountArchive,
   runAlbumsPhase,
+  runBookmarkFoldersPhase,
   runCatalogPhase,
   runCollectionsNoopPhase,
   runFitnessPhase,
@@ -311,6 +312,9 @@ export const runAccountImport = async (
       } else if (phase === 'collections') {
         await runCollectionsNoopPhase()
         if ((accountImport.kind as AccountArchiveKind) === 'activities.next') {
+          // Once per phase, before fitness takes the cursor; a rerun is
+          // harmless (folders match by name, filing is idempotent).
+          if (cursor === null) await runBookmarkFoldersPhase(context, progress)
           const result = await runFitnessPhase(context, progress, cursor)
           progress = result.progress
           phaseResult = result.result

@@ -5,6 +5,7 @@ import {
   Ban,
   Check,
   ExternalLink,
+  Folder,
   Globe,
   Languages,
   Link as LinkIcon,
@@ -15,6 +16,7 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Plus,
   Trash2,
   TriangleAlert,
   Unlock,
@@ -38,12 +40,18 @@ import {
   getRelationship,
   getStatusById,
   pinStatus,
+  setStatusBookmarkFolder,
   unblock,
   unmute,
   unpinStatus,
   updateStatusInteractionPolicy,
   updateStatusVisibility
 } from '@/lib/client'
+import { NewBookmarkFolderDialog } from '@/lib/components/bookmarks/NewBookmarkFolderDialog'
+import {
+  loadBookmarkFolders,
+  useBookmarkFolders
+} from '@/lib/components/bookmarks/bookmarkFolderStore'
 import { getActorIdMention } from '@/lib/components/posts/actor'
 import { useTranslationContext } from '@/lib/components/posts/translation-context'
 import {
@@ -107,7 +115,8 @@ const QUOTE_POLICY_OPTIONS: {
   { value: 'nobody', label: 'No one', icon: <Ban className="size-4" /> }
 ]
 
-type ActiveDialog = 'mute' | 'block' | 'report' | 'delete' | null
+type ActiveDialog =
+  'mute' | 'block' | 'report' | 'delete' | 'new-bookmark-folder' | null
 
 /**
  * One choice inside a `PostMenuExtraItem`'s submenu — a pick-one list, so it
@@ -213,10 +222,21 @@ interface Props {
    * (Quote, Edit, Copy link, Report, …), so the scope of each is announced.
    */
   scopeLabels?: { group: string; post: string }
+  /**
+   * Whether the viewer has bookmarked the post, when the row owns that state
+   * (its Bookmark button). Without it the menu goes by the status and its own
+   * filings.
+   */
+  isBookmarked?: boolean
   onReply?: (status: Status) => void
   onEdit?: (status: EditableStatus) => void
   onQuote?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
+  /** "Bookmark folder" filed the post (bookmarking it if needed); null is unfiled. */
+  onBookmarkFolderChanged?: (
+    status: StatusNote | StatusPoll,
+    folderId: string | null
+  ) => void
 }
 
 // Responsive "more actions" (⋯) overflow menu shown at the end of a post's
@@ -238,10 +258,12 @@ export const PostMenu: FC<Props> = ({
   triggerClassName,
   targetLabel,
   scopeLabels,
+  isBookmarked: rowBookmarked,
   onReply,
   onEdit,
   onQuote,
-  onPostDeleted
+  onPostDeleted,
+  onBookmarkFolderChanged
 }) => {
   const router = useRouter()
   const translation = useTranslationContext()
@@ -281,6 +303,26 @@ export const PostMenu: FC<Props> = ({
   const [isPinned, setIsPinned] = useState(knownPinned)
   const [pinnedLoaded, setPinnedLoaded] = useState(knownPinned)
   const [pinSaving, setPinSaving] = useState(false)
+
+  // The viewer's private bookmark folder for this post. A filing bookmarks
+  // the post too, so the menu tracks that as well when the row does not.
+  const bookmarkFolders = useBookmarkFolders()
+  const [ownBookmarked, setOwnBookmarked] = useState(status.isActorBookmarked)
+  const [bookmarkFolderId, setBookmarkFolderId] = useState<string | null>(
+    status.bookmarkFolderId ?? null
+  )
+  const [bookmarkFolderSaving, setBookmarkFolderSaving] = useState(false)
+  const isBookmarked = rowBookmarked ?? ownBookmarked
+
+  useEffect(() => {
+    setOwnBookmarked(status.isActorBookmarked)
+    setBookmarkFolderId(status.bookmarkFolderId ?? null)
+  }, [status.isActorBookmarked, status.bookmarkFolderId])
+
+  // Removing the bookmark drops its folder; bookmarking again starts unfiled.
+  useEffect(() => {
+    if (rowBookmarked === false) setBookmarkFolderId(null)
+  }, [rowBookmarked])
 
   useEffect(() => {
     if (!copied) return
@@ -371,6 +413,25 @@ export const PostMenu: FC<Props> = ({
         "Couldn't change who can quote this post. Please try again."
       )
     }
+  }
+
+  const handleBookmarkFolderChange = async (folderId: string | null) => {
+    if (bookmarkFolderSaving) return
+    if (isBookmarked && folderId === bookmarkFolderId) return
+    setBookmarkFolderSaving(true)
+    setActionError(null)
+    const saved = await setStatusBookmarkFolder({
+      statusId: status.id,
+      folderId
+    }).catch(() => false)
+    setBookmarkFolderSaving(false)
+    if (!saved) {
+      setActionError("Couldn't file the bookmark. Please try again.")
+      return
+    }
+    setOwnBookmarked(true)
+    setBookmarkFolderId(folderId)
+    onBookmarkFolderChanged?.(status, folderId)
   }
 
   const handleUnmute = async () => {
@@ -533,6 +594,7 @@ export const PostMenu: FC<Props> = ({
             onMenuOpen?.()
             void loadRelationship()
             void loadPinnedState()
+            void loadBookmarkFolders()
           }
         }}
       >
@@ -582,7 +644,66 @@ export const PostMenu: FC<Props> = ({
               </DropdownMenuLabel>
             ) : null}
             {postItems.map(renderExtraItem)}
-            {postItems.length > 0 ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger disabled={bookmarkFolderSaving}>
+                <Folder className="size-4" />
+                Bookmark folder
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-60">
+                {[
+                  { id: null, name: 'No folder' },
+                  ...bookmarkFolders.folders
+                ].map((folder) => {
+                  const checked = isBookmarked && folder.id === bookmarkFolderId
+                  return (
+                    <DropdownMenuItem
+                      key={folder.id ?? 'none'}
+                      disabled={bookmarkFolderSaving}
+                      // A pick-one list, like the visibility submenu below.
+                      role="menuitemradio"
+                      aria-checked={checked}
+                      onSelect={() => {
+                        void handleBookmarkFolderChange(folder.id)
+                      }}
+                    >
+                      <span
+                        className={cn(
+                          'flex-1 truncate',
+                          folder.id === null && 'text-muted-foreground'
+                        )}
+                      >
+                        {folder.name}
+                      </span>
+                      {checked ? (
+                        <Check className="size-4 shrink-0 text-primary" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  )
+                })}
+                {bookmarkFolders.status === 'loading' ||
+                bookmarkFolders.status === 'error' ? (
+                  <DropdownMenuItem disabled>
+                    {bookmarkFolders.status === 'loading'
+                      ? 'Loading folders…'
+                      : "Couldn't load folders"}
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={bookmarkFolderSaving}
+                  onSelect={() => {
+                    // The dialog takes focus, so it opens once the menu has
+                    // handed focus back.
+                    deferredSelectRef.current = () =>
+                      setDialog('new-bookmark-folder')
+                  }}
+                >
+                  <Plus className="size-4" />
+                  New folder…
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
             {onQuote ? (
               <>
                 <DropdownMenuItem onSelect={() => onQuote(status)}>
@@ -803,6 +924,11 @@ export const PostMenu: FC<Props> = ({
         onOpenChange={(open) => setDialog(open ? 'report' : null)}
         targetActorId={targetActorId}
         statusId={status.id}
+      />
+      <NewBookmarkFolderDialog
+        open={dialog === 'new-bookmark-folder'}
+        onOpenChange={(open) => setDialog(open ? 'new-bookmark-folder' : null)}
+        onCreated={(folder) => handleBookmarkFolderChange(folder.id)}
       />
       <DeleteDialog
         open={dialog === 'delete'}

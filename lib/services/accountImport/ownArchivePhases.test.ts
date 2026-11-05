@@ -20,6 +20,7 @@ import {
 import { createAccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import {
   runAlbumsPhase,
+  runBookmarkFoldersPhase,
   runFitnessPhase,
   runGearsPhase,
   runOwnArchiveMediaPhase
@@ -854,5 +855,155 @@ describe('own archive import phases', () => {
     })
     expect(items).toHaveLength(2)
     expect(items.every((item) => item.state === 'done')).toBe(true)
+  })
+
+  describe('bookmark folders', () => {
+    const EXTRAS = 'activities.next/actors/llun.test/test1'
+    const progressWithBookmarks = (bookmarks = true) => ({
+      ...createInitialImportProgress(),
+      sourceExtrasDir: EXTRAS,
+      selectedOptions: {
+        likes: false,
+        bookmarks,
+        repliesToOthers: 'skip' as const,
+        profile: false,
+        settings: false
+      }
+    })
+
+    const createStatus = async (name: string) => {
+      const id = `${actor.id}/statuses/folder-import-${name}-${randomUUID()}`
+      await database.createNote({
+        id,
+        url: id,
+        actorId: actor.id,
+        text: name,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      return id
+    }
+
+    const folderOf = async (statusId: string) =>
+      (
+        await db
+          .selectFrom('bookmarks')
+          .select('folderId')
+          .where('actorId', '=', actor.id)
+          .where('statusId', '=', statusId)
+          .executeTakeFirst()
+      )?.folderId
+
+    it('restores folders by name and files the imported bookmarks only', async () => {
+      const filed = await createStatus('filed')
+      const notBookmarked = await createStatus('not-bookmarked')
+      await database.createBookmark({ actorId: actor.id, statusId: filed })
+      const existing = await database.createBookmarkFolder({
+        actorId: actor.id,
+        name: 'Already here'
+      })
+      if (existing.status !== 'ok') throw new Error(existing.status)
+
+      const importId = 'folders-' + randomUUID()
+      const stagedImport = await stageArchive(
+        await createImport(importId),
+        buildZip([
+          {
+            name: `${EXTRAS}/bookmark_folders.json`,
+            data: Buffer.from(
+              JSON.stringify([
+                {
+                  id: 'source-folder-1',
+                  name: 'already HERE',
+                  createdAt: 1,
+                  updatedAt: 1,
+                  items: [filed, notBookmarked]
+                },
+                {
+                  id: 'source-folder-2',
+                  name: 'Fresh folder',
+                  createdAt: 1,
+                  updatedAt: 1,
+                  items: []
+                },
+                {
+                  id: 'source-folder-3',
+                  name: '   ',
+                  createdAt: 1,
+                  updatedAt: 1,
+                  items: [filed]
+                }
+              ])
+            )
+          }
+        ])
+      )
+
+      await runBookmarkFoldersPhase(
+        contextFor(stagedImport),
+        progressWithBookmarks()
+      )
+
+      const names = (
+        await database.getBookmarkFolders({ actorId: actor.id })
+      ).map((folder) => folder.name)
+      expect(names).toEqual(
+        expect.arrayContaining(['Already here', 'Fresh folder'])
+      )
+      expect(names).not.toContain('already HERE')
+      expect(await folderOf(filed)).toBe(existing.folder.id)
+      await expect(
+        database.isActorBookmarkedStatus({
+          actorId: actor.id,
+          statusId: notBookmarked
+        })
+      ).resolves.toBe(false)
+    })
+
+    it('leaves bookmarks unfiled for an archive without folders, or with the option off', async () => {
+      const statusId = await createStatus('old-archive')
+      await database.createBookmark({ actorId: actor.id, statusId })
+      const before = await database.getBookmarkFolders({ actorId: actor.id })
+
+      const oldImport = await stageArchive(
+        await createImport('old-archive-' + randomUUID()),
+        buildZip([{ name: `${EXTRAS}/profile.json`, data: Buffer.from('{}') }])
+      )
+      await runBookmarkFoldersPhase(
+        contextFor(oldImport),
+        progressWithBookmarks()
+      )
+      // One running import per actor.
+      await db.deleteFrom('account_imports').execute()
+
+      const offImport = await stageArchive(
+        await createImport('option-off-' + randomUUID()),
+        buildZip([
+          {
+            name: `${EXTRAS}/bookmark_folders.json`,
+            data: Buffer.from(
+              JSON.stringify([
+                {
+                  id: 'source-folder',
+                  name: 'Option off folder',
+                  createdAt: 1,
+                  updatedAt: 1,
+                  items: [statusId]
+                }
+              ])
+            )
+          }
+        ])
+      )
+      await runBookmarkFoldersPhase(
+        contextFor(offImport),
+        progressWithBookmarks(false)
+      )
+
+      expect(await database.getBookmarkFolders({ actorId: actor.id })).toEqual(
+        before
+      )
+      expect(await folderOf(statusId)).toBeNull()
+    })
   })
 })

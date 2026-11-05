@@ -39,6 +39,7 @@ import {
   mastodonActivitySchema,
   mastodonActorSchema,
   ownAlbumSchema,
+  ownBookmarkFolderSchema,
   ownFitnessFileLineSchema,
   ownFitnessGearSchema,
   ownGalleryGearSchema,
@@ -2501,6 +2502,93 @@ export const runFitnessPhase = async (
         targetGear = targetMapForKind(references, 'fitness-gear')
       }
     )
+  } finally {
+    await archive.close()
+  }
+}
+
+/**
+ * The bookmarks option, second half: this server's own export lists the
+ * owner's private bookmark folders in `bookmark_folders.json`. Each folder is
+ * matched by name (case-insensitively, so a rerun reuses it) or created, and
+ * the bookmarks the statuses phase already imported are filed into it. A
+ * status that did not come back as a bookmark is not bookmarked here, and an
+ * archive without the file (a Mastodon one, or an older export) leaves every
+ * bookmark unfiled. Nothing here federates or notifies.
+ *
+ * shortcut: one bounded pass with no cursor (at most 200 folders); give it a
+ * cursor if large folders ever outlast an import slice.
+ */
+export const runBookmarkFoldersPhase = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress
+): Promise<void> => {
+  if (!selectedOptions(context, progress).bookmarks) return
+  if ((context.accountImport.kind as AccountArchiveKind) !== 'activities.next')
+    return
+  const archive = await openArchive(context.objectStore, context.accountImport)
+  try {
+    const sourceExtrasDir = await resolveOwnArchiveExtrasDir(
+      archive,
+      progress,
+      'activities.next'
+    )
+    if (!sourceExtrasDir) return
+    const name = `${sourceExtrasDir}/bookmark_folders.json`
+    if (!requiredEntry(archive.entries, name)) return
+
+    const { database } = context
+    const actorId = context.accountImport.actorId
+    const folderByName = new Map(
+      (await database.getBookmarkFolders({ actorId })).map((folder) => [
+        folder.name.toLowerCase(),
+        folder.id
+      ])
+    )
+    for await (const event of iterateArrayItems(
+      chunksOf(await archive.openEntryStream(name))
+    )) {
+      if (!('raw' in event)) continue
+      let value: unknown
+      try {
+        value = parseJsonItem(event.raw)
+      } catch {
+        continue
+      }
+      const parsed = ownBookmarkFolderSchema.safeParse(value)
+      if (!parsed.success) continue
+      await context.renew()
+      const folderName = parsed.data.name.trim()
+      let folderId = folderByName.get(folderName.toLowerCase())
+      if (!folderId) {
+        const created = await database.createBookmarkFolder({
+          actorId,
+          name: folderName
+        })
+        // A name the folder rules refuse, or a full set of folders: its
+        // bookmarks stay unfiled.
+        if (created.status !== 'ok') continue
+        folderId = created.folder.id
+        folderByName.set(created.folder.name.toLowerCase(), folderId)
+      }
+      for (const uri of parsed.data.items) {
+        const status = await database.getStatus({ statusId: uri })
+        if (!status) continue
+        if (
+          !(await database.isActorBookmarkedStatus({
+            actorId,
+            statusId: status.id
+          }))
+        ) {
+          continue
+        }
+        await database.fileBookmark({
+          actorId,
+          statusId: status.id,
+          folderId
+        })
+      }
+    }
   } finally {
     await archive.close()
   }

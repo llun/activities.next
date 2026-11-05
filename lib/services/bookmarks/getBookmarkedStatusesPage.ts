@@ -14,6 +14,8 @@ interface GetBookmarkedStatusesPageParams {
   maxId?: string | null
   minId?: string | null
   sinceId?: string | null
+  /** One folder's bookmarks; null is the unfiled ones, undefined all. */
+  folderId?: string | null
 }
 
 interface BookmarkedStatusesPage {
@@ -29,7 +31,8 @@ export const getBookmarkedStatusesPage = async ({
   limit,
   maxId,
   minId,
-  sinceId
+  sinceId,
+  folderId
 }: GetBookmarkedStatusesPageParams): Promise<BookmarkedStatusesPage> => {
   const entries: Array<{ bookmark: Bookmark; status: Status }> = []
   let cursor = maxId ?? null
@@ -47,7 +50,8 @@ export const getBookmarkedStatusesPage = async ({
       limit,
       maxId: cursor,
       minId,
-      sinceId
+      sinceId,
+      folderId
     })
     if (bookmarks.length === 0) {
       exhausted = true

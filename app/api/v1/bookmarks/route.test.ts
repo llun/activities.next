@@ -236,4 +236,87 @@ describe('GET /api/v1/bookmarks', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual([])
   })
+
+  describe('folder_id filter', () => {
+    const fileInto = async (name: string, folderId: string | null) => {
+      const statusId = await createBookmarkedStatus(name)
+      await database.fileBookmark({ actorId: ACTOR1_ID, statusId, folderId })
+      return statusId
+    }
+
+    it('lists one folder, carries folder_id into the Link header, and none lists the unfiled', async () => {
+      const created = await database.createBookmarkFolder({
+        actorId: ACTOR1_ID,
+        name: 'Route filter folder'
+      })
+      if (created.status !== 'ok') throw new Error(created.status)
+      const folderId = created.folder.id
+      const filedOld = await fileInto('filter-filed-old', folderId)
+      const unfiled = await fileInto('filter-unfiled', null)
+      const filedNew = await fileInto('filter-filed-new', folderId)
+
+      const first = await GET(createRequest(`?folder_id=${folderId}&limit=1`), {
+        params: Promise.resolve({})
+      })
+      expect(first.status).toBe(200)
+      const firstPage = await first.json()
+      expect(firstPage).toEqual([
+        expect.objectContaining({
+          id: await statusPublicId(database, filedNew),
+          bookmark_folder_id: folderId
+        })
+      ])
+      const link = first.headers.get('Link') ?? ''
+      expect(link).toContain(`folder_id=${folderId}`)
+      const maxId = link.match(/[?&]max_id=([^&>]+)/)?.[1]
+
+      const second = await GET(
+        createRequest(`?folder_id=${folderId}&limit=1&max_id=${maxId}`),
+        { params: Promise.resolve({}) }
+      )
+      expect(
+        (await second.json()).map((status: { id: string }) => status.id)
+      ).toEqual([await statusPublicId(database, filedOld)])
+
+      const none = await GET(createRequest('?folder_id=none&limit=40'), {
+        params: Promise.resolve({})
+      })
+      const noneIds = (await none.json()).map(
+        (status: { id: string }) => status.id
+      )
+      expect(noneIds).toContain(await statusPublicId(database, unfiled))
+      expect(noneIds).not.toContain(await statusPublicId(database, filedNew))
+      expect(noneIds).not.toContain(await statusPublicId(database, filedOld))
+
+      const all = await GET(createRequest('?limit=40'), {
+        params: Promise.resolve({})
+      })
+      const allIds = (await all.json()).map(
+        (status: { id: string }) => status.id
+      )
+      expect(allIds).toEqual(
+        expect.arrayContaining([
+          await statusPublicId(database, filedNew),
+          await statusPublicId(database, unfiled),
+          await statusPublicId(database, filedOld)
+        ])
+      )
+    })
+
+    it("answers 404 for another actor's folder or an unknown one", async () => {
+      const theirs = await database.createBookmarkFolder({
+        actorId: ACTOR2_ID,
+        name: 'Not yours'
+      })
+      if (theirs.status !== 'ok') throw new Error(theirs.status)
+
+      for (const folderId of [theirs.folder.id, 'no-such-folder']) {
+        const response = await GET(createRequest(`?folder_id=${folderId}`), {
+          params: Promise.resolve({})
+        })
+        expect(response.status).toBe(404)
+        expect(await response.json()).toEqual({ error: 'Not Found' })
+      }
+    })
+  })
 })

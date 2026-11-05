@@ -16,6 +16,7 @@ import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import {
   MAX_GALLERY_ALBUMS_PER_ACTOR,
   MAX_GALLERY_ALBUM_ITEMS
@@ -490,5 +491,127 @@ describe('account archive round trip', () => {
         })
       ])
     )
+  })
+
+  it('round-trips bookmark folders and their filed bookmarks', async () => {
+    const createStatus = async (text: string) => {
+      const id = ACTOR3_ID + '/statuses/folder-roundtrip-' + randomUUID()
+      await database.createNote({
+        id,
+        url: id,
+        actorId: ACTOR3_ID,
+        text,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      return id
+    }
+    const filedId = await createStatus('Filed in a folder')
+    const unfiledId = await createStatus('Bookmarked, unfiled')
+    const folderName = 'Round trip reading ' + randomUUID()
+    const folder = await database.createBookmarkFolder({
+      actorId: sourceActor.id,
+      name: folderName
+    })
+    if (folder.status !== 'ok') throw new Error(folder.status)
+    await database.fileBookmark({
+      actorId: sourceActor.id,
+      statusId: filedId,
+      folderId: folder.folder.id
+    })
+    await database.createBookmark({
+      actorId: sourceActor.id,
+      statusId: unfiledId
+    })
+
+    const archiveId = 'folders-export-' + randomUUID()
+    await database.createAccountArchive({
+      id: archiveId,
+      accountId: sourceActor.account!.id,
+      options: { stripExactLocations: false, drafts: false }
+    })
+    const runExportSlice = (slice: number) =>
+      exportAccountArchiveJob(database, {
+        id: 'folders-export-job-' + archiveId + '-' + slice,
+        name: EXPORT_ACCOUNT_ARCHIVE_JOB_NAME,
+        data: { archiveId, slice }
+      })
+    await runExportSlice(0)
+    for (let slice = 0; slice < 200; slice += 1) {
+      const nextIndex = mocks.published.findIndex(
+        (message) =>
+          message.name === EXPORT_ACCOUNT_ARCHIVE_JOB_NAME &&
+          (message.data as { archiveId?: string }).archiveId === archiveId &&
+          !(message.data as { action?: string }).action
+      )
+      if (nextIndex < 0) break
+      const [message] = mocks.published.splice(nextIndex, 1)
+      await runExportSlice((message.data as { slice: number }).slice)
+    }
+    const exported = (await database.getAccountArchive({ id: archiveId }))!
+    expect(exported.status).toBe('ready')
+    const archiveBytes = await fs.readFile(
+      mocks.storageRoot + '/media/' + exported.storagePath
+    )
+
+    const importId = 'folders-import-' + randomUUID()
+    const importRow = await database.createAccountImport({
+      id: importId,
+      accountId: targetActor.account!.id,
+      actorId: targetActor.id,
+      options: '{"bookmarks":true}'
+    })
+    await importObjectStore.store.put(
+      importObjectStore.getUploadKey(importRow),
+      archiveBytes
+    )
+    await database.updateAccountImport({
+      id: importId,
+      uploadedBytes: archiveBytes.length,
+      status: 'running',
+      phase: 'inspect'
+    })
+    mocks.published.length = 0
+    const runImport = () =>
+      importAccountArchiveJob(database, {
+        id: 'folders-import-job-' + randomUUID(),
+        name: IMPORT_ACCOUNT_ARCHIVE_JOB_NAME,
+        data: { importId, actorId: targetActor.id }
+      })
+    await runImport()
+    for (let slice = 0; slice < 100; slice += 1) {
+      const nextIndex = mocks.published.findIndex(
+        (message) =>
+          message.name === IMPORT_ACCOUNT_ARCHIVE_JOB_NAME &&
+          (message.data as { importId?: string }).importId === importId
+      )
+      if (nextIndex < 0) break
+      mocks.published.splice(nextIndex, 1)
+      await runImport()
+    }
+    expect(
+      (
+        await database.getAccountImport({
+          id: importId,
+          actorId: targetActor.id
+        })
+      )?.status
+    ).toBe('done')
+
+    const imported = (
+      await database.getBookmarkFolders({ actorId: targetActor.id })
+    ).find((item) => item.name === folderName)
+    expect(imported).toBeTruthy()
+    expect(imported!.id).not.toBe(folder.folder.id)
+    const bookmarks = await database.getBookmarks({
+      actorId: targetActor.id,
+      limit: 40
+    })
+    expect(bookmarks.find((row) => row.statusId === filedId)?.folderId).toBe(
+      imported!.id
+    )
+    const unfiled = bookmarks.find((row) => row.statusId === unfiledId)
+    expect(unfiled).toBeTruthy()
+    expect(unfiled?.folderId ?? null).toBeNull()
   })
 })

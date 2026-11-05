@@ -277,6 +277,34 @@ export const galleryStep: CollectorStep = {
   }
 }
 
+// The owner's private bookmark folders, each with the status URIs filed in
+// it. The bookmarks themselves stay in the Mastodon `bookmarks.json`, so a
+// Mastodon importer reads them as before and an archive without this file
+// imports every bookmark unfiled.
+export const bookmarkFoldersStep: CollectorStep = {
+  name: 'bookmarkFolders',
+  async run(context) {
+    const { database, actor, stage, pageSize } = context
+    const [folders, items] = await Promise.all([
+      readAllExportRows(database, 'bookmark_folders', actor.id, pageSize),
+      readAllExportRows(database, 'bookmark_folder_items', actor.id, pageSize)
+    ])
+    const itemsByFolder = groupBy(items, 'folderId')
+    await stage.append(
+      entryPath(actor.dir, 'bookmark_folders.json'),
+      json(
+        folders.map((folder) => ({
+          ...folder,
+          items: (itemsByFolder.get(String(folder.id)) ?? []).map((item) =>
+            String(item.statusId)
+          )
+        }))
+      )
+    )
+    return 'done'
+  }
+}
+
 export const scheduledStep: CollectorStep = {
   name: 'scheduled',
   async run(context) {

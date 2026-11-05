@@ -268,7 +268,8 @@ actor into a Mastodon-compatible ActivityPub archive (`.tar.gz`): every status
 regardless of visibility (public, unlisted, followers-only, direct), media
 attachment bytes, fitness activity files and route maps (an extension beyond
 the Mastodon archive format — includes imported activities that were never
-posted), the actor profile, likes, bookmarks, and follow lists. It is
+posted), the actor profile, likes, bookmarks (without their private folders,
+which only the user export below carries), and follow lists. It is
 read-only against the database and storage.
 
 > **CLI versus the user export.** This script is the operator's tool: it needs

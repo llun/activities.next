@@ -1,4 +1,4 @@
-import { FC } from 'react'
+import { FC, ReactNode } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
 import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
@@ -11,6 +11,8 @@ interface Props {
   titleWidth?: string
   /** Draw the one-line description under the title (default). */
   description?: boolean
+  /** Skeletons of the header's actions, sized like the real ones. */
+  actions?: ReactNode
 }
 
 /**
@@ -21,7 +23,8 @@ interface Props {
 export const PostFeedLoading: FC<Props> = ({
   label,
   titleWidth = 'w-28',
-  description = true
+  description = true,
+  actions
 }) => (
   <div aria-busy="true" className="space-y-6">
     <span role="status" className="sr-only">
@@ -34,6 +37,7 @@ export const PostFeedLoading: FC<Props> = ({
           <SkeletonBar className="h-4 w-48 max-w-full" />
         ) : undefined
       }
+      actions={actions}
     />
     <PostListSkeleton />
   </div>

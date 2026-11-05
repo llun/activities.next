@@ -90,7 +90,8 @@ export interface CombinedPostListItemProps {
   onPostDeleted?: (status: Status) => void
   onBookmarkChanged?: (
     status: StatusNote | StatusPoll,
-    isBookmarked: boolean
+    isBookmarked: boolean,
+    folderId?: string | null
   ) => void
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
   onReactionsChanged?: (
@@ -600,6 +601,9 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                                 onEdit={handleEdit}
                                 onQuote={handleQuote}
                                 onPostDeleted={onPostDeleted}
+                                onBookmarkFolderChanged={(target, folderId) =>
+                                  onBookmarkChanged?.(target, true, folderId)
+                                }
                               />
                             ) : null}
                           </div>

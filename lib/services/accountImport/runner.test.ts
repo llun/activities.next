@@ -46,6 +46,7 @@ vi.mock('@/lib/services/accountImport/objectStore', async (importOriginal) => {
 vi.mock('@/lib/services/accountImport/phases', () => ({
   inspectAccountArchive: vi.fn(),
   runAlbumsPhase: vi.fn(),
+  runBookmarkFoldersPhase: vi.fn(),
   runCatalogPhase: vi.fn(),
   runCollectionsNoopPhase: vi.fn(),
   runFitnessPhase: vi.fn(),

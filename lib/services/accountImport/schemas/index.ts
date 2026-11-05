@@ -621,6 +621,18 @@ export const ownAlbumSchema = z
   })
   .strip()
 
+// One private bookmark folder and the status URIs filed in it, as the
+// archive's `bookmark_folders.json` lists them.
+export const ownBookmarkFolderSchema = z
+  .object({
+    id: text(256),
+    name: text(256),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    items: smallCount(uri, 20_000)
+  })
+  .strip()
+
 const gearBaseSchema = z.object({
   id: text(256),
   kind: text(64),
@@ -811,6 +823,7 @@ export const archiveDocumentSchemas = {
   'outbox.json': mastodonOutboxSchema,
   'likes.json': mastodonLikesSchema,
   'bookmarks.json': mastodonBookmarksSchema,
+  'bookmark_folders.json': smallCount(ownBookmarkFolderSchema, 200),
   'profile.json': ownProfileSchema,
   'statuses.jsonl': ownStatusRecordSchema,
   'medias.jsonl': ownMediaLineSchema,

@@ -266,9 +266,18 @@ export interface Blocks {
   uri: string
 }
 
+export interface BookmarkFolders {
+  actorId: string
+  createdAt: WithDefault<Timestamp>
+  id: string
+  name: string
+  updatedAt: WithDefault<Timestamp>
+}
+
 export interface Bookmarks {
   actorId: string
   createdAt: WithDefault<Nullable<Timestamp>>
+  folderId: Nullable<string>
   id: WithDefault<number>
   sourceStatusId: Nullable<string>
   statusId: string
@@ -1552,6 +1561,7 @@ export interface DB {
   attachments: Attachments
   auth_codes: AuthCodes
   blocks: Blocks
+  bookmark_folders: BookmarkFolders
   bookmarks: Bookmarks
   bulk_import_rows: BulkImportRows
   bulk_imports: BulkImports

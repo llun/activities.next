@@ -13,6 +13,8 @@ export interface BookmarkState {
   /** "Bookmark" / "Remove bookmark" — the button's label and the menu item's. */
   label: string
   toggle: () => Promise<void>
+  /** Something else bookmarked the post (filing it into a folder). */
+  markBookmarked: () => void
 }
 
 /**
@@ -97,6 +99,10 @@ export const useBookmarkState = ({
     isLoading,
     error,
     label: getBookmarkLabel(isBookmarked),
-    toggle
+    toggle,
+    markBookmarked: () => {
+      setIsBookmarked(true)
+      setError(null)
+    }
   }
 }

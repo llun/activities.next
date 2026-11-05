@@ -1,5 +1,5 @@
 import { getActorFromId } from '@/lib/database/domains/actor/lookups'
-import { isActorBookmarkedStatus } from '@/lib/database/domains/bookmark/queries'
+import { getActorBookmark } from '@/lib/database/domains/bookmark/queries'
 import { parseElevationSeries } from '@/lib/database/domains/fitnessFile/rows'
 import { isActorLikedStatus } from '@/lib/database/domains/like/queries'
 import { getStatusLinkPreviews } from '@/lib/database/domains/linkPreview/queries'
@@ -57,7 +57,9 @@ import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
 
 export type StatusHydrationContext = {
-  bookmarkedStatusIds?: Set<string>
+  // statusId -> the folder the viewer filed their bookmark of it in (null when
+  // unfiled); a status missing from the map is not bookmarked.
+  bookmarkFolderIds?: Map<string, string | null>
   likedStatusIds?: Set<string>
   // originalStatusId -> the viewer's own Announce id for it. Only the id is
   // ever consumed, so this batches what would otherwise be a per-status lookup
@@ -187,7 +189,7 @@ export const buildViewerHydration = async (
   currentActorId?: string
 ): Promise<Pick<
   StatusHydrationContext,
-  'likedStatusIds' | 'bookmarkedStatusIds' | 'announcedStatusIds'
+  'likedStatusIds' | 'bookmarkFolderIds' | 'announcedStatusIds'
 > | null> => {
   // No viewer means no viewer state to resolve, and the consumer must be left
   // with the fields UNSET — it reads an unset field as "not batched, look this
@@ -205,7 +207,7 @@ export const buildViewerHydration = async (
       : await Promise.all([
           db
             .selectFrom('bookmarks')
-            .select('statusId')
+            .select(['statusId', 'folderId'])
             .where('actorId', '=', currentActorId)
             .where('statusId', 'in', statusIds)
             .execute(),
@@ -224,7 +226,9 @@ export const buildViewerHydration = async (
             .execute()
         ])
   return {
-    bookmarkedStatusIds: new Set(bookmarkRows.map((row) => row.statusId)),
+    bookmarkFolderIds: new Map(
+      bookmarkRows.map((row) => [row.statusId, row.folderId ?? null] as const)
+    ),
     likedStatusIds: new Set(likeRows.map((row) => row.statusId)),
     announcedStatusIds: new Map(
       announceRows.map(
@@ -547,7 +551,7 @@ export const hydrateStatusRow = async (
     totalLikes,
     totalShares,
     isActorLikedStatusResult,
-    isActorBookmarkedStatusResult,
+    actorBookmark,
     actorAnnounceStatusId,
     edits,
     currentPollChoices,
@@ -579,14 +583,18 @@ export const hydrateStatusRow = async (
           })
       : false,
     currentActorId
-      ? hydrationContext.bookmarkedStatusIds
-        ? hydrationContext.bookmarkedStatusIds.has(data.id)
-        : isActorBookmarkedStatus(db, {
+      ? hydrationContext.bookmarkFolderIds
+        ? hydrationContext.bookmarkFolderIds.has(data.id)
+          ? {
+              folderId: hydrationContext.bookmarkFolderIds.get(data.id) ?? null
+            }
+          : null
+        : getActorBookmark(db, {
             statusId: data.id,
             actorId: currentActorId,
             statusType: data.type as StatusType
           })
-      : false,
+      : null,
     currentActorId
       ? hydrationContext.announcedStatusIds
         ? (hydrationContext.announcedStatusIds.get(data.id) ?? null)
@@ -711,7 +719,12 @@ export const hydrateStatusRow = async (
     totalShares,
     reactions,
     isActorLiked: isActorLikedStatusResult,
-    isActorBookmarked: isActorBookmarkedStatusResult,
+    isActorBookmarked: Boolean(actorBookmark),
+    // The viewer's own private folder, set only for that viewer's filed
+    // bookmark (absent otherwise, like the other optional fields).
+    ...(actorBookmark?.folderId
+      ? { bookmarkFolderId: actorBookmark.folderId }
+      : {}),
     actorAnnounceStatusId,
     isLocalActor: Boolean(actor?.account),
     attachments: orderedAttachments,

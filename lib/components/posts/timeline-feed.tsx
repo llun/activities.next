@@ -86,7 +86,8 @@ export interface TimelineFeedProps {
   onPostDeleted?: (status: Status) => void
   onBookmarkChanged?: (
     status: StatusNote | StatusPoll,
-    isBookmarked: boolean
+    isBookmarked: boolean,
+    folderId?: string | null
   ) => void
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
   onReactionsChanged?: (
