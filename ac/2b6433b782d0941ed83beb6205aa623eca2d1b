@@ -1,0 +1,69 @@
+lib/config/trustProxyIpHeaders.test.ts
+  s_2b1a50e2f9b981::t_a0086c824459e0 17-18
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 6,16,28,67-82
+  s_2b1a50e2f9b981::t_0c1b6304fc3fab 83-84
+app/api/v1/accounts/password/route.test.ts
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 100-101
+lib/utils/getTrustedClientIp.ts
+  s_2b1a50e2f9b981::t_3df81e186ffc6f 4-25,32-35,42-43,45-49
+lib/config/trustProxyIpHeaders.ts
+  s_2b1a50e2f9b981::t_ad8db4b31de045 13-23,26-29,33,42,50-51,58
+  s_2b1a50e2f9b981::t_a0086c824459e0 24-25,30-32,34-41,43-49
+app/api/v1/apps/route.test.ts
+  s_2b1a50e2f9b981::t_391406180e8de5 33-34
+app/api/v1/statuses/[id]/thread/route.test.ts
+  s_2b1a50e2f9b981::t_391406180e8de5 56-57
+app/api/v1/accounts/password/reset/request/route.test.ts
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 128-129
+app/api/v1/emails/confirmations/route.test.ts
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 8-9,191,193,204,210-211,221
+lib/utils/getTrustedClientIp.test.ts
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 9,11-12,22-23,43-85
+  s_2b1a50e2f9b981::t_f8466dd15503d7 86
+lib/services/gallery/galleryAlbumRouteSupport.test.ts
+  s_2b1a50e2f9b981::t_1fde939682fc3b 78-79
+docs/architecture.md
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 180-181
+app/api/v1/accounts/password/reset/route.test.ts
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 61-62
+lib/services/auth/auth.ts
+  s_2b1a50e2f9b981::t_4f5c0f7e8bf70e 6,14,44-59,61-62,150-152,166-167,171,173,176-194,256,258,261,264,267,279,282-283
+  s_2b1a50e2f9b981::t_f0dc1cb6a46dba 284
+app/api/v1/accounts/[id]/gallery/albums/route.test.ts
+  s_2b1a50e2f9b981::t_391406180e8de5 49-50
+docs/environment-variables.md
+  s_2b1a50e2f9b981::t_a0086c824459e0 119-120,122
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 121
+app/api/v1/accounts/email/route.test.ts
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 132
+app/api/v1/accounts/route.test.ts
+  s_2b1a50e2f9b981::t_9a2366a7c9c4e3 212
+lib/services/auth/rateLimit.test.ts
+  s_2b1a50e2f9b981::t_a0086c824459e0 9-12,319,355-357
+  s_2b1a50e2f9b981::t_5b88e5336d2fc5 327-328
+  s_2b1a50e2f9b981::t_4f5c0f7e8bf70e 19,64,121-122,139-140,150,166,198-199,311-315,320-326,329-354,358,394,419-420
+app/api/v1/accounts/[id]/gallery/albums/[albumId]/route.test.ts
+  s_2b1a50e2f9b981::t_391406180e8de5 53-54
+app/api/v1/client-errors/route.test.ts
+  s_2b1a50e2f9b981::t_391406180e8de5 26-27
+lib/services/auth/routeRateLimits.ts
+  s_2b1a50e2f9b981::t_1a282c1d64fa6d 2-14,25,27,30-33,35,41-43,45,49-50,53,58,64-67,94
+.env.example
+  s_2b1a50e2f9b981::t_07ed8435f84939 71-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac2b6433b782d0941ed83beb6205aa623eca2d1b",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
