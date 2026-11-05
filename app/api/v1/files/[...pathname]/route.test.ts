@@ -226,6 +226,8 @@ describe('GET /api/v1/files/[...pathname]', () => {
       'image/webp',
       'image/jpeg',
       'image/png',
+      'image/gif',
+      'image/avif',
       'video/mp4',
       'video/webm',
       'audio/mp4'

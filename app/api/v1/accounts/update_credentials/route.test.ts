@@ -6,6 +6,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
+import { uploadImageFixture } from '@/lib/services/medias/uploadImage.fixture'
 import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
@@ -500,6 +501,61 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     )
     updateActor.mockRestore()
   })
+
+  it.each(['webp', 'gif', 'avif'] as const)(
+    'accepts a real %s avatar upload',
+    async (format) => {
+      const saveMediaMock = saveMedia as jest.Mock
+      saveMediaMock.mockResolvedValueOnce({
+        url: 'https://llun.test/media/avatar.webp'
+      })
+      const bytes = await uploadImageFixture(format)
+      const form = new FormData()
+      form.set(
+        'avatar',
+        new Blob([new Uint8Array(bytes)], { type: `image/${format}` }),
+        `avatar.${format}`
+      )
+
+      const response = await PATCH(createRequest(form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(saveMediaMock).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each([
+    [
+      'HEIC',
+      async () => new Blob(['heic-bytes'], { type: 'image/heic' }),
+      'avatar.heic'
+    ],
+    [
+      'PNG declared as WebP',
+      async () =>
+        new Blob([new Uint8Array(await uploadImageFixture('png'))], {
+          type: 'image/webp'
+        }),
+      'avatar.webp'
+    ]
+  ])(
+    'rejects a %s avatar upload with 422 before saving',
+    async (_, makeBlob, filename) => {
+      const saveMediaMock = saveMedia as jest.Mock
+      const form = new FormData()
+      form.set('avatar', await makeBlob(), filename)
+
+      const response = await PATCH(createRequest(form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ error: expect.any(String) })
+      expect(saveMediaMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects an avatar file that fails media validation with 422', async () => {
     const saveMediaMock = saveMedia as jest.Mock

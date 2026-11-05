@@ -1,4 +1,7 @@
+import sharp from 'sharp'
+
 import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
+import { uploadImageFixture } from '@/lib/services/medias/uploadImage.fixture'
 import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
@@ -94,6 +97,30 @@ describe('generateAltText', () => {
     expect(systemPrompt).toContain('This image depicts')
     expect(systemPrompt).toContain('A photo of')
     expect(systemPrompt).toContain('Screenshot of')
+  })
+
+  it('sends AVIF input to the vision model as WebP', async () => {
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      statusCode: 200,
+      body: chatResponse('A blue rectangle.'),
+      bodyTruncated: false,
+      headers: {},
+      url: config.endpoint
+    })
+
+    await generateAltText(
+      config,
+      await uploadImageFixture('avif'),
+      'image/avif'
+    )
+
+    const body = JSON.parse(
+      vi.mocked(safeRemoteFetch).mock.calls[0]?.[0].body ?? '{}'
+    )
+    const dataUrl: string = body.messages[1].content[0].image_url.url
+    expect(dataUrl.startsWith('data:image/webp;base64,')).toBe(true)
+    const sent = Buffer.from(dataUrl.split(',')[1], 'base64')
+    expect((await sharp(sent).metadata()).format).toBe('webp')
   })
 
   it('trims whitespace from generated alt text', async () => {

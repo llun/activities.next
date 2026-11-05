@@ -14,6 +14,7 @@ import type { Attachment } from '@/lib/types/domain/attachment'
 interface MetaData {
   width: number
   height: number
+  pages?: number
   upload?: {
     state: 'pending' | 'verified'
     checksumSha1?: string
@@ -215,7 +216,7 @@ export type MarkMediaUploadVerifiedParams = {
   verifiedAt: number
   // The dimensions probed from the uploaded bytes, replacing the ones the
   // client declared when it asked for the presigned URL.
-  dimensions?: { width: number; height: number }
+  dimensions?: { width: number; height: number; pages?: number }
   // The size of the original after completion rewrote it (metadata stripped),
   // replacing the declared size. The account's media usage counter moves by the
   // difference.

@@ -10,7 +10,6 @@ import crypto from 'crypto'
 import { format } from 'date-fns/format'
 import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
-import sharp from 'sharp'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import type { ReadableStream as NodeReadableStream } from 'stream/web'
@@ -37,6 +36,7 @@ import {
   ImageAnalysisResult,
   analyzeImageBuffer
 } from '@/lib/services/medias/imageAnalysis'
+import { readUploadImageMetadata } from '@/lib/services/medias/imageInput'
 import {
   DEFAULT_IMAGE_OUTPUT_FORMAT,
   type ImageOutputFormat,
@@ -556,7 +556,10 @@ export class S3FileStorage implements MediaStorage {
           accountId,
           tempFilePath,
           expectedSize,
-          prepared
+          prepared,
+          stripped
+            ? { buffer: stripped.buffer, contentType: stripped.contentType }
+            : undefined
         )
         return output ?? (await this._getSaveFileOutput(verifiedMedia))
       } finally {
@@ -678,9 +681,8 @@ export class S3FileStorage implements MediaStorage {
 
   // Stores a copy of the original without its metadata under a fresh key next
   // to it, and returns that key and its size. The re-encode keeps the declared
-  // format (so the content type and extension stay valid) and applies the EXIF
-  // orientation, which is the one piece of metadata that changes how the
-  // pixels display — the probed dimensions already account for it. Failing to
+  // JPEG/PNG format for legacy inputs; WebP/GIF/AVIF become WebP. It applies EXIF
+  // orientation and the stored-image dimension cap, preserving animation. Failing to
   // produce a clean copy fails closed: the upload is refused and removed
   // rather than left public with its metadata. A transient storage error
   // propagates, leaving the upload pending (and the client's object as it
@@ -698,14 +700,28 @@ export class S3FileStorage implements MediaStorage {
     tempFilePath: string,
     contentType: string,
     originalBytes: number
-  ): Promise<{ key: string; bytes: number }> {
+  ): Promise<{
+    key: string
+    bytes: number
+    buffer: Buffer
+    contentType: string
+  }> {
     let stripped: Buffer
     try {
       const encode = (quality: number) => {
-        const image = sharp(tempFilePath).rotate()
-        return contentType === 'image/png'
-          ? image.png({ compressionLevel: quality === 95 ? 6 : 9 }).toBuffer()
-          : image.jpeg({ quality }).toBuffer()
+        const format =
+          contentType === 'image/jpeg'
+            ? 'jpeg'
+            : contentType === 'image/png'
+              ? 'png'
+              : 'webp'
+        const image = createStoredImagePipeline(tempFilePath, format === 'webp')
+        if (format === 'png')
+          return image
+            .png({ compressionLevel: quality === 95 ? 6 : 9 })
+            .toBuffer()
+        if (format === 'jpeg') return image.jpeg({ quality }).toBuffer()
+        return image.webp({ quality }).toBuffer()
       }
       stripped = await encode(95)
       if (stripped.length > originalBytes) {
@@ -739,12 +755,19 @@ export class S3FileStorage implements MediaStorage {
         )
       }
     }
-    // Same directory and extension as the presigned key (both server-made),
-    // new random name.
+    // Same directory as the server-made key, new random name and the actual
+    // output encoding's extension. The row's mimeType still describes the input.
     const nameStart = key.lastIndexOf('/') + 1
     const extensionStart = key.lastIndexOf('.')
+    const outputType = ['image/jpeg', 'image/png'].includes(contentType)
+      ? contentType
+      : 'image/webp'
     const extension =
-      extensionStart >= nameStart ? key.slice(extensionStart) : ''
+      outputType === 'image/webp'
+        ? '.webp'
+        : extensionStart >= nameStart
+          ? key.slice(extensionStart)
+          : ''
     const strippedKey = `${key.slice(0, nameStart)}${crypto
       .randomBytes(8)
       .toString('hex')}${extension}`
@@ -752,11 +775,16 @@ export class S3FileStorage implements MediaStorage {
       new PutObjectCommand({
         Bucket: this._config.bucket,
         Key: strippedKey,
-        ContentType: contentType,
+        ContentType: outputType,
         Body: stripped
       })
     )
-    return { key: strippedKey, bytes: stripped.length }
+    return {
+      key: strippedKey,
+      bytes: stripped.length,
+      buffer: stripped,
+      contentType: outputType
+    }
   }
 
   // Blurhash, focus, alt text and a video's poster. Decoration only: the media
@@ -769,27 +797,36 @@ export class S3FileStorage implements MediaStorage {
     accountId: string,
     tempFilePath: string,
     size: number,
-    prepared: { buffer: Buffer | null }
+    prepared: { buffer: Buffer | null },
+    storedImage?: { buffer: Buffer; contentType: string }
   ): Promise<MediaStorageSaveFileOutput | null> {
     const mediaId = media.id
     const { buffer } = prepared
+    const isImage = media.original.mimeType.startsWith('image')
     const isVideo = media.original.mimeType.startsWith('video')
-    if (!media.original.mimeType.startsWith('image') && !isVideo) return null
-    if (size > PRESIGNED_ANALYSIS_MAX_BYTES || !buffer) return null
-
+    if (!isImage && !isVideo) return null
     try {
-      // A video is analysed and described from its representative preview
-      // frame; the stored video itself is not an image sharp or the vision
-      // model can read.
+      const isAnimated =
+        isImage &&
+        ((await readUploadImageMetadata(tempFilePath)).pages ?? 1) > 1
+      // The stored copy is already inside the 4000x4000 box (and is the first
+      // frame for an animated input), so analysis and alt text never decode the
+      // client's raw upload again. A video is analysed and described from its
+      // representative preview frame; the stored video itself is not an image
+      // sharp or the vision model can read.
+      const imageBuffer = storedImage?.buffer ?? buffer
+      if (isImage && !imageBuffer) return null
+      if (isVideo && (size > PRESIGNED_ANALYSIS_MAX_BYTES || !buffer))
+        return null
       const previewBuffer = isVideo
         ? await extractVideoPreviewFrame(
-            buffer,
+            buffer!,
             getStoredMediaExtension(
               media.original.mimeType,
               media.original.fileName ?? FALLBACK_STORED_FILE_NAME
             )
           )
-        : buffer
+        : imageBuffer!
       const analysis = await analyzeImageBuffer(previewBuffer, {
         manualFocus: media.focus
       })
@@ -808,7 +845,7 @@ export class S3FileStorage implements MediaStorage {
           generatedDescription = await generateAltText(
             altText,
             previewBuffer,
-            isVideo ? 'image/jpeg' : media.original.mimeType
+            isVideo ? 'image/jpeg' : (storedImage?.contentType ?? 'image/webp')
           )
         }
       }
@@ -818,7 +855,7 @@ export class S3FileStorage implements MediaStorage {
         contentType: string
       } | null = null
 
-      if (isVideo && previewBuffer) {
+      if ((isVideo || isAnimated) && previewBuffer) {
         const uploaded = await this._uploadImageBufferToS3(
           Date.now(),
           previewBuffer,
@@ -1043,11 +1080,9 @@ export class S3FileStorage implements MediaStorage {
     file: File,
     options: UploadImageOptions = {}
   ) {
-    return this._uploadImageBufferToS3(
-      currentTime,
-      Buffer.from(await file.arrayBuffer()),
-      options
-    )
+    const buffer = Buffer.from(await file.arrayBuffer())
+    await readUploadImageMetadata(buffer, file.type)
+    return this._uploadImageBufferToS3(currentTime, buffer, options)
   }
 
   private async _uploadImageBufferToS3(
@@ -1063,34 +1098,24 @@ export class S3FileStorage implements MediaStorage {
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const { extension, contentType } = getImageOutputFormatDetail(imageFormat)
 
+    const metaData = await readUploadImageMetadata(buffer)
+    const animated =
+      !isThumbnail && imageFormat === 'webp' && (metaData.pages ?? 1) > 1
     const resizedImage = encodeImageOutput(
-      createStoredImagePipeline(buffer),
+      createStoredImagePipeline(buffer, animated),
       imageFormat
     )
 
-    // `metadata()` reports the INPUT image; the `resolveWithObject` form of
-    // `toBuffer()` resolves with the encoded bytes AND the OUTPUT info
-    // (post-resize/re-encode dimensions and byte size). Read metadata from a
-    // separate sharp instance so the two operations don't run concurrently on
-    // the same pipeline.
-    //
-    // The encoded image is handed to S3 as a buffer rather than written to a
-    // temp file and streamed back off disk. Nothing here wanted a file: the
-    // round trip only existed to produce a stream body, and it cost a write, a
-    // read and an unlink per upload plus a temp file to leak on a crash. It
-    // also made `next build` warn that dynamic filesystem access forces the
-    // whole project to be traced into the server bundle, because `tmpdir()`
-    // and the `fs.open` on it are not statically analysable. A buffer body is
-    // what `_uploadVideoToS3` already sends, for far larger payloads.
-    const [metaData, { data: imageBody, info: outputInfo }, analysis] =
-      await Promise.all([
-        sharp(buffer).metadata(),
-        // No `keepExif()`: EXIF carries GPS position and device identifiers,
-        // and the stored file is public. Orientation is already applied by
-        // the pipeline's `.rotate()`.
-        resizedImage.toBuffer({ resolveWithObject: true }),
-        analyzeImageBuffer(buffer, { manualFocus })
-      ])
+    const { data: imageBody, info: outputInfo } = await resizedImage
+      .toBuffer({ resolveWithObject: true })
+      .catch(() => {
+        throw new MediaValidationError('Uploaded image could not be processed')
+      })
+    // Analyse the encoded copy, not the raw upload: it is already inside the
+    // 4000x4000 box, so this decodes a bounded image instead of the client's
+    // original (an AVIF cannot shrink-on-load). For an animated input sharp
+    // reads the first frame, which is what BlurHash and focus want.
+    const analysis = await analyzeImageBuffer(imageBody, { manualFocus })
 
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
     const path = `${MEDIA_OBJECT_KEY_PREFIX}${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
@@ -1102,16 +1127,16 @@ export class S3FileStorage implements MediaStorage {
       Body: imageBody
     })
     await s3client.send(command)
-    // `previewImage` is always null here — it only exists so an image and a
-    // video upload share one result shape in `saveFile`, as they do in the
-    // local driver.
     return {
       image: resizedImage,
       metaData,
       outputInfo,
       path,
       contentType,
-      previewImage: null,
+      // The first frame of the stored copy, so the thumbnail encode does not
+      // decode the raw upload again.
+      previewImage: animated ? imageBody : null,
+      bytes: outputInfo.size,
       blurhash: analysis.blurhash,
       focus: analysis.focus
     }
@@ -1164,6 +1189,7 @@ export class S3FileStorage implements MediaStorage {
       metaData,
       contentType: file.type,
       previewImage,
+      bytes: buffer.length,
       blurhash: analysis.blurhash,
       focus: analysis.focus
     }

@@ -44,6 +44,7 @@ interface Entry {
     mediaType: string
     width: number
     height: number
+    pages?: number
     description: string
   }
   details: MediaDetailsEntity | null
@@ -196,6 +197,7 @@ export const AddToGalleryDialog: FC<Props> = ({ files, onClose, onAdded }) => {
             mediaType: uploaded.mediaType,
             width: uploaded.width,
             height: uploaded.height,
+            pages: uploaded.pages,
             description: uploaded.name ?? ''
           }
         })
@@ -282,6 +284,7 @@ export const AddToGalleryDialog: FC<Props> = ({ files, onClose, onAdded }) => {
             : (entry.previewPosterUrl ?? undefined),
           width: done ? entry.media!.width : 0,
           height: done ? entry.media!.height : 0,
+          pages: done ? entry.media!.pages : undefined,
           description: done ? entry.media!.description : '',
           decorative: false,
           details: entry.details,

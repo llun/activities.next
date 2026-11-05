@@ -1,7 +1,6 @@
-import sharp from 'sharp'
-
 import { MediaValidationError } from './errors'
 import { extractVideoMetaFromFile } from './extractVideoMeta'
+import { readUploadImageMetadata } from './imageInput'
 import { getAcceptedVideoDimensions } from './videoProbe'
 
 export class PresignedUploadValidationError extends Error {
@@ -11,34 +10,23 @@ export class PresignedUploadValidationError extends Error {
   }
 }
 
-// What sharp reports for each accepted image type. The declared type must be
-// the format the bytes actually are, or the object is not what its row says.
-const SHARP_FORMAT_BY_IMAGE_TYPE: Record<string, string> = {
-  'image/jpeg': 'jpeg',
-  'image/png': 'png'
-}
-
 const probeImage = async (filePath: string, contentType: string) => {
-  const expectedFormat = SHARP_FORMAT_BY_IMAGE_TYPE[contentType]
-  const metadata = await sharp(filePath)
-    .metadata()
-    .catch(() => {
-      throw new PresignedUploadValidationError(
-        'Uploaded object is not an image'
-      )
-    })
-  if (!expectedFormat || metadata.format !== expectedFormat) {
-    throw new PresignedUploadValidationError(
-      'Uploaded object does not match its declared image type'
-    )
-  }
+  const metadata = await readUploadImageMetadata(filePath, contentType).catch(
+    (error: MediaValidationError) => {
+      throw new PresignedUploadValidationError(error.message)
+    }
+  )
   // Display dimensions: EXIF orientations 5-8 swap width and height.
   const width = metadata.autoOrient?.width ?? metadata.width
   const height = metadata.autoOrient?.height ?? metadata.height
   if (!width || !height) {
     throw new PresignedUploadValidationError('Uploaded image has no dimensions')
   }
-  return { width, height }
+  return {
+    width,
+    height,
+    ...(metadata.pages && metadata.pages > 1 ? { pages: metadata.pages } : {})
+  }
 }
 
 const probeContainer = async (filePath: string) =>
@@ -86,7 +74,7 @@ const probeAudio = async (filePath: string) => {
 export const probePresignedMedia = async (
   filePath: string,
   contentType: string
-): Promise<{ width: number; height: number }> => {
+): Promise<{ width: number; height: number; pages?: number }> => {
   if (contentType.startsWith('image/')) {
     return probeImage(filePath, contentType)
   }

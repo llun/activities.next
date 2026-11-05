@@ -15,6 +15,8 @@ import { MediaValidationError } from './errors'
 import { readMediaExif } from './exif/readMediaExif'
 import { LocalFileStorage } from './localFile'
 import { getQuotaLimit } from './quota'
+import { MediaSchema } from './types'
+import { uploadImageFixture } from './uploadImage.fixture'
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -32,6 +34,26 @@ vi.mock('@/lib/services/medias/extractVideoMeta', () => ({
 vi.mock('@/lib/services/medias/extractVideoImage', () => ({
   extractVideoImage: vi.fn()
 }))
+
+const mockMaxUploadSize = vi.fn()
+vi.mock('@/lib/services/medias/uploadSizeLimit', async (importActual) => {
+  const actual =
+    await importActual<typeof import('@/lib/services/medias/uploadSizeLimit')>()
+  return {
+    ...actual,
+    getMaxMediaUploadSize: (
+      ...args: Parameters<typeof actual.getMaxMediaUploadSize>
+    ) => mockMaxUploadSize(...args) ?? actual.getMaxMediaUploadSize(...args)
+  }
+})
+
+// Wrapped, not replaced: the real analysis still runs, and the test can see
+// which bytes it was handed.
+vi.mock('@/lib/services/medias/imageAnalysis', async (importActual) => {
+  const actual =
+    await importActual<typeof import('@/lib/services/medias/imageAnalysis')>()
+  return { ...actual, analyzeImageBuffer: vi.fn(actual.analyzeImageBuffer) }
+})
 
 // A real 1x1 PNG, so the preview branch runs sharp for real rather than against
 // a stand-in the production code could never receive: `extractVideoImage`
@@ -241,6 +263,175 @@ describe('LocalFileStorage image output format', () => {
 
   const readStoredFormat = async (storedPath: string) =>
     (await readStored(storedPath)).format
+
+  it.each(['webp', 'gif', 'avif'] as const)(
+    'accepts and stores %s uploads',
+    async (format) => {
+      const bytes = await uploadImageFixture(format)
+      const media = MediaSchema.parse({
+        file: new File([new Uint8Array(bytes)], `photo.${format}`, {
+          type: `image/${format}`
+        })
+      })
+      const result = await createStorage().saveFile(actor, media)
+      const stored = database.createMedia.mock.calls[0][0]
+      expect(result?.type).toBe('image')
+      expect(await readStoredFormat(stored.original.path)).toBe('webp')
+    }
+  )
+
+  it.each(['gif', 'webp'] as const)(
+    'keeps %s frames, with a static preview and JPEG rendition',
+    async (format) => {
+      const bytes = await uploadImageFixture(format, { animated: true })
+      const file = new File([new Uint8Array(bytes)], `animation.${format}`, {
+        type: `image/${format}`
+      })
+      await createStorage().saveFile(actor, { file })
+      const stored = database.createMedia.mock.calls[0][0]
+      expect((await readStored(stored.original.path)).pages).toBe(2)
+      expect(stored.original.metaData).toMatchObject({
+        width: 8,
+        height: 6,
+        pages: 2
+      })
+      expect(stored.thumbnail).toBeDefined()
+      expect((await readStored(stored.thumbnail!.path)).pages ?? 1).toBe(1)
+      const rendition = await createStorage().saveImageRendition(
+        actor,
+        file,
+        'jpeg'
+      )
+      expect(await readStored(rendition!.path)).toMatchObject({
+        format: 'jpeg',
+        width: 8,
+        height: 6
+      })
+    }
+  )
+
+  it.each(['jpeg', 'webp', 'avif'] as const)(
+    'strips GPS from stored %s bytes and records oriented dimensions',
+    async (format) => {
+      const bytes = await uploadImageFixture(format, { exif: true })
+      expect((await readMediaExif(bytes)).latitude).toBe(51.5)
+      await createStorage().saveFile(actor, {
+        file: new File([new Uint8Array(bytes)], `photo.${format}`, {
+          type: `image/${format}`
+        })
+      })
+      const stored = database.createMedia.mock.calls[0][0]
+      const storedBytes = await fs.readFile(
+        path.join(mediaRoot, stored.original.path)
+      )
+      const storedMetadata = await sharp(storedBytes).metadata()
+      expect(storedMetadata.exif).toBeUndefined()
+      expect((await readMediaExif(storedBytes)).latitude).toBeNull()
+      expect(storedMetadata).toMatchObject({ width: 6, height: 8 })
+      expect(stored.original.metaData).toMatchObject({ width: 6, height: 8 })
+    }
+  )
+
+  it('analyses the resized stored copy, not the raw upload', async () => {
+    const bytes = await sharp({
+      create: { width: 5000, height: 3000, channels: 3, background: '#3366cc' }
+    })
+      .png()
+      .toBuffer()
+    await createStorage().saveFile(actor, {
+      file: new File([new Uint8Array(bytes)], 'large.png', {
+        type: 'image/png'
+      })
+    })
+
+    const { analyzeImageBuffer } =
+      await import('@/lib/services/medias/imageAnalysis')
+    const calls = vi.mocked(analyzeImageBuffer).mock.calls
+    expect(calls.length).toBeGreaterThan(0)
+    for (const [buffer] of calls) {
+      const metadata = await sharp(buffer).metadata()
+      expect(metadata.width).toBeLessThanOrEqual(MAX_WIDTH)
+      expect(metadata.height).toBeLessThanOrEqual(MAX_HEIGHT)
+    }
+  })
+
+  // A noisy JPEG at low quality re-encodes into a much larger near-lossless
+  // WebP, which is the case the stored-size checks exist for. The pattern is
+  // deterministic so the sizes are too.
+  const createNoisyJpegFile = async (name = 'noise.jpg') => {
+    const width = 300
+    const height = 200
+    const noise = Buffer.alloc(width * height * 3)
+    let seed = 1
+    for (let index = 0; index < noise.length; index += 1) {
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      noise[index] = seed % 256
+    }
+    const buffer = await sharp(noise, {
+      raw: { width, height, channels: 3 }
+    })
+      .jpeg({ quality: 10 })
+      .toBuffer()
+    return new File([new Uint8Array(buffer)], name, { type: 'image/jpeg' })
+  }
+
+  it('records the stored byte size, not the upload size', async () => {
+    const file = await createNoisyJpegFile()
+    await createStorage().saveFile(actor, { file })
+
+    const stored = database.createMedia.mock.calls[0][0]
+    const storedSize = (
+      await fs.stat(path.join(mediaRoot, stored.original.path))
+    ).size
+    expect(stored.original.bytes).toBe(storedSize)
+    expect(stored.original.bytes).toBeGreaterThan(file.size)
+  })
+
+  it('refuses when the stored copy exceeds the per-file limit', async () => {
+    mockMaxUploadSize.mockResolvedValueOnce(1)
+
+    await expect(
+      createStorage().saveFile(actor, { file: await createPngFile() })
+    ).rejects.toThrow(
+      'Uploaded image is too large once its metadata is removed'
+    )
+    expect(database.createMedia).not.toHaveBeenCalled()
+    await expect(fs.readdir(mediaRoot)).resolves.toEqual([])
+  })
+
+  it('refuses when the stored copy would exceed the remaining quota', async () => {
+    const file = await createNoisyJpegFile()
+    // Exactly enough room for the upload's own size, not for the larger copy
+    // the encoder writes.
+    database.getStorageUsageForAccount.mockResolvedValue(
+      getQuotaLimit() - file.size
+    )
+
+    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
+      'Storage quota exceeded'
+    )
+    expect(database.createMedia).not.toHaveBeenCalled()
+    await expect(fs.readdir(mediaRoot)).resolves.toEqual([])
+  })
+
+  it.each(['png', 'garbage'] as const)(
+    'refuses %s declared as webp before storing',
+    async (format) => {
+      const bytes =
+        format === 'png'
+          ? await uploadImageFixture('png')
+          : Buffer.from('not an image')
+      await expect(
+        createStorage().saveFile(actor, {
+          file: new File([new Uint8Array(bytes)], 'photo.webp', {
+            type: 'image/webp'
+          })
+        })
+      ).rejects.toBeInstanceOf(MediaValidationError)
+      expect(database.createMedia).not.toHaveBeenCalled()
+      expect(await fs.readdir(mediaRoot)).toEqual([])
+    }
+  )
 
   it('stores uploads as webp by default', async () => {
     const stored = await createStorage().saveFile(actor, {

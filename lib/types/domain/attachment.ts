@@ -21,6 +21,8 @@ export const UploadedAttachment = z.object({
   url: z.string(),
   width: z.number(),
   height: z.number(),
+  // Frame count of an animated image; omitted for a still.
+  pages: z.number().optional(),
   posterUrl: z.string().optional(),
   name: z.string().optional()
 })
@@ -47,6 +49,8 @@ export const Attachment = z.object({
   url: z.string(),
   width: z.number().optional(),
   height: z.number().optional(),
+  // Frame count of an animated image; omitted for a still.
+  pages: z.number().optional(),
   name: z.string(),
   mediaId: z.string().nullable().optional(),
   blurhash: z.string().nullish(),
@@ -172,7 +176,7 @@ export const getDocumentFromAttachment = (attachment: Attachment) =>
 export const getMastodonAttachment = (attachment: Attachment) => {
   if (
     attachment.mediaType.startsWith('image') &&
-    attachment.mediaType !== 'image/gif'
+    (attachment.mediaType !== 'image/gif' || Boolean(attachment.mediaId))
   ) {
     return Mastodon.MediaTypes.Image.parse({
       id: attachment.id,

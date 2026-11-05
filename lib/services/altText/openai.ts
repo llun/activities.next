@@ -1,7 +1,10 @@
 import sharp from 'sharp'
 
 import { AltTextConfig } from '@/lib/config/altText'
-import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
+import {
+  MAX_IMAGE_INPUT_PIXELS,
+  MAX_MEDIA_DESCRIPTION_LENGTH
+} from '@/lib/services/medias/constants'
 import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -65,21 +68,30 @@ export const requestVisionCompletion = async (
     allowCrossHostRedirects
   }: VisionCompletionOptions
 ): Promise<string | null> => {
+  // The vision endpoint does not take AVIF (or GIF), and the declared type has
+  // to describe the bytes actually sent. Every readable input is therefore
+  // re-encoded to WebP; only bytes sharp cannot read at all fall back to the
+  // original buffer and its declared type.
   let processedBuffer = imageBuffer
+  let processedMimeType = mimeType
   try {
-    processedBuffer = await sharp(imageBuffer)
+    processedBuffer = await sharp(imageBuffer, {
+      limitInputPixels: MAX_IMAGE_INPUT_PIXELS
+    })
       .rotate()
       .resize(MAX_VISION_IMAGE_DIMENSION, MAX_VISION_IMAGE_DIMENSION, {
         fit: 'inside',
         withoutEnlargement: true
       })
+      .webp({ quality: 90 })
       .toBuffer()
+    processedMimeType = 'image/webp'
   } catch {
     // If sharp cannot process the buffer, proceed with the original buffer
   }
 
   const base64Data = processedBuffer.toString('base64')
-  const dataUrl = `data:${mimeType};base64,${base64Data}`
+  const dataUrl = `data:${processedMimeType};base64,${base64Data}`
 
   const response = await safeRemoteFetch({
     url: config.endpoint,

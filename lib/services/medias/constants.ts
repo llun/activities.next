@@ -28,7 +28,22 @@ export const MAX_HEIGHT = 4000
 // Default quota per account is 1GB (1,073,741,824 bytes)
 export const DEFAULT_QUOTA_PER_ACCOUNT = 1_073_741_824
 
-export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png']
+// Decoded pixels across ALL frames, before resizing. Bounds animation memory.
+export const MAX_IMAGE_INPUT_PIXELS = 100_000_000
+
+// AVIF is decoded by libheif/libaom, which cannot shrink-on-load: the whole
+// frame is decoded at full resolution before any resize. A 1.9 KB 10000x10000
+// AVIF therefore costs more than 2 GB of RSS, so a single frame gets a lower
+// cap than the all-frame budget above. 40 MP still admits a 8000x5000 photo.
+export const MAX_AVIF_INPUT_PIXELS = 40_000_000
+
+export const ACCEPTED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif'
+]
 
 export const ACCEPTED_FILE_TYPES = [
   ...ACCEPTED_IMAGE_TYPES,

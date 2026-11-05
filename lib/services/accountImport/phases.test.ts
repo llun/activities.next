@@ -24,6 +24,7 @@ import {
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
+import { uploadImageFixture } from '@/lib/services/medias/uploadImage.fixture'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -905,7 +906,7 @@ describe('account import phases', () => {
     expect(item).toMatchObject({ state: 'failed', reason: 'item_failed' })
   })
 
-  const workingMediaPhaseContext = async (importId: string) => {
+  const workingMediaPhaseContext = async (importId: string, bytes?: Buffer) => {
     const accountImport = await database.createAccountImport({
       id: importId,
       accountId,
@@ -924,10 +925,12 @@ describe('account import phases', () => {
     const archive = buildZip([
       {
         name: mediaPath,
-        data: Buffer.concat([
-          Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-          Buffer.alloc(64)
-        ])
+        data:
+          bytes ??
+          Buffer.concat([
+            Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+            Buffer.alloc(64)
+          ])
       }
     ])
     await database.upsertAccountImportItems({
@@ -951,6 +954,89 @@ describe('account import phases', () => {
     }
     return { context, mediaPath }
   }
+
+  it.each(['webp', 'gif', 'avif'] as const)(
+    'sniffs archived %s bytes before calling media storage',
+    async (format) => {
+      const { context } = await workingMediaPhaseContext(
+        `import-media-${format}`,
+        await uploadImageFixture(format)
+      )
+      vi.mocked(saveMedia).mockResolvedValue({ id: 'media-1' } as never)
+      await runMastodonMediaPhase(context, createInitialImportProgress(), null)
+      expect(saveMedia).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          file: expect.objectContaining({ type: `image/${format}` })
+        }),
+        expect.anything()
+      )
+    }
+  )
+
+  it('sniffs an AVIF whose major brand is mif1 but lists avif as compatible', async () => {
+    const ftypBox = (major: string, compatible: string[]) => {
+      const box = Buffer.alloc(16 + compatible.length * 4)
+      box.writeUInt32BE(box.length, 0)
+      box.write('ftyp', 4, 'ascii')
+      box.write(major, 8, 'ascii')
+      box.writeUInt32BE(0, 12)
+      compatible.forEach((brand, index) =>
+        box.write(brand, 16 + index * 4, 'ascii')
+      )
+      return box
+    }
+    const { context } = await workingMediaPhaseContext(
+      'import-media-avif-compatible',
+      ftypBox('mif1', ['mif1', 'avif', 'miaf'])
+    )
+    vi.mocked(saveMedia).mockResolvedValue({ id: 'media-1' } as never)
+
+    await runMastodonMediaPhase(context, createInitialImportProgress(), null)
+
+    expect(saveMedia).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        file: expect.objectContaining({ type: 'image/avif' })
+      }),
+      expect.anything()
+    )
+  })
+
+  it.each([
+    ['isom', ['isom', 'iso2', 'mp41'], 'video/mp4'],
+    ['qt  ', ['qt  '], 'video/quicktime']
+  ])(
+    'does not read a %s ftyp box as AVIF',
+    async (major, compatible, expectedType) => {
+      const box = Buffer.alloc(16 + compatible.length * 4)
+      box.writeUInt32BE(box.length, 0)
+      box.write('ftyp', 4, 'ascii')
+      box.write(major, 8, 'ascii')
+      box.writeUInt32BE(0, 12)
+      compatible.forEach((brand, index) =>
+        box.write(brand, 16 + index * 4, 'ascii')
+      )
+      const { context } = await workingMediaPhaseContext(
+        `import-media-${major.trim()}`,
+        box
+      )
+      vi.mocked(saveMedia).mockResolvedValue({ id: 'media-1' } as never)
+
+      await runMastodonMediaPhase(context, createInitialImportProgress(), null)
+
+      expect(saveMedia).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          file: expect.objectContaining({ type: expectedType })
+        }),
+        expect.anything()
+      )
+    }
+  )
 
   it('skips a media item when the account is over its storage quota', async () => {
     const { context } = await workingMediaPhaseContext('import-media-quota')

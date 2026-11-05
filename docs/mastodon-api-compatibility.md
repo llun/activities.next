@@ -330,6 +330,22 @@ product or security decision, not a gap to be closed.
 
 ### Media
 
+- **Image uploads accept JPEG, PNG, WebP, GIF and AVIF** on both synchronous
+  endpoints and presigned completion, as advertised by both instance endpoints.
+  Avatar/header uploads accept the same formats. HEIC/HEIF receive the normal
+  `422 { error }` response: bundled libvips supports AV1/AVIF, not HEVC/HEIC.
+  GIF/WebP animations remain animated WebP images with first-frame previews.
+  Local animated images are `type: "image"`; `gifv` here denotes an animation
+  in a video container. AVIF is capped at 40 million single-frame pixels
+  (libheif cannot shrink-on-load), refused with the same `422 { error }`.
+  Both upload paths meter the **stored** (re-encoded) bytes against the
+  per-file limit and the account quota, and record the auto-oriented
+  dimensions. `POST /api/v1/media/:id/describe` and
+  `/subject-suggestions` refuse a pending (unverified presigned) upload with
+  `422 { error }` before reading the bytes. See
+  [image processing](architecture.md#media--file-storage)
+  for size limits, content validation and EXIF privacy.
+
 - **An attachment this instance cannot describe is `type: "unknown"`, never a
   `null` entry.** Animated clips with resolved `playbackType: "gifv"` are served
   as `type: "gifv"`; unresolvable media or an `audio/mp4` upload without stored
@@ -1216,7 +1232,9 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 
 - **Admin CRUD extras** — custom emoji, domain allow/deny lists (with import),
   announcements, filters, and rules management under `/api/v1/admin/*` and
-  `/api/v2/admin/*`.
+  `/api/v2/admin/*`. Custom emoji accept PNG, JPEG, WebP, GIF and AVIF but must
+  be **static**: an animated upload is `422 { error }`, because `static_url`
+  would otherwise be animated.
 
 - **Rules, announcements and reports per served domain** — Mastodon has one
   list of each per server; with several served domains each can be scoped.

@@ -905,15 +905,51 @@ Media files (images and video) and fitness files (.fit, .gpx, .tcx) support mult
 - **S3** — Amazon S3
 - **Object storage** — Any S3-compatible service (MinIO, DigitalOcean Spaces, Cloudflare R2, etc.)
 
-An image reaches storage by one of two routes, and only one of them processes
-the bytes. Which route a given upload takes is a property of the mechanism, not
-of the surface the user is on — the same picker can take either.
+Uploads accept JPEG, PNG, WebP, GIF and AVIF (`image/jpeg`, `image/png`,
+`image/webp`, `image/gif`, `image/avif`) for status media, avatars and headers.
+Both instance API versions advertise these MIME types. The declared type must
+match the decoded format; arbitrary bytes and mislabeled images are rejected.
+HEIC/HEIF are deliberately unsupported: sharp 0.35's bundled libvips includes
+libheif with AOM (AV1) for AVIF, without an HEVC decoder. An administrator would
+need a custom libvips with libde265, plus an explicit upload-policy change, to
+support HEIC. Installing the bundled dependencies does not enable it.
+
+An image reaches storage by one of two routes. Both process its bytes before
+completion; the same picker can take either route. GIF and WebP animation is
+preserved as animated WebP, including frame timing and loop count, with a
+static first-frame preview. BlurHash, focus analysis and JPEG email renditions
+also use the first frame. These remain image attachments: `gifv`/`playbackType`
+is reserved here for video-container animations rendered by a video player.
+The photo editor opens still JPEG, PNG, WebP, GIF and AVIF uploads (a still GIF or AVIF is stored as WebP) and refuses animated ones rather than flattening them: the composer and gallery hide the Edit pill for media whose `pages` is above 1, and where an item does not carry `pages` (a post attachment row does not store it) the edit route answers 422 "Animated images can't be edited", which the editor shows as its error, without a retry; any other load failure keeps the generic copy and its retry.
+
+Before decoding all frames, the server caps input at 100 million total pixels
+(width × frame height × frame count), in addition to sharp's pixel limit.
+AVIF gets a lower, single-frame cap of 40 million pixels
+(`MAX_AVIF_INPUT_PIXELS`): libheif/libaom cannot shrink-on-load, so the whole
+frame is decoded before any resize, and a 10000×10000 AVIF costs gigabytes of
+resident memory. An oversized AVIF is refused with the same 422 upload error as
+any other over-budget image. Every sharp call that can see an upload or a stored
+original also passes `limitInputPixels: MAX_IMAGE_INPUT_PIXELS`.
+The normal upload-byte limit and account quota still apply.
+
+Custom emoji accept the same still formats but must be **static**: an animated
+GIF/WebP/AVIF upload is refused with `422 { error }`, because the emoji's
+`static_url` would otherwise be animated.
 
 **Server-side write** (`saveMedia`, `saveMediaThumbnail` and
 `saveMediaImageRendition` in `lib/services/medias/`) re-encodes the image — WebP
 unless the caller asks for another format — and bounds the result by a 4000x4000
 pixel box. That box is a **cap, not a target**: an image already inside it is
-stored at its own dimensions and is never upscaled. This runs whenever the
+stored at its own dimensions and is never upscaled. BlurHash, smart focus and
+automated alt text are computed from the **stored** copy (the resized WebP, or
+its first frame for an animated input), never from the raw upload, so the
+analysis decodes a bounded image instead of the client's original. The row
+records the auto-oriented width and height (EXIF orientation applied), so a
+portrait phone JPEG is stored as its displayed shape. Both drivers meter the
+account for the **stored** bytes, not the upload's: the sync path records the
+encoded original's size and refuses (422) when that copy exceeds the per-file
+limit or the remaining quota, exactly as the presigned path does, with the early
+`file.size` checks kept as a first gate. This runs whenever the
 server itself holds the bytes: the sync upload endpoint, the Mastodon-API
 multipart avatar/header handler (`PATCH /api/v1/accounts/update_credentials`
 and `PATCH /api/v1/profile`), custom emojis, thumbnail replacement
@@ -927,7 +963,8 @@ same way, recorded on the media row from the **stored** file's size and
 dimensions (so it is metered against the account's storage usage), and surfaced
 as the attachment's `meta.small` and `preview_url`. For a video it replaces the
 extracted frame — the frame is extracted either way, so it saves no work — while
-without one a video keeps that frame and an image gets no thumbnail at all. A
+without one a video keeps that frame, an animated image gets its first frame,
+and a still image gets no thumbnail. A
 supplied thumbnail is client input, so both drivers validate it the same way and
 before anything is stored: unusable input is a 422 with nothing written, while a
 storage fault keeps its own error and stays a logged 500. Whatever fails after
@@ -935,14 +972,24 @@ the first write reclaims what it stored, because a `medias` row is the only
 handle anything has on a stored path and a file written without one is
 unreachable.
 
-**Presigned direct-to-S3** stores the bytes exactly as uploaded — original
-format, no re-encode, no server-side dimension cap — because the browser PUTs
-straight to the bucket. `uploadAttachment` (`lib/client.ts`) tries this first
-and only falls back to the sync endpoint when the instance has no object
-storage, so on an S3/object instance it is what the post composer _and_ the
-Settings/Account avatar and header pickers actually use. The only cap there is
-the browser-side canvas resize in `lib/utils/resizeImage.ts`, which a
-non-browser API client never runs.
+**Presigned direct-to-S3** initially receives the client's bytes at the presign
+key. Completion validates their actual format and decoded pixel budget, reads
+EXIF, then writes a metadata-free copy at a new key before atomically verifying
+the row. The copy is capped at 4000×4000 without upscaling. JPEG/PNG retain their
+existing output format; WebP/GIF/AVIF become WebP (animated when applicable).
+BlurHash, focus and alt text are computed from that stripped copy, so the raw
+client object is decoded once, for EXIF and the re-encode.
+The object content type and extension describe the stored encoding; the media
+row's MIME type continues to describe the upload, as on the synchronous path.
+The client's key remains tracked for deletion. Clients must use the completion
+response's URL. See [metadata stripping](maintenance.md#media-details-exif-and-gallery-settings).
+`uploadAttachment` (`lib/client.ts`) tries presigned upload first and falls back
+to the synchronous endpoint when object storage is unavailable.
+
+`resizeImage` passes GIF, WebP and AVIF through unchanged: canvas would flatten
+animations and AVIF decoding is not available in every browser. Server-side
+processing applies the dimension cap. JPEG/PNG keep their existing browser
+resize behavior.
 
 `canvas.toBlob` drops all EXIF, so the composer and Add to gallery call
 `resizeImage` with `{ keepMetadata: true }`: for a JPEG that actually gets
@@ -950,7 +997,8 @@ resized, the original's Exif APP1 segment is grafted into the resized bytes
 (`lib/utils/jpegExif.ts`) with Orientation reset to 1, because the canvas is
 already upright and the server applies EXIF orientation again. The server can
 therefore still read the taken date, gear and GPS of a 12 MP phone photo.
-Avatars and headers (`ImageUploadField`, `ProfileImageField`) do not keep it.
+Avatar and header pickers do not graft JPEG EXIF. WebP/AVIF originals still
+reach the server unchanged, where EXIF is stripped from all stored files.
 
 Images written by the server-side route before the cap became downscale-only
 were enlarged on disk to fill the box. The `medias` row was not:

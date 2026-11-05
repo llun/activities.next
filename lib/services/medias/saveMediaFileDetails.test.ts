@@ -12,6 +12,8 @@ import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 
+import { uploadImageFixture } from './uploadImage.fixture'
+
 // The whole upload path against a real database and a real media root: the
 // EXIF has to be read from the ORIGINAL (the stored copy has none), and it has
 // to land on the media row, the gear table and the owner's entity.
@@ -177,6 +179,49 @@ describe('uploading a photo with EXIF', () => {
     expect(exif.latitude).toBeNull()
     expect(exif.longitude).toBeNull()
   })
+
+  it.each(['webp', 'avif'] as const)(
+    'reads %s EXIF takenAt and GPS onto the media row while stripping stored bytes',
+    async (format) => {
+      const sourceBytes = await uploadImageFixture(format, { exif: true })
+      const entity = await storage().saveFile(
+        actor,
+        {
+          file: new File([new Uint8Array(sourceBytes)], `bird.${format}`, {
+            type: `image/${format}`
+          })
+        },
+        { withGalleryDetails: true }
+      )
+      const stored = await database.getMediaByIdForAccount({
+        mediaId: entity!.id,
+        accountId: actor.account!.id
+      })
+
+      expect(entity?.meta?.original).toMatchObject({ width: 6, height: 8 })
+      expect(entity?.details).toMatchObject({
+        takenAt: '2024-05-06T07:08:09.000Z',
+        place: {
+          latitude: 51.5,
+          longitude: -0.125,
+          precision: 'area'
+        }
+      })
+      expect(stored?.details).toMatchObject({
+        takenAt: Date.UTC(2024, 4, 6, 7, 8, 9),
+        placeLatitude: 51.5,
+        placeLongitude: -0.125
+      })
+      const storedBytes = await fs.readFile(
+        path.join(tempDir, stored!.original.path)
+      )
+      expect((await sharp(storedBytes).metadata()).exif).toBeUndefined()
+      const strippedExif = await readMediaExif(storedBytes)
+      expect(strippedExif.latitude).toBeNull()
+      expect(strippedExif.longitude).toBeNull()
+      expect(strippedExif.takenAt).toBeNull()
+    }
+  )
 
   it('reuses one gear row across uploads from the same camera', async () => {
     const first = await storage().saveFile(

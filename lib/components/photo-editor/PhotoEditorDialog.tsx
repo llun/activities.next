@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   type ApplyToPosts,
+  MediaEditError,
   type MediaEditSaveResult,
   type MediaEditState,
   getMediaEdit,
@@ -16,6 +17,7 @@ import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Dialog, DialogContent } from '@/lib/components/ui/dialog'
 import { Tabs } from '@/lib/components/ui/tabs'
+import { ANIMATED_MEDIA_NOT_EDITABLE_ERROR } from '@/lib/services/medias/edit/editable'
 import {
   MAX_SOURCE_PIXELS,
   NEUTRAL_RECIPE,
@@ -117,6 +119,7 @@ export const PhotoEditorDialog = ({
   const [lostMasks, setLostMasks] = useState({ count: 0, drawing: false })
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tooLarge, setTooLarge] = useState(false)
+  const [notEditable, setNotEditable] = useState(false)
   const [loadVersion, setLoadVersion] = useState(0)
   const [editState, setEditState] = useState<MediaEditState | null>(null)
   const [baseline, setBaseline] = useState<Recipe>(NEUTRAL_RECIPE)
@@ -277,9 +280,20 @@ export const PhotoEditorDialog = ({
         })
         resetHistory(working)
         setPhase('ready')
-      } catch {
+      } catch (error) {
         if (cancelled) return
-        setLoadError("Couldn't load the photo.")
+        // An animated image is refused for good (a post attachment does not
+        // mark it, so the pill still shows); say so instead of offering a retry.
+        // Any other failure, a generic 422 included, may be transient.
+        const animated =
+          error instanceof MediaEditError &&
+          error.error === ANIMATED_MEDIA_NOT_EDITABLE_ERROR
+        setNotEditable(animated)
+        setLoadError(
+          animated
+            ? ANIMATED_MEDIA_NOT_EDITABLE_ERROR
+            : "Couldn't load the photo."
+        )
         setPhase('error')
       }
     })()
@@ -613,7 +627,7 @@ export const PhotoEditorDialog = ({
                 ? 'This photo is too large to edit in the browser.'
                 : (loadError ?? "Couldn't load the photo.")
             }
-            onRetry={tooLarge ? undefined : reload}
+            onRetry={tooLarge || notEditable ? undefined : reload}
           />
         </div>
       )

@@ -109,13 +109,29 @@ describe('ProfileImageField', () => {
     expect(screen.getByRole('button', { name: 'Change avatar' })).toBeEnabled()
   })
 
-  it('refuses a file that is not a JPEG or PNG without uploading it', async () => {
+  it.each(['webp', 'gif', 'avif'])(
+    'offers and uploads a %s avatar',
+    async (format) => {
+      mockUpload.mockResolvedValue({ url: MEDIA_URL })
+      const { fileInput, onUrlChange } = renderField()
+      expect(fileInput.accept.split(',')).toContain(`image/${format}`)
+      choose(
+        fileInput,
+        new File(['bytes'], `profile.${format}`, { type: `image/${format}` })
+      )
+      await waitFor(() => expect(onUrlChange).toHaveBeenCalledWith(MEDIA_URL))
+    }
+  )
+
+  it('refuses a file that is an unsupported HEIC without uploading it', async () => {
     const { fileInput, onUrlChange } = renderField()
 
-    choose(fileInput, new File(['x'], 'me.gif', { type: 'image/gif' }))
+    choose(fileInput, new File(['x'], 'profile.heic', { type: 'image/heic' }))
 
     expect(
-      await screen.findByText('Please select a JPEG or PNG image')
+      await screen.findByText(
+        'Please select a JPEG, PNG, WebP, GIF or AVIF image'
+      )
     ).toHaveAttribute('role', 'alert')
     expect(mockUpload).not.toHaveBeenCalled()
     expect(onUrlChange).not.toHaveBeenCalled()

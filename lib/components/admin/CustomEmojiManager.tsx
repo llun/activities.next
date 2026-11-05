@@ -19,6 +19,7 @@ import { Section } from '@/lib/components/surface/Section'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
+import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
 import type { AdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import { CUSTOM_EMOJI_SHORTCODE_REGEX } from '@/lib/types/domain/customEmoji'
 import { cn } from '@/lib/utils'
@@ -123,8 +124,8 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
         title="Add a custom emoji"
         description={
           <>
-            Upload a PNG or JPEG and give it a shortcode. People type it between
-            colons in a post, e.g.{' '}
+            Upload a PNG, JPEG, WebP, GIF or AVIF still and give it a shortcode.
+            People type it between colons in a post, e.g.{' '}
             <span className="font-mono">:blobcheer:</span>.
           </>
         }
@@ -145,7 +146,7 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
             <FormRow
               label="Image"
               htmlFor="emoji-image"
-              hint={file ? file.name : 'PNG or JPEG'}
+              hint={file ? file.name : 'PNG, JPEG, WebP, GIF or AVIF'}
               inline
             >
               <button
@@ -160,7 +161,7 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpeg"
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
                 className="hidden"
                 onChange={onFileChange}
               />

@@ -1,4 +1,5 @@
 import { MediaValidationError } from './errors'
+import { readUploadImageMetadata } from './imageInput'
 import { createStoredImagePipeline } from './storedImagePipeline'
 
 // A thumbnail is unvalidated client input on every path that accepts one:
@@ -14,6 +15,7 @@ export const readValidThumbnail = async (thumbnail: File): Promise<Buffer> => {
   }
   const buffer = Buffer.from(await thumbnail.arrayBuffer())
   try {
+    await readUploadImageMetadata(buffer, thumbnail.type)
     // A full decode, not the cheaper `metadata()`: that parses the header, so
     // an image whose body is truncated passes it and fails only once the
     // encoder reaches the bytes that are not there — by which point the

@@ -2,7 +2,6 @@ import crypto from 'crypto'
 import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
-import sharp from 'sharp'
 import { Readable } from 'stream'
 
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
@@ -11,6 +10,7 @@ import {
   ImageAnalysisResult,
   analyzeImageBuffer
 } from '@/lib/services/medias/imageAnalysis'
+import { readUploadImageMetadata } from '@/lib/services/medias/imageInput'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
@@ -287,10 +287,9 @@ export class LocalFileStorage implements MediaStorage {
     imageFile: File,
     options: SaveImageOptions = {}
   ) {
-    return this._saveImageBuffer(
-      Buffer.from(await imageFile.arrayBuffer()),
-      options
-    )
+    const buffer = Buffer.from(await imageFile.arrayBuffer())
+    await readUploadImageMetadata(buffer, imageFile.type)
+    return this._saveImageBuffer(buffer, options)
   }
 
   // Images are re-encoded under a generated name, so the supplied file name
@@ -310,23 +309,27 @@ export class LocalFileStorage implements MediaStorage {
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const filename = `${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
     const filePath = assertStorageFilePath(uploadPath, filename)
+    const metaData = await readUploadImageMetadata(imageBuffer)
+    const animated =
+      !isThumbnail && format === 'webp' && (metaData.pages ?? 1) > 1
     const resizedImage = encodeImageOutput(
-      createStoredImagePipeline(imageBuffer),
+      createStoredImagePipeline(imageBuffer, animated),
       format
     )
-    // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT
-    // info (post-resize/re-encode dimensions and byte size). Callers that need
-    // the stored file's real size/dimensions (e.g. thumbnails) use `outputInfo`.
-    // Read metadata from a separate sharp instance so the two operations don't
-    // run concurrently on the same pipeline.
-    const [metaData, outputInfo, analysis] = await Promise.all([
-      sharp(imageBuffer).metadata(),
-      // No `keepExif()`: EXIF carries GPS position and device identifiers, and
-      // the stored file is public. Orientation is already applied by the
-      // pipeline's `.rotate()`.
-      resizedImage.toFile(filePath),
-      analyzeImageBuffer(imageBuffer, { manualFocus })
-    ])
+    // Finish decoding before opening a storage file: invalid bytes must not
+    // leave a partial public original without a database row.
+    const { data, info: outputInfo } = await resizedImage
+      .toBuffer({ resolveWithObject: true })
+      .catch(() => {
+        throw new MediaValidationError('Uploaded image could not be processed')
+      })
+    // Analyse the bytes that were just encoded, not the raw upload: the stored
+    // copy is already inside the 4000x4000 box, so this decodes a bounded image
+    // instead of the client's original (an AVIF cannot shrink-on-load, and a
+    // 10000x10000 one costs gigabytes). For an animated input sharp reads the
+    // first frame, which is what BlurHash and focus want.
+    const analysis = await analyzeImageBuffer(data, { manualFocus })
+    await fs.writeFile(filePath, data)
 
     return {
       image: resizedImage,
@@ -334,7 +337,10 @@ export class LocalFileStorage implements MediaStorage {
       outputInfo,
       path: filename,
       contentType,
-      previewImage: null,
+      // The first frame of the stored copy, so the thumbnail encode does not
+      // decode the raw upload again.
+      previewImage: animated ? data : null,
+      bytes: outputInfo.size,
       blurhash: analysis.blurhash,
       focus: analysis.focus
     }
@@ -383,6 +389,7 @@ export class LocalFileStorage implements MediaStorage {
       path: filename,
       contentType: videoFile.type,
       previewImage,
+      bytes: buffer.length,
       blurhash: analysis.blurhash,
       focus: analysis.focus
     }

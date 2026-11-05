@@ -188,6 +188,7 @@ const completeUploadPresignedUrlRequest = async ({
       posterUrl: result.media.preview_url ?? undefined,
       width: result.media.meta.original.width,
       height: result.media.meta.original.height,
+      pages: result.media.meta.original.pages,
       name: result.media.description ?? undefined
     }
   }
@@ -309,6 +310,7 @@ export const uploadAttachment = async (
       posterUrl: media.preview_url ?? undefined,
       width: media.meta.original.width,
       height: media.meta.original.height,
+      pages: media.meta.original.pages,
       name: media.description ?? undefined
     }
   }

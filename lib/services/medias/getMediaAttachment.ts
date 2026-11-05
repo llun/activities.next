@@ -13,12 +13,14 @@ const mediaMeta = (metaData: Media['original']['metaData']) => {
     width,
     height,
     size: `${width}x${height}`,
-    aspect: width / (height || 1)
+    aspect: width / (height || 1),
+    ...(metaData.pages && metaData.pages > 1 ? { pages: metaData.pages } : {})
   }
 }
 
-// Maps a stored mime type to a Mastodon MediaAttachment `type`. We don't detect
-// animated GIFs, so we never emit `gifv`; anything that isn't image/video/audio
+// Maps a stored mime type to a Mastodon MediaAttachment `type`. We don't
+// transcode animated images to video, so they remain `image`, not `gifv`.
+// Anything that isn't image/video/audio
 // is reported as `unknown`.
 // https://docs.joinmastodon.org/entities/MediaAttachment/#type
 const mediaType = (mimeType: string): MediaType => {

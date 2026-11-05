@@ -11,6 +11,7 @@ const INLINE_MEDIA_CONTENT_TYPES = new Set([
   'image/png',
   'image/webp',
   'image/gif',
+  'image/avif',
   'video/mp4',
   'video/quicktime',
   'video/webm',

@@ -18,6 +18,8 @@ export interface DraftAttachment {
   fileName: string
   width?: number
   height?: number
+  /** Frame count of an animated image, so a reopened draft hides Edit. */
+  pages?: number
   /** Server URLs once uploaded; never `blob:`. */
   url?: string
   posterUrl?: string

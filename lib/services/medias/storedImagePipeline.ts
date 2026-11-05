@@ -2,7 +2,7 @@ import sharp from 'sharp'
 
 import { MASK_LONG_EDGE } from '@/lib/services/medias/edit/recipe'
 
-import { MAX_HEIGHT, MAX_WIDTH } from './constants'
+import { MAX_HEIGHT, MAX_IMAGE_INPUT_PIXELS, MAX_WIDTH } from './constants'
 
 // `withoutEnlargement` is load-bearing: sharp's `fit: 'inside'` ENLARGES by
 // default, so without it the MAX_WIDTH/MAX_HEIGHT box stops being a cap and
@@ -23,8 +23,11 @@ const STORED_IMAGE_RESIZE_OPTIONS = {
 //
 // Server-only: it imports sharp, so it stays out of `constants.ts`, which
 // client components import.
-export const createStoredImagePipeline = (input: Buffer) =>
-  sharp(input)
+export const createStoredImagePipeline = (
+  input: Buffer | string,
+  animated = false
+) =>
+  sharp(input, { animated, limitInputPixels: MAX_IMAGE_INPUT_PIXELS })
     .resize(MAX_WIDTH, MAX_HEIGHT, STORED_IMAGE_RESIZE_OPTIONS)
     .rotate()
 
@@ -39,7 +42,7 @@ export const STORED_MASK_MAX_LONG_EDGE = MASK_LONG_EDGE
 // orientation tag, and it is already in the editor's source space (the
 // oriented image the editor decoded), so there is nothing to turn.
 export const createStoredMaskPipeline = (input: Buffer) =>
-  sharp(input)
+  sharp(input, { limitInputPixels: MAX_IMAGE_INPUT_PIXELS })
     .extractChannel(0)
     .resize(
       STORED_MASK_MAX_LONG_EDGE,

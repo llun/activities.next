@@ -26,6 +26,7 @@ import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
 import { getSavedMediaAttachmentMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
 import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
+import { getStoredMediaExtension } from '@/lib/services/medias/fileName'
 import { saveMedia } from '@/lib/services/medias/index'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
@@ -129,9 +130,10 @@ const getAttachmentName = (photoId: string | undefined, index: number) => {
   return photoId ? `Strava photo ${photoId}` : `Strava photo ${index + 1}`
 }
 
-const getPhotoFileExtension = (mimeType: string) => {
-  return mimeType === 'image/png' ? 'png' : 'jpg'
-}
+// The same content-type map the upload paths use, so a WebP/GIF/AVIF photo is
+// named for what it is instead of every non-PNG becoming `.jpg`.
+const getPhotoFileExtension = (mimeType: string) =>
+  getStoredMediaExtension(mimeType, '').replace(/^\./, '')
 
 const attachStravaPhotosToStatus = async ({
   database,

@@ -1,5 +1,7 @@
 import exifr from 'exifr'
+import sharp from 'sharp'
 
+import { MAX_IMAGE_INPUT_PIXELS } from '@/lib/services/medias/constants'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -160,7 +162,29 @@ const toCoordinates = (
  */
 export const readMediaExif = async (input: Buffer): Promise<MediaExif> => {
   try {
-    const tags = (await exifr.parse(input, {
+    // exifr cannot read WebP and does not reliably locate AVIF's EXIF item.
+    // sharp exposes the same TIFF block for either container without decoding
+    // pixels. Leave JPEG/PNG parsing unchanged, including malformed EXIF fallback.
+    const isWebp =
+      input.toString('ascii', 0, 4) === 'RIFF' &&
+      input.toString('ascii', 8, 12) === 'WEBP'
+    const isIsoImage = input.toString('ascii', 4, 8) === 'ftyp'
+    const exif =
+      isWebp || isIsoImage
+        ? (
+            await sharp(input, {
+              limitInputPixels: MAX_IMAGE_INPUT_PIXELS
+            }).metadata()
+          ).exif
+        : undefined
+    if ((isWebp || isIsoImage) && !exif) return { ...EMPTY_MEDIA_EXIF }
+    // sharp's EXIF starts with the six-byte Exif header; exifr expects TIFF.
+    const source = exif
+      ? exif.subarray(0, 6).equals(Buffer.from('Exif\0\0'))
+        ? exif.subarray(6)
+        : exif
+      : input
+    const tags = (await exifr.parse(source, {
       pick: EXIF_PICK,
       gps: true,
       tiff: true,

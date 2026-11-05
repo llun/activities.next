@@ -25,7 +25,7 @@ export const uploadProfileImage = async (
   maxMediaFileSize: number
 ): Promise<ProfileImageUpload> => {
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-    return { error: 'Please select a JPEG or PNG image' }
+    return { error: 'Please select a JPEG, PNG, WebP, GIF or AVIF image' }
   }
   try {
     const resizedFile = await resizeImage(file, MAX_WIDTH, MAX_HEIGHT)

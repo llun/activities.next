@@ -463,6 +463,7 @@ const uploadPending = async (
                 posterUrl: media.posterUrl,
                 width: media.width,
                 height: media.height,
+                ...(media.pages ? { pages: media.pages } : {}),
                 owned: true
               }
             : a

@@ -29,6 +29,9 @@ import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { Actor } from '@/lib/types/domain/actor'
 
+import { MediaSchema } from './types'
+import { uploadImageFixture } from './uploadImage.fixture'
+
 vi.mock('@aws-sdk/client-s3', () => {
   const makeCommand = (name: string) =>
     vi.fn().mockImplementation(function command(
@@ -929,6 +932,98 @@ describe('S3FileStorage image output format', () => {
       ...(params as object)
     })) as never)
   })
+
+  it.each(['webp', 'gif', 'avif'] as const)(
+    'accepts and stores %s synchronously',
+    async (format) => {
+      const bytes = await uploadImageFixture(format)
+      await new S3FileStorage(storageConfig, 'llun.test', database).saveFile(
+        actor,
+        MediaSchema.parse({
+          file: new File([new Uint8Array(bytes)], `photo.${format}`, {
+            type: `image/${format}`
+          })
+        })
+      )
+      expect((await sharp(uploadedBodies[0]).metadata()).format).toBe('webp')
+    }
+  )
+
+  it.each(['gif', 'webp'] as const)(
+    'stores animated %s and a first-frame preview',
+    async (format) => {
+      const bytes = await uploadImageFixture(format, { animated: true })
+      const file = new File([new Uint8Array(bytes)], `photo.${format}`, {
+        type: `image/${format}`
+      })
+      await new S3FileStorage(storageConfig, 'llun.test', database).saveFile(
+        actor,
+        { file }
+      )
+      expect((await sharp(uploadedBodies[0]).metadata()).pages).toBe(2)
+      expect((await sharp(uploadedBodies[1]).metadata()).pages ?? 1).toBe(1)
+      expect(database.createMedia.mock.calls[0][0].original.metaData).toEqual({
+        width: 8,
+        height: 6,
+        pages: 2
+      })
+      await new S3FileStorage(
+        storageConfig,
+        'llun.test',
+        database
+      ).saveImageRendition(actor, file, 'jpeg')
+      expect(await sharp(uploadedBodies[2]).metadata()).toMatchObject({
+        format: 'jpeg',
+        width: 8,
+        height: 6
+      })
+    }
+  )
+
+  it.each(['webp', 'avif'] as const)(
+    'strips GPS from stored %s bytes and records oriented dimensions',
+    async (format) => {
+      const bytes = await uploadImageFixture(format, { exif: true })
+      expect((await readMediaExif(bytes)).latitude).toBe(51.5)
+      await new S3FileStorage(storageConfig, 'llun.test', database).saveFile(
+        actor,
+        {
+          file: new File([new Uint8Array(bytes)], `photo.${format}`, {
+            type: `image/${format}`
+          })
+        }
+      )
+      expect(uploadedBodies).toHaveLength(1)
+      const storedMetadata = await sharp(uploadedBodies[0]).metadata()
+      expect(storedMetadata.exif).toBeUndefined()
+      expect((await readMediaExif(uploadedBodies[0])).latitude).toBeNull()
+      expect(storedMetadata).toMatchObject({ width: 6, height: 8 })
+      expect(
+        database.createMedia.mock.calls[0][0].original.metaData
+      ).toMatchObject({ width: 6, height: 8 })
+    }
+  )
+
+  it.each(['png', 'garbage'] as const)(
+    'rejects %s bytes declared as WebP before an S3 write',
+    async (format) => {
+      const bytes =
+        format === 'png'
+          ? await uploadImageFixture('png')
+          : Buffer.from('not an image')
+      await expect(
+        new S3FileStorage(storageConfig, 'llun.test', database).saveFile(
+          actor,
+          {
+            file: new File([new Uint8Array(bytes)], 'photo.webp', {
+              type: 'image/webp'
+            })
+          }
+        )
+      ).rejects.toBeInstanceOf(MediaValidationError)
+      expect(uploadedBodies).toEqual([])
+    }
+  )
 
   it('uploads images as webp by default', async () => {
     const storage = new S3FileStorage(storageConfig, 'llun.test', database)

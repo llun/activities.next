@@ -119,7 +119,8 @@ describe('PhotoEditPreview', () => {
   it.each([
     ['image/png', true],
     ['image/webp', true],
-    ['image/gif', false],
+    ['image/gif', true],
+    ['image/avif', true],
     ['image/heic', false]
   ])('offers editing for %s: %s', (mediaType, editable) => {
     expect(isEditableItem({ mediaType })).toBe(editable)
@@ -135,6 +136,18 @@ describe('PhotoEditPreview', () => {
 
   it('has no pill on a video', () => {
     renderPreview({ item: item({ mediaType: 'video/mp4' }) })
+    expect(
+      screen.queryByRole('button', { name: 'Edit photo' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not offer editing for an animated image', () => {
+    expect(isEditableItem({ mediaType: 'image/webp', pages: 2 })).toBe(false)
+    expect(isEditableItem({ mediaType: 'image/webp', pages: 1 })).toBe(true)
+  })
+
+  it('has no pill on an animated WebP', () => {
+    renderPreview({ item: item({ mediaType: 'image/webp', pages: 2 }) })
     expect(
       screen.queryByRole('button', { name: 'Edit photo' })
     ).not.toBeInTheDocument()

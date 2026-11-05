@@ -121,6 +121,18 @@ describe('resizeImage', () => {
     expect(canvases).toHaveLength(0)
   })
 
+  it.each(['webp', 'gif', 'avif'])(
+    'sends %s unchanged without browser decoding',
+    async (format) => {
+      decodeFails = true
+      const file = new File(['bytes'], `photo.${format}`, {
+        type: `image/${format}`
+      })
+      expect(await resizeImage(file, 1, 1)).toBe(file)
+      expect(URL.createObjectURL).not.toHaveBeenCalled()
+    }
+  )
+
   it('releases the temporary object URL once the image has decoded', async () => {
     decoded = { width: 10, height: 10 }
 

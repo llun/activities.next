@@ -88,8 +88,9 @@ describe('POST /api/v1/media/[id]/describe', () => {
     actorId: string,
     {
       mimeType = 'image/jpeg',
-      thumbnail
-    }: { mimeType?: string; thumbnail?: string } = {}
+      thumbnail,
+      pending = false
+    }: { mimeType?: string; thumbnail?: string; pending?: boolean } = {}
   ) => {
     counter += 1
     const media = await database.createMedia({
@@ -98,7 +99,21 @@ describe('POST /api/v1/media/[id]/describe', () => {
         path: `medias/describe-${counter}`,
         bytes: 100,
         mimeType,
-        metaData: { width: 10, height: 10 }
+        metaData: {
+          width: 10,
+          height: 10,
+          ...(pending
+            ? {
+                upload: {
+                  state: 'pending' as const,
+                  checksumSha1: 'checksum',
+                  checksumSha1Base64: 'Y2hlY2tzdW0=',
+                  contentType: mimeType,
+                  size: 100
+                }
+              }
+            : {})
+        }
       },
       ...(thumbnail
         ? {
@@ -175,6 +190,19 @@ describe('POST /api/v1/media/[id]/describe', () => {
     expect(await response.json()).toEqual({
       error: 'This media has no image to describe'
     })
+    expect(generateAltText).not.toHaveBeenCalled()
+  })
+
+  it('refuses a pending presigned upload before reading its bytes', async () => {
+    const id = await createMediaFor(ACTOR1_ID, { pending: true })
+
+    const response = await request(id)
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({
+      error: 'This media upload has not finished'
+    })
+    expect(readStoredImage).not.toHaveBeenCalled()
     expect(generateAltText).not.toHaveBeenCalled()
   })
 

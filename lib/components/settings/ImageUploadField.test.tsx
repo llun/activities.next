@@ -43,6 +43,29 @@ describe('ImageUploadField', () => {
       />
     )
 
+  it.each(['webp', 'gif', 'avif'])(
+    'offers and uploads a %s profile image',
+    async (format) => {
+      vi.mocked(uploadAttachment).mockResolvedValue(uploadResult)
+      const { container } = renderField(null)
+      const input =
+        container.querySelector<HTMLInputElement>('input[type="file"]')!
+      expect(input.accept.split(',')).toContain(`image/${format}`)
+      fireEvent.change(input, {
+        target: {
+          files: [
+            new File(['bytes'], `profile.${format}`, {
+              type: `image/${format}`
+            })
+          ]
+        }
+      })
+      await waitFor(() =>
+        expect(getSubmittedValue(container, 'iconUrl')).toBe(MEDIA_URL)
+      )
+    }
+  )
+
   it('shows the stored URL in a read-only field', () => {
     // The routes behind this field only accept a URL naming media this
     // instance already stores, which is what the upload button produces. A

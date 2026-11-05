@@ -15,13 +15,28 @@ describe('uploadProfileImage', () => {
     vi.mocked(resizeImage).mockImplementation(async (file) => file)
   })
 
-  it('refuses a type other than JPEG and PNG before resizing', async () => {
+  it.each(['webp', 'gif', 'avif'])(
+    'accepts a %s profile image',
+    async (format) => {
+      vi.mocked(uploadAttachment).mockResolvedValue({ url: 'u' } as never)
+      await expect(
+        uploadProfileImage(
+          new File(['bytes'], `profile.${format}`, { type: `image/${format}` }),
+          1000
+        )
+      ).resolves.toEqual({ url: 'u' })
+    }
+  )
+
+  it('refuses a type outside the supported formats before resizing', async () => {
     const result = await uploadProfileImage(
-      new File(['x'], 'a.gif', { type: 'image/gif' }),
+      new File(['x'], 'a.heic', { type: 'image/heic' }),
       1000
     )
 
-    expect(result).toEqual({ error: 'Please select a JPEG or PNG image' })
+    expect(result).toEqual({
+      error: 'Please select a JPEG, PNG, WebP, GIF or AVIF image'
+    })
     expect(resizeImage).not.toHaveBeenCalled()
   })
 

@@ -2,6 +2,7 @@ import sharp from 'sharp'
 
 import { Database } from '@/lib/database/types'
 import { getMedia } from '@/lib/services/medias'
+import { MAX_IMAGE_INPUT_PIXELS } from '@/lib/services/medias/constants'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 
@@ -18,19 +19,30 @@ export interface StoredImage {
   mimeType: string
 }
 
+const ACCEPTED_SNIFFED_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif'])
+
 /**
  * The mime type of the bytes themselves. `medias.original.mimeType` records the
  * type of the file that was UPLOADED, not the encoding it was stored as (every
- * image is re-encoded), so it cannot label what is read back.
+ * image is re-encoded), so it cannot label what is read back. Only the formats
+ * this instance accepts are named; anything else is `application/octet-stream`.
  */
 const sniffImageMimeType = async (buffer: Buffer): Promise<string> => {
   try {
-    const { format } = await sharp(buffer).metadata()
-    if (format) return `image/${format}`
+    const { format, compression } = await sharp(buffer, {
+      limitInputPixels: MAX_IMAGE_INPUT_PIXELS
+    }).metadata()
+    // HEIF is a container: only AV1-compressed AVIF is an accepted image. An
+    // HEVC/HEIC file must not be labelled `image/avif` and handed to a vision
+    // backend as one.
+    if (format === 'heif') {
+      return compression === 'av1' ? 'image/avif' : 'application/octet-stream'
+    }
+    if (format && ACCEPTED_SNIFFED_FORMATS.has(format)) return `image/${format}`
   } catch {
     // Not an image sharp can read; the caller's vision backend will say so.
   }
-  return 'image/jpeg'
+  return 'application/octet-stream'
 }
 
 /**
