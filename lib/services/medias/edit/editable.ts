@@ -20,6 +20,7 @@ export const MEDIA_NOT_EDITABLE_ERROR = "This media can't be edited"
 export const isEditableMedia = (media: Pick<Media, 'original'>): boolean => {
   const { mimeType, metaData } = media.original
   if (!EDITABLE_MEDIA_TYPES.includes(mimeType)) return false
+  if ((metaData.pages ?? 1) > 1) return false
   if (metaData?.upload?.state === 'pending') return false
   const width = Number(metaData?.width ?? 0)
   const height = Number(metaData?.height ?? 0)

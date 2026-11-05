@@ -589,7 +589,10 @@ describe('isSupportedStravaPhotoMimeType', () => {
   it.each([
     ['image/jpeg', true],
     ['image/png', true],
-    ['image/gif', false],
+    ['image/gif', true],
+    ['image/webp', true],
+    ['image/avif', true],
+    ['image/heic', false],
     ['video/mp4', false]
   ])('%s -> %s', (mime, expected) => {
     expect(isSupportedStravaPhotoMimeType(mime)).toBe(expected)

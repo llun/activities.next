@@ -125,7 +125,7 @@ describe('POST /api/v1/medias/presigned', () => {
     } as never)
   })
 
-  const createRequest = (size: number) =>
+  const createRequest = (size: number, contentType = 'image/png') =>
     new NextRequest('https://llun.test/api/v1/medias/presigned', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -134,10 +134,28 @@ describe('POST /api/v1/medias/presigned', () => {
         checksum: 'a9993e364706816aba3e25717850c26c9cd0d89d',
         width: 10,
         height: 20,
-        contentType: 'image/png',
+        contentType,
         size
       })
     })
+
+  it.each(['webp', 'gif', 'avif', 'heic'] as const)(
+    'validates %s contentType on presigned URL request',
+    async (format) => {
+      const response = await POST(createRequest(100, `image/${format}`), {
+        params: Promise.resolve({})
+      })
+
+      if (format === 'heic') {
+        expect(response.status).toBe(422)
+        expect(await response.json()).toEqual({ error: expect.any(String) })
+        expect(mockGetPresignedUrl).not.toHaveBeenCalled()
+      } else {
+        expect(response.status).toBe(200)
+        expect(mockGetPresignedUrl).toHaveBeenCalledTimes(1)
+      }
+    }
+  )
 
   it.each([
     {

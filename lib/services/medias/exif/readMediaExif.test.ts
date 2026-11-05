@@ -6,6 +6,7 @@ import {
   readMediaExif,
   toTakenAt
 } from '@/lib/services/medias/exif/readMediaExif'
+import { uploadImageFixture } from '@/lib/services/medias/uploadImage.fixture'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 type ExifInput = NonNullable<Parameters<Sharp['withExif']>[0]>
@@ -38,6 +39,19 @@ const fullExif: ExifInput = {
 }
 
 describe('readMediaExif', () => {
+  it.each(['webp', 'avif'] as const)(
+    'reads taken time and GPS from %s',
+    async (format) => {
+      expect(
+        await readMediaExif(await uploadImageFixture(format, { exif: true }))
+      ).toMatchObject({
+        takenAt: new Date('2024-05-06T07:08:09Z'),
+        latitude: 51.5,
+        longitude: -0.125
+      })
+    }
+  )
+
   it('reads the date, gear, exposure and GPS a camera wrote', async () => {
     const exif = await readMediaExif(await createJpeg(fullExif))
 

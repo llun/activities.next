@@ -96,6 +96,19 @@ describe('GET /api/v1/instance', () => {
     })
   })
 
+  it('advertises WebP, GIF and AVIF but not HEIC', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v1/instance'),
+      params
+    )
+    const types = (await response.json()).configuration.media_attachments
+      .supported_mime_types
+    expect(types).toEqual(
+      expect.arrayContaining(['image/webp', 'image/gif', 'image/avif'])
+    )
+    expect(types).not.toContain('image/heic')
+  })
+
   it('passes the request domain to getInstanceStats', async () => {
     const peersSpy = vi
       .spyOn(database, 'getInstancePeers')

@@ -5,6 +5,7 @@ import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import type { Database } from '@/lib/database/types'
 import { RESOLVE_MEDIA_PLACE_JOB_NAME } from '@/lib/jobs/names'
 import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
+import { uploadImageFixture } from '@/lib/services/medias/uploadImage.fixture'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -76,7 +77,7 @@ const buildForm = () => {
   return form
 }
 
-const postRequest = (token?: string) => {
+const postRequest = (token?: string, form?: FormData) => {
   const req = new NextRequest('https://llun.test/api/v1/media', {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -84,7 +85,7 @@ const postRequest = (token?: string) => {
   // jest / undici cannot materialise a multipart body from a FormData passed to
   // NextRequest — mock formData() directly (see update_credentials route test).
   Object.defineProperty(req, 'formData', {
-    value: vi.fn().mockResolvedValue(buildForm())
+    value: vi.fn().mockResolvedValue(form ?? buildForm())
   })
   return req
 }
@@ -117,6 +118,39 @@ describe('POST /api/v1/media', () => {
     await deleteServerSetting(db, { key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
+
+  it.each(['webp', 'gif', 'avif', 'heic'] as const)(
+    'validates %s through the multipart endpoint',
+    async (format) => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: Date.now() + 60_000,
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      const bytes =
+        format === 'heic'
+          ? Buffer.from('unsupported')
+          : await uploadImageFixture(format)
+      const form = new FormData()
+      form.set(
+        'file',
+        new File([new Uint8Array(bytes)], `photo.${format}`, {
+          type: `image/${format}`
+        })
+      )
+      const response = await POST(postRequest('write-media-token', form), {
+        params: Promise.resolve({})
+      })
+      if (format === 'heic') {
+        expect(response.status).toBe(422)
+        expect(await response.json()).toEqual({ error: expect.any(String) })
+        expect(mockSaveMedia).not.toHaveBeenCalled()
+      } else {
+        expect(response.status).toBe(200)
+        expect(mockSaveMedia).toHaveBeenCalledTimes(1)
+      }
+    }
+  )
 
   it('returns 200 with a fully-processed attachment for write:media tokens', async () => {
     mockStoredToken.mockResolvedValue({

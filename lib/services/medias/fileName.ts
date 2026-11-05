@@ -47,6 +47,9 @@ const MAX_STORED_FILE_NAME_BYTES = 200
 export const EXTENSION_BY_CONTENT_TYPE: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/avif': '.avif',
   'video/mp4': '.mp4',
   'video/quicktime': '.mp4',
   'video/webm': '.webm',

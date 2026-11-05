@@ -62,6 +62,19 @@ describe('GET /api/v2/instance', () => {
     vi.mocked(config.getConfig).mockReturnValue(baseConfig as unknown as Config)
   })
 
+  it('advertises WebP, GIF and AVIF but not HEIC', async () => {
+    const response = await GET(
+      new NextRequest('https://llun.test/api/v2/instance'),
+      params
+    )
+    const types = (await response.json()).configuration.media_attachments
+      .supported_mime_types
+    expect(types).toEqual(
+      expect.arrayContaining(['image/webp', 'image/gif', 'image/avif'])
+    )
+    expect(types).not.toContain('image/heic')
+  })
+
   it('serves the instance payload for an unauthenticated request', async () => {
     // No OAuthGuard mock: the route must work without any Authorization header,
     // matching Mastodon's public v2 instance endpoint. If a guard is ever

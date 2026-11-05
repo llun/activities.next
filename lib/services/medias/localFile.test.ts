@@ -15,6 +15,8 @@ import { MediaValidationError } from './errors'
 import { readMediaExif } from './exif/readMediaExif'
 import { LocalFileStorage } from './localFile'
 import { getQuotaLimit } from './quota'
+import { MediaSchema } from './types'
+import { uploadImageFixture } from './uploadImage.fixture'
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
@@ -241,6 +243,93 @@ describe('LocalFileStorage image output format', () => {
 
   const readStoredFormat = async (storedPath: string) =>
     (await readStored(storedPath)).format
+
+  it.each(['webp', 'gif', 'avif'] as const)(
+    'accepts and stores %s uploads',
+    async (format) => {
+      const bytes = await uploadImageFixture(format)
+      const media = MediaSchema.parse({
+        file: new File([new Uint8Array(bytes)], `photo.${format}`, {
+          type: `image/${format}`
+        })
+      })
+      const result = await createStorage().saveFile(actor, media)
+      const stored = database.createMedia.mock.calls[0][0]
+      expect(result?.type).toBe('image')
+      expect(await readStoredFormat(stored.original.path)).toBe('webp')
+    }
+  )
+
+  it.each(['gif', 'webp'] as const)(
+    'keeps %s frames, with a static preview and JPEG rendition',
+    async (format) => {
+      const bytes = await uploadImageFixture(format, { animated: true })
+      const file = new File([new Uint8Array(bytes)], `animation.${format}`, {
+        type: `image/${format}`
+      })
+      await createStorage().saveFile(actor, { file })
+      const stored = database.createMedia.mock.calls[0][0]
+      expect((await readStored(stored.original.path)).pages).toBe(2)
+      expect(stored.original.metaData).toMatchObject({
+        width: 8,
+        height: 6,
+        pages: 2
+      })
+      expect(stored.thumbnail).toBeDefined()
+      expect((await readStored(stored.thumbnail!.path)).pages ?? 1).toBe(1)
+      const rendition = await createStorage().saveImageRendition(
+        actor,
+        file,
+        'jpeg'
+      )
+      expect(await readStored(rendition!.path)).toMatchObject({
+        format: 'jpeg',
+        width: 8,
+        height: 6
+      })
+    }
+  )
+
+  it.each(['webp', 'avif'] as const)(
+    'strips GPS from stored %s bytes and records oriented dimensions',
+    async (format) => {
+      const bytes = await uploadImageFixture(format, { exif: true })
+      expect((await readMediaExif(bytes)).latitude).toBe(51.5)
+      await createStorage().saveFile(actor, {
+        file: new File([new Uint8Array(bytes)], `photo.${format}`, {
+          type: `image/${format}`
+        })
+      })
+      const stored = database.createMedia.mock.calls[0][0]
+      const storedBytes = await fs.readFile(
+        path.join(mediaRoot, stored.original.path)
+      )
+      const storedMetadata = await sharp(storedBytes).metadata()
+      expect(storedMetadata.exif).toBeUndefined()
+      expect((await readMediaExif(storedBytes)).latitude).toBeNull()
+      expect(storedMetadata).toMatchObject({ width: 6, height: 8 })
+      expect(stored.original.metaData).toMatchObject({ width: 6, height: 8 })
+    }
+  )
+
+  it.each(['png', 'garbage'] as const)(
+    'refuses %s declared as webp before storing',
+    async (format) => {
+      const bytes =
+        format === 'png'
+          ? await uploadImageFixture('png')
+          : Buffer.from('not an image')
+      await expect(
+        createStorage().saveFile(actor, {
+          file: new File([new Uint8Array(bytes)], 'photo.webp', {
+            type: 'image/webp'
+          })
+        })
+      ).rejects.toBeInstanceOf(MediaValidationError)
+      expect(database.createMedia).not.toHaveBeenCalled()
+      expect(await fs.readdir(mediaRoot)).toEqual([])
+    }
+  )
 
   it('stores uploads as webp by default', async () => {
     const stored = await createStorage().saveFile(actor, {

@@ -19,6 +19,7 @@ import { Section } from '@/lib/components/surface/Section'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
+import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
 import type { AdminCustomEmoji } from '@/lib/types/domain/customEmoji'
 import { CUSTOM_EMOJI_SHORTCODE_REGEX } from '@/lib/types/domain/customEmoji'
 import { cn } from '@/lib/utils'
@@ -160,7 +161,7 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpeg"
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
                 className="hidden"
                 onChange={onFileChange}
               />

@@ -19,6 +19,11 @@ export interface SavedOriginalMedia {
   metaData: {
     width?: number
     height?: number
+    autoOrient?: {
+      width: number
+      height: number
+    }
+    pages?: number
   }
   previewImage?: Buffer | null
   blurhash?: string | null
@@ -120,8 +125,7 @@ export const saveMediaFile = async ({
         )
 
   // A caller-supplied thumbnail wins; a video otherwise falls back to the
-  // frame extracted from it. `previewImage` is null for an image upload — a video
-  // whose frame cannot be decoded rejects rather than resolving null.
+  // frame extracted from it. Animated images also get a first-frame preview.
   const thumbnailSource = thumbnailBuffer ?? previewImage
   let thumbnail: SavedThumbnail | null
   try {
@@ -158,8 +162,11 @@ export const saveMediaFile = async ({
         bytes: file.size,
         mimeType: file.type,
         metaData: {
-          width: metaData.width ?? 0,
-          height: metaData.height ?? 0
+          width: metaData.autoOrient?.width ?? metaData.width ?? 0,
+          height: metaData.autoOrient?.height ?? metaData.height ?? 0,
+          ...(metaData.pages && metaData.pages > 1
+            ? { pages: metaData.pages }
+            : {})
         },
         fileName: sanitizeStoredFileName(file.name)
       },

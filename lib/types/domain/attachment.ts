@@ -172,7 +172,7 @@ export const getDocumentFromAttachment = (attachment: Attachment) =>
 export const getMastodonAttachment = (attachment: Attachment) => {
   if (
     attachment.mediaType.startsWith('image') &&
-    attachment.mediaType !== 'image/gif'
+    (attachment.mediaType !== 'image/gif' || Boolean(attachment.mediaId))
   ) {
     return Mastodon.MediaTypes.Image.parse({
       id: attachment.id,

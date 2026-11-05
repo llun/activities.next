@@ -1,5 +1,12 @@
 import { isEditableMedia } from '@/lib/services/medias/edit/editable'
 import { MAX_SOURCE_PIXELS } from '@/lib/services/medias/edit/recipe'
+import { readEditSource } from '@/lib/services/medias/edit/saveMediaEdit'
+import { readStoredImage } from '@/lib/services/medias/readStoredMedia'
+import { uploadImageFixture } from '@/lib/services/medias/uploadImage.fixture'
+
+vi.mock('@/lib/services/medias/readStoredMedia', () => ({
+  readStoredImage: vi.fn()
+}))
 
 const media = (
   mimeType: string,
@@ -18,6 +25,11 @@ describe('isEditableMedia', () => {
     ['a JPEG', media('image/jpeg'), true],
     ['a PNG', media('image/png'), true],
     ['a WebP (an edited photo)', media('image/webp'), true],
+    [
+      'an animated WebP',
+      media('image/webp', { width: 8, height: 6, pages: 2 }),
+      false
+    ],
     ['a GIF', media('image/gif'), false],
     ['a video', media('video/mp4'), false],
     ['audio', media('audio/mp4'), false],
@@ -54,5 +66,17 @@ describe('isEditableMedia', () => {
     ]
   ])('%s is editable: %s', (_, value, expected) => {
     expect(isEditableMedia(value)).toBe(expected)
+  })
+})
+
+describe('readEditSource', () => {
+  it('refuses an animated WebP source even if decoded directly', async () => {
+    const animated = await uploadImageFixture('webp', { animated: true })
+    vi.mocked(readStoredImage).mockResolvedValueOnce({
+      buffer: animated,
+      mimeType: 'image/webp'
+    })
+
+    expect(await readEditSource({} as never, 'medias/anim.webp')).toBeNull()
   })
 })

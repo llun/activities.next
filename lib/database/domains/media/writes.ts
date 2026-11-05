@@ -639,7 +639,11 @@ export const markMediaUploadVerified = async (
       const metaData = {
         ...media.original.metaData,
         ...(dimensions
-          ? { width: dimensions.width, height: dimensions.height }
+          ? {
+              width: dimensions.width,
+              height: dimensions.height,
+              ...(dimensions.pages ? { pages: dimensions.pages } : {})
+            }
           : {}),
         upload: {
           ...media.original.metaData.upload,

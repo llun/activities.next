@@ -20,14 +20,14 @@ describe('readStoredImage', () => {
     vi.clearAllMocks()
   })
 
-  const makeImage = (format: 'jpeg' | 'png' | 'webp') => {
+  const makeImage = (format: 'jpeg' | 'png' | 'webp' | 'gif' | 'avif') => {
     const image = sharp({
       create: { width: 4, height: 4, channels: 3, background: '#fff' }
     })
-    return image[format]().toBuffer()
+    return image.toFormat(format).toBuffer()
   }
 
-  it.each(['jpeg', 'png', 'webp'] as const)(
+  it.each(['jpeg', 'png', 'webp', 'gif', 'avif'] as const)(
     'reads a streamed %s and labels it by its bytes',
     async (format) => {
       const image = await makeImage(format)

@@ -26,7 +26,7 @@ export interface StoredImage {
 const sniffImageMimeType = async (buffer: Buffer): Promise<string> => {
   try {
     const { format } = await sharp(buffer).metadata()
-    if (format) return `image/${format}`
+    if (format) return format === 'heif' ? 'image/avif' : `image/${format}`
   } catch {
     // Not an image sharp can read; the caller's vision backend will say so.
   }

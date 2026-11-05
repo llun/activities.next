@@ -186,8 +186,10 @@ export const readEditSource = async (
   try {
     const stored = await readStoredImage(database, path, EDIT_SOURCE_MAX_BYTES)
     if (!stored) return null
-    const { width, height, orientation } = await sharp(stored.buffer).metadata()
-    if (!width || !height) return null
+    const { width, height, orientation, pages } = await sharp(
+      stored.buffer
+    ).metadata()
+    if (!width || !height || (pages ?? 1) > 1) return null
     if (width * height > MAX_SOURCE_PIXELS) return null
     return {
       buffer: stored.buffer,

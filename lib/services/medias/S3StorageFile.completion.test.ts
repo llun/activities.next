@@ -27,6 +27,8 @@ import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMetaFromFile } from '@/lib/services/medias/extractVideoMeta'
 import { StreamByteLimitError } from '@/lib/utils/streamLimit'
 
+import { uploadImageFixture } from './uploadImage.fixture'
+
 vi.mock('@aws-sdk/client-s3', () => {
   const makeCommand = (name: string) =>
     vi.fn().mockImplementation(function command(
@@ -242,6 +244,83 @@ describe('S3FileStorage presigned upload completion', () => {
       gallery.createGalleryGearWithinLimit = vi.fn()
       gallery.getGalleryGearNamesByIds = vi.fn()
     })
+
+    it.each(['webp', 'gif', 'avif'] as const)(
+      'completes a real %s upload as WebP',
+      async (format) => {
+        const puts = await completeUpload(
+          await uploadImageFixture(format),
+          `image/${format}`,
+          `photo.${format}`
+        )
+        expect(await sharp(puts[0]).metadata()).toMatchObject({
+          format: 'webp',
+          width: 8,
+          height: 6
+        })
+        expect(vi.mocked(PutObjectCommand).mock.calls[0][0]).toMatchObject({
+          ContentType: 'image/webp',
+          Key: expect.stringMatching(/\.webp$/)
+        })
+      }
+    )
+
+    it.each(['gif', 'webp'] as const)(
+      'preserves %s animation with a static preview',
+      async (format) => {
+        const puts = await completeUpload(
+          await uploadImageFixture(format, { animated: true }),
+          `image/${format}`,
+          `animation.${format}`
+        )
+        expect((await sharp(puts[0]).metadata()).pages).toBe(2)
+        expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
+          expect.objectContaining({
+            dimensions: { width: 8, height: 6, pages: 2 }
+          })
+        )
+        expect(puts).toHaveLength(2)
+        expect((await sharp(puts[1]).metadata()).pages ?? 1).toBe(1)
+      }
+    )
+
+    it.each(['webp', 'avif'] as const)(
+      'reads %s EXIF before stripping it',
+      async (format) => {
+        const puts = await completeUpload(
+          await uploadImageFixture(format, { exif: true }),
+          `image/${format}`,
+          `photo.${format}`
+        )
+        expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
+          expect.objectContaining({
+            details: expect.objectContaining({
+              takenAt: Date.parse('2024-05-06T07:08:09Z'),
+              placeLatitude: 51.5,
+              placeLongitude: -0.125
+            })
+          })
+        )
+        const metadata = await sharp(puts[0]).metadata()
+        expect(metadata.exif).toBeUndefined()
+        expect(metadata).toMatchObject({ width: 6, height: 8 })
+      }
+    )
+
+    it.each(['png', 'garbage'] as const)(
+      'refuses %s bytes declared as WebP',
+      async (format) => {
+        const bytes =
+          format === 'png'
+            ? await uploadImageFixture('png')
+            : Buffer.from('not an image')
+        await expect(
+          completeUpload(bytes, 'image/webp', 'photo.webp')
+        ).rejects.toThrow()
+        expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+        expect(PutObjectCommand).not.toHaveBeenCalled()
+      }
+    )
 
     it('persists the EXIF details read from the original bytes', async () => {
       gallery.getGallerySettings.mockResolvedValue(

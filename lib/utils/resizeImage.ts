@@ -1,4 +1,3 @@
-import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
 import {
   extractJpegExifSegment,
   insertJpegExifSegment
@@ -37,7 +36,9 @@ export async function resizeImage(
   heightLimitPixel: number,
   options?: ResizeImageOptions
 ): Promise<File> {
-  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+  // Canvas flattens GIF/WebP animation and cannot decode AVIF in every browser.
+  // Send these originals (including their EXIF) to the server for processing.
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
     return file
   }
 

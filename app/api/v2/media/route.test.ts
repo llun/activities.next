@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { MediaValidationError } from '@/lib/services/medias/errors'
+import { uploadImageFixture } from '@/lib/services/medias/uploadImage.fixture'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import {
   EXPECTED_ACTOR_HEADER,
@@ -137,6 +138,39 @@ describe('POST /api/v2/media', () => {
     await deleteServerSetting(db, { key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
+
+  it.each(['webp', 'gif', 'avif', 'heic'] as const)(
+    'validates %s through the multipart endpoint',
+    async (format) => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: Date.now() + 60_000,
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      const bytes =
+        format === 'heic'
+          ? Buffer.from('unsupported')
+          : await uploadImageFixture(format)
+      const form = new FormData()
+      form.set(
+        'file',
+        new File([new Uint8Array(bytes)], `photo.${format}`, {
+          type: `image/${format}`
+        })
+      )
+      const response = await POST(postRequest('write-media-token', form), {
+        params: Promise.resolve({})
+      })
+      if (format === 'heic') {
+        expect(response.status).toBe(422)
+        expect(await response.json()).toEqual({ error: expect.any(String) })
+        expect(mockSaveMedia).not.toHaveBeenCalled()
+      } else {
+        expect(response.status).toBe(200)
+        expect(mockSaveMedia).toHaveBeenCalledTimes(1)
+      }
+    }
+  )
 
   it('requires a bearer token (401 when unauthenticated)', async () => {
     const response = await POST(postRequest(), { params: Promise.resolve({}) })

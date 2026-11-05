@@ -91,6 +91,19 @@ describe('attachment', () => {
     // cannot name — which an edit then reads as "remove it". Anything this
     // serializer cannot describe becomes Mastodon's `unknown` type instead,
     // carrying the id, url, description and blurhash it does have.
+    it.each(['image/gif', 'image/webp', 'image/avif'])(
+      'serializes local %s uploads as images, not video gifv',
+      (mediaType) => {
+        expect(
+          getMastodonAttachment({
+            ...baseAttachment,
+            mediaType,
+            mediaId: 'media-1'
+          })
+        ).toMatchObject({ type: 'image' })
+      }
+    )
+
     it.each([
       ['gif, which is excluded from the image type', 'image/gif'],
       ['an audio upload, which has no stored duration', 'audio/mp4'],

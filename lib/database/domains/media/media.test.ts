@@ -337,7 +337,7 @@ describe('MediaDatabase', () => {
           mediaId: media!.id,
           accountId,
           verifiedAt: Date.now(),
-          dimensions: { width: 640, height: 480 }
+          dimensions: { width: 640, height: 480, pages: 2 }
         })
 
         const reread = await database.getMediaByIdForAccount({
@@ -347,6 +347,7 @@ describe('MediaDatabase', () => {
         expect(reread?.original.metaData).toMatchObject({
           width: 640,
           height: 480,
+          pages: 2,
           upload: { state: 'verified', checksumSha1: 'abc123' }
         })
       })

@@ -330,6 +330,15 @@ product or security decision, not a gap to be closed.
 
 ### Media
 
+- **Image uploads accept JPEG, PNG, WebP, GIF and AVIF** on both synchronous
+  endpoints and presigned completion, as advertised by both instance endpoints.
+  Avatar/header uploads accept the same formats. HEIC/HEIF receive the normal
+  `422 { error }` response: bundled libvips supports AV1/AVIF, not HEVC/HEIC.
+  GIF/WebP animations remain animated WebP images with first-frame previews.
+  Local animated images are `type: "image"`; `gifv` here denotes an animation
+  in a video container. See [image processing](architecture.md#media--file-storage)
+  for size limits, content validation and EXIF privacy.
+
 - **An attachment this instance cannot describe is `type: "unknown"`, never a
   `null` entry.** Animated clips with resolved `playbackType: "gifv"` are served
   as `type: "gifv"`; unresolvable media or an `audio/mp4` upload without stored

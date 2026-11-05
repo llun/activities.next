@@ -968,8 +968,11 @@ const sniffSupportedMediaType = (bytes: Buffer): string | null => {
   ) {
     return 'image/webp'
   }
+  if (['GIF87a', 'GIF89a'].includes(bytes.toString('ascii', 0, 6)))
+    return 'image/gif'
   if (bytes.length >= 12 && bytes.toString('ascii', 4, 8) === 'ftyp') {
     const brand = bytes.toString('ascii', 8, 12)
+    if (brand === 'avif' || brand === 'avis') return 'image/avif'
     return brand === 'M4A '
       ? 'audio/mp4'
       : brand === 'qt  '
@@ -1671,6 +1674,9 @@ const archiveMediaFileName = (id: number, mediaType: string) => {
   const extension: Record<string, string> = {
     'image/jpeg': 'jpg',
     'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'image/avif': 'avif',
     'video/quicktime': 'mov',
     'video/mp4': 'mp4',
     'video/webm': 'webm',
