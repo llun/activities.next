@@ -20,7 +20,9 @@ vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
 }))
 
 const mockDatabase = {
-  updatePoll: vi.fn()
+  updatePoll: vi.fn(),
+  // The row re-read after the fetch; null keeps the caller's snapshot.
+  getStatus: vi.fn().mockResolvedValue(null)
 } as unknown as Database
 
 const remotePollStatus: StatusPoll = {
@@ -242,6 +244,11 @@ describe('syncRemotePoll', () => {
           type: 'Note',
           name: 'Red',
           replies: { type: 'Collection', totalItems: 1 }
+        },
+        {
+          type: 'Note',
+          name: 'Blue',
+          replies: { type: 'Collection', totalItems: 2 }
         }
       ]
     })
@@ -336,6 +343,50 @@ describe('syncRemotePoll', () => {
     expect(params).not.toHaveProperty('remoteUpdatedAt')
   })
 
+  it('compares against the row re-read after the fetch, so an Update committed meanwhile is not reverted', async () => {
+    ;(getNote as jest.Mock).mockResolvedValue({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: remotePollStatus.id,
+      type: 'Question',
+      attributedTo: remotePollStatus.actorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      content: '<p>Older</p>',
+      published: '2026-08-31T00:00:00Z',
+      updated: '2026-09-01T00:00:00Z',
+      oneOf: [
+        {
+          type: 'Note',
+          name: 'Red',
+          replies: { type: 'Collection', totalItems: 1 }
+        },
+        {
+          type: 'Note',
+          name: 'Blue',
+          replies: { type: 'Collection', totalItems: 2 }
+        }
+      ]
+    })
+    ;(mockDatabase.getStatus as jest.Mock).mockResolvedValueOnce({
+      ...remotePollStatus,
+      text: '<p>Newer</p>',
+      remoteUpdatedAt: Date.parse('2026-09-02T00:00:00Z')
+    })
+    ;(mockDatabase.updatePoll as jest.Mock).mockResolvedValue(remotePollStatus)
+
+    await syncRemotePoll({
+      database: mockDatabase,
+      status: {
+        ...remotePollStatus,
+        remoteUpdatedAt: Date.parse('2026-09-01T00:00:00Z')
+      }
+    })
+
+    const params = (mockDatabase.updatePoll as jest.Mock).mock.calls.at(-1)?.[0]
+    expect(params).not.toHaveProperty('text')
+    expect(params).not.toHaveProperty('remoteUpdatedAt')
+  })
+
   it('handles multiple-choice anyOf polls correctly', async () => {
     const remoteQuestion = {
       '@context': 'https://www.w3.org/ns/activitystreams',
@@ -372,9 +423,18 @@ describe('syncRemotePoll', () => {
     }
     ;(mockDatabase.updatePoll as jest.Mock).mockResolvedValue(updatedStatus)
 
+    // A stored anyOf poll with the same options: the fetch refreshes it.
+    const storedAnyOf: StatusPoll = {
+      ...remotePollStatus,
+      pollType: 'anyOf',
+      choices: [
+        { ...remotePollStatus.choices[0], title: 'Feature A' },
+        { ...remotePollStatus.choices[1], title: 'Feature B' }
+      ]
+    }
     const result = await syncRemotePoll({
       database: mockDatabase,
-      status: remotePollStatus
+      status: storedAnyOf
     })
 
     expect(mockDatabase.updatePoll).toHaveBeenCalledWith({

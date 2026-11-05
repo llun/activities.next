@@ -2089,8 +2089,11 @@ remote poll (`syncRemotePoll`) follow Mastodon's
   deadline move records a revision here, which a tally refresh should never
   do. `syncRemotePoll` (a fetch, not an Update) never resets votes or changes the
   options. It refreshes tallies always, and the text, summary and deadline only
-  from a document at least as new as the last applied edit (an older cached
-  copy cannot revert them). It records the fetched `updated` as
+  from a document at least as new as the last applied edit and with the same
+  option set and mode (an older cached copy cannot revert them, and an option
+  edit is left whole to its Update). It compares against the row re-read after
+  the fetch, so an Update that committed while the fetch was in flight is not
+  reverted. It records the fetched `updated` as
   `remoteUpdatedAt` when it is newer and the fetched option set and mode match
   the stored ones, so a late, older Update cannot revert what the fetch applied,
   while an Update that changes the options stays explicit and still applies.

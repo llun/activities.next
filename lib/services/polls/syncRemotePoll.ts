@@ -108,6 +108,15 @@ const performPollSync = async ({
     // position still matches, and an option without `replies` keeps its stored
     // tally. When the fetched option set or mode differs, the fetch's `updated`
     // is not recorded, so the Update carrying that change stays explicit.
+    // Compare against the row as it is now, not the caller's snapshot: an
+    // Update that committed while this fetch was in flight must not be
+    // reverted by an older document.
+    const fresh = await database.getStatus({
+      statusId: status.id,
+      withReplies: false
+    })
+    const stored =
+      fresh?.type === StatusType.enum.Poll ? (fresh as StatusPoll) : status
     const fetchedOptions = (question.oneOf ?? question.anyOf ?? []).map(
       (answer) => answer.name
     )
@@ -115,27 +124,30 @@ const performPollSync = async ({
       ? 'oneOf'
       : question.anyOf
         ? 'anyOf'
-        : status.pollType
+        : stored.pollType
     const optionsMatch =
-      fetchedPollType === status.pollType &&
-      fetchedOptions.length === status.choices.length &&
+      fetchedPollType === stored.pollType &&
+      fetchedOptions.length === stored.choices.length &&
       fetchedOptions.every(
-        (title, index) => title === status.choices[index]?.title
+        (title, index) => title === stored.choices[index]?.title
       )
-    const choices = getPollChoicesFromQuestion(question, status.choices)
+    const choices = getPollChoicesFromQuestion(question, stored.choices)
 
     // The text, summary and deadline apply only from a document at least as new
     // as the last applied edit (an older cached copy refreshes tallies alone),
     // and a newer document's `updated` is recorded so a late, older Update
     // cannot revert what this fetch applied.
     const fetchedUpdatedAt = parseQuestionTime(question.updated)
-    const storedUpdatedAt = status.remoteUpdatedAt
+    const storedUpdatedAt = stored.remoteUpdatedAt
+    // Text, summary and deadline follow the options: a fetch whose option set
+    // differs leaves them to the Update that carries the whole edit, so one
+    // edit never records a mixed revision.
     const current =
-      storedUpdatedAt === undefined ||
-      (fetchedUpdatedAt !== undefined && fetchedUpdatedAt >= storedUpdatedAt)
+      optionsMatch &&
+      (storedUpdatedAt === undefined ||
+        (fetchedUpdatedAt !== undefined && fetchedUpdatedAt >= storedUpdatedAt))
     const remoteUpdatedAt =
       current &&
-      optionsMatch &&
       fetchedUpdatedAt !== undefined &&
       (storedUpdatedAt === undefined || fetchedUpdatedAt > storedUpdatedAt)
         ? fetchedUpdatedAt
@@ -143,7 +155,7 @@ const performPollSync = async ({
     const text = current ? getContent(question) : undefined
     const summary = current ? getSummary(question) : undefined
     const endAt = current
-      ? getPollEndAtFromQuestion(question, status.endAt)
+      ? getPollEndAtFromQuestion(question, stored.endAt)
       : undefined
 
     const updated = await database.updatePoll({
@@ -159,7 +171,7 @@ const performPollSync = async ({
     })
 
     failedPollSyncsAt.delete(status.id)
-    return (updated as StatusPoll) ?? status
+    return (updated as StatusPoll) ?? stored
   } catch (error) {
     logger.warn({
       message: 'Failed to sync remote poll',
