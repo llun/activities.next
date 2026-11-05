@@ -17,6 +17,7 @@ import { createWindowCounter } from '@/lib/services/gallery/lookups/rateLimit'
 import { deleteMediaFile, getMediaStorage } from '@/lib/services/medias'
 import { MAX_IMAGE_INPUT_PIXELS } from '@/lib/services/medias/constants'
 import {
+  ANIMATED_MEDIA_NOT_EDITABLE_ERROR,
   MEDIA_NOT_EDITABLE_ERROR,
   isEditableMedia
 } from '@/lib/services/medias/edit/editable'
@@ -134,6 +135,15 @@ const fail = (
 
 const notFound = () => fail(404, ERROR_RECORD_NOT_FOUND)
 const notEditable = () => fail(422, MEDIA_NOT_EDITABLE_ERROR)
+// Why `isEditableMedia` refused: an animated image gets its own reason, since
+// nothing on a post attachment tells the client it is animated.
+const notEditableMedia = (media: Pick<Media, 'original'>) =>
+  fail(
+    422,
+    (media.original.metaData.pages ?? 1) > 1
+      ? ANIMATED_MEDIA_NOT_EDITABLE_ERROR
+      : MEDIA_NOT_EDITABLE_ERROR
+  )
 const stale = (version: number, saveId: string | null) => ({
   ok: false as const,
   status: 409 as const,
@@ -356,7 +366,7 @@ export const getMediaEdit = async ({
 }): Promise<MediaEditResult<MediaEditResponse>> => {
   const media = await database.getMediaByIdForAccount({ mediaId, accountId })
   if (!media) return notFound()
-  if (!isEditableMedia(media)) return notEditable()
+  if (!isEditableMedia(media)) return notEditableMedia(media)
 
   const state = await database.getMediaEditState({ mediaId: media.id })
   const source = await readEditSource(database, getEditSourcePath(media, state))
@@ -394,7 +404,7 @@ export const getMediaEditSource = async ({
 }): Promise<MediaEditResult<{ buffer: Buffer; mimeType: string }>> => {
   const media = await database.getMediaByIdForAccount({ mediaId, accountId })
   if (!media) return notFound()
-  if (!isEditableMedia(media)) return notEditable()
+  if (!isEditableMedia(media)) return notEditableMedia(media)
 
   const state = await database.getMediaEditState({ mediaId: media.id })
   const path = getEditSourcePath(media, state)
@@ -644,7 +654,7 @@ export const saveMediaEdit = async ({
 
   const media = await database.getMediaByIdForAccount({ mediaId, accountId })
   if (!media) return notFound()
-  if (!isEditableMedia(media)) return notEditable()
+  if (!isEditableMedia(media)) return notEditableMedia(media)
 
   const parsed = parseRecipe(rawRecipe, { allowMasks: true })
   if (!parsed.ok) return fail(422, parsed.error)

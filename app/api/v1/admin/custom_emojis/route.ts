@@ -82,6 +82,17 @@ export const POST = traceApiRoute(
       })
     }
 
+    // The upload cap lives in the resolved `media.maxFileSize` server setting
+    // (a database read), so it is checked here rather than in FileSchema.
+    if (await exceedsMaxMediaUploadSize([fileParsed.data.size], database)) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+      })
+    }
+
     // GIF, WebP and AVIF are accepted, but only as stills: `static_url` is the
     // same stored file, so an animated upload would animate in both places.
     // Read the frame count before anything is stored.
@@ -105,17 +116,6 @@ export const POST = traceApiRoute(
         req,
         allowedMethods: CORS_HEADERS,
         data: { error: 'Custom emoji must be a static image' },
-        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
-      })
-    }
-
-    // The upload cap lives in the resolved `media.maxFileSize` server setting
-    // (a database read), so it is checked here rather than in FileSchema.
-    if (await exceedsMaxMediaUploadSize([fileParsed.data.size], database)) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_422,
         responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
       })
     }

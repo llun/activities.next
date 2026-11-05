@@ -234,7 +234,10 @@ describe('/api/v1/media/[id]/edit', () => {
   let counter = 0
   const createMediaFor = async (
     actorId: string,
-    { mimeType = 'image/jpeg' }: { mimeType?: string } = {}
+    {
+      mimeType = 'image/jpeg',
+      pages
+    }: { mimeType?: string; pages?: number } = {}
   ) => {
     counter += 1
     const media = await database.createMedia({
@@ -243,7 +246,11 @@ describe('/api/v1/media/[id]/edit', () => {
         path: `medias/edit-${counter}.jpg`,
         bytes: 1000,
         mimeType,
-        metaData: { width: SOURCE_WIDTH, height: SOURCE_HEIGHT }
+        metaData: {
+          width: SOURCE_WIDTH,
+          height: SOURCE_HEIGHT,
+          ...(pages ? { pages } : {})
+        }
       }
     })
     return media!.id
@@ -342,6 +349,18 @@ describe('/api/v1/media/[id]/edit', () => {
       const response = await get(id)
       expect(response.status).toBe(404)
       expect(await response.json()).toEqual({ error: 'Record not found' })
+    })
+
+    it('answers 422 with its own reason for an animated image', async () => {
+      const id = await createMediaFor(ACTOR1_ID, {
+        mimeType: 'image/webp',
+        pages: 3
+      })
+      const response = await get(id)
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: "Animated images can't be edited"
+      })
     })
 
     it('answers 422 for a video', async () => {

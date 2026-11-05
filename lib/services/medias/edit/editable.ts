@@ -8,6 +8,8 @@ export const EDITABLE_MEDIA_TYPES: readonly string[] = [
 ]
 
 export const MEDIA_NOT_EDITABLE_ERROR = "This media can't be edited"
+export const ANIMATED_MEDIA_NOT_EDITABLE_ERROR =
+  "Animated images can't be edited"
 
 /**
  * Whether the photo editor may edit this media: a still image the instance

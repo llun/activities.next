@@ -236,6 +236,18 @@ describe('PhotoEditorDialog', () => {
     ).toBeInTheDocument()
   })
 
+  it("shows the server's reason when the media cannot be edited", async () => {
+    mockGetMediaEdit.mockRejectedValue(
+      new MediaEditError(422, "Animated images can't be edited")
+    )
+    render(
+      <PhotoEditorDialog mediaId="12" onClose={vi.fn()} onSaved={vi.fn()} />
+    )
+    expect(
+      await screen.findByText("Animated images can't be edited")
+    ).toBeInTheDocument()
+  })
+
   it('refuses a photo that is too large to edit in the browser', async () => {
     mockGetMediaEdit.mockResolvedValue(
       editState({ source: { width: 10000, height: 6000 } })

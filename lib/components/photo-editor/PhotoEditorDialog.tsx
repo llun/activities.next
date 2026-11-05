@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   type ApplyToPosts,
+  MediaEditError,
   type MediaEditSaveResult,
   type MediaEditState,
   getMediaEdit,
@@ -277,9 +278,15 @@ export const PhotoEditorDialog = ({
         })
         resetHistory(working)
         setPhase('ready')
-      } catch {
+      } catch (error) {
         if (cancelled) return
-        setLoadError("Couldn't load the photo.")
+        // A 422 says why this media cannot be edited (an animated image, for
+        // one, which a post attachment does not mark); show that reason.
+        setLoadError(
+          error instanceof MediaEditError && error.status === 422
+            ? error.error
+            : "Couldn't load the photo."
+        )
         setPhase('error')
       }
     })()
