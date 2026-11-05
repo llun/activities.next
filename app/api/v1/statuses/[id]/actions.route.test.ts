@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
+import { SEND_FEATURED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
@@ -9,6 +10,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { POST as bookmarkStatus } from './bookmark/route'
@@ -48,9 +50,10 @@ vi.mock('better-auth/oauth2', async () => ({
   verifyBearerToken: vi.fn()
 }))
 
+const mockQueuePublish = vi.fn()
 vi.mock('@/lib/services/queue', async () => ({
-  getQueue: vi.fn().mockReturnValue({
-    publish: vi.fn().mockResolvedValue(undefined)
+  getQueue: () => ({
+    publish: (...args: unknown[]) => mockQueuePublish(...args)
   })
 }))
 
@@ -116,6 +119,8 @@ describe('/api/v1/statuses/[id] action routes', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockQueuePublish.mockReset()
+    mockQueuePublish.mockResolvedValue(undefined)
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -944,6 +949,260 @@ describe('/api/v1/statuses/[id] action routes', () => {
         id: await statusPublicId(database, pinnedStatusIds[0]),
         pinned: true
       })
+    })
+
+    it('queues SendFeaturedStatusJob with Add once on pin and queues nothing when re-pinning', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR2_ID}/statuses/api-pin-federate-add`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR2_ID,
+        text: 'Pin federation target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR2_ID}/followers`]
+      })
+
+      const firstPinResponse = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(firstPinResponse.status).toBe(200)
+
+      expect(mockQueuePublish.mock.calls).toEqual([
+        [
+          {
+            id: expect.any(String),
+            name: SEND_FEATURED_STATUS_JOB_NAME,
+            data: {
+              actorId: ACTOR2_ID,
+              statusId,
+              action: 'Add',
+              eventId: expect.any(String)
+            }
+          }
+        ]
+      ])
+
+      const secondPinResponse = await pinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/pin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(secondPinResponse.status).toBe(200)
+      expect(mockQueuePublish).toHaveBeenCalledTimes(1)
+
+      await database.unpinStatus({ actorId: ACTOR2_ID, statusId })
+    })
+
+    it('queues SendFeaturedStatusJob with Remove on unpin and queues nothing when unpinning an unpinned status', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR2_ID}/statuses/api-unpin-federate-remove`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR2_ID,
+        text: 'Unpin federation target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR2_ID}/followers`]
+      })
+
+      const unpinnedFirstResponse = await unpinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unpin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(unpinnedFirstResponse.status).toBe(200)
+      expect(mockQueuePublish).not.toHaveBeenCalled()
+
+      await database.pinStatus({ actorId: ACTOR2_ID, statusId })
+
+      const unpinPinnedResponse = await unpinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unpin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(unpinPinnedResponse.status).toBe(200)
+      expect(mockQueuePublish.mock.calls).toEqual([
+        [
+          {
+            id: expect.any(String),
+            name: SEND_FEATURED_STATUS_JOB_NAME,
+            data: {
+              actorId: ACTOR2_ID,
+              statusId,
+              action: 'Remove',
+              eventId: expect.any(String)
+            }
+          }
+        ]
+      ])
+
+      const repeatUnpinResponse = await unpinStatus(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unpin`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(repeatUnpinResponse.status).toBe(200)
+      expect(mockQueuePublish).toHaveBeenCalledTimes(1)
+    })
+
+    it('uses distinct event and job ids across a pin -> unpin -> pin sequence', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+
+      const statusId = `${ACTOR2_ID}/statuses/api-pin-unpin-pin-sequence`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR2_ID,
+        text: 'Pin sequence target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR2_ID}/followers`]
+      })
+
+      const callRoute = (
+        handler: StatusRouteHandler,
+        action: 'pin' | 'unpin'
+      ) =>
+        handler(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}/${action}`,
+            {
+              method: 'POST',
+              headers: { Origin: 'https://llun.test' }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+      expect((await callRoute(pinStatus, 'pin')).status).toBe(200)
+      expect((await callRoute(unpinStatus, 'unpin')).status).toBe(200)
+      expect((await callRoute(pinStatus, 'pin')).status).toBe(200)
+
+      const jobs = mockQueuePublish.mock.calls.map(
+        ([job]) =>
+          job as {
+            id: string
+            name: string
+            data: { action: string; eventId: string }
+          }
+      )
+      expect(jobs.map((job) => [job.name, job.data.action])).toEqual([
+        [SEND_FEATURED_STATUS_JOB_NAME, 'Add'],
+        [SEND_FEATURED_STATUS_JOB_NAME, 'Remove'],
+        [SEND_FEATURED_STATUS_JOB_NAME, 'Add']
+      ])
+      expect(new Set(jobs.map((job) => job.id)).size).toBe(3)
+      expect(new Set(jobs.map((job) => job.data.eventId)).size).toBe(3)
+
+      await database.unpinStatus({ actorId: ACTOR2_ID, statusId })
+    })
+
+    it('still returns 200 and logs an error when queueing pin or unpin federation fails', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+      mockQueuePublish.mockRejectedValue(new Error('queue down'))
+
+      const errorSpy = vi.spyOn(logger, 'error')
+      const statusId = `${ACTOR2_ID}/statuses/api-pin-queue-failure`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR2_ID,
+        text: 'Pin queue failure target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [`${ACTOR2_ID}/followers`]
+      })
+
+      try {
+        const pinResponse = await pinStatus(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}/pin`,
+            {
+              method: 'POST',
+              headers: { Origin: 'https://llun.test' }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+        expect(pinResponse.status).toBe(200)
+        await expect(pinResponse.json()).resolves.toMatchObject({
+          id: await statusPublicId(database, statusId),
+          pinned: true
+        })
+
+        const unpinResponse = await unpinStatus(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}/unpin`,
+            {
+              method: 'POST',
+              headers: { Origin: 'https://llun.test' }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+        expect(unpinResponse.status).toBe(200)
+        await expect(unpinResponse.json()).resolves.toMatchObject({
+          id: await statusPublicId(database, statusId),
+          pinned: false
+        })
+
+        expect(errorSpy.mock.calls).toEqual([
+          [
+            expect.objectContaining({
+              actorId: ACTOR2_ID,
+              statusId,
+              action: 'Add',
+              err: expect.objectContaining({ message: 'queue down' })
+            })
+          ],
+          [
+            expect.objectContaining({
+              actorId: ACTOR2_ID,
+              statusId,
+              action: 'Remove',
+              err: expect.objectContaining({ message: 'queue down' })
+            })
+          ]
+        ])
+      } finally {
+        errorSpy.mockRestore()
+      }
     })
 
     it('returns 500 when a readable unbookmark target cannot be reloaded after deletion', async () => {

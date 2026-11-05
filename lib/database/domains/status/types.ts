@@ -93,6 +93,10 @@ export type PinStatusParams = {
   statusId: string
   maxPinnedStatuses?: number
 }
+export type PinStatusResult = {
+  pinned: boolean
+  isNew: boolean
+}
 export type GetPinnedStatusIdsParams = {
   actorId: string
   statusIds?: string[]
@@ -556,7 +560,8 @@ export interface StatusLookupDatabase {
     params: HasActorAnnouncedStatusParams
   ): Promise<Status | null>
   pinStatus(params: PinStatusParams): Promise<boolean>
-  unpinStatus(params: PinStatusParams): Promise<void>
+  pinStatusWithResult(params: PinStatusParams): Promise<PinStatusResult>
+  unpinStatus(params: PinStatusParams): Promise<boolean>
   getPinnedStatusIds(params: GetPinnedStatusIdsParams): Promise<string[]>
   getFavouritedBy(params: GetFavouritedByParams): Promise<FavouritedByAccount[]>
   getRebloggedBy(params: GetRebloggedByParams): Promise<RebloggedByAccount[]>

@@ -444,7 +444,10 @@ a string>`, which returns an empty page, so that poller never detects new
   `Link` pagination headers (remote ids cannot cursor the local store), and
   the fetched statuses are display-only — they are not persisted. Acting on
   one of them stores it first; see
-  [Status Posts & Actions](#agents-status-posts-actions).
+  [Status Posts & Actions](#agents-status-posts-actions). Inbound remote `Add`
+  and `Remove` activities targeting an actor's `featured` collection are not
+  ingested yet, so `?pinned=true` reflects local `status_pins` rows only (local
+  pins federate outbound via `featured` and `Add`/`Remove`).
 
 ### Lists & imports
 
@@ -1372,9 +1375,9 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   every result-based assertion still passes. Mastodon reads the JSON without processing it; a
   conformant receiver — GoToSocial, or another activities.next, whose inbox runs
   `compactActivityPub` — silently loses the terms.
-  - **Seven surfaces carry a Note and all seven send `NOTE_ACTIVITY_CONTEXT`:** `sendNote`'s Create,
+  - **Eight surfaces carry a Note and all eight send `NOTE_ACTIVITY_CONTEXT`:** `sendNote`'s Create,
     `sendUpdateNote`'s Update, `sendQuoteRequest`'s `instrument`, the AP status GET, the `/replies`
-    collection, the user outbox page, and the `outbox.json` writer in
+    collection, the user outbox page, the `featured` collection, and the `outbox.json` writer in
     `scripts/backup/actorArchive.ts`. It supersets `QUOTE_ACTIVITY_CONTEXT`, so a surface on it also
     satisfies the quote vocabulary's own requirement; the other quote activities
     (Accept/Reject/Delete) echo ids rather than Notes and keep the narrower one. The archive's
@@ -2018,6 +2021,31 @@ open state; deleted polls are skipped. Queueing this delayed update is best
 effort and logs an error without failing the saved create or edit. Automatic
 expiration delivery requires a queue that supports delayed messages: in-process
 NoQueue drops them. Live vote-count updates are not federated separately.
+
+Local pinned statuses federate through the actor's `featured` collection and
+outbound `Add`/`Remove` activities:
+
+- `GET /api/users/:username/collections/featured` serves an `OrderedCollection`
+  with `@context: NOTE_ACTIVITY_CONTEXT` containing up to `MAX_PINNED_STATUSES`
+  (5) of the local actor's pinned statuses that satisfy
+  `isStatusPubliclyReadable` (public or unlisted `Note`/`Question` objects built
+  by `toActivityPubObject`, newest pin first, excluding followers-only and
+  direct posts, `Announce`s, and deleted statuses), with `totalItems` matching
+  the served items.
+- `POST /api/v1/statuses/:id/pin` and `POST /api/v1/statuses/:id/unpin` queue
+  `SendFeaturedStatusJob` (`publishStatusPin`) only when the pin state changed
+  (`pinStatusWithResult.isNew` on pin, or `unpinStatus` deleting a row on
+  unpin). The job fans out an `Add` or `Remove` activity
+  (`id: <statusId>#pin/<eventId>` or `<statusId>#unpin/<eventId>`,
+  `object: <statusId>`, `target: <actorId>/collections/featured`) via
+  `DeliverActivityJob` to the post's own audience (followers, plus accepted
+  relays only for a listed public post), and only while the post is publicly
+  readable: a followers-only pin is not in the collection and federates nothing.
+  `eventId` is a random per-transition UUID stored in the job so retries keep
+  the same activity id. At send time, the job checks the current pin state and
+  drops a delayed `Add` after an unpin or `Remove` after a re-pin.
+  Queueing is best effort and logs errors without failing the pin/unpin
+  response; inbound remote `Add`/`Remove` activities are not handled.
 
 Every surface that renders a status post — the home timeline, profiles, lists,
 favourites, bookmarks, hashtags, search, and the status **detail**

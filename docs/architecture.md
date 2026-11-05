@@ -93,7 +93,7 @@ The frontend and API layer, organized using Next.js route groups:
 | `app/api/nodeinfo/`   | NodeInfo 2.0 and 2.1 documents and discovery (rewritten from `/.well-known/nodeinfo`)                                                                                                                                                                                                                                            |
 | `app/api/oauth/`      | OAuth 2.0 provider endpoints (authorize, userinfo, revoke) — the token endpoint lives at `app/(nosidebar)/oauth/token/`, serving `/oauth/token`                                                                                                                                                                                  |
 | `app/api/oembed/`     | Public oEmbed provider (`GET /api/oembed`) returning rich embed metadata for this instance's public/unlisted status pages                                                                                                                                                                                                        |
-| `app/api/users/`      | ActivityPub actor endpoints (inbox, outbox, followers, following)                                                                                                                                                                                                                                                                |
+| `app/api/users/`      | ActivityPub actor endpoints (inbox, outbox, followers, following, featured/tags collections, statuses)                                                                                                                                                                                                                           |
 | `app/api/v1/`         | Mastodon-compatible API v1 (statuses, timelines, accounts, notifications), plus the activities.next-only `POST /api/v1/web-vitals` browser Web Vitals sink, `POST /api/v1/client-errors` browser error reporting and `GET /api/v1/statuses/:id/thread`, the web thread context behind "Load earlier posts" / "Load more replies" |
 | `app/api/v2/`         | Mastodon-compatible API v2 (instance info, media, search)                                                                                                                                                                                                                                                                        |
 | `app/api/well-known/` | Federation discovery (WebFinger, host-meta, OAuth/OIDC metadata) and the Admin › Served domains reachability proof (`activities-domain-check`) — NodeInfo is served from `app/api/nodeinfo/` via a `next.config.ts` rewrite of `/.well-known/nodeinfo`                                                                           |
@@ -199,6 +199,7 @@ The server implements the [ActivityPub](https://www.w3.org/TR/activitypub/) prot
 
 - **Inbox** (`/api/inbox`, `/api/users/:username/inbox`) — Receives activities from remote servers
 - **Outbox** (`/api/users/:username/outbox`) — Lists activities by a local actor
+- **Featured & Tags collections** (`/api/users/:username/collections/featured`, `/api/users/:username/collections/tags`) — Serves a local actor's publicly readable pinned posts (newest pin first, capped at `MAX_PINNED_STATUSES`) and featured hashtags
 - **WebFinger** (`/.well-known/webfinger`) — Actor discovery, including the `http://ostatus.org/schema/1.0/subscribe` template that points remote-follow visitors at `/authorize_interaction`
 - **Remote follow** (`/authorize_interaction?uri=…`) — Mastodon-compatible landing page where a signed-in local user confirms following an account another server sent them to; the outbound half (a logged-out visitor following a local account from their own server) resolves through `GET /api/v1/remote-follow`. A profile that has moved offers neither: it shows a disabled "Follow turned off" to everyone who does not already follow it
 - **NodeInfo** (`/.well-known/nodeinfo`) — Instance metadata, served as NodeInfo 2.0 and 2.1
@@ -2228,6 +2229,34 @@ false`), so users who never opted in are not advertised to remote servers
   (declared `toot:attributionDomains` with `@type: @id` and
   `@container: @set`, in `@context` and in the inbound canonical context),
   keeping only valid hostnames.
+
+#### Pinned posts federate through `featured` and `Add` / `Remove`
+
+- **`GET /api/users/:username/collections/featured`** serves the local actor's
+  pinned statuses that satisfy `isStatusPubliclyReadable` (public or unlisted,
+  excluding followers-only, direct, `Announce` and deleted statuses), ordered
+  newest pin first (`getPinnedStatusIds` + `getStatusesByIds`), capped at
+  `MAX_PINNED_STATUSES` (5), as full `Note`/`Question` objects built by
+  `toActivityPubObject` under `NOTE_ACTIVITY_CONTEXT`.
+- **`POST /api/v1/statuses/:id/pin` and `/unpin` queue `SendFeaturedStatusJob`
+  only on state transitions.** `pinStatusWithResult` reports `{ pinned, isNew }`
+  under the actor row lock so re-pinning an existing pin returns `200` without
+  queueing a duplicate `Add`, and `unpinStatus` returns whether a `status_pins`
+  row was deleted so unpinning an unpinned status queues no `Remove`.
+- **Activity and job ids carry the action and a random per-transition `eventId`.**
+  `publishStatusPin` (`lib/services/statuses/publishStatusPin.ts`) generates
+  `eventId` with `crypto.randomUUID()` and hashes `<statusId>#pin/<eventId>` or
+  `<statusId>#unpin/<eventId>` as the queue job id, passing `eventId` in `JobData`
+  so `SendFeaturedStatusJob` emits a stable activity `id` across retries while a
+  `pin → unpin → pin` sequence produces distinct job ids. At send time, the job checks the current
+  pin state: a delayed `Add` after an unpin or `Remove` after a re-pin is dropped.
+  The job federates only a post that is still publicly readable (the same rule
+  as the collection; a followers-only pin
+  sends nothing, and a deleted post already federated its `Delete`) and fans out
+  to that post's own audience through `getFederatedStatusDeliveryInboxes`
+  (followers, plus accepted relays only for a listed public post) via
+  `DeliverActivityJob`. Queueing failures are logged without failing the API
+  response. Inbound remote `Add`/`Remove` activities are not ingested.
 
 #### Profile tabs and the Edit profile page
 

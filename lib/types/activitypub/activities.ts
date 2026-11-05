@@ -22,6 +22,12 @@ export type DeleteAction = typeof DeleteAction
 export const UpdateAction = 'Update'
 export type UpdateAction = typeof UpdateAction
 
+export const AddAction = 'Add'
+export type AddAction = typeof AddAction
+
+export const RemoveAction = 'Remove'
+export type RemoveAction = typeof RemoveAction
+
 // ============================================================================
 // Follow Activity
 // ============================================================================
