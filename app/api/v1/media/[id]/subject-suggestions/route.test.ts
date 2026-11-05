@@ -142,8 +142,14 @@ describe('POST /api/v1/media/[id]/subject-suggestions', () => {
     {
       mimeType = 'image/jpeg',
       thumbnail,
-      pending = false
-    }: { mimeType?: string; thumbnail?: string; pending?: boolean } = {}
+      pending = false,
+      details
+    }: {
+      mimeType?: string
+      thumbnail?: string
+      pending?: boolean
+      details?: Parameters<typeof database.createMedia>[0]['details']
+    } = {}
   ) => {
     counter += 1
     const media = await database.createMedia({
@@ -177,7 +183,8 @@ describe('POST /api/v1/media/[id]/subject-suggestions', () => {
               metaData: { width: 5, height: 5 }
             }
           }
-        : {})
+        : {}),
+      ...(details ? { details } : {})
     })
     return media!.id
   }
@@ -221,9 +228,35 @@ describe('POST /api/v1/media/[id]/subject-suggestions', () => {
     expect(suggestSubjects).toHaveBeenCalledWith({
       config: PROVIDER,
       image: { buffer: Buffer.from('image-bytes'), mimeType: 'image/webp' },
-      gbif: expect.any(Object)
+      gbif: expect.any(Object),
+      context: { countryCode: null, month: null }
     })
     expect(await storedSuggestions(id)).toEqual(SUGGESTIONS)
+  })
+
+  it('tells the model the media’s country and UTC month, never its point or place name', async () => {
+    const id = await createMediaFor(ACTOR1_ID, {
+      details: {
+        takenAt: Date.UTC(2026, 4, 12, 6, 0),
+        placeLatitude: 35.6812,
+        placeLongitude: 139.7671,
+        placeName: 'Chiyoda, Tokyo'
+      }
+    })
+    await database.setMediaPlaceLookup({
+      mediaId: id,
+      expect: { placeLatitude: 35.6812, placeLongitude: 139.7671 },
+      patch: { placeLookupStatus: 'resolved', placeCountryCode: 'JP' }
+    })
+
+    expect((await request(id)).status).toBe(200)
+
+    const [params] = vi.mocked(suggestSubjects).mock.calls[0]
+    expect(params.context).toEqual({ countryCode: 'JP', month: 5 })
+    const sent = JSON.stringify(params)
+    expect(sent).not.toContain('35.68')
+    expect(sent).not.toContain('139.76')
+    expect(sent).not.toContain('Chiyoda')
   })
 
   it('answers 409, and asks nothing, when the owner turned suggestions off', async () => {

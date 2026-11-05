@@ -168,6 +168,7 @@ const Page: FC<Props> = async ({ params }) => {
     person,
     profileFields,
     statuses,
+    pinnedStatuses,
     repliesTabStatusIds,
     timelineContext,
     attachments,
@@ -510,6 +511,7 @@ const Page: FC<Props> = async ({ params }) => {
         hasHeaderImage={Boolean(headerImageUrl)}
         currentTime={Date.now()}
         statuses={statuses}
+        pinnedStatuses={pinnedStatuses}
         repliesTabStatusIds={repliesTabStatusIds}
         timelineContext={timelineContext}
         attachments={attachments}

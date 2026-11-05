@@ -13,7 +13,7 @@ import {
   isRequestBodyTooLargeError,
   readRequestTextWithLimit
 } from '@/lib/utils/boundedRequestBody'
-import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
+import { getTrustedClientRateLimitKey } from '@/lib/utils/getTrustedClientIp'
 import { logger } from '@/lib/utils/logger'
 import {
   DEFAULT_202,
@@ -43,7 +43,7 @@ export const POST = traceApiRoute('clientErrors', async (req: NextRequest) => {
     return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
   }
 
-  const clientIp = getTrustedClientIp(req)
+  const clientIp = getTrustedClientRateLimitKey(req)
   if (clientIp) {
     if (!ipCounter.tryHit(clientIp)) {
       return apiErrorResponse(HTTP_STATUS.TOO_MANY_REQUESTS)

@@ -1288,6 +1288,13 @@ CREATE TABLE public.queue_jobs (
     claim_token character varying(255) DEFAULT NULL::character varying
 );
 
+CREATE TABLE public."rateLimit" (
+    id character varying(255) NOT NULL,
+    key text NOT NULL,
+    count integer NOT NULL,
+    "lastRequest" bigint NOT NULL
+);
+
 CREATE TABLE public.recipients (
     id character varying(255) NOT NULL,
     "statusId" character varying(255),
@@ -2015,6 +2022,9 @@ ALTER TABLE ONLY public.push_subscriptions
 ALTER TABLE ONLY public.queue_jobs
     ADD CONSTRAINT queue_jobs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public."rateLimit"
+    ADD CONSTRAINT "rateLimit_pkey" PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.recipients
     ADD CONSTRAINT recipients_pkey PRIMARY KEY (id);
 
@@ -2350,6 +2360,10 @@ CREATE INDEX queue_jobs_created_at_idx ON public.queue_jobs USING btree (created
 CREATE INDEX queue_jobs_name_idx ON public.queue_jobs USING btree (name);
 
 CREATE INDEX queue_jobs_status_next_run_at_idx ON public.queue_jobs USING btree (status, next_run_at);
+
+CREATE UNIQUE INDEX rate_limit_key_unique ON public."rateLimit" USING btree (key);
+
+CREATE INDEX rate_limit_last_request_idx ON public."rateLimit" USING btree ("lastRequest");
 
 CREATE INDEX "recipiences_statusId_type_idx" ON public.recipients USING btree ("statusId", type, "createdAt", "updatedAt");
 

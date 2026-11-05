@@ -101,6 +101,12 @@ const MATCH_CACHE_VERSION = 'm2'
 // s3: the outcome carries `exhaustive` and `exactTaxonKeys`. An s2 row has
 // neither, and its exact hits were read from a cut-down name list.
 const SEARCH_CACHE_VERSION = 's3'
+const OCCURRENCE_CACHE_VERSION = 'o1'
+
+// The `gbif-occurrence` cache value.
+interface CachedOccurrence {
+  recorded: boolean
+}
 
 /**
  * A `species/search` answer, with what it proves about the name asked for.
@@ -213,6 +219,17 @@ export interface GbifClient {
    * query too short to ask.
    */
   lookupSearch(q: string): Promise<GbifSearchOutcome | null>
+  /**
+   * Whether GBIF holds any occurrence record of the taxon in a country
+   * (ISO 3166-1 alpha-2). Null, without a request, for a key or code that is
+   * not one. Throws when GBIF cannot say, like every lookup here: a caller
+   * reads that as "unknown", never as "not recorded". Cached as
+   * `gbif-occurrence`.
+   */
+  hasOccurrencesInCountry(
+    taxonKey: string,
+    countryCode: string
+  ): Promise<boolean | null>
 }
 
 // Cache keys are normalized so "Common  Kingfisher" and "common kingfisher"
@@ -548,6 +565,45 @@ export const createGbifClient = ({
       return q.trim().length > MAX_SEARCH_QUERY_LENGTH
         ? { ...outcome, exactTaxonKeys: [] }
         : outcome
+    },
+
+    async hasOccurrencesInCountry(taxonKey, countryCode) {
+      const country = countryCode.trim().toUpperCase()
+      if (!/^\d{1,12}$/.test(taxonKey) || !/^[A-Z]{2}$/.test(country)) {
+        return null
+      }
+
+      const cached = unwrap(
+        await readThroughLookupCache<CachedOccurrence>({
+          database,
+          skipCachedError: skipCachedErrors,
+          kind: 'gbif-occurrence',
+          key: cacheKey(`${OCCURRENCE_CACHE_VERSION}|${taxonKey}|${country}`),
+          fetcher: async () => {
+            // `limit=0` asks for the count alone, no records.
+            const response = await get('occurrence/search', {
+              taxonKey,
+              country,
+              limit: '0'
+            })
+            if (response.status !== 'ok') {
+              throw new LookupError('http', 'GBIF occurrences gave no answer')
+            }
+            const count = (response.json as { count?: unknown } | null)?.count
+            if (typeof count !== 'number' || !Number.isInteger(count)) {
+              throw new LookupError(
+                'parse',
+                'GBIF returned an unreadable occurrence count'
+              )
+            }
+            return { recorded: count > 0 }
+          }
+        })
+      )
+      if (!isRecord(cached) || typeof cached.recorded !== 'boolean') {
+        throw new LookupError('parse', 'Unreadable cached GBIF occurrences')
+      }
+      return cached.recorded
     }
   }
 

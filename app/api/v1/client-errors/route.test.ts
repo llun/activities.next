@@ -23,7 +23,8 @@ vi.mock('@/lib/utils/logger', () => ({
 }))
 
 vi.mock('@/lib/config/trustProxyIpHeaders', () => ({
-  getTrustProxyIpHeadersConfig: () => mocks.trustProxy
+  getTrustProxyIpHeadersConfig: () => mocks.trustProxy,
+  getTrustProxyIpHeaderConfig: () => null
 }))
 
 const ORIGIN = 'https://test.llun.dev'

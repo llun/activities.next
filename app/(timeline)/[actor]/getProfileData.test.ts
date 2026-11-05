@@ -899,6 +899,64 @@ describe('getProfileData', () => {
 
         expect(result?.statuses).toEqual([])
       })
+
+      it('returns viewer-scoped pinnedStatuses (a followers-only pinned post is hidden from a non-follower)', async () => {
+        const publicPinnedNote = {
+          id: 'https://example.com/users/localuser/statuses/pinned-public',
+          type: StatusType.enum.Note,
+          actorId: mockLocalActor.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'public pinned post'
+        } as unknown as Status
+
+        const followersOnlyPinnedNote = {
+          id: 'https://example.com/users/localuser/statuses/pinned-followers',
+          type: StatusType.enum.Note,
+          actorId: mockLocalActor.id,
+          actor: localActorWithFollowers,
+          to: [followersUrl],
+          cc: [],
+          text: 'followers only pinned post'
+        } as unknown as Status
+
+        ;(mockDatabase.getActorStatuses as jest.Mock).mockImplementation(
+          (params: { pinned?: boolean }) => {
+            if (params.pinned) {
+              return Promise.resolve([
+                publicPinnedNote,
+                followersOnlyPinnedNote
+              ])
+            }
+            return Promise.resolve([])
+          }
+        )
+
+        const nonFollowerResult = await getProfileData(
+          mockDatabase,
+          '@localuser@example.com',
+          true,
+          { currentActor: viewer }
+        )
+
+        expect(nonFollowerResult?.pinnedStatuses).toEqual([publicPinnedNote])
+
+        ;(
+          mockDatabase.getAcceptedOrRequestedFollow as jest.Mock
+        ).mockResolvedValue({ status: FollowStatus.enum.Accepted })
+
+        const followerResult = await getProfileData(
+          mockDatabase,
+          '@localuser@example.com',
+          true,
+          { currentActor: viewer }
+        )
+
+        expect(followerResult?.pinnedStatuses).toEqual([
+          publicPinnedNote,
+          followersOnlyPinnedNote
+        ])
+      })
     })
   })
 
@@ -937,6 +995,8 @@ describe('getProfileData', () => {
       expect(result?.isInternalAccount).toBe(false)
       // A remote profile keeps its plain feed: no reply-parent previews.
       expect(result).not.toHaveProperty('timelineContext')
+      // Remote pins (`featured`) are not ingested, so none are loaded.
+      expect(result?.pinnedStatuses).toBeUndefined()
       expect(mockDatabase.getActorFromUsername).toHaveBeenCalledWith({
         username: 'remoteuser',
         domain: 'remote.com'

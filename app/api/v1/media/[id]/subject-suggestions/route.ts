@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getGalleryLookupAvailability } from '@/lib/services/gallery/galleryLookupAvailability'
 import { createGbifClient } from '@/lib/services/gallery/lookups/gbif'
 import { createWindowCounter } from '@/lib/services/gallery/lookups/rateLimit'
+import { toSubjectContext } from '@/lib/services/gallery/subjects/subjectContext'
 import { getSubjectProviderConfig } from '@/lib/services/gallery/subjects/subjectProvider'
 import { suggestSubjects } from '@/lib/services/gallery/subjects/suggestSubjects'
 import {
@@ -183,7 +184,12 @@ export const POST = traceApiRoute(
         const suggestions = await suggestSubjects({
           config,
           image,
-          gbif: speciesLookupsAvailable ? createGbifClient({ database }) : null
+          gbif: speciesLookupsAvailable ? createGbifClient({ database }) : null,
+          // The country and month only: never the coordinates or place name.
+          context: toSubjectContext({
+            placeCountryCode: media.details?.placeCountryCode ?? null,
+            takenAt: media.details?.takenAt ?? null
+          })
         })
 
         const persisted = await database.setMediaSubjectSuggestions({

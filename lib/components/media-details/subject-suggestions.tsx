@@ -1,12 +1,16 @@
 'use client'
 
-import { Check, Search, Sparkles, X } from 'lucide-react'
+import { Check, MapPin, Search, Sparkles, TriangleAlert, X } from 'lucide-react'
 import { FC } from 'react'
 
 import type { SubjectSuggestionsEntity } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
+import {
+  countryNameOf,
+  monthNameOf
+} from '@/lib/services/gallery/subjects/subjectContext'
 import { cn } from '@/lib/utils'
 
 import {
@@ -61,6 +65,21 @@ export const TaxonPathLine: FC<{
   )
 }
 
+/** "for Japan in May", "for Japan", "in May", or null with neither. */
+const contextCaption = (
+  context: SubjectSuggestionsEntity['context']
+): string | null => {
+  const country = context?.countryCode
+    ? countryNameOf(context.countryCode)
+    : null
+  const month = context?.month ? monthNameOf(context.month) : null
+  const parts = [
+    country ? `for ${country}` : null,
+    month ? `in ${month}` : null
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(' ') : null
+}
+
 const chipClass = (selected: boolean, dashed = false) =>
   cn(
     'inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-sm outline-none',
@@ -86,6 +105,7 @@ export const SubjectSuggestions: FC<Props> = ({
   onSearch
 }) => {
   const choices = getSubjectChoices(suggestions, threshold)
+  const contextText = contextCaption(suggestions?.context)
   const hasChips = choices.species.length > 0 || choices.group !== null
   const groupPick = choices.group
     ? groupToPicked(choices.group.label, choices.group.category)
@@ -151,6 +171,13 @@ export const SubjectSuggestions: FC<Props> = ({
               ? ' · checked against GBIF'
               : ''}
           </span>
+          {contextText ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
+              <span>{contextText}</span>
+            </>
+          ) : null}
         </p>
       ) : null}
 
@@ -195,6 +222,15 @@ export const SubjectSuggestions: FC<Props> = ({
                 >
                   {toPercent(candidate.confidence)}%
                 </span>
+                {candidate.recordedInCountry === false ? (
+                  <>
+                    {' '}
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-warning-text">
+                      <TriangleAlert aria-hidden="true" className="size-3.5" />
+                      rare here
+                    </span>
+                  </>
+                ) : null}
               </button>
             )
           })}

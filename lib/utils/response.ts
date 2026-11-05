@@ -155,6 +155,23 @@ export const apiCorsError = (
     responseStatusCode: code
   })
 
+/**
+ * Mastodon-shaped 429 response (`{ error: 'Too many requests' }`) carrying
+ * `Retry-After` and, when `allowedMethods` is non-empty, CORS headers.
+ */
+export const apiRateLimitedResponse = (
+  req: NextRequest,
+  retryAfterSeconds: number,
+  allowedMethods: HttpMethod[] = []
+) =>
+  apiResponse({
+    req,
+    allowedMethods,
+    data: { error: 'Too many requests' },
+    responseStatusCode: HTTP_STATUS.TOO_MANY_REQUESTS,
+    additionalHeaders: [['Retry-After', String(retryAfterSeconds)]]
+  })
+
 type APIResponseParams = {
   req: NextRequest
   allowedMethods: HttpMethod[]

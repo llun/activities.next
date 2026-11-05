@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { createWindowCounter } from '@/lib/services/gallery/lookups/rateLimit'
 import { Actor } from '@/lib/types/domain/actor'
-import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
+import { getTrustedClientRateLimitKey } from '@/lib/utils/getTrustedClientIp'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_429, HTTP_STATUS, apiResponse } from '@/lib/utils/response'
 
@@ -31,9 +31,17 @@ export const tryAlbumWrite = (actorId: string): boolean =>
 // and an upstream limiter has to do it, as for the other anonymous gallery
 // reads. Per process, like the write limit.
 const ALBUM_READS_PER_MINUTE = 300
-const albumReads = createWindowCounter({
+// Readers and signed-out addresses get separate maps, so a flood of fresh
+// addresses can only push other addresses out, never a reader's count.
+const albumReadsByActor = createWindowCounter({
   limit: ALBUM_READS_PER_MINUTE,
-  windowMs: ONE_MINUTE_MS
+  windowMs: ONE_MINUTE_MS,
+  maxKeys: 10_000
+})
+const albumReadsByIp = createWindowCounter({
+  limit: ALBUM_READS_PER_MINUTE,
+  windowMs: ONE_MINUTE_MS,
+  maxKeys: 10_000
 })
 
 /** Who a public album read is counted against; null when nothing safe names them. */
@@ -42,13 +50,18 @@ export const getAlbumReadKey = (
   currentActor: Pick<Actor, 'id'> | null | undefined
 ): string | null => {
   if (currentActor) return `actor:${currentActor.id}`
-  const ip = getTrustedClientIp(req)
+  // IPv6 collapsed to its /64, so rotating interface ids mints no new keys.
+  const ip = getTrustedClientRateLimitKey(req)
   return ip ? `ip:${ip}` : null
 }
 
 /** Counts one public album read; false once the viewer is over the limit. */
 export const tryAlbumRead = (key: string | null): boolean =>
-  key === null ? true : albumReads.tryHit(key)
+  key === null
+    ? true
+    : key.startsWith('actor:')
+      ? albumReadsByActor.tryHit(key)
+      : albumReadsByIp.tryHit(key)
 
 // Suggestions read the owner's whole gallery index, so they are limited like
 // the other costly gallery reads: 20 per actor per minute. The dialog asks once

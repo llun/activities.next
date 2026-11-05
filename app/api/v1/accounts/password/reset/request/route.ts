@@ -8,6 +8,7 @@ import {
   PASSWORD_RESET_REQUEST_COOLDOWN_MS,
   hashPasswordResetCode
 } from '@/lib/services/auth/passwordResetCode'
+import { checkPasswordResetRequestRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
@@ -18,6 +19,7 @@ import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_500,
+  apiRateLimitedResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -66,6 +68,15 @@ export const POST = traceApiRoute(
     const database = getDatabase()
     if (!database) {
       return internalServerErrorResponse(request)
+    }
+
+    const rateLimit = checkPasswordResetRequestRateLimit(request)
+    if (!rateLimit.allowed) {
+      return apiRateLimitedResponse(
+        request,
+        rateLimit.retryAfterSeconds,
+        CORS_HEADERS
+      )
     }
 
     let body: unknown
