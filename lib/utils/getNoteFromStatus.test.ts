@@ -68,12 +68,12 @@ describe.each([
     }
   )
 
-  it.each(['th', 'fil', 'pt-BR', 'zh_TW', ' en '])(
+  it.each(['th', 'fil', 'pt-BR', 'zh_TW', 'zh_Hant_TW', ' en '])(
     'uses the same language-code validation as status creation for %j',
     (language) => {
       const note = serialize(baseStatus({ language }))!
       expect(note.contentMap).toEqual({
-        [language.trim().replace('_', '-')]: note.content
+        [language.trim().replaceAll('_', '-')]: note.content
       })
     }
   )
