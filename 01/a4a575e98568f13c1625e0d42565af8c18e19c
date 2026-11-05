@@ -1,0 +1,37 @@
+lib/services/gallery/lookups/rateLimit.test.ts
+  s_2b1a50e2f9b981::t_32f79ed484572e 235-248
+app/api/v1/accounts/handle/route.ts
+  s_2b1a50e2f9b981::t_46180238f69df6 20,30,117-124
+lib/services/auth/routeRateLimits.ts
+  s_2b1a50e2f9b981::t_46180238f69df6 18,54-56,58
+app/api/v1/accounts/migration/route.ts
+  s_2b1a50e2f9b981::t_46180238f69df6 12,20,90-97
+app/api/v1/accounts/handle/route.test.ts
+  s_2b1a50e2f9b981::t_a992188b6b3820 5,145
+app/api/v1/accounts/migration/route.test.ts
+  s_2b1a50e2f9b981::t_32f79ed484572e 11-14,331-338
+  s_2b1a50e2f9b981::t_a992188b6b3820 239
+  s_2b1a50e2f9b981::t_e4877c7885a36a 339-341
+docs/architecture.md
+  s_2b1a50e2f9b981::t_d57c220e3ef178 181
+lib/services/gallery/lookups/rateLimit.ts
+  s_2b1a50e2f9b981::t_46180238f69df6 135,182-186
+docs/environment-variables.md
+  s_2b1a50e2f9b981::t_d57c220e3ef178 119-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01a4a575e98568f13c1625e0d42565af8c18e19c",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
