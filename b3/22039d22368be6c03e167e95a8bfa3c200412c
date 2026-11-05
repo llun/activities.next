@@ -1,0 +1,21 @@
+app/api/v1/statuses/redraft.route.test.ts
+  s_2b1a50e2f9b981::t_12e66a72dd2bfb 283-300
+app/api/v1/statuses/route.ts
+  s_2b1a50e2f9b981::t_afbee8c2cb3910 180-184,200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b322039d22368be6c03e167e95a8bfa3c200412c",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
