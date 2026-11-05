@@ -129,6 +129,7 @@ describe('POST /api/v1/accounts/email', () => {
   })
 
   it('answers 429 past 5 change requests per account while another account passes', async () => {
+    expect(EMAIL_CHANGE_LIMIT).toBe(5)
     const call = () =>
       POST(
         new NextRequest('http://llun.test/api/v1/accounts/email', {

@@ -6,8 +6,10 @@ import {
 } from './getTrustedClientIp'
 
 const mockTrust = vi.fn(() => false)
+const mockHeader = vi.fn((): string | null => null)
 vi.mock('@/lib/config/trustProxyIpHeaders', () => ({
-  getTrustProxyIpHeadersConfig: () => mockTrust()
+  getTrustProxyIpHeadersConfig: () => mockTrust(),
+  getTrustProxyIpHeaderConfig: () => mockHeader()
 }))
 
 const request = (headers: Record<string, string>) =>
@@ -17,6 +19,8 @@ describe('getTrustedClientIp', () => {
   beforeEach(() => {
     mockTrust.mockReset()
     mockTrust.mockReturnValue(false)
+    mockHeader.mockReset()
+    mockHeader.mockReturnValue(null)
   })
 
   it('has no address unless the operator trusts the proxy headers', () => {
@@ -34,6 +38,50 @@ describe('getTrustedClientIp', () => {
   describe('when the proxy headers are trusted', () => {
     beforeEach(() => {
       mockTrust.mockReturnValue(true)
+    })
+
+    it('reads only the pinned header, ignoring a client-sent cf-connecting-ip', () => {
+      mockHeader.mockReturnValue('x-real-ip')
+      expect(
+        getTrustedClientIp(
+          request({
+            'cf-connecting-ip': '203.0.113.1',
+            'x-real-ip': '203.0.113.2',
+            'x-forwarded-for': '203.0.113.3'
+          })
+        )
+      ).toBe('203.0.113.2')
+      // No fallback to the chain when the pinned header is missing.
+      expect(
+        getTrustedClientIp(
+          request({
+            'cf-connecting-ip': '203.0.113.1',
+            'x-forwarded-for': '203.0.113.3'
+          })
+        )
+      ).toBeUndefined()
+    })
+
+    it('takes the leftmost x-forwarded-for entry when that header is pinned, and reads fly-client-ip as one value', () => {
+      mockHeader.mockReturnValue('x-forwarded-for')
+      expect(
+        getTrustedClientIp(
+          request({
+            'cf-connecting-ip': '203.0.113.1',
+            'x-forwarded-for': ' 203.0.113.3 , 10.0.0.1'
+          })
+        )
+      ).toBe('203.0.113.3')
+
+      mockHeader.mockReturnValue('fly-client-ip')
+      expect(
+        getTrustedClientIp(
+          request({
+            'cf-connecting-ip': '203.0.113.1',
+            'fly-client-ip': '203.0.113.9'
+          })
+        )
+      ).toBe('203.0.113.9')
     })
 
     it('prefers cf-connecting-ip, then x-real-ip, then x-forwarded-for', () => {

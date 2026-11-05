@@ -75,7 +75,8 @@ describe('public album reads', () => {
     const loadWithTrust = async (trusted: boolean) => {
       vi.resetModules()
       vi.doMock('@/lib/config/trustProxyIpHeaders', () => ({
-        getTrustProxyIpHeadersConfig: () => trusted
+        getTrustProxyIpHeadersConfig: () => trusted,
+        getTrustProxyIpHeaderConfig: () => null
       }))
       return import('@/lib/services/gallery/galleryAlbumRouteSupport')
     }

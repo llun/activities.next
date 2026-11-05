@@ -3,6 +3,7 @@ import { normalizePathname } from '@better-auth/core/utils/url'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { jwt, twoFactor } from 'better-auth/plugins'
 
 import { getBaseURL, getConfig } from '@/lib/config'
@@ -10,6 +11,7 @@ import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
 import { getDatabase, getKysely } from '@/lib/database'
 import { comparePassword, hashPassword } from '@/lib/services/auth/passwordHash'
+import { checkSignInEmailRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { getActiveServedDomainNames } from '@/lib/services/domains/servedDomainSnapshot'
 import { UsableScopes } from '@/lib/types/database/operations'
 import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
@@ -39,19 +41,25 @@ export const AUTH_SESSION_COOKIE_NAME = 'session_token'
 // `trustedProxies` is unset).
 const TRUSTED_CLIENT_IP_HEADER = 'x-activities-trusted-client-ip'
 
-// Rate-limit windows and caps, aligned with Mastodon's Rack::Attack defaults
-// where better-auth's per-IP + per-path model permits (better-auth keys on
-// `ip|path` before reading the request body, so sign-in is per IP rather than
-// per IP + email):
-// - Sign-in and 2FA challenge endpoints: 5 attempts per 5 minutes per IP
-//   (Mastodon `throttle_login_attempts_per_ip`: 5 / 5 min).
-// - Other real better-auth endpoints under `/api/auth/*`: better-auth's per-IP
-//   defaults (100 / 10 s default, 3 / 10 s on `/sign-up*`, `/change-password*`,
-//   `/change-email*` and remaining `/two-factor/*` routes, plus OAuth plugin
-//   per-endpoint rules). Unknown paths return `false` so unrouted probes do not
-//   insert unbounded `ip|pathname` rows into `rateLimit`.
+// Rate-limit windows and caps. better-auth keys on `ip|path` before reading
+// the request body, so its rules are per IP; the per-email sign-in limit lives
+// in the `hooks.before` middleware below (`checkSignInEmailRateLimit`).
+// - `/sign-in/email`: 25 attempts per 5 minutes per IP (Mastodon
+//   `throttle_login_attempts/ip`: 25 / 5 min), plus 25 per hour per email
+//   (Mastodon `throttle_login_attempts/email`), which needs no trusted IP.
+// - 2FA challenge endpoints: 5 attempts per 5 minutes per IP. This is our own
+//   number, not Mastodon's; the two-factor plugin's per-account failed-attempt
+//   lockout applies on top of it.
+// - Other mounted better-auth endpoints under `/api/auth/*`: better-auth's
+//   per-IP defaults (100 / 10 s default, 3 / 10 s on `/sign-up*`,
+//   `/change-password*`, `/change-email*` and remaining `/two-factor/*` routes,
+//   plus OAuth plugin per-endpoint rules). Unknown paths, and parameterised
+//   endpoints such as `/callback/:id` (whose concrete pathname is the key, so
+//   every `:id` would be a fresh row), return `false` so probes do not insert
+//   unbounded `ip|pathname` rows into `rateLimit`.
 const AUTH_GLOBAL_RATE_LIMIT = { window: 10, max: 100 } as const
-const AUTH_CREDENTIAL_RATE_LIMIT = { window: 300, max: 5 } as const
+const AUTH_SIGN_IN_RATE_LIMIT = { window: 300, max: 25 } as const
+const AUTH_TWO_FACTOR_RATE_LIMIT = { window: 300, max: 5 } as const
 
 // Endpoints this app never uses (it serves its own `/api/v1/accounts/password/*`
 // and `/api/v1/emails/confirmations` routes, and mints OAuth tokens through
@@ -139,16 +147,15 @@ const isDisabledAuthPath = (request: Request): boolean => {
   )
 }
 
-// A predicate over the paths better-auth actually mounts over HTTP (core and
-// plugin endpoints, minus `disabledPaths` and server-only ones), exact or
-// parameterised (`/callback/:id`).
+// A predicate over the exact paths better-auth actually mounts over HTTP (core
+// and plugin endpoints, minus `disabledPaths`, server-only ones and
+// parameterised patterns such as `/callback/:id`, see the comment above).
 const buildKnownEndpointPathMatcher = (
   api: Record<string, unknown>,
   disabledPaths: readonly string[]
 ): ((path: string) => boolean) => {
   const disabled = new Set(disabledPaths)
   const exact = new Set<string>()
-  const patterns: string[] = []
   for (const value of Object.values(api)) {
     const endpoint = value as AuthEndpointMetadata | undefined
     const path = endpoint?.path
@@ -156,17 +163,34 @@ const buildKnownEndpointPathMatcher = (
       !path ||
       !endpoint.options ||
       endpoint.options.metadata?.SERVER_ONLY ||
-      disabled.has(path)
+      disabled.has(path) ||
+      path.includes(':')
     ) {
       continue
     }
-    if (path.includes(':')) patterns.push(path)
-    else exact.add(path)
+    exact.add(path)
   }
-  return (path) =>
-    exact.has(path) ||
-    patterns.some((pattern) => matchesAuthPathPattern(pattern, path))
+  return (path) => exact.has(path)
 }
+
+// Mastodon's `throttle_login_attempts/email`, 25 per hour per normalised
+// email, in process and independent of any trusted IP. Runs after better-auth's
+// own `ip|path` limiter (which answers first when it trips) and answers the
+// same way it does: 429, `{ message }` body and `X-Retry-After`. Never log the
+// email here.
+const signInEmailRateLimitHook = createAuthMiddleware(async (ctx) => {
+  if (ctx.path !== '/sign-in/email') return
+  const email = (ctx.body as { email?: unknown } | undefined)?.email
+  if (typeof email !== 'string') return
+  const result = checkSignInEmailRateLimit(email)
+  if (result.allowed) return
+  const retryAfter = String(result.retryAfterSeconds)
+  throw new APIError(
+    'TOO_MANY_REQUESTS',
+    { message: 'Too many requests. Please try again later.' },
+    { 'Retry-After': retryAfter, 'X-Retry-After': retryAfter }
+  )
+})
 
 // `serviceName` is the visited domain's name (see `resolveAuthServiceName`):
 // the passkey relying party name and the 2FA issuer. Both are labels only.
@@ -229,18 +253,18 @@ const buildAuth = (baseURL: string, serviceName: string) => {
       window: AUTH_GLOBAL_RATE_LIMIT.window,
       max: AUTH_GLOBAL_RATE_LIMIT.max,
       customRules: {
-        '/sign-in/email': ruleWhenClientIpPresent(AUTH_CREDENTIAL_RATE_LIMIT),
+        '/sign-in/email': ruleWhenClientIpPresent(AUTH_SIGN_IN_RATE_LIMIT),
         '/two-factor/verify-totp': ruleWhenClientIpPresent(
-          AUTH_CREDENTIAL_RATE_LIMIT
+          AUTH_TWO_FACTOR_RATE_LIMIT
         ),
         '/two-factor/verify-backup-code': ruleWhenClientIpPresent(
-          AUTH_CREDENTIAL_RATE_LIMIT
+          AUTH_TWO_FACTOR_RATE_LIMIT
         ),
         '/two-factor/verify-otp': ruleWhenClientIpPresent(
-          AUTH_CREDENTIAL_RATE_LIMIT
+          AUTH_TWO_FACTOR_RATE_LIMIT
         ),
         '/two-factor/send-otp': ruleWhenClientIpPresent(
-          AUTH_CREDENTIAL_RATE_LIMIT
+          AUTH_TWO_FACTOR_RATE_LIMIT
         ),
         '/**': (request, currentRule) => {
           if (!hasVerifiedClientIp(request)) return false
@@ -252,8 +276,11 @@ const buildAuth = (baseURL: string, serviceName: string) => {
         },
         // Static entry so better-auth's `getConfiguredRateLimitWindows` sees the
         // 5-minute window at boot in every process when pruning expired rows.
-        '/__max_configured_window__': AUTH_CREDENTIAL_RATE_LIMIT
+        '/__max_configured_window__': AUTH_SIGN_IN_RATE_LIMIT
       }
+    },
+    hooks: {
+      before: signInEmailRateLimitHook
     },
     // Better-auth 1.7.4 added experimental OpenTelemetry instrumentation for
     // endpoints, hooks, and database operations, enabled by default. Disable it

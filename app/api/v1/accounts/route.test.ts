@@ -209,6 +209,7 @@ describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   })
 
   it('answers 429 past 25 sign-ups per trusted client IP while another IP passes', async () => {
+    expect(SIGN_UP_LIMIT).toBe(25)
     process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
     resetTrustProxyIpHeadersConfigCacheForTests()
 

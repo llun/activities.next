@@ -53,7 +53,8 @@ vi.mock('@/lib/config', async () => ({
 
 const mockTrustProxyIpHeaders = vi.fn(() => false)
 vi.mock('@/lib/config/trustProxyIpHeaders', async () => ({
-  getTrustProxyIpHeadersConfig: () => mockTrustProxyIpHeaders()
+  getTrustProxyIpHeadersConfig: () => mockTrustProxyIpHeaders(),
+  getTrustProxyIpHeaderConfig: () => null
 }))
 
 // The real loader, spied on to see the limits the route hands it.

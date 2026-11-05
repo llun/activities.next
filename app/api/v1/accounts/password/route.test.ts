@@ -97,7 +97,8 @@ describe('POST /api/v1/accounts/password', () => {
     mockDb.getActorsForAccount.mockResolvedValue([actor])
   })
 
-  it('answers 429 past 5 password changes per account while another account passes', async () => {
+  it('answers 429 past 10 password changes per account while another account passes', async () => {
+    expect(PASSWORD_CHANGE_LIMIT).toBe(10)
     const call = () =>
       POST(
         new NextRequest('http://llun.test/api/v1/accounts/password', {

@@ -5,7 +5,8 @@ import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustP
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import {
-  EMAIL_CONFIRMATION_LIMIT,
+  EMAIL_CONFIRMATION_ACCOUNT_LIMIT,
+  EMAIL_CONFIRMATION_IP_LIMIT,
   resetRouteRateLimitsForTests
 } from '@/lib/services/auth/routeRateLimits'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
@@ -187,8 +188,9 @@ describe('POST /api/v1/emails/confirmations', () => {
   })
 
   it('answers 429 past 5 resends per account while another account passes', async () => {
+    expect(EMAIL_CONFIRMATION_ACCOUNT_LIMIT).toBe(5)
     const context = { params: Promise.resolve({}) }
-    for (let i = 0; i < EMAIL_CONFIRMATION_LIMIT; i += 1) {
+    for (let i = 0; i < EMAIL_CONFIRMATION_ACCOUNT_LIMIT; i += 1) {
       expect((await POST(makeRequest(), context)).status).toBe(200)
     }
 
@@ -199,13 +201,14 @@ describe('POST /api/v1/emails/confirmations', () => {
     expect(limited.headers.get('access-control-allow-origin')).toBe(
       'https://llun.test'
     )
-    expect(mockSendMail).toHaveBeenCalledTimes(EMAIL_CONFIRMATION_LIMIT)
+    expect(mockSendMail).toHaveBeenCalledTimes(EMAIL_CONFIRMATION_ACCOUNT_LIMIT)
 
     setAccount({ ...buildAccount(PENDING_CODE), id: 'account-2' })
     expect((await POST(makeRequest(), context)).status).toBe(200)
   })
 
-  it('answers 429 past 5 resends per trusted client IP across accounts while another IP passes', async () => {
+  it('answers 429 past 25 resends per trusted client IP across accounts while another IP passes', async () => {
+    expect(EMAIL_CONFIRMATION_IP_LIMIT).toBe(25)
     process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
     resetTrustProxyIpHeadersConfigCacheForTests()
 
@@ -215,7 +218,7 @@ describe('POST /api/v1/emails/confirmations', () => {
       return POST(makeRequest(undefined, { 'x-forwarded-for': ip }), context)
     }
 
-    for (let i = 0; i < EMAIL_CONFIRMATION_LIMIT; i += 1) {
+    for (let i = 0; i < EMAIL_CONFIRMATION_IP_LIMIT; i += 1) {
       expect((await call(`account-${i}`, '198.51.100.30')).status).toBe(200)
     }
 

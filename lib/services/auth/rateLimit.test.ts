@@ -6,12 +6,17 @@ import {
   type TestDatabase,
   createTestDatabase
 } from '@/lib/database/testing/createTestDatabase'
+import {
+  SIGN_IN_EMAIL_LIMIT,
+  resetRouteRateLimitsForTests
+} from '@/lib/services/auth/routeRateLimits'
 
 const HOST = 'test.example.com'
 const SECOND_HOST = 'second.example.com'
 const BASE_URL = `https://${HOST}`
 const SECOND_BASE_URL = `https://${SECOND_HOST}`
 const EMAIL = 'signin-limit@example.com'
+const SIGN_IN_PER_IP_LIMIT = 25
 const PASSWORD = 'correct-password-123'
 const TEST_BCRYPT_COST = 4
 
@@ -56,6 +61,7 @@ describe('better-auth rate limits', () => {
   beforeEach(async () => {
     process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
     resetTrustProxyIpHeadersConfigCacheForTests()
+    resetRouteRateLimitsForTests()
     if (holder.testDb) {
       await sql`DELETE FROM "rateLimit"`.execute(holder.testDb.db).catch(() => {
         // Table does not exist before the migration lands.
@@ -112,8 +118,8 @@ describe('better-auth rate limits', () => {
     )
   }
 
-  it('answers 429 on /sign-in/email after 5 attempts from one IP while another IP still passes', async () => {
-    for (let i = 0; i < 5; i += 1) {
+  it('answers 429 on /sign-in/email after 25 attempts from one IP while another IP still passes', async () => {
+    for (let i = 0; i < SIGN_IN_PER_IP_LIMIT; i += 1) {
       const attempt = await postAuth(
         '/sign-in/email',
         { email: EMAIL, password: 'wrong-password' },
@@ -130,6 +136,8 @@ describe('better-auth rate limits', () => {
     expect(throttled.status).toBe(429)
     expect(Number(throttled.headers.get('X-Retry-After'))).toBeGreaterThan(0)
 
+    // The per-email limit (tested on its own below) is also at its cap now.
+    resetRouteRateLimitsForTests()
     const otherIp = await postAuth(
       '/sign-in/email',
       { email: EMAIL, password: PASSWORD },
@@ -139,7 +147,7 @@ describe('better-auth rate limits', () => {
   })
 
   it('persists counters in the database so a second auth instance enforces the same limit', async () => {
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < SIGN_IN_PER_IP_LIMIT; i += 1) {
       const attempt = await postAuth(
         '/sign-in/email',
         { email: EMAIL, password: 'wrong-password' },
@@ -155,7 +163,7 @@ describe('better-auth rate limits', () => {
       SELECT "key", "count" FROM "rateLimit" WHERE "key" = ${'198.51.100.12|/sign-in/email'}
     `.execute(db)
     expect(stored.rows).toEqual([
-      { key: '198.51.100.12|/sign-in/email', count: 5 }
+      { key: '198.51.100.12|/sign-in/email', count: SIGN_IN_PER_IP_LIMIT }
     ])
 
     // A separate auth instance (different baseURL and serviceName) reads the
@@ -187,6 +195,8 @@ describe('better-auth rate limits', () => {
       body: {}
     }
   ])('rate-limits $path after 5 requests per IP', async ({ path, body }) => {
+    // Our own 5 / 5 min, not a Mastodon number; the plugin's account lockout
+    // applies on top.
     for (let i = 0; i < 5; i += 1) {
       const res = await postAuth(path, body, {
         'x-forwarded-for': '198.51.100.20'
@@ -298,15 +308,54 @@ describe('better-auth rate limits', () => {
     `.execute(db)
     expect(afterReal.rows).toEqual([{ key: `${ip}|/ok`, count: 1 }])
 
-    // A parameterised endpoint (`/callback/:id`) is real too, so it counts.
-    await getAuthRoute('/callback/some-provider', { 'x-forwarded-for': ip })
+    // A parameterised endpoint (`/callback/:id`) is keyed by its concrete
+    // pathname, so counting it would mint a row per `:id`; it is not counted.
+    for (let i = 0; i < 3; i += 1) {
+      await getAuthRoute(`/callback/provider-${i}`, { 'x-forwarded-for': ip })
+    }
     const afterParameterised = await sql<{ key: string }>`
       SELECT "key" FROM "rateLimit" ORDER BY "key"
     `.execute(db)
-    expect(afterParameterised.rows.map((row) => row.key)).toEqual([
-      `${ip}|/callback/some-provider`,
-      `${ip}|/ok`
-    ])
+    expect(afterParameterised.rows.map((row) => row.key)).toEqual([`${ip}|/ok`])
+  })
+
+  it('answers 429 on /sign-in/email after 25 attempts for one email without a trusted IP while another email passes', async () => {
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+
+    for (let i = 0; i < SIGN_IN_EMAIL_LIMIT; i += 1) {
+      // Case variants share the bucket.
+      const email = i % 2 === 0 ? EMAIL : EMAIL.toUpperCase()
+      const attempt = await postAuth('/sign-in/email', {
+        email,
+        password: 'wrong-password'
+      })
+      expect(attempt.status).toBe(401)
+    }
+
+    const throttled = await postAuth('/sign-in/email', {
+      email: EMAIL,
+      password: PASSWORD
+    })
+    expect(throttled.status).toBe(429)
+    expect(await throttled.json()).toEqual({
+      message: 'Too many requests. Please try again later.'
+    })
+    expect(Number(throttled.headers.get('X-Retry-After'))).toBeGreaterThan(0)
+    expect(Number(throttled.headers.get('Retry-After'))).toBeGreaterThan(0)
+
+    const otherEmail = await postAuth('/sign-in/email', {
+      email: 'someone-else@example.com',
+      password: 'wrong-password'
+    })
+    expect(otherEmail.status).toBe(401)
+
+    const db = holder.testDb?.db
+    if (!db) throw new Error('Test database not initialized')
+    const rows = await sql<{
+      key: string
+    }>`SELECT "key" FROM "rateLimit"`.execute(db)
+    expect(rows.rows).toEqual([])
   })
 
   it('preserves special plugin rate limits (two-factor 3/10s and oauth2/token 20/60s)', async () => {
@@ -342,7 +391,7 @@ describe('better-auth rate limits', () => {
   })
 
   it('does not let X-Forwarded-For or internal-header spoofing reset the limit behind a trusted proxy header', async () => {
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < SIGN_IN_PER_IP_LIMIT; i += 1) {
       const attempt = await postAuth(
         '/sign-in/email',
         { email: EMAIL, password: 'wrong-password' },
@@ -367,7 +416,8 @@ describe('better-auth rate limits', () => {
     expect(spoofed.status).toBe(429)
 
     // Multi-hop X-Forwarded-For uses the leftmost hop (matching getTrustedClientIp).
-    for (let i = 0; i < 5; i += 1) {
+    resetRouteRateLimitsForTests()
+    for (let i = 0; i < SIGN_IN_PER_IP_LIMIT; i += 1) {
       const attempt = await postAuth(
         '/sign-in/email',
         { email: EMAIL, password: 'wrong-password' },

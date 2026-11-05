@@ -58,7 +58,8 @@ describe('POST /api/v1/accounts/password/reset', () => {
     resetRouteRateLimitsForTests()
   })
 
-  it('answers 429 past 5 requests per trusted client IP while another IP passes', async () => {
+  it('answers 429 past 25 requests per trusted client IP while another IP passes', async () => {
+    expect(PASSWORD_RESET_LIMIT).toBe(25)
     process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
     resetTrustProxyIpHeadersConfigCacheForTests()
 
