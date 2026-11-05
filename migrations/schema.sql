@@ -2185,9 +2185,9 @@ CREATE INDEX dead_letter_jobs_job_name_idx ON public.dead_letter_jobs USING btre
 
 CREATE INDEX dead_letter_jobs_status_idx ON public.dead_letter_jobs USING btree (status);
 
-CREATE INDEX deleted_attachment_media_actorId_idx ON public.deleted_attachment_media USING btree ("actorId");
+CREATE INDEX "deleted_attachment_media_actorId_idx" ON public.deleted_attachment_media USING btree ("actorId");
 
-CREATE INDEX deleted_attachment_media_createdAt_idx ON public.deleted_attachment_media USING btree ("createdAt");
+CREATE INDEX "deleted_attachment_media_createdAt_idx" ON public.deleted_attachment_media USING btree ("createdAt");
 
 CREATE INDEX direct_conversation_status ON public.direct_conversation_statuses USING btree ("statusId");
 
