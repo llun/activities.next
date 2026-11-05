@@ -1,0 +1,184 @@
+migrations/index.ts
+  s_2b1a50e2f9b981::t_01b77a60203aeb 26,59-60
+lib/components/posts/actions/post-menu.tsx
+  s_2b1a50e2f9b981::t_ad2ee535526caa 119
+  s_2b1a50e2f9b981::t_ef9ba786e4ea8b 8,19,43,50-54,118,225-230,235-239,261,265-266,307-326,418-436,597,647-706,928-931
+  s_2b1a50e2f9b981::t_7a11c3d529a0be 932
+app/(timeline)/bookmarks/BookmarkFoldersDialog.tsx
+  s_2b1a50e2f9b981::t_41b0584f94142e 1-83,88-153,156-163,165-259
+  s_2b1a50e2f9b981::t_ad2ee535526caa 84-87
+  s_2b1a50e2f9b981::t_d3a31b8f386bd4 154-155,164
+lib/components/posts/timeline-feed.tsx
+  s_2b1a50e2f9b981::t_d427df6feb1318 89-90
+lib/database/domains/actor/deletion.ts
+  s_2b1a50e2f9b981::t_6a2cda311a978c 568-571
+app/api/v1/bookmarks/route.ts
+  s_2b1a50e2f9b981::t_aceab57667f5ca 1
+  s_2b1a50e2f9b981::t_cbaee7333836a2 11,36-56,65-66,92-93
+lib/components/posts/actions/actions.tsx
+  s_2b1a50e2f9b981::t_d427df6feb1318 251,256-259
+lib/components/bookmarks/bookmarkFolderStore.ts
+  s_2b1a50e2f9b981::t_65b32dfc96d846 1-68,74-76
+  s_2b1a50e2f9b981::t_ad2ee535526caa 69-73
+lib/client.ts
+  s_2b1a50e2f9b981::t_ddcc7c66ce5ec1 29
+lib/services/bookmarks/bookmarkFolders.ts
+  s_2b1a50e2f9b981::t_9212719eb60a7e 1-43
+lib/components/posts/post.tsx
+  s_2b1a50e2f9b981::t_d427df6feb1318 60-64,67-68
+lib/components/posts/post-list-item.tsx
+  s_2b1a50e2f9b981::t_d427df6feb1318 63-64
+app/api/v1/statuses/[id]/bookmark_folder/route.ts
+  s_2b1a50e2f9b981::t_809beaf40e1b77 1-43,46-97
+  s_2b1a50e2f9b981::t_4552d59cdd8696 44-45
+docs/architecture.md
+  s_2b1a50e2f9b981::t_0c0ffe9c500552 424-427,761-766,1453-1454
+lib/services/bookmarks/getBookmarkedStatusesPage.ts
+  s_2b1a50e2f9b981::t_cbaee7333836a2 17-18,34-35,53-54
+app/api/v1/bookmark_folders/route.test.ts
+  s_2b1a50e2f9b981::t_d39acfbf8b0979 14,250,254,264
+  s_2b1a50e2f9b981::t_10cbcaf33f6a78 1,3-13,15-123,127-249,251-253,255-263,265-365
+  s_2b1a50e2f9b981::t_ad2ee535526caa 2,124-126
+lib/database/domains/bookmark/types.ts
+  s_2b1a50e2f9b981::t_5ffd5ac7aadc6d 4,17-20,29-39,41-44,46-48,57-58,62-71
+  s_2b1a50e2f9b981::t_ad2ee535526caa 21-22,45,59-61
+app/api/v1/bookmark_folders/[id]/route.ts
+  s_2b1a50e2f9b981::t_9212719eb60a7e 1-116
+app/(timeline)/bookmarks/BookmarksTimeline.folders.test.tsx
+  s_2b1a50e2f9b981::t_ad2ee535526caa 121-122
+  s_2b1a50e2f9b981::t_56ebd51e53163b 1-120,123-183,191-297
+  s_2b1a50e2f9b981::t_d180a153e1e380 184-190
+lib/services/accountImport/roundTrip.test.ts
+  s_2b1a50e2f9b981::t_8430d760167514 19,495-592,599-615
+  s_2b1a50e2f9b981::t_ad2ee535526caa 593-598
+  s_2b1a50e2f9b981::t_efe5ce2b35c6ab 616
+lib/types/domain/bookmark.ts
+  s_2b1a50e2f9b981::t_01657a805e0010 9-10,15-27
+migrations/schema.sqlite.sql
+  s_2b1a50e2f9b981::t_4223eabd07ab57 99,356-358
+lib/services/mastodon/getMastodonStatus.fields.test.ts
+  s_2b1a50e2f9b981::t_e51dd78b88d08f 941-1003
+lib/client/statuses.ts
+  s_2b1a50e2f9b981::t_ddcc7c66ce5ec1 1240-1241,1253-1254,1261
+lib/client/bookmarkFolders.ts
+  s_2b1a50e2f9b981::t_ddcc7c66ce5ec1 1-76
+lib/components/posts/combined-post-list-item.tsx
+  s_2b1a50e2f9b981::t_d427df6feb1318 93-94,604-606
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_0c0ffe9c500552 603-604,784-804,806-820,2330-2340
+  s_2b1a50e2f9b981::t_ad2ee535526caa 805
+lib/jobs/exportAccountArchiveJob.test.ts
+  s_2b1a50e2f9b981::t_460ba152f06a52 215
+lib/types/mastodon/status/base.ts
+  s_2b1a50e2f9b981::t_e23c5f16af3f3f 211-220
+lib/database/domains/status/hydration.ts
+  s_2b1a50e2f9b981::t_9834075317027e 2,60-62,192,210,229-231,554,586-587,591-592,597,722
+  s_2b1a50e2f9b981::t_ad2ee535526caa 588-590
+  s_2b1a50e2f9b981::t_89386a79e31170 723-727
+lib/types/domain/status.ts
+  s_2b1a50e2f9b981::t_53ea67cc2fa592 159-162
+app/api/v1/statuses/[id]/bookmark_folder/route.test.ts
+  s_2b1a50e2f9b981::t_ad2ee535526caa 2
+  s_2b1a50e2f9b981::t_b55430cb4746a0 1,3-167
+lib/services/bookmarks/constants.ts
+  s_2b1a50e2f9b981::t_aceab57667f5ca 1-8
+lib/services/accountArchive/runner.ts
+  s_2b1a50e2f9b981::t_2ea21512a6c0a0 33,62-63
+lib/services/accountImport/schemas/index.ts
+  s_2b1a50e2f9b981::t_ebc12b9008a533 624-635,826
+lib/components/bookmarks/NewBookmarkFolderDialog.tsx
+  s_2b1a50e2f9b981::t_ef674651fbbf17 1-114
+migrations/20261106120000_add_bookmark_folders.ts
+  s_2b1a50e2f9b981::t_01b77a60203aeb 1-67
+lib/components/posts/actions/useBookmarkState.ts
+  s_2b1a50e2f9b981::t_d427df6feb1318 16-17,102-106
+migrations/schema.sql
+  s_2b1a50e2f9b981::t_9043105db85119 244-251,258-259,1740-1745,2213-2214,2217-2218,2521-2522
+  s_2b1a50e2f9b981::t_f8ea0bb67a9c17 2523
+lib/database/testing/schemaInvariants.test.ts
+  s_2b1a50e2f9b981::t_dd4fa405e2271e 256-264
+lib/services/mastodon/getMastodonStatus.ts
+  s_2b1a50e2f9b981::t_e23c5f16af3f3f 226-238,611
+app/api/v1/routeScopeWiring.test.ts
+  s_2b1a50e2f9b981::t_9b70f2187c3964 252-255,486-493,900-904,906
+  s_2b1a50e2f9b981::t_1fff3bea0c69a4 905
+lib/services/accountImport/runner.test.ts
+  s_2b1a50e2f9b981::t_ebc12b9008a533 49
+lib/database/domains/bookmark/bookmarkFolders.test.ts
+  s_2b1a50e2f9b981::t_ad2ee535526caa 42-43
+  s_2b1a50e2f9b981::t_681c31477cab6f 288
+  s_2b1a50e2f9b981::t_a94ca5ccbc9014 286-287
+  s_2b1a50e2f9b981::t_ab7c7e40eae749 1-41,44-285,289-345
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_2b1a50e2f9b981::t_ad2ee535526caa 300
+  s_2b1a50e2f9b981::t_55bdea7abc1920 3-4,7-10,21-25,27-32,38-39,43-60,70-73,83,85,88-101,127-136,144-145,189,192-193,195-196,230-285,299,301-320,323-325,332,348-353
+  s_2b1a50e2f9b981::t_681c31477cab6f 13,326-331
+  s_2b1a50e2f9b981::t_57676941762f5f 41-42,84
+lib/components/posts/actions/post-menu.bookmarkFolders.test.tsx
+  s_2b1a50e2f9b981::t_b30ba584cfc9f1 1-53,55-287
+  s_2b1a50e2f9b981::t_a693fde8e73abc 54
+app/(timeline)/bookmarks/loading.tsx
+  s_2b1a50e2f9b981::t_681c31477cab6f 4,7-12
+app/api/v1/bookmarks/route.test.ts
+  s_2b1a50e2f9b981::t_ad2ee535526caa 258-260
+  s_2b1a50e2f9b981::t_83cbbe153d65f7 239-257,261-321
+lib/database/domains/accountExport/tables.ts
+  s_2b1a50e2f9b981::t_2ea21512a6c0a0 80,84-97
+lib/components/posts/PostFeedLoading.tsx
+  s_2b1a50e2f9b981::t_681c31477cab6f 1,14-15,26-27,40
+lib/services/accountImport/runner.ts
+  s_2b1a50e2f9b981::t_ebc12b9008a533 18,315-317
+lib/database/domains/actor/actorDeletionQueries.test.ts
+  s_2b1a50e2f9b981::t_ad2ee535526caa 406-412
+  s_2b1a50e2f9b981::t_6a2cda311a978c 403-405,413-414,699,976-977,1373
+lib/database/domains/bookmark/queries.ts
+  s_2b1a50e2f9b981::t_0ea0059fd5becf 4-5,7,9-12,14-15,18-19,21-27,29,108-172,175,178-180,182-191,193-201,204-206,223-225,228,233,238,241-245,248,263-265,304-466,472-478
+  s_2b1a50e2f9b981::t_ad2ee535526caa 266-267
+app/api/v1/bookmark_folders/route.ts
+  s_2b1a50e2f9b981::t_9212719eb60a7e 1-89
+lib/database/domains/accountExport/types.ts
+  s_2b1a50e2f9b981::t_2ea21512a6c0a0 13-14
+app/(timeline)/bookmarks/loading.test.tsx
+  s_2b1a50e2f9b981::t_cfd89d50904ea1 24-27
+docs/maintenance.md
+  s_2b1a50e2f9b981::t_0c0ffe9c500552 271-272
+lib/database/kysely/db.ts
+  s_2b1a50e2f9b981::t_9043105db85119 269-276,280,1564
+lib/services/accountArchive/stepsExtras.ts
+  s_2b1a50e2f9b981::t_2ea21512a6c0a0 280-307
+lib/services/accountImport/phases.ts
+  s_2b1a50e2f9b981::t_ebc12b9008a533 42,2510-2591
+  s_2b1a50e2f9b981::t_6c977c6c08d8ad 2592-2596
+lib/components/posts/posts.tsx
+  s_2b1a50e2f9b981::t_d427df6feb1318 64-65
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_2b1a50e2f9b981::t_1e2ef252bf12ad 23,859-969,971-975,978-1007
+  s_2b1a50e2f9b981::t_756c758efe123a 976-977
+  s_2b1a50e2f9b981::t_ad2ee535526caa 970
+  s_2b1a50e2f9b981::t_42454200df28bb 1008
+app/(timeline)/bookmarks/page.tsx
+  s_2b1a50e2f9b981::t_aceab57667f5ca 7,9-11
+  s_2b1a50e2f9b981::t_a8a2c5131ed976 8,24-29,42-53,58-64,72-73
+lib/services/statuses/overlayViewerState.ts
+  s_2b1a50e2f9b981::t_89386a79e31170 32
+migrations/names.ts
+  s_2b1a50e2f9b981::t_01b77a60203aeb 26-27
+lib/database/domains/status/statusReadQueries.test.ts
+  s_2b1a50e2f9b981::t_3efd2546fca923 350,3180,3189,3301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5ca772a34bd2cb6248815d38dc904834e2f48509",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
