@@ -1,3 +1,4 @@
+import { getLanguageMapFields } from '@/lib/activities/languageMapFields'
 import { getPollQuestion } from '@/lib/activities/pollQuestion'
 import {
   addQuoteFallbackToContent,
@@ -47,6 +48,10 @@ export const getNoteFromStatus = (
   // a delivered note and a fetched one describe the same quote. Always advertise
   // who may quote THIS status via interactionPolicy.
   const quoteFields = getQuoteNoteFields(actualStatus.quote)
+  const content = addQuoteFallbackToContent(
+    convertMarkdownText(getConfig().host)(actualStatus.text),
+    actualStatus.quote
+  )
 
   return Note.parse({
     id: actualStatus.id,
@@ -59,10 +64,8 @@ export const getNoteFromStatus = (
     cc: actualStatus.cc,
     inReplyTo: actualStatus.reply || null,
     ...(options.audience ? { audience: options.audience } : null),
-    content: addQuoteFallbackToContent(
-      convertMarkdownText(getConfig().host)(actualStatus.text),
-      actualStatus.quote
-    ),
+    content,
+    ...getLanguageMapFields(actualStatus, content),
     // Every non-fitness attachment federates, in stored order, as Pixelfed
     // does. Every write path bounds the list: MAX_STORED_MEDIA_ATTACHMENTS,
     // with a fitness file's generated route map counted inside it (the status

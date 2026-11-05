@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { resolveStatusFromPath } from '@/app/(timeline)/[actor]/[status]/resolveStatusFromPath'
+import { compactActivityPub } from '@/lib/activities/jsonld'
+import { BaseNoteSchema } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
@@ -87,6 +89,56 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
       attributedTo: 'https://example.com/users/test'
     })
   })
+
+  it.each(['Note', 'Question'] as const)(
+    'preserves language maps on the real %s serializer through the AP response and compaction',
+    async (type) => {
+      const actual = await vi.importActual<
+        typeof import('@/lib/types/domain/status')
+      >('@/lib/types/domain/status')
+      const status = {
+        ...actual.fromNote({
+          type: 'Note',
+          id: `${mockActor.id}/statuses/123`,
+          attributedTo: mockActor.id,
+          content: '<p>สวัสดี</p>',
+          summary: 'คำเตือน',
+          published: '2026-01-01T00:00:00Z',
+          to: [ACTIVITY_STREAM_PUBLIC]
+        }),
+        language: 'th',
+        detectedLanguage: 'en'
+      }
+      mockDatabase.getActorStatusFromPathSegment.mockResolvedValue(
+        type === 'Note'
+          ? status
+          : actual.StatusPoll.parse({
+              ...status,
+              type: 'Poll',
+              choices: [],
+              pollType: 'oneOf',
+              endAt: Date.now() + 60_000
+            })
+      )
+      mockToActivityPubObject.mockImplementation(actual.toActivityPubObject)
+
+      const response = await GET(createRequest('application/activity+json'), {
+        params: Promise.resolve({ username: 'test', statusId: '123' })
+      })
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.type).toBe(type)
+      expect(data.contentMap).toEqual({ th: data.content })
+      expect(data.summaryMap).toEqual({ th: data.summary })
+      const parsed = BaseNoteSchema.parse(await compactActivityPub(data))
+      expect(parsed.contentMap).toEqual({ th: data.content })
+      expect(parsed.summaryMap).toEqual({ th: data.summary })
+      expect(actual.fromNote(parsed)).toMatchObject({
+        text: data.content,
+        language: 'th'
+      })
+    }
+  )
 
   it('returns generic JSON when that is the negotiated ActivityPub type', async () => {
     const response = await GET(

@@ -1421,6 +1421,15 @@ class="quote-inline">RE: <a href="…">…</a></p>` — to both emitters' `conte
     `blurhash`/`focalPoint` and the `Hashtag`/`Emoji` tag TYPES, none of which the bundled
     ActivityStreams context defines. `focalPoint` needs `"@container": "@list"` or a processor is
     free to reorder the `[x, y]` pair.
+  - Outbound Notes and Questions carry `contentMap` keyed by the status's valid
+    declared `language`, as Mastodon does, plus `summaryMap` when the summary is
+    non-empty. `getLanguageMapFields` reuses status creation's `parseLanguageCode`
+    validation; an absent or invalid language emits neither map, and
+    `detectedLanguage` is never substituted. Each map contains exactly the
+    corresponding `content` or `summary`, including any quote fallback in the
+    final content. Both terms are defined by the ActivityStreams context's
+    `@language` containers, so delivery, fetch, quote-request instruments and
+    archives need no additional context terms.
   - One caveat on the outbox page: its context sits on the `OrderedCollectionPage`, so embedded
     Notes inherit it only from a receiver that processes the page as one document — and OUR reader
     does not, `getActorPosts` compacting each `orderedItems` entry on its own. That is a

@@ -19,6 +19,8 @@ import {
   unfollowRelay
 } from '@/lib/activities'
 import { CreateStatus } from '@/lib/activities/createStatus'
+import { compactActivityPub } from '@/lib/activities/jsonld'
+import { BaseNoteSchema } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
@@ -30,7 +32,8 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { Follow } from '@/lib/types/domain/follow'
 import { Relay } from '@/lib/types/domain/relay'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusType, fromNote } from '@/lib/types/domain/status'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 
 const ACTIVITY_STREAM_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
@@ -166,6 +169,50 @@ describe('activities', () => {
   })
 
   describe('sendNote', () => {
+    it.each(['Create', 'Update'] as const)(
+      'preserves declared language maps in the serialized %s delivery',
+      async (type) => {
+        const actor = MockActor({})
+        const status = {
+          ...fromNote(
+            MockMastodonActivityPubNote({
+              content: '<p>สวัสดี</p>',
+              summary: 'คำเตือน'
+            })
+          ),
+          language: 'th',
+          detectedLanguage: 'en'
+        }
+        if (type === 'Create') {
+          const note = getNoteFromStatus(status)
+          if (!note || note.type !== 'Note') fail('Expected a Note')
+          await sendNote({
+            currentActor: actor,
+            inbox: TEST_SHARED_INBOX,
+            note
+          })
+        } else {
+          await sendUpdateNote({
+            currentActor: actor,
+            inbox: TEST_SHARED_INBOX,
+            status
+          })
+        }
+
+        const body = fetchMock.mock.lastCall?.[1]?.body
+        const activity = JSON.parse(String(body)) as CreateStatus
+        expect(activity.type).toBe(type)
+        expect(activity.object.contentMap).toEqual({
+          th: activity.object.content
+        })
+        expect(activity.object.summaryMap).toEqual({ th: 'คำเตือน' })
+        const compacted = await compactActivityPub(activity)
+        const note = BaseNoteSchema.parse(compacted.object)
+        expect(note.contentMap).toEqual({ th: activity.object.content })
+        expect(note.summaryMap).toEqual({ th: 'คำเตือน' })
+      }
+    )
+
     it('fetch to shared inbox', async () => {
       const actor = MockActor({})
       const note = MockMastodonActivityPubNote({
