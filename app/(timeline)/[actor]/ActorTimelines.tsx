@@ -96,6 +96,7 @@ interface Props {
   hasHeaderImage?: boolean
   currentTime: number
   statuses: Status[]
+  pinnedStatuses?: Status[]
   /**
    * A local account's statuses that open the Replies tab (the server decides
    * it from the first post of each self-reply chain); the rest are on Posts.
@@ -191,6 +192,7 @@ export const ActorTimelines: FC<Props> = ({
   actorId,
   currentTime,
   statuses,
+  pinnedStatuses,
   repliesTabStatusIds,
   timelineContext,
   attachments,
@@ -217,6 +219,14 @@ export const ActorTimelines: FC<Props> = ({
     Boolean(isPixelfed || isMediaService || isMediaOnlyProp) &&
     tabVisibility.media
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
+  const [currentPinnedStatuses, setCurrentPinnedStatuses] = useState<Status[]>(
+    () => pinnedStatuses ?? []
+  )
+  useEffect(() => {
+    if (pinnedStatuses) {
+      setCurrentPinnedStatuses(pinnedStatuses)
+    }
+  }, [pinnedStatuses])
   // Null for a remote profile, whose tabs split on "is it a reply" alone.
   const [currentRepliesTabIds, setCurrentRepliesTabIds] =
     useState<ReadonlySet<string> | null>(() =>
@@ -382,6 +392,13 @@ export const ActorTimelines: FC<Props> = ({
         () => updatedStatus as StatusNote | StatusPoll
       )
     )
+    setCurrentPinnedStatuses((previousStatuses) =>
+      updateMatchingStatus(
+        previousStatuses,
+        updatedStatus.id,
+        () => updatedStatus as StatusNote | StatusPoll
+      )
+    )
   }, [])
 
   const handlePostDeleted = useCallback((status: Status) => {
@@ -390,6 +407,9 @@ export const ActorTimelines: FC<Props> = ({
       status.id
     )
     setCurrentStatuses((previousStatuses) =>
+      removeOriginalStatus(previousStatuses, status.id)
+    )
+    setCurrentPinnedStatuses((previousStatuses) =>
       removeOriginalStatus(previousStatuses, status.id)
     )
     // The database ignores a `max_id` that matches no row, so a cursor on
@@ -416,6 +436,15 @@ export const ActorTimelines: FC<Props> = ({
             : Math.max(0, target.totalLikes - 1)
         }))
       )
+      setCurrentPinnedStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorLiked: isLiked,
+          totalLikes: isLiked
+            ? target.totalLikes + 1
+            : Math.max(0, target.totalLikes - 1)
+        }))
+      )
     },
     []
   )
@@ -423,6 +452,12 @@ export const ActorTimelines: FC<Props> = ({
   const handleBookmarkChanged = useCallback(
     (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
       setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          isActorBookmarked: isBookmarked
+        }))
+      )
+      setCurrentPinnedStatuses((previousStatuses) =>
         updateMatchingStatus(previousStatuses, status.id, (target) => ({
           ...target,
           isActorBookmarked: isBookmarked
@@ -439,6 +474,12 @@ export const ActorTimelines: FC<Props> = ({
   const handleReactionsChanged = useCallback(
     (status: StatusNote | StatusPoll, reactions: StatusReaction[]) => {
       setCurrentStatuses((previousStatuses) =>
+        updateMatchingStatus(previousStatuses, status.id, (target) => ({
+          ...target,
+          reactions
+        }))
+      )
+      setCurrentPinnedStatuses((previousStatuses) =>
         updateMatchingStatus(previousStatuses, status.id, (target) => ({
           ...target,
           reactions
@@ -671,6 +712,82 @@ export const ActorTimelines: FC<Props> = ({
     hint: 'Activities shared as posts show up here.'
   }
 
+  const renderPostsTab = () => {
+    const hasPins = currentPinnedStatuses.length > 0
+    const hasPosts = postStatuses.length > 0
+
+    if (!hasPins && !hasPosts) {
+      return (
+        <EmptyState icon={noPosts.icon} title={noPosts.title}>
+          {noPosts.hint}
+        </EmptyState>
+      )
+    }
+
+    return (
+      <div className="space-y-4">
+        {hasPins && (
+          <Posts
+            host={host}
+            currentTime={currentTime}
+            statuses={currentPinnedStatuses}
+            isPinned
+            currentActor={currentActor}
+            showActions={showActions}
+            showReadOnlyStats={!showActions}
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            postLineLimit={postLineLimit}
+            onStatusCreated={handleStatusCreated}
+            onPostUpdated={handlePostUpdated}
+            onPostDeleted={handlePostDeleted}
+            onLikeChanged={handleLikeChanged}
+            onBookmarkChanged={handleBookmarkChanged}
+            onReactionsChanged={handleReactionsChanged}
+          />
+        )}
+        {hasPosts &&
+          (combinesSelfThreads ? (
+            <TimelineFeed
+              host={host}
+              currentTime={currentTime}
+              statuses={postStatuses}
+              timelineContext={currentTimelineContext}
+              prioritizeFirstMedia={!hasHeaderImage && !hasPins}
+              currentActor={currentActor}
+              showActions={showActions}
+              showReadOnlyStats={!showActions}
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              postLineLimit={postLineLimit}
+              onStatusCreated={handleStatusCreated}
+              onPostUpdated={handlePostUpdated}
+              onPostDeleted={handlePostDeleted}
+              onLikeChanged={handleLikeChanged}
+              onBookmarkChanged={handleBookmarkChanged}
+              onReactionsChanged={handleReactionsChanged}
+            />
+          ) : (
+            <Posts
+              host={host}
+              currentTime={currentTime}
+              statuses={postStatuses}
+              prioritizeFirstMedia={!hasHeaderImage && !hasPins}
+              currentActor={currentActor}
+              showActions={showActions}
+              showReadOnlyStats={!showActions}
+              isMediaUploadEnabled={isMediaUploadEnabled}
+              postLineLimit={postLineLimit}
+              onStatusCreated={handleStatusCreated}
+              onPostUpdated={handlePostUpdated}
+              onPostDeleted={handlePostDeleted}
+              onLikeChanged={handleLikeChanged}
+              onBookmarkChanged={handleBookmarkChanged}
+              onReactionsChanged={handleReactionsChanged}
+            />
+          ))}
+      </div>
+    )
+  }
+
   // Posts, replies and fitness page through the outbox cursor with Load more;
   // a failed page says so above the button, which is also the way to retry.
   const loadMoreControl = canLoadMore ? (
@@ -713,10 +830,7 @@ export const ActorTimelines: FC<Props> = ({
   if (availableTabs.length <= 1) {
     return (
       <div className="space-y-4">
-        {renderFeed(postStatuses, noPosts, {
-          prioritizeFirstMedia: !hasHeaderImage,
-          combineSelfThreads: combinesSelfThreads
-        })}
+        {renderPostsTab()}
 
         {loadMoreControl}
       </div>
@@ -741,11 +855,7 @@ export const ActorTimelines: FC<Props> = ({
         />
       </div>
 
-      {effectiveActiveTab === 'posts' &&
-        renderFeed(postStatuses, noPosts, {
-          prioritizeFirstMedia: !hasHeaderImage,
-          combineSelfThreads: combinesSelfThreads
-        })}
+      {effectiveActiveTab === 'posts' && renderPostsTab()}
 
       {effectiveActiveTab === 'replies' &&
         showRepliesTab &&

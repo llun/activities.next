@@ -13,6 +13,8 @@ import {
   MessageSquareQuote,
   MoreHorizontal,
   Pencil,
+  Pin,
+  PinOff,
   Trash2,
   TriangleAlert,
   Unlock,
@@ -34,8 +36,11 @@ import {
 
 import {
   getRelationship,
+  getStatusById,
+  pinStatus,
   unblock,
   unmute,
+  unpinStatus,
   updateStatusInteractionPolicy,
   updateStatusVisibility
 } from '@/lib/client'
@@ -263,6 +268,12 @@ export const PostMenu: FC<Props> = ({
   )
   const [quotePolicySaving, setQuotePolicySaving] = useState(false)
 
+  // Whether the owner has pinned this post is read when the menu opens; the
+  // item stays disabled until then so it never offers the wrong action.
+  const [isPinned, setIsPinned] = useState(false)
+  const [pinnedLoaded, setPinnedLoaded] = useState(false)
+  const [pinSaving, setPinSaving] = useState(false)
+
   useEffect(() => {
     if (!copied) return
     const timeoutId = setTimeout(() => setCopied(false), 1500)
@@ -288,6 +299,19 @@ export const PostMenu: FC<Props> = ({
       }
     } catch {
       // Leave relationshipLoaded false so the next menu open retries.
+    }
+  }
+
+  const loadPinnedState = async () => {
+    if (!isOwner || pinnedLoaded || visibility === 'direct') return
+    try {
+      const next = await getStatusById(status.id)
+      if (next) {
+        setIsPinned(Boolean(next.pinned))
+        setPinnedLoaded(true)
+      }
+    } catch {
+      // Leave pinnedLoaded false so the next menu open retries.
     }
   }
 
@@ -368,6 +392,37 @@ export const PostMenu: FC<Props> = ({
       router.refresh()
     } catch {
       setActionError('Failed to unblock account. Please try again.')
+    }
+  }
+
+  const handlePinToggle = async () => {
+    if (pinSaving) return
+    setPinSaving(true)
+    setActionError(null)
+    try {
+      const result = isPinned
+        ? await unpinStatus({ statusId: status.id })
+        : await pinStatus({ statusId: status.id })
+      if (result.ok) {
+        setIsPinned(!isPinned)
+        setPinnedLoaded(true)
+        router.refresh()
+      } else {
+        setActionError(
+          result.error ||
+            (isPinned
+              ? "Couldn't unpin post. Please try again."
+              : "Couldn't pin post. Please try again.")
+        )
+      }
+    } catch {
+      setActionError(
+        isPinned
+          ? "Couldn't unpin post. Please try again."
+          : "Couldn't pin post. Please try again."
+      )
+    } finally {
+      setPinSaving(false)
     }
   }
 
@@ -467,6 +522,7 @@ export const PostMenu: FC<Props> = ({
           if (open) {
             onMenuOpen?.()
             void loadRelationship()
+            void loadPinnedState()
           }
         }}
       >
@@ -534,6 +590,26 @@ export const PostMenu: FC<Props> = ({
                   >
                     <Pencil className="size-4" />
                     Edit post
+                  </DropdownMenuItem>
+                ) : null}
+                {visibility !== 'direct' ? (
+                  <DropdownMenuItem
+                    disabled={pinSaving || !pinnedLoaded}
+                    onSelect={() => {
+                      void handlePinToggle()
+                    }}
+                  >
+                    {isPinned ? (
+                      <>
+                        <PinOff className="size-4" />
+                        Unpin from profile
+                      </>
+                    ) : (
+                      <>
+                        <Pin className="size-4" />
+                        Pin to profile
+                      </>
+                    )}
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuSub>

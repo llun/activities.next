@@ -1,3 +1,4 @@
+import { Pin } from 'lucide-react'
 import { ReactNode } from 'react'
 
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -19,6 +20,7 @@ export const MockPosts = ({
   currentTime,
   showActions,
   showReadOnlyStats,
+  isPinned,
   onStatusCreated,
   onPostUpdated,
   onPostDeleted,
@@ -29,6 +31,7 @@ export const MockPosts = ({
   currentTime: number
   showActions?: boolean
   showReadOnlyStats?: boolean
+  isPinned?: boolean | ((status: Status) => boolean)
   onStatusCreated?: (status: Status) => void
   onPostUpdated?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
@@ -62,8 +65,16 @@ export const MockPosts = ({
         // For a boost, the action callbacks fire with the unwrapped original
         // status (mirroring the real Posts/Actions wiring).
         const target = getOriginalStatus(status)
+        const pinned =
+          typeof isPinned === 'function' ? isPinned(status) : isPinned
         return (
           <div key={status.id}>
+            {pinned && (
+              <div className="flex items-center gap-2 mb-1 ml-12 text-xs font-medium text-muted-foreground">
+                <Pin className="size-3.5" />
+                <span>Pinned</span>
+              </div>
+            )}
             <span>{status.id}</span>
             <span data-testid={`like-flag-${target.id}`}>
               {String(target.isActorLiked)}:{target.totalLikes}

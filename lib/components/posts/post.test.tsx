@@ -167,4 +167,33 @@ describe('Post', () => {
       expect(container.querySelector('p.hidden')).toBeNull()
     })
   })
+
+  describe('pinned status indicator', () => {
+    it('renders the Pinned label when isPinned is true', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={status}
+          isPinned
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('Pinned')).toBeInTheDocument()
+    })
+
+    it('does not render the Pinned label when isPinned is false or undefined', () => {
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText('Pinned')).not.toBeInTheDocument()
+    })
+  })
 })

@@ -2327,6 +2327,19 @@ false`), so users who never opted in are not advertised to remote servers
   `TimelineFeed` above); a reply to someone else, a reply to a parent this
   server does not have, and the author's self-replies under either are on
   Replies, so nothing shows on both. Boosts are on Posts.
+  - **Pinned posts on the Posts tab:** `getProfileData` loads the actor's
+    pinned statuses (`getActorStatuses` with `pinned: true`, at most
+    `MAX_PINNED_STATUSES`) with the same viewer audience and read check as the
+    other statuses, so a pin the viewer may not see is never sent. They render
+    at the top of the Posts tab only, newest post first (not pin order, which
+    `status_pins` does not keep for this query), each with a "Pinned" line
+    styled like the boosted-by line (`PinnedStatus` in
+    `lib/components/posts/post.tsx`). The chronological feed follows unchanged,
+    so a pinned post can appear in both, as on Mastodon; with pins and no other
+    posts, "No posts yet" is not shown. The owner pins and unpins from the
+    post's `⋯` menu ("Pin to profile" / "Unpin from profile", not for direct
+    posts), which reads the current state from `GET /api/v1/statuses/:id` when
+    the menu opens and keeps the item disabled until it has it.
   - The profile loads one list of statuses; `getProfileData` and
     `GET /api/v1/accounts/:id/statuses?format=activities_next` send
     `repliesTabStatusIds` beside each page (the page's statuses that open

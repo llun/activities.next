@@ -209,6 +209,8 @@ describe('getProfileIdentity', () => {
         id: remotePerson.id
       } as DomainActor)
       vi.mocked(mockDatabase.getAttachmentsForActor).mockResolvedValue([])
+      // The profile's pinned posts.
+      vi.mocked(mockDatabase.getActorStatuses).mockResolvedValue([])
       vi.mocked(getWebfingerSelf).mockResolvedValue(remotePerson.id)
       vi.mocked(getActorPerson).mockResolvedValue(remotePerson)
       vi.mocked(getActorPosts).mockResolvedValue({
