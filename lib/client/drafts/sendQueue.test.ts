@@ -1161,7 +1161,8 @@ describe('drainQueue', () => {
           url: `https://example.test/${id}.png`,
           width: 3,
           height: 2,
-          posterUrl: `https://example.test/${id}-poster.png`
+          posterUrl: `https://example.test/${id}-poster.png`,
+          pages: 2
         }) as NonNullable<Awaited<ReturnType<UploadAttachment>>>
       const photo = (n: number) =>
         uploaded({
@@ -1329,6 +1330,7 @@ describe('drainQueue', () => {
           posterUrl: 'https://example.test/m1-poster.png',
           width: 3,
           height: 2,
+          pages: 2,
           owned: true,
           hasBlob: true
         })
