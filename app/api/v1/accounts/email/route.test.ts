@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
+import {
+  EMAIL_CHANGE_LIMIT,
+  resetRouteRateLimitsForTests
+} from '@/lib/services/auth/routeRateLimits'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { POST } from './route'
@@ -101,6 +105,7 @@ describe('POST /api/v1/accounts/email', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRouteRateLimitsForTests()
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
@@ -121,6 +126,38 @@ describe('POST /api/v1/accounts/email', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
+  })
+
+  it('answers 429 past 5 change requests per account while another account passes', async () => {
+    const call = () =>
+      POST(
+        new NextRequest('http://llun.test/api/v1/accounts/email', {
+          method: 'POST',
+          body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    for (let i = 0; i < EMAIL_CHANGE_LIMIT; i += 1) {
+      expect((await call()).status).toBe(200)
+    }
+
+    const limited = await call()
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(mockSendMail).toHaveBeenCalledTimes(EMAIL_CHANGE_LIMIT)
+
+    const otherAccount = { ...account, id: 'account-2' }
+    mockDb.getAccountFromEmail.mockResolvedValue(otherAccount)
+    mockDb.getActorsForAccount.mockResolvedValue([
+      { ...actor, account: otherAccount }
+    ])
+    expect((await call()).status).toBe(200)
   })
 
   it('returns 400 for invalid JSON body', async () => {

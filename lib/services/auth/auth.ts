@@ -1,4 +1,5 @@
 import { isValidIP } from '@better-auth/core/utils/ip'
+import { normalizePathname } from '@better-auth/core/utils/url'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
@@ -44,14 +45,25 @@ const TRUSTED_CLIENT_IP_HEADER = 'x-activities-trusted-client-ip'
 // per IP + email):
 // - Sign-in and 2FA challenge endpoints: 5 attempts per 5 minutes per IP
 //   (Mastodon `throttle_login_attempts_per_ip`: 5 / 5 min).
-// - Password reset and verification email resend endpoints: 5 requests per
-//   30 minutes per IP (Mastodon `throttle_password_resets`: 5 / 30 min).
-// - Everything else under `/api/auth/*`: better-auth's defaults (100 / 10 s
-//   globally, 3 / 10 s on `/sign-up*`, `/change-password*`, `/change-email*`,
-//   and other `/two-factor/*` routes).
+// - Other real better-auth endpoints under `/api/auth/*`: better-auth's per-IP
+//   defaults (100 / 10 s default, 3 / 10 s on `/sign-up*`, `/change-password*`,
+//   `/change-email*` and remaining `/two-factor/*` routes, plus OAuth plugin
+//   per-endpoint rules). Unknown paths return `false` so unrouted probes do not
+//   insert unbounded `ip|pathname` rows into `rateLimit`.
 const AUTH_GLOBAL_RATE_LIMIT = { window: 10, max: 100 } as const
 const AUTH_CREDENTIAL_RATE_LIMIT = { window: 300, max: 5 } as const
-const AUTH_MAIL_AND_RESET_RATE_LIMIT = { window: 1800, max: 5 } as const
+
+// Endpoints this app never uses (it serves its own `/api/v1/accounts/password/*`
+// and `/api/v1/emails/confirmations` routes, and mints OAuth tokens through
+// `oauthProvider()` rather than `jwt()`'s standalone `/token`).
+const DISABLED_AUTH_PATHS = [
+  '/token',
+  '/request-password-reset',
+  '/reset-password',
+  '/reset-password/:token',
+  '/send-verification-email',
+  '/verify-password'
+] as const
 
 let hasWarnedMissingAuthClientIp = false
 
@@ -100,6 +112,62 @@ const ruleWhenClientIpPresent =
   (rule: { window: number; max: number }) => (request: Request) =>
     hasVerifiedClientIp(request) ? rule : false
 
+interface AuthEndpointMetadata {
+  path?: string
+  options?: {
+    metadata?: {
+      SERVER_ONLY?: boolean
+    }
+  }
+}
+
+const matchesAuthPathPattern = (pattern: string, path: string): boolean => {
+  if (!pattern.includes(':')) return pattern === path
+  const patternParts = pattern.split('/')
+  const pathParts = path.split('/')
+  if (patternParts.length !== pathParts.length) return false
+  return patternParts.every((part, index) => {
+    const candidate = pathParts[index] ?? ''
+    return part.startsWith(':') ? candidate.length > 0 : part === candidate
+  })
+}
+
+const isDisabledAuthPath = (request: Request): boolean => {
+  const path = normalizePathname(request.url, AUTH_BASE_PATH)
+  return DISABLED_AUTH_PATHS.some((pattern) =>
+    matchesAuthPathPattern(pattern, path)
+  )
+}
+
+// A predicate over the paths better-auth actually mounts over HTTP (core and
+// plugin endpoints, minus `disabledPaths` and server-only ones), exact or
+// parameterised (`/callback/:id`).
+const buildKnownEndpointPathMatcher = (
+  api: Record<string, unknown>,
+  disabledPaths: readonly string[]
+): ((path: string) => boolean) => {
+  const disabled = new Set(disabledPaths)
+  const exact = new Set<string>()
+  const patterns: string[] = []
+  for (const value of Object.values(api)) {
+    const endpoint = value as AuthEndpointMetadata | undefined
+    const path = endpoint?.path
+    if (
+      !path ||
+      !endpoint.options ||
+      endpoint.options.metadata?.SERVER_ONLY ||
+      disabled.has(path)
+    ) {
+      continue
+    }
+    if (path.includes(':')) patterns.push(path)
+    else exact.add(path)
+  }
+  return (path) =>
+    exact.has(path) ||
+    patterns.some((pattern) => matchesAuthPathPattern(pattern, path))
+}
+
 // `serviceName` is the visited domain's name (see `resolveAuthServiceName`):
 // the passkey relying party name and the 2FA issuer. Both are labels only.
 // WebAuthn binds a credential to its rpID (the host, unchanged here), never to
@@ -119,6 +187,8 @@ const buildAuth = (baseURL: string, serviceName: string) => {
     config.trustedHosts ?? [],
     getActiveServedDomainNames
   )
+
+  let isKnownEndpointPath: ((path: string) => boolean) | undefined
 
   const baseAuth = betterAuth({
     logger: {
@@ -172,23 +242,17 @@ const buildAuth = (baseURL: string, serviceName: string) => {
         '/two-factor/send-otp': ruleWhenClientIpPresent(
           AUTH_CREDENTIAL_RATE_LIMIT
         ),
-        '/request-password-reset': ruleWhenClientIpPresent(
-          AUTH_MAIL_AND_RESET_RATE_LIMIT
-        ),
-        '/reset-password': ruleWhenClientIpPresent(
-          AUTH_MAIL_AND_RESET_RATE_LIMIT
-        ),
-        '/reset-password/*': ruleWhenClientIpPresent(
-          AUTH_MAIL_AND_RESET_RATE_LIMIT
-        ),
-        '/send-verification-email': ruleWhenClientIpPresent(
-          AUTH_MAIL_AND_RESET_RATE_LIMIT
-        ),
-        '/**': (request, currentRule) =>
-          hasVerifiedClientIp(request) ? currentRule : false,
+        '/**': (request, currentRule) => {
+          if (!hasVerifiedClientIp(request)) return false
+          return isKnownEndpointPath?.(
+            normalizePathname(request.url, AUTH_BASE_PATH)
+          )
+            ? currentRule
+            : false
+        },
         // Static entry so better-auth's `getConfiguredRateLimitWindows` sees the
-        // 30-minute window at boot in every process when pruning expired rows.
-        '/__max_configured_window__': AUTH_MAIL_AND_RESET_RATE_LIMIT
+        // 5-minute window at boot in every process when pruning expired rows.
+        '/__max_configured_window__': AUTH_CREDENTIAL_RATE_LIMIT
       }
     },
     // Better-auth 1.7.4 added experimental OpenTelemetry instrumentation for
@@ -241,10 +305,10 @@ const buildAuth = (baseURL: string, serviceName: string) => {
       errorURL: AUTH_ERROR_PATH
     },
     database: kyselyAdapter(db, { passkeyRpID: rpID }),
-    // jwt() only provides JWKS and token signing for oauthProvider(). Keep its
-    // standalone /api/auth/token disabled alongside disableSettingJwtHeader below,
-    // so session reads cannot mint unscoped JWTs through either path.
-    disabledPaths: ['/token'],
+    // Disable unused core credential/mail routes and `jwt()`'s standalone
+    // `/api/auth/token` (alongside `disableSettingJwtHeader` below, so session
+    // reads cannot mint unscoped JWTs through either path).
+    disabledPaths: [...DISABLED_AUTH_PATHS],
     plugins: [
       // Sign the JWKS key (and therefore the OIDC id_tokens the oauthProvider
       // signs via this plugin) with RS256 so the published JWKS matches the
@@ -406,10 +470,23 @@ const buildAuth = (baseURL: string, serviceName: string) => {
     }
   })
 
+  isKnownEndpointPath = buildKnownEndpointPathMatcher(
+    baseAuth.api,
+    DISABLED_AUTH_PATHS
+  )
+
   return {
     ...baseAuth,
-    handler: (request: Request) =>
-      baseAuth.handler(withTrustedClientIpHeader(request))
+    // Check `DISABLED_AUTH_PATHS` here as well: better-auth's own `disabledPaths`
+    // filter uses `Array.prototype.includes` on the concrete pathname, so a
+    // parameterized pattern like `/reset-password/:token` would otherwise slip
+    // past `onRequest` and reach the router.
+    handler: (request: Request) => {
+      if (isDisabledAuthPath(request)) {
+        return Promise.resolve(new Response('Not Found', { status: 404 }))
+      }
+      return baseAuth.handler(withTrustedClientIpHeader(request))
+    }
   }
 }
 

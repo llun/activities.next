@@ -1,8 +1,13 @@
 import { NextRequest } from 'next/server'
 
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
+import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
+import {
+  EMAIL_CONFIRMATION_LIMIT,
+  resetRouteRateLimitsForTests
+} from '@/lib/services/auth/routeRateLimits'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -113,13 +118,14 @@ const buildActor = (account: ReturnType<typeof buildAccount>) => ({
   updatedAt: Date.now()
 })
 
-const makeRequest = (body?: unknown) =>
+const makeRequest = (body?: unknown, headers: Record<string, string> = {}) =>
   new NextRequest('http://llun.test/api/v1/emails/confirmations', {
     method: 'POST',
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: {
       'Content-Type': 'application/json',
-      Origin: 'https://llun.test'
+      Origin: 'https://llun.test',
+      ...headers
     }
   })
 
@@ -144,6 +150,7 @@ describe('POST /api/v1/emails/confirmations', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRouteRateLimitsForTests()
     vi.mocked(getResolvedServerSettings).mockResolvedValue(
       settingsWithAllowEmails([])
     )
@@ -171,6 +178,53 @@ describe('POST /api/v1/emails/confirmations', () => {
     mockDb.getServedDomain.mockReset()
     mockDb.getServedDomain.mockResolvedValue(null)
     setAccount(buildAccount(PENDING_CODE))
+  })
+
+  afterEach(() => {
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    resetRouteRateLimitsForTests()
+  })
+
+  it('answers 429 past 5 resends per account while another account passes', async () => {
+    const context = { params: Promise.resolve({}) }
+    for (let i = 0; i < EMAIL_CONFIRMATION_LIMIT; i += 1) {
+      expect((await POST(makeRequest(), context)).status).toBe(200)
+    }
+
+    const limited = await POST(makeRequest(), context)
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(limited.headers.get('access-control-allow-origin')).toBe(
+      'https://llun.test'
+    )
+    expect(mockSendMail).toHaveBeenCalledTimes(EMAIL_CONFIRMATION_LIMIT)
+
+    setAccount({ ...buildAccount(PENDING_CODE), id: 'account-2' })
+    expect((await POST(makeRequest(), context)).status).toBe(200)
+  })
+
+  it('answers 429 past 5 resends per trusted client IP across accounts while another IP passes', async () => {
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    resetTrustProxyIpHeadersConfigCacheForTests()
+
+    const context = { params: Promise.resolve({}) }
+    const call = (accountId: string, ip: string) => {
+      setAccount({ ...buildAccount(PENDING_CODE), id: accountId })
+      return POST(makeRequest(undefined, { 'x-forwarded-for': ip }), context)
+    }
+
+    for (let i = 0; i < EMAIL_CONFIRMATION_LIMIT; i += 1) {
+      expect((await call(`account-${i}`, '198.51.100.30')).status).toBe(200)
+    }
+
+    const limited = await call('account-9', '198.51.100.30')
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+
+    expect((await call('account-9', '198.51.100.31')).status).toBe(200)
   })
 
   it('resends the confirmation email and returns 200 for an account awaiting confirmation', async () => {
@@ -753,6 +807,7 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRouteRateLimitsForTests()
     vi.mocked(getResolvedServerSettings).mockResolvedValue(
       settingsWithAllowEmails([])
     )

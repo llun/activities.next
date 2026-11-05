@@ -1,11 +1,7 @@
-import { NextRequest } from 'next/server'
-
 import {
   WindowCounterResult,
   createWindowCounter
 } from '@/lib/services/gallery/lookups/rateLimit'
-import { Actor } from '@/lib/types/domain/actor'
-import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
 
 export const SEARCH_RESOLVE_LIMIT = 30
 export const SEARCH_RESOLVE_WINDOW_MS = 60_000
@@ -18,18 +14,8 @@ const resolveCounter = createWindowCounter({
 })
 
 export const checkSearchResolveRateLimit = (
-  req: NextRequest,
-  currentActor?: Actor | null
-): WindowCounterResult => {
-  if (currentActor) {
-    return resolveCounter.consume(`actor:${currentActor.id}`)
-  }
-  const clientIp = getTrustedClientIp(req)
-  if (clientIp) {
-    return resolveCounter.consume(`ip:${clientIp}`)
-  }
-  return { allowed: true }
-}
+  actorId: string
+): WindowCounterResult => resolveCounter.consume(actorId)
 
 export const resetSearchResolveRateLimitForTests = () => {
   resolveCounter.reset()

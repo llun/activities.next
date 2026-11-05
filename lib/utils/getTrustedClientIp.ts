@@ -1,3 +1,4 @@
+import { isValidIP, normalizeIP } from '@better-auth/core/utils/ip'
 import { NextRequest } from 'next/server'
 
 import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
@@ -28,4 +29,18 @@ export const getTrustedClientIp = (
   if (forwardedFor) return forwardedFor
 
   return undefined
+}
+
+/**
+ * Canonical per-client rate-limit key derived from `getTrustedClientIp`:
+ * validates the address, unwraps IPv4-mapped IPv6 (`::ffff:x.x.x.x`), and
+ * collapses IPv6 hosts into their `/64` subnet so rotating interface IDs on a
+ * single residential `/64` share one bucket.
+ */
+export const getTrustedClientRateLimitKey = (
+  req: NextRequest | Request
+): string | undefined => {
+  const ip = getTrustedClientIp(req)
+  if (!ip || !isValidIP(ip)) return undefined
+  return normalizeIP(ip, { ipv6Subnet: 64 })
 }

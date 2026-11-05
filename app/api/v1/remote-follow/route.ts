@@ -8,6 +8,7 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   HTTP_STATUS,
   apiErrorResponse,
+  apiRateLimitedResponse,
   apiResponse
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -81,9 +82,9 @@ const isUsableRedirectUrl = (value: string) => {
  * `target` name an actor this server actually hosts — so it cannot be
  * repurposed into a general-purpose URL builder or redirector for third
  * parties — and an in-process fixed-window rate limit (10/min per trusted
- * client IP when `ACTIVITIES_TRUST_PROXY_IP_HEADERS=true`, plus 60/min
- * globally per process). Multi-process deployments can add a shared upstream
- * proxy limit on top.
+ * client IP — `/64` for IPv6 — when `ACTIVITIES_TRUST_PROXY_IP_HEADERS=true`,
+ * plus a 600/min global circuit breaker per process). Multi-process
+ * deployments can add a shared upstream proxy limit on top.
  */
 export const GET = traceApiRoute('remoteFollow', async (req) => {
   const database = getDatabase()
@@ -91,13 +92,11 @@ export const GET = traceApiRoute('remoteFollow', async (req) => {
 
   const rateLimit = checkRemoteFollowRateLimit(req)
   if (!rateLimit.allowed) {
-    return apiResponse({
+    return apiRateLimitedResponse(
       req,
-      allowedMethods: ALLOWED_METHODS,
-      data: { error: 'Too many requests' },
-      responseStatusCode: HTTP_STATUS.TOO_MANY_REQUESTS,
-      additionalHeaders: [['Retry-After', String(rateLimit.retryAfterSeconds)]]
-    })
+      rateLimit.retryAfterSeconds,
+      ALLOWED_METHODS
+    )
   }
 
   const query = RemoteFollowQuery.safeParse(

@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server'
 
-import { getTrustedClientIp } from './getTrustedClientIp'
+import {
+  getTrustedClientIp,
+  getTrustedClientRateLimitKey
+} from './getTrustedClientIp'
 
 const mockTrust = vi.fn(() => false)
 vi.mock('@/lib/config/trustProxyIpHeaders', () => ({
@@ -68,6 +71,35 @@ describe('getTrustedClientIp', () => {
       expect(getTrustedClientIp(request({}))).toBeUndefined()
       expect(
         getTrustedClientIp(request({ 'x-forwarded-for': ' , ' }))
+      ).toBeUndefined()
+    })
+
+    it('normalizes IPv6 rate-limit keys to /64, maps ::ffff: IPv4, and ignores invalid IPs', () => {
+      expect(
+        getTrustedClientRateLimitKey(
+          request({ 'x-forwarded-for': '2001:db8:abcd:12::1' })
+        )
+      ).toBe(
+        getTrustedClientRateLimitKey(
+          request({
+            'x-forwarded-for': '2001:DB8:ABCD:0012:ffff:1234:5678:9abc'
+          })
+        )
+      )
+      expect(
+        getTrustedClientRateLimitKey(
+          request({ 'x-forwarded-for': '2001:db8:abcd:12::1' })
+        )
+      ).toBe('2001:0db8:abcd:0012:0000:0000:0000:0000')
+      expect(
+        getTrustedClientRateLimitKey(
+          request({ 'x-forwarded-for': '::ffff:198.51.100.7' })
+        )
+      ).toBe('198.51.100.7')
+      expect(
+        getTrustedClientRateLimitKey(
+          request({ 'x-forwarded-for': 'not-an-ip' })
+        )
       ).toBeUndefined()
     })
   })

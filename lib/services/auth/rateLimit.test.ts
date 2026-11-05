@@ -222,30 +222,124 @@ describe('better-auth rate limits', () => {
       body: {}
     },
     {
+      method: 'GET' as const,
+      path: `/reset-password/invalid-token?callbackURL=${encodeURIComponent(`${BASE_URL}/auth/reset-password`)}`,
+      body: {}
+    },
+    {
       method: 'POST' as const,
       path: '/send-verification-email',
       body: { email: EMAIL }
+    },
+    {
+      method: 'POST' as const,
+      path: '/verify-password',
+      body: { password: PASSWORD }
+    },
+    {
+      method: 'GET' as const,
+      path: '/token',
+      body: {}
     }
   ])(
-    'rate-limits password reset and verification mail route $method $path after 5 requests per IP',
+    'answers 404 for disabled better-auth endpoint $method $path',
     async ({ method, path, body }) => {
-      const call = (ip: string) =>
+      const res =
         method === 'GET'
-          ? getAuthRoute(path, { 'x-forwarded-for': ip })
-          : postAuth(path, body, { 'x-forwarded-for': ip })
+          ? await getAuthRoute(path, { 'x-forwarded-for': '198.51.100.30' })
+          : await postAuth(path, body, { 'x-forwarded-for': '198.51.100.30' })
 
-      for (let i = 0; i < 5; i += 1) {
-        const res = await call('198.51.100.30')
-        expect(res.status).not.toBe(429)
-      }
+      expect(res.status).toBe(404)
 
-      const throttled = await call('198.51.100.30')
-      expect(throttled.status).toBe(429)
-
-      const otherIp = await call('198.51.100.31')
-      expect(otherIp.status).not.toBe(429)
+      const db = holder.testDb?.db
+      if (!db) throw new Error('Test database not initialized')
+      const rows = await sql<{ key: string }>`
+        SELECT "key" FROM "rateLimit"
+      `.execute(db)
+      expect(rows.rows).toEqual([])
     }
   )
+
+  it('does not create rateLimit rows for unknown /api/auth/* paths while still counting real endpoints', async () => {
+    const ip = '198.51.100.50'
+    for (let i = 0; i < 10; i += 1) {
+      const unknownRoot = await getAuthRoute(`/unknown-route-${i}`, {
+        'x-forwarded-for': ip
+      })
+      expect(unknownRoot.status).toBe(404)
+
+      const unknownPluginSubpath = await postAuth(
+        `/two-factor/unknown-${i}`,
+        {},
+        { 'x-forwarded-for': ip }
+      )
+      expect(unknownPluginSubpath.status).toBe(404)
+
+      const unknownOAuthSubpath = await postAuth(
+        `/oauth2/unknown-${i}`,
+        {},
+        { 'x-forwarded-for': ip }
+      )
+      expect(unknownOAuthSubpath.status).toBe(404)
+    }
+
+    const db = holder.testDb?.db
+    if (!db) throw new Error('Test database not initialized')
+    const afterUnknown = await sql<{ key: string; count: number }>`
+      SELECT "key", "count" FROM "rateLimit"
+    `.execute(db)
+    expect(afterUnknown.rows).toEqual([])
+
+    const realEndpoint = await getAuthRoute('/ok', { 'x-forwarded-for': ip })
+    expect(realEndpoint.status).toBe(200)
+
+    const afterReal = await sql<{ key: string; count: number }>`
+      SELECT "key", "count" FROM "rateLimit"
+    `.execute(db)
+    expect(afterReal.rows).toEqual([{ key: `${ip}|/ok`, count: 1 }])
+
+    // A parameterised endpoint (`/callback/:id`) is real too, so it counts.
+    await getAuthRoute('/callback/some-provider', { 'x-forwarded-for': ip })
+    const afterParameterised = await sql<{ key: string }>`
+      SELECT "key" FROM "rateLimit" ORDER BY "key"
+    `.execute(db)
+    expect(afterParameterised.rows.map((row) => row.key)).toEqual([
+      `${ip}|/callback/some-provider`,
+      `${ip}|/ok`
+    ])
+  })
+
+  it('preserves special plugin rate limits (two-factor 3/10s and oauth2/token 20/60s)', async () => {
+    for (let i = 0; i < 3; i += 1) {
+      const attempt = await postAuth(
+        '/two-factor/enable',
+        { password: PASSWORD },
+        { 'x-forwarded-for': '198.51.100.51' }
+      )
+      expect(attempt.status).not.toBe(429)
+    }
+    const twoFactorThrottled = await postAuth(
+      '/two-factor/enable',
+      { password: PASSWORD },
+      { 'x-forwarded-for': '198.51.100.51' }
+    )
+    expect(twoFactorThrottled.status).toBe(429)
+
+    for (let i = 0; i < 20; i += 1) {
+      const attempt = await postAuth(
+        '/oauth2/token',
+        { grant_type: 'client_credentials' },
+        { 'x-forwarded-for': '198.51.100.52' }
+      )
+      expect(attempt.status).not.toBe(429)
+    }
+    const oauthTokenThrottled = await postAuth(
+      '/oauth2/token',
+      { grant_type: 'client_credentials' },
+      { 'x-forwarded-for': '198.51.100.52' }
+    )
+    expect(oauthTokenThrottled.status).toBe(429)
+  })
 
   it('does not let X-Forwarded-For or internal-header spoofing reset the limit behind a trusted proxy header', async () => {
     for (let i = 0; i < 5; i += 1) {

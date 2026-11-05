@@ -305,7 +305,36 @@ describe('GET /api/v1/remote-follow', () => {
     expect(otherIp.status).toBe(200)
   })
 
-  it('enforces the global cap when no trusted IP header is available', async () => {
+  it('shares the per-IP limit across IPv6 addresses in the same /64 network while letting another /64 pass', async () => {
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    resetTrustProxyIpHeadersConfigCacheForTests()
+
+    for (let i = 0; i < REMOTE_FOLLOW_PER_IP_LIMIT; i += 1) {
+      const allowed = await callRoute(
+        { account: 'remote.test', target: 'local@llun.test' },
+        { 'x-forwarded-for': `2001:db8:abcd:12::${i + 1}` }
+      )
+      expect(allowed.status).toBe(200)
+    }
+
+    const sameSubnet = await callRoute(
+      { account: 'remote.test', target: 'local@llun.test' },
+      { 'x-forwarded-for': '2001:DB8:ABCD:0012:ffff::99' }
+    )
+    expect(sameSubnet.status).toBe(429)
+    expect(await sameSubnet.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(sameSubnet.headers.get('Retry-After'))).toBeGreaterThan(0)
+
+    const differentSubnet = await callRoute(
+      { account: 'remote.test', target: 'local@llun.test' },
+      { 'x-forwarded-for': '2001:db8:abcd:13::1' }
+    )
+    expect(differentSubnet.status).toBe(200)
+  })
+
+  it('enforces the 600/min global cap when no trusted IP header is available', async () => {
+    expect(REMOTE_FOLLOW_GLOBAL_LIMIT).toBe(600)
+
     for (let i = 0; i < REMOTE_FOLLOW_GLOBAL_LIMIT; i += 1) {
       const allowed = await callRoute({
         account: 'remote.test',

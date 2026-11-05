@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
+import { checkSignUpRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { resolveSignUpDomain } from '@/lib/services/domains/signUpDomain'
 import {
@@ -18,7 +19,12 @@ import { issueAccessToken } from '@/lib/services/oauth/issueAccessToken'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { ERROR_500, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_500,
+  apiRateLimitedResponse,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { CreateAccountRequest } from './types'
@@ -297,6 +303,17 @@ export const POST = traceApiRoute(
         data: ERROR_500,
         responseStatusCode: 500
       })
+    }
+
+    // Mastodon's throttle_sign_up_attempts (25 / 5 min per IP), on both the
+    // web form and the Bearer API path; counted only behind a trusted proxy.
+    const rateLimit = checkSignUpRateLimit(request)
+    if (!rateLimit.allowed) {
+      return apiRateLimitedResponse(
+        request,
+        rateLimit.retryAfterSeconds,
+        CORS_HEADERS
+      )
     }
 
     // A Bearer token marks a Mastodon API registration: validate the app token

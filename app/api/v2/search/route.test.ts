@@ -1772,11 +1772,11 @@ describe('GET /api/v2/search', () => {
     expect(otherActor.status).toBe(200)
   })
 
-  it('rate-limits unauthenticated resolve=true requests per trusted IP without affecting another IP or plain search', async () => {
+  it('answers 401 for unauthenticated resolve=true requests without consuming rate-limit quota', async () => {
     process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
     resetTrustProxyIpHeadersConfigCacheForTests()
 
-    for (let i = 0; i < SEARCH_RESOLVE_LIMIT; i += 1) {
+    for (let i = 0; i < SEARCH_RESOLVE_LIMIT + 5; i += 1) {
       const unauth = await GET(
         new NextRequest(
           'https://llun.test/api/v2/search?q=trail&resolve=true',
@@ -1787,32 +1787,31 @@ describe('GET /api/v2/search', () => {
       expect(unauth.status).toBe(401)
     }
 
+    for (let i = 0; i < SEARCH_RESOLVE_LIMIT; i += 1) {
+      const allowed = await GET(
+        new NextRequest(
+          'https://llun.test/api/v2/search?q=trail&resolve=true',
+          {
+            headers: {
+              authorization: 'Bearer valid-token',
+              'x-forwarded-for': '198.51.100.30'
+            }
+          }
+        ),
+        context
+      )
+      expect(allowed.status).toBe(200)
+    }
+
     const limited = await GET(
       new NextRequest('https://llun.test/api/v2/search?q=trail&resolve=true', {
-        headers: { 'x-forwarded-for': '198.51.100.30' }
+        headers: {
+          authorization: 'Bearer valid-token',
+          'x-forwarded-for': '198.51.100.30'
+        }
       }),
       context
     )
     expect(limited.status).toBe(429)
-    expect(await limited.json()).toEqual({ error: 'Too many requests' })
-    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
-
-    // Another IP is not throttled (gets the normal 401 auth requirement).
-    const otherIp = await GET(
-      new NextRequest('https://llun.test/api/v2/search?q=trail&resolve=true', {
-        headers: { 'x-forwarded-for': '198.51.100.31' }
-      }),
-      context
-    )
-    expect(otherIp.status).toBe(401)
-
-    // Plain searches from the throttled IP still pass.
-    const plain = await GET(
-      new NextRequest('https://llun.test/api/v2/search?q=trail', {
-        headers: { 'x-forwarded-for': '198.51.100.30' }
-      }),
-      context
-    )
-    expect(plain.status).toBe(200)
   })
 })

@@ -1,7 +1,12 @@
 import { NextRequest } from 'next/server'
 
+import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
 import { Database } from '@/lib/database/types'
 import { PASSWORD_RESET_REQUEST_COOLDOWN_MS } from '@/lib/services/auth/passwordResetCode'
+import {
+  PASSWORD_RESET_LIMIT,
+  resetRouteRateLimitsForTests
+} from '@/lib/services/auth/routeRateLimits'
 
 import { POST as routePost } from './route'
 
@@ -99,6 +104,7 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetRouteRateLimitsForTests()
     mockSendMail.mockResolvedValue(undefined)
     mockDb.getAccountFromEmail.mockResolvedValue({
       id: 'account-1',
@@ -111,6 +117,48 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
       updatedAt: Date.now()
     })
     mockDb.requestPasswordReset.mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    resetRouteRateLimitsForTests()
+  })
+
+  it('answers 429 past 5 requests per trusted client IP while another IP passes', async () => {
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    resetTrustProxyIpHeadersConfigCacheForTests()
+
+    const call = (ip: string) =>
+      POST(
+        new NextRequest(
+          'http://llun.test/api/v1/accounts/password/reset/request',
+          {
+            method: 'POST',
+            body: JSON.stringify({ email: 'test@llun.test' }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://client.llun.test',
+              'x-forwarded-for': ip
+            }
+          }
+        )
+      )
+
+    for (let i = 0; i < PASSWORD_RESET_LIMIT; i += 1) {
+      expect((await call('198.51.100.30')).status).toBe(200)
+    }
+
+    const limited = await call('198.51.100.30')
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(limited.headers.get('access-control-allow-origin')).toBe(
+      'https://client.llun.test'
+    )
+    expect(mockSendMail).toHaveBeenCalledTimes(PASSWORD_RESET_LIMIT)
+
+    expect((await call('198.51.100.31')).status).toBe(200)
   })
 
   it('sends the reset email with a link to the reset page', async () => {

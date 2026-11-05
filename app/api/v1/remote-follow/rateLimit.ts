@@ -4,10 +4,10 @@ import {
   WindowCounterResult,
   createWindowCounter
 } from '@/lib/services/gallery/lookups/rateLimit'
-import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
+import { getTrustedClientRateLimitKey } from '@/lib/utils/getTrustedClientIp'
 
 export const REMOTE_FOLLOW_PER_IP_LIMIT = 10
-export const REMOTE_FOLLOW_GLOBAL_LIMIT = 60
+export const REMOTE_FOLLOW_GLOBAL_LIMIT = 600
 export const REMOTE_FOLLOW_WINDOW_MS = 60_000
 const REMOTE_FOLLOW_MAX_IP_KEYS = 10_000
 
@@ -26,9 +26,9 @@ const globalCounter = createWindowCounter({
 export const checkRemoteFollowRateLimit = (
   req: NextRequest
 ): WindowCounterResult => {
-  const clientIp = getTrustedClientIp(req)
-  if (clientIp) {
-    const ipResult = perIpCounter.consume(clientIp)
+  const clientIpKey = getTrustedClientRateLimitKey(req)
+  if (clientIpKey) {
+    const ipResult = perIpCounter.consume(clientIpKey)
     if (!ipResult.allowed) return ipResult
   }
   return globalCounter.consume('global')
