@@ -48,7 +48,11 @@ const SIGN_IN_EMAIL_MAX_KEYS = 100_000
 const signInByEmail = createWindowCounter({
   limit: SIGN_IN_EMAIL_LIMIT,
   windowMs: ONE_HOUR_MS,
-  maxKeys: SIGN_IN_EMAIL_MAX_KEYS
+  maxKeys: SIGN_IN_EMAIL_MAX_KEYS,
+  // One source can mint unlimited emails, so eviction would let it flush a
+  // victim's counter; refuse new keys instead (the other buckets here key on
+  // IPs or signed-in accounts and keep the default eviction).
+  refuseNewKeysWhenFull: true
 })
 const passwordResetRequestByIp = counter(PASSWORD_RESET_LIMIT, FIVE_MINUTES_MS)
 const passwordResetByIp = counter(PASSWORD_RESET_LIMIT, FIVE_MINUTES_MS)

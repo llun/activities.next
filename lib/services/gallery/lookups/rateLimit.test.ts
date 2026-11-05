@@ -218,11 +218,26 @@ describe('createWindowCounter', () => {
     })
   })
 
-  it('refuses a new key while full of live keys instead of evicting one, and accepts it once a window expires', () => {
+  it('evicts the oldest live key by default, so a flood of new keys never refuses anyone', () => {
     const counter = createWindowCounter({
       limit: 2,
       windowMs: 60_000,
       maxKeys: 2
+    })
+    expect(counter.consume('a')).toEqual({ allowed: true })
+    expect(counter.consume('b')).toEqual({ allowed: true })
+    expect(counter.consume('c')).toEqual({ allowed: true })
+    // "a" was evicted, so it starts a fresh window.
+    expect(counter.consume('a')).toEqual({ allowed: true })
+    expect(counter.consume('a')).toEqual({ allowed: true })
+  })
+
+  it('with refuseNewKeysWhenFull, refuses a new key while full of live keys instead of evicting one, and accepts it once a window expires', () => {
+    const counter = createWindowCounter({
+      limit: 2,
+      windowMs: 60_000,
+      maxKeys: 2,
+      refuseNewKeysWhenFull: true
     })
     expect(counter.consume('a')).toEqual({ allowed: true })
     vi.advanceTimersByTime(10_000)

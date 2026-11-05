@@ -123,11 +123,16 @@ export const createLimiter = ({
 export interface WindowCounterOptions {
   limit: number
   windowMs: number
-  // The map is bounded: once this many live keys are held, a NEW key is
-  // refused until a window expires. A live key is never evicted, or a flood of
-  // fresh keys (random sign-in emails, say) could push a victim's counter out
-  // and reset their allowance.
+  // The map is bounded. Expired keys are dropped first; when every held key is
+  // still live, the oldest is evicted, so a flood of fresh keys cannot refuse
+  // everyone else.
   maxKeys?: number
+  // For a security limit, where evicting a live key would reset a victim's
+  // allowance (random sign-in emails pushing a target's counter out): refuse a
+  // NEW key while the map is full of live keys instead. Size `maxKeys` well
+  // above normal load, since a flood then answers 429 to new keys until a
+  // window expires.
+  refuseNewKeysWhenFull?: boolean
 }
 
 export type WindowCounterResult =
@@ -147,7 +152,8 @@ export interface WindowCounter {
 export const createWindowCounter = ({
   limit,
   windowMs,
-  maxKeys = 1000
+  maxKeys = 1000,
+  refuseNewKeysWhenFull = false
 }: WindowCounterOptions): WindowCounter => {
   const windows = new Map<string, { count: number; resetAt: number }>()
 
@@ -172,6 +178,10 @@ export const createWindowCounter = ({
     if (windows.size >= maxKeys) {
       for (const [other, window] of windows) {
         if (window.resetAt <= now) windows.delete(other)
+      }
+      if (windows.size >= maxKeys && !refuseNewKeysWhenFull) {
+        const oldest = windows.keys().next().value
+        if (oldest !== undefined) windows.delete(oldest)
       }
       if (windows.size >= maxKeys) {
         let soonest = Number.POSITIVE_INFINITY
