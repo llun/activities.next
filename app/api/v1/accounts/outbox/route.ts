@@ -16,7 +16,6 @@ import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCrea
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
-import { toActivityPubObject } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -27,6 +26,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { DeleteStatusRequest, PostRequest } from './types'

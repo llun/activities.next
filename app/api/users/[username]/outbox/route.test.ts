@@ -4,8 +4,9 @@ import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { resetActorPublicStatusesCountCacheForTests } from '@/lib/services/statuses/actorPublicStatusesCount'
 import { type Actor } from '@/lib/types/domain/actor'
-import { StatusType } from '@/lib/types/domain/status'
+import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 
 import { GET } from './route'
 
@@ -178,6 +179,52 @@ describe('GET /api/users/[username]/outbox', () => {
     expect(data.orderedItems[0].object).not.toHaveProperty('actorId')
     expect(data.orderedItems[0].object).not.toHaveProperty('text')
   })
+
+  it.each(['Note', 'Question'] as const)(
+    'renders local Markdown into the same HTML content and contentMap as getNoteFromStatus for outbox %s items',
+    async (type) => {
+      const createdAt = Date.UTC(2026, 0, 1)
+      const baseStatus = {
+        ...createPublicNoteStatus(
+          'https://example.com/users/test/statuses/markdown-post',
+          createdAt
+        ),
+        isActorBookmarked: false,
+        text: 'Outbox **bold** and [docs](https://example.com/docs)',
+        language: 'en'
+      }
+      const status =
+        type === 'Note'
+          ? StatusNote.parse(baseStatus)
+          : StatusPoll.parse({
+              ...baseStatus,
+              type: StatusType.enum.Poll,
+              choices: [],
+              pollType: 'oneOf',
+              endAt: createdAt + 60_000
+            })
+      mockDatabase.getActorStatuses.mockResolvedValue([status])
+
+      const response = await GET(
+        new NextRequest('https://example.com/api/users/test/outbox?page=true', {
+          headers: { accept: 'application/activity+json' }
+        }),
+        { params: Promise.resolve({ username: 'test' }) }
+      )
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      const object = data.orderedItems[0].object
+      const delivered = getNoteFromStatus(status)
+
+      expect(object.type).toBe(type)
+      expect(object.content).toContain('<strong>bold</strong>')
+      expect(object.content).toContain('<a href="https://example.com/docs"')
+      expect(object.content).toBe(delivered?.content)
+      expect(object.contentMap).toEqual({ en: object.content })
+      expect(object.contentMap).toEqual(delivered?.contentMap)
+    }
+  )
 
   it('omits followers-only statuses from public ActivityPub outbox pages', async () => {
     const createdAt = Date.UTC(2026, 0, 2)

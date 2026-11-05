@@ -3167,8 +3167,12 @@ Both delivery and fetch serializers carry `contentMap` keyed by the status's
 valid declared `language` (underscores become hyphens, `zh_TW` → `zh-TW`; a code whose subtags do not fit RFC 5646 sends no map), as
 Mastodon does, plus `summaryMap` for a non-empty summary, which Mastodon reads but
 does not send. The shared `getLanguageMapFields` helper uses the same language-code
-validation as status creation and never substitutes `detectedLanguage`. Map
-values match the final `content` (including quote fallback) and `summary`.
+validation as status creation and never substitutes `detectedLanguage`. Both
+`getNoteFromStatus` and `toActivityPubObject` build `content` through
+`getStatusWireContent`, so fetched and delivered local Notes and poll Questions
+carry the same rendered HTML `content` (including quote fallback) and matching
+`contentMap`, while embedded remote replies keep their stored HTML (never sanitized on write, only when read for display);
+`summaryMap` likewise matches `summary`.
 The ActivityStreams context already declares both maps as language containers.
 
 #### The `sensitive` flag federates both ways

@@ -6,11 +6,8 @@ import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
-import {
-  Status,
-  StatusNote,
-  toActivityPubObject
-} from '@/lib/types/domain/status'
+import { Status, StatusNote } from '@/lib/types/domain/status'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 
 enableFetchMocks()
 

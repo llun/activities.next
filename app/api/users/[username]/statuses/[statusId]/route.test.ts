@@ -8,8 +8,10 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { type Actor } from '@/lib/types/domain/actor'
+import { StatusNote, StatusPoll, fromNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 import { GET } from './route'
@@ -50,14 +52,10 @@ vi.mock('@/lib/services/guards/OnlyLocalUserGuard', async () => ({
       handle(routeDatabase, routeActor, req, query)
 }))
 
-vi.mock('@/lib/types/domain/status', async () => {
-  const actual = await vi.importActual('@/lib/types/domain/status')
-  return {
-    ...actual,
-    toActivityPubObject: (...params: unknown[]) =>
-      mockToActivityPubObject(...params)
-  }
-})
+vi.mock('@/lib/utils/toActivityPubObject', () => ({
+  toActivityPubObject: (...params: unknown[]) =>
+    mockToActivityPubObject(...params)
+}))
 
 const createRequest = (accept: string) =>
   new NextRequest('https://example.com/api/users/test/statuses/123', {
@@ -94,10 +92,10 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
     'preserves language maps on the real %s serializer through the AP response and compaction',
     async (type) => {
       const actual = await vi.importActual<
-        typeof import('@/lib/types/domain/status')
-      >('@/lib/types/domain/status')
+        typeof import('@/lib/utils/toActivityPubObject')
+      >('@/lib/utils/toActivityPubObject')
       const status = {
-        ...actual.fromNote({
+        ...fromNote({
           type: 'Note',
           id: `${mockActor.id}/statuses/123`,
           attributedTo: mockActor.id,
@@ -112,7 +110,7 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
       mockDatabase.getActorStatusFromPathSegment.mockResolvedValue(
         type === 'Note'
           ? status
-          : actual.StatusPoll.parse({
+          : StatusPoll.parse({
               ...status,
               type: 'Poll',
               choices: [],
@@ -133,10 +131,57 @@ describe('GET /api/users/[username]/statuses/[statusId]', () => {
       const parsed = BaseNoteSchema.parse(await compactActivityPub(data))
       expect(parsed.contentMap).toEqual({ th: data.content })
       expect(parsed.summaryMap).toEqual({ th: data.summary })
-      expect(actual.fromNote(parsed)).toMatchObject({
+      expect(fromNote(parsed)).toMatchObject({
         text: data.content,
         language: 'th'
       })
+    }
+  )
+
+  it.each(['Note', 'Question'] as const)(
+    'renders local Markdown into the same HTML content and contentMap as getNoteFromStatus on a %s',
+    async (type) => {
+      const actual = await vi.importActual<
+        typeof import('@/lib/utils/toActivityPubObject')
+      >('@/lib/utils/toActivityPubObject')
+      const baseNote = {
+        ...fromNote({
+          type: 'Note',
+          id: `${mockActor.id}/statuses/123`,
+          attributedTo: mockActor.id,
+          content: 'Check **bold** and [docs](https://example.com/docs)',
+          published: '2026-01-01T00:00:00Z',
+          to: [ACTIVITY_STREAM_PUBLIC]
+        }),
+        isLocalActor: true,
+        language: 'en'
+      }
+      const status =
+        type === 'Note'
+          ? StatusNote.parse(baseNote)
+          : StatusPoll.parse({
+              ...baseNote,
+              type: 'Poll',
+              choices: [],
+              pollType: 'oneOf',
+              endAt: Date.now() + 60_000
+            })
+      mockDatabase.getActorStatusFromPathSegment.mockResolvedValue(status)
+      mockToActivityPubObject.mockImplementation(actual.toActivityPubObject)
+
+      const response = await GET(createRequest('application/activity+json'), {
+        params: Promise.resolve({ username: 'test', statusId: '123' })
+      })
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      const delivered = getNoteFromStatus(status)
+
+      expect(data.type).toBe(type)
+      expect(data.content).toContain('<strong>bold</strong>')
+      expect(data.content).toContain('<a href="https://example.com/docs"')
+      expect(data.content).toBe(delivered?.content)
+      expect(data.contentMap).toEqual({ en: data.content })
+      expect(data.contentMap).toEqual(delivered?.contentMap)
     }
   )
 

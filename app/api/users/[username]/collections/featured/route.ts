@@ -6,11 +6,11 @@ import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
 import {
   type StatusNote,
   type StatusPoll,
-  StatusType,
-  toActivityPubObject
+  StatusType
 } from '@/lib/types/domain/status'
 import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
 import { getLocalActorFeaturedCollectionId } from '@/lib/utils/activitypubId'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PINNED_STATUS_LOOKUP_BATCH_SIZE = MAX_PINNED_STATUSES * 4

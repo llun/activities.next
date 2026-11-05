@@ -9,15 +9,12 @@ import {
   AnnounceAction,
   CreateAction
 } from '@/lib/types/activitypub/activities'
-import {
-  Status,
-  StatusType,
-  toActivityPubObject
-} from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { activityPubResponse } from '@/lib/utils/activityPubContentNegotiation'
 import { getLocalActorOutboxId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const getPubliclyReadableActorStatuses = async (

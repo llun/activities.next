@@ -28,15 +28,12 @@ import {
 } from '@/lib/types/domain/attachment'
 import { Bookmark } from '@/lib/types/domain/bookmark'
 import { Follow } from '@/lib/types/domain/follow'
-import {
-  Status,
-  StatusType,
-  toActivityPubObject
-} from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { HostRuleConfig } from '@/lib/utils/host'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 
 export const MEDIA_ARCHIVE_DIR = 'media_attachments/files'
 export const REMOTE_MEDIA_ARCHIVE_DIR = 'media_attachments/remote'

@@ -1413,7 +1413,12 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
     `interactionPolicy` and the quote aliases unconditionally** — `getNoteFromStatus` for delivery,
     `toActivityPubObject` for fetch — so the rule binds every note-carrying surface, quote post or
     not.
-  - The same module's `addQuoteFallbackToContent` prepends Mastodon's legacy quote fallback — `<p
+  - **Both emitters build `content` through `getStatusWireContent` (`lib/utils/getStatusWireContent.ts`),**
+    converting stored Markdown with `convertMarkdownText` for local statuses (`isLocalActor`) so
+    fetched and delivered local Notes and poll Questions carry the same rendered HTML `content` (and
+    matching `contentMap`), while stored remote statuses (such as replies embedded in `/replies`)
+    keep their stored HTML unchanged (never sanitized on write; it is sanitized when read for display, the API or email).
+  - The same wire-content builder applies `addQuoteFallbackToContent`, which prepends Mastodon's legacy quote fallback — `<p
 class="quote-inline">RE: <a href="…">…</a></p>` — to both emitters' `content` and the Mastodon
     API status/edit serializers on a live (pending/accepted) edge, preferring the original status
     web url over the bare ActivityPub id, skipped when the content already carries the quoted url or

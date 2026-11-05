@@ -4,8 +4,8 @@ import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { type Actor } from '@/lib/types/domain/actor'
-import { toActivityPubObject } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 
 import { GET } from './route'
 
