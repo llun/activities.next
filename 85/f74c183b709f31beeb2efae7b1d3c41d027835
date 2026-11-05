@@ -1,0 +1,153 @@
+lib/utils/resizeImage.ts
+  s_293c63b326be76::t_16928d03198741 39-41
+lib/services/medias/servedMediaHeaders.ts
+  s_293c63b326be76::t_16928d03198741 14
+app/api/v2/media/route.test.ts
+  s_293c63b326be76::t_0b49f84cceda2b 142-172
+  s_293c63b326be76::t_c84f91ef2c63d1 6,173-174
+lib/components/admin/CustomEmojiManager.tsx
+  s_293c63b326be76::t_0b49f84cceda2b 164
+  s_2b1a50e2f9b981::t_7ad4ccbfac6ad3 22
+lib/services/medias/S3StorageFile.ts
+  s_293c63b326be76::t_6cf9c3d301f515 39,681-682,704-709,711-714,754-756,758-762,794-798,802-810,812,831-835,1089-1090,1098-1100
+  s_293c63b326be76::t_16928d03198741 710,715-716,770,845,1070-1072,1088,1092,1096-1097,1101,1119
+  s_2b1a50e2f9b981::t_749da51f7d2398 750-751
+lib/services/medias/constants.ts
+  s_293c63b326be76::t_16928d03198741 31-40
+lib/services/medias/storedImagePipeline.ts
+  s_293c63b326be76::t_6cf9c3d301f515 5,26-29
+  s_293c63b326be76::t_16928d03198741 30
+lib/services/medias/fileName.ts
+  s_293c63b326be76::t_16928d03198741 50-52
+lib/services/medias/storedImagePipeline.test.ts
+  s_293c63b326be76::t_6cf9c3d301f515 4,13-33
+lib/services/medias/S3StorageFile.completion.test.ts
+  s_293c63b326be76::t_6cf9c3d301f515 30-31,248-323
+  s_293c63b326be76::t_6d3c9bc2556387 324
+lib/services/medias/imageInput.test.ts
+  s_293c63b326be76::t_6cf9c3d301f515 2-41
+  s_293c63b326be76::t_2f474e9629048d 1,42-43
+lib/components/settings/uploadProfileImage.ts
+  s_293c63b326be76::t_16928d03198741 28
+lib/services/medias/localFile.ts
+  s_293c63b326be76::t_16928d03198741 290-292,312,316,319-322,326-327,335
+  s_293c63b326be76::t_6cf9c3d301f515 13,313-314,323-325
+lib/database/domains/media/writes.ts
+  s_293c63b326be76::t_16928d03198741 642-646
+lib/services/medias/presignedProbe.ts
+  s_293c63b326be76::t_6cf9c3d301f515 3,14-18,25-28
+  s_293c63b326be76::t_16928d03198741 77
+  s_293c63b326be76::t_107f95e79877d5 29
+lib/database/domains/media/types.ts
+  s_293c63b326be76::t_16928d03198741 17,219
+lib/services/medias/exif/readMediaExif.ts
+  s_293c63b326be76::t_6cf9c3d301f515 168-170,172-179,182-186
+  s_293c63b326be76::t_16928d03198741 2,4,165-167,171,180-181,187
+lib/services/medias/thumbnailInput.ts
+  s_293c63b326be76::t_6cf9c3d301f515 2
+  s_293c63b326be76::t_16928d03198741 18
+lib/services/medias/saveMediaFile.ts
+  s_293c63b326be76::t_16928d03198741 26,128
+  s_293c63b326be76::t_6cf9c3d301f515 167-169
+  s_293c63b326be76::t_01f16a1c100b18 23-25
+  s_293c63b326be76::t_500257abd3aaf4 165-166
+  s_2b1a50e2f9b981::t_b04eb1e4dd269d 22
+app/api/v1/files/[...pathname]/route.test.ts
+  s_293c63b326be76::t_0b49f84cceda2b 229-230
+lib/services/accountImport/phases.ts
+  s_293c63b326be76::t_0b49f84cceda2b 971-972,975,1677-1679
+lib/services/medias/uploadImage.fixture.ts
+  s_293c63b326be76::t_6cf9c3d301f515 8-33
+  s_293c63b326be76::t_c76e5c9268c398 1-7,34-35
+lib/services/strava/activity.test.ts
+  s_2b1a50e2f9b981::t_181d0201071712 592-595
+lib/services/medias/S3StorageFile.saveFile.test.ts
+  s_293c63b326be76::t_0b49f84cceda2b 951,1006
+  s_293c63b326be76::t_6cf9c3d301f515 32-34,936-950,952-995,1004-1005,1007-1026
+  s_293c63b326be76::t_f6e5dadfb160dc 996-998,1001-1003
+  s_293c63b326be76::t_4a9065a2912b76 1027
+  s_2b1a50e2f9b981::t_01e96ec06ddaf8 999-1000
+lib/services/medias/exif/readMediaExif.test.ts
+  s_293c63b326be76::t_6cf9c3d301f515 9,42-53
+  s_293c63b326be76::t_76bae1b65d3490 54
+lib/services/medias/localFile.test.ts
+  s_293c63b326be76::t_6cf9c3d301f515 247-293,295-303,308-332
+  s_293c63b326be76::t_4ce8a9aa45cbe1 294
+  s_293c63b326be76::t_f0385a48b139a5 304-307
+  s_293c63b326be76::t_f86142ecda0c8a 333
+  s_2b1a50e2f9b981::t_63f20362da5f82 18-19
+lib/services/medias/imageInput.ts
+  s_293c63b326be76::t_16928d03198741 1-21,25-27,31-32,36-37,41-44,55-57
+  s_293c63b326be76::t_6cf9c3d301f515 22-24,28-30,33-35,38-40,45-54
+lib/services/medias/edit/editable.test.ts
+  s_293c63b326be76::t_6cf9c3d301f515 28-32
+  s_2b1a50e2f9b981::t_0714d5569c9f76 3-9,71-82
+lib/services/medias/edit/editable.ts
+  s_293c63b326be76::t_16928d03198741 23
+app/api/v1/instance/route.test.ts
+  s_293c63b326be76::t_69cacdc270c3d4 99-111
+app/api/v1/media/route.test.ts
+  s_293c63b326be76::t_4a022beb8beb0d 8,80,88,122-154
+app/api/v2/instance/route.test.ts
+  s_293c63b326be76::t_c4613d5831c553 65-77
+docs/architecture.md
+  s_293c63b326be76::t_eaf3f4da6c053b 907-926,946-947,955-970,978-979
+docs/maintenance.md
+  s_293c63b326be76::t_8e7816c325112f 1009-1010,1056-1059
+docs/mastodon-api-compatibility.md
+  s_293c63b326be76::t_fa0ef29303fe9e 333-341
+lib/components/settings/ImageUploadField.test.tsx
+  s_293c63b326be76::t_11bd6f6390fa4e 46-68
+lib/components/settings/profile/ProfileImageField.test.tsx
+  s_293c63b326be76::t_2b5a126a4f5b92 112-126,129,132-134
+lib/components/settings/uploadProfileImage.test.ts
+  s_293c63b326be76::t_c9294c9bf45e51 18-31,33,37-39
+lib/database/domains/media/media.test.ts
+  s_293c63b326be76::t_5b528ac4127e32 340,350
+lib/services/accountImport/phases.test.ts
+  s_293c63b326be76::t_9b918a9e7531a5 27,909,928-933,958-977
+lib/types/domain/attachment.test.ts
+  s_293c63b326be76::t_e452a7060ee5ac 94-106
+lib/utils/resizeImage.test.ts
+  s_293c63b326be76::t_b31bef86160339 124-135
+app/api/v1/accounts/update_credentials/route.test.ts
+  s_2b1a50e2f9b981::t_bc9a8af81adb79 9,505-559
+app/api/v1/medias/presigned/route.test.ts
+  s_2b1a50e2f9b981::t_e65140c482f4ab 128,137,142-159
+lib/services/medias/edit/saveMediaEdit.ts
+  s_2b1a50e2f9b981::t_5febe0d1b4eeb4 189-192
+lib/services/medias/getMediaAttachment.ts
+  s_2b1a50e2f9b981::t_0d23ccb5585b3d 20-22
+lib/services/medias/readStoredMedia.test.ts
+  s_2b1a50e2f9b981::t_5e9dafc89725a6 23,27,30
+lib/services/medias/readStoredMedia.ts
+  s_2b1a50e2f9b981::t_960fa97e6dfa35 29
+lib/services/medias/saveMediaFileDetails.test.ts
+  s_2b1a50e2f9b981::t_dc53832fe3d5fa 15-16,183-225
+lib/types/domain/attachment.ts
+  s_2b1a50e2f9b981::t_78124ba3160120 175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85f74c183b709f31beeb2efae7b1d3c41d027835",
+  "prompts": {},
+  "sessions": {
+    "s_293c63b326be76": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a911-352b-7722-bf80-e45f6e218262",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
