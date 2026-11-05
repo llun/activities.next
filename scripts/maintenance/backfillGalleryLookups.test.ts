@@ -382,6 +382,17 @@ describe('runBackfill', () => {
     const sleep = vi.fn(async (ms: number) => {
       now += ms
     })
+    // 10: needs both lookups, after the give-up.
+    await testDb
+      .insertInto('medias')
+      .values({
+        actorId: 'c',
+        placeLatitude: 9,
+        placeLongitude: 10,
+        subjectName: 'Heron',
+        subjectCategory: 'bird'
+      })
+      .execute()
     // Every attempt fails and opens the circuit again: it never closes for
     // long enough to succeed.
     vi.mocked(resolveMediaPlaceJob).mockImplementation(async () => {
@@ -398,11 +409,11 @@ describe('runBackfill', () => {
       MAX_CONSECUTIVE_OUTAGES * 2
     )
     expect(summary.gaveUp).toEqual(['Nominatim'])
-    // Photo 9 still needs its place and was never asked, so the reported
-    // resume point stops before it, and the scan ends there.
+    // Photos 9 and 10 still need their places and were never asked, so the
+    // reported resume point stays before 9.
     expect(summary.lastIdExamined).toBe(8)
-    // The subject lookups still ran.
-    expect(resolveMediaSubjectJob).toHaveBeenCalledTimes(2)
+    // The subject lookups still ran, photo 10's after the give-up too.
+    expect(resolveMediaSubjectJob).toHaveBeenCalledTimes(3)
     expect(log).toHaveBeenCalledWith(
       expect.stringMatching(/^Gave up on Nominatim: 3 lookups in a row failed/)
     )

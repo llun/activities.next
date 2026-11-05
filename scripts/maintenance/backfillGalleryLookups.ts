@@ -379,6 +379,15 @@ export const runBackfill = async ({
         done = true
         break
       }
+      // Every provider this run uses is given up: nothing after this row can
+      // be looked up either, so stop instead of scanning to the end.
+      if (
+        (options.only === 'subjects' || hasGivenUp('Nominatim')) &&
+        (options.only === 'places' || hasGivenUp('GBIF'))
+      ) {
+        done = true
+        break
+      }
       const needsPlace = options.only !== 'subjects' && needsPlaceLookup(row)
       const needsSubject =
         options.only !== 'places' &&
@@ -388,13 +397,6 @@ export const runBackfill = async ({
       const wantsSubject = needsSubject && !hasGivenUp('GBIF')
       const skipsGivenUp =
         (needsPlace && !wantsPlace) || (needsSubject && !wantsSubject)
-      if (skipsGivenUp && !wantsPlace && !wantsSubject) {
-        // Nothing left this run can do for this row or, once every provider
-        // it needs is given up, for the rows after it: stop here so the
-        // reported last id never passes a row that was not attempted.
-        done = true
-        break
-      }
       afterId = Number(row.id)
       // A row skipped for a given-up provider must be visited again, so the
       // resume point stays before the first one.
