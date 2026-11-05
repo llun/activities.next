@@ -1,0 +1,31 @@
+lib/database/domains/status/types.ts
+  s_2b1a50e2f9b981::t_4c8209aa30c213 302-305
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_4a8d5b599eda51 2091-2102
+lib/database/domains/status/edits.ts
+  s_2b1a50e2f9b981::t_4c8209aa30c213 549,554-602,604-621,688,703,705
+lib/services/polls/syncRemotePoll.test.ts
+  s_2b1a50e2f9b981::t_b639eff11577e3 304-306,308-311,344-349,391
+  s_2b1a50e2f9b981::t_dca3aaa8a7d8fd 152,446
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_2b1a50e2f9b981::t_24b71746108b27 2957-3019
+  s_2b1a50e2f9b981::t_d17caaec939177 456-459,2719,2787,2816,2869
+lib/services/polls/syncRemotePoll.ts
+  s_2b1a50e2f9b981::t_d69056c53715b0 137,141-151,180-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6871b6ef92cedce7e3c46c0ecd7e394dd56065af",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
