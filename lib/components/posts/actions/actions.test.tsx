@@ -128,9 +128,11 @@ const gearItem: PostMenuExtraItem = {
 // A thin harness so the row gets the same `ReactionState` a real surface hands
 // it — the hook has to run inside a component.
 const ActionsHarness = ({
-  extraMenuItems
+  extraMenuItems,
+  isPinned
 }: {
   extraMenuItems?: PostMenuExtraItem[]
+  isPinned?: boolean
 }) => {
   const reactionState = useReactionState({ currentActor: actor, status })
   return (
@@ -143,6 +145,7 @@ const ActionsHarness = ({
       editable
       reactionState={reactionState}
       extraMenuItems={extraMenuItems}
+      isPinned={isPinned}
       onShowAttachment={vi.fn()}
     />
   )
@@ -178,6 +181,18 @@ describe('Actions', () => {
 
       await openMenu()
       expect(preloadReactionPicker).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('pinned posts', () => {
+    it('tells the ⋯ menu a post shown as pinned is pinned', async () => {
+      observeWidth(900)
+      render(<ActionsHarness isPinned />)
+
+      const menu = await openMenu()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Unpin from profile' })
+      ).not.toHaveAttribute('aria-disabled', 'true')
     })
   })
 

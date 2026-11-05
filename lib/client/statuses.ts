@@ -888,6 +888,31 @@ export const undoBookmarkStatus = async ({ statusId }: DefaultStatusParams) => {
   return response.status === 200
 }
 
+export interface PinStatusResult {
+  ok: boolean
+  /** The HTTP status, e.g. 422 for the pin limit. */
+  status: number
+}
+
+const setStatusPinned = async (
+  statusId: string,
+  action: 'pin' | 'unpin'
+): Promise<PinStatusResult> => {
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/${action}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+  )
+  return { ok: response.ok, status: response.status }
+}
+
+/** @see https://docs.joinmastodon.org/methods/statuses/#pin */
+export const pinStatus = ({ statusId }: DefaultStatusParams) =>
+  setStatusPinned(statusId, 'pin')
+
+/** @see https://docs.joinmastodon.org/methods/statuses/#unpin */
+export const unpinStatus = ({ statusId }: DefaultStatusParams) =>
+  setStatusPinned(statusId, 'unpin')
+
 /**
  * Unfavourites/unlikes a status using Mastodon-compatible API
  * @see https://docs.joinmastodon.org/methods/statuses/#unfavourite

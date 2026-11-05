@@ -21,6 +21,7 @@ import {
   getTranslationCapability,
   getTranslationLanguages,
   likeStatus,
+  pinStatus,
   reactToStatus,
   reconcileCachedStatuses,
   repostStatus,
@@ -32,6 +33,7 @@ import {
   undoBookmarkStatus,
   undoLikeStatus,
   undoRepostStatus,
+  unpinStatus,
   unreactFromStatus,
   updateNote,
   updateStatusInteractionPolicy,
@@ -977,6 +979,55 @@ describe('client statuses module', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         })
+      )
+    })
+  })
+
+  describe.each([
+    {
+      name: 'pinStatus',
+      call: (statusId: string) => pinStatus({ statusId }),
+      action: 'pin'
+    },
+    {
+      name: 'unpinStatus',
+      call: (statusId: string) => unpinStatus({ statusId }),
+      action: 'unpin'
+    }
+  ])('$name', ({ call, action }) => {
+    it('reports success with the status', async () => {
+      fetchMock.mockResponse('{}', { status: 200 })
+
+      await expect(call('status-1')).resolves.toEqual({ ok: true, status: 200 })
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/statuses/status-1/${action}`,
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('reports a refusal with its status, e.g. the pin limit', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Unprocessable entity' }),
+        {
+          status: 422
+        }
+      )
+
+      await expect(call('status-1')).resolves.toEqual({
+        ok: false,
+        status: 422
+      })
+    })
+
+    it('encodes full status URLs', async () => {
+      fetchMock.mockResponse('{}', { status: 200 })
+      const statusId = 'https://remote.example/users/actor/statuses/post-1'
+
+      await call(statusId)
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/statuses/${urlToId(statusId)}/${action}`,
+        expect.objectContaining({ method: 'POST' })
       )
     })
   })

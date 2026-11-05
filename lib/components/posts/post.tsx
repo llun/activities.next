@@ -1,6 +1,6 @@
 'use client'
 
-import { Repeat2 } from 'lucide-react'
+import { Pin, Repeat2 } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
@@ -85,7 +85,16 @@ export interface PostProps {
    * be lazy). A `focused` post always does.
    */
   prioritizeMedia?: boolean
+  isPinned?: boolean
 }
+
+// The same line as BoostStatus's, for a post pinned to its author's profile.
+export const PinnedStatus: FC = () => (
+  <div className="flex items-center gap-2 mb-1 text-sm text-muted-foreground ml-12">
+    <Pin className="size-4" />
+    <span>Pinned</span>
+  </div>
+)
 
 interface BoostStatusProps {
   status: Status
@@ -171,6 +180,7 @@ export const Post: FC<PostProps> = (props) => {
       inline={inlineTranslation}
     >
       <div className="flex min-h-0 min-w-0 flex-col gap-1">
+        {props.isPinned && <PinnedStatus />}
         <BoostStatus status={status} />
         {props.showReplyContext && (
           <StatusContextIndicator

@@ -145,6 +145,25 @@ describe('ActorTimelines tab visibility', () => {
     expect(screen.queryByTestId('mock-gallery-tab')).not.toBeInTheDocument()
   })
 
+  it('keeps the pinned posts when every optional tab is hidden', () => {
+    renderTimelines({
+      statuses: [],
+      pinnedStatuses: [createStatus('https://llun.test/statuses/pinned')],
+      tabVisibility: {
+        replies: false,
+        media: false,
+        gallery: false,
+        fitness: false
+      }
+    })
+
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('https://llun.test/statuses/pinned')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No posts yet')).not.toBeInTheDocument()
+  })
+
   describe('a media-only profile', () => {
     it('opens on the media grid while the Media tab is shown', async () => {
       renderTimelines({

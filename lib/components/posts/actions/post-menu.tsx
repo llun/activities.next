@@ -13,6 +13,8 @@ import {
   MessageSquareQuote,
   MoreHorizontal,
   Pencil,
+  Pin,
+  PinOff,
   Trash2,
   TriangleAlert,
   Unlock,
@@ -34,8 +36,11 @@ import {
 
 import {
   getRelationship,
+  getStatusById,
+  pinStatus,
   unblock,
   unmute,
+  unpinStatus,
   updateStatusInteractionPolicy,
   updateStatusVisibility
 } from '@/lib/client'
@@ -53,6 +58,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
+import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
 import {
   EditableStatus,
@@ -182,6 +188,12 @@ interface Props {
   isOwner: boolean
   canEdit: boolean
   /**
+   * The post is shown as pinned (the profile's pinned list), so the menu
+   * starts from that instead of reading it. The read cannot tell for a direct
+   * post: the API omits `pinned` on a post that is not pinnable.
+   */
+  isPinned?: boolean
+  /**
    * Lets the caller anchor an overlay to the ⋯ trigger — the reaction picker
    * uses it when the row is compact and the picker is opened from this menu.
    */
@@ -218,6 +230,7 @@ export const PostMenu: FC<Props> = ({
   status,
   isOwner,
   canEdit,
+  isPinned: knownPinned = false,
   triggerRef,
   extraItems,
   onMenuOpen,
@@ -263,6 +276,12 @@ export const PostMenu: FC<Props> = ({
   )
   const [quotePolicySaving, setQuotePolicySaving] = useState(false)
 
+  // Whether the owner has pinned this post is read when the menu opens; the
+  // item stays disabled until then so it never offers the wrong action.
+  const [isPinned, setIsPinned] = useState(knownPinned)
+  const [pinnedLoaded, setPinnedLoaded] = useState(knownPinned)
+  const [pinSaving, setPinSaving] = useState(false)
+
   useEffect(() => {
     if (!copied) return
     const timeoutId = setTimeout(() => setCopied(false), 1500)
@@ -288,6 +307,19 @@ export const PostMenu: FC<Props> = ({
       }
     } catch {
       // Leave relationshipLoaded false so the next menu open retries.
+    }
+  }
+
+  const loadPinnedState = async () => {
+    if (!isOwner || pinnedLoaded) return
+    try {
+      const next = await getStatusById(status.id)
+      if (next) {
+        setIsPinned(Boolean(next.pinned))
+        setPinnedLoaded(true)
+      }
+    } catch {
+      // Leave pinnedLoaded false so the next menu open retries.
     }
   }
 
@@ -368,6 +400,39 @@ export const PostMenu: FC<Props> = ({
       router.refresh()
     } catch {
       setActionError('Failed to unblock account. Please try again.')
+    }
+  }
+
+  const handlePinToggle = async () => {
+    if (pinSaving) return
+    setPinSaving(true)
+    setActionError(null)
+    try {
+      const result = isPinned
+        ? await unpinStatus({ statusId: status.id })
+        : await pinStatus({ statusId: status.id })
+      if (result.ok) {
+        setIsPinned(!isPinned)
+        setPinnedLoaded(true)
+        router.refresh()
+      } else {
+        // The pin route answers the pin limit with a bare 422.
+        setActionError(
+          !isPinned && result.status === 422
+            ? `You can pin up to ${MAX_PINNED_STATUSES} posts. Unpin one first.`
+            : isPinned
+              ? "Couldn't unpin post. Please try again."
+              : "Couldn't pin post. Please try again."
+        )
+      }
+    } catch {
+      setActionError(
+        isPinned
+          ? "Couldn't unpin post. Please try again."
+          : "Couldn't pin post. Please try again."
+      )
+    } finally {
+      setPinSaving(false)
     }
   }
 
@@ -467,6 +532,7 @@ export const PostMenu: FC<Props> = ({
           if (open) {
             onMenuOpen?.()
             void loadRelationship()
+            void loadPinnedState()
           }
         }}
       >
@@ -534,6 +600,28 @@ export const PostMenu: FC<Props> = ({
                   >
                     <Pencil className="size-4" />
                     Edit post
+                  </DropdownMenuItem>
+                ) : null}
+                {/* A direct post cannot be pinned, but one pinned before it
+                    became direct can still be unpinned. */}
+                {visibility !== 'direct' || isPinned ? (
+                  <DropdownMenuItem
+                    disabled={pinSaving || !pinnedLoaded}
+                    onSelect={() => {
+                      void handlePinToggle()
+                    }}
+                  >
+                    {isPinned ? (
+                      <>
+                        <PinOff className="size-4" />
+                        Unpin from profile
+                      </>
+                    ) : (
+                      <>
+                        <Pin className="size-4" />
+                        Pin to profile
+                      </>
+                    )}
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuSub>

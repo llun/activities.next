@@ -38,6 +38,8 @@ interface Props {
   showReadOnlyStats?: boolean
   currentTime: number
   statuses: Status[]
+  /** Every row is a pinned post: each gets the Pinned line. */
+  isPinned?: boolean
   /**
    * The list's first picture is the page's likely largest contentful paint:
    * reveal it without the hydration fade (and load it eagerly only where it
@@ -104,6 +106,7 @@ export const Posts: FC<Props> = ({
   showReadOnlyStats = false,
   currentTime,
   statuses,
+  isPinned,
   prioritizeFirstMedia = false,
   isMediaUploadEnabled,
   postLineLimit,
@@ -182,6 +185,7 @@ export const Posts: FC<Props> = ({
             key={status.id}
             className="first:rounded-t-lg last:rounded-b-lg"
             status={status}
+            isPinned={isPinned}
             prioritizeMedia={index === prioritizedRowIndex}
             host={host}
             currentTime={currentTime}
