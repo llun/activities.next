@@ -70,7 +70,12 @@ const DISABLED_AUTH_PATHS = [
   '/reset-password',
   '/reset-password/:token',
   '/send-verification-email',
-  '/verify-password'
+  '/verify-password',
+  // The app's own /api/v1/accounts/password and /api/v1/accounts/email routes
+  // (with their account-keyed limits) are the only change flows; these core
+  // ones would let a session guess the current password around those limits.
+  '/change-password',
+  '/change-email'
 ] as const
 
 let hasWarnedMissingAuthClientIp = false

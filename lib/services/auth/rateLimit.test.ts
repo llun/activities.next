@@ -247,6 +247,16 @@ describe('better-auth rate limits', () => {
       body: { password: PASSWORD }
     },
     {
+      method: 'POST' as const,
+      path: '/change-password',
+      body: { currentPassword: PASSWORD, newPassword: 'another-password-1' }
+    },
+    {
+      method: 'POST' as const,
+      path: '/change-email',
+      body: { newEmail: 'other@example.com' }
+    },
+    {
       method: 'GET' as const,
       path: '/token',
       body: {}
