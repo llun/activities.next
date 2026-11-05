@@ -27,6 +27,7 @@ describe('Fitness Layout', () => {
     ['/fitness/gear', 'Gear'],
     ['/fitness/heatmap', 'Heatmaps'],
     ['/fitness/files', 'Files'],
+    ['/fitness/zones', 'Zones'],
     ['/fitness/privacy', 'Privacy'],
     ['/fitness/connections', 'Connections'],
     ['/fitness/connections/strava', 'Connections'],
@@ -75,6 +76,7 @@ describe('Fitness Layout', () => {
       'Gear',
       'Heatmaps',
       'Files',
+      'Zones',
       'Privacy',
       'Connections'
     ]) {

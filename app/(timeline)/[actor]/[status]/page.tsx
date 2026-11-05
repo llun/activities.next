@@ -23,6 +23,7 @@ import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
+import { getTrainingZoneSettings } from '@/lib/services/fitness-files/trainingZoneSettings'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import {
@@ -497,11 +498,13 @@ const Page: FC<Props> = async ({ params }) => {
     : null
 
   if (isFitnessDashboard) {
-    const fitnessFiles = await getStatusFitnessFiles(
-      database,
-      statusForLayout.id,
-      currentTime
-    )
+    const [fitnessFiles, trainingZones] = await Promise.all([
+      getStatusFitnessFiles(database, statusForLayout.id, currentTime),
+      // The zone charts use the author's zones; a remote author has none here.
+      statusForLayout.isLocalActor
+        ? getTrainingZoneSettings(database, statusForLayout.actorId)
+        : null
+    ])
 
     return (
       <>
@@ -589,6 +592,7 @@ const Page: FC<Props> = async ({ params }) => {
               hasMoreAncestors={hasMoreAncestors}
               hasMoreDescendants={hasMoreDescendants}
               fitnessFiles={fitnessFiles}
+              trainingZones={trainingZones}
             />
           </div>
 

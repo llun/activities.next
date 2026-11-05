@@ -42,6 +42,11 @@ export interface FitnessSettings {
   // Route map description
   generateRouteDescription?: boolean
 
+  // Training zone inputs (general row only), see lib/fitness/trainingZones.ts
+  maxHeartRate?: number
+  restingHeartRate?: number
+  functionalThresholdPower?: number
+
   createdAt: number
   updatedAt: number
   deletedAt?: number | null

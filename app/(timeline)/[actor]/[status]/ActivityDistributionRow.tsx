@@ -1,4 +1,4 @@
-import { BarChart3, HeartPulse, TrendingUp } from 'lucide-react'
+import { BarChart3, Gauge, HeartPulse, TrendingUp } from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
 import { ANALYSIS_SERIES_COLOURS } from '@/lib/components/fitness/palette'
@@ -246,6 +246,15 @@ const PowerCurveChart: FC<{ curve: PowerEffort[] }> = ({ curve }) => {
 
 export interface ActivityDistributionRowProps {
   heartRateZones: HeartRateZone[]
+  /** The heart-rate zones are the default ones, not the author's. */
+  isDefaultHeartRateZones?: boolean
+  /** Time in the author's power zones; empty when they set no FTP. */
+  powerZones?: HeartRateZone[]
+  /**
+   * Show the zones' numeric ranges. Off for personal zones seen by anyone but
+   * the author, since the ranges give away their max heart rate and FTP.
+   */
+  showZoneRanges?: boolean
   heartRateStats: HeartRateStats | null
   powerDistribution: PowerDistribution
   avgPower: number | null
@@ -254,12 +263,16 @@ export interface ActivityDistributionRowProps {
 }
 
 /**
- * Heart-rate zones, the power distribution and the power curve side by side:
- * three across a desktop column, two over one on a tablet, stacked on a phone.
- * Each is left out when the file has nothing to draw it from.
+ * Heart-rate zones, power zones (when the author set an FTP), the power
+ * distribution and the power curve side by side: three across a desktop
+ * column, two across on a tablet, stacked on a phone. Each is left out when
+ * the file has nothing to draw it from.
  */
 export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
   heartRateZones,
+  isDefaultHeartRateZones = true,
+  powerZones = [],
+  showZoneRanges = true,
   heartRateStats,
   powerDistribution,
   avgPower,
@@ -267,9 +280,10 @@ export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
   powerCurve
 }) => {
   const hasZones = heartRateZones.some((zone) => zone.seconds > 0)
+  const hasPowerZones = powerZones.some((zone) => zone.seconds > 0)
   const hasDistribution = powerDistribution.bins.length > 0
   const hasCurve = powerCurve.length >= 2
-  if (!hasZones && !hasDistribution && !hasCurve) return null
+  if (!hasZones && !hasPowerZones && !hasDistribution && !hasCurve) return null
 
   return (
     <div
@@ -287,8 +301,26 @@ export const ActivityDistributionRow: FC<ActivityDistributionRowProps> = ({
           }
           className="min-w-0"
         >
+          <Frame className="space-y-2.5 px-3.5 py-3">
+            <HeartRateZonesPanel
+              zones={heartRateZones}
+              // The default zones are no one's own numbers.
+              showRanges={showZoneRanges || isDefaultHeartRateZones}
+            />
+            {isDefaultHeartRateZones ? (
+              <p className="text-xs text-muted-foreground">Default zones</p>
+            ) : null}
+          </Frame>
+        </Section>
+      ) : null}
+      {hasPowerZones ? (
+        <Section title="Power zones" icon={Gauge} className="min-w-0">
           <Frame className="px-3.5 py-3">
-            <HeartRateZonesPanel zones={heartRateZones} />
+            <HeartRateZonesPanel
+              zones={powerZones}
+              unit="W"
+              showRanges={showZoneRanges}
+            />
           </Frame>
         </Section>
       ) : null}

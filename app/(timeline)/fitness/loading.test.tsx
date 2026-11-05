@@ -14,6 +14,7 @@ import GearLoading from './gear/[id]/loading'
 import GearListLoading from './gear/loading'
 import HeatmapLoading from './heatmap/loading'
 import PrivacyLoading from './privacy/loading'
+import ZonesLoading from './zones/loading'
 
 // The section layouts wrap their pages in this provider, which makes a page's
 // own title an h2 under the layout's one h1.
@@ -29,6 +30,7 @@ describe.each([
   ['a gear', GearLoading],
   ['files', FilesLoading],
   ['heatmaps', HeatmapLoading],
+  ['zones', ZonesLoading],
   ['privacy', PrivacyLoading],
   ['connections', ConnectionsLoading]
 ])('fitness %s loading', (_screen, Loading) => {

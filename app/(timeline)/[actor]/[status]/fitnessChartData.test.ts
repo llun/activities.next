@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
+import { DEFAULT_HEART_RATE_ZONES } from '@/lib/fitness/trainingZones'
+
 import {
   DEFAULT_TICK_COUNT,
-  HEART_RATE_ZONES,
   buildGappedChartPaths,
   buildXAxisLabels,
   clampNumber,
@@ -131,7 +132,7 @@ describe('fitnessChartData', () => {
 
   describe('heart rate calculations and dropout treatment', () => {
     it('computes heart rate training zones for empty and normal series', () => {
-      expect(HEART_RATE_ZONES).toHaveLength(5)
+      expect(DEFAULT_HEART_RATE_ZONES).toHaveLength(5)
       const emptyZones = computeHeartRateZones([], 1800)
       expect(emptyZones).toHaveLength(5)
       expect(emptyZones.every((z) => z.seconds === 0 && z.pct === 0)).toBe(true)

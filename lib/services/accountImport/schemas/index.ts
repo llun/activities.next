@@ -726,6 +726,10 @@ export const ownFitnessSettingsSchema = z
       .enum(['public', 'unlisted', 'private', 'direct'])
       .nullable(),
     generateRouteDescription: z.boolean(),
+    // Training zones; older archives have none.
+    maxHeartRate: finiteNumber.nullable().optional(),
+    restingHeartRate: finiteNumber.nullable().optional(),
+    functionalThresholdPower: finiteNumber.nullable().optional(),
     createdAt: timestamp,
     updatedAt: timestamp
   })

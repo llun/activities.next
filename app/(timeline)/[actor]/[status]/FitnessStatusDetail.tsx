@@ -20,6 +20,11 @@ import { Alert } from '@/lib/components/surface/Alert'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
+import {
+  type TrainingZoneSettings,
+  getHeartRateZones,
+  getPowerZones
+} from '@/lib/fitness/trainingZones'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote } from '@/lib/types/domain/status'
@@ -85,6 +90,11 @@ interface Props {
   hasMoreDescendants?: boolean
   isMediaUploadEnabled?: boolean
   initialFitnessFiles?: StatusFitnessFileItem[]
+  /**
+   * The status author's own zone inputs (their general fitness settings), or
+   * null when they set none or are not on this server.
+   */
+  trainingZones?: TrainingZoneSettings | null
   onShowAttachment: (allMedias: Attachment[], selectedIndex: number) => void
 }
 
@@ -300,6 +310,7 @@ export const FitnessStatusDetail: FC<Props> = ({
   hasMoreDescendants = false,
   isMediaUploadEnabled,
   initialFitnessFiles,
+  trainingZones = null,
   onShowAttachment
 }) => {
   // The activity's conversation, with "Load earlier posts" above it and "Load
@@ -360,6 +371,17 @@ export const FitnessStatusDetail: FC<Props> = ({
   }, [fitness?.id, scrubStore])
 
   const activityType = fitness?.activityType ?? null
+  const maxHeartRate = trainingZones?.maxHeartRate
+  const restingHeartRate = trainingZones?.restingHeartRate
+  const functionalThresholdPower = trainingZones?.functionalThresholdPower
+  const personalHeartRateZones = useMemo(
+    () => getHeartRateZones({ maxHeartRate, restingHeartRate }),
+    [maxHeartRate, restingHeartRate]
+  )
+  const personalPowerZones = useMemo(
+    () => getPowerZones({ functionalThresholdPower }),
+    [functionalThresholdPower]
+  )
   const analysis = useMemo(
     () =>
       route.data
@@ -368,7 +390,9 @@ export const FitnessStatusDetail: FC<Props> = ({
             activityType,
             fallbackDurationSeconds: fitness?.totalDurationSeconds ?? 0,
             movingTimeSeconds: fitness?.movingTimeSeconds ?? null,
-            skipPauses: !showPauses
+            skipPauses: !showPauses,
+            heartRateZones: personalHeartRateZones ?? undefined,
+            powerZones: personalPowerZones
           })
         : null,
     [
@@ -376,7 +400,9 @@ export const FitnessStatusDetail: FC<Props> = ({
       activityType,
       fitness?.totalDurationSeconds,
       fitness?.movingTimeSeconds,
-      showPauses
+      showPauses,
+      personalHeartRateZones,
+      personalPowerZones
     ]
   )
 
@@ -1043,6 +1069,10 @@ export const FitnessStatusDetail: FC<Props> = ({
             <ActivityBestEfforts efforts={analysis.bestEfforts} />
             <ActivityDistributionRow
               heartRateZones={heartRateZones}
+              isDefaultHeartRateZones={!personalHeartRateZones}
+              powerZones={analysis.powerZones}
+              // Personal bounds give away the author's max HR and FTP.
+              showZoneRanges={isOwner}
               heartRateStats={heartRateStats}
               powerDistribution={analysis.powerDistribution}
               avgPower={avgPower}

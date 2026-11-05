@@ -185,7 +185,10 @@ describe('account export readers', () => {
         privacyHomeLatitude: 13.7,
         privacyHomeLongitude: 100.5,
         privacyHideRadiusMeters: 200,
-        defaultVisibility: 'private'
+        defaultVisibility: 'private',
+        maxHeartRate: 186,
+        restingHeartRate: 52,
+        functionalThresholdPower: 260
       })
       .execute()
 
@@ -205,7 +208,11 @@ describe('account export readers', () => {
       serviceType: 'strava',
       privacyHideRadiusMeters: 200,
       defaultVisibility: 'private',
-      privacyLocations: []
+      privacyLocations: [],
+      // The training zones go with the archive.
+      maxHeartRate: 186,
+      restingHeartRate: 52,
+      functionalThresholdPower: 260
     })
   })
 
