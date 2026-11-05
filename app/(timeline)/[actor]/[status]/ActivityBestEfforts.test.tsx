@@ -16,14 +16,14 @@ const efforts = [
 
 describe('ActivityBestEfforts', () => {
   it('wraps the PR badge under the watts in a narrow strip cell', () => {
-    const { container } = render(
-      <ActivityBestEfforts efforts={efforts} recordDurations={[300]} />
-    )
-    const strip = container.querySelector('#best-efforts .hidden')
-    expect(strip).not.toBeNull()
+    render(<ActivityBestEfforts efforts={efforts} recordDurations={[300]} />)
 
-    const value = within(strip as HTMLElement).getByText('320 W')
+    const value = screen.getByTestId('personal-record-value')
     expect(value.className).toContain('flex-wrap')
+    // The watts never split across lines, only the badge wraps.
+    expect(within(value).getByText('320 W').className).toContain(
+      'whitespace-nowrap'
+    )
     expect(value).toContainElement(within(value).getByText('PR'))
     expect(screen.getAllByText('PR')).toHaveLength(2)
   })

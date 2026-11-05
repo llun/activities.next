@@ -59,8 +59,11 @@ export const ActivityBestEfforts: FC<{
               isRecord(effort) ? (
                 // Wraps the badge under the watts when a narrow cell (five
                 // columns from 521 px) has no room beside them.
-                <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
-                  {effort.watts} W
+                <span
+                  data-testid="personal-record-value"
+                  className="inline-flex flex-wrap items-baseline gap-x-1.5"
+                >
+                  <span className="whitespace-nowrap">{effort.watts} W</span>
                   <PersonalRecordBadge />
                 </span>
               ) : (
