@@ -1384,6 +1384,18 @@ const STATEMENTS: StatementNames = [
   [/^select "id", "url" from "statuses"/, () => 'read parents'],
   [/^insert into "counters" .* on conflict/, (b) => `decrease ${b[0]}`],
   [/^select "statusId", "name" from "tags"/, () => 'read hashtags'],
+  [
+    /^select "id", "statusId", "actorId", "mediaId" from "attachments" where "statusId" in/,
+    () => 'read deleted attachment media'
+  ],
+  [
+    /^insert into "deleted_attachment_media"/,
+    () => 'record deleted attachment media'
+  ],
+  [
+    /^delete from "deleted_attachment_media" where "createdAt" </,
+    () => 'prune deleted attachment media'
+  ],
   [/^delete from "(\w+)" where "statusId" in/, () => ''],
   [/^update "status_quotes" set/, () => 'tombstone quotes'],
   // By file first: its subquery has a `"statusId" in` too.
@@ -1468,6 +1480,8 @@ describe('statements', () => {
     'delete likes',
     'delete status_reactions',
     'delete tags',
+    'read deleted attachment media',
+    'prune deleted attachment media',
     'delete attachments',
     'delete bookmarks',
     'delete status_pins',

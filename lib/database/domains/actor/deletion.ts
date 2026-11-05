@@ -646,8 +646,12 @@ export const deleteActorData = async (
       .execute()
     await trx.deleteFrom('poll_voters').where('actorId', '=', actorId).execute()
 
-    // Delete attachments created by this actor
+    // Delete attachments and redraft media mappings created by this actor
     await trx.deleteFrom('attachments').where('actorId', '=', actorId).execute()
+    await trx
+      .deleteFrom('deleted_attachment_media')
+      .where('actorId', '=', actorId)
+      .execute()
 
     // Delete the actor's gallery albums before their media (SQLite runs
     // without the foreign keys that cascade these on PostgreSQL).

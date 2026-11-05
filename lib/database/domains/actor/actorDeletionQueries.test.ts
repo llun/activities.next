@@ -689,6 +689,7 @@ const OWN_TABLES = [
   'poll_answers',
   'poll_voters',
   'attachments',
+  'deleted_attachment_media',
   'gallery_album_items',
   'gallery_albums',
   'medias',
@@ -963,6 +964,23 @@ const seedWorld = async () => {
   const n2Media = await seedMedia(n2.id, n2.accountId, 50, 5)
   await seedEditFile(n2Media, n2.id, 3)
   await seedAlbum(n2.id, n2Media)
+  await db()
+    .insertInto('deleted_attachment_media')
+    .values([
+      {
+        attachmentId: randomUUID(),
+        actorId: T,
+        mediaId: media,
+        createdAt: at
+      },
+      {
+        attachmentId: randomUUID(),
+        actorId: n2.id,
+        mediaId: n2Media,
+        createdAt: at
+      }
+    ])
+    .execute()
 
   await seedTimeline(T, n1Post, n1.id)
   await seedTimeline(n1.id, post, T)
@@ -1345,6 +1363,7 @@ describe('statements', () => {
       'delete poll_answers by actorId',
       'delete poll_voters by actorId',
       'delete attachments by actorId',
+      'delete deleted_attachment_media by actorId',
       'delete gallery_album_items by actorId',
       'delete gallery_albums by actorId',
       'delete media_edit_files by mediaId',

@@ -125,6 +125,11 @@ export type AttachmentWithMedia = Attachment & {
 export type GetAttachmentsWithMediaParams = {
   statusId: string
 }
+export const DELETED_ATTACHMENT_MEDIA_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export type GetDeletedAttachmentMediaIdsParams = {
+  actorId: string
+  attachmentIds: string[]
+}
 export type GetAttachmentsForActorParams = {
   actorId: string
   limit?: number
@@ -332,6 +337,9 @@ export interface MediaDatabase {
   getAttachmentsWithMedia(
     params: GetAttachmentsWithMediaParams
   ): Promise<AttachmentWithMedia[]>
+  getDeletedAttachmentMediaIds(
+    params: GetDeletedAttachmentMediaIdsParams
+  ): Promise<Map<string, string>>
   getAttachmentsForActor(
     params: GetAttachmentsForActorParams
   ): Promise<Attachment[]>

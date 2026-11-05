@@ -18,6 +18,7 @@ import * as addMediaSortAt from './20261024160234_add_media_sort_at'
 import * as addActorHandles from './20261025141323_add_actor_handles'
 import * as addAccountImports from './20261027134549_add_account_imports'
 import * as addAttachmentsIsRouteMap from './20261104133123_add_attachments_is_route_map'
+import * as addDeletedAttachmentMedia from './20261105034530_add_deleted_attachment_media'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -44,5 +45,6 @@ export const migrations: MigrationRegistry = {
   '20261024160234_add_media_sort_at': addMediaSortAt,
   '20261025141323_add_actor_handles': addActorHandles,
   '20261027134549_add_account_imports': addAccountImports,
-  '20261104133123_add_attachments_is_route_map': addAttachmentsIsRouteMap
+  '20261104133123_add_attachments_is_route_map': addAttachmentsIsRouteMap,
+  '20261105034530_add_deleted_attachment_media': addDeletedAttachmentMedia
 } satisfies Record<MigrationName, MigrationModule>

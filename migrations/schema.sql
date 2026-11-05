@@ -394,6 +394,13 @@ CREATE TABLE public.dead_letter_jobs (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.deleted_attachment_media (
+    "attachmentId" character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    "mediaId" integer NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.direct_conversation_memberships (
     id bigint NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1731,6 +1738,9 @@ ALTER TABLE ONLY public."customEmojis"
 ALTER TABLE ONLY public.dead_letter_jobs
     ADD CONSTRAINT dead_letter_jobs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.deleted_attachment_media
+    ADD CONSTRAINT deleted_attachment_media_pkey PRIMARY KEY ("attachmentId");
+
 ALTER TABLE ONLY public.direct_conversation_memberships
     ADD CONSTRAINT direct_conversation_memberships_pkey PRIMARY KEY (id);
 
@@ -2174,6 +2184,10 @@ CREATE INDEX dead_letter_jobs_created_at_idx ON public.dead_letter_jobs USING bt
 CREATE INDEX dead_letter_jobs_job_name_idx ON public.dead_letter_jobs USING btree (job_name);
 
 CREATE INDEX dead_letter_jobs_status_idx ON public.dead_letter_jobs USING btree (status);
+
+CREATE INDEX deleted_attachment_media_actorId_idx ON public.deleted_attachment_media USING btree ("actorId");
+
+CREATE INDEX deleted_attachment_media_createdAt_idx ON public.deleted_attachment_media USING btree ("createdAt");
 
 CREATE INDEX direct_conversation_status ON public.direct_conversation_statuses USING btree ("statusId");
 

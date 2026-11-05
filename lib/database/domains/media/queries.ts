@@ -6,19 +6,21 @@ import {
   parseMediaRow,
   toMediaRowId
 } from '@/lib/database/domains/media/rows'
-import type {
-  AttachmentWithMedia,
-  GetAttachmentsForActorParams,
-  GetAttachmentsParams,
-  GetAttachmentsWithMediaParams,
-  GetMediaByIdParams,
-  GetMediaByIdsForAccountParams,
-  GetMediaWithAttachedStatusIdsParams,
-  GetMediasForAccountParams,
-  GetStorageUsageForAccountParams,
-  Media,
-  MediaWithAttachedStatusIds,
-  PaginatedMediaWithStatus
+import {
+  type AttachmentWithMedia,
+  DELETED_ATTACHMENT_MEDIA_TTL_MS,
+  type GetAttachmentsForActorParams,
+  type GetAttachmentsParams,
+  type GetAttachmentsWithMediaParams,
+  type GetDeletedAttachmentMediaIdsParams,
+  type GetMediaByIdParams,
+  type GetMediaByIdsForAccountParams,
+  type GetMediaWithAttachedStatusIdsParams,
+  type GetMediasForAccountParams,
+  type GetStorageUsageForAccountParams,
+  type Media,
+  type MediaWithAttachedStatusIds,
+  type PaginatedMediaWithStatus
 } from '@/lib/database/domains/media/types'
 import {
   createAttachment,
@@ -148,6 +150,41 @@ export const getAttachmentsWithMedia = async (
         mediaId: attachment.mediaId ?? null
       }) satisfies AttachmentWithMedia
   )
+}
+
+export const getDeletedAttachmentMediaIds = async (
+  db: Db,
+  { actorId, attachmentIds }: GetDeletedAttachmentMediaIdsParams
+): Promise<Map<string, string>> => {
+  const uniqueAttachmentIds = [
+    ...new Set(attachmentIds.filter((id) => id.length > 0))
+  ]
+  if (!actorId || uniqueAttachmentIds.length === 0) {
+    return new Map()
+  }
+
+  const cutoff = timestampValue(
+    new Date(Date.now() - DELETED_ATTACHMENT_MEDIA_TTL_MS)
+  )
+  const rows = await selectInChunks(
+    db,
+    uniqueAttachmentIds,
+    (chunk) =>
+      db
+        .selectFrom('deleted_attachment_media')
+        .select(['attachmentId', 'mediaId'])
+        .where('actorId', '=', actorId)
+        .where('attachmentId', 'in', chunk)
+        .where('createdAt', '>=', cutoff)
+        .execute(),
+    2
+  )
+
+  const mappings = new Map<string, string>()
+  for (const row of rows) {
+    mappings.set(row.attachmentId, String(row.mediaId))
+  }
+  return mappings
 }
 
 // An attachment inherits its status's audience: filtering `statusId` by the
@@ -370,6 +407,7 @@ export const mediaQueries = {
   getAttachments,
   replaceRemoteAttachmentsForStatus,
   getAttachmentsWithMedia,
+  getDeletedAttachmentMediaIds,
   getAttachmentsForActor,
   getMediasWithStatusForAccount,
   getMediaByIdForAccount,

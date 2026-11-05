@@ -1434,3 +1434,11 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   `deleteExpiredIdempotencyKeys`, run by the actor-deletion sweep, deletes keys
   older than 7 days (`IDEMPOTENCY_KEY_TTL_MS`), and `deleteActorData` deletes an
   erased actor's keys.
+- **`deleted_attachment_media` holds a 7-day redraft mapping (`DELETED_ATTACHMENT_MEDIA_TTL_MS`).**
+  Before `deleteStatus` removes `attachments` rows, it records `attachmentId -> mediaId`
+  for attachments with a non-null `mediaId` owned by the deleting status's author
+  (`onConflict('attachmentId').doNothing()`) and prunes rows older than 7 days
+  via `timestampValue()` in the same transaction. `getDeletedAttachmentMediaIds`
+  filters to the caller's `actorId` and `createdAt >= cutoff`, and
+  `deleteActorData` deletes all rows for an erased actor so no mapping outlives
+  its owner.
