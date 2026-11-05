@@ -43,6 +43,7 @@ describe('saveMediaFile coordination', () => {
   ): MediaSaveDriver => ({
     saveVideoFile: vi.fn().mockResolvedValue({
       path: 'video.mp4',
+      bytes: 2000,
       metaData: { width: 1920, height: 1080 },
       previewImage: Buffer.from('video-preview'),
       blurhash: 'video-blurhash',
@@ -50,6 +51,7 @@ describe('saveMediaFile coordination', () => {
     } as SavedOriginalMedia),
     saveImageFile: vi.fn().mockResolvedValue({
       path: 'image.png',
+      bytes: 1000,
       metaData: { width: 800, height: 600 },
       previewImage: null,
       blurhash: 'image-blurhash',

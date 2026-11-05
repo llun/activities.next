@@ -15,6 +15,7 @@ import {
 import { Database } from '@/lib/database/types'
 import { createWindowCounter } from '@/lib/services/gallery/lookups/rateLimit'
 import { deleteMediaFile, getMediaStorage } from '@/lib/services/medias'
+import { MAX_IMAGE_INPUT_PIXELS } from '@/lib/services/medias/constants'
 import {
   MEDIA_NOT_EDITABLE_ERROR,
   isEditableMedia
@@ -186,9 +187,9 @@ export const readEditSource = async (
   try {
     const stored = await readStoredImage(database, path, EDIT_SOURCE_MAX_BYTES)
     if (!stored) return null
-    const { width, height, orientation, pages } = await sharp(
-      stored.buffer
-    ).metadata()
+    const { width, height, orientation, pages } = await sharp(stored.buffer, {
+      limitInputPixels: MAX_IMAGE_INPUT_PIXELS
+    }).metadata()
     if (!width || !height || (pages ?? 1) > 1) return null
     if (width * height > MAX_SOURCE_PIXELS) return null
     return {
@@ -569,7 +570,9 @@ const matchesSize = (actual: Size, expected: Size) =>
  */
 const isValidMaskImage = async (buffer: Buffer, sources: Size[]) => {
   try {
-    const { format, width, height } = await sharp(buffer).metadata()
+    const { format, width, height } = await sharp(buffer, {
+      limitInputPixels: MAX_IMAGE_INPUT_PIXELS
+    }).metadata()
     if (format !== 'png' || !width || !height) return false
     if (Math.max(width, height) > STORED_MASK_MAX_LONG_EDGE) return false
     // Derive the short edge from the long one: the other way round, the
@@ -712,7 +715,9 @@ export const saveMediaEdit = async ({
 
   let renderSize: Size
   try {
-    const metadata = await sharp(file.buffer).metadata()
+    const metadata = await sharp(file.buffer, {
+      limitInputPixels: MAX_IMAGE_INPUT_PIXELS
+    }).metadata()
     if (
       !metadata.width ||
       !metadata.height ||

@@ -975,6 +975,69 @@ describe('account import phases', () => {
     }
   )
 
+  it('sniffs an AVIF whose major brand is mif1 but lists avif as compatible', async () => {
+    const ftypBox = (major: string, compatible: string[]) => {
+      const box = Buffer.alloc(16 + compatible.length * 4)
+      box.writeUInt32BE(box.length, 0)
+      box.write('ftyp', 4, 'ascii')
+      box.write(major, 8, 'ascii')
+      box.writeUInt32BE(0, 12)
+      compatible.forEach((brand, index) =>
+        box.write(brand, 16 + index * 4, 'ascii')
+      )
+      return box
+    }
+    const { context } = await workingMediaPhaseContext(
+      'import-media-avif-compatible',
+      ftypBox('mif1', ['mif1', 'avif', 'miaf'])
+    )
+    vi.mocked(saveMedia).mockResolvedValue({ id: 'media-1' } as never)
+
+    await runMastodonMediaPhase(context, createInitialImportProgress(), null)
+
+    expect(saveMedia).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        file: expect.objectContaining({ type: 'image/avif' })
+      }),
+      expect.anything()
+    )
+  })
+
+  it.each([
+    ['isom', ['isom', 'iso2', 'mp41'], 'video/mp4'],
+    ['qt  ', ['qt  '], 'video/quicktime']
+  ])(
+    'does not read a %s ftyp box as AVIF',
+    async (major, compatible, expectedType) => {
+      const box = Buffer.alloc(16 + compatible.length * 4)
+      box.writeUInt32BE(box.length, 0)
+      box.write('ftyp', 4, 'ascii')
+      box.write(major, 8, 'ascii')
+      box.writeUInt32BE(0, 12)
+      compatible.forEach((brand, index) =>
+        box.write(brand, 16 + index * 4, 'ascii')
+      )
+      const { context } = await workingMediaPhaseContext(
+        `import-media-${major.trim()}`,
+        box
+      )
+      vi.mocked(saveMedia).mockResolvedValue({ id: 'media-1' } as never)
+
+      await runMastodonMediaPhase(context, createInitialImportProgress(), null)
+
+      expect(saveMedia).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          file: expect.objectContaining({ type: expectedType })
+        }),
+        expect.anything()
+      )
+    }
+  )
+
   it('skips a media item when the account is over its storage quota', async () => {
     const { context } = await workingMediaPhaseContext('import-media-quota')
     vi.mocked(saveMedia).mockRejectedValue(

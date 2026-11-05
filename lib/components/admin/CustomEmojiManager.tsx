@@ -124,8 +124,8 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
         title="Add a custom emoji"
         description={
           <>
-            Upload a PNG or JPEG and give it a shortcode. People type it between
-            colons in a post, e.g.{' '}
+            Upload a PNG, JPEG, WebP, GIF or AVIF still and give it a shortcode.
+            People type it between colons in a post, e.g.{' '}
             <span className="font-mono">:blobcheer:</span>.
           </>
         }
@@ -146,7 +146,7 @@ export const CustomEmojiManager: FC<Props> = ({ initialEmojis }) => {
             <FormRow
               label="Image"
               htmlFor="emoji-image"
-              hint={file ? file.name : 'PNG or JPEG'}
+              hint={file ? file.name : 'PNG, JPEG, WebP, GIF or AVIF'}
               inline
             >
               <button

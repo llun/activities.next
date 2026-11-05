@@ -13,7 +13,8 @@ const mediaMeta = (metaData: Media['original']['metaData']) => {
     width,
     height,
     size: `${width}x${height}`,
-    aspect: width / (height || 1)
+    aspect: width / (height || 1),
+    ...(metaData.pages && metaData.pages > 1 ? { pages: metaData.pages } : {})
   }
 }
 

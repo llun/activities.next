@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
+import { uploadImageFixture } from '@/lib/services/medias/uploadImage.fixture'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -55,8 +56,17 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
+// A real 1x1 PNG: the route reads the frame count before storing, so the bytes
+// have to be an image sharp can decode.
+const ONE_PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+)
+
 const makeImage = () =>
-  new File([new Uint8Array([1, 2, 3])], 'blobcat.png', { type: 'image/png' })
+  new File([new Uint8Array(ONE_PIXEL_PNG)], 'blobcat.png', {
+    type: 'image/png'
+  })
 
 // NextRequest.formData() is not available in the jest environment, so build the
 // request and stub formData with the FormData instance directly (matching the
@@ -232,8 +242,9 @@ describe('/api/v1/admin/custom_emojis', () => {
 
   it('rejects an image over the admin-configured media.maxFileSize with 422', async () => {
     mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
-    // The sample image is 3 bytes. `getConfig()` here still reports a 1 MB
-    // mediaStorage cap, so a pass here would mean the stored setting is ignored.
+    // The sample image is a few dozen bytes. `getConfig()` here still reports a
+    // 1 MB mediaStorage cap, so a pass here would mean the stored setting is
+    // ignored.
     mockDatabase.getAllServerSettings.mockResolvedValue([
       { key: 'media.maxFileSize', value: 2 }
     ])
@@ -248,6 +259,75 @@ describe('/api/v1/admin/custom_emojis', () => {
     expect(response.status).toBe(422)
     expect(mockSaveMedia).not.toHaveBeenCalled()
   })
+
+  it.each(['gif', 'webp', 'avif'] as const)(
+    'accepts a static %s upload',
+    async (format) => {
+      mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
+      mockSaveMedia.mockResolvedValue({
+        url: 'https://llun.test/medias/static.webp'
+      })
+      mockDatabase.createCustomEmoji.mockResolvedValue({
+        id: 'emoji-static',
+        shortcode: 'blobcat',
+        url: 'https://llun.test/medias/static.webp',
+        staticUrl: 'https://llun.test/medias/static.webp',
+        category: null,
+        visibleInPicker: true,
+        disabled: false,
+        createdAt: 0,
+        updatedAt: 0
+      })
+      const form = new FormData()
+      form.set('shortcode', 'blobcat')
+      form.set(
+        'image',
+        new File(
+          [new Uint8Array(await uploadImageFixture(format))],
+          `e.${format}`,
+          {
+            type: `image/${format}`
+          }
+        )
+      )
+
+      const response = await POST(makeMultipartRequest(form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockSaveMedia).toHaveBeenCalled()
+    }
+  )
+
+  it.each(['gif', 'webp'] as const)(
+    'rejects an animated %s upload with 422',
+    async (format) => {
+      mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)
+      const form = new FormData()
+      form.set('shortcode', 'blobcat')
+      form.set(
+        'image',
+        new File(
+          [
+            new Uint8Array(await uploadImageFixture(format, { animated: true }))
+          ],
+          `e.${format}`,
+          { type: `image/${format}` }
+        )
+      )
+
+      const response = await POST(makeMultipartRequest(form), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: 'Custom emoji must be a static image'
+      })
+      expect(mockSaveMedia).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects a video upload with 422 even though the media schema allows video', async () => {
     mockDatabase.getCustomEmojiByShortcode.mockResolvedValue(null)

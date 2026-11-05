@@ -882,6 +882,60 @@ describe('importStravaActivityJob', () => {
     }
   })
 
+  it('names a stored Strava photo for its content type', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: {
+          'content-type': 'image/webp',
+          'content-length': '3'
+        }
+      })
+    )
+
+    mockGetStravaActivity.mockResolvedValueOnce({
+      id: 125,
+      name: 'Morning Run',
+      distance: 5_000,
+      elapsed_time: 1_500,
+      total_elevation_gain: 120,
+      start_date: '2026-01-01T00:00:00.000Z',
+      sport_type: 'Run',
+      visibility: 'everyone'
+    })
+    mockGetStravaActivityStreams.mockResolvedValueOnce(null)
+    mockGetStravaActivityPhotos.mockResolvedValueOnce([
+      {
+        id: 'photo-webp',
+        url: 'https://images.example.com/photo.webp'
+      }
+    ])
+
+    try {
+      await importStravaActivityJob(database as unknown as Database, {
+        id: 'job-no-upload-webp-photo',
+        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+        data: {
+          actorId: 'actor-1',
+          stravaActivityId: '125'
+        }
+      })
+
+      expect(mockSaveMedia).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          file: expect.objectContaining({
+            name: 'strava-125-photo-webp.webp',
+            type: 'image/webp'
+          })
+        })
+      )
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
   it('skips oversized Strava photos without buffering or storing them', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
       new Response(new Uint8Array([1]), {

@@ -1,7 +1,7 @@
 import sharp from 'sharp'
 
 export const uploadImageFixture = async (
-  format: 'png' | 'webp' | 'gif' | 'avif',
+  format: 'png' | 'jpeg' | 'webp' | 'gif' | 'avif',
   { animated = false, exif = false, width = 8, height = 6 } = {}
 ) => {
   const input = animated
@@ -31,5 +31,6 @@ export const uploadImageFixture = async (
     return input.gif({ delay: [100, 200], loop: 0 }).toBuffer()
   if (format === 'webp')
     return input.webp({ delay: [100, 200], loop: 0 }).toBuffer()
+  if (format === 'jpeg') return input.jpeg().toBuffer()
   return input.toFormat(format).toBuffer()
 }

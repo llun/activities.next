@@ -556,7 +556,10 @@ export class S3FileStorage implements MediaStorage {
           accountId,
           tempFilePath,
           expectedSize,
-          prepared
+          prepared,
+          stripped
+            ? { buffer: stripped.buffer, contentType: stripped.contentType }
+            : undefined
         )
         return output ?? (await this._getSaveFileOutput(verifiedMedia))
       } finally {
@@ -697,7 +700,12 @@ export class S3FileStorage implements MediaStorage {
     tempFilePath: string,
     contentType: string,
     originalBytes: number
-  ): Promise<{ key: string; bytes: number }> {
+  ): Promise<{
+    key: string
+    bytes: number
+    buffer: Buffer
+    contentType: string
+  }> {
     let stripped: Buffer
     try {
       const encode = (quality: number) => {
@@ -771,7 +779,12 @@ export class S3FileStorage implements MediaStorage {
         Body: stripped
       })
     )
-    return { key: strippedKey, bytes: stripped.length }
+    return {
+      key: strippedKey,
+      bytes: stripped.length,
+      buffer: stripped,
+      contentType: outputType
+    }
   }
 
   // Blurhash, focus, alt text and a video's poster. Decoration only: the media
@@ -784,32 +797,36 @@ export class S3FileStorage implements MediaStorage {
     accountId: string,
     tempFilePath: string,
     size: number,
-    prepared: { buffer: Buffer | null }
+    prepared: { buffer: Buffer | null },
+    storedImage?: { buffer: Buffer; contentType: string }
   ): Promise<MediaStorageSaveFileOutput | null> {
     const mediaId = media.id
     const { buffer } = prepared
+    const isImage = media.original.mimeType.startsWith('image')
     const isVideo = media.original.mimeType.startsWith('video')
-    if (!media.original.mimeType.startsWith('image') && !isVideo) return null
+    if (!isImage && !isVideo) return null
     try {
       const isAnimated =
-        !isVideo &&
+        isImage &&
         ((await readUploadImageMetadata(tempFilePath)).pages ?? 1) > 1
-      if (!isAnimated && (size > PRESIGNED_ANALYSIS_MAX_BYTES || !buffer))
+      // The stored copy is already inside the 4000x4000 box (and is the first
+      // frame for an animated input), so analysis and alt text never decode the
+      // client's raw upload again. A video is analysed and described from its
+      // representative preview frame; the stored video itself is not an image
+      // sharp or the vision model can read.
+      const imageBuffer = storedImage?.buffer ?? buffer
+      if (isImage && !imageBuffer) return null
+      if (isVideo && (size > PRESIGNED_ANALYSIS_MAX_BYTES || !buffer))
         return null
-      // A video is analysed and described from its representative preview
-      // frame; the stored video itself is not an image sharp or the vision
-      // model can read.
-      const previewBuffer = isAnimated
-        ? await createStoredImagePipeline(tempFilePath).webp().toBuffer()
-        : isVideo
-          ? await extractVideoPreviewFrame(
-              buffer!,
-              getStoredMediaExtension(
-                media.original.mimeType,
-                media.original.fileName ?? FALLBACK_STORED_FILE_NAME
-              )
+      const previewBuffer = isVideo
+        ? await extractVideoPreviewFrame(
+            buffer!,
+            getStoredMediaExtension(
+              media.original.mimeType,
+              media.original.fileName ?? FALLBACK_STORED_FILE_NAME
             )
-          : buffer!
+          )
+        : imageBuffer!
       const analysis = await analyzeImageBuffer(previewBuffer, {
         manualFocus: media.focus
       })
@@ -828,11 +845,7 @@ export class S3FileStorage implements MediaStorage {
           generatedDescription = await generateAltText(
             altText,
             previewBuffer,
-            isVideo
-              ? 'image/jpeg'
-              : isAnimated
-                ? 'image/webp'
-                : media.original.mimeType
+            isVideo ? 'image/jpeg' : (storedImage?.contentType ?? 'image/webp')
           )
         }
       }
@@ -1098,7 +1111,11 @@ export class S3FileStorage implements MediaStorage {
       .catch(() => {
         throw new MediaValidationError('Uploaded image could not be processed')
       })
-    const analysis = await analyzeImageBuffer(buffer, { manualFocus })
+    // Analyse the encoded copy, not the raw upload: it is already inside the
+    // 4000x4000 box, so this decodes a bounded image instead of the client's
+    // original (an AVIF cannot shrink-on-load). For an animated input sharp
+    // reads the first frame, which is what BlurHash and focus want.
+    const analysis = await analyzeImageBuffer(imageBody, { manualFocus })
 
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
     const path = `${MEDIA_OBJECT_KEY_PREFIX}${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
@@ -1116,7 +1133,10 @@ export class S3FileStorage implements MediaStorage {
       outputInfo,
       path,
       contentType,
-      previewImage: animated ? buffer : null,
+      // The first frame of the stored copy, so the thumbnail encode does not
+      // decode the raw upload again.
+      previewImage: animated ? imageBody : null,
+      bytes: outputInfo.size,
       blurhash: analysis.blurhash,
       focus: analysis.focus
     }
@@ -1169,6 +1189,7 @@ export class S3FileStorage implements MediaStorage {
       metaData,
       contentType: file.type,
       previewImage,
+      bytes: buffer.length,
       blurhash: analysis.blurhash,
       focus: analysis.focus
     }

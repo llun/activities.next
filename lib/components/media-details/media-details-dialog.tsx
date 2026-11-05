@@ -105,6 +105,8 @@ export interface MediaDetailsDialogItem {
   posterUrl?: string
   width: number
   height: number
+  /** Frame count of an animated image; omitted for a still. */
+  pages?: number
   /** The description (alt text) the composer holds for the item. */
   description: string
   decorative: boolean

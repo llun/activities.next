@@ -52,6 +52,7 @@ export const toMediaDetailsDialogItem = (
   posterUrl: item.attachment.thumbnailUrl ?? undefined,
   width: item.attachment.width ?? 0,
   height: item.attachment.height ?? 0,
+  pages: item.attachment.pages,
   description: item.attachment.name ?? '',
   decorative: false,
   details,

@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 
-import { MAX_IMAGE_INPUT_PIXELS } from './constants'
+import { MAX_AVIF_INPUT_PIXELS, MAX_IMAGE_INPUT_PIXELS } from './constants'
 import { MediaValidationError } from './errors'
 
 // HEIF is a container: only AV1-compressed AVIF is accepted, never HEVC/HEIC.
@@ -51,6 +51,17 @@ export const readUploadImageMetadata = async (
   ) {
     throw new MediaValidationError(
       'Uploaded image exceeds the decoded pixel limit'
+    )
+  }
+  // AVIF cannot shrink-on-load (libheif/libaom decodes the whole frame first),
+  // so a single frame gets its own, lower cap. Checked after the shared budget
+  // so an oversized AVIF is refused with the same upload error either way.
+  if (
+    metadata.format === 'heif' &&
+    width * height * pages > MAX_AVIF_INPUT_PIXELS
+  ) {
+    throw new MediaValidationError(
+      'Uploaded AVIF image exceeds the decoded pixel limit'
     )
   }
   return metadata

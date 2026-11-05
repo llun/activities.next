@@ -7,6 +7,7 @@ import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
+import { readUploadImageMetadata } from '@/lib/services/medias/imageInput'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { FileSchema } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
@@ -81,6 +82,33 @@ export const POST = traceApiRoute(
       })
     }
 
+    // GIF, WebP and AVIF are accepted, but only as stills: `static_url` is the
+    // same stored file, so an animated upload would animate in both places.
+    // Read the frame count before anything is stored.
+    let pages: number
+    try {
+      const metadata = await readUploadImageMetadata(
+        Buffer.from(await fileParsed.data.arrayBuffer()),
+        fileParsed.data.type
+      )
+      pages = metadata.pages ?? 1
+    } catch {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_422,
+        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+      })
+    }
+    if (pages > 1) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Custom emoji must be a static image' },
+        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+      })
+    }
+
     // The upload cap lives in the resolved `media.maxFileSize` server setting
     // (a database read), so it is checked here rather than in FileSchema.
     if (await exceedsMaxMediaUploadSize([fileParsed.data.size], database)) {
@@ -138,7 +166,7 @@ export const POST = traceApiRoute(
       })
     }
 
-    // We do not transcode animated emoji; the static copy equals the upload.
+    // The upload is a still, so the static copy equals the stored file.
     let emoji
     try {
       emoji = await database.createCustomEmoji({

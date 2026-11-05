@@ -923,13 +923,32 @@ The photo editor refuses animated WebP rather than flattening it.
 
 Before decoding all frames, the server caps input at 100 million total pixels
 (width × frame height × frame count), in addition to sharp's pixel limit.
+AVIF gets a lower, single-frame cap of 40 million pixels
+(`MAX_AVIF_INPUT_PIXELS`): libheif/libaom cannot shrink-on-load, so the whole
+frame is decoded before any resize, and a 10000×10000 AVIF costs gigabytes of
+resident memory. An oversized AVIF is refused with the same 422 upload error as
+any other over-budget image. Every sharp call that can see an upload or a stored
+original also passes `limitInputPixels: MAX_IMAGE_INPUT_PIXELS`.
 The normal upload-byte limit and account quota still apply.
+
+Custom emoji accept the same still formats but must be **static**: an animated
+GIF/WebP/AVIF upload is refused with `422 { error }`, because the emoji's
+`static_url` would otherwise be animated.
 
 **Server-side write** (`saveMedia`, `saveMediaThumbnail` and
 `saveMediaImageRendition` in `lib/services/medias/`) re-encodes the image — WebP
 unless the caller asks for another format — and bounds the result by a 4000x4000
 pixel box. That box is a **cap, not a target**: an image already inside it is
-stored at its own dimensions and is never upscaled. This runs whenever the
+stored at its own dimensions and is never upscaled. BlurHash, smart focus and
+automated alt text are computed from the **stored** copy (the resized WebP, or
+its first frame for an animated input), never from the raw upload, so the
+analysis decodes a bounded image instead of the client's original. The row
+records the auto-oriented width and height (EXIF orientation applied), so a
+portrait phone JPEG is stored as its displayed shape. Both drivers meter the
+account for the **stored** bytes, not the upload's: the sync path records the
+encoded original's size and refuses (422) when that copy exceeds the per-file
+limit or the remaining quota, exactly as the presigned path does, with the early
+`file.size` checks kept as a first gate. This runs whenever the
 server itself holds the bytes: the sync upload endpoint, the Mastodon-API
 multipart avatar/header handler (`PATCH /api/v1/accounts/update_credentials`
 and `PATCH /api/v1/profile`), custom emojis, thumbnail replacement
@@ -957,6 +976,8 @@ key. Completion validates their actual format and decoded pixel budget, reads
 EXIF, then writes a metadata-free copy at a new key before atomically verifying
 the row. The copy is capped at 4000×4000 without upscaling. JPEG/PNG retain their
 existing output format; WebP/GIF/AVIF become WebP (animated when applicable).
+BlurHash, focus and alt text are computed from that stripped copy, so the raw
+client object is decoded once, for EXIF and the re-encode.
 The object content type and extension describe the stored encoding; the media
 row's MIME type continues to describe the upload, as on the synchronous path.
 The client's key remains tracked for deletion. Clients must use the completion

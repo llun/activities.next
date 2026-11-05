@@ -3,12 +3,15 @@ import { NextRequest } from 'next/server'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { generateAltText } from '@/lib/services/altText/openai'
+import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { publishPlaceLookup } from '@/lib/services/gallery/lookups/publishLookups'
 import { getGallerySettingsOrDefaults } from '@/lib/services/gallery/uploadMediaDetails'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { getStoredMediaExtension } from '@/lib/services/medias/fileName'
 import { buildOwnerMediaDetails } from '@/lib/services/medias/mediaDetails'
+import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import { readStoredImage } from '@/lib/services/medias/readStoredMedia'
 import {
   MediaSchema,
   MediaStorageSaveFileOutput
@@ -139,21 +142,36 @@ export const handleSyncMediaUpload = async (
         // stays, unlike the equivalent dead catch removed from
         // S3StorageFile.ts's presigned path.
         try {
-          const buffer = Buffer.from(await media.data.file.arrayBuffer())
           const isVideo = response.type === 'video'
-          const previewBuffer = isVideo
-            ? await extractVideoPreviewFrame(
-                buffer,
-                getStoredMediaExtension(
-                  media.data.file.type,
-                  media.data.file.name
-                )
+          // An image is described from the STORED copy, which is already inside
+          // the 4000x4000 box: decoding the raw upload again would cost the
+          // full input resolution (an AVIF cannot shrink-on-load). A video has
+          // no stored frame to read, so its preview is still extracted from the
+          // upload.
+          let previewBuffer: Buffer | null
+          if (isVideo) {
+            previewBuffer = await extractVideoPreviewFrame(
+              Buffer.from(await media.data.file.arrayBuffer()),
+              getStoredMediaExtension(
+                media.data.file.type,
+                media.data.file.name
               )
-            : buffer
+            )
+          } else {
+            const path = getMediaPathFromFileUrl(
+              response.url,
+              getServedHostConfig()
+            )
+            const stored = path ? await readStoredImage(database, path) : null
+            previewBuffer = stored?.buffer ?? null
+          }
+          if (!previewBuffer) {
+            throw new Error('The stored media could not be read for alt text')
+          }
           const generatedDescription = await generateAltText(
             altText,
             previewBuffer,
-            isVideo ? 'image/jpeg' : media.data.file.type
+            isVideo ? 'image/jpeg' : 'image/webp'
           )
           if (generatedDescription) {
             await database.updateMedia({

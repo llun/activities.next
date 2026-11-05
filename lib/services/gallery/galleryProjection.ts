@@ -59,6 +59,9 @@ const toUnpostedAttachment = (media: GalleryMediaRow['media']): Attachment => {
     ...(media.original.metaData.height
       ? { height: media.original.metaData.height }
       : {}),
+    ...(media.original?.metaData?.pages && media.original.metaData.pages > 1
+      ? { pages: media.original.metaData.pages }
+      : {}),
     name: media.description ?? '',
     mediaId: media.id,
     blurhash: media.blurhash ?? null,
@@ -164,7 +167,16 @@ export const toGalleryItemEntity = (
     attachment:
       row.attachment === null
         ? toUnpostedAttachment(row.media)
-        : row.attachment,
+        : {
+            ...row.attachment,
+            // The attachment row snapshots the media's geometry but not its
+            // frame count; the media row is right here, so the photo editor
+            // can still tell an animated image from a still one.
+            ...(row.media.original?.metaData?.pages &&
+            row.media.original.metaData.pages > 1
+              ? { pages: row.media.original.metaData.pages }
+              : {})
+          },
     subject: toSubjectEntity(details),
     takenAt: toTakenAtIso(details.takenAt),
     camera: toGear(details.cameraGearId),

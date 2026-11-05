@@ -140,6 +140,18 @@ describe('PhotoEditPreview', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('does not offer editing for an animated image', () => {
+    expect(isEditableItem({ mediaType: 'image/webp', pages: 2 })).toBe(false)
+    expect(isEditableItem({ mediaType: 'image/webp', pages: 1 })).toBe(true)
+  })
+
+  it('has no pill on an animated WebP', () => {
+    renderPreview({ item: item({ mediaType: 'image/webp', pages: 2 }) })
+    expect(
+      screen.queryByRole('button', { name: 'Edit photo' })
+    ).not.toBeInTheDocument()
+  })
+
   it('disables the pill and explains why without WebGL 2', async () => {
     vi.mocked(isWebGl2Supported).mockReturnValue(false)
     renderPreview()

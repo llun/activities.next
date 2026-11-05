@@ -12,10 +12,13 @@ import {
   MediaSchema,
   MediaStorageSaveFileOutput
 } from '@/lib/services/medias/types'
+import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Actor } from '@/lib/types/domain/actor'
 
 export interface SavedOriginalMedia {
   path: string
+  /** The size of the bytes actually stored, not of the upload. */
+  bytes: number
   metaData: {
     width?: number
     height?: number
@@ -110,10 +113,16 @@ export const saveMediaFile = async ({
     )
   }
 
-  const { path, metaData, previewImage, blurhash, focus } =
-    file.type.startsWith('video')
-      ? await driver.saveVideoFile(file, { manualFocus: media.focus })
-      : await driver.saveImageFile(file, { manualFocus: media.focus })
+  const {
+    path,
+    bytes: storedBytes,
+    metaData,
+    previewImage,
+    blurhash,
+    focus
+  } = file.type.startsWith('video')
+    ? await driver.saveVideoFile(file, { manualFocus: media.focus })
+    : await driver.saveImageFile(file, { manualFocus: media.focus })
 
   const reclaim = (originalPath: string, thumbnailPath?: string) =>
     driver.reclaimStored
@@ -140,6 +149,32 @@ export const saveMediaFile = async ({
     throw error
   }
 
+  // The stored copy is what the account is metered for, and a re-encode can
+  // come out larger than the upload (a lossy JPEG becomes a near-lossless
+  // WebP). Refuse it the way the presigned path does, before the row is
+  // written, and reclaim what this attempt stored. The early `file.size` check
+  // above stays as the first gate; this one sees the encoded bytes.
+  const maxFileSize = await getMaxMediaUploadSize(database)
+  if (storedBytes > maxFileSize) {
+    await reclaim(path, thumbnail?.path)
+    throw new MediaValidationError(
+      'Uploaded image is too large once its metadata is removed'
+    )
+  }
+  // `checkQuotaAvailable` is a read-only check, so this second, accurate pass
+  // neither double-counts the reservation above nor leaves one behind.
+  const storedQuota = await checkQuotaAvailable(
+    database,
+    actor,
+    storedBytes + (thumbnail?.outputInfo.size ?? 0)
+  )
+  if (!storedQuota.available) {
+    await reclaim(path, thumbnail?.path)
+    throw new MediaValidationError(
+      `Storage quota exceeded. Used: ${storedQuota.used} bytes, Limit: ${storedQuota.limit} bytes`
+    )
+  }
+
   // Read from the ORIGINAL bytes: the stored image is re-encoded without EXIF.
   // Videos carry no readable EXIF here, but still get `inGallery` from the
   // owner's gallery default.
@@ -159,7 +194,7 @@ export const saveMediaFile = async ({
       actorId: actor.id,
       original: {
         path,
-        bytes: file.size,
+        bytes: storedBytes,
         mimeType: file.type,
         metaData: {
           width: metaData.autoOrient?.width ?? metaData.width ?? 0,

@@ -31,6 +31,12 @@ export const DEFAULT_QUOTA_PER_ACCOUNT = 1_073_741_824
 // Decoded pixels across ALL frames, before resizing. Bounds animation memory.
 export const MAX_IMAGE_INPUT_PIXELS = 100_000_000
 
+// AVIF is decoded by libheif/libaom, which cannot shrink-on-load: the whole
+// frame is decoded at full resolution before any resize. A 1.9 KB 10000x10000
+// AVIF therefore costs more than 2 GB of RSS, so a single frame gets a lower
+// cap than the all-frame budget above. 40 MP still admits a 8000x5000 photo.
+export const MAX_AVIF_INPUT_PIXELS = 40_000_000
+
 export const ACCEPTED_IMAGE_TYPES = [
   'image/jpeg',
   'image/png',

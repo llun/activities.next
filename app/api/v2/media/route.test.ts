@@ -59,6 +59,12 @@ vi.mock('@/lib/services/medias', () => ({
   saveMedia: (...args: unknown[]) => mockSaveMedia(...args)
 }))
 
+// Alt text is generated from the STORED copy, read back through the driver.
+const mockReadStoredImage = vi.fn()
+vi.mock('@/lib/services/medias/readStoredMedia', () => ({
+  readStoredImage: (...args: unknown[]) => mockReadStoredImage(...args)
+}))
+
 const sampleAttachment = {
   id: '99',
   type: 'image',
@@ -134,6 +140,10 @@ describe('POST /api/v2/media', () => {
       secretPhase: 'test-secret'
     })
     mockGenerateAltText.mockResolvedValue(null)
+    mockReadStoredImage.mockResolvedValue({
+      buffer: Buffer.from('stored-webp'),
+      mimeType: 'image/webp'
+    })
     mockExtractVideoPreviewFrame.mockReset()
     await deleteServerSetting(db, { key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
@@ -443,14 +453,17 @@ describe('POST /api/v2/media', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.description).toBe('A generated description of the image.')
+      // The stored copy, not the raw upload: the analysis decodes a bounded
+      // image and the declared type describes the bytes actually sent.
+      expect(mockReadStoredImage).toHaveBeenCalled()
       expect(mockGenerateAltText).toHaveBeenCalledWith(
         {
           endpoint: 'https://api.openai.com/v1/chat/completions',
           apiKey: 'sk-test',
           model: 'gpt-4o-mini'
         },
-        expect.any(Buffer),
-        'image/png'
+        Buffer.from('stored-webp'),
+        'image/webp'
       )
     })
 

@@ -64,6 +64,18 @@ export const POST = traceApiRoute(
         })
       }
 
+      // A presigned upload's bytes are the client's until completion has
+      // verified them. Reading them here would hand unverified input to sharp
+      // and the vision model, so refuse it the way the photo editor does.
+      if (media.original.metaData.upload?.state === 'pending') {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'This media upload has not finished' },
+          responseStatusCode: 422
+        })
+      }
+
       const { altText } = getConfig()
       if (!altText) {
         return apiResponse({

@@ -972,7 +972,27 @@ const sniffSupportedMediaType = (bytes: Buffer): string | null => {
     return 'image/gif'
   if (bytes.length >= 12 && bytes.toString('ascii', 4, 8) === 'ftyp') {
     const brand = bytes.toString('ascii', 8, 12)
-    if (brand === 'avif' || brand === 'avis') return 'image/avif'
+    // An AVIF still may name `mif1`/`miaf` as its major brand and carry `avif`
+    // among its compatible brands, so the major brand alone misses it. The
+    // compatible list is bounded by the ftyp box's own size, and a real MP4/MOV
+    // does not list `avif`/`avis`, so this cannot reclassify one.
+    const boxSize = bytes.readUInt32BE(0)
+    const boxEnd = Math.min(
+      boxSize >= 16 ? boxSize : bytes.length,
+      bytes.length
+    )
+    const compatibleBrands: string[] = []
+    for (let offset = 16; offset + 4 <= boxEnd; offset += 4) {
+      compatibleBrands.push(bytes.toString('ascii', offset, offset + 4))
+    }
+    if (
+      brand === 'avif' ||
+      brand === 'avis' ||
+      compatibleBrands.includes('avif') ||
+      compatibleBrands.includes('avis')
+    ) {
+      return 'image/avif'
+    }
     return brand === 'M4A '
       ? 'audio/mp4'
       : brand === 'qt  '

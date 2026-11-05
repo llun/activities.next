@@ -42,7 +42,7 @@ export const STORED_MASK_MAX_LONG_EDGE = MASK_LONG_EDGE
 // orientation tag, and it is already in the editor's source space (the
 // oriented image the editor decoded), so there is nothing to turn.
 export const createStoredMaskPipeline = (input: Buffer) =>
-  sharp(input)
+  sharp(input, { limitInputPixels: MAX_IMAGE_INPUT_PIXELS })
     .extractChannel(0)
     .resize(
       STORED_MASK_MAX_LONG_EDGE,

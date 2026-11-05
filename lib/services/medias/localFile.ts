@@ -323,7 +323,12 @@ export class LocalFileStorage implements MediaStorage {
       .catch(() => {
         throw new MediaValidationError('Uploaded image could not be processed')
       })
-    const analysis = await analyzeImageBuffer(imageBuffer, { manualFocus })
+    // Analyse the bytes that were just encoded, not the raw upload: the stored
+    // copy is already inside the 4000x4000 box, so this decodes a bounded image
+    // instead of the client's original (an AVIF cannot shrink-on-load, and a
+    // 10000x10000 one costs gigabytes). For an animated input sharp reads the
+    // first frame, which is what BlurHash and focus want.
+    const analysis = await analyzeImageBuffer(data, { manualFocus })
     await fs.writeFile(filePath, data)
 
     return {
@@ -332,7 +337,10 @@ export class LocalFileStorage implements MediaStorage {
       outputInfo,
       path: filename,
       contentType,
-      previewImage: animated ? imageBuffer : null,
+      // The first frame of the stored copy, so the thumbnail encode does not
+      // decode the raw upload again.
+      previewImage: animated ? data : null,
+      bytes: outputInfo.size,
       blurhash: analysis.blurhash,
       focus: analysis.focus
     }
@@ -381,6 +389,7 @@ export class LocalFileStorage implements MediaStorage {
       path: filename,
       contentType: videoFile.type,
       previewImage,
+      bytes: buffer.length,
       blurhash: analysis.blurhash,
       focus: analysis.focus
     }

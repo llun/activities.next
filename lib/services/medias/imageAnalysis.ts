@@ -1,6 +1,7 @@
 import { encode, isBlurhashValid } from 'blurhash'
 import sharp from 'sharp'
 
+import { MAX_IMAGE_INPUT_PIXELS } from '@/lib/services/medias/constants'
 import { FocalPoint, clampFocalPoint } from '@/lib/utils/focalPoint'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -69,7 +70,9 @@ export const computeBlurhash = async (
   buffer: Buffer
 ): Promise<string | null> => {
   try {
-    const { data, info } = await sharp(buffer)
+    const { data, info } = await sharp(buffer, {
+      limitInputPixels: MAX_IMAGE_INPUT_PIXELS
+    })
       .rotate()
       .resize(BLURHASH_MAX_DIMENSION, BLURHASH_MAX_DIMENSION, {
         fit: 'inside',
@@ -116,7 +119,9 @@ export const computeSmartFocus = async (
   buffer: Buffer
 ): Promise<FocalPoint | null> => {
   try {
-    const rotated = sharp(buffer).rotate()
+    const rotated = sharp(buffer, {
+      limitInputPixels: MAX_IMAGE_INPUT_PIXELS
+    }).rotate()
     const metadata = await rotated.metadata()
     const isRotated = Boolean(metadata.orientation && metadata.orientation >= 5)
     const width = (isRotated ? metadata.height : metadata.width) ?? 0

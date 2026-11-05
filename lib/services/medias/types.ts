@@ -74,7 +74,10 @@ const MediaMeta = z.object({
   width: z.number(),
   height: z.number(),
   size: z.string().regex(/^\d+x\d+$/),
-  aspect: z.number()
+  aspect: z.number(),
+  // Frame count of an animated image. Omitted for a still, so the client can
+  // tell an animated WebP (which the photo editor refuses) from a still one.
+  pages: z.number().optional()
 })
 type MediaMeta = z.infer<typeof MediaMeta>
 

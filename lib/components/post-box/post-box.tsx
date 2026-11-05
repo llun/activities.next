@@ -2075,6 +2075,7 @@ export const PostBox: FC<Props> = ({
       posterUrl: item.posterUrl,
       width: item.width,
       height: item.height,
+      pages: item.pages,
       description: item.name ?? '',
       decorative: Boolean(decorativeIds[item.id]),
       details: detailsById[item.id] ?? null
