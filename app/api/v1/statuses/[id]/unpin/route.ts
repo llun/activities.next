@@ -2,10 +2,7 @@ import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
-import {
-  nextPinEventTimestamp,
-  publishStatusPin
-} from '@/lib/services/statuses/publishStatusPin'
+import { publishStatusPin } from '@/lib/services/statuses/publishStatusPin'
 import { RemoveAction } from '@/lib/types/activitypub/activities'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -62,8 +59,7 @@ export const POST = traceApiRoute(
         await publishStatusPin({
           actorId: currentActor.id,
           statusId,
-          action: RemoveAction,
-          timestamp: nextPinEventTimestamp()
+          action: RemoveAction
         })
       }
 

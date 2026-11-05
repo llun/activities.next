@@ -26,21 +26,19 @@ export const JobData = z.object({
   actorId: z.string(),
   statusId: z.string(),
   action: PinFederationAction,
-  // Epoch ms captured when the pin/unpin route changed state, so a retried job
-  // re-sends the same Add/Remove activity rather than minting a new id.
-  timestamp: z.number()
+  // Random per-transition id, stored so retries re-send the same activity.
+  eventId: z.string().min(1)
 })
 
 export const getFeaturedStatusActivityId = ({
   statusId,
   action,
-  timestamp
+  eventId
 }: {
   statusId: string
   action: PinFederationAction
-  timestamp: number
-}): string =>
-  `${statusId}#${action === AddAction ? 'pin' : 'unpin'}/${timestamp}`
+  eventId: string
+}): string => `${statusId}#${action === AddAction ? 'pin' : 'unpin'}/${eventId}`
 
 // Fans an Add or Remove activity for the actor's featured collection out to the
 // pinned post's own audience (followers, plus accepted relays for a listed
@@ -49,9 +47,7 @@ export const sendFeaturedStatusJob: JobHandle = createJobHandle(
   SEND_FEATURED_STATUS_JOB_NAME,
   async (database, message) => {
     await withSpan('job', 'sendFeaturedStatus', {}, async (span) => {
-      const { actorId, statusId, action, timestamp } = JobData.parse(
-        message.data
-      )
+      const { actorId, statusId, action, eventId } = JobData.parse(message.data)
       span.setAttribute('actorId', actorId)
       span.setAttribute('statusId', statusId)
       span.setAttribute('action', action)
@@ -77,9 +73,16 @@ export const sendFeaturedStatusJob: JobHandle = createJobHandle(
         return
       }
 
+      const pinnedStatusIds = await database.getPinnedStatusIds({ actorId })
+      // A later transition has its own job; drop this event if its state no
+      // longer matches rather than undoing the actor's current pin state.
+      if (pinnedStatusIds.includes(statusId) !== (action === AddAction)) {
+        return
+      }
+
       const activity = {
         '@context': ACTIVITY_STREAM_URL,
-        id: getFeaturedStatusActivityId({ statusId, action, timestamp }),
+        id: getFeaturedStatusActivityId({ statusId, action, eventId }),
         type: action,
         actor: actor.id,
         object: statusId,

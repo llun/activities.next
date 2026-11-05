@@ -3,10 +3,7 @@ import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
-import {
-  nextPinEventTimestamp,
-  publishStatusPin
-} from '@/lib/services/statuses/publishStatusPin'
+import { publishStatusPin } from '@/lib/services/statuses/publishStatusPin'
 import { AddAction } from '@/lib/types/activitypub/activities'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
@@ -88,8 +85,7 @@ export const POST = traceApiRoute(
         await publishStatusPin({
           actorId: currentActor.id,
           statusId,
-          action: AddAction,
-          timestamp: nextPinEventTimestamp()
+          action: AddAction
         })
       }
 

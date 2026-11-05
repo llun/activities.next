@@ -1375,9 +1375,9 @@ ActivityPub objects are **JSON-LD**, so the same logical object can arrive in ma
   every result-based assertion still passes. Mastodon reads the JSON without processing it; a
   conformant receiver — GoToSocial, or another activities.next, whose inbox runs
   `compactActivityPub` — silently loses the terms.
-  - **Seven surfaces carry a Note and all seven send `NOTE_ACTIVITY_CONTEXT`:** `sendNote`'s Create,
+  - **Eight surfaces carry a Note and all eight send `NOTE_ACTIVITY_CONTEXT`:** `sendNote`'s Create,
     `sendUpdateNote`'s Update, `sendQuoteRequest`'s `instrument`, the AP status GET, the `/replies`
-    collection, the user outbox page, and the `outbox.json` writer in
+    collection, the user outbox page, the `featured` collection, and the `outbox.json` writer in
     `scripts/backup/actorArchive.ts`. It supersets `QUOTE_ACTIVITY_CONTEXT`, so a surface on it also
     satisfies the quote vocabulary's own requirement; the other quote activities
     (Accept/Reject/Delete) echo ids rather than Notes and keep the narrower one. The archive's
@@ -2036,11 +2036,14 @@ outbound `Add`/`Remove` activities:
   `SendFeaturedStatusJob` (`publishStatusPin`) only when the pin state changed
   (`pinStatusWithResult.isNew` on pin, or `unpinStatus` deleting a row on
   unpin). The job fans out an `Add` or `Remove` activity
-  (`id: <statusId>#pin/<timestamp>` or `<statusId>#unpin/<timestamp>`,
+  (`id: <statusId>#pin/<eventId>` or `<statusId>#unpin/<eventId>`,
   `object: <statusId>`, `target: <actorId>/collections/featured`) via
   `DeliverActivityJob` to the post's own audience (followers, plus accepted
   relays only for a listed public post), and only while the post is publicly
   readable: a followers-only pin is not in the collection and federates nothing.
+  `eventId` is a random per-transition UUID stored in the job so retries keep
+  the same activity id. At send time, the job checks the current pin state and
+  drops a delayed `Add` after an unpin or `Remove` after a re-pin.
   Queueing is best effort and logs errors without failing the pin/unpin
   response; inbound remote `Add`/`Remove` activities are not handled.
 

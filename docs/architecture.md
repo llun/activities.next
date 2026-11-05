@@ -2243,13 +2243,15 @@ false`), so users who never opted in are not advertised to remote servers
   under the actor row lock so re-pinning an existing pin returns `200` without
   queueing a duplicate `Add`, and `unpinStatus` returns whether a `status_pins`
   row was deleted so unpinning an unpinned status queues no `Remove`.
-- **Activity and job ids carry the action and route timestamp.** `publishStatusPin`
-  (`lib/services/statuses/publishStatusPin.ts`) captures a monotonic timestamp
-  and hashes `<statusId>#pin/<timestamp>` or `<statusId>#unpin/<timestamp>` as
-  the queue job id, passing `timestamp` in `JobData` so `SendFeaturedStatusJob`
-  emits a stable activity `id` across retries while a `pin → unpin → pin`
-  sequence produces distinct job ids. The job federates only a post that is
-  still publicly readable (the same rule as the collection; a followers-only pin
+- **Activity and job ids carry the action and a random per-transition `eventId`.**
+  `publishStatusPin` (`lib/services/statuses/publishStatusPin.ts`) generates
+  `eventId` with `crypto.randomUUID()` and hashes `<statusId>#pin/<eventId>` or
+  `<statusId>#unpin/<eventId>` as the queue job id, passing `eventId` in `JobData`
+  so `SendFeaturedStatusJob` emits a stable activity `id` across retries while a
+  `pin → unpin → pin` sequence produces distinct job ids. At send time, the job checks the current
+  pin state: a delayed `Add` after an unpin or `Remove` after a re-pin is dropped.
+  The job federates only a post that is still publicly readable (the same rule
+  as the collection; a followers-only pin
   sends nothing, and a deleted post already federated its `Delete`) and fans out
   to that post's own audience through `getFederatedStatusDeliveryInboxes`
   (followers, plus accepted relays only for a listed public post) via

@@ -987,7 +987,7 @@ describe('/api/v1/statuses/[id] action routes', () => {
               actorId: ACTOR2_ID,
               statusId,
               action: 'Add',
-              timestamp: expect.any(Number)
+              eventId: expect.any(String)
             }
           }
         ]
@@ -1059,7 +1059,7 @@ describe('/api/v1/statuses/[id] action routes', () => {
               actorId: ACTOR2_ID,
               statusId,
               action: 'Remove',
-              timestamp: expect.any(Number)
+              eventId: expect.any(String)
             }
           }
         ]
@@ -1079,7 +1079,7 @@ describe('/api/v1/statuses/[id] action routes', () => {
       expect(mockQueuePublish).toHaveBeenCalledTimes(1)
     })
 
-    it('uses distinct job ids across a pin -> unpin -> pin sequence', async () => {
+    it('uses distinct event and job ids across a pin -> unpin -> pin sequence', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor2.email }
       })
@@ -1118,7 +1118,7 @@ describe('/api/v1/statuses/[id] action routes', () => {
           job as {
             id: string
             name: string
-            data: { action: string; timestamp: number }
+            data: { action: string; eventId: string }
           }
       )
       expect(jobs.map((job) => [job.name, job.data.action])).toEqual([
@@ -1127,7 +1127,7 @@ describe('/api/v1/statuses/[id] action routes', () => {
         [SEND_FEATURED_STATUS_JOB_NAME, 'Add']
       ])
       expect(new Set(jobs.map((job) => job.id)).size).toBe(3)
-      expect(jobs[2].data.timestamp).not.toBe(jobs[0].data.timestamp)
+      expect(new Set(jobs.map((job) => job.data.eventId)).size).toBe(3)
 
       await database.unpinStatus({ actorId: ACTOR2_ID, statusId })
     })

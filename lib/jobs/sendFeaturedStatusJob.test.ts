@@ -38,13 +38,15 @@ describe('sendFeaturedStatusJob', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await database.unpinStatus({ actorId: ACTOR1_ID, statusId })
     publish.mockReset()
     publish.mockResolvedValue(undefined)
     mockQueue(false)
   })
 
   it('delivers an Add activity for the featured collection to each follower inbox', async () => {
+    await database.pinStatus({ actorId: ACTOR1_ID, statusId })
     await sendFeaturedStatusJob(database, {
       id: 'send-featured-add-1',
       name: SEND_FEATURED_STATUS_JOB_NAME,
@@ -52,7 +54,7 @@ describe('sendFeaturedStatusJob', () => {
         actorId: ACTOR1_ID,
         statusId,
         action: AddAction,
-        timestamp: 1700000000000
+        eventId: 'pin-event-1'
       }
     })
 
@@ -74,7 +76,7 @@ describe('sendFeaturedStatusJob', () => {
         actorId: ACTOR1_ID,
         activity: {
           '@context': ACTIVITY_STREAM_URL,
-          id: `${statusId}#pin/1700000000000`,
+          id: `${statusId}#pin/pin-event-1`,
           type: 'Add',
           actor: ACTOR1_ID,
           object: statusId,
@@ -85,6 +87,8 @@ describe('sendFeaturedStatusJob', () => {
   })
 
   it('delivers a Remove activity for the featured collection to each follower inbox', async () => {
+    await database.pinStatus({ actorId: ACTOR1_ID, statusId })
+    await database.unpinStatus({ actorId: ACTOR1_ID, statusId })
     await sendFeaturedStatusJob(database, {
       id: 'send-featured-remove-1',
       name: SEND_FEATURED_STATUS_JOB_NAME,
@@ -92,7 +96,7 @@ describe('sendFeaturedStatusJob', () => {
         actorId: ACTOR1_ID,
         statusId,
         action: RemoveAction,
-        timestamp: 1700000001000
+        eventId: 'unpin-event-1'
       }
     })
 
@@ -111,7 +115,7 @@ describe('sendFeaturedStatusJob', () => {
         actorId: ACTOR1_ID,
         activity: {
           '@context': ACTIVITY_STREAM_URL,
-          id: `${statusId}#unpin/1700000001000`,
+          id: `${statusId}#unpin/unpin-event-1`,
           type: 'Remove',
           actor: ACTOR1_ID,
           object: statusId,
@@ -120,6 +124,29 @@ describe('sendFeaturedStatusJob', () => {
       }
     })
   })
+
+  it.each([AddAction, RemoveAction])(
+    'drops a superseded %s event when the current pin state no longer matches',
+    async (action) => {
+      await database.pinStatus({ actorId: ACTOR1_ID, statusId })
+      if (action === AddAction) {
+        await database.unpinStatus({ actorId: ACTOR1_ID, statusId })
+      }
+
+      await sendFeaturedStatusJob(database, {
+        id: `send-featured-superseded-${action}`,
+        name: SEND_FEATURED_STATUS_JOB_NAME,
+        data: {
+          actorId: ACTOR1_ID,
+          statusId,
+          action,
+          eventId: 'superseded-event-1'
+        }
+      })
+
+      expect(publish).not.toHaveBeenCalled()
+    }
+  )
 
   it('does nothing when the actor is missing or remote', async () => {
     const getActorSpy = vi.spyOn(database, 'getActorFromId')
@@ -131,7 +158,7 @@ describe('sendFeaturedStatusJob', () => {
           actorId: 'https://llun.test/users/does-not-exist',
           statusId,
           action: AddAction,
-          timestamp: 1700000000000
+          eventId: 'pin-event-1'
         }
       })
       await sendFeaturedStatusJob(database, {
@@ -141,7 +168,7 @@ describe('sendFeaturedStatusJob', () => {
           actorId: EXTERNAL_ACTOR1,
           statusId: `${EXTERNAL_ACTOR1}/statuses/1`,
           action: AddAction,
-          timestamp: 1700000000000
+          eventId: 'pin-event-1'
         }
       })
 
@@ -168,7 +195,12 @@ describe('sendFeaturedStatusJob', () => {
         await sendFeaturedStatusJob(database, {
           id: `send-featured-private-${action}`,
           name: SEND_FEATURED_STATUS_JOB_NAME,
-          data: { actorId: ACTOR1_ID, statusId, action, timestamp: 1 }
+          data: {
+            actorId: ACTOR1_ID,
+            statusId,
+            action,
+            eventId: 'private-event-1'
+          }
         })
       }
 
@@ -180,6 +212,7 @@ describe('sendFeaturedStatusJob', () => {
   })
 
   it('retries the fan-out when a real queue refuses a delivery', async () => {
+    await database.pinStatus({ actorId: ACTOR1_ID, statusId })
     publish.mockRejectedValue(new Error('queue unavailable'))
 
     await expect(
@@ -190,13 +223,14 @@ describe('sendFeaturedStatusJob', () => {
           actorId: ACTOR1_ID,
           statusId,
           action: AddAction,
-          timestamp: 1700000000000
+          eventId: 'pin-event-1'
         }
       })
     ).rejects.toThrow('featured status deliveries')
   })
 
   it('keeps going when an inline delivery fails', async () => {
+    await database.pinStatus({ actorId: ACTOR1_ID, statusId })
     mockQueue(true)
     publish.mockRejectedValue(new Error('inbox down'))
 
@@ -208,7 +242,7 @@ describe('sendFeaturedStatusJob', () => {
           actorId: ACTOR1_ID,
           statusId,
           action: AddAction,
-          timestamp: 1700000000000
+          eventId: 'pin-event-1'
         }
       })
     ).resolves.toBeUndefined()

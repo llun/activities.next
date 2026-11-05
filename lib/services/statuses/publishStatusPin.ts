@@ -8,21 +8,6 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-let lastWallNow = 0
-let lastTimestamp = 0
-
-export const nextPinEventTimestamp = (): number => {
-  const now = Date.now()
-  if (now < lastWallNow) {
-    lastWallNow = now
-    lastTimestamp = now
-    return now
-  }
-  lastWallNow = now
-  lastTimestamp = now > lastTimestamp ? now : lastTimestamp + 1
-  return lastTimestamp
-}
-
 /**
  * Queue the Add or Remove activity that tells remote servers a local status was
  * added to or removed from the actor's featured collection.
@@ -34,18 +19,17 @@ export const nextPinEventTimestamp = (): number => {
 export const publishStatusPin = async ({
   actorId,
   statusId,
-  action,
-  timestamp = nextPinEventTimestamp()
+  action
 }: {
   actorId: string
   statusId: string
   action: PinFederationAction
-  timestamp?: number
 }): Promise<void> => {
+  const eventId = crypto.randomUUID()
   const activityId = getFeaturedStatusActivityId({
     statusId,
     action,
-    timestamp
+    eventId
   })
   try {
     await getQueue().publish({
@@ -55,7 +39,7 @@ export const publishStatusPin = async ({
         actorId,
         statusId,
         action,
-        timestamp
+        eventId
       }
     })
   } catch (error) {
