@@ -12,6 +12,8 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+import { checkRemoteFollowRateLimit } from './rateLimit'
+
 const ALLOWED_METHODS = [HttpMethod.enum.GET]
 
 // Longest sensible address; also the cap on the URL this route hands back.
@@ -75,15 +77,28 @@ const isUsableRedirectUrl = (value: string) => {
  * account here. It is a read-only GET that changes no state, and the abuse
  * surface (one outbound WebFinger request to a user-supplied domain) is bounded
  * by strict syntax validation, the instance's federation policy, the
- * retry-disabled request helper's timeouts and body cap, and the requirement
- * that `target` name an actor this server actually hosts — so it cannot be
+ * retry-disabled request helper's timeouts and body cap, the requirement that
+ * `target` name an actor this server actually hosts — so it cannot be
  * repurposed into a general-purpose URL builder or redirector for third
- * parties. This instance has no inbound rate-limit layer; operators should
- * rate-limit at the reverse proxy.
+ * parties — and an in-process fixed-window rate limit (10/min per trusted
+ * client IP when `ACTIVITIES_TRUST_PROXY_IP_HEADERS=true`, plus 60/min
+ * globally per process). Multi-process deployments can add a shared upstream
+ * proxy limit on top.
  */
 export const GET = traceApiRoute('remoteFollow', async (req) => {
   const database = getDatabase()
   if (!database) return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+
+  const rateLimit = checkRemoteFollowRateLimit(req)
+  if (!rateLimit.allowed) {
+    return apiResponse({
+      req,
+      allowedMethods: ALLOWED_METHODS,
+      data: { error: 'Too many requests' },
+      responseStatusCode: HTTP_STATUS.TOO_MANY_REQUESTS,
+      additionalHeaders: [['Retry-After', String(rateLimit.retryAfterSeconds)]]
+    })
+  }
 
   const query = RemoteFollowQuery.safeParse(
     Object.fromEntries(new URL(req.url).searchParams)

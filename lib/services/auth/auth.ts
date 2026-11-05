@@ -1,3 +1,4 @@
+import { isValidIP } from '@better-auth/core/utils/ip'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
@@ -5,10 +6,12 @@ import { jwt, twoFactor } from 'better-auth/plugins'
 
 import { getBaseURL, getConfig } from '@/lib/config'
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
+import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
 import { getDatabase, getKysely } from '@/lib/database'
 import { comparePassword, hashPassword } from '@/lib/services/auth/passwordHash'
 import { getActiveServedDomainNames } from '@/lib/services/domains/servedDomainSnapshot'
 import { UsableScopes } from '@/lib/types/database/operations'
+import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
 import { logger } from '@/lib/utils/logger'
 
 import { canCreateSessionForAccount } from './canCreateSessionForAccount'
@@ -25,6 +28,77 @@ import { createTrustedOriginsResolver } from './trustedOrigins'
 
 export const AUTH_COOKIE_PREFIX = 'better-auth'
 export const AUTH_SESSION_COOKIE_NAME = 'session_token'
+
+// Internal-only header populated inside `auth.handler` after stripping any
+// client-supplied copy. Driving better-auth's `advanced.ipAddress` from one
+// pre-validated header keeps its IP resolution byte-for-byte aligned with
+// `getTrustedClientIp` (honoring `ACTIVITIES_TRUST_PROXY_IP_HEADERS`, reading
+// `cf-connecting-ip` -> `x-real-ip` -> leftmost `x-forwarded-for`, including
+// multi-hop chains that better-auth's raw header parser would reject when
+// `trustedProxies` is unset).
+const TRUSTED_CLIENT_IP_HEADER = 'x-activities-trusted-client-ip'
+
+// Rate-limit windows and caps, aligned with Mastodon's Rack::Attack defaults
+// where better-auth's per-IP + per-path model permits (better-auth keys on
+// `ip|path` before reading the request body, so sign-in is per IP rather than
+// per IP + email):
+// - Sign-in and 2FA challenge endpoints: 5 attempts per 5 minutes per IP
+//   (Mastodon `throttle_login_attempts_per_ip`: 5 / 5 min).
+// - Password reset and verification email resend endpoints: 5 requests per
+//   30 minutes per IP (Mastodon `throttle_password_resets`: 5 / 30 min).
+// - Everything else under `/api/auth/*`: better-auth's defaults (100 / 10 s
+//   globally, 3 / 10 s on `/sign-up*`, `/change-password*`, `/change-email*`,
+//   and other `/two-factor/*` routes).
+const AUTH_GLOBAL_RATE_LIMIT = { window: 10, max: 100 } as const
+const AUTH_CREDENTIAL_RATE_LIMIT = { window: 300, max: 5 } as const
+const AUTH_MAIL_AND_RESET_RATE_LIMIT = { window: 1800, max: 5 } as const
+
+let hasWarnedMissingAuthClientIp = false
+
+export const resetMissingAuthClientIpWarningForTests = () => {
+  hasWarnedMissingAuthClientIp = false
+}
+
+const withTrustedClientIpHeader = (request: Request): Request => {
+  const candidate = getTrustedClientIp(request)
+  const verifiedIp = candidate && isValidIP(candidate) ? candidate : undefined
+
+  if (
+    !verifiedIp &&
+    getTrustProxyIpHeadersConfig() &&
+    !hasWarnedMissingAuthClientIp
+  ) {
+    hasWarnedMissingAuthClientIp = true
+    logger.warn({
+      message:
+        'Auth request arrived without a valid trusted proxy IP header; per-IP auth rate limiting skipped for requests missing an IP'
+    })
+  }
+
+  if (!verifiedIp && !request.headers.has(TRUSTED_CLIENT_IP_HEADER)) {
+    return request
+  }
+
+  const headers = new Headers(request.headers)
+  if (verifiedIp) {
+    headers.set(TRUSTED_CLIENT_IP_HEADER, verifiedIp)
+  } else {
+    headers.delete(TRUSTED_CLIENT_IP_HEADER)
+  }
+
+  const init: RequestInit & { duplex?: 'half' } =
+    request.method !== 'GET' && request.method !== 'HEAD' && request.body
+      ? { headers, duplex: 'half' }
+      : { headers }
+  return new Request(request, init)
+}
+
+const hasVerifiedClientIp = (request: Request): boolean =>
+  request.headers.has(TRUSTED_CLIENT_IP_HEADER)
+
+const ruleWhenClientIpPresent =
+  (rule: { window: number; max: number }) => (request: Request) =>
+    hasVerifiedClientIp(request) ? rule : false
 
 // `serviceName` is the visited domain's name (see `resolveAuthServiceName`):
 // the passkey relying party name and the 2FA issuer. Both are labels only.
@@ -46,7 +120,7 @@ const buildAuth = (baseURL: string, serviceName: string) => {
     getActiveServedDomainNames
   )
 
-  return betterAuth({
+  const baseAuth = betterAuth({
     logger: {
       level: process.env.NODE_ENV === 'development' ? 'debug' : 'warn'
     },
@@ -68,6 +142,53 @@ const buildAuth = (baseURL: string, serviceName: string) => {
     advanced: {
       database: {
         joins: true
+      },
+      ipAddress: {
+        ipAddressHeaders: [TRUSTED_CLIENT_IP_HEADER]
+      }
+    },
+    // Database-backed rate limits shared across server processes and restarts.
+    // When no trusted client IP can be resolved (`ACTIVITIES_TRUST_PROXY_IP_HEADERS`
+    // is unset/false, or a request arrives without a valid IP header), rules
+    // return `false` rather than falling back to better-auth's single
+    // `no-trusted-ip` / `127.0.0.1` bucket, which would let five failed attempts
+    // lock out every user on the instance.
+    rateLimit: {
+      enabled: true,
+      storage: 'database',
+      window: AUTH_GLOBAL_RATE_LIMIT.window,
+      max: AUTH_GLOBAL_RATE_LIMIT.max,
+      customRules: {
+        '/sign-in/email': ruleWhenClientIpPresent(AUTH_CREDENTIAL_RATE_LIMIT),
+        '/two-factor/verify-totp': ruleWhenClientIpPresent(
+          AUTH_CREDENTIAL_RATE_LIMIT
+        ),
+        '/two-factor/verify-backup-code': ruleWhenClientIpPresent(
+          AUTH_CREDENTIAL_RATE_LIMIT
+        ),
+        '/two-factor/verify-otp': ruleWhenClientIpPresent(
+          AUTH_CREDENTIAL_RATE_LIMIT
+        ),
+        '/two-factor/send-otp': ruleWhenClientIpPresent(
+          AUTH_CREDENTIAL_RATE_LIMIT
+        ),
+        '/request-password-reset': ruleWhenClientIpPresent(
+          AUTH_MAIL_AND_RESET_RATE_LIMIT
+        ),
+        '/reset-password': ruleWhenClientIpPresent(
+          AUTH_MAIL_AND_RESET_RATE_LIMIT
+        ),
+        '/reset-password/*': ruleWhenClientIpPresent(
+          AUTH_MAIL_AND_RESET_RATE_LIMIT
+        ),
+        '/send-verification-email': ruleWhenClientIpPresent(
+          AUTH_MAIL_AND_RESET_RATE_LIMIT
+        ),
+        '/**': (request, currentRule) =>
+          hasVerifiedClientIp(request) ? currentRule : false,
+        // Static entry so better-auth's `getConfiguredRateLimitWindows` sees the
+        // 30-minute window at boot in every process when pruning expired rows.
+        '/__max_configured_window__': AUTH_MAIL_AND_RESET_RATE_LIMIT
       }
     },
     // Better-auth 1.7.4 added experimental OpenTelemetry instrumentation for
@@ -284,14 +405,19 @@ const buildAuth = (baseURL: string, serviceName: string) => {
       }
     }
   })
+
+  return {
+    ...baseAuth,
+    handler: (request: Request) =>
+      baseAuth.handler(withTrustedClientIpHeader(request))
+  }
 }
 
 // Cache one better-auth instance per resolved base URL and service name.
 // Instances differ only in their passkey rpID/origin and the rpName/issuer
-// labels; everything else (database, secret, trusted-origin union) is shared,
-// so they all read/write the same sessions and accounts. Each instance keeps
-// its own in-memory rate-limit counters, so a domain renamed in Admin starts
-// fresh counters under its new name.
+// labels; everything else (database, secret, trusted-origin union, and
+// database-backed `rateLimit` counters) is shared across instances and
+// processes.
 //
 // The cache is LRU-bounded: with a concrete ACTIVITIES_TRUSTED_HOSTS list the key
 // set is small, but a wildcard entry (e.g. `*.example.com`) lets

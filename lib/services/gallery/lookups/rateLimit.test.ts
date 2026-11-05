@@ -207,6 +207,17 @@ describe('createWindowCounter', () => {
     expect(counter.tryHit('a')).toBe(true)
   })
 
+  it('reports remaining window seconds from consume when over the limit', () => {
+    const counter = createWindowCounter({ limit: 1, windowMs: 60_000 })
+
+    expect(counter.consume('a')).toEqual({ allowed: true })
+    vi.advanceTimersByTime(15_200)
+    expect(counter.consume('a')).toEqual({
+      allowed: false,
+      retryAfterSeconds: 45
+    })
+  })
+
   it('stays bounded by dropping the oldest key', () => {
     const counter = createWindowCounter({
       limit: 1,

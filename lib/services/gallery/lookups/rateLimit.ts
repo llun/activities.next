@@ -127,10 +127,16 @@ export interface WindowCounterOptions {
   maxKeys?: number
 }
 
+export type WindowCounterResult =
+  { allowed: true } | { allowed: false; retryAfterSeconds: number }
+
 export interface WindowCounter {
   // Counts one hit for the key. False when the key is over its limit for the
   // current window (the hit is not counted then).
   tryHit(key: string): boolean
+  // Same as tryHit, returning the remaining window seconds when rejected so
+  // HTTP routes can populate Retry-After.
+  consume(key: string): WindowCounterResult
   reset(): void
 }
 
@@ -142,24 +148,37 @@ export const createWindowCounter = ({
 }: WindowCounterOptions): WindowCounter => {
   const windows = new Map<string, { count: number; resetAt: number }>()
 
+  const consume = (key: string): WindowCounterResult => {
+    const now = Date.now()
+    const current = windows.get(key)
+    if (!current || current.resetAt <= now) {
+      // Re-insert so Map order stays oldest-first.
+      windows.delete(key)
+      windows.set(key, { count: 1, resetAt: now + windowMs })
+      if (windows.size > maxKeys) {
+        const oldest = windows.keys().next().value
+        if (oldest !== undefined) windows.delete(oldest)
+      }
+      return { allowed: true }
+    }
+    if (current.count >= limit) {
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(
+          1,
+          Math.ceil((current.resetAt - now) / 1000)
+        )
+      }
+    }
+    current.count += 1
+    return { allowed: true }
+  }
+
   return {
     tryHit(key) {
-      const now = Date.now()
-      const current = windows.get(key)
-      if (!current || current.resetAt <= now) {
-        // Re-insert so Map order stays oldest-first.
-        windows.delete(key)
-        windows.set(key, { count: 1, resetAt: now + windowMs })
-        if (windows.size > maxKeys) {
-          const oldest = windows.keys().next().value
-          if (oldest !== undefined) windows.delete(oldest)
-        }
-        return true
-      }
-      if (current.count >= limit) return false
-      current.count += 1
-      return true
+      return consume(key).allowed
     },
+    consume,
     reset() {
       windows.clear()
     }

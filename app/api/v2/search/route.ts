@@ -40,11 +40,14 @@ import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_401,
+  HTTP_STATUS,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
 import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+
+import { checkSearchResolveRateLimit } from './rateLimit'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 
@@ -647,6 +650,21 @@ export const GET = traceApiRoute(
       const limit = params.limit
       // Mastodon ignores offset unless an explicit search type is provided.
       const offset = params.type ? (params.offset ?? 0) : 0
+
+      if (params.resolve === true) {
+        const rateLimit = checkSearchResolveRateLimit(req, currentActor)
+        if (!rateLimit.allowed) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: 'Too many requests' },
+            responseStatusCode: HTTP_STATUS.TOO_MANY_REQUESTS,
+            additionalHeaders: [
+              ['Retry-After', String(rateLimit.retryAfterSeconds)]
+            ]
+          })
+        }
+      }
 
       if (!currentActor && requiresAuthentication({ params })) {
         return apiResponse({

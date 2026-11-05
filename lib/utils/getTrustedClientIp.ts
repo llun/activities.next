@@ -9,7 +9,9 @@ import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
  * specific and spoofable otherwise, so without the opt-in there is no address
  * and a caller must not key a limit on one.
  */
-export const getTrustedClientIp = (req: NextRequest): string | undefined => {
+export const getTrustedClientIp = (
+  req: NextRequest | Request
+): string | undefined => {
   if (!getTrustProxyIpHeadersConfig()) return undefined
 
   const cfConnectingIp = req.headers.get('cf-connecting-ip')?.trim()

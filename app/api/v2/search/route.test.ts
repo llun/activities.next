@@ -1,8 +1,13 @@
 /** @vitest-size medium */
 import { NextRequest } from 'next/server'
 
+import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
 import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
 
+import {
+  SEARCH_RESOLVE_LIMIT,
+  resetSearchResolveRateLimitForTests
+} from './rateLimit'
 import { GET } from './route'
 
 const mockSearchAccountIds = vi.fn()
@@ -149,6 +154,9 @@ const accountPublicId = (actorId: string) =>
 describe('GET /api/v2/search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    resetSearchResolveRateLimitForTests()
     resetRefreshRemoteActorStateForTesting()
     mockGetAllServerSettings.mockReset()
     mockGetAllServerSettings.mockResolvedValue([])
@@ -1699,5 +1707,112 @@ describe('GET /api/v2/search', () => {
     expect(response.status).toBe(400)
     expect(mockSearchAccountIds).not.toHaveBeenCalled()
     expect(mockSearchHashtags).not.toHaveBeenCalled()
+  })
+
+  it('rate-limits resolve=true per authenticated actor while leaving other actors and plain search unaffected', async () => {
+    const secondActor = {
+      ...oauthActor,
+      id: 'https://llun.test/users/second-searcher',
+      username: 'second-searcher'
+    }
+    mockGetActorFromId.mockImplementation(({ id }) => {
+      if (id === oauthActor.id) return Promise.resolve(oauthActor)
+      if (id === secondActor.id) return Promise.resolve(secondActor)
+      return Promise.resolve(null)
+    })
+
+    for (let i = 0; i < SEARCH_RESOLVE_LIMIT; i += 1) {
+      const allowed = await GET(
+        new NextRequest(
+          'https://llun.test/api/v2/search?q=trail&resolve=true',
+          { headers: { authorization: 'Bearer valid-token' } }
+        ),
+        context
+      )
+      expect(allowed.status).toBe(200)
+    }
+
+    const limited = await GET(
+      new NextRequest('https://llun.test/api/v2/search?q=trail&resolve=true', {
+        headers: {
+          authorization: 'Bearer valid-token',
+          origin: 'https://client.example'
+        }
+      }),
+      context
+    )
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(limited.headers.get('access-control-allow-origin')).toBe(
+      'https://client.example'
+    )
+
+    // Plain searches (no resolve=true) stay unaffected for the same actor.
+    const plain = await GET(
+      new NextRequest('https://llun.test/api/v2/search?q=trail', {
+        headers: { authorization: 'Bearer valid-token' }
+      }),
+      context
+    )
+    expect(plain.status).toBe(200)
+
+    // Another authenticated actor gets its own bucket.
+    mockStoredToken.mockResolvedValue({
+      expiresAt: Date.now() + 60_000,
+      referenceId: secondActor.id,
+      scopes: 'read:search'
+    })
+    const otherActor = await GET(
+      new NextRequest('https://llun.test/api/v2/search?q=trail&resolve=true', {
+        headers: { authorization: 'Bearer second-token' }
+      }),
+      context
+    )
+    expect(otherActor.status).toBe(200)
+  })
+
+  it('rate-limits unauthenticated resolve=true requests per trusted IP without affecting another IP or plain search', async () => {
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    resetTrustProxyIpHeadersConfigCacheForTests()
+
+    for (let i = 0; i < SEARCH_RESOLVE_LIMIT; i += 1) {
+      const unauth = await GET(
+        new NextRequest(
+          'https://llun.test/api/v2/search?q=trail&resolve=true',
+          { headers: { 'x-forwarded-for': '198.51.100.30' } }
+        ),
+        context
+      )
+      expect(unauth.status).toBe(401)
+    }
+
+    const limited = await GET(
+      new NextRequest('https://llun.test/api/v2/search?q=trail&resolve=true', {
+        headers: { 'x-forwarded-for': '198.51.100.30' }
+      }),
+      context
+    )
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+
+    // Another IP is not throttled (gets the normal 401 auth requirement).
+    const otherIp = await GET(
+      new NextRequest('https://llun.test/api/v2/search?q=trail&resolve=true', {
+        headers: { 'x-forwarded-for': '198.51.100.31' }
+      }),
+      context
+    )
+    expect(otherIp.status).toBe(401)
+
+    // Plain searches from the throttled IP still pass.
+    const plain = await GET(
+      new NextRequest('https://llun.test/api/v2/search?q=trail', {
+        headers: { 'x-forwarded-for': '198.51.100.30' }
+      }),
+      context
+    )
+    expect(plain.status).toBe(200)
   })
 })

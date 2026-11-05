@@ -1115,9 +1115,12 @@ this server" }` instead of storing a post that would never be published. The
   falling back to Mastodon's conventional `/authorize_interaction?uri={uri}`
   path when that server advertises none. Deliberately unauthenticated — the
   feature exists for visitors with no account here — and read-only; `target`
-  must name an actor this instance hosts. The inbound half is the
-  Mastodon-compatible `/authorize_interaction` **page** (not an API endpoint),
-  which this instance advertises in its own WebFinger document.
+  must name an actor this instance hosts. Rate-limited in process to 10 requests
+  per minute per trusted client IP (when `ACTIVITIES_TRUST_PROXY_IP_HEADERS=true`)
+  and 60 requests per minute globally per process, answering
+  `429 { "error": "Too many requests" }` with `Retry-After`. The inbound half is
+  the Mastodon-compatible `/authorize_interaction` **page** (not an API
+  endpoint), which this instance advertises in its own WebFinger document.
 
 - **Remote statuses** — `/api/v1/accounts/:id/remote-statuses` exposes cached
   remote posts for an actor.
@@ -2100,7 +2103,11 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   in its poll (POST /api/v1/polls/:id/votes). Resolving a status URL through
   `GET /api/v2/search` with `resolve=true` stores the status inline through
   this same path, so a resolve on an unseen URL takes as long as fetching and
-  storing it. The requested id is checked before fetching: non-URL ids and
+  storing it (`GET /api/v2/search` with `resolve=true` is rate-limited in
+  process to 30 requests per minute per authenticated actor — or per trusted
+  client IP when unauthenticated and `ACTIVITIES_TRUST_PROXY_IP_HEADERS=true` —
+  answering `429 { "error": "Too many requests" }` with `Retry-After`; plain
+  searches without `resolve=true` are not counted). The requested id is checked before fetching: non-URL ids and
   served domains are refused, domain policy applies, and an existing row the
   viewer can't read is never fetched. A fetched note is accepted only when it
   is on the same origin as the requested id, with an author on that origin

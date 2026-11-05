@@ -1,7 +1,13 @@
 import { NextRequest } from 'next/server'
 
+import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
 import { Actor } from '@/lib/types/domain/actor'
 
+import {
+  REMOTE_FOLLOW_GLOBAL_LIMIT,
+  REMOTE_FOLLOW_PER_IP_LIMIT,
+  resetRemoteFollowRateLimitsForTests
+} from './rateLimit'
 import { GET } from './route'
 
 interface MockDatabase {
@@ -36,22 +42,34 @@ const localActor = {
   privateKey: 'private-key'
 } as Actor
 
-const callRoute = (params: Record<string, string>) => {
+const callRoute = (
+  params: Record<string, string>,
+  headers: Record<string, string> = {}
+) => {
   const url = new URL('https://llun.test/api/v1/remote-follow')
   Object.entries(params).forEach(([key, value]) =>
     url.searchParams.set(key, value)
   )
-  return GET(new NextRequest(url), { params: Promise.resolve({}) })
+  return GET(new NextRequest(url, { headers }), { params: Promise.resolve({}) })
 }
 
 describe('GET /api/v1/remote-follow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    resetRemoteFollowRateLimitsForTests()
     mockDatabase = {
       getActorFromUsername: vi.fn().mockResolvedValue(localActor)
     }
     vi.mocked(canFederateWithDomain).mockResolvedValue(true)
     vi.mocked(getWebfingerSubscribeTemplate).mockResolvedValue(null)
+  })
+
+  afterEach(() => {
+    delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    resetRemoteFollowRateLimitsForTests()
   })
 
   it('substitutes the local account into the advertised template', async () => {
@@ -255,5 +273,53 @@ describe('GET /api/v1/remote-follow', () => {
     expect(await response.json()).toEqual({
       url: 'https://remote.test/authorize_interaction?uri=Local%40llun.test'
     })
+  })
+
+  it('answers 429 past the per-IP limit while letting another IP pass', async () => {
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    resetTrustProxyIpHeadersConfigCacheForTests()
+
+    for (let i = 0; i < REMOTE_FOLLOW_PER_IP_LIMIT; i += 1) {
+      const allowed = await callRoute(
+        { account: 'visitor@remote.test', target: 'local@llun.test' },
+        { 'x-forwarded-for': '198.51.100.10' }
+      )
+      expect(allowed.status).toBe(200)
+    }
+
+    const limited = await callRoute(
+      { account: 'visitor@remote.test', target: 'local@llun.test' },
+      { 'x-forwarded-for': '198.51.100.10' }
+    )
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
+    expect(getWebfingerSubscribeTemplate).toHaveBeenCalledTimes(
+      REMOTE_FOLLOW_PER_IP_LIMIT
+    )
+
+    const otherIp = await callRoute(
+      { account: 'visitor@remote.test', target: 'local@llun.test' },
+      { 'x-forwarded-for': '198.51.100.11' }
+    )
+    expect(otherIp.status).toBe(200)
+  })
+
+  it('enforces the global cap when no trusted IP header is available', async () => {
+    for (let i = 0; i < REMOTE_FOLLOW_GLOBAL_LIMIT; i += 1) {
+      const allowed = await callRoute({
+        account: 'remote.test',
+        target: 'local@llun.test'
+      })
+      expect(allowed.status).toBe(200)
+    }
+
+    const limited = await callRoute({
+      account: 'remote.test',
+      target: 'local@llun.test'
+    })
+    expect(limited.status).toBe(429)
+    expect(await limited.json()).toEqual({ error: 'Too many requests' })
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0)
   })
 })

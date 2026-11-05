@@ -346,3 +346,6 @@ CREATE INDEX "account_import_items_import_state_position_idx" on "account_import
 CREATE TABLE IF NOT EXISTS "deleted_attachment_media" ("attachmentId" varchar(255) primary key, "actorId" varchar(255) not null, "mediaId" integer not null, "createdAt" datetime default CURRENT_TIMESTAMP not null);
 CREATE INDEX "deleted_attachment_media_createdAt_idx" on "deleted_attachment_media" ("createdAt");
 CREATE INDEX "deleted_attachment_media_actorId_idx" on "deleted_attachment_media" ("actorId");
+CREATE TABLE IF NOT EXISTS "rateLimit" ("id" varchar(255) not null primary key, "key" text not null, "count" integer not null, "lastRequest" bigint not null);
+CREATE UNIQUE INDEX "rate_limit_key_unique" on "rateLimit" ("key");
+CREATE INDEX "rate_limit_last_request_idx" on "rateLimit" ("lastRequest");
