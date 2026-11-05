@@ -1,0 +1,165 @@
+lib/database/domains/gallery/types.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 195
+lib/jobs/resolveMediaSubjectJob.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 240-244,257,281
+lib/services/accountImport/phases.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 1812-1814,1818
+scripts/maintenance/backfillGalleryLookups.ts
+  s_cfb8c530a21768::t_f83fb9f0b6db7e 182,185,376-378
+  s_cfb8c530a21768::t_f8f9c66af50239 20,45,54-55,60,92-93,107-120,142-144,158,170-171,183-184,186-188,240-245,259-264,311-313,354-359,368,375,379,381,389,406,414-426,464-467
+lib/database/domains/media/writes.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 414,1002-1005,1008-1018
+  s_cfb8c530a21768::t_2b38a91ac92947 1006-1007
+lib/components/gallery/galleryItemEdit.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 91
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_cfb8c530a21768::t_049629a6297511 261-263,265-267
+  s_cfb8c530a21768::t_7555f6592827a7 259-260,264
+lib/services/gallery/galleryQueries.test.ts
+  s_cfb8c530a21768::t_d64fe4658b49c3 1745-1746,1762-1763
+  s_cfb8c530a21768::t_53e065b4a58736 1594,1673
+lib/types/database/gallery.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 185,204,231
+app/(timeline)/gallery/life-list/GalleryLifeListView.tsx
+  s_cfb8c530a21768::t_462c3199a14969 19,24
+migrations/schema.sqlite.sql
+  s_cfb8c530a21768::t_f83fb9f0b6db7e 223
+lib/components/gallery/GalleryLifeListTable.test.tsx
+  s_cfb8c530a21768::t_049629a6297511 14-18,23-24,32-33,60-61,91,96,104,125-152,154-178
+  s_cfb8c530a21768::t_b80f54d88b771f 153
+migrations/names.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 25-26
+lib/services/gallery/taxonRanks.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 1-28
+lib/services/medias/types.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 105
+lib/database/domains/media/rows.test.ts
+  s_cfb8c530a21768::t_2a50965683d837 3,73-75,85,87
+  s_cfb8c530a21768::t_47193b7f754b18 76-84,86,88-89
+lib/database/domains/accountExport/tables.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 227
+lib/jobs/resolveMediaSubjectJob.failClosed.test.ts
+  s_cfb8c530a21768::t_86ee8314bab92a 489,508,520-523,538-541,594-597,627-630,652-655,692-695,713-716,759,786,792
+  s_cfb8c530a21768::t_ad0980ef5a694b 171-174,225-228,258-261,298-301,323-326,341-344,419-422,435-438,450-453
+lib/services/accountImport/schemas/index.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 594-599
+lib/services/gallery/galleryAlbumMatrixFixtures.ts
+  s_cfb8c530a21768::t_d64fe4658b49c3 110-111
+migrations/20261105210627_add_media_subject_taxon_rank.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 4-13,16-28
+  s_cfb8c530a21768::t_3a34f1c75c2437 1-3,14-15
+lib/database/domains/gallery/rows.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 102,124
+lib/services/gallery/publicMediaDetails.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 207,221
+lib/services/medias/mediaDetails.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 64
+lib/database/domains/media/rows.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 124,329,414
+lib/services/gallery/galleryQueries.ts
+  s_cfb8c530a21768::t_d64fe4658b49c3 18,48,797-798,803-804,835-837,993-1000,1002-1007,1010-1014,1019-1026
+  s_cfb8c530a21768::t_462c3199a14969 767-770,794-796,799-802,805-806,834,885-888,936-937,1008,1015
+lib/components/gallery/GalleryLifeListTable.tsx
+  s_cfb8c530a21768::t_462c3199a14969 43,88,90,126
+  s_cfb8c530a21768::t_3bfb65b30365c6 16,31,39,41-42,48,53,57-65,73-84,89,127-134,139-144,166-168
+scripts/maintenance/backfillGalleryLookups.test.ts
+  s_cfb8c530a21768::t_049629a6297511 471-499,502-518,521-553,557-565,567-644
+  s_cfb8c530a21768::t_4af624308f0d65 231,500-501,519-520,554-556,566
+lib/services/gallery/galleryEntities.ts
+  s_cfb8c530a21768::t_462c3199a14969 294-295,301-306,308-309,313,316
+  s_cfb8c530a21768::t_7f9e77ac747a42 75
+  s_cfb8c530a21768::t_d64fe4658b49c3 310-312
+lib/services/gallery/lookups/subjectDecision.test.ts
+  s_cfb8c530a21768::t_d64fe4658b49c3 161-162,180-183,195,251,336-337,354-357,385,401,427-428,439,503-506,525-526,750-762,764-766,769-781
+  s_cfb8c530a21768::t_33217c1b979d9c 748-749,763,767-768,782-783
+lib/services/gallery/lookups/subjectDecision.ts
+  s_cfb8c530a21768::t_d64fe4658b49c3 150-153,304-305
+  s_cfb8c530a21768::t_7f9e77ac747a42 103,110,386
+lib/services/gallery/lifeListRanks.test.ts
+  s_cfb8c530a21768::t_33217c1b979d9c 1-7,30-37,42-48,71,80-81,92,102-107,122,124-125,131-133
+  s_cfb8c530a21768::t_d64fe4658b49c3 8-29,38-41,49-70,72-79,82-91,93-101,108-121,123,126-130
+lib/services/gallery/lookups/normalizeTaxon.ts
+  s_cfb8c530a21768::t_d64fe4658b49c3 2-4,10-13
+  s_cfb8c530a21768::t_d72f96cbb75f20 1,14
+migrations/index.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 25,57-58
+lib/database/domains/gallery/media.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 387
+lib/database/domains/media/types.ts
+  s_cfb8c530a21768::t_7f9e77ac747a42 285
+lib/database/domains/media/mediaWrites.test.ts
+  s_cfb8c530a21768::t_33217c1b979d9c 2069-2083,2085-2161
+  s_cfb8c530a21768::t_3d2ad4b9196899 2084
+app/api/v1/accounts/[id]/gallery/life-list/route.test.ts
+  s_cfb8c530a21768::t_049629a6297511 103-114
+lib/services/gallery/galleryRouteFixtures.ts
+  s_cfb8c530a21768::t_d64fe4658b49c3 70-74
+app/(timeline)/gallery/life-list/GalleryLifeListView.test.tsx
+  s_cfb8c530a21768::t_01f08295d19e3c 24,37
+app/(timeline)/gallery/life-list/loading.tsx
+  s_cfb8c530a21768::t_4bd51e6369b808 1,11,23-25
+app/api/v1/gallery/media/[mediaId]/details/route.test.ts
+  s_cfb8c530a21768::t_155474177c9633 186
+app/api/v1/media/[id]/route.test.ts
+  s_cfb8c530a21768::t_73229ed31f785a 965
+docs/architecture.md
+  s_cfb8c530a21768::t_403e269f6acd2b 333,338
+docs/maintenance.md
+  s_cfb8c530a21768::t_8715e679814e8f 450-459,467-468,1040,1047
+lib/components/gallery/__fixtures__/galleryItems.ts
+  s_cfb8c530a21768::t_f784e714b55624 65-66
+lib/components/gallery/galleryItemEdit.test.ts
+  s_cfb8c530a21768::t_582298ae7e6f8e 21,150
+lib/database/domains/gallery/galleryMedia.test.ts
+  s_cfb8c530a21768::t_62e1261aea18b3 233,633
+lib/database/domains/media/mediaDetails.test.ts
+  s_cfb8c530a21768::t_0f6abdffd059f5 102,362
+lib/database/migrate/addMediaSubjectTaxonRank.test.ts
+  s_cfb8c530a21768::t_e450d7985ccb94 1-60
+lib/jobs/resolveMediaSubjectJob.storedKey.test.ts
+  s_cfb8c530a21768::t_c546f1a14375c9 220-223,243-246
+lib/jobs/resolveMediaSubjectJob.suggestions.test.ts
+  s_cfb8c530a21768::t_b7796e7118cf56 172-175,197-200
+lib/jobs/resolveMediaSubjectJob.test.ts
+  s_cfb8c530a21768::t_0e3a1cd28b2e6c 115,216-218,232-234,246-248,307-309,341-343,370,418-420
+lib/services/accountImport/roundTrip.test.ts
+  s_cfb8c530a21768::t_df310d4ca446c6 217,441
+lib/services/gallery/__fixtures__/galleryIndexRow.ts
+  s_cfb8c530a21768::t_b5491d555db023 16
+lib/services/gallery/galleryAlbumQueries.test.ts
+  s_cfb8c530a21768::t_afa7ffc2697e44 74
+lib/services/gallery/galleryProjection.test.ts
+  s_cfb8c530a21768::t_3ac1b1325a9063 766
+lib/services/gallery/publicMediaDetails.test.ts
+  s_cfb8c530a21768::t_88b5ffe51e70cf 245,829
+lib/services/medias/mediaDetails.test.ts
+  s_cfb8c530a21768::t_53abc7aaf8bdbe 57,160,192
+migrations/schema.sql
+  s_2b1a50e2f9b981::t_5ff90caa2cce17 1019-1020
+lib/database/kysely/db.ts
+  s_2b1a50e2f9b981::t_d7274f87217c3b 974
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5b0b67b461c8a31a4b1fb57036820af5b17daacc",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_cfb8c530a21768": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ad87-f5bb-7720-82c4-70588d3df761",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
