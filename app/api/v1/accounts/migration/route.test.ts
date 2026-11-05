@@ -336,6 +336,9 @@ describe('Account migration API route', () => {
       const limited = await post(goodBody)
       expect(limited.status).toBe(429)
       expect(await limited.json()).toEqual({ error: 'Too many requests' })
+      expect(limited.headers.get('Access-Control-Allow-Methods')).toContain(
+        'POST'
+      )
       expect(mockDatabase.recordActorMigration).not.toHaveBeenCalled()
     })
 

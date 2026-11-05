@@ -92,7 +92,11 @@ export const POST = traceApiRoute(
     if (currentActor.account) {
       const rateLimit = checkPasswordChangeRateLimit(currentActor.account.id)
       if (!rateLimit.allowed) {
-        return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
+        return apiRateLimitedResponse(
+          req,
+          rateLimit.retryAfterSeconds,
+          ALLOWED_METHODS
+        )
       }
     }
     const challengeError = await verifyChallenge({

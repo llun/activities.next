@@ -29,6 +29,10 @@ describe('next config runtime isolation', () => {
     ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
     ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL:
       process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL,
+    ACTIVITIES_TRUST_PROXY_IP_HEADER:
+      process.env.ACTIVITIES_TRUST_PROXY_IP_HEADER,
+    ACTIVITIES_TRUST_PROXY_IP_HEADERS:
+      process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS,
     ACTIVITIES_WEB_VITALS_MAX_REPORTS_PER_MINUTE:
       process.env.ACTIVITIES_WEB_VITALS_MAX_REPORTS_PER_MINUTE,
     ACTIVITIES_WEB_VITALS_SAMPLE_RATE:
@@ -54,6 +58,10 @@ describe('next config runtime isolation', () => {
     // The photo editor's model origins reach the CSP at request time only.
     process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL =
       'https://build-model-should-not-be-used.example.com/'
+    // Client IP header trust is read per request; an invalid pinned header
+    // must not fail the build or reach the next config.
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADER = 'not-a-header'
     // Web Vitals sampling is read per request by the layout and the endpoint.
     process.env.ACTIVITIES_WEB_VITALS_SAMPLE_RATE = '0.987654'
     process.env.ACTIVITIES_WEB_VITALS_MAX_REPORTS_PER_MINUTE = '4321'
