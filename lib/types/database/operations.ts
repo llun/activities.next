@@ -1014,3 +1014,16 @@ export type {
   IsInboxUnavailableParams,
   RecordDeliveryFailureParams
 } from '@/lib/database/domains/deliveryInboxes/types'
+
+// ============================================================================
+// Remote Signature Scheme Database
+// ============================================================================
+
+export type {
+  DeleteExpiredRemoteSignatureSchemesParams,
+  GetRemoteSignatureSchemeParams,
+  RemoteSignatureScheme,
+  RemoteSignatureSchemeDatabase,
+  RemoteSignatureSchemeEntry,
+  UpsertRemoteSignatureSchemeParams
+} from '@/lib/database/domains/remoteSignatureScheme/types'

@@ -133,6 +133,7 @@ export const processForwardedActivityJob = createJobHandle(
         try {
           response = await signedActivityPubRequest({
             actor: signingActor,
+            database,
             method: 'GET',
             url: objectId,
             // The answer is authoritative only because objectId's origin gave

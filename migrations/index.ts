@@ -24,6 +24,7 @@ import * as addDeliveryInboxFailures from './20261105144958_add_delivery_inbox_f
 import * as addFitnessSettingsTrainingZones from './20261105174143_add_fitness_settings_training_zones'
 import * as addFitnessBestEfforts from './20261105185059_add_fitness_best_efforts'
 import * as addMediaSubjectTaxonRank from './20261105210627_add_media_subject_taxon_rank'
+import * as addRemoteSignatureSchemes from './20261106094910_add_remote_signature_schemes'
 import * as addBookmarkFolders from './20261106120000_add_bookmark_folders'
 import type { MigrationName } from './names'
 
@@ -59,5 +60,6 @@ export const migrations: MigrationRegistry = {
     addFitnessSettingsTrainingZones,
   '20261105185059_add_fitness_best_efforts': addFitnessBestEfforts,
   '20261105210627_add_media_subject_taxon_rank': addMediaSubjectTaxonRank,
+  '20261106094910_add_remote_signature_schemes': addRemoteSignatureSchemes,
   '20261106120000_add_bookmark_folders': addBookmarkFolders
 } satisfies Record<MigrationName, MigrationModule>

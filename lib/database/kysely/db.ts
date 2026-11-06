@@ -1260,6 +1260,14 @@ export interface Relays {
   updatedAt: WithDefault<Nullable<Timestamp>>
 }
 
+export interface RemoteSignatureSchemes {
+  createdAt: WithDefault<Timestamp>
+  domain: string
+  expiresAt: Timestamp
+  scheme: string
+  updatedAt: WithDefault<Timestamp>
+}
+
 export interface Reports {
   actionTaken: WithDefault<boolean>
   actionTakenAt: Nullable<Timestamp>
@@ -1637,6 +1645,7 @@ export interface DB {
   rateLimit: RateLimit
   recipients: Recipients
   relays: Relays
+  remote_signature_schemes: RemoteSignatureSchemes
   reports: Reports
   scheduled_statuses: ScheduledStatuses
   search_documents: SearchDocuments

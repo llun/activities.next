@@ -1,3 +1,4 @@
+import { DEFAULT_EXPIRED_REMOTE_SIGNATURE_SCHEMES_PRUNE_LIMIT } from '@/lib/database/domains/remoteSignatureScheme/types'
 import { Database } from '@/lib/database/types'
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
 import { sweepExpiredAccountArchives } from '@/lib/services/accountArchive/expiry'
@@ -6,6 +7,8 @@ import { sweepStuckAccountImports } from '@/lib/services/accountImport/reaper'
 import { getQueue } from '@/lib/services/queue'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
+
+const EXPIRED_REMOTE_SIGNATURE_SCHEME_BATCHES_PER_SWEEP = 10
 
 // How often a long-running server looks for scheduled deletions that came due
 // without a job (see `sweepScheduledActorDeletions`), and how long after startup
@@ -164,6 +167,33 @@ export const startActorDeletionSweep = (
     } catch (error) {
       logger.error({
         message: 'Expired idempotency key sweep failed',
+        err: toLoggableError(error)
+      })
+    }
+    try {
+      // Bounded batches per tick: a backlog drains over a few ticks without
+      // one long delete.
+      let purgedSchemes = 0
+      for (
+        let batch = 0;
+        batch < EXPIRED_REMOTE_SIGNATURE_SCHEME_BATCHES_PER_SWEEP;
+        batch++
+      ) {
+        const purged = await database.deleteExpiredRemoteSignatureSchemes({
+          limit: DEFAULT_EXPIRED_REMOTE_SIGNATURE_SCHEMES_PRUNE_LIMIT
+        })
+        purgedSchemes += purged
+        if (purged < DEFAULT_EXPIRED_REMOTE_SIGNATURE_SCHEMES_PRUNE_LIMIT) break
+      }
+      if (purgedSchemes > 0) {
+        logger.info({
+          message: 'Purged expired remote signature schemes',
+          count: purgedSchemes
+        })
+      }
+    } catch (error) {
+      logger.error({
+        message: 'Expired remote signature scheme sweep failed',
         err: toLoggableError(error)
       })
     }

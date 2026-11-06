@@ -108,6 +108,7 @@ export const deliverActivityJob: JobHandle = createJobHandle(
     try {
       const { statusCode } = await signedActivityPubRequest({
         actor,
+        database,
         method,
         url: inbox,
         body: JSON.stringify(activity)

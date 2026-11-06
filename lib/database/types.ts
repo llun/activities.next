@@ -22,6 +22,7 @@ import {
 } from '@/lib/database/domains/gallery/types'
 import { ImportLockDatabase } from '@/lib/database/domains/importLock/types'
 import { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
+import { RemoteSignatureSchemeDatabase } from '@/lib/database/domains/remoteSignatureScheme/types'
 import { ServedDomainDatabase } from '@/lib/database/domains/servedDomain/types'
 import { StravaArchiveImportDatabase } from '@/lib/database/domains/stravaArchiveImport/types'
 import { WahooImportDatabase } from '@/lib/database/domains/wahooImport/types'
@@ -131,6 +132,7 @@ export type Database = AccountDatabase &
   PushSubscriptionDatabase &
   QueueJobDatabase &
   RelayDatabase &
+  RemoteSignatureSchemeDatabase &
   ReportDatabase &
   ModerationDatabase &
   AdminAccountDatabase &

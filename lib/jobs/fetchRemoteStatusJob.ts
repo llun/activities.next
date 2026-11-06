@@ -402,6 +402,7 @@ export const fetchRemoteStatusJob = createJobHandle(
         try {
           const response = await signedActivityPubRequest({
             actor: signingActor,
+            database,
             method: 'GET',
             url,
             accept: 'application/activity+json',

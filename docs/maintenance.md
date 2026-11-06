@@ -1474,3 +1474,15 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   filters to the caller's `actorId` and `createdAt >= cutoff`, and
   `deleteActorData` deletes all rows for an erased actor so no mapping outlives
   its owner.
+- **`remote_signature_schemes` holds a 7-day per-host outbound signature scheme (`REMOTE_SIGNATURE_SCHEME_TTL_MS`).**
+  `signedActivityPubRequest` writes a row only when Knock 2 learns or flips a
+  normalized host's scheme (`cavage` or `rfc9421`), and refreshes `expiresAt`
+  at most once every 24 hours (`REMOTE_SIGNATURE_SCHEME_REFRESH_INTERVAL_MS`)
+  when a stored scheme answers 2xx on a same-host Knock 1. A 5-minute
+  in-process LRU (`SIGNATURE_SCHEME_CACHE_TTL_MS`, 2048 hosts) caches both hits
+  and negative misses in front of the table, and
+  `deleteExpiredRemoteSignatureSchemes`, run by `startActorDeletionSweep` in
+  batches of 500 (up to 10 per tick), prunes expired rows. Rows come only from
+  requests the instance chose to make (deliveries and fetches), never from the
+  inbox guard's pre-verification key fetch (`persistScheme: false`), and a
+  `GET` counts only when it returned an ActivityPub document.

@@ -33,7 +33,9 @@ describe('deliverActivityJob', () => {
     updateFollowStatus: vi.fn(),
     isInboxUnavailable: vi.fn(),
     recordDeliveryFailure: vi.fn(),
-    clearDeliveryFailures: vi.fn()
+    clearDeliveryFailures: vi.fn(),
+    getRemoteSignatureScheme: vi.fn(),
+    upsertRemoteSignatureScheme: vi.fn()
   } as unknown as Database
 
   beforeEach(() => {
@@ -47,6 +49,10 @@ describe('deliverActivityJob', () => {
     vi.mocked(mockDatabase.isInboxUnavailable).mockResolvedValue(false)
     vi.mocked(mockDatabase.recordDeliveryFailure).mockResolvedValue(false)
     vi.mocked(mockDatabase.clearDeliveryFailures).mockResolvedValue(undefined)
+    vi.mocked(mockDatabase.getRemoteSignatureScheme).mockResolvedValue(null)
+    vi.mocked(mockDatabase.upsertRemoteSignatureScheme).mockResolvedValue(
+      undefined
+    )
   })
 
   afterEach(() => {

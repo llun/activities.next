@@ -82,6 +82,7 @@ const fetchQuoteAuthorization = async (
     const signingActor = await getFederationSigningActor(database)
     const response = await signedActivityPubRequest({
       actor: signingActor,
+      database,
       method: 'GET',
       url: stampUri,
       accept: 'application/activity+json',

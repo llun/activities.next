@@ -189,9 +189,11 @@ describe('startActorDeletionSweep', () => {
       .fn()
       .mockResolvedValue([{ id: 'https://llun.test/users/timed' }])
     const deleteExpiredIdempotencyKeys = vi.fn().mockResolvedValue(0)
+    const deleteExpiredRemoteSignatureSchemes = vi.fn().mockResolvedValue(0)
     const database = {
       getActorsScheduledForDeletion,
-      deleteExpiredIdempotencyKeys
+      deleteExpiredIdempotencyKeys,
+      deleteExpiredRemoteSignatureSchemes
     } as unknown as Parameters<typeof startActorDeletionSweep>[0]
 
     const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
@@ -203,10 +205,15 @@ describe('startActorDeletionSweep', () => {
     // Each tick also purges expired idempotency keys (the default 7-day TTL).
     expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(1)
     expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledWith()
+    expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledTimes(1)
+    expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledWith({
+      limit: 500
+    })
 
     await vi.advanceTimersByTimeAsync(1000)
     expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
     expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
+    expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledTimes(2)
 
     sweep.stop()
     await vi.advanceTimersByTimeAsync(5000)
@@ -221,9 +228,11 @@ describe('startActorDeletionSweep', () => {
       .mockRejectedValueOnce(new Error('database down'))
       .mockResolvedValue([])
     const deleteExpiredIdempotencyKeys = vi.fn().mockResolvedValue(0)
+    const deleteExpiredRemoteSignatureSchemes = vi.fn().mockResolvedValue(0)
     const database = {
       getActorsScheduledForDeletion,
-      deleteExpiredIdempotencyKeys
+      deleteExpiredIdempotencyKeys,
+      deleteExpiredRemoteSignatureSchemes
     } as unknown as Parameters<typeof startActorDeletionSweep>[0]
 
     const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
@@ -232,6 +241,7 @@ describe('startActorDeletionSweep', () => {
     expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
     // A failed actor sweep does not skip the idempotency-key purge.
     expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
+    expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledTimes(2)
     sweep.stop()
   })
 
@@ -243,9 +253,14 @@ describe('startActorDeletionSweep', () => {
       .fn()
       .mockRejectedValueOnce(new Error('database down'))
       .mockResolvedValue(0)
+    const deleteExpiredRemoteSignatureSchemes = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('database down'))
+      .mockResolvedValue(0)
     const database = {
       getActorsScheduledForDeletion,
-      deleteExpiredIdempotencyKeys
+      deleteExpiredIdempotencyKeys,
+      deleteExpiredRemoteSignatureSchemes
     } as unknown as Parameters<typeof startActorDeletionSweep>[0]
 
     const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
@@ -254,6 +269,33 @@ describe('startActorDeletionSweep', () => {
     // The failed purge still reschedules, so the second tick runs both steps.
     expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
     expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
+    expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledTimes(2)
+    sweep.stop()
+  })
+
+  it('drains a backlog of expired signature schemes in bounded batches', async () => {
+    vi.useFakeTimers()
+    makeQueue(true)
+    const deleteExpiredRemoteSignatureSchemes = vi
+      .fn()
+      .mockResolvedValueOnce(500)
+      .mockResolvedValueOnce(500)
+      .mockResolvedValueOnce(12)
+      .mockResolvedValue(500)
+    const database = {
+      getActorsScheduledForDeletion: vi.fn().mockResolvedValue([]),
+      deleteExpiredIdempotencyKeys: vi.fn().mockResolvedValue(0),
+      deleteExpiredRemoteSignatureSchemes
+    } as unknown as Parameters<typeof startActorDeletionSweep>[0]
+
+    const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(1000)
+    // Full batches continue; the short third one ends the tick.
+    expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledTimes(3)
+
+    await vi.advanceTimersByTimeAsync(1000)
+    // A backlog that never runs short stops at the per-tick cap of 10.
+    expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledTimes(13)
     sweep.stop()
   })
 })

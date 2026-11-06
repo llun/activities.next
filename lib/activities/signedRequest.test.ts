@@ -1,16 +1,27 @@
 import crypto from 'node:crypto'
 
+import type { Database } from '@/lib/database/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { MOCK_SECRET_PHASES } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
 import { verify } from '@/lib/utils/signature'
 
 import {
+  REMOTE_SIGNATURE_SCHEME_REFRESH_INTERVAL_MS,
+  REMOTE_SIGNATURE_SCHEME_TTL_MS,
+  SIGNATURE_SCHEME_CACHE_TTL_MS,
   clearRememberedSignatureSchemes,
   getRememberedSignatureScheme,
   rememberSignatureScheme,
   signedActivityPubRequest
 } from './signedRequest'
+
+const { mockGetDatabase } = vi.hoisted(() => ({
+  mockGetDatabase: vi.fn<() => Database | null>(() => null)
+}))
+vi.mock('@/lib/database', () => ({
+  getDatabase: () => mockGetDatabase()
+}))
 
 vi.mock('@/lib/config', async () => {
   const { MOCK_SECRET_PHASES } =
@@ -127,6 +138,7 @@ const send = (
 describe('signedActivityPubRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetDatabase.mockReturnValue(null)
     clearRememberedSignatureSchemes()
     calls.length = 0
     responses = []
@@ -410,7 +422,205 @@ describe('signedActivityPubRequest', () => {
     rememberSignatureScheme('remote.test', 'rfc9421')
     expect(getRememberedSignatureScheme('remote.test')).toBe('rfc9421')
 
-    now += 6 * 60 * 60 * 1000 + 1
+    now += SIGNATURE_SCHEME_CACHE_TTL_MS + 1
     expect(getRememberedSignatureScheme('remote.test')).toBeNull()
+  })
+
+  describe('shared database persistence and caching', () => {
+    const createMemorySchemeDb = () => {
+      const rows = new Map<
+        string,
+        {
+          createdAt: number
+          domain: string
+          expiresAt: number
+          scheme: 'cavage' | 'rfc9421'
+          updatedAt: number
+        }
+      >()
+      const getRemoteSignatureScheme = vi.fn(
+        async ({
+          domain,
+          now = Date.now()
+        }: {
+          domain: string
+          now?: number | Date
+        }) => {
+          const key = domain.trim().toLowerCase()
+          const row = rows.get(key)
+          const nowMs = now instanceof Date ? now.getTime() : now
+          if (!row || row.expiresAt <= nowMs) return null
+          return { ...row }
+        }
+      )
+      const upsertRemoteSignatureScheme = vi.fn(
+        async ({
+          domain,
+          scheme,
+          expiresAt,
+          now = Date.now()
+        }: {
+          domain: string
+          expiresAt: number | Date
+          now?: number | Date
+          scheme: 'cavage' | 'rfc9421'
+        }) => {
+          const key = domain.trim().toLowerCase()
+          const nowMs = now instanceof Date ? now.getTime() : now
+          const expMs =
+            expiresAt instanceof Date ? expiresAt.getTime() : expiresAt
+          const existing = rows.get(key)
+          rows.set(key, {
+            domain: key,
+            scheme,
+            expiresAt: expMs,
+            createdAt: existing?.createdAt ?? nowMs,
+            updatedAt: nowMs
+          })
+        }
+      )
+      const db = {
+        getRemoteSignatureScheme,
+        upsertRemoteSignatureScheme
+      } as unknown as Database
+      return { db, rows, getRemoteSignatureScheme, upsertRemoteSignatureScheme }
+    }
+
+    it('reloads a remembered scheme from the database after clearing the in-process cache', async () => {
+      const { db, getRemoteSignatureScheme, upsertRemoteSignatureScheme } =
+        createMemorySchemeDb()
+      mockGetDatabase.mockReturnValue(db)
+      responses = [respond(401, INBOX), respond(202, INBOX)]
+
+      await expect(send()).resolves.toMatchObject({ statusCode: 202 })
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledTimes(1)
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledWith(
+        expect.objectContaining({
+          domain: 'remote.test',
+          scheme: 'rfc9421'
+        })
+      )
+
+      // Simulate a cold start or another worker with an empty in-process cache.
+      clearRememberedSignatureSchemes()
+      expect(getRememberedSignatureScheme('remote.test')).toBeNull()
+      calls.length = 0
+
+      await expect(send()).resolves.toMatchObject({ statusCode: 202 })
+      expect(getRemoteSignatureScheme).toHaveBeenCalledTimes(2)
+      expect(calls).toHaveLength(1)
+      expect(isRfc9421(calls[0].headers)).toBe(true)
+      expect(getRememberedSignatureScheme('remote.test')).toBe('rfc9421')
+    })
+
+    it('caches negative database lookups and does not write when cavage works', async () => {
+      let now = 1_000_000
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      const { db, getRemoteSignatureScheme, upsertRemoteSignatureScheme } =
+        createMemorySchemeDb()
+      mockGetDatabase.mockReturnValue(db)
+
+      await send()
+      await send()
+      now += SIGNATURE_SCHEME_CACHE_TTL_MS - 1
+      await send()
+
+      expect(getRemoteSignatureScheme).toHaveBeenCalledTimes(1)
+      expect(upsertRemoteSignatureScheme).not.toHaveBeenCalled()
+      expect(getRememberedSignatureScheme('remote.test')).toBeNull()
+
+      // Once the short cache TTL expires, the next call re-checks the database.
+      now += 2
+      await send()
+      expect(getRemoteSignatureScheme).toHaveBeenCalledTimes(2)
+    })
+
+    it('falls back without failing the request when database reads or writes fail', async () => {
+      let now = 1_000_000
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      const brokenDb = {
+        getRemoteSignatureScheme: vi
+          .fn()
+          .mockRejectedValue(new Error('read ECONNREFUSED')),
+        upsertRemoteSignatureScheme: vi
+          .fn()
+          .mockRejectedValue(new Error('write ECONNREFUSED'))
+      } as unknown as Database
+      mockGetDatabase.mockReturnValue(brokenDb)
+
+      responses = [respond(401, INBOX), respond(202, INBOX)]
+      await expect(send()).resolves.toMatchObject({ statusCode: 202 })
+      expect(calls).toHaveLength(2)
+      expect(isCavage(calls[0].headers)).toBe(true)
+      expect(isRfc9421(calls[1].headers)).toBe(true)
+      expect(getRememberedSignatureScheme('remote.test')).toBe('rfc9421')
+
+      // Warnings never leak signing keys, passphrases or request bodies.
+      expect(mockWarn).toHaveBeenCalledTimes(2)
+      for (const [entry] of mockWarn.mock.calls) {
+        const serialized = JSON.stringify(entry)
+        expect(serialized).not.toContain(BODY)
+        expect(serialized).not.toContain(MOCK_SECRET_PHASES)
+        expect(serialized).not.toContain('PRIVATE KEY')
+      }
+
+      // If the short cache TTL expires while the DB is still down, the stale
+      // in-memory scheme still serves as fallback before the 7-day DB TTL ends.
+      now += SIGNATURE_SCHEME_CACHE_TTL_MS + 1
+      calls.length = 0
+      await expect(send()).resolves.toMatchObject({ statusCode: 202 })
+      expect(calls).toHaveLength(1)
+      expect(isRfc9421(calls[0].headers)).toBe(true)
+    })
+
+    it('forgets a database-backed scheme once its stored expiry passes', async () => {
+      let now = 1_000_000
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      const { db } = createMemorySchemeDb()
+      mockGetDatabase.mockReturnValue(db)
+
+      responses = [respond(401, INBOX), respond(202, INBOX)]
+      await send()
+      expect(getRememberedSignatureScheme('remote.test')).toBe('rfc9421')
+
+      now += REMOTE_SIGNATURE_SCHEME_TTL_MS + 1
+      calls.length = 0
+      await send()
+      expect(calls).toHaveLength(1)
+      expect(isCavage(calls[0].headers)).toBe(true)
+      expect(getRememberedSignatureScheme('remote.test')).toBeNull()
+    })
+
+    it('lazily refreshes a working stored scheme at most once per refresh interval', async () => {
+      let now = 1_000_000
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      const { db, upsertRemoteSignatureScheme } = createMemorySchemeDb()
+      mockGetDatabase.mockReturnValue(db)
+
+      responses = [respond(401, INBOX), respond(202, INBOX)]
+      await send()
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledTimes(1)
+
+      // Within 24h: working Knock 1 does not write to the DB.
+      now += REMOTE_SIGNATURE_SCHEME_REFRESH_INTERVAL_MS - 1000
+      await send()
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledTimes(1)
+
+      // Past 24h: working same-host Knock 1 refreshes expiry once, then
+      // suppresses further writes for another 24h.
+      now += 2000
+      await send()
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledTimes(2)
+      expect(upsertRemoteSignatureScheme).toHaveBeenLastCalledWith({
+        domain: 'remote.test',
+        scheme: 'rfc9421',
+        expiresAt: now + REMOTE_SIGNATURE_SCHEME_TTL_MS,
+        now
+      })
+
+      now += 60_000
+      await send()
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledTimes(2)
+    })
   })
 })
