@@ -1,0 +1,24 @@
+app/(timeline)/account/import-export/importCopy.ts
+  s_2b1a50e2f9b981::t_64027b749a59ba 180
+  s_2b1a50e2f9b981::t_1c159cdfe17ffa 181-182
+lib/services/accountImport/phases.ts
+  s_2b1a50e2f9b981::t_3643b9d6b3571f 2626-2627
+lib/services/accountImport/progress.ts
+  s_2b1a50e2f9b981::t_3643b9d6b3571f 27-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4ff60c6dca36b541b288db89bace064634be7b10",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
