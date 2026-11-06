@@ -5,7 +5,11 @@ import '@testing-library/jest-dom'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { ThemeProvider, useTheme } from './ThemeProvider'
-import { THEME_STORAGE_KEY } from './theme-core'
+import {
+  THEME_COLOR_DARK,
+  THEME_COLOR_LIGHT,
+  THEME_STORAGE_KEY
+} from './theme-core'
 
 const Consumer = () => {
   const { theme, isDark, setTheme } = useTheme()
@@ -81,6 +85,42 @@ describe('ThemeProvider', () => {
       window.dispatchEvent(new StorageEvent('storage', { key: 'other-key' }))
     })
     expect(screen.getByTestId('theme')).toHaveTextContent('light')
+  })
+
+  describe('theme-color metas on mount', () => {
+    // As the server renders them; `content` is what an earlier script or an
+    // older page left behind.
+    const renderMetas = (light: string, dark: string) => {
+      document.head.innerHTML =
+        `<meta name="theme-color" media="(prefers-color-scheme: light)" content="${light}">` +
+        `<meta name="theme-color" media="(prefers-color-scheme: dark)" content="${dark}">`
+    }
+    const contents = () =>
+      Array.from(document.querySelectorAll('meta[name="theme-color"]')).map(
+        (meta) => meta.getAttribute('content')
+      )
+
+    afterEach(() => {
+      document.head.innerHTML = ''
+    })
+
+    it('restores the media-scoped colours in system mode', () => {
+      renderMetas(THEME_COLOR_DARK, THEME_COLOR_DARK)
+
+      renderProvider()
+
+      expect(contents()).toEqual([THEME_COLOR_LIGHT, THEME_COLOR_DARK])
+    })
+
+    // Streamed metadata can land after the pre-paint script ran.
+    it('applies an explicit choice to metas that arrived after the script', () => {
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+      renderMetas(THEME_COLOR_LIGHT, THEME_COLOR_DARK)
+
+      renderProvider()
+
+      expect(contents()).toEqual([THEME_COLOR_DARK, THEME_COLOR_DARK])
+    })
   })
 
   it('throws when useTheme is used outside a provider', () => {

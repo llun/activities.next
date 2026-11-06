@@ -3,6 +3,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  CLEAR_STAGED_SHARES_TIMEOUT_MS,
   clearStagedShares,
   deleteStagedShare,
   peekStagedShare,
@@ -87,6 +88,25 @@ describe('shareTargetDb', () => {
 
     expect(await peekStagedShare(first!)).toBeNull()
     expect(await peekStagedShare(second!)).toBeNull()
+  })
+
+  it('gives up clearing after the timeout when IndexedDB hangs', async () => {
+    // An open that never succeeds or fails, as a wedged IndexedDB does.
+    vi.stubGlobal('indexedDB', { open: () => ({}) })
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      void clearStagedShares().then(() => {
+        settled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(CLEAR_STAGED_SHARES_TIMEOUT_MS - 1)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(settled).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('refuses to stage without a secure random source', async () => {

@@ -14,6 +14,7 @@ import {
   THEME_STORAGE_KEY,
   type ThemeMode,
   applyTheme,
+  applyThemeColor,
   getStoredTheme,
   storeTheme
 } from './theme-core'
@@ -44,8 +45,12 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
 
   // Reconcile React state with the DOM/localStorage after hydration.
   useEffect(() => {
-    setThemeState(getStoredTheme())
+    const stored = getStoredTheme()
+    setThemeState(stored)
     setIsDark(document.documentElement.classList.contains('dark'))
+    // The theme-color metas can arrive after THEME_INIT_SCRIPT ran (streamed
+    // metadata), so their colour is applied, or restored for system, here.
+    applyThemeColor(stored)
   }, [])
 
   const setTheme = useCallback((mode: ThemeMode) => {

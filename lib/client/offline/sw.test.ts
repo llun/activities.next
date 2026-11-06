@@ -935,8 +935,13 @@ return {
       fields: Record<string, string> = {},
       {
         mode = 'navigate',
+        destination = 'document',
         headers = {}
-      }: { mode?: string; headers?: Record<string, string> } = {}
+      }: {
+        mode?: string
+        destination?: string
+        headers?: Record<string, string>
+      } = {}
     ) => {
       const form = new FormData()
       for (const [key, value] of Object.entries(fields)) form.set(key, value)
@@ -947,6 +952,7 @@ return {
         headers
       })
       Object.defineProperty(request, 'mode', { value: mode })
+      Object.defineProperty(request, 'destination', { value: destination })
       return request
     }
 
@@ -1042,6 +1048,16 @@ return {
         expect(await readAllShares()).toEqual([])
       }
     )
+
+    // A navigation inside a frame another site embeds is not a share launch.
+    it('refuses a share navigation that is not for a document', async () => {
+      const response = await triggerFetch(
+        shareRequest([photoFile()], {}, { destination: 'iframe' })
+      )
+
+      expect(response!.headers.get('Location')).toBe('/app')
+      expect(await readAllShares()).toEqual([])
+    })
 
     it('refuses a share that is not a navigation, staging nothing', async () => {
       const response = await triggerFetch(

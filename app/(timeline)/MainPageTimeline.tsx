@@ -4,6 +4,7 @@ import { Home } from 'lucide-react'
 import Link from 'next/link'
 import {
   FC,
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -105,6 +106,11 @@ export interface MainPageTimelineProps {
   initialFiles?: File[]
   /** A workout file a Web Share Target handed over. */
   initialFitnessFile?: File
+  /**
+   * Drawn below the page header, right above the top composer: the Web Share
+   * Target confirmation and its notices (OfflineAppShell).
+   */
+  composerNotice?: ReactNode
   statuses: Status[]
   timelineContext?: CompatibleTimelineContext
   initialNextMaxStatusId?: string | null
@@ -217,6 +223,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   initialMedia,
   initialFiles,
   initialFitnessFile,
+  composerNotice,
   statuses,
   timelineContext,
   initialNextMaxStatusId = null,
@@ -1657,6 +1664,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           like every other surface. PostBox draws the card itself
           (`frameClassName`) so its failure Alert lands after the card, never
           inside it. */}
+      {composerNotice}
       <PostBox
         host={host}
         profile={profile}

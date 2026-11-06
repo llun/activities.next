@@ -68,11 +68,11 @@ const renderComposer = ({
   initialFitnessFile?: File
   isMediaUploadEnabled?: boolean
 } = {}) => {
-  const ui = (files?: File[], fitness?: File) => (
+  const ui = (files?: File[], fitness?: File, actor = profile) => (
     <InstanceLimitsProvider maxMediaAttachments={maxMediaAttachments}>
       <PostBox
         host="activities.local"
-        profile={profile}
+        profile={actor}
         isMediaUploadEnabled={isMediaUploadEnabled}
         initialFiles={files}
         initialFitnessFile={fitness}
@@ -86,8 +86,8 @@ const renderComposer = ({
   const view = render(ui(initialFiles, initialFitnessFile))
   return {
     ...view,
-    rerenderWith: (files?: File[], fitness?: File) =>
-      view.rerender(ui(files, fitness))
+    rerenderWith: (files?: File[], fitness?: File, actor = profile) =>
+      view.rerender(ui(files, fitness, actor))
   }
 }
 
@@ -202,6 +202,44 @@ describe('PostBox with a workout and media', () => {
     rerenderWith([photo('summit.jpg')], new File(['data'], 'ride.gpx'))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(uploadAttachmentMock).toHaveBeenCalledTimes(1)
+  })
+
+  // OfflineAppShell's background bootstrap refresh can land after the reader
+  // pressed Add to post (the 8 s timeout path). It hands the same actor a new
+  // profile object, which must not re-target the composer and drop the files.
+  it('keeps added share files when the same actor gets a refreshed profile', async () => {
+    const files = [photo('summit.jpg')]
+    const fitness = new File(['data'], 'ride.gpx')
+    const { rerenderWith } = renderComposer({
+      initialFiles: files,
+      initialFitnessFile: fitness
+    })
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText('ride.gpx')).toBeInTheDocument()
+
+    rerenderWith(files, fitness, { ...profile })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(screen.getByText('ride.gpx')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Add media (1/3)' })
+    ).toBeInTheDocument()
+    expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
+  })
+
+  it('still re-targets the composer for a different actor', async () => {
+    const files = [photo('summit.jpg')]
+    const { rerenderWith } = renderComposer({ initialFiles: files })
+    await screen.findByRole('button', { name: 'Add media (1/4)' })
+
+    rerenderWith(files, undefined, {
+      ...profile,
+      id: 'https://activities.local/users/other'
+    })
+
+    expect(
+      await screen.findByRole('button', { name: 'Add media (0/4)' })
+    ).toBeInTheDocument()
   })
 
   it('never uploads shared media while media uploads are off', async () => {

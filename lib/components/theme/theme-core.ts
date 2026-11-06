@@ -68,38 +68,39 @@ export const applyTheme = (mode: ThemeMode): boolean => {
 }
 
 // Keeps the browser chrome (and an installed PWA's title bar) in step with the
-// resolved theme. `system` restores the media-scoped values Next rendered; an
-// explicit choice writes the same colour to every meta, so the OS preference
-// cannot override it.
+// resolved theme, on the two media-scoped metas Next renders from
+// `viewport.themeColor`. It never adds a meta, so there are never duplicates.
+// `system` restores each meta's own value (light `#ffffff`, dark `#0a0a0a`) and
+// the browser picks by `prefers-color-scheme`; an explicit choice writes its one
+// colour to both, so the OS preference cannot override it.
 export const applyThemeColor = (mode: ThemeMode): void => {
   if (typeof document === 'undefined') return
-  const color = resolveIsDark(mode) ? THEME_COLOR_DARK : THEME_COLOR_LIGHT
-  const metas = Array.from(
+  const explicit =
+    mode === 'system'
+      ? null
+      : mode === 'dark'
+        ? THEME_COLOR_DARK
+        : THEME_COLOR_LIGHT
+  for (const meta of Array.from(
     document.querySelectorAll('meta[name="theme-color"]')
-  )
-  if (metas.length === 0) {
-    const meta = document.createElement('meta')
-    meta.setAttribute('name', 'theme-color')
-    meta.setAttribute('content', color)
-    document.head.appendChild(meta)
-    return
-  }
-  for (const meta of metas) {
-    if (mode === 'system') {
-      const media = meta.getAttribute('media') ?? ''
-      if (media.includes('dark')) meta.setAttribute('content', THEME_COLOR_DARK)
-      else if (media.includes('light'))
-        meta.setAttribute('content', THEME_COLOR_LIGHT)
-      else meta.setAttribute('content', color)
-      continue
-    }
-    meta.setAttribute('content', color)
+  )) {
+    const media = meta.getAttribute('media') ?? ''
+    const own = media.includes('dark')
+      ? THEME_COLOR_DARK
+      : media.includes('light')
+        ? THEME_COLOR_LIGHT
+        : null
+    const color = explicit ?? own
+    if (color) meta.setAttribute('content', color)
   }
 }
 
 // Inline script injected at the top of <body> so the theme is applied before the
 // first paint — otherwise a stored dark preference would flash a light page on
 // every load. Kept dependency-free and self-contained (it runs before any bundle
-// loads) and mirrors the logic above. Allowed by the `script-src 'unsafe-inline'`
-// directive in the app CSP.
-export const THEME_INIT_SCRIPT = `(function(){try{var k='${THEME_STORAGE_KEY}';var m=localStorage.getItem(k);if(m!=='light'&&m!=='dark'&&m!=='system')m='system';var d=m==='dark'||(m==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light';var c=d?'${THEME_COLOR_DARK}':'${THEME_COLOR_LIGHT}';var ms=document.querySelectorAll('meta[name="theme-color"]');if(!ms.length){var t=document.createElement('meta');t.setAttribute('name','theme-color');t.setAttribute('content',c);document.head.appendChild(t);}else{for(var i=0;i<ms.length;i++){ms[i].setAttribute('content',c);}}}catch(e){}})();`
+// loads) and mirrors the logic above. For an explicit choice it also writes the
+// theme-color metas that exist yet; in `system` mode it leaves them alone (they
+// are already media-scoped), and it never adds one. ThemeProvider applies the
+// colour again on mount, for metas that arrive after this script. Allowed by the
+// `script-src 'unsafe-inline'` directive in the app CSP.
+export const THEME_INIT_SCRIPT = `(function(){try{var k='${THEME_STORAGE_KEY}';var m=localStorage.getItem(k);if(m!=='light'&&m!=='dark'&&m!=='system')m='system';var d=m==='dark'||(m==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light';if(m!=='system'){var c=m==='dark'?'${THEME_COLOR_DARK}':'${THEME_COLOR_LIGHT}';var ms=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<ms.length;i++){ms[i].setAttribute('content',c);}}}catch(e){}})();`

@@ -93,6 +93,17 @@ describe('ShareTargetIntake', () => {
     expect(window.location.search).toBe('')
   })
 
+  it.each([
+    ['?share=gone', 'This share has expired'],
+    ['?shareUnavailable=1', "Shared files weren't attached"]
+  ])('says what happened for %s', async (search, title) => {
+    window.history.replaceState(null, '', `/app${search}`)
+
+    render(<ShareTargetIntake isMediaUploadEnabled onSeed={vi.fn()} />)
+
+    expect(await screen.findByText(title)).toBeInTheDocument()
+  })
+
   it('skips shared media, with a notice, when media uploads are off', async () => {
     await stage()
 

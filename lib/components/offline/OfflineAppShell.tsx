@@ -508,14 +508,6 @@ export function OfflineAppShell() {
                     >
                       <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
                         <ConnectionStatusBar />
-                        {view === 'timeline' && sessionConfirmed && (
-                          <ShareTargetIntake
-                            isMediaUploadEnabled={
-                              bootstrap.isMediaUploadEnabled
-                            }
-                            onSeed={setShareSeed}
-                          />
-                        )}
                         {view === 'timeline' && (
                           <MainPageTimeline
                             host={bootstrap.host}
@@ -535,6 +527,16 @@ export function OfflineAppShell() {
                             }
                             initialFiles={shareSeed?.media}
                             initialFitnessFile={shareSeed?.fitnessFile}
+                            composerNotice={
+                              sessionConfirmed ? (
+                                <ShareTargetIntake
+                                  isMediaUploadEnabled={
+                                    bootstrap.isMediaUploadEnabled
+                                  }
+                                  onSeed={setShareSeed}
+                                />
+                              ) : null
+                            }
                             initialSegments={timeline?.segments}
                             initialScrollAnchor={timeline?.scrollAnchor}
                             initialLastRefreshedAt={timeline?.lastRefreshedAt}

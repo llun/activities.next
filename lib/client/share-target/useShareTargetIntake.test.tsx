@@ -5,7 +5,11 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { peekStagedShare, stageShareFiles } from './shareTargetDb'
+import {
+  deleteStagedShare,
+  peekStagedShare,
+  stageShareFiles
+} from './shareTargetDb'
 import { useShareTargetIntake } from './useShareTargetIntake'
 
 const replace = vi.fn()
@@ -50,7 +54,8 @@ describe('useShareTargetIntake', () => {
       seed: null,
       pending: null,
       notice: null,
-      unavailable: false
+      unavailable: false,
+      expired: false
     })
   })
 
@@ -168,14 +173,34 @@ describe('useShareTargetIntake', () => {
     expect(window.location.search).toBe('')
   })
 
-  it('reports an expired or missing share as unavailable', async () => {
+  it('reports an expired or missing share as expired, not unavailable', async () => {
     setSearch('?share=missing')
 
     const { result } = renderHook(() =>
       useShareTargetIntake({ enabled: true, limits })
     )
 
-    await waitFor(() => expect(result.current.unavailable).toBe(true))
+    await waitFor(() => expect(result.current.expired).toBe(true))
+    expect(result.current.unavailable).toBe(false)
+  })
+
+  // The record can expire or be evicted while the prompt is on screen.
+  it('reports a share gone by the time Add to post is pressed as expired', async () => {
+    const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
+    setSearch(`?share=${id}`)
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+    await deleteStagedShare(id!)
+
+    await act(async () => {
+      await result.current.accept()
+    })
+
+    expect(result.current.expired).toBe(true)
+    expect(result.current.unavailable).toBe(false)
+    expect(result.current.seed).toBeNull()
   })
 
   it('reports skipped files', async () => {

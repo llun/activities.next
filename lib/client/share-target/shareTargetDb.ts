@@ -146,6 +146,9 @@ export const stageShareFiles = async (
   }
 }
 
+/** How long sign-out waits for `clearStagedShares` before going on. */
+export const CLEAR_STAGED_SHARES_TIMEOUT_MS = 5_000
+
 /** Deletes one staged share (the reader discarded it). */
 export const deleteStagedShare = async (id: string): Promise<void> => {
   try {
@@ -161,10 +164,20 @@ export const deleteStagedShare = async (id: string): Promise<void> => {
  * session expiry (401) keeps them, so a share survives signing in again.
  */
 export const clearStagedShares = async (): Promise<void> => {
+  // Bounded, as draftsDb bounds its opens: sign-out awaits this, and a hung
+  // IndexedDB must not keep the reader on a "signing out" screen.
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    await withStore('readwrite', (store) => store.clear())
+    await Promise.race([
+      withStore('readwrite', (store) => store.clear()),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, CLEAR_STAGED_SHARES_TIMEOUT_MS)
+      })
+    ])
   } catch {
     // IndexedDB is unavailable: there is nothing staged to clear.
+  } finally {
+    clearTimeout(timer)
   }
 }
 

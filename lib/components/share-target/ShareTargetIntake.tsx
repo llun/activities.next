@@ -11,6 +11,11 @@ import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/services/fitness-files/constants'
 
+// Drawn in MainPageTimeline's stack between the page header and the top
+// composer. Below `md` the header is flush (`flushOnMobile`, no gap under the
+// bar, so the full-bleed composer meets it); the card needs its own gap there.
+const NOTICE_CLASS = 'max-md:mt-4'
+
 interface Props {
   /** Whether this instance takes media uploads; off, shared media is skipped. */
   isMediaUploadEnabled: boolean
@@ -19,7 +24,8 @@ interface Props {
 }
 
 /**
- * Reads a Web Share Target handoff on `/app`, right above the top composer.
+ * Reads a Web Share Target handoff on `/app`. MainPageTimeline draws it below
+ * the page header, right above the top composer (its `composerNotice` slot).
  * Any site can submit a share to this origin, so the files are never used on
  * arrival: they are listed with "Add to post" and "Discard", and only Add to
  * post hands them to the composer (`onSeed`), which uploads them. It also
@@ -31,7 +37,7 @@ export const ShareTargetIntake: FC<Props> = ({
   onSeed
 }) => {
   const { maxMediaFileSize, maxMediaAttachments } = useInstanceLimits()
-  const { seed, pending, notice, unavailable, accept, discard } =
+  const { seed, pending, notice, unavailable, expired, accept, discard } =
     useShareTargetIntake({
       enabled: true,
       limits: {
@@ -58,12 +64,27 @@ export const ShareTargetIntake: FC<Props> = ({
 
   if (unavailable) {
     return (
-      <div className="mb-3">
-        <Alert tone="info" title="Shared files weren't attached">
-          The share arrived before the app was ready on this device. Share the
-          files again to attach them.
-        </Alert>
-      </div>
+      <Alert
+        tone="info"
+        title="Shared files weren't attached"
+        className={NOTICE_CLASS}
+      >
+        The share arrived before the app was ready on this device. Share the
+        files again to attach them.
+      </Alert>
+    )
+  }
+
+  if (expired) {
+    return (
+      <Alert
+        tone="info"
+        title="This share has expired"
+        className={NOTICE_CLASS}
+      >
+        Shared files are kept on this device for 24 hours. Share them again to
+        attach them.
+      </Alert>
     )
   }
 
@@ -73,50 +94,51 @@ export const ShareTargetIntake: FC<Props> = ({
       ...(pending.fitnessFile ? [pending.fitnessFile.name] : [])
     ]
     return (
-      <div className="mb-3">
-        <Alert
-          tone="info"
-          title={pending.summary}
-          action={
-            <div className="flex shrink-0 gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={busy}
-                onClick={() => void run(accept)}
-              >
-                Add to post
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={() => void run(discard)}
-              >
-                Discard
-              </Button>
-            </div>
-          }
-        >
-          <ul aria-label="Shared files" className="break-all">
-            {names.map((name, index) => (
-              <li key={`${index}-${name}`}>{name}</li>
-            ))}
-          </ul>
-          {notice ? <p className="mt-1">{notice}</p> : null}
-        </Alert>
-      </div>
+      <Alert
+        tone="info"
+        title={pending.summary}
+        className={NOTICE_CLASS}
+        action={
+          <div className="flex shrink-0 gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy}
+              onClick={() => void run(accept)}
+            >
+              Add to post
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => void run(discard)}
+            >
+              Discard
+            </Button>
+          </div>
+        }
+      >
+        <ul aria-label="Shared files" className="break-all">
+          {names.map((name, index) => (
+            <li key={`${index}-${name}`}>{name}</li>
+          ))}
+        </ul>
+        {notice ? <p className="mt-1">{notice}</p> : null}
+      </Alert>
     )
   }
 
   if (notice) {
     return (
-      <div className="mb-3">
-        <Alert tone="info" title="Some shared files were skipped">
-          {notice}
-        </Alert>
-      </div>
+      <Alert
+        tone="info"
+        title="Some shared files were skipped"
+        className={NOTICE_CLASS}
+      >
+        {notice}
+      </Alert>
     )
   }
 

@@ -365,13 +365,16 @@ const createShareId = () => {
 
 // Fetch Metadata. A share the OS launches is a top-level navigation; any other
 // site can also auto-submit a form here, so the request must be a navigation
-// and, where the browser exposes `Sec-Fetch-Site` to the worker, it must be
+// for a document (not a frame), and, where the browser exposes
+// `Sec-Fetch-Site` to the worker, it must be
 // `none` (browser-initiated) or `same-origin`. The fetch algorithm adds Fetch
 // Metadata after the service worker step, so the worker usually sees no such
 // header; a missing one is allowed, and the confirmation on /app (nothing is
 // uploaded until the reader presses Add to post) is the guard that holds then.
 const isShareTargetRequestAllowed = (request) => {
-  if (request.mode !== 'navigate') return false
+  if (request.mode !== 'navigate' || request.destination !== 'document') {
+    return false
+  }
   const site = request.headers.get('Sec-Fetch-Site')
   return !site || site === 'none' || site === 'same-origin'
 }

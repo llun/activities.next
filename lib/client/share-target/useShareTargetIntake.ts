@@ -40,8 +40,10 @@ export interface ShareTargetIntakeState {
   pending: ShareTargetPending | null
   /** A one-off note about files that were skipped. */
   notice: string | null
-  /** The share arrived before the worker could stage it, or it expired. */
+  /** The share arrived before the worker could stage it (`?shareUnavailable`). */
   unavailable: boolean
+  /** The staged share is gone: past its 24 h, evicted, or used elsewhere. */
+  expired: boolean
 }
 
 export interface ShareTargetIntake extends ShareTargetIntakeState {
@@ -80,7 +82,8 @@ const IDLE: ShareTargetIntakeState = {
   seed: null,
   pending: null,
   notice: null,
-  unavailable: false
+  unavailable: false,
+  expired: false
 }
 
 /**
@@ -122,7 +125,7 @@ export function useShareTargetIntake({
       const share = await peekStagedShare(id)
       if (!share) {
         stripShareParams()
-        setState({ ...IDLE, unavailable: true })
+        setState({ ...IDLE, expired: true })
         return
       }
 
@@ -161,7 +164,7 @@ export function useShareTargetIntake({
     const consumed = await takeStagedShare(pending.id)
     stripShareParams()
     if (!consumed) {
-      setState({ ...IDLE, unavailable: true })
+      setState({ ...IDLE, expired: true })
       return
     }
     setState({

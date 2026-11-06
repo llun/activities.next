@@ -89,6 +89,7 @@ vi.mock('@/app/(timeline)/MainPageTimeline', () => ({
   MainPageTimeline: (props: any) => (
     <div data-testid="main-timeline">
       <span>Timeline for {props.profile?.username}</span>
+      {props.composerNotice}
       <button onClick={() => props.onUnauthorized?.()}>Trigger 401</button>
     </div>
   )
@@ -395,7 +396,7 @@ describe('OfflineAppShell', () => {
         expect(screen.getByTestId('main-timeline')).toBeInTheDocument()
       })
       expect(
-        screen.queryByText("Shared files weren't attached")
+        screen.queryByText('This share has expired')
       ).not.toBeInTheDocument()
 
       await act(async () => {
@@ -404,7 +405,7 @@ describe('OfflineAppShell', () => {
 
       // The intake ran: this share id was never staged, so it says so.
       expect(
-        await screen.findByText("Shared files weren't attached")
+        await screen.findByText('This share has expired')
       ).toBeInTheDocument()
     } finally {
       vi.useRealTimers()

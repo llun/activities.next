@@ -175,14 +175,20 @@ describe('theme-core', () => {
       ])
     })
 
-    it('creates the meta when the document has none', () => {
-      document.head.innerHTML = ''
+    // Next renders the two media-scoped metas; a third one beside them would
+    // make the browser's pick depend on document order.
+    it.each(['light', 'dark', 'system'] as const)(
+      'never adds a meta (%s)',
+      (mode) => {
+        renderMetas()
+        applyThemeColor(mode)
+        expect(metas()).toHaveLength(2)
 
-      applyThemeColor('dark')
-
-      expect(metas()).toHaveLength(1)
-      expect(metas()[0].getAttribute('content')).toBe(THEME_COLOR_DARK)
-    })
+        document.head.innerHTML = ''
+        applyThemeColor(mode)
+        expect(metas()).toHaveLength(0)
+      }
+    )
   })
 
   describe('THEME_INIT_SCRIPT', () => {
@@ -201,6 +207,51 @@ describe('theme-core', () => {
       new Function(THEME_INIT_SCRIPT)()
       expect(document.documentElement.classList.contains('dark')).toBe(false)
       expect(document.documentElement.style.colorScheme).toBe('light')
+    })
+
+    describe('theme-color metas', () => {
+      const renderServerMetas = () => {
+        document.head.innerHTML =
+          '<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">' +
+          '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0a0a">'
+      }
+      const contents = () =>
+        Array.from(document.querySelectorAll('meta[name="theme-color"]')).map(
+          (meta) => meta.getAttribute('content')
+        )
+
+      afterEach(() => {
+        document.head.innerHTML = ''
+      })
+
+      // System mode: the server's media-scoped pair is already right, so the
+      // script must not flatten it to the scheme it resolved at load.
+      it('leaves the media-scoped metas alone in system mode', () => {
+        renderServerMetas()
+        vi.stubGlobal('matchMedia', () => ({ matches: true }))
+
+        new Function(THEME_INIT_SCRIPT)()
+
+        vi.unstubAllGlobals()
+        expect(contents()).toEqual([THEME_COLOR_LIGHT, THEME_COLOR_DARK])
+      })
+
+      it('writes the one chosen colour for an explicit choice', () => {
+        renderServerMetas()
+        localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+
+        new Function(THEME_INIT_SCRIPT)()
+
+        expect(contents()).toEqual([THEME_COLOR_DARK, THEME_COLOR_DARK])
+      })
+
+      it('never adds a meta, even before the metas have arrived', () => {
+        localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+
+        new Function(THEME_INIT_SCRIPT)()
+
+        expect(contents()).toEqual([])
+      })
     })
   })
 })

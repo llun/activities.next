@@ -2155,7 +2155,11 @@ export const PostBox: FC<Props> = ({
       }, 0)
     }
     // retargetAfterSend: run again with the latest props once a send settles.
-  }, [profile, replyStatus, editStatus, quotedStatus, retargetAfterSend])
+    // profile.id, not profile: a refreshed bootstrap hands the same actor a new
+    // object (OfflineAppShell's background refresh), which is not a new
+    // target and must not discard what the author attached. A different
+    // actor still re-targets.
+  }, [profile.id, replyStatus, editStatus, quotedStatus, retargetAfterSend])
 
   // Seeds the files a Web Share Target handed over, once. They arrive only
   // after the reader pressed "Add to post" (ShareTargetIntake), never on the
