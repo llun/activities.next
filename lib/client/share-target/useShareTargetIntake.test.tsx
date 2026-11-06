@@ -206,6 +206,26 @@ describe('useShareTargetIntake', () => {
     expect(await readSharePurgePending()).toBe('none')
   })
 
+  // A stale tab: the card was open when a sign-out elsewhere failed its
+  // clear. Add to post must not hand the previous account's files over.
+  it('seeds nothing when a purge is marked after the card opened', async () => {
+    const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
+    setSearch(`?share=${id}`)
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+
+    await markSharePurgePending(Date.now() + 1)
+    await act(async () => {
+      await result.current.accept()
+    })
+
+    expect(result.current.seed).toBeNull()
+    expect(result.current.expired).toBe(true)
+    expect(await peekStagedShare(id!)).toBeNull()
+  })
+
   it('reads nothing when the purge marker cannot be read', async () => {
     const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
     setSearch(`?share=${id}`)

@@ -191,6 +191,14 @@ export function useShareTargetIntake({
   const accept = async () => {
     const pending = state.pending
     if (!pending) return
+    // The card may have been open across a sign-out in another tab: honour
+    // its purge again before anything reaches the composer. On failure the
+    // record is left, as on arrival, and nothing is seeded.
+    if (!(await honourPendingSharePurge())) {
+      stripShareParams()
+      setState({ ...IDLE, expired: true })
+      return
+    }
     const consumed = await takeStagedShare(pending.id)
     stripShareParams()
     if (!consumed) {

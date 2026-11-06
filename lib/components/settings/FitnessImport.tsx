@@ -130,6 +130,12 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
   const releaseShare = (id = shareIdRef.current) => {
     shareIdRef.current = null
     if (id) void deleteStagedShare(id)
+    stripShareParam()
+  }
+
+  // Strips `?share=` without touching the record: when a purge could not run,
+  // nothing is read or deleted, as on /app.
+  const stripShareParam = () => {
     const params = new URLSearchParams(window.location.search)
     if (!params.has(SHARE_PARAM)) return
     params.delete(SHARE_PARAM)
@@ -153,7 +159,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
       // As on /app: a failed sign-out's shares go first, and if they cannot,
       // nothing is read.
       if (!(await honourPendingSharePurge())) {
-        releaseShare(id)
+        stripShareParam()
         return
       }
       const share = await peekStagedShare(id)
@@ -207,6 +213,21 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
 
     setIsImporting(true)
     setError(null)
+
+    // Shared files were read when the page opened; a sign-out in another tab
+    // may have marked them for purging since. Check again before uploading.
+    const shareId = shareIdRef.current
+    if (
+      shareId &&
+      (!(await honourPendingSharePurge()) || !(await peekStagedShare(shareId)))
+    ) {
+      shareIdRef.current = null
+      stripShareParam()
+      setFiles([])
+      setError('This share has expired. Share the files again to import them.')
+      setIsImporting(false)
+      return
+    }
 
     try {
       const result = await startFitnessImport(files, visibility)

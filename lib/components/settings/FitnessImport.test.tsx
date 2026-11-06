@@ -160,6 +160,52 @@ describe('FitnessImport share intake', () => {
     expect(await readSharePurgePending()).toBe('none')
   })
 
+  // A stale tab: the workouts were preselected before a sign-out elsewhere
+  // failed its clear. Import must not upload the previous account's files.
+  it('uploads nothing when a purge is marked after the files were preselected', async () => {
+    const id = await stageShareFiles([
+      file('run.fit', 'application/vnd.ant.fit'),
+      file('ride.gpx', 'application/gpx+xml')
+    ])
+    window.history.replaceState(null, '', `/fitness/files?share=${id}`)
+    render(<FitnessImport />)
+    await waitFor(() =>
+      expect(screen.getByText('2 files chosen')).toBeInTheDocument()
+    )
+
+    await markSharePurgePending(Date.now() + 1)
+    fireEvent.click(screen.getByRole('button', { name: 'Import 2' }))
+
+    expect(
+      await screen.findByText(/This share has expired/)
+    ).toBeInTheDocument()
+    expect(startFitnessImport).not.toHaveBeenCalled()
+    expect(screen.getByText('No files chosen')).toBeInTheDocument()
+  })
+
+  // As on /app: a purge that cannot run reads nothing and deletes nothing.
+  it('leaves the record alone when the purge marker cannot be read', async () => {
+    const id = await stageShareFiles([
+      file('run.fit', 'application/vnd.ant.fit'),
+      file('ride.gpx', 'application/gpx+xml')
+    ])
+    window.history.replaceState(null, '', `/fitness/files?share=${id}`)
+    vi.stubGlobal('caches', {
+      open: async () => ({
+        keys: async () => {
+          throw new Error('keys rejected')
+        }
+      })
+    })
+
+    render(<FitnessImport />)
+
+    await waitFor(() => expect(window.location.search).toBe(''))
+    expect(screen.getByText('No files chosen')).toBeInTheDocument()
+    vi.stubGlobal('caches', undefined)
+    expect(await peekStagedShare(id!)).not.toBeNull()
+  })
+
   it('does nothing without a share parameter', async () => {
     render(<FitnessImport />)
 
