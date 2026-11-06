@@ -1,0 +1,63 @@
+lib/client/share-target/useShareTargetIntake.ts
+  s_2b1a50e2f9b981::t_56e1eb86f91de6 10-11,26-27,35-37,139-144,152,164-170,188-192
+  s_2b1a50e2f9b981::t_ad10c75367acbf 100-102
+lib/client/share-target/useShareTargetIntake.test.tsx
+  s_2b1a50e2f9b981::t_2f378ce45b51a6 167,183
+  s_2b1a50e2f9b981::t_81d1b77012a67a 93-166,168-182,184-185
+lib/components/theme/ThemeProvider.test.tsx
+  s_2b1a50e2f9b981::t_2f378ce45b51a6 272
+  s_2b1a50e2f9b981::t_958c962b1eecc4 238-239,244-245,252,254
+  s_2b1a50e2f9b981::t_7b1125480cd0b6 13,181-196,198-234,236,240-243,246-251,253,255-270,273-276
+  s_2b1a50e2f9b981::t_cf7e3d8bf6ec04 237
+lib/components/post-box/post-box.tsx
+  s_2b1a50e2f9b981::t_70962f45c98058 189-193,227,2178,2180-2188,2205
+  s_2b1a50e2f9b981::t_78f3b556b1b463 2170
+lib/client/share-target/classify.ts
+  s_2b1a50e2f9b981::t_8093d4f30fc130 29-30,52-53,78-80,82,139-140,148-181,184-185,193,197-200,228-230
+  s_2b1a50e2f9b981::t_d1b0325989a3d3 231-232
+lib/client/share-target/classify.test.ts
+  s_2b1a50e2f9b981::t_48aa0335eec574 210-255,259-273,280-281,292-293,304-305
+  s_2b1a50e2f9b981::t_2f378ce45b51a6 11-12
+lib/components/offline/OfflineAppShell.tsx
+  s_2b1a50e2f9b981::t_70962f45c98058 530
+lib/components/share-target/ShareTargetIntake.tsx
+  s_2b1a50e2f9b981::t_70962f45c98058 18-19,125-138
+lib/components/share-target/ShareTargetIntake.test.tsx
+  s_2b1a50e2f9b981::t_d04e2f97054c80 83-107
+lib/components/post-box/post-box.share.test.tsx
+  s_2b1a50e2f9b981::t_2f378ce45b51a6 265-269
+  s_2b1a50e2f9b981::t_81d1b77012a67a 64-66,71,73,76-79,86,253-264,270-285
+  s_2b1a50e2f9b981::t_a7bfa4e185fc0a 286
+app/(timeline)/fitness/files/page.tsx
+  s_2b1a50e2f9b981::t_1731c7805c99df 23-24,37,41-48
+app/(timeline)/fitness/files/page.test.tsx
+  s_2b1a50e2f9b981::t_9c26d1e395cbd4 1-64
+lib/components/theme/ThemeProvider.tsx
+  s_2b1a50e2f9b981::t_331aeae9e93913 10,39-52,60-63,68,78-80,83-85,96,107,124
+app/(timeline)/MainPageTimeline.tsx
+  s_2b1a50e2f9b981::t_70962f45c98058 109-110,228,1678
+lib/client/offline/sw.test.ts
+  s_2b1a50e2f9b981::t_81d1b77012a67a 1090-1091,1095-1103
+  s_2b1a50e2f9b981::t_2f378ce45b51a6 1092-1094
+docs/architecture.md
+  s_2b1a50e2f9b981::t_cd9a9aaf8a5720 3589,3592,3596-3597
+  s_2b1a50e2f9b981::t_2f378ce45b51a6 3598
+public/sw.js
+  s_2b1a50e2f9b981::t_78f3b556b1b463 386-387,389-390
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "173f474535b95b32a08d474c0b2810c6ee963cb9",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
