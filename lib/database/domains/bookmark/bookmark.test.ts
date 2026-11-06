@@ -793,6 +793,43 @@ describe('BookmarkDatabase', () => {
         await database.deleteBookmark({ actorId, statusId: bookmark.statusId })
       }
 
+      it('keeps the tie-break when the removed cursor shares its createdAt', async () => {
+        const actorId = actorOf('tie')
+        const statuses = await Promise.all(
+          [1, 2, 3].map((index) => createStatus(`gone-tie-${index}`))
+        )
+        // Ids ascend 0..2; 0 and 1 share a timestamp, 2 is the oldest.
+        const createdAts = [2_000, 2_000, 1_000]
+        for (const [index, status] of statuses.entries()) {
+          await testDb.db
+            .insertInto('bookmarks')
+            .values({
+              actorId,
+              statusId: status.id,
+              createdAt: new Date(createdAts[index]),
+              updatedAt: new Date(createdAts[index])
+            })
+            .execute()
+        }
+        const all = await database.getBookmarks({ actorId, limit: 10 })
+        const order = (bookmarks: { statusId: string }[]) =>
+          bookmarks.map((bookmark) =>
+            statuses.findIndex((status) => status.id === bookmark.statusId)
+          )
+        expect(order(all)).toEqual([1, 0, 2])
+
+        const cursor = toBookmarkCursor(all[0])
+        await removeCursorBookmark(actorId, all[0])
+
+        // Its same-time sibling (a lower id) still comes next.
+        const page = await database.getBookmarks({
+          actorId,
+          limit: 10,
+          maxId: cursor
+        })
+        expect(order(page)).toEqual([0, 2])
+      })
+
       it('continues older pages (max_id) after the cursor bookmark is removed', async () => {
         const actorId = actorOf('max')
         const all = await seed(actorId)

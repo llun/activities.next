@@ -227,8 +227,10 @@ describe('GET /api/v1/bookmarks', () => {
   })
 
   it('keeps paging after the bookmark the cursor names is unbookmarked', async () => {
-    await createBookmarkedStatus('cursor-gone-one')
-    await createBookmarkedStatus('cursor-gone-two')
+    const created = [
+      await createBookmarkedStatus('cursor-gone-one'),
+      await createBookmarkedStatus('cursor-gone-two')
+    ]
 
     const firstResponse = await GET(
       createRequest('?format=activities_next&limit=1'),
@@ -252,7 +254,10 @@ describe('GET /api/v1/bookmarks', () => {
     expect(secondResponse.status).toBe(200)
     const secondPage = await secondResponse.json()
     expect(secondPage.statuses).toHaveLength(1)
-    expect(secondPage.statuses[0].id).not.toBe(firstPage.statuses[0].id)
+    // The other bookmark, not an empty page or the removed one again.
+    expect(
+      [firstPage.statuses[0].id, secondPage.statuses[0].id].sort()
+    ).toEqual([...created].sort())
   })
 
   it('returns an empty list for invalid pagination cursors', async () => {
