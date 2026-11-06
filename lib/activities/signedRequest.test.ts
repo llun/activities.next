@@ -30,6 +30,10 @@ const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }))
 vi.mock('@/lib/utils/request', () => ({
   request: (...params: unknown[]) => mockRequest(...params)
 }))
+const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }))
+vi.mock('@/lib/utils/logger', () => ({
+  logger: { warn: mockWarn, info: vi.fn(), error: vi.fn(), debug: vi.fn() }
+}))
 vi.mock('@/lib/services/serverSettings', () => ({
   getResolvedServerSettings: vi.fn().mockResolvedValue({
     network: { requestTimeoutMs: 1000 }
@@ -225,6 +229,14 @@ describe('signedActivityPubRequest', () => {
     await expect(send()).resolves.toBe(first)
     expect(calls).toHaveLength(2)
     expect(getRememberedSignatureScheme('remote.test')).toBeNull()
+    // Swallowed for the caller, but not silent.
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'remote.test',
+        scheme: 'rfc9421',
+        err: expect.objectContaining({ message: 'reset' })
+      })
+    )
   })
 
   it.each([false, true])(

@@ -6,7 +6,9 @@ import { normalizeActorHost } from '@/lib/services/federation/domainRules'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Actor } from '@/lib/types/domain/actor'
 import { signHttpMessage } from '@/lib/utils/httpMessageSignature'
+import { logger } from '@/lib/utils/logger'
 import { RequestOptions, RequestResult, request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 export type SignatureScheme = 'cavage' | 'rfc9421'
 
@@ -181,15 +183,15 @@ export const signedActivityPubRequest = async ({
   // says nothing about the scheme this host accepts.
   if (crossedHosts) return first
 
-  // Match request()'s explicit-timeout fallback to the runtime server setting.
-  const budget =
-    requestOptions?.responseTimeout ||
-    (await getResolvedServerSettings()).network.requestTimeoutMs
-  const remaining = budget - (Date.now() - startedAt)
-  if (remaining <= 0) return first
-
   const alternate: SignatureScheme = primary === 'cavage' ? 'rfc9421' : 'cavage'
   try {
+    // Match request()'s explicit-timeout fallback to the runtime server setting.
+    const budget =
+      requestOptions?.responseTimeout ||
+      (await getResolvedServerSettings()).network.requestTimeoutMs
+    const remaining = budget - (Date.now() - startedAt)
+    if (remaining <= 0) return first
+
     const { response: second, crossedHosts: secondCrossedHosts } = await send(
       alternate,
       {
@@ -201,9 +203,16 @@ export const signedActivityPubRequest = async ({
 
     if (!secondCrossedHosts) rememberSignatureScheme(initialHost, alternate)
     return second
-  } catch {
+  } catch (error) {
     // Knock 2 is a scheme probe: its failure must not replace Knock 1's
-    // authentication response with a network failure for delivery tracking.
+    // authentication response with a network failure for delivery tracking,
+    // but a signer bug here would otherwise never surface.
+    logger.warn({
+      message: 'Second signature knock failed; keeping the first response',
+      host: initialHost,
+      scheme: alternate,
+      err: toLoggableError(error)
+    })
     return first
   }
 }
