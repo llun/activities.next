@@ -1,0 +1,38 @@
+lib/client/share-target/pendingSharePurge.ts
+  s_2b1a50e2f9b981::t_47ffab8985db2a 26-39,41,44,62-67,69,77,95-98,107-108,110,112-114,116,131-137,139-140
+lib/client/share-target/shareTargetDb.ts
+  s_2b1a50e2f9b981::t_47ffab8985db2a 232-234,242-247,249
+public/sw.js
+  s_2b1a50e2f9b981::t_c24444dbfd30e9 360-362,364,378,423-426,475-476,488,523-526,529
+  s_2b1a50e2f9b981::t_d136950e5a5bec 422,427-428
+docs/architecture.md
+  s_2b1a50e2f9b981::t_d136950e5a5bec 3590
+lib/client/share-target/useShareTargetIntake.test.tsx
+  s_2b1a50e2f9b981::t_42846be4aa4ff0 206,249
+  s_2b1a50e2f9b981::t_0f91b24ce79c2e 209-226
+  s_2b1a50e2f9b981::t_70c4c3e67c1d38 207-208
+lib/components/settings/FitnessImport.test.tsx
+  s_2b1a50e2f9b981::t_42846be4aa4ff0 160
+lib/client/share-target/pendingSharePurge.test.ts
+  s_2b1a50e2f9b981::t_42846be4aa4ff0 109,117,142,146,163,186,211,215,226,246
+  s_2b1a50e2f9b981::t_0f91b24ce79c2e 38,54-57,70-72,164-177,187-199,201-206
+lib/client/offline/sw.test.ts
+  s_2b1a50e2f9b981::t_0f91b24ce79c2e 1151-1166,1168-1169
+  s_2b1a50e2f9b981::t_d136950e5a5bec 1167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cd92c0e65e2589bb636dbd9ed4b07a38701b3615",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
