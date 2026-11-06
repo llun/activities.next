@@ -1,18 +1,18 @@
 'use client'
 
 import { Folder, Pencil, Trash2 } from 'lucide-react'
-import { FC, FormEvent, useEffect, useState } from 'react'
+import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import {
   createBookmarkFolder,
   deleteBookmarkFolder,
   renameBookmarkFolder
 } from '@/lib/client'
-import { errorMessage } from '@/lib/components/bookmarks/NewBookmarkFolderDialog'
 import {
   putBookmarkFolder,
   removeBookmarkFolder
 } from '@/lib/components/bookmarks/bookmarkFolderStore'
+import { errorMessage } from '@/lib/components/bookmarks/errorMessage'
 import { AddBar } from '@/lib/components/surface/AddBar'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
@@ -55,6 +55,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
   const [renameValue, setRenameValue] = useState('')
   const [rowError, setRowError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const addInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
@@ -78,6 +79,9 @@ export const BookmarkFoldersDialog: FC<Props> = ({
       setAddError(errorMessage(error, "Couldn't create the folder."))
     } finally {
       setBusy(false)
+      // Create disables itself while saving, which drops focus to the page;
+      // hand it back to the field for the next name.
+      addInputRef.current?.focus()
     }
   }
 
@@ -142,6 +146,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
           buttonDisabled={busy || !newName.trim()}
           error={addError}
           onSubmit={(event) => void onAdd(event)}
+          inputRef={addInputRef}
           inputProps={{
             value: newName,
             onChange: (event) => setNewName(event.target.value),
@@ -178,6 +183,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
                       <Button
                         type="submit"
                         size="sm"
+                        className="pointer-coarse:h-10"
                         disabled={busy || !renameValue.trim()}
                       >
                         Save
@@ -185,6 +191,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
                       <Button
                         type="button"
                         size="sm"
+                        className="pointer-coarse:h-10"
                         variant="outline"
                         disabled={busy}
                         onClick={() => setRowMode(null)}
@@ -202,6 +209,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
                         <Button
                           type="button"
                           size="sm"
+                          className="pointer-coarse:h-10"
                           variant="destructive"
                           disabled={busy}
                           onClick={() => void onDelete(folder.id)}
@@ -211,6 +219,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
                         <Button
                           type="button"
                           size="sm"
+                          className="pointer-coarse:h-10"
                           variant="outline"
                           disabled={busy}
                           onClick={() => setRowMode(null)}
@@ -230,6 +239,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
                         variant="ghost"
                         size="icon-sm"
                         aria-label={`Rename ${folder.name}`}
+                        className="pointer-coarse:size-10"
                         disabled={busy}
                         onClick={() => startRow(folder, 'rename')}
                       >
@@ -242,7 +252,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
                         aria-label={`Delete ${folder.name}`}
                         disabled={busy}
                         onClick={() => startRow(folder, 'delete')}
-                        className="text-destructive-text hover:text-destructive-text"
+                        className="text-destructive-text hover:text-destructive-text pointer-coarse:size-10"
                       >
                         <Trash2 className="size-4" />
                       </Button>

@@ -14,7 +14,8 @@ import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
-  updateMatchingStatus
+  updateMatchingStatus,
+  withBookmarkChange
 } from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
@@ -32,7 +33,12 @@ import {
 } from '@/lib/services/bookmarks/constants'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 
 import { BookmarkFoldersDialog } from './BookmarkFoldersDialog'
@@ -50,13 +56,28 @@ const isInView = (view: string, folderId: string | null) =>
   view === ALL_BOOKMARKS ||
   (view === UNFILED_BOOKMARK_FOLDER ? folderId === null : folderId === view)
 
+// `status` with a deleted folder's id gone, the original of a boost included.
+const clearBookmarkFolder = (status: Status, folderId: string): Status => {
+  if (status.type === StatusType.enum.Announce) {
+    const original = clearBookmarkFolder(status.originalStatus, folderId)
+    return original === status.originalStatus
+      ? status
+      : ({ ...status, originalStatus: original } as Status)
+  }
+  return status.bookmarkFolderId === folderId
+    ? { ...status, bookmarkFolderId: null }
+    : status
+}
+
 // Keeps `?folder=` in step with the view without a navigation: the feed is
 // filtered in place, and a reload or a shared link opens the same view.
 const syncFolderQuery = (view: string) => {
   const url = new URL(window.location.href)
   if (view === ALL_BOOKMARKS) url.searchParams.delete('folder')
   else url.searchParams.set('folder', view)
-  window.history.replaceState(window.history.state, '', url)
+  if (url.href !== window.location.href) {
+    window.history.replaceState(window.history.state, '', url)
+  }
 }
 
 interface BookmarksTimelineProps {
@@ -139,11 +160,9 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
         )
       } else {
         setCurrentStatuses((previousStatuses) =>
-          updateMatchingStatus(previousStatuses, status.id, (target) => ({
-            ...target,
-            isActorBookmarked: isBookmarked,
-            ...(folderId !== undefined ? { bookmarkFolderId: folderId } : {})
-          }))
+          updateMatchingStatus(previousStatuses, status.id, (target) =>
+            withBookmarkChange(target, isBookmarked, folderId)
+          )
         )
       }
     },
@@ -227,8 +246,11 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
     }
   }, [])
 
-  const selectView = useCallback(async (next: string) => {
-    if (next === viewRef.current) return
+  // Every switch (and a reload of the view on screen) fetches its first page
+  // afresh; only the latest request may fill the feed.
+  const requestRef = useRef(0)
+  const loadView = useCallback(async (next: string) => {
+    const request = ++requestRef.current
     viewRef.current = next
     setView(next)
     syncFolderQuery(next)
@@ -239,22 +261,43 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
     lastBookmarkIdRef.current = null
     try {
       const result = await getBookmarks({ folderId: toFolderParam(next) })
-      if (viewRef.current !== next) return
+      if (requestRef.current !== request) return
       setCurrentStatuses(result.statuses)
       lastBookmarkIdRef.current = result.nextMaxBookmarkId
       setHasMoreStatuses(Boolean(result.nextMaxBookmarkId))
     } catch {
-      if (viewRef.current === next) setSwitchError(true)
+      if (requestRef.current === request) setSwitchError(true)
     } finally {
-      if (viewRef.current === next) setSwitching(false)
+      if (requestRef.current === request) setSwitching(false)
     }
   }, [])
 
+  const selectView = useCallback(
+    async (next: string) => {
+      if (next !== viewRef.current) await loadView(next)
+    },
+    [loadView]
+  )
+
+  // `?folder=` named a folder the server did not find (deleted, or not the
+  // viewer's), so the page opened All bookmarks: drop the dead parameter.
+  useEffect(() => {
+    if (initialFolder === ALL_BOOKMARKS) syncFolderQuery(ALL_BOOKMARKS)
+  }, [initialFolder])
+
   const onFolderDeleted = useCallback(
     (id: string) => {
-      if (viewRef.current === id) void selectView(ALL_BOOKMARKS)
+      // Its bookmarks are unfiled now.
+      setCurrentStatuses((previousStatuses) =>
+        previousStatuses.map((item) => clearBookmarkFolder(item, id))
+      )
+      if (viewRef.current === id) void loadView(ALL_BOOKMARKS)
+      // Unfiled gains the folder's bookmarks, so it is read again.
+      else if (viewRef.current === UNFILED_BOOKMARK_FOLDER) {
+        void loadView(UNFILED_BOOKMARK_FOLDER)
+      }
     },
-    [selectView]
+    [loadView]
   )
 
   const tabs: SectionNavSelectTab<string>[] = [
@@ -297,7 +340,12 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
         title="Bookmarks"
         description="Saved posts from your timelines."
         actions={
-          <Button variant="outline" size="sm" onClick={() => setManaging(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="pointer-coarse:h-10"
+            onClick={() => setManaging(true)}
+          >
             {hasFolders ? <FolderCog /> : <FolderPlus />}
             {hasFolders ? 'Manage folders' : 'New folder'}
           </Button>

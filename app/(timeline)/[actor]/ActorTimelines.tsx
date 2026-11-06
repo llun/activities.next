@@ -29,7 +29,8 @@ import { LazyChunkBoundary } from '@/lib/components/posts/lazy-chunk-boundary'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
-  updateMatchingStatus
+  updateMatchingStatus,
+  withBookmarkChange
 } from '@/lib/components/posts/statusArray'
 import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
 import {
@@ -446,12 +447,15 @@ export const ActorTimelines: FC<Props> = ({
   )
 
   const handleBookmarkChanged = useCallback(
-    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+    (
+      status: StatusNote | StatusPoll,
+      isBookmarked: boolean,
+      folderId?: string | null
+    ) => {
       updateBothLists((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, status.id, (target) => ({
-          ...target,
-          isActorBookmarked: isBookmarked
-        }))
+        updateMatchingStatus(previousStatuses, status.id, (target) =>
+          withBookmarkChange(target, isBookmarked, folderId)
+        )
       )
     },
     [updateBothLists]

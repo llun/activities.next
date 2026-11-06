@@ -39,10 +39,17 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .columns(['actorId', 'createdAt'])
     .execute()
 
-  await db.schema
-    .alterTable('bookmarks')
-    .addColumn('folderId', 'varchar(255)')
-    .execute()
+  // Guarded like the other column adds, so a rerun after a partial apply
+  // does not fail on the column it already added.
+  const tables = await db.introspection.getTables()
+  const columns =
+    tables.find((table) => table.name === 'bookmarks')?.columns ?? []
+  if (!columns.some((column) => column.name === 'folderId')) {
+    await db.schema
+      .alterTable('bookmarks')
+      .addColumn('folderId', 'varchar(255)')
+      .execute()
+  }
 
   await db.schema
     .createIndex('bookmarks_actor_folder_created_id')

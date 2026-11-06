@@ -5,6 +5,7 @@ import { FC, FormEvent, useEffect, useId, useState } from 'react'
 
 import { createBookmarkFolder } from '@/lib/client'
 import { putBookmarkFolder } from '@/lib/components/bookmarks/bookmarkFolderStore'
+import { errorMessage } from '@/lib/components/bookmarks/errorMessage'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
@@ -19,9 +20,6 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import type { BookmarkFolderEntity } from '@/lib/services/bookmarks/bookmarkFolders'
 import { MAX_BOOKMARK_FOLDER_NAME_LENGTH } from '@/lib/types/domain/bookmark'
-
-export const errorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error && error.message ? error.message : fallback
 
 interface Props {
   open: boolean

@@ -46,7 +46,8 @@ import { ReplyToast } from '@/lib/components/posts/reply-toast'
 import {
   reconcileStatusesMetadata,
   removeOriginalStatus,
-  updateMatchingStatus
+  updateMatchingStatus,
+  withBookmarkChange
 } from '@/lib/components/posts/statusArray'
 import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
 import { getStatusReplyTargetId } from '@/lib/components/posts/timelineModel'
@@ -953,14 +954,17 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   )
 
   const onBookmarkChanged = useCallback(
-    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+    (
+      status: StatusNote | StatusPoll,
+      isBookmarked: boolean,
+      folderId?: string | null
+    ) => {
       setSegments((prev) =>
         prev.map((seg) => ({
           ...seg,
-          statuses: updateMatchingStatus(seg.statuses, status.id, (target) => ({
-            ...target,
-            isActorBookmarked: isBookmarked
-          }))
+          statuses: updateMatchingStatus(seg.statuses, status.id, (target) =>
+            withBookmarkChange(target, isBookmarked, folderId)
+          )
         }))
       )
     },

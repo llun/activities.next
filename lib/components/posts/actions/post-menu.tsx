@@ -314,9 +314,16 @@ export const PostMenu: FC<Props> = ({
   const [bookmarkFolderSaving, setBookmarkFolderSaving] = useState(false)
   const isBookmarked = rowBookmarked ?? ownBookmarked
 
+  // Follow the status when the feed updates it. An unbookmarked status has no
+  // folder; a bookmarked one without a folder field says nothing new (a feed
+  // that only flipped `isActorBookmarked` after this menu filed it), so the
+  // folder this menu knows is kept.
   useEffect(() => {
     setOwnBookmarked(status.isActorBookmarked)
-    setBookmarkFolderId(status.bookmarkFolderId ?? null)
+    if (!status.isActorBookmarked) setBookmarkFolderId(null)
+    else if (status.bookmarkFolderId !== undefined) {
+      setBookmarkFolderId(status.bookmarkFolderId)
+    }
   }, [status.isActorBookmarked, status.bookmarkFolderId])
 
   // Removing the bookmark drops its folder; bookmarking again starts unfiled.

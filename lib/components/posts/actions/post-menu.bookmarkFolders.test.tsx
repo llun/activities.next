@@ -11,6 +11,7 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
+import { useState } from 'react'
 
 import {
   createBookmarkFolder,
@@ -18,6 +19,7 @@ import {
   setStatusBookmarkFolder
 } from '@/lib/client'
 import { resetBookmarkFolderStore } from '@/lib/components/bookmarks/bookmarkFolderStore'
+import { withBookmarkChange } from '@/lib/components/posts/statusArray'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { PostMenu } from './post-menu'
@@ -194,6 +196,54 @@ describe('PostMenu bookmark folder submenu', () => {
     expect(
       within(reopened).getByRole('menuitemradio', { name: 'Birding' })
     ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  // A feed re-renders the menu with the status it updated, as Home does.
+  const FeedHarness = ({
+    update
+  }: {
+    update: (target: StatusNote, folderId: string | null) => StatusNote
+  }) => {
+    const [current, setCurrent] = useState(status)
+    return (
+      <PostMenu
+        status={current}
+        isOwner={false}
+        canEdit={false}
+        onBookmarkFolderChanged={(_, folderId) =>
+          setCurrent((previous) => update(previous, folderId))
+        }
+      />
+    )
+  }
+
+  it.each([
+    [
+      'only flips isActorBookmarked',
+      (target: StatusNote) => ({ ...target, isActorBookmarked: true })
+    ],
+    [
+      'stores the folder',
+      (target: StatusNote, folderId: string | null) =>
+        withBookmarkChange(target, true, folderId) as StatusNote
+    ]
+  ])('keeps the filed folder checked when the feed %s', async (_, update) => {
+    render(<FeedHarness update={update} />)
+
+    const submenu = await openFolderSubmenu()
+    await act(async () => {
+      fireEvent.click(
+        within(submenu).getByRole('menuitemradio', { name: 'Birding' })
+      )
+    })
+
+    const reopened = await openFolderSubmenu()
+    expect(
+      within(reopened).getByRole('menuitemradio', { name: 'Birding' })
+    ).toHaveAttribute('aria-checked', 'true')
+    expect(
+      within(reopened).getByRole('menuitemradio', { name: 'No folder' })
+    ).toHaveAttribute('aria-checked', 'false')
   })
 
   it('unfiles with No folder', async () => {

@@ -2516,9 +2516,14 @@ export const runFitnessPhase = async (
  * archive without the file (a Mastodon one, or an older export) leaves every
  * bookmark unfiled. Nothing here federates or notifies.
  *
- * shortcut: one bounded pass with no cursor (at most 200 folders); give it a
- * cursor if large folders ever outlast an import slice.
+ * shortcut: one pass with no cursor or time budget. A folder holds up to
+ * 20,000 status URIs (`ownBookmarkFolderSchema`, within the 512 KiB array
+ * item cap) and a few queries run per URI, so only the lease is kept alive
+ * (renewed every `BOOKMARK_FOLDER_RENEW_EVERY` items); give it a cursor if
+ * large folders ever outlast an import slice.
  */
+const BOOKMARK_FOLDER_RENEW_EVERY = 25
+
 export const runBookmarkFoldersPhase = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress
@@ -2571,7 +2576,10 @@ export const runBookmarkFoldersPhase = async (
         folderId = created.folder.id
         folderByName.set(created.folder.name.toLowerCase(), folderId)
       }
-      for (const uri of parsed.data.items) {
+      for (const [index, uri] of parsed.data.items.entries()) {
+        if (index > 0 && index % BOOKMARK_FOLDER_RENEW_EVERY === 0) {
+          await context.renew()
+        }
         const status = await database.getStatus({ statusId: uri })
         if (!status) continue
         if (

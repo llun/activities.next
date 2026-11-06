@@ -12,7 +12,8 @@ import {
 import {
   reconcileStatusesMetadata,
   removeOriginalStatus,
-  updateMatchingStatus
+  updateMatchingStatus,
+  withBookmarkChange
 } from './statusArray'
 
 const now = new Date('2026-04-30T10:00:00.000Z').getTime()
@@ -554,5 +555,34 @@ describe('reconcileStatusesMetadata', () => {
     expect((reconciled[0] as StatusNote).attachments[0].playbackType).toBe(
       'gifv'
     )
+  })
+})
+
+describe('withBookmarkChange', () => {
+  const filed = createNoteStatus('https://remote.example/statuses/filed', {
+    isActorBookmarked: true,
+    bookmarkFolderId: 'folder-a'
+  })
+
+  it('sets the folder a filing names, null included', () => {
+    const unbookmarked = createNoteStatus('https://remote.example/statuses/new')
+    expect(withBookmarkChange(unbookmarked, true, 'folder-b')).toMatchObject({
+      isActorBookmarked: true,
+      bookmarkFolderId: 'folder-b'
+    })
+    expect(withBookmarkChange(filed, true, null)).toMatchObject({
+      isActorBookmarked: true,
+      bookmarkFolderId: null
+    })
+  })
+
+  it('keeps the folder on a plain bookmark and drops it on unbookmark', () => {
+    expect(withBookmarkChange(filed, true)).toMatchObject({
+      bookmarkFolderId: 'folder-a'
+    })
+    expect(withBookmarkChange(filed, false)).toMatchObject({
+      isActorBookmarked: false,
+      bookmarkFolderId: null
+    })
   })
 })

@@ -2337,7 +2337,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   follows. The folders are fetched once, the first time any menu opens, into a
   shared client store (`lib/components/bookmarks/bookmarkFolderStore.ts`) that
   the Bookmarks page seeds and every folder write updates. A filing reaches the
-  feed as `onBookmarkChanged(status, true, folderId)`.
+  feed as `onBookmarkChanged(status, true, folderId)`, and every feed stores it
+  with `withBookmarkChange` (`lib/components/posts/statusArray.ts`), so the
+  menu it re-renders still checks that folder. The menu also keeps the folder
+  it filed when a feed passes the status back without one.
 - **A post narrower than 400px moves bookmark and react into the `⋯` menu**
   ("Bookmark" / "React to post", above the menu's own items). The width comes
   from a `ResizeObserver` on the row itself (`useCompactActionBar`), not a

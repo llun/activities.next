@@ -173,14 +173,19 @@ describe('BookmarksTimeline folders', () => {
     fireEvent.change(within(dialog).getByLabelText('New folder'), {
       target: { value: 'Read later' }
     })
+    // A real click focuses the button, which then disables while it saves.
+    const create = within(dialog).getByRole('button', { name: 'Create' })
+    create.focus()
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+      fireEvent.click(create)
     })
 
     expect(createBookmarkFolder).toHaveBeenCalledWith('Read later')
     expect(
       within(dialog).getByRole('list', { name: 'Your bookmark folders' })
     ).toHaveTextContent('Read later')
+    // Ready for the next name, not dropped to the page.
+    expect(within(dialog).getByLabelText('New folder')).toHaveFocus()
     // The open dialog hides the page from the accessibility tree.
     expect(
       screen.getByRole('navigation', {
@@ -292,6 +297,76 @@ describe('BookmarksTimeline folders', () => {
       within(dialog).getByRole('list', { name: 'Your bookmark folders' })
     ).not.toHaveTextContent('Recipes')
     expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: undefined })
+    expect(window.location.search).toBe('')
+  })
+
+  const deleteFolderInDialog = async (name: string) => {
+    fireEvent.click(screen.getByRole('button', { name: 'Manage folders' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: `Delete ${name}` })
+    )
+    await act(async () => {
+      fireEvent.click(
+        within(dialog).getByRole('button', { name: 'Delete folder' })
+      )
+    })
+    return dialog
+  }
+
+  it("unfiles the deleted folder's posts on screen", async () => {
+    ;(deleteBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    renderTimeline({ folders: FOLDERS, statuses: [filedStatus] })
+
+    await deleteFolderInDialog('Recipes')
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+
+    // Still All bookmarks, so the feed is not refetched.
+    expect(getBookmarks).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'ArrowDown'
+    })
+    const menu = await screen.findByRole('menu')
+    fireEvent.keyDown(
+      within(menu).getByRole('menuitem', { name: 'Bookmark folder' }),
+      { key: 'ArrowRight' }
+    )
+    const submenu = await waitFor(() => {
+      const menus = screen.getAllByRole('menu')
+      expect(menus.length).toBeGreaterThan(1)
+      return menus[menus.length - 1]
+    })
+    expect(
+      within(submenu).getByRole('menuitemradio', { name: 'No folder' })
+    ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('reads Unfiled again when a folder is deleted while it is open', async () => {
+    ;(deleteBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    ;(getBookmarks as jest.Mock).mockResolvedValue({
+      statuses: [{ ...filedStatus, bookmarkFolderId: null }],
+      nextMaxBookmarkId: null,
+      prevMinBookmarkId: null
+    })
+    renderTimeline({ folders: FOLDERS, initialFolder: 'none' })
+
+    await deleteFolderInDialog('Recipes')
+
+    expect(getBookmarks).toHaveBeenCalledTimes(1)
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: 'none' })
+    expect(
+      await screen.findByText('A filed recipe', {}, { timeout: 2000 })
+    ).toBeInTheDocument()
+  })
+
+  it('drops a ?folder= the server could not find', () => {
+    window.history.replaceState(null, '', '/bookmarks?folder=deleted-folder')
+
+    renderTimeline({ folders: FOLDERS })
+
     expect(window.location.search).toBe('')
   })
 })

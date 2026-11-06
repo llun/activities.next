@@ -253,6 +253,11 @@ interface InsetReplyProps {
   onQuote?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
+  onBookmarkChanged?: (
+    status: StatusNote | StatusPoll,
+    isBookmarked: boolean,
+    folderId?: string | null
+  ) => void
   onOpenStatus: (status: Status) => void
   onShowMedia: (
     medias: Attachment[],
@@ -280,6 +285,7 @@ export const InsetReply: FC<InsetReplyProps> = ({
   onQuote,
   onPostDeleted,
   onLikeChanged,
+  onBookmarkChanged,
   onOpenStatus,
   onShowMedia
 }) => {
@@ -360,6 +366,9 @@ export const InsetReply: FC<InsetReplyProps> = ({
                 onEdit={onEdit}
                 onQuote={onQuote}
                 onPostDeleted={onPostDeleted}
+                onBookmarkFolderChanged={(target, folderId) =>
+                  onBookmarkChanged?.(target, true, folderId)
+                }
               />
             </div>
           ) : null}
@@ -521,6 +530,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                       onQuote={handleQuote}
                       onPostDeleted={onPostDeleted}
                       onLikeChanged={onLikeChanged}
+                      onBookmarkChanged={onBookmarkChanged}
                       onOpenStatus={onOpenStatus}
                       onShowMedia={onShowMedia}
                     />

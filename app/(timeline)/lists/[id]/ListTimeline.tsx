@@ -9,7 +9,8 @@ import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-butt
 import { PageHeader } from '@/lib/components/page-header'
 import {
   removeOriginalStatus,
-  updateMatchingStatus
+  updateMatchingStatus,
+  withBookmarkChange
 } from '@/lib/components/posts/statusArray'
 import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
 import {
@@ -146,12 +147,15 @@ export const ListTimeline: FC<ListTimelineProps> = ({
   )
 
   const onBookmarkChanged = useCallback(
-    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+    (
+      status: StatusNote | StatusPoll,
+      isBookmarked: boolean,
+      folderId?: string | null
+    ) => {
       setCurrentStatuses((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, status.id, (target) => ({
-          ...target,
-          isActorBookmarked: isBookmarked
-        }))
+        updateMatchingStatus(previousStatuses, status.id, (target) =>
+          withBookmarkChange(target, isBookmarked, folderId)
+        )
       )
     },
     []

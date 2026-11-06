@@ -960,6 +960,42 @@ describe('own archive import phases', () => {
       ).resolves.toBe(false)
     })
 
+    it('keeps the lease alive through a long folder', async () => {
+      const importId = 'folders-renew-' + randomUUID()
+      const stagedImport = await stageArchive(
+        await createImport(importId),
+        buildZip([
+          {
+            name: `${EXTRAS}/bookmark_folders.json`,
+            data: Buffer.from(
+              JSON.stringify([
+                {
+                  id: 'source-folder-long',
+                  name: 'Long folder ' + randomUUID(),
+                  createdAt: 1,
+                  updatedAt: 1,
+                  items: Array.from(
+                    { length: 51 },
+                    (_, index) =>
+                      `https://gone.example/statuses/${index}-${randomUUID()}`
+                  )
+                }
+              ])
+            )
+          }
+        ])
+      )
+      const renew = vi.fn(async () => {})
+
+      await runBookmarkFoldersPhase(
+        { ...contextFor(stagedImport), renew },
+        progressWithBookmarks()
+      )
+
+      // Once for the folder, then before items 25 and 50.
+      expect(renew).toHaveBeenCalledTimes(3)
+    })
+
     it('leaves bookmarks unfiled for an archive without folders, or with the option off', async () => {
       const statusId = await createStatus('old-archive')
       await database.createBookmark({ actorId: actor.id, statusId })

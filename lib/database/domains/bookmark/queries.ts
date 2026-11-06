@@ -179,10 +179,11 @@ export const createBookmark = async (
   })
 }
 
-// Serialises one actor's folder writes and filings on their actor row, as the
-// album writes do, so a folder cannot be deleted between a filing's check and
-// its write, and two creates cannot both pass the cap or the name check.
-// SQLite's single writer already serialises transactions.
+// Serialises one actor's folder writes and filings on their actor row, the
+// pattern of the gear cap (`createGalleryGearWithinLimit`), so a folder cannot
+// be deleted between a filing's check and its write, and two creates cannot
+// both pass the cap or the name check. SQLite's single writer already
+// serialises transactions.
 const lockActor = async (db: Db, actorId: string) => {
   await forUpdate(
     db,

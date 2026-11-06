@@ -7,8 +7,11 @@ export const BookmarksLoading: FC = () => (
   <PostFeedLoading
     label="Loading bookmarks"
     titleWidth="w-28"
-    // The "Manage folders" (or "New folder") button: `Button size="sm"`.
-    actions={<SkeletonBar className="h-8 w-36 rounded-md" />}
+    // The "Manage folders" (or "New folder") button: `Button size="sm"`,
+    // 40px under a coarse pointer.
+    actions={
+      <SkeletonBar className="h-8 w-36 rounded-md pointer-coarse:h-10" />
+    }
   />
 )
 
