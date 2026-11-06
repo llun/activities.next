@@ -2623,8 +2623,8 @@ export const runBookmarkFoldersPhase = async (
     for await (const event of iterateArrayItems(
       chunksOf(await archive.openEntryStream(name))
     )) {
-      // An entry too large to read has no name to report: this skip counts an
-      // entry, not the folder it belonged to, and the report says so.
+      // An entry the reader could not return (too large, or not readable) has
+      // no name to report: this skip counts an entry, not the folder it belonged to, and the report says so.
       if (!('raw' in event)) {
         skip(
           event.error === 'item_too_large'

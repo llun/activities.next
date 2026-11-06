@@ -177,9 +177,9 @@ export const importReportRows = (
   for (const [reason, count] of Object.entries(bookmarkFolderSkips)
     .filter(([, value]) => value > 0)
     .sort(([left], [right]) => left.localeCompare(right))) {
-    // An entry too large or unreadable never gave the phase the folder's name,
-    // so it counted entries, not folders: a folder split into several entries
-    // can contribute more than one. Every other reason counts one folder
+    // An entry too large, unparseable or invalid is skipped before its name is
+    // read, so it counts entries, not folders: a folder split into several
+    // entries can contribute more than one. Every other reason counts one folder
     // however many entries it was split into.
     const noun = isBookmarkFolderEntrySkip(reason)
       ? count === 1

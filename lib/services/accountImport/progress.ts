@@ -24,9 +24,9 @@ export type BookmarkFolderSkipReason =
 
 /**
  * The bookmark-folders reasons counted per `bookmark_folders.json` entry, not
- * per folder. Both come from an entry whose JSON could not be read, so the
- * phase never learns the folder's name: an export splits a large folder into
- * several same-name entries (`splitBookmarkFolder`), and each unreadable one
+ * per folder. Both are skipped before the phase reads the entry's name (it is
+ * too large to read, or fails to parse or validate): an export splits a large folder into
+ * several same-name entries (`splitBookmarkFolder`), and each such entry
  * is its own skip. Every other reason is counted once per folder however many
  * entries that folder became, so `bookmarkFolderSkips` mixes two units and
  * whoever reads it must pick the wording from the reason.
