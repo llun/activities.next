@@ -114,12 +114,12 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
 
   // The page's own folder list seeds the store every ⋯ menu reads, and every
   // folder write goes back through the store.
-  const folderStore = useBookmarkFolders()
+  const folderStore = useBookmarkFolders(currentActor.id)
   const folders =
     folderStore.status === 'loaded' ? folderStore.folders : initialFolders
   useEffect(() => {
-    setBookmarkFolders(initialFolders)
-  }, [initialFolders])
+    setBookmarkFolders(currentActor.id, initialFolders)
+  }, [currentActor.id, initialFolders])
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
     Boolean(initialNextMaxBookmarkId)
   )
@@ -374,6 +374,7 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
       ) : null}
 
       <BookmarkFoldersDialog
+        actorId={currentActor.id}
         open={isManaging}
         onOpenChange={setManaging}
         folders={folders}

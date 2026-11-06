@@ -356,6 +356,7 @@ export const InsetReply: FC<InsetReplyProps> = ({
                 onLikeChanged={onLikeChanged}
               />
               <PostMenu
+                viewerId={currentActor?.id}
                 className="ml-auto"
                 triggerClassName="size-6"
                 targetLabel={`${name}'s reply`}
@@ -602,6 +603,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                             ) : null}
                             {showsActionRow ? (
                               <PostMenu
+                                viewerId={currentActor?.id}
                                 status={actualStatus}
                                 isOwner={isOwnPost}
                                 canEdit={isOwnPost}

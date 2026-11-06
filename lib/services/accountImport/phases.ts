@@ -2569,6 +2569,42 @@ export const runBookmarkFoldersPhase = async (
     // the other entries of a split folder are skipped without a retry, and
     // the folder is counted and logged once.
     const refusedNames = new Set<string>()
+    // Creates the folder; on a duplicate name (the owner made one while the
+    // import ran) files into theirs, and if that is gone again by the time it
+    // is read, creates once more.
+    const resolveFolder = async (
+      folderName: string
+    ): Promise<{ folderId: string } | { reason: BookmarkFolderSkipReason }> => {
+      const nameKey = folderName.toLowerCase()
+      let created = await database.createBookmarkFolder({
+        actorId,
+        name: folderName
+      })
+      for (
+        let attempt = 0;
+        created.status === 'duplicate-name' && attempt < 2;
+        attempt += 1
+      ) {
+        const existing = (await database.getBookmarkFolders({ actorId })).find(
+          (folder) => folder.name.toLowerCase() === nameKey
+        )
+        if (existing) return { folderId: existing.id }
+        if (attempt > 0) break
+        created = await database.createBookmarkFolder({
+          actorId,
+          name: folderName
+        })
+      }
+      if (created.status === 'ok') return { folderId: created.folder.id }
+      return {
+        reason:
+          created.status === 'limit-reached'
+            ? 'bookmark_folder_limit'
+            : created.status === 'duplicate-name'
+              ? 'bookmark_folder_conflict'
+              : 'bookmark_folder_name_invalid'
+      }
+    }
     const folderByName = new Map(
       (await database.getBookmarkFolders({ actorId })).map((folder) => [
         folder.name.toLowerCase(),
@@ -2608,42 +2644,15 @@ export const runBookmarkFoldersPhase = async (
       if (refusedNames.has(nameKey)) continue
       let folderId = folderByName.get(nameKey)
       if (!folderId) {
-        let created = await database.createBookmarkFolder({
-          actorId,
-          name: folderName
-        })
-        // The owner made one with this name while the import ran: file into
-        // theirs. If it is gone again by the time it is read, create once
-        // more.
-        for (
-          let attempt = 0;
-          created.status === 'duplicate-name' && attempt < 2;
-          attempt += 1
-        ) {
-          folderId = (await database.getBookmarkFolders({ actorId })).find(
-            (folder) => folder.name.toLowerCase() === nameKey
-          )?.id
-          if (folderId || attempt > 0) break
-          created = await database.createBookmarkFolder({
-            actorId,
-            name: folderName
-          })
-        }
-        if (created.status === 'ok') folderId = created.folder.id
+        const resolved = await resolveFolder(folderName)
         // A name the folder rules refuse, a full set of folders, or a name
         // that kept changing under the import: its bookmarks stay unfiled.
-        if (!folderId) {
+        if ('reason' in resolved) {
           refusedNames.add(nameKey)
-          skip(
-            created.status === 'limit-reached'
-              ? 'bookmark_folder_limit'
-              : created.status === 'duplicate-name'
-                ? 'bookmark_folder_conflict'
-                : 'bookmark_folder_name_invalid',
-            event.index
-          )
+          skip(resolved.reason, event.index)
           continue
         }
+        folderId = resolved.folderId
         folderByName.set(nameKey, folderId)
       }
       for (const [index, uri] of parsed.data.items.entries()) {
@@ -2660,11 +2669,34 @@ export const runBookmarkFoldersPhase = async (
         ) {
           continue
         }
-        await database.fileBookmark({
+        let filed = await database.fileBookmark({
           actorId,
           statusId: status.id,
           folderId
         })
+        if (filed !== 'folder-not-found') continue
+        // The folder went away mid-import (the owner deleted it): find or
+        // make it again by name and retry this bookmark once.
+        folderByName.delete(nameKey)
+        const resolved = await resolveFolder(folderName)
+        if ('folderId' in resolved) {
+          folderId = resolved.folderId
+          folderByName.set(nameKey, folderId)
+          filed = await database.fileBookmark({
+            actorId,
+            statusId: status.id,
+            folderId
+          })
+        }
+        if (filed === 'folder-not-found') {
+          // The rest of this folder, and its later entries, stay unfiled.
+          refusedNames.add(nameKey)
+          skip(
+            'reason' in resolved ? resolved.reason : 'bookmark_folder_conflict',
+            event.index
+          )
+          break
+        }
       }
     }
     if (Object.keys(skips).length > 0) progress.bookmarkFolderSkips = skips

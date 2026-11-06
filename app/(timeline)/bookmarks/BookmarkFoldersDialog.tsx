@@ -29,6 +29,8 @@ import type { BookmarkFolderEntity } from '@/lib/services/bookmarks/bookmarkFold
 import { MAX_BOOKMARK_FOLDER_NAME_LENGTH } from '@/lib/types/domain/bookmark'
 
 interface Props {
+  /** The signed-in actor, whose folders these are. */
+  actorId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   folders: BookmarkFolderEntity[]
@@ -47,6 +49,7 @@ type RowMode = { id: string; mode: 'rename' | 'delete' } | null
  * the folder's bookmarks.
  */
 export const BookmarkFoldersDialog: FC<Props> = ({
+  actorId,
   open,
   onOpenChange,
   folders,
@@ -76,7 +79,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
     setBusy(true)
     setAddError(null)
     try {
-      putBookmarkFolder(await createBookmarkFolder(name))
+      putBookmarkFolder(actorId, await createBookmarkFolder(name))
       setNewName('')
     } catch (error) {
       setAddError(errorMessage(error, "Couldn't create the folder."))
@@ -104,7 +107,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
     setBusy(true)
     setRowError(null)
     try {
-      putBookmarkFolder(await renameBookmarkFolder(id, name))
+      putBookmarkFolder(actorId, await renameBookmarkFolder(id, name))
       setRowMode(null)
     } catch (error) {
       setRowError(errorMessage(error, "Couldn't rename the folder."))
@@ -123,7 +126,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
       setRowError("Couldn't delete the folder. Please try again.")
       return
     }
-    removeBookmarkFolder(id)
+    removeBookmarkFolder(actorId, id)
     setRowMode(null)
     onDeleted(id, folders.filter((folder) => folder.id !== id).length)
   }

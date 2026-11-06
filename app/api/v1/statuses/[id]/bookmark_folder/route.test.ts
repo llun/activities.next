@@ -100,10 +100,13 @@ describe('PUT /api/v1/statuses/[id]/bookmark_folder', () => {
     return result.folder
   }
 
-  it('needs a signed-in actor', async () => {
+  it('needs a signed-in actor, and its 401 carries the CORS headers', async () => {
     mockGetServerSession.mockResolvedValue(null)
     const response = await file(await createStatus(), { folder_id: null })
     expect(response.status).toBe(401)
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+      'PUT'
+    )
   })
 
   it('bookmarks and files an unbookmarked status, then null unfiles it', async () => {

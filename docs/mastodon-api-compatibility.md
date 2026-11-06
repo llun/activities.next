@@ -2341,7 +2341,12 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   (`PUT /api/v1/statuses/:id/bookmark_folder`), and the row's Bookmark button
   follows. The folders are fetched once, the first time any menu opens, into a
   shared client store (`lib/components/bookmarks/bookmarkFolderStore.ts`) that
-  the Bookmarks page seeds and every folder write updates. A filing reaches the
+  the Bookmarks page seeds and every folder write updates. The store holds one
+  actor's folders, named by every call (`PostMenu` takes the row's
+  `currentActor.id` as `viewerId` and offers no submenu without it), so after a
+  profile switch in another tab the next page's menus load the new actor's
+  folders and never show the old one's. A write to a list that has not loaded
+  keeps the load pending, and a load that a write overtook is read again. A filing reaches the
   feed as `onBookmarkChanged(status, true, folderId)`, and every feed stores it
   with `withBookmarkChange` (`lib/components/posts/statusArray.ts`), so the
   menu it re-renders still checks that folder. The menu also keeps the folder

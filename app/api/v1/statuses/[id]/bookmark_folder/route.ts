@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import {
+  OAuthGuardAnyScope,
+  corsErrorResponse
+} from '@/lib/services/guards/OAuthGuard'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
@@ -17,6 +20,10 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.PUT]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
+
+// The guard's 401/403 carry the CORS headers too, so a cross-origin client
+// can read them.
+const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 
 interface Params {
   id: string
@@ -86,7 +93,8 @@ export const PUT = traceApiRoute(
         statusId: status.id,
         allowedMethods: CORS_HEADERS
       })
-    }
+    },
+    guardOptions
   ),
   {
     addAttributes: async (_req, context) => {

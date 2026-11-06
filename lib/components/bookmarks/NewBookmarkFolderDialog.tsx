@@ -22,6 +22,8 @@ import type { BookmarkFolderEntity } from '@/lib/services/bookmarks/bookmarkFold
 import { MAX_BOOKMARK_FOLDER_NAME_LENGTH } from '@/lib/types/domain/bookmark'
 
 interface Props {
+  /** The viewer the folder is made for; the dialog only opens with one. */
+  actorId?: string
   open: boolean
   onOpenChange: (open: boolean) => void
   /**
@@ -33,6 +35,7 @@ interface Props {
 
 /** The ⋯ menu's "New folder…": names a folder, creates it and files the post. */
 export const NewBookmarkFolderDialog: FC<Props> = ({
+  actorId,
   open,
   onOpenChange,
   onCreated
@@ -64,7 +67,7 @@ export const NewBookmarkFolderDialog: FC<Props> = ({
       // retry with a recased name files into the folder already created.
       if (!folder || folder.name.toLowerCase() !== name.trim().toLowerCase()) {
         folder = await createBookmarkFolder(name.trim())
-        putBookmarkFolder(folder)
+        if (actorId) putBookmarkFolder(actorId, folder)
         createdRef.current = folder
       }
       if (!(await onCreated(folder))) {

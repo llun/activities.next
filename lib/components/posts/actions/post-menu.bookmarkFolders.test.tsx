@@ -18,7 +18,10 @@ import {
   getBookmarkFolders,
   setStatusBookmarkFolder
 } from '@/lib/client'
-import { resetBookmarkFolderStore } from '@/lib/components/bookmarks/bookmarkFolderStore'
+import {
+  resetBookmarkFolderStore,
+  setBookmarkFolders
+} from '@/lib/components/bookmarks/bookmarkFolderStore'
 import { withBookmarkChange } from '@/lib/components/posts/statusArray'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
@@ -40,6 +43,8 @@ vi.mock('@/lib/client', () => ({
   }),
   getTranslationLanguages: vi.fn().mockResolvedValue({})
 }))
+
+const VIEWER = 'https://activities.local/users/llun'
 
 const at = new Date('2026-04-26T10:00:00.000Z').getTime()
 
@@ -124,6 +129,7 @@ describe('PostMenu bookmark folder submenu', () => {
   it('lists No folder and every folder, checking the current one', async () => {
     render(
       <PostMenu
+        viewerId={VIEWER}
         status={{
           ...status,
           isActorBookmarked: true,
@@ -155,7 +161,12 @@ describe('PostMenu bookmark folder submenu', () => {
   it('checks nothing on a post that is not bookmarked, and fetches folders once', async () => {
     render(
       <>
-        <PostMenu status={status} isOwner={false} canEdit={false} />
+        <PostMenu
+          viewerId={VIEWER}
+          status={status}
+          isOwner={false}
+          canEdit={false}
+        />
       </>
     )
 
@@ -173,6 +184,7 @@ describe('PostMenu bookmark folder submenu', () => {
     const onBookmarkFolderChanged = vi.fn()
     render(
       <PostMenu
+        viewerId={VIEWER}
         status={status}
         isOwner={false}
         canEdit={false}
@@ -207,6 +219,7 @@ describe('PostMenu bookmark folder submenu', () => {
     const [current, setCurrent] = useState(status)
     return (
       <PostMenu
+        viewerId={VIEWER}
         status={current}
         isOwner={false}
         canEdit={false}
@@ -246,9 +259,41 @@ describe('PostMenu bookmark folder submenu', () => {
     ).toHaveAttribute('aria-checked', 'false')
   })
 
+  it("loads the viewer's own folders, never another actor's left in the store", async () => {
+    // Another profile's folders, from before a switch in another tab.
+    setBookmarkFolders('https://activities.local/users/other', [
+      folder('f-secret', 'Other secret')
+    ])
+    render(
+      <PostMenu
+        viewerId={VIEWER}
+        status={status}
+        isOwner={false}
+        canEdit={false}
+      />
+    )
+
+    const submenu = await openFolderSubmenu()
+
+    expect(getBookmarkFolders).toHaveBeenCalledTimes(1)
+    expect(within(submenu).queryByText('Other secret')).toBeNull()
+  })
+
+  it('offers no Bookmark folder without a viewer', async () => {
+    render(<PostMenu status={status} isOwner={false} canEdit={false} />)
+
+    const menu = await openMenu()
+
+    expect(
+      within(menu).queryByRole('menuitem', { name: 'Bookmark folder' })
+    ).toBeNull()
+    expect(getBookmarkFolders).not.toHaveBeenCalled()
+  })
+
   it('unfiles with No folder', async () => {
     render(
       <PostMenu
+        viewerId={VIEWER}
         status={{
           ...status,
           isActorBookmarked: true,
@@ -275,6 +320,7 @@ describe('PostMenu bookmark folder submenu', () => {
   it('shows no check once the row says the bookmark is gone', async () => {
     render(
       <PostMenu
+        viewerId={VIEWER}
         status={{
           ...status,
           isActorBookmarked: true,
@@ -299,6 +345,7 @@ describe('PostMenu bookmark folder submenu', () => {
     const onBookmarkFolderChanged = vi.fn()
     render(
       <PostMenu
+        viewerId={VIEWER}
         status={status}
         isOwner={false}
         canEdit={false}
@@ -340,7 +387,14 @@ describe('PostMenu bookmark folder submenu', () => {
       folder('f-new', 'Read later')
     )
     ;(setStatusBookmarkFolder as jest.Mock).mockResolvedValueOnce(false)
-    render(<PostMenu status={status} isOwner={false} canEdit={false} />)
+    render(
+      <PostMenu
+        viewerId={VIEWER}
+        status={status}
+        isOwner={false}
+        canEdit={false}
+      />
+    )
 
     const submenu = await openFolderSubmenu()
     await act(async () => {

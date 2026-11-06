@@ -223,6 +223,11 @@ interface Props {
    */
   scopeLabels?: { group: string; post: string }
   /**
+   * The signed-in viewer's actor id, which the bookmark folders belong to.
+   * Without it the menu offers no "Bookmark folder".
+   */
+  viewerId?: string
+  /**
    * Whether the viewer has bookmarked the post, when the row owns that state
    * (its Bookmark button). Without it the menu goes by the status and its own
    * filings.
@@ -258,6 +263,7 @@ export const PostMenu: FC<Props> = ({
   triggerClassName,
   targetLabel,
   scopeLabels,
+  viewerId,
   isBookmarked: rowBookmarked,
   onReply,
   onEdit,
@@ -306,7 +312,7 @@ export const PostMenu: FC<Props> = ({
 
   // The viewer's private bookmark folder for this post. A filing bookmarks
   // the post too, so the menu tracks that as well when the row does not.
-  const bookmarkFolders = useBookmarkFolders()
+  const bookmarkFolders = useBookmarkFolders(viewerId)
   const [ownBookmarked, setOwnBookmarked] = useState(status.isActorBookmarked)
   const [bookmarkFolderId, setBookmarkFolderId] = useState<string | null>(
     status.bookmarkFolderId ?? null
@@ -609,7 +615,7 @@ export const PostMenu: FC<Props> = ({
             onMenuOpen?.()
             void loadRelationship()
             void loadPinnedState()
-            void loadBookmarkFolders()
+            if (viewerId) void loadBookmarkFolders(viewerId)
           }
         }}
       >
@@ -659,65 +665,68 @@ export const PostMenu: FC<Props> = ({
               </DropdownMenuLabel>
             ) : null}
             {postItems.map(renderExtraItem)}
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger disabled={bookmarkFolderSaving}>
-                <Folder className="size-4" />
-                Bookmark folder
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-60">
-                {[
-                  { id: null, name: 'No folder' },
-                  ...bookmarkFolders.folders
-                ].map((folder) => {
-                  const checked = isBookmarked && folder.id === bookmarkFolderId
-                  return (
-                    <DropdownMenuItem
-                      key={folder.id ?? 'none'}
-                      disabled={bookmarkFolderSaving}
-                      // A pick-one list, like the visibility submenu below.
-                      role="menuitemradio"
-                      aria-checked={checked}
-                      onSelect={() => {
-                        void handleBookmarkFolderChange(folder.id)
-                      }}
-                    >
-                      <span
-                        className={cn(
-                          'flex-1 truncate',
-                          folder.id === null && 'text-muted-foreground'
-                        )}
+            {viewerId ? (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={bookmarkFolderSaving}>
+                  <Folder className="size-4" />
+                  Bookmark folder
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-60">
+                  {[
+                    { id: null, name: 'No folder' },
+                    ...bookmarkFolders.folders
+                  ].map((folder) => {
+                    const checked =
+                      isBookmarked && folder.id === bookmarkFolderId
+                    return (
+                      <DropdownMenuItem
+                        key={folder.id ?? 'none'}
+                        disabled={bookmarkFolderSaving}
+                        // A pick-one list, like the visibility submenu below.
+                        role="menuitemradio"
+                        aria-checked={checked}
+                        onSelect={() => {
+                          void handleBookmarkFolderChange(folder.id)
+                        }}
                       >
-                        {folder.name}
-                      </span>
-                      {checked ? (
-                        <Check className="size-4 shrink-0 text-primary" />
-                      ) : null}
+                        <span
+                          className={cn(
+                            'flex-1 truncate',
+                            folder.id === null && 'text-muted-foreground'
+                          )}
+                        >
+                          {folder.name}
+                        </span>
+                        {checked ? (
+                          <Check className="size-4 shrink-0 text-primary" />
+                        ) : null}
+                      </DropdownMenuItem>
+                    )
+                  })}
+                  {bookmarkFolders.status === 'loading' ||
+                  bookmarkFolders.status === 'error' ? (
+                    <DropdownMenuItem disabled>
+                      {bookmarkFolders.status === 'loading'
+                        ? 'Loading folders…'
+                        : "Couldn't load folders"}
                     </DropdownMenuItem>
-                  )
-                })}
-                {bookmarkFolders.status === 'loading' ||
-                bookmarkFolders.status === 'error' ? (
-                  <DropdownMenuItem disabled>
-                    {bookmarkFolders.status === 'loading'
-                      ? 'Loading folders…'
-                      : "Couldn't load folders"}
+                  ) : null}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={bookmarkFolderSaving}
+                    onSelect={() => {
+                      // The dialog takes focus, so it opens once the menu has
+                      // handed focus back.
+                      deferredSelectRef.current = () =>
+                        setDialog('new-bookmark-folder')
+                    }}
+                  >
+                    <Plus className="size-4" />
+                    New folder…
                   </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  disabled={bookmarkFolderSaving}
-                  onSelect={() => {
-                    // The dialog takes focus, so it opens once the menu has
-                    // handed focus back.
-                    deferredSelectRef.current = () =>
-                      setDialog('new-bookmark-folder')
-                  }}
-                >
-                  <Plus className="size-4" />
-                  New folder…
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            ) : null}
             <DropdownMenuSeparator />
             {onQuote ? (
               <>
@@ -941,6 +950,7 @@ export const PostMenu: FC<Props> = ({
         statusId={status.id}
       />
       <NewBookmarkFolderDialog
+        actorId={viewerId}
         open={dialog === 'new-bookmark-folder'}
         onOpenChange={(open) => setDialog(open ? 'new-bookmark-folder' : null)}
         onCreated={(folder) =>

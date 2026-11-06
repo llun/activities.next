@@ -1182,6 +1182,67 @@ describe('own archive import phases', () => {
       })
     })
 
+    it('makes the folder again when it is deleted mid-import, and files the bookmark', async () => {
+      const first = await createStatus('vanish-first')
+      const second = await createStatus('vanish-second')
+      await database.createBookmark({ actorId: actor.id, statusId: first })
+      await database.createBookmark({ actorId: actor.id, statusId: second })
+      const name = 'Deleted mid-import ' + randomUUID()
+      const realFile = database.fileBookmark.bind(database)
+      let deletedId: string | undefined
+      vi.spyOn(database, 'fileBookmark').mockImplementationOnce(
+        async (params) => {
+          // The owner deletes the folder just before the first filing.
+          deletedId = params.folderId ?? undefined
+          await database.deleteBookmarkFolder({
+            id: params.folderId as string,
+            actorId: actor.id
+          })
+          return realFile(params)
+        }
+      )
+      const progress = progressWithBookmarks()
+      const stagedImport = await folderArchive('folders-vanish', [
+        entry(name, [first]),
+        entry(name, [second])
+      ])
+
+      await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+
+      const restored = (
+        await database.getBookmarkFolders({ actorId: actor.id })
+      ).find((folder) => folder.name === name)
+      expect(restored?.id).toBeTruthy()
+      expect(restored?.id).not.toBe(deletedId)
+      expect(await folderOf(first)).toBe(restored!.id)
+      expect(await folderOf(second)).toBe(restored!.id)
+      expect(progress.bookmarkFolderSkips).toBeUndefined()
+    })
+
+    it('reports a folder that keeps vanishing as a conflict, once', async () => {
+      const first = await createStatus('gone-first')
+      const second = await createStatus('gone-second')
+      await database.createBookmark({ actorId: actor.id, statusId: first })
+      await database.createBookmark({ actorId: actor.id, statusId: second })
+      const file = vi
+        .spyOn(database, 'fileBookmark')
+        .mockResolvedValue('folder-not-found')
+      const name = 'Always gone ' + randomUUID()
+      const progress = progressWithBookmarks()
+      const stagedImport = await folderArchive('folders-gone', [
+        entry(name, [first, second]),
+        entry(name, [second])
+      ])
+
+      await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+
+      // The first item and its one retry; nothing after it.
+      expect(file).toHaveBeenCalledTimes(2)
+      expect(progress.bookmarkFolderSkips).toEqual({
+        bookmark_folder_conflict: 1
+      })
+    })
+
     it('logs a skip without the folder name', async () => {
       const warn = vi.spyOn(logger, 'warn')
       const stagedImport = await folderArchive('folders-log', [

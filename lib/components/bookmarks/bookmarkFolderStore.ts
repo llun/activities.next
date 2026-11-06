@@ -10,17 +10,34 @@ import type { BookmarkFolderEntity } from '@/lib/services/bookmarks/bookmarkFold
 // on the page, so opening twenty menus is still one request. The Bookmarks
 // page seeds it from the server and every folder write updates it, so a menu
 // never offers a folder that was just deleted.
+//
+// It holds ONE actor's folders, named by every call: a profile switch in
+// another tab changes the session under this one, and the next page's
+// `currentActor` is then someone else, whose menus must never show the first
+// actor's private folder names. Asking for another actor empties it.
 
 export interface BookmarkFolderState {
   folders: BookmarkFolderEntity[]
   status: 'idle' | 'loading' | 'loaded' | 'error'
 }
 
-const INITIAL_STATE: BookmarkFolderState = { folders: [], status: 'idle' }
+interface StoreState extends BookmarkFolderState {
+  actorId: string | null
+}
+
+const EMPTY_STATE: BookmarkFolderState = { folders: [], status: 'idle' }
+const INITIAL_STATE: StoreState = { actorId: null, ...EMPTY_STATE }
 let state = INITIAL_STATE
+// Bumped by every write and actor switch: a load that started before one
+// must not overwrite what it wrote.
+let generation = 0
 const listeners = new Set<() => void>()
 
-const emit = (next: BookmarkFolderState) => {
+// Read through this after an await: `state` may have changed meanwhile, which
+// a narrowed `state.status` would not show.
+const current = (): StoreState => state
+
+const emit = (next: StoreState) => {
   state = next
   for (const listener of listeners) listener()
 }
@@ -41,36 +58,97 @@ const sortFolders = (folders: BookmarkFolderEntity[]) =>
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
   })
 
-/** Loads the folders unless they are loaded or loading; a failure retries on the next call. */
-export const loadBookmarkFolders = async (): Promise<void> => {
+// Points the store at `actorId`, dropping another actor's folders.
+const switchToActor = (actorId: string) => {
+  if (state.actorId === actorId) return
+  generation += 1
+  emit({ actorId, ...EMPTY_STATE })
+}
+
+/**
+ * Loads the actor's folders unless they are loaded or loading; a failure
+ * retries on the next call. A load that a write overtook is thrown away and
+ * made again, so it cannot drop a new folder or bring back a deleted one.
+ */
+export const loadBookmarkFolders = async (actorId: string): Promise<void> => {
+  switchToActor(actorId)
   if (state.status === 'loading' || state.status === 'loaded') return
+  generation += 1
+  const started = generation
   emit({ ...state, status: 'loading' })
   try {
-    emit({ folders: sortFolders(await getBookmarkFolders()), status: 'loaded' })
+    const folders = await getBookmarkFolders()
+    if (generation === started) {
+      emit({ actorId, folders: sortFolders(folders), status: 'loaded' })
+      return
+    }
+    // Overtaken. A write that made the list whole (the page's seed) has
+    // already marked it loaded; otherwise read it again.
+    const now = current()
+    if (now.actorId === actorId && now.status === 'loading') {
+      emit({ ...now, status: 'idle' })
+      await loadBookmarkFolders(actorId)
+    }
   } catch {
-    emit({ ...state, status: 'error' })
+    const now = current()
+    if (now.actorId === actorId && now.status === 'loading') {
+      emit({ ...now, status: 'error' })
+    }
   }
 }
 
-export const setBookmarkFolders = (folders: BookmarkFolderEntity[]) =>
-  emit({ folders: sortFolders(folders), status: 'loaded' })
+/** The whole list, from the server: the store is loaded. */
+export const setBookmarkFolders = (
+  actorId: string,
+  folders: BookmarkFolderEntity[]
+) => {
+  switchToActor(actorId)
+  generation += 1
+  emit({ actorId, folders: sortFolders(folders), status: 'loaded' })
+}
+
+// One write to a list that may not be whole: the status stays as it was, so
+// a store that has not loaded (or failed to) still loads the rest next time.
+const writeFolders = (actorId: string, folders: BookmarkFolderEntity[]) => {
+  switchToActor(actorId)
+  generation += 1
+  emit({ ...state, folders: sortFolders(folders) })
+}
 
 /** Adds or replaces one folder (a create or a rename). */
-export const putBookmarkFolder = (folder: BookmarkFolderEntity) =>
-  setBookmarkFolders([
+export const putBookmarkFolder = (
+  actorId: string,
+  folder: BookmarkFolderEntity
+) => {
+  switchToActor(actorId)
+  writeFolders(actorId, [
     ...state.folders.filter((item) => item.id !== folder.id),
     folder
   ])
+}
 
-export const removeBookmarkFolder = (id: string) =>
-  setBookmarkFolders(state.folders.filter((item) => item.id !== id))
+export const removeBookmarkFolder = (actorId: string, id: string) => {
+  switchToActor(actorId)
+  writeFolders(
+    actorId,
+    state.folders.filter((item) => item.id !== id)
+  )
+}
 
-export const useBookmarkFolders = (): BookmarkFolderState =>
-  useSyncExternalStore(
+/** The actor's folders; nothing, until loaded, for any other actor. */
+export const useBookmarkFolders = (
+  actorId: string | undefined
+): BookmarkFolderState => {
+  const snapshot = useSyncExternalStore(
     subscribe,
     () => state,
     () => INITIAL_STATE
   )
+  return actorId && snapshot.actorId === actorId ? snapshot : EMPTY_STATE
+}
 
 /** Tests start from an empty, unloaded store. */
-export const resetBookmarkFolderStore = () => emit(INITIAL_STATE)
+export const resetBookmarkFolderStore = () => {
+  generation += 1
+  emit(INITIAL_STATE)
+}
