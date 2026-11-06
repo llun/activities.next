@@ -1,7 +1,6 @@
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { getConfig } from '@/lib/config'
-import type { Database } from '@/lib/database/types'
 import { normalizeActorHost } from '@/lib/services/federation/domainRules'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Actor } from '@/lib/types/domain/actor'
@@ -82,11 +81,6 @@ export interface SignedActivityPubRequestOptions {
   accept?: string
   /** The serialized request body, exactly as it is sent. */
   body?: string
-  /**
-   * Reserved for the shared scheme table this per-process memory is meant to
-   * become. Accepted so callers can pass it now; nothing reads it yet.
-   */
-  database?: Database | null
   method: 'GET' | 'POST'
   /** Everything `request()` takes except the URL, method, headers and body. */
   requestOptions?: Omit<RequestOptions, 'body' | 'headers' | 'method' | 'url'>

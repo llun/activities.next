@@ -110,8 +110,7 @@ export const deliverActivityJob: JobHandle = createJobHandle(
         actor,
         method,
         url: inbox,
-        body: JSON.stringify(activity),
-        database
+        body: JSON.stringify(activity)
       })
 
       if (statusCode !== undefined && statusCode >= 200 && statusCode < 300) {
