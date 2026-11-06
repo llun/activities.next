@@ -1,0 +1,206 @@
+migrations/schema.sqlite.sql
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 223
+lib/actions/utils.actorBinding.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 216-217,219-220
+lib/activities/getActorCollections.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 8,54-57,155-158
+lib/activities/index.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1212,1230-1244
+  s_2b1a50e2f9b981::t_af3ac7a737b8fc 1245
+lib/services/gallery/galleryAlbumQueries.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 74
+lib/services/medias/mediaDetails.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 57,110-122,204
+lib/database/domains/gallery/galleryMedia.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 233,633
+lib/database/domains/gallery/media.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 387
+lib/jobs/resolveMediaSubjectJob.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 115,216-218,232-234,246-248,307-309,341-343,370,418-420
+lib/services/medias/mediaDetails.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 64
+app/(timeline)/gallery/life-list/loading.tsx
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1,11,23-25,28
+lib/database/domains/gallery/rows.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 102,124
+lib/services/gallery/lookups/subjectDecision.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 103,110,150-153,304-305,386
+migrations/20261105210627_add_media_subject_taxon_rank.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1-37
+lib/database/kysely/db.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 995
+scripts/maintenance/backfillGalleryLookups.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 231,385-395,412-416,485-657
+  s_2b1a50e2f9b981::t_e439515a8c673b 658
+lib/components/gallery/__fixtures__/galleryItems.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 65-66
+lib/activities/signedRequest.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1-416
+lib/utils/httpMessageSignature.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 4,11,456-694
+lib/services/guards/getSenderPublicKey.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 5,218-220,222-229
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 898-900,1514
+app/(timeline)/[actor]/getProfileData.actorBinding.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 143-144,146-147
+lib/services/guards/ActivityPubVerifyGuard.selfInterop.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1-209
+app/api/v1/media/[id]/lookups/route.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 182-204
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 263-271
+docs/architecture.md
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 208,214,237,242-253,346,351,1412
+lib/database/domains/accountExport/tables.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 241
+lib/activities/getActorPerson.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 3,35-37,39-42
+lib/services/gallery/galleryAlbumMatrixFixtures.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 110-111
+lib/activities/index.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 28,63,97-98,100-102,135-137,146
+lib/services/gallery/galleryEntities.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 75,294-295,301-306,308-313,316
+lib/components/gallery/galleryItemEdit.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 21,150,167-177
+  s_2b1a50e2f9b981::t_98e45bce7b3e53 178-179
+lib/database/domains/media/writes.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 414,1002-1018
+lib/services/gallery/publicMediaDetails.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 207,221
+lib/database/domains/media/rows.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 124,329,414
+lib/components/gallery/GallerySubjectsOverview.tsx
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 97
+lib/activities/activityPubHeaders.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 9-10,18,21
+lib/services/gallery/galleryQueries.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 18,48,767-770,794-806,834-837,885-888,936-937,993-1000,1002-1008,1010-1015,1019-1026
+lib/jobs/resolveMediaSubjectJob.failClosed.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 171-174,225-228,258-261,298-301,323-326,341-344,419-422,435-438,450-453,489,508,520-523,538-541,594-597,627-630,652-655,692-695,713-716,759,786,792
+lib/jobs/resolveMediaSubjectJob.storedKey.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 220-223,243-246
+lib/database/domains/gallery/types.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 195
+lib/services/gallery/galleryProjection.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 766
+app/api/v1/media/[id]/route.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 965
+docs/maintenance.md
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 451-460,468-469,1054,1061,1065
+lib/activities/signedRequest.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1-225
+lib/services/gallery/lookups/normalizeTaxon.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 2-4,10-14
+  s_2b1a50e2f9b981::t_345761f68b2f6f 1
+lib/services/gallery/galleryQueries.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1594,1673,1745-1746,1762-1763
+lib/utils/safeRemoteFetch.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 22-23,33-34,36-37,39-41
+lib/components/gallery/GalleryLifeListTable.test.tsx
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 14-18,23-24,32-33,60-61,91,96,104,124-184
+migrations/names.ts
+  s_2b1a50e2f9b981::t_be84a6308f324e 27
+lib/activities/activityPubHeaders.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1-2,77-80,85,92-95
+lib/jobs/deliverActivityJob.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 3,17-21,41,341-388
+  s_2b1a50e2f9b981::t_f287fa975de19c 389
+lib/database/domains/media/mediaDetails.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 102,362
+lib/jobs/resolveMediaSubjectJob.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 240-244,257,281
+package.json
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 3
+app/api/v1/gallery/media/[mediaId]/details/route.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 186
+lib/services/gallery/publicMediaDetails.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 6-7,246,830,887-896
+  s_2b1a50e2f9b981::t_4bd4ff3899286f 897-899
+lib/types/database/gallery.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 183-185,206,233
+lib/database/domains/media/types.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 285
+lib/jobs/fetchRemoteStatusJob.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 9,403-405,407,410
+app/api/v1/accounts/[id]/gallery/life-list/route.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 103-114
+lib/services/accountImport/schemas/index.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 597-602
+lib/utils/safeRemoteFetch.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 34,452-453,489-490,536-537,650-651,667-668,721-722,749-751,759-761
+lib/services/gallery/taxonRanks.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1-28
+lib/services/gallery/galleryRouteFixtures.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 70-74
+lib/utils/signature.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 100-104,109,122,125
+scripts/maintenance/backfillGalleryLookups.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 20,45,54-55,60,92-93,107-120,142-144,158,170-171,182-188,240-245,259-264,311-313,354-359,368,370-371,377,382-406,420,428-440,478-481
+lib/database/domains/media/mediaWrites.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 2069-2161
+lib/database/domains/media/rows.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 3,73-87
+  s_2b1a50e2f9b981::t_ba82c671315220 88-89
+migrations/schema.sql
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1040-1041
+lib/services/accountImport/phases.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1814-1816,1820
+lib/utils/httpMessageSignature.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 3,7,184-186,189,251-356
+lib/database/migrate/addMediaSubjectTaxonRank.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1-60
+lib/services/gallery/lifeListRanks.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 1-133
+lib/components/gallery/GallerySubjectsOverview.test.tsx
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 55
+lib/services/gallery/lookups/subjectDecision.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 161-162,180-183,195,251,336-337,354-357,385,401,427-428,439,503-506,525-526,748-782
+  s_2b1a50e2f9b981::t_d9c097b02bcd00 783
+app/api/v1/media/[id]/lookups/route.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 164-165
+lib/jobs/deliverActivityJob.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 4,109-110,112
+lib/components/gallery/galleryItemEdit.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 91
+lib/services/accountImport/roundTrip.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 218,442
+app/(timeline)/gallery/life-list/GalleryLifeListView.tsx
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 19,24
+migrations/index.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 26
+  s_2b1a50e2f9b981::t_be84a6308f324e 61
+app/(timeline)/gallery/(subjects)/loading.tsx
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 42
+app/(timeline)/gallery/life-list/GalleryLifeListView.test.tsx
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 24,37
+lib/components/gallery/GalleryLifeListTable.tsx
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 3,16,31,39,41-43,48,53,57-67,75-86,90-92,128-136,141-146,168-170
+lib/services/medias/types.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 104-105
+lib/services/gallery/__fixtures__/galleryIndexRow.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 16
+lib/services/quotes/verifyRemoteQuote.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 5,83-85,87,90
+lib/jobs/resolveMediaSubjectJob.suggestions.test.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 172-175,197-200
+lib/jobs/processForwardedActivityJob.ts
+  s_2b1a50e2f9b981::t_b37764ecc5efc6 6,132,134-136,141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "23ce0d33dcbbfd3de72ab50f9744c94d78254ebd",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
