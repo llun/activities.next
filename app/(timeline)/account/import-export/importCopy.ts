@@ -1,3 +1,4 @@
+import { isBookmarkFolderEntrySkip } from '@/lib/services/accountImport/progress'
 import type { AccountImportOutcomeReport } from '@/lib/types/domain/accountImport'
 
 export const IMPORT_PHASE_LABELS: Record<string, string> = {
@@ -56,7 +57,7 @@ export const IMPORT_REASON_LABELS: Record<string, string> = {
   album_invalid: 'the album could not be read',
   album_limit: 'the account already has the maximum number of albums',
   bookmark_folder_too_large: 'the folder entry was too large to read',
-  bookmark_folder_invalid: 'the folder could not be read',
+  bookmark_folder_invalid: 'the folder entry could not be read',
   bookmark_folder_name_invalid: 'the folder name is not allowed',
   bookmark_folder_limit:
     'the account already has the maximum number of bookmark folders',
@@ -176,9 +177,19 @@ export const importReportRows = (
   for (const [reason, count] of Object.entries(bookmarkFolderSkips)
     .filter(([, value]) => value > 0)
     .sort(([left], [right]) => left.localeCompare(right))) {
-    const folder = count === 1 ? 'bookmark folder' : 'bookmark folders'
+    // An entry too large, unparseable or invalid is skipped before its name is
+    // read, so it counts entries, not folders: a folder split into several
+    // entries can contribute more than one. Every other reason counts one folder
+    // however many entries it was split into.
+    const noun = isBookmarkFolderEntrySkip(reason)
+      ? count === 1
+        ? 'bookmark folder entry'
+        : 'bookmark folder entries'
+      : count === 1
+        ? 'bookmark folder'
+        : 'bookmark folders'
     rows.push(
-      `${countLabel(count)} ${folder} skipped: ${importReasonLabel(reason)}`
+      `${countLabel(count)} ${noun} skipped: ${importReasonLabel(reason)}`
     )
   }
   return rows

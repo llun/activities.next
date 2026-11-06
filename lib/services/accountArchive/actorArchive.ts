@@ -12,6 +12,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import { toBookmarkCursor } from '@/lib/database/domains/bookmark/bookmarkCursor'
 import { encodeFavouriteCursor } from '@/lib/database/domains/like/favouriteCursor'
 import { Database } from '@/lib/database/types'
 import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
@@ -376,7 +377,7 @@ export async function* forEachBookmark(
     for (const bookmark of batch) yield bookmark
 
     if (batch.length < pageSize) return
-    maxId = batch[batch.length - 1].id
+    maxId = toBookmarkCursor(batch[batch.length - 1])
   }
 }
 

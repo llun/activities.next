@@ -1346,6 +1346,32 @@ describe('own archive import phases', () => {
       )
     })
 
+    it('counts each unreadable entry separately, since it has no folder name', async () => {
+      const progress = progressWithBookmarks()
+      const tooLarge = (index: number) => ({
+        id: `source-huge-${index}`,
+        name: `Huge folder ${index}`,
+        createdAt: 1,
+        updatedAt: 1,
+        // Each entry alone is past the importer's 512 KiB per-entry cap.
+        items: Array.from(
+          { length: 10_000 },
+          (_, item) =>
+            `https://remote.example/users/someone/statuses/${item}-padding-padding`
+        )
+      })
+      const stagedImport = await folderArchive('folders-too-large-each', [
+        tooLarge(0),
+        tooLarge(1)
+      ])
+
+      await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+
+      expect(progress.bookmarkFolderSkips).toEqual({
+        bookmark_folder_too_large: 2
+      })
+    })
+
     it('files a split folder into one folder that counts once against the cap', async () => {
       const first = await createStatus('split-first')
       const last = await createStatus('split-last')
@@ -1412,6 +1438,27 @@ describe('own archive import phases', () => {
         expect(create).toHaveBeenCalledTimes(1)
         expect(progress.bookmarkFolderSkips).toEqual({
           bookmark_folder_limit: 1
+        })
+      } finally {
+        await cleanUp()
+      }
+    })
+
+    it('counts two different folders past the cap separately', async () => {
+      const cleanUp = await fillFoldersTo(MAX_BOOKMARK_FOLDERS_PER_ACTOR)
+      try {
+        const create = vi.spyOn(database, 'createBookmarkFolder')
+        const progress = progressWithBookmarks()
+        const stagedImport = await folderArchive('folders-cap-two', [
+          entry('Over the cap one ' + randomUUID()),
+          entry('Over the cap two ' + randomUUID())
+        ])
+
+        await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+
+        expect(create).toHaveBeenCalledTimes(2)
+        expect(progress.bookmarkFolderSkips).toEqual({
+          bookmark_folder_limit: 2
         })
       } finally {
         await cleanUp()

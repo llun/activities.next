@@ -2,6 +2,7 @@ import { applyMute } from '@/lib/actions/applyMute'
 import { applyUnmute } from '@/lib/actions/applyUnmute'
 import { unblockActor } from '@/lib/actions/unblockActor'
 import { unfollowActor } from '@/lib/actions/unfollowActor'
+import { toBookmarkCursor } from '@/lib/database/domains/bookmark/bookmarkCursor'
 import type {
   BulkImport,
   BulkImportRow
@@ -47,7 +48,10 @@ const loadRowsByKey = async (
 // Collects the whole set before anything is removed: the paged queries use the
 // previous page's last row as a cursor, and that row may be what is deleted.
 const collectAll = async <T extends { id: string }>(
-  fetchPage: (maxId: string | undefined) => Promise<T[]>
+  fetchPage: (maxId: string | undefined) => Promise<T[]>,
+  // The cursor of a page's last row: its id, unless the query pages by a
+  // keyset the row carries itself.
+  cursorOf: (row: T) => string = (row) => row.id
 ): Promise<T[]> => {
   const all: T[] = []
   let maxId: string | undefined
@@ -55,7 +59,7 @@ const collectAll = async <T extends { id: string }>(
     const page = await fetchPage(maxId)
     all.push(...page)
     if (page.length < PAGE_SIZE) return all
-    maxId = page[page.length - 1].id
+    maxId = cursorOf(page[page.length - 1])
   }
 }
 
@@ -378,8 +382,9 @@ export const applyOverwrite = async ({
         bulkImport,
         (row) => row.data.uri ?? null
       )
-      const bookmarks = await collectAll((maxId) =>
-        database.getBookmarks({ actorId, limit: PAGE_SIZE, maxId })
+      const bookmarks = await collectAll(
+        (maxId) => database.getBookmarks({ actorId, limit: PAGE_SIZE, maxId }),
+        toBookmarkCursor
       )
       const kept = new Map<string, KeyedRow>()
       const omitted: string[] = []
