@@ -2529,8 +2529,11 @@ const BOOKMARK_FOLDER_RENEW_EVERY = 25
  * unreadable, a refused name, past the folder cap, a same-name folder that
  * kept colliding, or a folder the owner deleted while the import ran) is
  * logged and counted in `progress.bookmarkFolderSkips` by reason; its
- * bookmarks stay unfiled. A deleted folder is not made again: the owner's
- * delete wins over the archive.
+ * bookmarks stay unfiled. A skipped folder counts once however many entries
+ * it was split into; an entry too large or unreadable has no name to match on,
+ * so it counts as one entry and the report words it that way
+ * (`BOOKMARK_FOLDER_ENTRY_SKIP_REASONS`). A deleted folder is not made again:
+ * the owner's delete wins over the archive.
  *
  * shortcut: one pass with no cursor or time budget. A few queries run per
  * URI, so only the lease is kept alive (renewed every
@@ -2619,7 +2622,8 @@ export const runBookmarkFoldersPhase = async (
     for await (const event of iterateArrayItems(
       chunksOf(await archive.openEntryStream(name))
     )) {
-      // An entry too large to read has no name to report.
+      // An entry too large to read has no name to report: this skip counts an
+      // entry, not the folder it belonged to, and the report says so.
       if (!('raw' in event)) {
         skip(
           event.error === 'item_too_large'

@@ -1255,7 +1255,9 @@ null }` files the status into one of the viewer's folders, or unfiles it with
   `bookmark_folders.json` could not be restored, `bookmarkFolderSkips` counts
   them by reason (`bookmark_folder_too_large`, `bookmark_folder_invalid`,
   `bookmark_folder_name_invalid`, `bookmark_folder_limit`,
-  `bookmark_folder_conflict`). It does not expose upload
+  `bookmark_folder_conflict`). The two reasons for an entry that could not be
+  read count entries; the others count folders once, however many entries a
+  split folder became. It does not expose upload
   tokens or lease data. `GET /api/v1/account/imports/:id` adds a `report`
   field, but only once the import is `done`, `failed` or `cancelled` — never
   while it is `queued` or `running`, and never in the list route's objects.

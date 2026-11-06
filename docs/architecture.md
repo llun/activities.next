@@ -785,7 +785,10 @@ already bookmarked are filed into it. An entry it cannot restore (too large,
 unreadable, a refused name, past the cap) is logged (import id, reason and
 entry index; never the folder's name, which is private) and counted by reason
 in `progress.bookmarkFolderSkips`, which the import report lists. A refused
-name is counted once however many entries the folder was split into. Two
+name, the folder cap and a conflict are counted once per folder however many
+entries the folder was split into. An entry too large or unreadable never
+yields a name, so those two count entries; the report words them as
+"bookmark folder entries skipped" rather than folders. Two
 races with the owner, who can use the app while their import runs, are
 handled:
 
