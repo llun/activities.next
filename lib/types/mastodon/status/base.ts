@@ -208,6 +208,15 @@ export const BaseStatus = z.object({
     .describe('Pleroma/Akkoma extension fields'),
 
   // Activities.next fitness activity summary attached to this status.
-  fitness: StatusFitnessFile.optional()
+  fitness: StatusFitnessFile.optional(),
+  // Activities.next private bookmark folder: the id of the viewer's own folder
+  // this status is filed in, null when not bookmarked, unfiled or signed out.
+  bookmark_folder_id: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      "If the current token has an authorized user: the id of the user's bookmark folder holding this status"
+    )
 })
 export type BaseStatus = z.infer<typeof BaseStatus>

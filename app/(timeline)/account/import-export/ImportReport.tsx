@@ -34,7 +34,8 @@ export const ImportReport = ({
   const alertRef = useRef<HTMLDivElement>(null)
   const rows = importReportRows(
     accountImport.report,
-    accountImport.progress.profileImageSkips
+    accountImport.progress.profileImageSkips,
+    accountImport.progress.bookmarkFolderSkips
   )
   const action =
     accountImport.status === 'failed' && onStartAgain ? (

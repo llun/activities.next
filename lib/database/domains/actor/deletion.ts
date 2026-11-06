@@ -565,6 +565,10 @@ export const deleteActorData = async (
 
     // Delete bookmarks made by this actor
     await trx.deleteFrom('bookmarks').where('actorId', '=', actorId).execute()
+    await trx
+      .deleteFrom('bookmark_folders')
+      .where('actorId', '=', actorId)
+      .execute()
 
     // Delete markers made by this actor
     await trx.deleteFrom('markers').where('actorId', '=', actorId).execute()

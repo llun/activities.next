@@ -30,6 +30,7 @@ import type { SourceKind } from './sourceFiles'
 import type { CollectorStep, StepContext } from './steps.types'
 import { csvStep } from './stepsCsv'
 import {
+  bookmarkFoldersStep,
   fitnessFilesStep,
   fitnessMetaStep,
   galleryStep,
@@ -58,7 +59,8 @@ export const COLLECTOR_STEPS: readonly CollectorStep[] = [
   scheduledStep,
   reactionsStep,
   graphStep,
-  csvStep
+  csvStep,
+  bookmarkFoldersStep
 ]
 
 export { StaleSliceError } from './saver'

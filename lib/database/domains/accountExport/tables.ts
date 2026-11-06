@@ -81,6 +81,20 @@ export const ACCOUNT_EXPORT_TABLES: Record<
     key: ['id'],
     scope: byColumn('actorId')
   },
+  bookmark_folders: {
+    table: 'bookmark_folders',
+    columns: ['id', 'name', 'createdAt', 'updatedAt'],
+    key: ['id'],
+    scope: byColumn('actorId')
+  },
+  // The filed bookmarks only: what each folder holds.
+  bookmark_folder_items: {
+    table: 'bookmarks',
+    columns: ['id', 'statusId', 'folderId'],
+    key: ['id'],
+    scope: (actorId: string) =>
+      sql<boolean>`${sql.ref('actorId')} = ${actorId} and ${sql.ref('folderId')} is not null`
+  },
   blocks: {
     table: 'blocks',
     columns: ['id', 'targetActorId', 'createdAt'],

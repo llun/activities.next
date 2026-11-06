@@ -30,6 +30,7 @@ import type { AccountImportObjectStore } from '@/lib/services/accountImport/obje
 import {
   type AccountImportProgress,
   type ArchiveStatusOrder,
+  type BookmarkFolderSkipReason,
   type CatalogStage,
   parseImportCursor,
   serializeImportCursor,
@@ -39,6 +40,7 @@ import {
   mastodonActivitySchema,
   mastodonActorSchema,
   ownAlbumSchema,
+  ownBookmarkFolderSchema,
   ownFitnessFileLineSchema,
   ownFitnessGearSchema,
   ownGalleryGearSchema,
@@ -2504,6 +2506,193 @@ export const runFitnessPhase = async (
         targetGear = targetMapForKind(references, 'fitness-gear')
       }
     )
+  } finally {
+    await archive.close()
+  }
+}
+
+const BOOKMARK_FOLDER_RENEW_EVERY = 25
+
+/**
+ * The bookmarks option, second half: this server's own export lists the
+ * owner's private bookmark folders in `bookmark_folders.json`. Each folder is
+ * matched by name (case-insensitively, so a rerun reuses it) or created, and
+ * the bookmarks the statuses phase already imported are filed into it. A
+ * status that did not come back as a bookmark is not bookmarked here, and an
+ * archive without the file (a Mastodon one, or an older export) leaves every
+ * bookmark unfiled. Nothing here federates or notifies.
+ *
+ * Each array entry is read under the 512 KiB `ARRAY_ITEM_MAX_BYTES` cap and
+ * holds at most `BOOKMARK_FOLDER_ENTRY_MAX_ITEMS` URIs, so the export splits a
+ * large folder into several entries of the same name (`splitBookmarkFolder`),
+ * which land in one folder here. An entry that cannot be restored (too large,
+ * unreadable, a refused name, past the folder cap, a same-name folder that
+ * kept colliding, or a folder the owner deleted while the import ran) is
+ * logged and counted in `progress.bookmarkFolderSkips` by reason; its
+ * bookmarks stay unfiled. A deleted folder is not made again: the owner's
+ * delete wins over the archive.
+ *
+ * shortcut: one pass with no cursor or time budget. A few queries run per
+ * URI, so only the lease is kept alive (renewed every
+ * `BOOKMARK_FOLDER_RENEW_EVERY` items); give it a cursor if large folders
+ * ever outlast an import slice.
+ */
+export const runBookmarkFoldersPhase = async (
+  context: AccountImportPhaseContext,
+  progress: AccountImportProgress
+): Promise<void> => {
+  if (!selectedOptions(context, progress).bookmarks) return
+  if ((context.accountImport.kind as AccountArchiveKind) !== 'activities.next')
+    return
+  const archive = await openArchive(context.objectStore, context.accountImport)
+  try {
+    const sourceExtrasDir = await resolveOwnArchiveExtrasDir(
+      archive,
+      progress,
+      'activities.next'
+    )
+    if (!sourceExtrasDir) return
+    const name = `${sourceExtrasDir}/bookmark_folders.json`
+    if (!requiredEntry(archive.entries, name)) return
+
+    const { database } = context
+    const actorId = context.accountImport.actorId
+    // Counted afresh on every run, so a rerun of the pass does not double it.
+    const skips: Partial<Record<BookmarkFolderSkipReason, number>> = {}
+    // Folder names are the owner's private data, so the log never has one.
+    const skip = (reason: BookmarkFolderSkipReason, index: number) => {
+      skips[reason] = (skips[reason] ?? 0) + 1
+      // Its bookmarks were imported but stay unfiled.
+      logger.warn({
+        message: 'Skipped a bookmark folder from the archive',
+        importId: context.accountImport.id,
+        reason,
+        entryIndex: index
+      })
+    }
+    // Names refused this run (the cap, or a name the folder rules reject):
+    // the other entries of a split folder are skipped without a retry, and
+    // the folder is counted and logged once.
+    const refusedNames = new Set<string>()
+    // Creates the folder; on a duplicate name (the owner made one while the
+    // import ran) files into theirs, and if that is gone again by the time it
+    // is read, creates once more.
+    const resolveFolder = async (
+      folderName: string
+    ): Promise<{ folderId: string } | { reason: BookmarkFolderSkipReason }> => {
+      const nameKey = folderName.toLowerCase()
+      let created = await database.createBookmarkFolder({
+        actorId,
+        name: folderName
+      })
+      for (
+        let attempt = 0;
+        created.status === 'duplicate-name' && attempt < 2;
+        attempt += 1
+      ) {
+        const existing = (await database.getBookmarkFolders({ actorId })).find(
+          (folder) => folder.name.toLowerCase() === nameKey
+        )
+        if (existing) return { folderId: existing.id }
+        if (attempt > 0) break
+        created = await database.createBookmarkFolder({
+          actorId,
+          name: folderName
+        })
+      }
+      if (created.status === 'ok') return { folderId: created.folder.id }
+      return {
+        reason:
+          created.status === 'limit-reached'
+            ? 'bookmark_folder_limit'
+            : created.status === 'duplicate-name'
+              ? 'bookmark_folder_conflict'
+              : 'bookmark_folder_name_invalid'
+      }
+    }
+    const folderByName = new Map(
+      (await database.getBookmarkFolders({ actorId })).map((folder) => [
+        folder.name.toLowerCase(),
+        folder.id
+      ])
+    )
+    for await (const event of iterateArrayItems(
+      chunksOf(await archive.openEntryStream(name))
+    )) {
+      // An entry too large to read has no name to report.
+      if (!('raw' in event)) {
+        skip(
+          event.error === 'item_too_large'
+            ? 'bookmark_folder_too_large'
+            : 'bookmark_folder_invalid',
+          event.index
+        )
+        continue
+      }
+      let value: unknown
+      try {
+        value = parseJsonItem(event.raw)
+      } catch {
+        skip('bookmark_folder_invalid', event.index)
+        continue
+      }
+      const parsed = ownBookmarkFolderSchema.safeParse(value)
+      if (!parsed.success) {
+        skip('bookmark_folder_invalid', event.index)
+        continue
+      }
+      await context.renew()
+      const folderName = parsed.data.name.trim()
+      // A large folder is several entries of the same name: the first one
+      // creates it, the rest file into it without counting as more folders.
+      const nameKey = folderName.toLowerCase()
+      if (refusedNames.has(nameKey)) continue
+      let folderId = folderByName.get(nameKey)
+      if (!folderId) {
+        const resolved = await resolveFolder(folderName)
+        // A name the folder rules refuse, a full set of folders, or a
+        // same-name folder that kept colliding (`bookmark_folder_conflict`,
+        // the reason a folder deleted mid-import, below, is counted under
+        // too): its bookmarks stay unfiled.
+        if ('reason' in resolved) {
+          refusedNames.add(nameKey)
+          skip(resolved.reason, event.index)
+          continue
+        }
+        folderId = resolved.folderId
+        folderByName.set(nameKey, folderId)
+      }
+      for (const [index, uri] of parsed.data.items.entries()) {
+        if (index > 0 && index % BOOKMARK_FOLDER_RENEW_EVERY === 0) {
+          await context.renew()
+        }
+        const status = await database.getStatus({ statusId: uri })
+        if (!status) continue
+        if (
+          !(await database.isActorBookmarkedStatus({
+            actorId,
+            statusId: status.id
+          }))
+        ) {
+          continue
+        }
+        const filed = await database.fileBookmark({
+          actorId,
+          statusId: status.id,
+          folderId
+        })
+        if (filed === 'folder-not-found') {
+          // The owner deleted the folder during their own import: respect
+          // that and do not make it again. The rest of this folder, and its
+          // later entries, stay unfiled.
+          refusedNames.add(nameKey)
+          skip('bookmark_folder_conflict', event.index)
+          break
+        }
+      }
+    }
+    if (Object.keys(skips).length > 0) progress.bookmarkFolderSkips = skips
+    else delete progress.bookmarkFolderSkips
   } finally {
     await archive.close()
   }

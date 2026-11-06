@@ -57,9 +57,15 @@ export interface PostProps {
   onQuote?: (status: Status) => void
   onShowEdits?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
+  /**
+   * The viewer bookmarked or unbookmarked the post. A filing from the ⋯ menu's
+   * "Bookmark folder" also passes the folder (null for unfiled), and always
+   * means bookmarked.
+   */
   onBookmarkChanged?: (
     status: StatusNote | StatusPoll,
-    isBookmarked: boolean
+    isBookmarked: boolean,
+    folderId?: string | null
   ) => void
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
   onReactionsChanged?: (

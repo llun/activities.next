@@ -212,6 +212,7 @@ describe('exportAccountArchiveJob', () => {
       'activities.next/actors/llun.test/test1/medias.jsonl',
       'activities.next/actors/llun.test/test1/scheduled.json',
       'activities.next/actors/llun.test/test1/graph.json',
+      'activities.next/actors/llun.test/test1/bookmark_folders.json',
       'activities.next/actors/llun.test/test1/gallery/albums.json',
       'activities.next/actors/llun.test/test1/gallery/gears.json',
       'activities.next/actors/llun.test/test1/gallery/settings.json',

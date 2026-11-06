@@ -435,7 +435,14 @@ Export](maintenance.md#actor-archive-export)). It is built by
   - Every other profile has the same files under
     `activities.next/actors/<domain>/<username>/`. The extras per profile
     (`profile.json`, `statuses.jsonl`, `scheduled.json`, `medias.jsonl`,
-    `gallery/*`, `fitness/*`, `graph.json`) live in that same directory.
+    `gallery/*`, `fitness/*`, `graph.json`, `bookmark_folders.json`) live in
+    that same directory. `bookmark_folders.json` lists the private bookmark
+    folders, each with the status URIs filed in it (a large folder is split
+    into several entries of the same name, each under 256 KiB and 20,000
+    URIs, so the importer's 512 KiB per-entry cap never refuses one, and a
+    status URI over the import's 4,096-character limit is left out of it with
+    a manifest warning that counts them); the bookmarks themselves
+    stay in `bookmarks.json`, so a Mastodon importer reads them unchanged.
   - `activities.next/account.json` describes the account,
     `activities.next/drafts.json` is there when the request carried drafts, and
     `activities.next/manifest.json` is always the last entry (format, version,
@@ -769,6 +776,36 @@ HTTP and arbitrary queue helpers, while explicitly allowing the bookmark CSV
 import path and fitness processing job. Likes are added only when the target
 status is local and `canActorReadStatus` says the importing actor can read it.
 Bookmarks go through the same `importRow` path used for CSV bookmark imports.
+With the bookmarks option, an `activities.next` export's
+`bookmark_folders.json` is restored at the start of the collections phase
+(`runBookmarkFoldersPhase`): each folder is matched by name ignoring case, or
+created within the folder rules, so the entries of a split folder file into
+one folder that counts once against the cap, and only statuses the import
+already bookmarked are filed into it. An entry it cannot restore (too large,
+unreadable, a refused name, past the cap) is logged (import id, reason and
+entry index; never the folder's name, which is private) and counted by reason
+in `progress.bookmarkFolderSkips`, which the import report lists. A refused
+name is counted once however many entries the folder was split into. Two
+races with the owner, who can use the app while their import runs, are
+handled:
+
+- **Duplicate name at create.** When the import's create answers
+  duplicate-name, the owner made a folder of that name meanwhile: the import
+  re-reads the folders and files into theirs. If it is gone by the time it is
+  read, the import creates the folder once more, and reports
+  `bookmark_folder_conflict` if that also collides.
+- **Folder deleted mid-import.** When a folder the import already resolved
+  (found by name at the start, or created) answers not-found on a filing, the
+  owner deleted it. The import respects that and does not make it again. The
+  delete itself unfiled the folder's bookmarks, including the ones this run
+  had already filed in it; the folder's remaining bookmarks and its later
+  entries in the archive stay unfiled too, and it is counted once as
+  `bookmark_folder_conflict`. The rule holds for one run of the phase: a
+  retried phase starts from a fresh read of the folders, and could create the
+  name again.
+
+An archive without the file (a Mastodon one, or
+an older export) imports every bookmark unfiled.
 With `repliesToOthers: "keep"`, a foreign parent's URI is stored as data in the
 imported status's `statuses.reply` field, which is limited to 255 characters;
 the importer never fetches that parent. A parent URI longer than 255 characters
@@ -1456,7 +1493,8 @@ navigation: it moves within that document rather than between section pages.
       - `messages` (`app/(timeline)/messages/loading.tsx`): Reference implementation. Uses `PageHeader` with title `h-7`, description `h-4`, and action `h-8 w-18`.
       - `search` (`app/(timeline)/search/loading.tsx`): Reference implementation. Uses `PageHeader` with title `h-7`, description `h-4`.
       - `[actor]/followers` & `[actor]/following` (`app/(timeline)/[actor]/FollowListLoadingSkeleton.tsx`): Both routes render `PageHeader` when signed in. Hand-rolled sticky headers here (e.g. 75px with `h-6` title and `space-y-1`) violate the rule and cause a 4px jump; they must reuse `PageHeader` directly. Signed in, below `md` the skeleton mirrors the loaded page: `compactTitle` gives the bar the plain "Followers"/"Following" title (a skeleton there renders as an arrow and a bar), the `PageHeader` box is `max-md:hidden` and a `md:hidden` block stands in for it (`pt-2`, the 44px "Back to profile" row, then a 20px `h-5` count flush under it, matching the loaded description's `text-sm` line). The logged-out header (`group-data-[shell=public]/shell:` variants) is the icon Back beside the title and count at every width, as `FollowListPage` renders it there.
-      - `bookmarks` (`app/(timeline)/bookmarks/page.tsx`), `explore` (`app/(timeline)/explore/page.tsx`), `lists` & `lists/[id]` (`app/(timeline)/lists/page.tsx`): All render top-level `PageHeader`s (some with action buttons like `Button size="sm"` -> `h-8`). When adding `loading.tsx` skeletons for these routes, always reuse `PageHeader` with matching `h-7` title, `h-4` description, and `actions` skeletons, then draw the page's own shape under it: `PostListSkeleton` for a list of posts (`PostFeedLoading` is that header-plus-posts pair, used by Bookmarks and Favorites; `lists/[id]` draws its own header over the same `PostListSkeleton`, so its rows are full-bleed on a phone like the loaded posts), a `Frame divided` of rows for Explore.
+      - `bookmarks` (`app/(timeline)/bookmarks/page.tsx`): its `PageHeader` carries an outline `Button size="sm"` ("Manage folders", or "New folder" while there are none), so `loading.tsx` passes an `h-8` action skeleton to `PostFeedLoading`. Under the header, a `SectionNavSelect` ("Bookmark folders": All bookmarks, Unfiled, then each folder) switches the feed in place and keeps `?folder=<id|none>` in step with `history.replaceState`; it is hidden while the viewer has no folders, so the skeleton does not draw it. The header button opens a `Dialog` with an `AddBar` to create a folder and a `FramedList` whose rows rename or delete one; a delete asks first, in the row ("Bookmarks in this folder stay in All bookmarks."). Filing a post out of the folder on screen drops it from the feed. Deleting a folder clears its id from the posts on screen and reads Unfiled again when that is the view (every switch fetches its first page afresh); deleting the last one, or the one on screen, goes to All bookmarks. A failed switch shows an `Alert` with Retry, and picking the same view again retries it too, and a `?folder=` the server could not find opens All bookmarks with the parameter dropped. Under a coarse pointer the header button and the dialog's buttons grow to 40px (`pointer-coarse:h-10` / `pointer-coarse:size-10`).
+      - `explore` (`app/(timeline)/explore/page.tsx`), `lists` & `lists/[id]` (`app/(timeline)/lists/page.tsx`): All render top-level `PageHeader`s (some with action buttons like `Button size="sm"` -> `h-8`). When adding `loading.tsx` skeletons for these routes, always reuse `PageHeader` with matching `h-7` title, `h-4` description, and `actions` skeletons, then draw the page's own shape under it: `PostListSkeleton` for a list of posts (`PostFeedLoading` is that header-plus-posts pair, used by Bookmarks and Favorites; `lists/[id]` draws its own header over the same `PostListSkeleton`, so its rows are full-bleed on a phone like the loaded posts), a `Frame divided` of rows for Explore.
       - `notifications` (`app/(timeline)/notifications/page.tsx`): Renders `PageHeader` with `PageSubnavProvider` for sticky filter tabs (`All`, `Mentions`), `MarkAllReadButton` in `actions`, and `PageRefreshButton` in `mobileBarActions` (putting Refresh in the mobile compact bar below `md` and at the trailing end of the header actions row from `md` up, while Mark all read stays in the content row on mobile). Skeletons must include both the `PageHeader` (with matching `actions` and `mobileBarActions` skeleton sizes) and subnav tab placeholder inside the sticky header container to prevent tab strip jumps.
     - **Section-mode routes (`settings`, `fitness`, `gallery`, `admin`, `account`):**
       - The outer layout (`app/(timeline)/<section>/layout.tsx`) renders the sticky `PageHeader` _outside_ `PageHeaderSectionProvider`, while the section navigation (`SectionNavDropdown`, rendered by `SectionLayout` for Settings, Account & security and Admin, directly by the Fitness and Gallery layouts) and children render _inside_ it.

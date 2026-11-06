@@ -241,13 +241,22 @@ CREATE TABLE public.blocks (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.bookmark_folders (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    name character varying(120) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.bookmarks (
     id bigint NOT NULL,
     "actorId" character varying(255) NOT NULL,
     "statusId" character varying(255) NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    "sourceStatusId" character varying(255)
+    "sourceStatusId" character varying(255),
+    "folderId" character varying(255)
 );
 
 CREATE SEQUENCE public.bookmarks_id_seq
@@ -1729,6 +1738,12 @@ ALTER TABLE ONLY public.blocks
 ALTER TABLE ONLY public.blocks
     ADD CONSTRAINT blocks_uri_unique UNIQUE (uri);
 
+ALTER TABLE ONLY public.bookmark_folders
+    ADD CONSTRAINT bookmark_folders_actor_name_unique UNIQUE ("actorId", name);
+
+ALTER TABLE ONLY public.bookmark_folders
+    ADD CONSTRAINT bookmark_folders_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.bookmarks
     ADD CONSTRAINT bookmarks_actor_status_unique UNIQUE ("actorId", "statusId");
 
@@ -2196,7 +2211,11 @@ CREATE INDEX blocks_actor_created ON public.blocks USING btree ("actorId", "crea
 
 CREATE INDEX blocks_target ON public.blocks USING btree ("targetActorId");
 
+CREATE INDEX bookmark_folders_actor_created ON public.bookmark_folders USING btree ("actorId", "createdAt");
+
 CREATE INDEX bookmarks_actor_created_id ON public.bookmarks USING btree ("actorId", "createdAt", id);
+
+CREATE INDEX bookmarks_actor_folder_created_id ON public.bookmarks USING btree ("actorId", "folderId", "createdAt", id);
 
 CREATE INDEX bookmarks_actor_source_status ON public.bookmarks USING btree ("actorId", "sourceStatusId");
 
@@ -2499,6 +2518,9 @@ ALTER TABLE ONLY public.account_imports
 
 ALTER TABLE ONLY public.actors
     ADD CONSTRAINT actors_accountid_foreign FOREIGN KEY ("accountId") REFERENCES public.accounts(id);
+
+ALTER TABLE ONLY public.bookmark_folders
+    ADD CONSTRAINT "bookmark_folders_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.federated_timeline
     ADD CONSTRAINT federated_timeline_statusid_foreign FOREIGN KEY ("statusId") REFERENCES public.statuses(id) ON DELETE CASCADE;

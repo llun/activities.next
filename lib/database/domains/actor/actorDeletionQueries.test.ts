@@ -400,6 +400,18 @@ const seedEditFile = (mediaId: number, actorId: string, bytes: number) =>
     })
     .execute()
 
+const seedBookmarkFolder = (actorId: string) =>
+  db()
+    .insertInto('bookmark_folders')
+    .values({
+      id: randomUUID(),
+      actorId,
+      name: 'Saved',
+      createdAt: at,
+      updatedAt: at
+    })
+    .execute()
+
 const seedAlbum = async (actorId: string, mediaId: number) => {
   const albumId = randomUUID()
   await db()
@@ -684,6 +696,7 @@ const OWN_TABLES = [
   'likes',
   'status_reactions',
   'bookmarks',
+  'bookmark_folders',
   'markers',
   'idempotency_keys',
   'poll_answers',
@@ -960,6 +973,8 @@ const seedWorld = async () => {
   await seedEditFile(media, T, 5)
   await seedEditFile(media, T, 7)
   await seedAlbum(T, media)
+  await seedBookmarkFolder(T)
+  await seedBookmarkFolder(n2.id)
   await seedMedia(T, target.accountId, null, null)
   const n2Media = await seedMedia(n2.id, n2.accountId, 50, 5)
   await seedEditFile(n2Media, n2.id, 3)
@@ -1355,6 +1370,7 @@ describe('statements', () => {
       'delete likes by actorId',
       'delete status_reactions by actorId',
       'delete bookmarks by actorId',
+      'delete bookmark_folders by actorId',
       'delete markers by actorId',
       'delete idempotency_keys by actorId',
       'select poll_answers by actorId',

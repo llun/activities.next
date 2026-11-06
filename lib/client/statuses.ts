@@ -1237,6 +1237,8 @@ export interface GetBookmarksParams {
   limit?: number
   maxBookmarkId?: string
   minBookmarkId?: string
+  /** One folder's id, or `none` for the unfiled bookmarks. */
+  folderId?: string
 }
 
 export interface GetBookmarksResult {
@@ -1248,13 +1250,15 @@ export interface GetBookmarksResult {
 export const getBookmarks = async ({
   limit,
   maxBookmarkId,
-  minBookmarkId
+  minBookmarkId,
+  folderId
 }: GetBookmarksParams = {}): Promise<GetBookmarksResult> => {
   const url = new URL(`${window.origin}/api/v1/bookmarks`)
   url.searchParams.set('format', TimelineFormat.enum.activities_next)
   if (limit) url.searchParams.set('limit', `${limit}`)
   if (maxBookmarkId) url.searchParams.set('max_id', maxBookmarkId)
   if (minBookmarkId) url.searchParams.set('min_id', minBookmarkId)
+  if (folderId) url.searchParams.set('folder_id', folderId)
 
   const response = await fetch(url.toString(), {
     method: 'GET',

@@ -51,6 +51,12 @@ const DOCUMENTED_REASONS = [
   'gear_invalid',
   'album_invalid',
   'album_limit',
+  // Bookmark folder entries (progress.bookmarkFolderSkips, not item rows).
+  'bookmark_folder_too_large',
+  'bookmark_folder_invalid',
+  'bookmark_folder_name_invalid',
+  'bookmark_folder_limit',
+  'bookmark_folder_conflict',
   'fitness_invalid',
   'fitness_missing',
   'status_unavailable',
@@ -109,6 +115,18 @@ describe('importCopy', () => {
       '2 gallery gear items imported',
       '1 gallery setting imported',
       '912 photos and videos imported'
+    ])
+  })
+
+  it('reports the bookmark folders the import skipped', () => {
+    expect(
+      importReportRows({ done: {}, skipped: {}, failed: {} }, [], {
+        bookmark_folder_too_large: 1,
+        bookmark_folder_limit: 2
+      })
+    ).toEqual([
+      '2 bookmark folders skipped: the account already has the maximum number of bookmark folders',
+      '1 bookmark folder skipped: the folder entry was too large to read'
     ])
   })
 

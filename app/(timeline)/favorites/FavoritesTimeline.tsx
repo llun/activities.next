@@ -9,7 +9,8 @@ import { PageHeader } from '@/lib/components/page-header'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
-  updateMatchingStatus
+  updateMatchingStatus,
+  withBookmarkChange
 } from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
@@ -87,12 +88,15 @@ export const FavoritesTimeline: FC<FavoritesTimelineProps> = ({
   )
 
   const onBookmarkChanged = useCallback(
-    (status: StatusNote | StatusPoll, isBookmarked: boolean) => {
+    (
+      status: StatusNote | StatusPoll,
+      isBookmarked: boolean,
+      folderId?: string | null
+    ) => {
       setCurrentStatuses((previousStatuses) =>
-        updateMatchingStatus(previousStatuses, status.id, (target) => ({
-          ...target,
-          isActorBookmarked: isBookmarked
-        }))
+        updateMatchingStatus(previousStatuses, status.id, (target) =>
+          withBookmarkChange(target, isBookmarked, folderId)
+        )
       )
     },
     []

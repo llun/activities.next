@@ -600,7 +600,8 @@ can be revisited on demand — file an issue if you need one.
 - Collections — `/api/v1/collections/*`, `/api/v1/accounts/:id/collections`,
   `/api/v1/accounts/:id/in_collections` and `/api/v1/timelines/collection/:id`
   were removed and answer 404; the `read:collections` and `write:collections`
-  scopes are still accepted at sign-in.
+  scopes are still accepted at sign-in. Saved posts are organised with private
+  [bookmark folders](#bookmark-folders) instead, which never federate.
 - Streaming API — `/api/v1/streaming` is not implemented and not planned;
   `configuration.urls.streaming` stays empty, so clients poll.
 
@@ -779,6 +780,43 @@ this server" }` instead of storing a post that would never be published. The
   Mastodon response is unchanged. `GET /api/v1/timelines/list/:id` returns
   `{ statuses, context, nextMaxStatusId, prevMinStatusId }`, the same `context`
   of reply parent previews the home timeline's payload carries.
+
+### Bookmark folders
+
+Private, owner-only folders for bookmarks. A bookmark is in at most one folder
+(`bookmarks.folderId`, null for unfiled); folders live in `bookmark_folders`
+and are never federated, never in ActivityPub output and never on a public or
+profile route. Every route uses the bookmark scopes: `read` or
+`read:bookmarks` to read, `write` or `write:bookmarks` to change. Another
+actor's folder id answers `404`, like a missing one. Errors are `{ error }`.
+
+- `GET /api/v1/bookmark_folders` — the viewer's folders as
+  `[{ id, name, created_at, updated_at }]`, ordered by name
+  case-insensitively. There are no counts: a folder can hold bookmarks of
+  statuses the viewer can no longer read, which the bookmark list skips.
+- `POST /api/v1/bookmark_folders` with `{ name }` creates one, and
+  `PATCH /api/v1/bookmark_folders/:id` with `{ name }` renames it. The name is
+  trimmed and must be 1–120 characters and unique per actor ignoring case
+  (checked in the domain layer, so SQLite and PostgreSQL agree); an actor has
+  at most 200 folders. A bad name, a duplicate or a 201st folder is `422`.
+- `DELETE /api/v1/bookmark_folders/:id` deletes the folder and unfiles its
+  bookmarks in the same transaction; they stay bookmarked.
+- `PUT /api/v1/statuses/:id/bookmark_folder` with JSON `{ "folder_id": string |
+null }` files the status into one of the viewer's folders, or unfiles it with
+  `null`. A status that is not bookmarked yet is bookmarked first, so one call
+  both bookmarks and files. It answers the `Status`. Unbookmarking
+  (`POST /api/v1/statuses/:id/unbookmark`) removes the bookmark and its folder
+  with it; bookmarking again starts unfiled, and a plain
+  `POST /api/v1/statuses/:id/bookmark` never changes the folder.
+- `GET /api/v1/bookmarks` is unchanged for Mastodon clients and takes an
+  optional `folder_id`: a folder id, or `none` for the unfiled bookmarks. The
+  filter is applied in the keyset query, the cursors stay `bookmarks.id`, and
+  the `Link` header carries `folder_id` into the next and previous pages.
+- The `Status` entity has a top-level `bookmark_folder_id` (beside `reactions`
+  and `fitness`): the id of the viewer's own folder holding the status, and
+  `null` when the viewer has not bookmarked it, left it unfiled, or is signed
+  out. Status hydration reads it with the viewer's bookmark state
+  (`buildViewerHydration`), so it is only ever the requesting viewer's folder.
 
 ### Media & uploads
 
@@ -1213,7 +1251,11 @@ this server" }` instead of storing a post that would never be published. The
   identifiers, status order, catalog stage/index, total/completed/skipped item
   counts and, after start, the selected options; when the profile option
   skipped the avatar or header, it also carries `profileImageSkips`
-  (`media_quota_exceeded` or `media_invalid`). It does not expose upload
+  (`media_quota_exceeded` or `media_invalid`), and when entries of
+  `bookmark_folders.json` could not be restored, `bookmarkFolderSkips` counts
+  them by reason (`bookmark_folder_too_large`, `bookmark_folder_invalid`,
+  `bookmark_folder_name_invalid`, `bookmark_folder_limit`,
+  `bookmark_folder_conflict`). It does not expose upload
   tokens or lease data. `GET /api/v1/account/imports/:id` adds a `report`
   field, but only once the import is `done`, `failed` or `cancelled` — never
   while it is `queued` or `running`, and never in the list route's objects.
@@ -2291,6 +2333,33 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   therefore calls the hook itself and passes the state into `Actions`. The same
   applies to the bookmark: `useBookmarkState` is held by `Actions` and
   `BookmarkButton` only renders it.
+- **Every `⋯` menu has "Bookmark folder"** (built into `PostMenu`, so the
+  standalone menus of a combined post's parts and tucked-in replies have it
+  too): a submenu of "No folder" and each of the viewer's folders as radio items,
+  the current one checked, then "New folder…", which opens a small dialog that
+  creates a folder and files the post in it (if the filing fails, the dialog
+  stays open with the error and a retry files into the folder it created). Picking a folder on a post that is
+  not bookmarked bookmarks and files it in one step
+  (`PUT /api/v1/statuses/:id/bookmark_folder`), and the row's Bookmark button
+  follows. The folders are fetched once, the first time any menu opens, into a
+  shared client store (`lib/components/bookmarks/bookmarkFolderStore.ts`) that
+  the Bookmarks page seeds and every folder write updates. The store holds one
+  actor's folders, named by every call (`PostMenu` takes the row's
+  `currentActor.id` as `viewerId` and offers no submenu without it), so after a
+  profile switch in another tab the next page's menus load the new actor's
+  folders and never show the old one's. A write to a list that has not loaded
+  keeps the load pending, and a load that a write overtook is read again, but
+  only by the newest load (a token per load), so loads left in flight across
+  an actor switch and back never keep restarting each other. The Bookmarks
+  page seeds the store with its server list only when the store is not loaded
+  for that actor yet: a loaded store (a router-cache back navigation hands the
+  page its first list again) may hold newer writes, so it is kept and
+  refreshed in the background, and a write that lands during the refresh wins
+  over it. A filing reaches the
+  feed as `onBookmarkChanged(status, true, folderId)`, and every feed stores it
+  with `withBookmarkChange` (`lib/components/posts/statusArray.ts`), so the
+  menu it re-renders still checks that folder. The menu also keeps the folder
+  it filed when a feed passes the status back without one.
 - **A post narrower than 400px moves bookmark and react into the `⋯` menu**
   ("Bookmark" / "React to post", above the menu's own items). The width comes
   from a `ResizeObserver` on the row itself (`useCompactActionBar`), not a

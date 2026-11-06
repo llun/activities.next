@@ -223,6 +223,19 @@ const isStatusBookmarked = (status: Status): boolean => {
   return status.isActorBookmarked ?? false
 }
 
+// Hydration sets the folder only for the viewer the status was read for, so
+// with no viewer there is none to show.
+const getStatusBookmarkFolderId = (
+  status: Status,
+  currentActorId?: string
+): string | null => {
+  if (!currentActorId) return null
+  if (status.type === StatusType.enum.Announce) {
+    return getStatusBookmarkFolderId(status.originalStatus, currentActorId)
+  }
+  return status.isActorBookmarked ? (status.bookmarkFolderId ?? null) : null
+}
+
 const addStatusActorIds = (status: Status, actorIds: Set<string>) => {
   actorIds.add(status.actorId)
   if (status.type === StatusType.enum.Announce) {
@@ -595,6 +608,7 @@ export const getMastodonStatus = async (
     reblogged: false,
     muted,
     bookmarked: isStatusBookmarked(status),
+    bookmark_folder_id: getStatusBookmarkFolderId(status, currentActorId),
     ...(pinned === undefined ? {} : { pinned }),
 
     content: '',

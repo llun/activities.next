@@ -29,6 +29,7 @@ const overlayViewerState = <T extends StatusNote | StatusPoll>(
     ...live,
     isActorLiked,
     isActorBookmarked: stored.isActorBookmarked,
+    bookmarkFolderId: stored.bookmarkFolderId,
     actorAnnounceStatusId: stored.actorAnnounceStatusId,
     totalLikes,
     ...(stored.reactions && stored.reactions.length > 0

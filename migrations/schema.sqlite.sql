@@ -96,7 +96,7 @@ CREATE UNIQUE INDEX `blocks_uri_unique` on `blocks` (`uri`);
 CREATE INDEX `blocks_actor_created` on `blocks` (`actorId`, `createdAt`);
 CREATE INDEX `blocks_target` on `blocks` (`targetActorId`);
 CREATE INDEX `oauth_client_reference_id_idx` on `oauthClient` (`referenceId`);
-CREATE TABLE `bookmarks` (`id` integer not null primary key autoincrement, `actorId` varchar(255) not null, `statusId` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `sourceStatusId` varchar(255) null);
+CREATE TABLE `bookmarks` (`id` integer not null primary key autoincrement, `actorId` varchar(255) not null, `statusId` varchar(255) not null, `createdAt` datetime default CURRENT_TIMESTAMP, `updatedAt` datetime default CURRENT_TIMESTAMP, `sourceStatusId` varchar(255) null, "folderId" varchar(255));
 CREATE UNIQUE INDEX `bookmarks_actor_status_unique` on `bookmarks` (`actorId`, `statusId`);
 CREATE INDEX `bookmarks_actor_created_id` on `bookmarks` (`actorId`, `createdAt`, `id`);
 CREATE INDEX `bookmarks_status` on `bookmarks` (`statusId`);
@@ -353,3 +353,6 @@ CREATE TABLE IF NOT EXISTS "delivery_inbox_failures" ("inbox" text primary key, 
 CREATE INDEX "delivery_inbox_failures_domain_idx" on "delivery_inbox_failures" ("domain");
 CREATE TABLE IF NOT EXISTS "fitness_best_efforts" ("fitnessFileId" varchar(255) not null references "fitness_files" ("id") on delete cascade, "actorId" varchar(255) not null references "actors" ("id") on delete cascade, "statusId" varchar(255) not null, "activityType" varchar(255), "kind" varchar(16) not null, "key" float not null, "value" float not null, "activityDate" datetime not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, constraint "fitness_best_efforts_pkey" primary key ("fitnessFileId", "kind", "key"));
 CREATE INDEX "fitness_best_efforts_actor_kind_key_date_idx" on "fitness_best_efforts" ("actorId", "kind", "key", "activityDate");
+CREATE TABLE IF NOT EXISTS "bookmark_folders" ("id" varchar(255) primary key, "actorId" varchar(255) not null references "actors" ("id") on delete cascade, "name" varchar(120) not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null, constraint "bookmark_folders_actor_name_unique" unique ("actorId", "name"));
+CREATE INDEX "bookmark_folders_actor_created" on "bookmark_folders" ("actorId", "createdAt");
+CREATE INDEX "bookmarks_actor_folder_created_id" on "bookmarks" ("actorId", "folderId", "createdAt", "id");

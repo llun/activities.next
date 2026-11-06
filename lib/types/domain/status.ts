@@ -156,6 +156,10 @@ export const StatusNote = StatusBase.extend({
   actorAnnounceStatusId: z.string().nullable(),
   isActorLiked: z.boolean(),
   isActorBookmarked: z.boolean(),
+  // The viewer's own private bookmark folder for this status (null when the
+  // viewer has not bookmarked it or left it unfiled). Hydrated per viewer and
+  // never federated. Optional so existing status literals stay valid.
+  bookmarkFolderId: z.string().nullable().optional(),
   totalLikes: z.number(),
   totalShares: z.number().default(0),
   // Emoji-reaction rollups in first-reaction order, with `me` relative to the

@@ -90,7 +90,8 @@ export interface CombinedPostListItemProps {
   onPostDeleted?: (status: Status) => void
   onBookmarkChanged?: (
     status: StatusNote | StatusPoll,
-    isBookmarked: boolean
+    isBookmarked: boolean,
+    folderId?: string | null
   ) => void
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
   onReactionsChanged?: (
@@ -252,6 +253,11 @@ interface InsetReplyProps {
   onQuote?: (status: Status) => void
   onPostDeleted?: (status: Status) => void
   onLikeChanged?: (status: StatusNote | StatusPoll, isLiked: boolean) => void
+  onBookmarkChanged?: (
+    status: StatusNote | StatusPoll,
+    isBookmarked: boolean,
+    folderId?: string | null
+  ) => void
   onOpenStatus: (status: Status) => void
   onShowMedia: (
     medias: Attachment[],
@@ -279,6 +285,7 @@ export const InsetReply: FC<InsetReplyProps> = ({
   onQuote,
   onPostDeleted,
   onLikeChanged,
+  onBookmarkChanged,
   onOpenStatus,
   onShowMedia
 }) => {
@@ -349,6 +356,7 @@ export const InsetReply: FC<InsetReplyProps> = ({
                 onLikeChanged={onLikeChanged}
               />
               <PostMenu
+                viewerId={currentActor?.id}
                 className="ml-auto"
                 triggerClassName="size-6"
                 targetLabel={`${name}'s reply`}
@@ -359,6 +367,9 @@ export const InsetReply: FC<InsetReplyProps> = ({
                 onEdit={onEdit}
                 onQuote={onQuote}
                 onPostDeleted={onPostDeleted}
+                onBookmarkFolderChanged={(target, folderId) =>
+                  onBookmarkChanged?.(target, true, folderId)
+                }
               />
             </div>
           ) : null}
@@ -520,6 +531,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                       onQuote={handleQuote}
                       onPostDeleted={onPostDeleted}
                       onLikeChanged={onLikeChanged}
+                      onBookmarkChanged={onBookmarkChanged}
                       onOpenStatus={onOpenStatus}
                       onShowMedia={onShowMedia}
                     />
@@ -591,6 +603,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                             ) : null}
                             {showsActionRow ? (
                               <PostMenu
+                                viewerId={currentActor?.id}
                                 status={actualStatus}
                                 isOwner={isOwnPost}
                                 canEdit={isOwnPost}
@@ -600,6 +613,9 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                                 onEdit={handleEdit}
                                 onQuote={handleQuote}
                                 onPostDeleted={onPostDeleted}
+                                onBookmarkFolderChanged={(target, folderId) =>
+                                  onBookmarkChanged?.(target, true, folderId)
+                                }
                               />
                             ) : null}
                           </div>

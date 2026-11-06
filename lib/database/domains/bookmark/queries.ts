@@ -1,15 +1,32 @@
 import type { ExpressionBuilder } from 'kysely'
 
 import type {
+  BookmarkFolderWriteResult,
+  CreateBookmarkFolderParams,
   CreateBookmarkParams,
+  DeleteBookmarkFolderParams,
   DeleteBookmarkParams,
+  FileBookmarkParams,
+  FileBookmarkResult,
+  GetBookmarkFolderParams,
+  GetBookmarkFoldersParams,
   GetBookmarksParams,
-  IsActorBookmarkedStatusParams
+  IsActorBookmarkedStatusParams,
+  UpdateBookmarkFolderParams
 } from '@/lib/database/domains/bookmark/types'
 import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
+import type { BookmarkFolders } from '@/lib/database/kysely/db'
+import { forUpdate } from '@/lib/database/kysely/dialect'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
-import { Bookmark } from '@/lib/types/domain/bookmark'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
+import {
+  Bookmark,
+  BookmarkFolder,
+  MAX_BOOKMARK_FOLDERS_PER_ACTOR,
+  MAX_BOOKMARK_FOLDER_NAME_LENGTH
+} from '@/lib/types/domain/bookmark'
 import { StatusType } from '@/lib/types/domain/status'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 export const getOriginalStatusIdFromAnnounceContent = (content: unknown) => {
   if (!content) return null
@@ -88,50 +105,107 @@ const matchesBookmarkStatus = (
     eb('sourceStatusId', '=', statusId)
   ])
 
+// Writes the bookmark inside the caller's transaction: a fresh row, or the
+// existing one updated. `folderId` undefined keeps the stored folder (a plain
+// bookmark never unfiles), null unfiles and a string files. False when the
+// status is not stored.
+const writeBookmark = async (
+  trx: Db,
+  { actorId, statusId }: CreateBookmarkParams,
+  folderId?: string | null
+): Promise<boolean> => {
+  const bookmarkStatusId = await resolveBookmarkStatusId(trx, { statusId })
+  if (!bookmarkStatusId) return false
+
+  const existing = await trx
+    .selectFrom('bookmarks')
+    .select(['id', 'sourceStatusId', 'folderId'])
+    .where('actorId', '=', actorId)
+    .where('statusId', '=', bookmarkStatusId)
+    .limit(1)
+    .executeTakeFirst()
+
+  const currentTime = new Date()
+  const sourceStatusId = statusId === bookmarkStatusId ? null : statusId
+  if (existing) {
+    const changes = {
+      ...(sourceStatusId && existing.sourceStatusId !== sourceStatusId
+        ? { sourceStatusId }
+        : {}),
+      ...(folderId !== undefined && (existing.folderId ?? null) !== folderId
+        ? { folderId }
+        : {})
+    }
+    if (Object.keys(changes).length > 0) {
+      await trx
+        .updateTable('bookmarks')
+        .set({ ...changes, updatedAt: currentTime })
+        .where('id', '=', existing.id)
+        .execute()
+    }
+    return true
+  }
+
+  // A concurrent request may have inserted the same bookmark since the
+  // read: that one wins, and bookmarking stays idempotent. Filing still
+  // applies its folder to the winner.
+  await trx
+    .insertInto('bookmarks')
+    .values({
+      actorId,
+      statusId: bookmarkStatusId,
+      sourceStatusId,
+      folderId: folderId ?? null,
+      createdAt: currentTime,
+      updatedAt: currentTime
+    })
+    .onConflict((oc) =>
+      folderId === undefined
+        ? oc.columns(['actorId', 'statusId']).doNothing()
+        : oc
+            .columns(['actorId', 'statusId'])
+            .doUpdateSet({ folderId, updatedAt: currentTime })
+    )
+    .execute()
+  return true
+}
+
 export const createBookmark = async (
   db: Db,
-  { actorId, statusId }: CreateBookmarkParams
+  params: CreateBookmarkParams
 ): Promise<void> => {
   await inTransaction(db, async (trx) => {
-    const bookmarkStatusId = await resolveBookmarkStatusId(trx, { statusId })
-    if (!bookmarkStatusId) return
-
-    const existing = await trx
-      .selectFrom('bookmarks')
-      .select(['id', 'sourceStatusId'])
-      .where('actorId', '=', actorId)
-      .where('statusId', '=', bookmarkStatusId)
-      .limit(1)
-      .executeTakeFirst()
-
-    const currentTime = new Date()
-    const sourceStatusId = statusId === bookmarkStatusId ? null : statusId
-    if (existing) {
-      if (sourceStatusId && existing.sourceStatusId !== sourceStatusId) {
-        await trx
-          .updateTable('bookmarks')
-          .set({ sourceStatusId, updatedAt: currentTime })
-          .where('id', '=', existing.id)
-          .execute()
-      }
-      return
-    }
-
-    // A concurrent request may have inserted the same bookmark since the
-    // read: that one wins, and bookmarking stays idempotent.
-    await trx
-      .insertInto('bookmarks')
-      .values({
-        actorId,
-        statusId: bookmarkStatusId,
-        sourceStatusId,
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
-      .onConflict((oc) => oc.columns(['actorId', 'statusId']).doNothing())
-      .execute()
+    await writeBookmark(trx, params)
   })
 }
+
+// Serialises one actor's folder writes and filings on their actor row, the
+// pattern of the gear cap (`createGalleryGearWithinLimit`), so a folder cannot
+// be deleted between a filing's check and its write, and two creates cannot
+// both pass the cap or the name check. SQLite's single writer already
+// serialises transactions.
+const lockActor = async (db: Db, actorId: string) => {
+  await forUpdate(
+    db,
+    db.selectFrom('actors').select('id').where('id', '=', actorId)
+  ).execute()
+}
+
+export const fileBookmark = (
+  db: Db,
+  { actorId, statusId, folderId }: FileBookmarkParams
+): Promise<FileBookmarkResult> =>
+  inTransaction(db, async (trx) => {
+    if (folderId !== null) {
+      await lockActor(trx, actorId)
+      if (!(await readFolder(trx, { id: folderId, actorId }))) {
+        return 'folder-not-found'
+      }
+    }
+    return (await writeBookmark(trx, { actorId, statusId }, folderId))
+      ? 'filed'
+      : 'status-not-found'
+  })
 
 export const deleteBookmark = (
   db: Db,
@@ -147,25 +221,32 @@ export const deleteBookmark = (
       .execute()
   })
 
-export const isActorBookmarkedStatus = async (
+// The viewer's bookmark of a status, with the folder it is filed in; null when
+// the status is not bookmarked.
+export const getActorBookmark = async (
   db: Db,
   { actorId, statusId, statusType }: IsActorBookmarkedStatusParams
-): Promise<boolean> => {
+): Promise<{ folderId: string | null } | null> => {
   const bookmarkStatusId =
     (await resolveBookmarkStatusId(db, { statusId, statusType })) ?? statusId
   const bookmark = await db
     .selectFrom('bookmarks')
-    .select('id')
+    .select('folderId')
     .where('actorId', '=', actorId)
     .where((eb) => matchesBookmarkStatus(eb, { statusId, bookmarkStatusId }))
     .limit(1)
     .executeTakeFirst()
-  return Boolean(bookmark)
+  return bookmark ? { folderId: bookmark.folderId ?? null } : null
 }
+
+export const isActorBookmarkedStatus = async (
+  db: Db,
+  params: IsActorBookmarkedStatusParams
+): Promise<boolean> => Boolean(await getActorBookmark(db, params))
 
 export const getBookmarks = async (
   db: Db,
-  { actorId, limit, maxId, minId, sinceId }: GetBookmarksParams
+  { actorId, limit, maxId, minId, sinceId, folderId }: GetBookmarksParams
 ): Promise<Bookmark[]> => {
   const olderCursorId = maxId
   const newerCursorId = minId || sinceId
@@ -180,6 +261,11 @@ export const getBookmarks = async (
     .selectFrom('bookmarks')
     .selectAll()
     .where('actorId', '=', actorId)
+  // The cursor below is looked up by id alone, so a cursor from another
+  // folder still pages this one from that point.
+  if (folderId === null) query = query.where('folderId', 'is', null)
+  else if (folderId !== undefined)
+    query = query.where('folderId', '=', folderId)
 
   for (const [cursorId, operator] of [
     [olderCursorId, '<'],
@@ -216,10 +302,179 @@ export const getBookmarks = async (
   )
 }
 
+const parseFolder = (
+  row: Pick<BookmarkFolders, 'id' | 'actorId' | 'name'> & {
+    createdAt: number | Date | string
+    updatedAt: number | Date | string
+  }
+): BookmarkFolder =>
+  BookmarkFolder.parse({
+    id: row.id,
+    actorId: row.actorId,
+    name: row.name,
+    createdAt: getCompatibleTime(row.createdAt),
+    updatedAt: getCompatibleTime(row.updatedAt)
+  })
+
+const FOLDER_COLUMNS = [
+  'id',
+  'actorId',
+  'name',
+  'createdAt',
+  'updatedAt'
+] as const
+
+const readFolder = async (
+  db: Db,
+  { id, actorId }: GetBookmarkFolderParams
+): Promise<BookmarkFolder | null> => {
+  const row = await db
+    .selectFrom('bookmark_folders')
+    .select(FOLDER_COLUMNS)
+    .where('id', '=', id)
+    .where('actorId', '=', actorId)
+    .limit(1)
+    .executeTakeFirst()
+  return row ? parseFolder(row) : null
+}
+
+// Names compare case-insensitively, in JS rather than SQL, so SQLite (whose
+// lower() folds ASCII only) and PostgreSQL agree on what is a duplicate.
+const folderNameKey = (name: string) => name.toLowerCase()
+
+const normalizeFolderName = (name: string): string | null => {
+  const trimmed = name.trim()
+  return trimmed.length > 0 && trimmed.length <= MAX_BOOKMARK_FOLDER_NAME_LENGTH
+    ? trimmed
+    : null
+}
+
+const readFolders = async (db: Db, actorId: string) => {
+  const rows = await db
+    .selectFrom('bookmark_folders')
+    .select(FOLDER_COLUMNS)
+    .where('actorId', '=', actorId)
+    .execute()
+  return rows.map(parseFolder)
+}
+
+/** The actor's folders by name, case-insensitively (ties by id). */
+export const getBookmarkFolders = async (
+  db: Db,
+  { actorId }: GetBookmarkFoldersParams
+): Promise<BookmarkFolder[]> =>
+  (await readFolders(db, actorId)).sort((a, b) => {
+    const left = folderNameKey(a.name)
+    const right = folderNameKey(b.name)
+    if (left !== right) return left < right ? -1 : 1
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  })
+
+export const getBookmarkFolder = (
+  db: Db,
+  params: GetBookmarkFolderParams
+): Promise<BookmarkFolder | null> => readFolder(db, params)
+
+export const createBookmarkFolder = (
+  db: Db,
+  { actorId, name }: CreateBookmarkFolderParams
+): Promise<BookmarkFolderWriteResult> =>
+  inTransaction(db, async (trx): Promise<BookmarkFolderWriteResult> => {
+    const normalized = normalizeFolderName(name)
+    if (!normalized) return { status: 'invalid-name' }
+    await lockActor(trx, actorId)
+    const folders = await readFolders(trx, actorId)
+    if (
+      folders.some(
+        (folder) => folderNameKey(folder.name) === folderNameKey(normalized)
+      )
+    ) {
+      return { status: 'duplicate-name' }
+    }
+    if (folders.length >= MAX_BOOKMARK_FOLDERS_PER_ACTOR) {
+      return { status: 'limit-reached' }
+    }
+    const currentTime = new Date()
+    const id = generatePublicId(currentTime.getTime())
+    await trx
+      .insertInto('bookmark_folders')
+      .values({
+        id,
+        actorId,
+        name: normalized,
+        createdAt: currentTime,
+        updatedAt: currentTime
+      })
+      .execute()
+    const folder = await readFolder(trx, { id, actorId })
+    if (!folder) throw new Error('The new bookmark folder was not stored')
+    return { status: 'ok', folder }
+  })
+
+export const updateBookmarkFolder = (
+  db: Db,
+  { id, actorId, name }: UpdateBookmarkFolderParams
+): Promise<BookmarkFolderWriteResult> =>
+  inTransaction(db, async (trx): Promise<BookmarkFolderWriteResult> => {
+    const normalized = normalizeFolderName(name)
+    if (!normalized) return { status: 'invalid-name' }
+    await lockActor(trx, actorId)
+    const folders = await readFolders(trx, actorId)
+    const existing = folders.find((folder) => folder.id === id)
+    if (!existing) return { status: 'not-found' }
+    if (
+      folders.some(
+        (folder) =>
+          folder.id !== id &&
+          folderNameKey(folder.name) === folderNameKey(normalized)
+      )
+    ) {
+      return { status: 'duplicate-name' }
+    }
+    if (existing.name !== normalized) {
+      await trx
+        .updateTable('bookmark_folders')
+        .set({ name: normalized, updatedAt: new Date() })
+        .where('id', '=', id)
+        .where('actorId', '=', actorId)
+        .execute()
+    }
+    const folder = await readFolder(trx, { id, actorId })
+    return folder ? { status: 'ok', folder } : { status: 'not-found' }
+  })
+
+/** Deletes the folder and keeps its bookmarks, unfiled. False when not the actor's. */
+export const deleteBookmarkFolder = (
+  db: Db,
+  { id, actorId }: DeleteBookmarkFolderParams
+): Promise<boolean> =>
+  inTransaction(db, async (trx) => {
+    await lockActor(trx, actorId)
+    if (!(await readFolder(trx, { id, actorId }))) return false
+    await trx
+      .updateTable('bookmarks')
+      .set({ folderId: null, updatedAt: new Date() })
+      .where('actorId', '=', actorId)
+      .where('folderId', '=', id)
+      .execute()
+    await trx
+      .deleteFrom('bookmark_folders')
+      .where('id', '=', id)
+      .where('actorId', '=', actorId)
+      .execute()
+    return true
+  })
+
 // The facade getSQLDatabase binds with bindDb().
 export const bookmarkQueries = {
   createBookmark,
   deleteBookmark,
   isActorBookmarkedStatus,
-  getBookmarks
+  getBookmarks,
+  fileBookmark,
+  getBookmarkFolders,
+  getBookmarkFolder,
+  createBookmarkFolder,
+  updateBookmarkFolder,
+  deleteBookmarkFolder
 }

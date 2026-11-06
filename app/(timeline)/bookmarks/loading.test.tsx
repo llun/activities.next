@@ -21,6 +21,10 @@ describe('bookmarks loading', () => {
     expect(
       container.querySelector('[data-slot="post-list-skeleton"]')
     ).toBeInTheDocument()
+    // The header's folder button, a `Button size="sm"`.
+    expect(
+      container.querySelector('[data-slot="skeleton-bar"].h-8')
+    ).toBeInTheDocument()
     // The only text is the screen-reader status.
     expect(container).toHaveTextContent(/^Loading bookmarks$/)
   })

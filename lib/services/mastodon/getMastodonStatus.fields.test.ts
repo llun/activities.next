@@ -938,6 +938,69 @@ describe('getMastodonStatus', () => {
     })
   })
 
+  describe('bookmark_folder_id extension', () => {
+    it("shows the viewer's own folder, and null to everyone else", async () => {
+      const statusId = `${ACTOR1_ID}/statuses/bookmark-folder-extension`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Filed by the viewer',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const created = await database.createBookmarkFolder({
+        actorId: ACTOR2_ID,
+        name: 'Extension folder'
+      })
+      if (created.status !== 'ok') throw new Error('folder not created')
+      await database.fileBookmark({
+        actorId: ACTOR2_ID,
+        statusId,
+        folderId: created.folder.id
+      })
+      // Another viewer has bookmarked it too, unfiled.
+      await database.createBookmark({ actorId: ACTOR3_ID, statusId })
+
+      const forViewer = async (viewerId?: string) => {
+        const status = (await database.getStatus({
+          statusId,
+          currentActorId: viewerId
+        })) as Status
+        return getMastodonStatus(database, status, viewerId)
+      }
+
+      expect((await forViewer(ACTOR2_ID))?.bookmark_folder_id).toBe(
+        created.folder.id
+      )
+      const other = await forViewer(ACTOR3_ID)
+      expect(other?.bookmarked).toBe(true)
+      expect(other?.bookmark_folder_id).toBeNull()
+      expect((await forViewer(ACTOR1_ID))?.bookmark_folder_id).toBeNull()
+      expect((await forViewer())?.bookmark_folder_id).toBeNull()
+
+      // A status read for the owner and serialized for nobody shows no folder.
+      const ownerView = (await database.getStatus({
+        statusId,
+        currentActorId: ACTOR2_ID
+      })) as Status
+      expect(
+        (await getMastodonStatus(database, ownerView))?.bookmark_folder_id
+      ).toBeNull()
+
+      // The batched list read carries it the same way.
+      const [listed] = await getMastodonStatuses(
+        database,
+        await database.getStatusesByIds({
+          statusIds: [statusId],
+          currentActorId: ACTOR2_ID
+        }),
+        ACTOR2_ID
+      )
+      expect(listed.bookmark_folder_id).toBe(created.folder.id)
+    })
+  })
+
   describe('text field', () => {
     it('includes plain text source in text field', async () => {
       const statusWithMarkdown = await database.createNote({

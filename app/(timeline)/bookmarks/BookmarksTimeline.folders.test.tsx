@@ -1,0 +1,512 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
+
+import {
+  createBookmarkFolder,
+  deleteBookmarkFolder,
+  getBookmarkFolders,
+  getBookmarks,
+  setStatusBookmarkFolder
+} from '@/lib/client'
+import { resetBookmarkFolderStore } from '@/lib/components/bookmarks/bookmarkFolderStore'
+import type { BookmarkFolderEntity } from '@/lib/services/bookmarks/bookmarkFolders'
+import { StatusNote, StatusType } from '@/lib/types/domain/status'
+
+import { BookmarksTimeline } from './BookmarksTimeline'
+
+vi.mock('@/lib/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/client')>()),
+  bookmarkStatus: vi.fn(),
+  undoBookmarkStatus: vi.fn(),
+  getBookmarks: vi.fn(),
+  getBookmarkFolders: vi.fn(),
+  createBookmarkFolder: vi.fn(),
+  renameBookmarkFolder: vi.fn(),
+  deleteBookmarkFolder: vi.fn(),
+  setStatusBookmarkFolder: vi.fn(),
+  getRelationship: vi.fn().mockResolvedValue(null),
+  getTranslationCapability: vi.fn().mockResolvedValue({
+    enabled: false,
+    defaultLanguage: null
+  }),
+  getTranslationLanguages: vi.fn().mockResolvedValue({})
+}))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() })
+}))
+
+const currentTime = new Date('2026-04-26T10:00:00.000Z').getTime()
+
+const actor = {
+  id: 'https://activities.local/users/llun',
+  username: 'llun',
+  domain: 'activities.local',
+  name: 'Llun',
+  followersUrl: 'https://activities.local/users/llun/followers',
+  inboxUrl: 'https://activities.local/users/llun/inbox',
+  sharedInboxUrl: 'https://activities.local/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: currentTime
+}
+
+const filedStatus: StatusNote = {
+  id: 'https://remote.example/users/author/statuses/filed',
+  actorId: 'https://remote.example/users/author',
+  actor: {
+    ...actor,
+    id: 'https://remote.example/users/author',
+    username: 'author',
+    domain: 'remote.example',
+    name: 'Author'
+  },
+  to: [],
+  cc: [],
+  edits: [],
+  isLocalActor: false,
+  createdAt: currentTime,
+  updatedAt: currentTime,
+  type: StatusType.enum.Note,
+  url: 'https://remote.example/@author/filed',
+  text: 'A filed recipe',
+  summary: null,
+  reply: '',
+  replies: [],
+  actorAnnounceStatusId: null,
+  isActorLiked: false,
+  isActorBookmarked: true,
+  bookmarkFolderId: 'f-recipes',
+  totalLikes: 0,
+  totalShares: 0,
+  attachments: [],
+  tags: []
+}
+
+const folder = (id: string, name: string): BookmarkFolderEntity => ({
+  id,
+  name,
+  created_at: '2026-04-26T10:00:00.000Z',
+  updated_at: '2026-04-26T10:00:00.000Z'
+})
+
+const FOLDERS = [folder('f-birding', 'Birding'), folder('f-recipes', 'Recipes')]
+
+const renderTimeline = (
+  props: Partial<Parameters<typeof BookmarksTimeline>[0]> = {}
+) =>
+  render(
+    <BookmarksTimeline
+      host="activities.local"
+      currentActor={actor}
+      currentTime={currentTime}
+      statuses={[]}
+      initialNextMaxBookmarkId={null}
+      {...props}
+    />
+  )
+
+const folderNav = () =>
+  screen.queryByRole('navigation', { name: 'Bookmark folders' })
+
+const pickView = async (name: string) => {
+  fireEvent.keyDown(within(folderNav()!).getByRole('button'), {
+    key: 'ArrowDown'
+  })
+  const menu = await screen.findByRole('menu')
+  await act(async () => {
+    fireEvent.click(within(menu).getByRole('menuitem', { name }))
+  })
+}
+
+describe('BookmarksTimeline folders', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetBookmarkFolderStore()
+    window.history.replaceState(null, '', '/bookmarks')
+    // Reset, not only cleared: a test's unused `…Once` answers must not
+    // reach the next test.
+    ;(getBookmarks as jest.Mock).mockReset().mockResolvedValue({
+      statuses: [],
+      nextMaxBookmarkId: null,
+      prevMinBookmarkId: null
+    })
+    for (const name of ['IntersectionObserver', 'ResizeObserver']) {
+      Object.defineProperty(globalThis, name, {
+        configurable: true,
+        value: vi.fn().mockImplementation(function () {
+          return { disconnect: vi.fn(), observe: vi.fn(), unobserve: vi.fn() }
+        })
+      })
+    }
+  })
+
+  afterEach(() => {
+    cleanup()
+    Reflect.deleteProperty(globalThis, 'IntersectionObserver')
+    Reflect.deleteProperty(globalThis, 'ResizeObserver')
+  })
+
+  it('hides the folder select without folders and offers New folder', async () => {
+    ;(createBookmarkFolder as jest.Mock).mockResolvedValue(
+      folder('f-new', 'Read later')
+    )
+    renderTimeline()
+
+    expect(folderNav()).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Manage folders' })
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New folder' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('New folder'), {
+      target: { value: 'Read later' }
+    })
+    // A real click focuses the button, which then disables while it saves.
+    const create = within(dialog).getByRole('button', { name: 'Create' })
+    create.focus()
+    await act(async () => {
+      fireEvent.click(create)
+    })
+
+    expect(createBookmarkFolder).toHaveBeenCalledWith('Read later')
+    expect(
+      within(dialog).getByRole('list', { name: 'Your bookmark folders' })
+    ).toHaveTextContent('Read later')
+    // Ready for the next name, not dropped to the page.
+    expect(within(dialog).getByLabelText('New folder')).toHaveFocus()
+    // The open dialog hides the page from the accessibility tree.
+    expect(
+      screen.getByRole('navigation', {
+        name: 'Bookmark folders',
+        hidden: true
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Manage folders', hidden: true })
+    ).toBeInTheDocument()
+  })
+
+  it('filters in place and keeps ?folder= in step', async () => {
+    renderTimeline({ folders: FOLDERS })
+
+    expect(within(folderNav()!).getByRole('button')).toHaveTextContent(
+      'All bookmarks'
+    )
+
+    await pickView('Recipes')
+
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: 'f-recipes' })
+    expect(window.location.search).toBe('?folder=f-recipes')
+    expect(await screen.findByText('This folder is empty')).toBeInTheDocument()
+
+    await pickView('Unfiled')
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: 'none' })
+    expect(window.location.search).toBe('?folder=none')
+    expect(await screen.findByText('No unfiled bookmarks')).toBeInTheDocument()
+
+    await pickView('All bookmarks')
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: undefined })
+    expect(window.location.search).toBe('')
+  })
+
+  it('opens on the folder the page was given', () => {
+    renderTimeline({
+      folders: FOLDERS,
+      initialFolder: 'f-recipes',
+      statuses: [filedStatus]
+    })
+
+    expect(within(folderNav()!).getByRole('button')).toHaveTextContent(
+      'Recipes'
+    )
+    expect(screen.getByText('A filed recipe')).toBeInTheDocument()
+  })
+
+  it('drops a post filed out of the folder on screen', async () => {
+    ;(setStatusBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    renderTimeline({
+      folders: FOLDERS,
+      initialFolder: 'f-recipes',
+      statuses: [filedStatus]
+    })
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'ArrowDown'
+    })
+    const menu = await screen.findByRole('menu')
+    fireEvent.keyDown(
+      within(menu).getByRole('menuitem', { name: 'Bookmark folder' }),
+      { key: 'ArrowRight' }
+    )
+    const submenu = await waitFor(() => {
+      const menus = screen.getAllByRole('menu')
+      expect(menus.length).toBeGreaterThan(1)
+      return menus[menus.length - 1]
+    })
+    expect(
+      within(submenu).getByRole('menuitemradio', { name: 'Recipes' })
+    ).toHaveAttribute('aria-checked', 'true')
+    await act(async () => {
+      fireEvent.click(
+        within(submenu).getByRole('menuitemradio', { name: 'Birding' })
+      )
+    })
+
+    expect(setStatusBookmarkFolder).toHaveBeenCalledWith({
+      statusId: filedStatus.id,
+      folderId: 'f-birding'
+    })
+    await waitFor(() =>
+      expect(screen.queryByText('A filed recipe')).not.toBeInTheDocument()
+    )
+  })
+
+  it('deletes a folder after the confirmation and leaves it when it was open', async () => {
+    ;(deleteBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    renderTimeline({ folders: FOLDERS, initialFolder: 'f-recipes' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage folders' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete Recipes' })
+    )
+    expect(dialog).toHaveTextContent(
+      'Bookmarks in this folder stay in All bookmarks.'
+    )
+    expect(deleteBookmarkFolder).not.toHaveBeenCalled()
+    await act(async () => {
+      fireEvent.click(
+        within(dialog).getByRole('button', { name: 'Delete folder' })
+      )
+    })
+
+    expect(deleteBookmarkFolder).toHaveBeenCalledWith('f-recipes')
+    expect(
+      within(dialog).getByRole('list', { name: 'Your bookmark folders' })
+    ).not.toHaveTextContent('Recipes')
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: undefined })
+    expect(window.location.search).toBe('')
+  })
+
+  const deleteFolderInDialog = async (name: string) => {
+    fireEvent.click(screen.getByRole('button', { name: 'Manage folders' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: `Delete ${name}` })
+    )
+    await act(async () => {
+      fireEvent.click(
+        within(dialog).getByRole('button', { name: 'Delete folder' })
+      )
+    })
+    return dialog
+  }
+
+  it("unfiles the deleted folder's posts on screen", async () => {
+    ;(deleteBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    renderTimeline({ folders: FOLDERS, statuses: [filedStatus] })
+
+    await deleteFolderInDialog('Recipes')
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+
+    // Still All bookmarks, so the feed is not refetched.
+    expect(getBookmarks).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'ArrowDown'
+    })
+    const menu = await screen.findByRole('menu')
+    fireEvent.keyDown(
+      within(menu).getByRole('menuitem', { name: 'Bookmark folder' }),
+      { key: 'ArrowRight' }
+    )
+    const submenu = await waitFor(() => {
+      const menus = screen.getAllByRole('menu')
+      expect(menus.length).toBeGreaterThan(1)
+      return menus[menus.length - 1]
+    })
+    expect(
+      within(submenu).getByRole('menuitemradio', { name: 'No folder' })
+    ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('reads Unfiled again when a folder is deleted while it is open', async () => {
+    ;(deleteBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    ;(getBookmarks as jest.Mock).mockResolvedValue({
+      statuses: [{ ...filedStatus, bookmarkFolderId: null }],
+      nextMaxBookmarkId: null,
+      prevMinBookmarkId: null
+    })
+    renderTimeline({ folders: FOLDERS, initialFolder: 'none' })
+
+    await deleteFolderInDialog('Recipes')
+
+    expect(getBookmarks).toHaveBeenCalledTimes(1)
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: 'none' })
+    expect(
+      await screen.findByText('A filed recipe', {}, { timeout: 2000 })
+    ).toBeInTheDocument()
+  })
+
+  it('drops a ?folder= the server could not find', () => {
+    window.history.replaceState(null, '', '/bookmarks?folder=deleted-folder')
+
+    renderTimeline({ folders: FOLDERS })
+
+    expect(window.location.search).toBe('')
+  })
+
+  it('drops a page two that was in flight when the same view was read again', async () => {
+    ;(deleteBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    const unfiledOne = { ...filedStatus, bookmarkFolderId: null }
+    const stalePageTwo = {
+      ...filedStatus,
+      id: 'https://remote.example/users/author/statuses/stale',
+      url: 'https://remote.example/@author/stale',
+      text: 'Stale page two',
+      bookmarkFolderId: null
+    }
+    let finishPageTwo: (value: unknown) => void = () => {}
+    ;(getBookmarks as jest.Mock)
+      // The load-more for Unfiled, still in flight...
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishPageTwo = resolve
+          })
+      )
+      // ...when the delete reads Unfiled again.
+      .mockResolvedValueOnce({
+        statuses: [unfiledOne],
+        nextMaxBookmarkId: null,
+        prevMinBookmarkId: null
+      })
+    renderTimeline({
+      folders: FOLDERS,
+      initialFolder: 'none',
+      statuses: [unfiledOne],
+      initialNextMaxBookmarkId: 'bookmark-old-cursor'
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await deleteFolderInDialog('Recipes')
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: 'none' })
+    await act(async () => {
+      finishPageTwo({
+        statuses: [stalePageTwo],
+        nextMaxBookmarkId: 'bookmark-older-cursor',
+        prevMinBookmarkId: null
+      })
+    })
+
+    expect(screen.getAllByText('A filed recipe')).toHaveLength(1)
+    expect(screen.queryByText('Stale page two')).not.toBeInTheDocument()
+    // The fresh page had no cursor, and the stale one does not bring one back.
+    expect(
+      screen.queryByRole('button', { name: 'Load more', hidden: true })
+    ).toBeNull()
+  })
+
+  it('retries a failed switch, from the Alert or by picking the view again', async () => {
+    ;(getBookmarks as jest.Mock)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockRejectedValueOnce(new Error('still offline'))
+      .mockResolvedValueOnce({
+        statuses: [],
+        nextMaxBookmarkId: null,
+        prevMinBookmarkId: null
+      })
+    renderTimeline({ folders: FOLDERS })
+
+    await pickView('Recipes')
+    expect(
+      await screen.findByText(
+        "Couldn't load these bookmarks. Please try again."
+      )
+    ).toBeInTheDocument()
+
+    await pickView('Recipes')
+    expect(getBookmarks).toHaveBeenCalledTimes(2)
+    expect(
+      await screen.findByText(
+        "Couldn't load these bookmarks. Please try again."
+      )
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    })
+    expect(getBookmarks).toHaveBeenCalledTimes(3)
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: 'f-recipes' })
+    expect(await screen.findByText('This folder is empty')).toBeInTheDocument()
+  })
+
+  it('goes to All bookmarks when the last folder is deleted from Unfiled', async () => {
+    ;(deleteBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    window.history.replaceState(null, '', '/bookmarks?folder=none')
+    renderTimeline({
+      folders: [folder('f-recipes', 'Recipes')],
+      initialFolder: 'none'
+    })
+
+    await deleteFolderInDialog('Recipes')
+
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: undefined })
+    expect(window.location.search).toBe('')
+    expect(
+      screen.queryByRole('navigation', {
+        name: 'Bookmark folders',
+        hidden: true
+      })
+    ).not.toBeInTheDocument()
+    expect(await screen.findByText('No bookmarks yet')).toBeInTheDocument()
+  })
+
+  it('keeps a folder made on the page when a back navigation brings the old list', async () => {
+    ;(createBookmarkFolder as jest.Mock).mockResolvedValue(
+      folder('f-new', 'Read later')
+    )
+    ;(getBookmarkFolders as jest.Mock).mockResolvedValue([
+      ...FOLDERS,
+      folder('f-new', 'Read later')
+    ])
+    renderTimeline({ folders: FOLDERS })
+    fireEvent.click(screen.getByRole('button', { name: 'Manage folders' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('New folder'), {
+      target: { value: 'Read later' }
+    })
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    })
+    cleanup()
+
+    // The router cache renders the page again with the list it first had.
+    renderTimeline({ folders: FOLDERS })
+    fireEvent.keyDown(within(folderNav()!).getByRole('button'), {
+      key: 'ArrowDown'
+    })
+    const menu = await screen.findByRole('menu')
+
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Read later' })
+    ).toBeInTheDocument()
+  })
+})

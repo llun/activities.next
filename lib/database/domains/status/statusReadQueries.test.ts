@@ -347,7 +347,7 @@ describe('getStatus', () => {
       currentActorId: viewer,
       hydrationContext: {
         likedStatusIds: new Set(),
-        bookmarkedStatusIds: new Set(),
+        bookmarkFolderIds: new Map(),
         announcedStatusIds: new Map([[statusId, 'announce-from-context']]),
         detectedLanguages: { [statusId]: 'fr' },
         quoteEdges: new Map(),
@@ -3177,7 +3177,7 @@ describe('hydration context', () => {
       buildViewerHydration(db, [statusId('a'), statusId('b')], viewer)
     ).resolves.toEqual({
       likedStatusIds: new Set([statusId('a')]),
-      bookmarkedStatusIds: new Set([statusId('b')]),
+      bookmarkFolderIds: new Map([[statusId('b'), null]]),
       announcedStatusIds: new Map([
         [statusId('a'), `${viewer}/statuses/boost-a`]
       ])
@@ -3186,7 +3186,7 @@ describe('hydration context', () => {
     const empty = await capture(() => buildViewerHydration(db, [], viewer))
     expect(empty.result).toEqual({
       likedStatusIds: new Set(),
-      bookmarkedStatusIds: new Set(),
+      bookmarkFolderIds: new Map(),
       announcedStatusIds: new Map()
     })
     expect(empty.statements).toEqual([])
@@ -3298,7 +3298,7 @@ describe('hydration context', () => {
       linkPreviews: new Map([[seed.noteId, expect.any(Object)]]),
       reactionRollups: new Map([[seed.noteId, expect.any(Array)]]),
       likedStatusIds: new Set([seed.noteId]),
-      bookmarkedStatusIds: new Set([seed.noteId]),
+      bookmarkFolderIds: new Map([[seed.noteId, null]]),
       announcedStatusIds: new Map([
         [seed.noteId, `${seed.viewer}/statuses/boost-of-note`]
       ])

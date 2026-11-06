@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -13,6 +14,7 @@ import { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { likeStatus } from '@/lib/client'
+import { resetBookmarkFolderStore } from '@/lib/components/bookmarks/bookmarkFolderStore'
 import {
   BASE_TIME,
   createMockAnnounce,
@@ -86,6 +88,12 @@ vi.mock('@/lib/client', async (importOriginal) => {
     ...actual,
     likeStatus: vi.fn(),
     undoLikeStatus: vi.fn(),
+    getBookmarkFolders: vi
+      .fn()
+      .mockResolvedValue([
+        { id: 'f-1', name: 'Saved', created_at: '', updated_at: '' }
+      ]),
+    setStatusBookmarkFolder: vi.fn().mockResolvedValue(true),
     getTranslationCapability: vi.fn().mockResolvedValue({ enabled: false }),
     getTranslationLanguages: vi.fn().mockResolvedValue([])
   }
@@ -164,6 +172,8 @@ describe('TimelineFeed', () => {
     mockPush.mockClear()
     mockLikeStatus.mockReset()
     mockGetStatusDetailPathClient.mockResolvedValue('/@alice/test')
+    // Each test loads the viewer's folders afresh.
+    resetBookmarkFolderStore()
   })
 
   it('gives every row the feed-row class that skips off-screen rendering', () => {
@@ -656,6 +666,42 @@ describe('TimelineFeed', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('files a later part from its own ⋯ menu', async () => {
+      const onBookmarkChanged = vi.fn()
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+          onBookmarkChanged={onBookmarkChanged}
+        />
+      )
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: 'More actions for part 2 of 3' }),
+        { key: 'ArrowDown' }
+      )
+      const menu = await screen.findByRole('menu')
+      fireEvent.keyDown(
+        within(menu).getByRole('menuitem', { name: 'Bookmark folder' }),
+        { key: 'ArrowRight' }
+      )
+      const folderItem = await screen.findByRole('menuitemradio', {
+        name: 'Saved'
+      })
+      await act(async () => {
+        fireEvent.click(folderItem)
+      })
+
+      expect(onBookmarkChanged).toHaveBeenCalledWith(
+        expect.objectContaining({ id: selfThreadScenario.reply1.id }),
+        true,
+        'f-1'
+      )
+    })
+
     it('says in the group menu that post items act on the first post', async () => {
       render(
         <TimelineFeed
@@ -988,6 +1034,49 @@ describe('TimelineFeed', () => {
       expect(
         await screen.findByRole('menuitem', { name: /Copy link/ })
       ).toBeInTheDocument()
+    })
+
+    it('reports a filing from the tucked-in reply’s own ⋯ menu', async () => {
+      const a1 = note('w1', 0, '')
+      const b1 = note('w2', MINUTE, a1.id, mockBob)
+      const a2 = note('w3', 2 * MINUTE, a1.id)
+      const onBookmarkChanged = vi.fn()
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[a2, b1, a1]}
+          currentActor={mockAlice}
+          showActions
+          onBookmarkChanged={onBookmarkChanged}
+        />
+      )
+
+      const inset = screen.getByRole('group', { name: 'Reply by Bob Jones' })
+      fireEvent.keyDown(
+        within(inset).getByRole('button', {
+          name: /More actions for Bob Jones's reply/
+        }),
+        { key: 'ArrowDown' }
+      )
+      const menu = await screen.findByRole('menu')
+      fireEvent.keyDown(
+        within(menu).getByRole('menuitem', { name: 'Bookmark folder' }),
+        { key: 'ArrowRight' }
+      )
+      const folderItem = await screen.findByRole('menuitemradio', {
+        name: 'Saved'
+      })
+      await act(async () => {
+        fireEvent.click(folderItem)
+      })
+
+      expect(onBookmarkChanged).toHaveBeenCalledWith(
+        expect.objectContaining({ id: b1.id }),
+        true,
+        'f-1'
+      )
     })
 
     describe('stable rows', () => {

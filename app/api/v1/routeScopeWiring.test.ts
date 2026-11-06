@@ -250,6 +250,10 @@ const EXPECTED: Array<{
     scopes: ['write', 'write:bookmarks']
   },
   {
+    module: '@/app/api/v1/statuses/[id]/bookmark_folder/route',
+    scopes: ['write', 'write:bookmarks']
+  },
+  {
     module: '@/app/api/v1/statuses/[id]/mute/route',
     scopes: ['write', 'write:mutes']
   },
@@ -478,6 +482,14 @@ const EXPECTED: Array<{
   {
     module: '@/app/api/v1/bookmarks/route',
     scopes: ['read', 'read:bookmarks']
+  },
+  {
+    module: '@/app/api/v1/bookmark_folders/route',
+    scopes: ['read', 'read:bookmarks', 'write', 'write:bookmarks']
+  },
+  {
+    module: '@/app/api/v1/bookmark_folders/[id]/route',
+    scopes: ['write', 'write:bookmarks']
   },
   {
     module: '@/app/api/v1/favourites/route',
@@ -883,6 +895,13 @@ const MULTI_METHOD: Array<{
       GET: ['read', 'read:blocks'],
       POST: ['write', 'write:blocks'],
       DELETE: ['write', 'write:blocks']
+    }
+  },
+  {
+    module: '@/app/api/v1/bookmark_folders/route',
+    methods: {
+      GET: ['read', 'read:bookmarks'],
+      POST: ['write', 'write:bookmarks']
     }
   },
   {

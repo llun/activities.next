@@ -14,7 +14,10 @@ import {
 } from '@/lib/types/database/galleryAlbums'
 
 const text = (max = 16_384) => z.string().max(max)
-const uri = text(4_096)
+// The longest URI an archive document may carry; the export leaves out a
+// bookmark folder URI past it rather than write one the import refuses.
+export const ARCHIVE_URI_MAX_LENGTH = 4_096
+const uri = text(ARCHIVE_URI_MAX_LENGTH)
 const dateText = text(64)
 const finiteNumber = z.number().finite()
 const smallCount = <Schema extends z.ZodTypeAny>(schema: Schema, max = 200) =>
@@ -627,6 +630,23 @@ export const ownAlbumSchema = z
   })
   .strip()
 
+// The most status URIs one `bookmark_folders.json` entry may carry. The
+// export splits a bigger folder into several entries of the same name, which
+// the import files into one folder.
+export const BOOKMARK_FOLDER_ENTRY_MAX_ITEMS = 20_000
+
+// One private bookmark folder (or one part of a large one) and the status URIs
+// filed in it, as the archive's `bookmark_folders.json` lists them.
+export const ownBookmarkFolderSchema = z
+  .object({
+    id: text(256),
+    name: text(256),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    items: smallCount(uri, BOOKMARK_FOLDER_ENTRY_MAX_ITEMS)
+  })
+  .strip()
+
 const gearBaseSchema = z.object({
   id: text(256),
   kind: text(64),
@@ -817,6 +837,7 @@ export const archiveDocumentSchemas = {
   'outbox.json': mastodonOutboxSchema,
   'likes.json': mastodonLikesSchema,
   'bookmarks.json': mastodonBookmarksSchema,
+  'bookmark_folders.json': smallCount(ownBookmarkFolderSchema, 200),
   'profile.json': ownProfileSchema,
   'statuses.jsonl': ownStatusRecordSchema,
   'medias.jsonl': ownMediaLineSchema,

@@ -55,6 +55,13 @@ export const IMPORT_REASON_LABELS: Record<string, string> = {
   gear_invalid: 'the gear entry could not be read',
   album_invalid: 'the album could not be read',
   album_limit: 'the account already has the maximum number of albums',
+  bookmark_folder_too_large: 'the folder entry was too large to read',
+  bookmark_folder_invalid: 'the folder could not be read',
+  bookmark_folder_name_invalid: 'the folder name is not allowed',
+  bookmark_folder_limit:
+    'the account already has the maximum number of bookmark folders',
+  bookmark_folder_conflict:
+    'the folder was changed or deleted while the import ran',
   fitness_invalid: 'the fitness file could not be read',
   fitness_missing: 'the fitness file was not in the archive',
   status_unavailable: 'its post could not be imported',
@@ -143,7 +150,8 @@ const outcomeRows = (
 
 export const importReportRows = (
   report: AccountImportOutcomeReport | undefined,
-  profileImageSkips: string[] = []
+  profileImageSkips: string[] = [],
+  bookmarkFolderSkips: Record<string, number> = {}
 ): string[] => {
   const rows = report
     ? [
@@ -164,6 +172,14 @@ export const importReportRows = (
         ? 'the image could not be read'
         : importReasonLabel(reason)
     rows.push(`${countLabel(count)} ${image} skipped: ${imageReason}`)
+  }
+  for (const [reason, count] of Object.entries(bookmarkFolderSkips)
+    .filter(([, value]) => value > 0)
+    .sort(([left], [right]) => left.localeCompare(right))) {
+    const folder = count === 1 ? 'bookmark folder' : 'bookmark folders'
+    rows.push(
+      `${countLabel(count)} ${folder} skipped: ${importReasonLabel(reason)}`
+    )
   }
   return rows
 }

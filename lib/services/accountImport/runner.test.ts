@@ -19,6 +19,8 @@ import {
 import type { AccountImportObjectStore } from '@/lib/services/accountImport/objectStore'
 import {
   inspectAccountArchive,
+  runBookmarkFoldersPhase,
+  runFitnessPhase,
   runStatusesPhase
 } from '@/lib/services/accountImport/phases'
 import {
@@ -46,6 +48,7 @@ vi.mock('@/lib/services/accountImport/objectStore', async (importOriginal) => {
 vi.mock('@/lib/services/accountImport/phases', () => ({
   inspectAccountArchive: vi.fn(),
   runAlbumsPhase: vi.fn(),
+  runBookmarkFoldersPhase: vi.fn(),
   runCatalogPhase: vi.fn(),
   runCollectionsNoopPhase: vi.fn(),
   runFitnessPhase: vi.fn(),
@@ -146,6 +149,46 @@ describe('account import runner payload cleanup', () => {
 
     expect(result).toEqual({ type: 'done' })
     expect(await getItemData(accountImport.id)).toEqual([null])
+  })
+
+  it('saves the bookmark folder skips on the progress row', async () => {
+    const accountImport = await createImportWithItem('import-runner-folders')
+    await database.updateAccountImport({
+      id: accountImport.id,
+      status: 'running',
+      kind: 'activities.next',
+      phase: 'collections',
+      cursor: null
+    })
+    vi.mocked(runBookmarkFoldersPhase)
+      .mockReset()
+      .mockImplementation(async (_context, progress) => {
+        progress.bookmarkFolderSkips = { bookmark_folder_limit: 1 }
+      })
+    vi.mocked(runFitnessPhase)
+      .mockReset()
+      .mockImplementation(async (_context, progress) => ({
+        result: 'done',
+        progress,
+        cursor: null
+      }))
+
+    const result = await runAccountImport(database, accountImport.id, {
+      actorId,
+      runToken: 'folders-run',
+      now: Date.now,
+      runsInline: true
+    })
+
+    expect(result).toEqual({ type: 'done' })
+    expect(runBookmarkFoldersPhase).toHaveBeenCalledTimes(1)
+    const saved = await database.getAccountImport({
+      id: accountImport.id,
+      actorId
+    })
+    expect(parseImportProgress(saved?.progress).bookmarkFolderSkips).toEqual({
+      bookmark_folder_limit: 1
+    })
   })
 
   it('clears remaining item data when cancellation becomes terminal', async () => {
