@@ -40,4 +40,11 @@ describe('favouriteCursor', () => {
     })
     expect(decodeFavouriteCursor(encoded('9000000000000000:status'))).toBeNull()
   })
+
+  it('returns null for a status id with a control character', () => {
+    const encoded = (text: string) =>
+      Buffer.from(text, 'utf8').toString('base64url')
+    expect(decodeFavouriteCursor(encoded('123:status\u0000'))).toBeNull()
+    expect(decodeFavouriteCursor(encoded('123:sta\ntus'))).toBeNull()
+  })
 })

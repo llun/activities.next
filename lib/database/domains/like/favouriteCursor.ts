@@ -7,6 +7,10 @@
 // Past it `new Date()` is Invalid and the query binding throws, so a crafted
 // cursor would fail the request instead of returning an empty page.
 const MAX_DATE_MS = 8.64e15
+// Status ids are URLs: a control character (NUL above all, which PostgreSQL
+// refuses in a text parameter) can only come from a crafted cursor.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
 
 export interface FavouriteCursor {
   createdAt: number
@@ -40,7 +44,8 @@ export const decodeFavouriteCursor = (
     !Number.isSafeInteger(createdAt) ||
     createdAt < 0 ||
     createdAt > MAX_DATE_MS ||
-    !statusId
+    !statusId ||
+    CONTROL_CHARACTER.test(statusId)
   ) {
     return null
   }
