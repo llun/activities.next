@@ -1249,7 +1249,10 @@ null }` files the status into one of the viewer's folders, or unfiles it with
   identifiers, status order, catalog stage/index, total/completed/skipped item
   counts and, after start, the selected options; when the profile option
   skipped the avatar or header, it also carries `profileImageSkips`
-  (`media_quota_exceeded` or `media_invalid`). It does not expose upload
+  (`media_quota_exceeded` or `media_invalid`), and when entries of
+  `bookmark_folders.json` could not be restored, `bookmarkFolderSkips` counts
+  them by reason (`bookmark_folder_too_large`, `bookmark_folder_invalid`,
+  `bookmark_folder_name_invalid`, `bookmark_folder_limit`). It does not expose upload
   tokens or lease data. `GET /api/v1/account/imports/:id` adds a `report`
   field, but only once the import is `done`, `failed` or `cancelled` — never
   while it is `queued` or `running`, and never in the list route's objects.

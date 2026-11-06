@@ -12,6 +12,15 @@ export type CatalogStage =
   | 'fitnessFiles'
   | 'done'
 
+export const BOOKMARK_FOLDER_SKIP_REASONS = [
+  'bookmark_folder_too_large',
+  'bookmark_folder_invalid',
+  'bookmark_folder_name_invalid',
+  'bookmark_folder_limit'
+] as const
+export type BookmarkFolderSkipReason =
+  (typeof BOOKMARK_FOLDER_SKIP_REASONS)[number]
+
 export interface AccountImportProgress {
   version: 1
   sourceActorId: string | null
@@ -45,6 +54,12 @@ export interface AccountImportProgress {
    * progress the owner reads through GET /api/v1/account/imports/:id.
    */
   profileImageSkips?: ProfileImageSkipReason[]
+  /**
+   * The `bookmark_folders.json` entries the bookmark folders pass could not
+   * restore, by reason. Like the profile phase it keeps no item rows, so
+   * these ride the progress the owner reads.
+   */
+  bookmarkFolderSkips?: Partial<Record<BookmarkFolderSkipReason, number>>
   /** Selected by the owner at start; stored here because the row's initial
    * options column is immutable in the slice-1 database contract. */
   selectedOptions?: {
@@ -146,6 +161,22 @@ export const parseImportProgress = (
         ? {
             profileImageSkips:
               record.profileImageSkips as ProfileImageSkipReason[]
+          }
+        : null),
+      ...(record.bookmarkFolderSkips &&
+      typeof record.bookmarkFolderSkips === 'object'
+        ? {
+            bookmarkFolderSkips: Object.fromEntries(
+              Object.entries(record.bookmarkFolderSkips).filter(
+                ([reason, count]) =>
+                  (BOOKMARK_FOLDER_SKIP_REASONS as readonly string[]).includes(
+                    reason
+                  ) &&
+                  typeof count === 'number' &&
+                  Number.isInteger(count) &&
+                  count > 0
+              )
+            )
           }
         : null),
       ...(record.selectedOptions && typeof record.selectedOptions === 'object'

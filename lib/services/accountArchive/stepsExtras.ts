@@ -2,6 +2,8 @@ import type {
   AccountExportCursor,
   AccountExportTableName
 } from '@/lib/database/domains/accountExport/types'
+import { ARRAY_ITEM_MAX_BYTES } from '@/lib/services/accountImport/json/arrayItems'
+import { BOOKMARK_FOLDER_ENTRY_MAX_ITEMS } from '@/lib/services/accountImport/schemas'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { MEDIA_ARCHIVE_DIR } from './actorArchive'
@@ -277,8 +279,48 @@ export const galleryStep: CollectorStep = {
   }
 }
 
+// The importer reads `bookmark_folders.json` one array entry at a time and
+// refuses an entry over `ARRAY_ITEM_MAX_BYTES`, so an entry is kept to half
+// of that, by its pretty-printed bytes (URIs vary in length), and to the
+// schema's item cap.
+export const BOOKMARK_FOLDER_ENTRY_MAX_BYTES = ARRAY_ITEM_MAX_BYTES / 2
+// Inside the document's array, each URI is on its own line, indented six
+// spaces, after a comma.
+const ITEM_OVERHEAD_BYTES = 8
+
+/** One folder as one entry or more, each within the import's limits. */
+export const splitBookmarkFolder = (
+  folder: Record<string, unknown>,
+  uris: string[]
+): Record<string, unknown>[] => {
+  // The entry as it sits inside the document's array (one level deeper), with
+  // a few bytes for the items' closing bracket on its own line.
+  const baseBytes =
+    Buffer.byteLength(JSON.stringify([{ ...folder, items: [] }], null, 2)) + 8
+  const entries: Record<string, unknown>[] = []
+  let current: string[] = []
+  let bytes = baseBytes
+  for (const uri of uris) {
+    const itemBytes =
+      Buffer.byteLength(JSON.stringify(uri)) + ITEM_OVERHEAD_BYTES
+    if (
+      current.length > 0 &&
+      (bytes + itemBytes > BOOKMARK_FOLDER_ENTRY_MAX_BYTES ||
+        current.length >= BOOKMARK_FOLDER_ENTRY_MAX_ITEMS)
+    ) {
+      entries.push({ ...folder, items: current })
+      current = []
+      bytes = baseBytes
+    }
+    current.push(uri)
+    bytes += itemBytes
+  }
+  entries.push({ ...folder, items: current })
+  return entries
+}
+
 // The owner's private bookmark folders, each with the status URIs filed in
-// it. The bookmarks themselves stay in the Mastodon `bookmarks.json`, so a
+// it; a large folder is several entries of the same name. The bookmarks themselves stay in the Mastodon `bookmarks.json`, so a
 // Mastodon importer reads them as before and an archive without this file
 // imports every bookmark unfiled.
 export const bookmarkFoldersStep: CollectorStep = {
@@ -293,12 +335,14 @@ export const bookmarkFoldersStep: CollectorStep = {
     await stage.append(
       entryPath(actor.dir, 'bookmark_folders.json'),
       json(
-        folders.map((folder) => ({
-          ...folder,
-          items: (itemsByFolder.get(String(folder.id)) ?? []).map((item) =>
-            String(item.statusId)
+        folders.flatMap((folder) =>
+          splitBookmarkFolder(
+            folder,
+            (itemsByFolder.get(String(folder.id)) ?? []).map((item) =>
+              String(item.statusId)
+            )
           )
-        }))
+        )
       )
     )
     return 'done'

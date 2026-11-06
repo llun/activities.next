@@ -621,15 +621,20 @@ export const ownAlbumSchema = z
   })
   .strip()
 
-// One private bookmark folder and the status URIs filed in it, as the
-// archive's `bookmark_folders.json` lists them.
+// The most status URIs one `bookmark_folders.json` entry may carry. The
+// export splits a bigger folder into several entries of the same name, which
+// the import files into one folder.
+export const BOOKMARK_FOLDER_ENTRY_MAX_ITEMS = 20_000
+
+// One private bookmark folder (or one part of a large one) and the status URIs
+// filed in it, as the archive's `bookmark_folders.json` lists them.
 export const ownBookmarkFolderSchema = z
   .object({
     id: text(256),
     name: text(256),
     createdAt: timestamp,
     updatedAt: timestamp,
-    items: smallCount(uri, 20_000)
+    items: smallCount(uri, BOOKMARK_FOLDER_ENTRY_MAX_ITEMS)
   })
   .strip()
 

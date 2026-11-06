@@ -30,6 +30,7 @@ import type { AccountImportObjectStore } from '@/lib/services/accountImport/obje
 import {
   type AccountImportProgress,
   type ArchiveStatusOrder,
+  type BookmarkFolderSkipReason,
   type CatalogStage,
   parseImportCursor,
   serializeImportCursor,
@@ -2518,11 +2519,17 @@ const BOOKMARK_FOLDER_RENEW_EVERY = 25
  * archive without the file (a Mastodon one, or an older export) leaves every
  * bookmark unfiled. Nothing here federates or notifies.
  *
- * shortcut: one pass with no cursor or time budget. A folder holds up to
- * 20,000 status URIs (`ownBookmarkFolderSchema`, within the 512 KiB array
- * item cap) and a few queries run per URI, so only the lease is kept alive
- * (renewed every `BOOKMARK_FOLDER_RENEW_EVERY` items); give it a cursor if
- * large folders ever outlast an import slice.
+ * Each array entry is read under the 512 KiB `ARRAY_ITEM_MAX_BYTES` cap and
+ * holds at most `BOOKMARK_FOLDER_ENTRY_MAX_ITEMS` URIs, so the export splits a
+ * large folder into several entries of the same name (`splitBookmarkFolder`),
+ * which land in one folder here. An entry that cannot be restored (too large,
+ * unreadable, a refused name, past the folder cap) is logged and counted in
+ * `progress.bookmarkFolderSkips` by reason; its bookmarks stay unfiled.
+ *
+ * shortcut: one pass with no cursor or time budget. A few queries run per
+ * URI, so only the lease is kept alive (renewed every
+ * `BOOKMARK_FOLDER_RENEW_EVERY` items); give it a cursor if large folders
+ * ever outlast an import slice.
  */
 export const runBookmarkFoldersPhase = async (
   context: AccountImportPhaseContext,
@@ -2544,6 +2551,23 @@ export const runBookmarkFoldersPhase = async (
 
     const { database } = context
     const actorId = context.accountImport.actorId
+    // Counted afresh on every run, so a rerun of the pass does not double it.
+    const skips: Partial<Record<BookmarkFolderSkipReason, number>> = {}
+    const skip = (
+      reason: BookmarkFolderSkipReason,
+      index: number,
+      folderName?: string
+    ) => {
+      skips[reason] = (skips[reason] ?? 0) + 1
+      // Its bookmarks were imported but stay unfiled.
+      logger.warn({
+        message: 'Skipped a bookmark folder from the archive',
+        importId: context.accountImport.id,
+        reason,
+        entryIndex: index,
+        ...(folderName ? { folderName } : {})
+      })
+    }
     const folderByName = new Map(
       (await database.getBookmarkFolders({ actorId })).map((folder) => [
         folder.name.toLowerCase(),
@@ -2553,17 +2577,37 @@ export const runBookmarkFoldersPhase = async (
     for await (const event of iterateArrayItems(
       chunksOf(await archive.openEntryStream(name))
     )) {
-      if (!('raw' in event)) continue
+      // An entry too large to read has no name to report.
+      if (!('raw' in event)) {
+        skip(
+          event.error === 'item_too_large'
+            ? 'bookmark_folder_too_large'
+            : 'bookmark_folder_invalid',
+          event.index
+        )
+        continue
+      }
       let value: unknown
       try {
         value = parseJsonItem(event.raw)
       } catch {
+        skip('bookmark_folder_invalid', event.index)
         continue
       }
       const parsed = ownBookmarkFolderSchema.safeParse(value)
-      if (!parsed.success) continue
+      if (!parsed.success) {
+        const name = (value as { name?: unknown } | null)?.name
+        skip(
+          'bookmark_folder_invalid',
+          event.index,
+          typeof name === 'string' ? name.slice(0, 256) : undefined
+        )
+        continue
+      }
       await context.renew()
       const folderName = parsed.data.name.trim()
+      // A large folder is several entries of the same name: the first one
+      // creates it, the rest file into it without counting as more folders.
       let folderId = folderByName.get(folderName.toLowerCase())
       if (!folderId) {
         const created = await database.createBookmarkFolder({
@@ -2572,7 +2616,16 @@ export const runBookmarkFoldersPhase = async (
         })
         // A name the folder rules refuse, or a full set of folders: its
         // bookmarks stay unfiled.
-        if (created.status !== 'ok') continue
+        if (created.status !== 'ok') {
+          skip(
+            created.status === 'limit-reached'
+              ? 'bookmark_folder_limit'
+              : 'bookmark_folder_name_invalid',
+            event.index,
+            folderName
+          )
+          continue
+        }
         folderId = created.folder.id
         folderByName.set(created.folder.name.toLowerCase(), folderId)
       }
@@ -2597,6 +2650,8 @@ export const runBookmarkFoldersPhase = async (
         })
       }
     }
+    if (Object.keys(skips).length > 0) progress.bookmarkFolderSkips = skips
+    else delete progress.bookmarkFolderSkips
   } finally {
     await archive.close()
   }

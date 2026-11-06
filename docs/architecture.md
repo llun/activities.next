@@ -423,7 +423,9 @@ Export](maintenance.md#actor-archive-export)). It is built by
     (`profile.json`, `statuses.jsonl`, `scheduled.json`, `medias.jsonl`,
     `gallery/*`, `fitness/*`, `graph.json`, `bookmark_folders.json`) live in
     that same directory. `bookmark_folders.json` lists the private bookmark
-    folders, each with the status URIs filed in it; the bookmarks themselves
+    folders, each with the status URIs filed in it (a large folder is split
+    into several entries of the same name, each under 256 KiB and 20,000
+    URIs, so the importer's 512 KiB per-entry cap never refuses one); the bookmarks themselves
     stay in `bookmarks.json`, so a Mastodon importer reads them unchanged.
   - `activities.next/account.json` describes the account,
     `activities.next/drafts.json` is there when the request carried drafts, and
@@ -761,8 +763,11 @@ Bookmarks go through the same `importRow` path used for CSV bookmark imports.
 With the bookmarks option, an `activities.next` export's
 `bookmark_folders.json` is restored at the start of the collections phase
 (`runBookmarkFoldersPhase`): each folder is matched by name ignoring case, or
-created within the folder rules, and only statuses the import already
-bookmarked are filed into it. An archive without the file (a Mastodon one, or
+created within the folder rules, so the entries of a split folder file into
+one folder that counts once against the cap, and only statuses the import
+already bookmarked are filed into it. An entry it cannot restore (too large,
+unreadable, a refused name, past the cap) is logged and counted by reason in
+`progress.bookmarkFolderSkips`, which the import report lists. An archive without the file (a Mastodon one, or
 an older export) imports every bookmark unfiled.
 With `repliesToOthers: "keep"`, a foreign parent's URI is stored as data in the
 imported status's `statuses.reply` field, which is limited to 255 characters;

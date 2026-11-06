@@ -10,6 +10,7 @@ import {
 } from '@/lib/jobs/names'
 import { planArchiveActors } from '@/lib/services/accountArchive/layout'
 import { FileArchiveObjectStore } from '@/lib/services/accountArchive/objectStore'
+import { splitBookmarkFolder } from '@/lib/services/accountArchive/stepsExtras'
 import {
   ACCOUNT_IMPORT_ALBUM_POSITION,
   ACCOUNT_IMPORT_FITNESS_FILE_POSITION,
@@ -31,7 +32,9 @@ import * as mediaService from '@/lib/services/medias'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import type { Actor } from '@/lib/types/domain/actor'
+import { MAX_BOOKMARK_FOLDERS_PER_ACTOR } from '@/lib/types/domain/bookmark'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 
 const mocks = vi.hoisted(() => ({ storageRoot: '', publish: vi.fn() }))
 
@@ -1040,6 +1043,112 @@ describe('own archive import phases', () => {
         before
       )
       expect(await folderOf(statusId)).toBeNull()
+    })
+
+    it('reports an entry too large to read instead of dropping it silently', async () => {
+      const warn = vi.spyOn(logger, 'warn')
+      const progress = progressWithBookmarks()
+      const stagedImport = await stageArchive(
+        await createImport('folders-too-large-' + randomUUID()),
+        buildZip([
+          {
+            name: `${EXTRAS}/bookmark_folders.json`,
+            data: Buffer.from(
+              JSON.stringify([
+                {
+                  id: 'source-folder-huge',
+                  name: 'Huge folder',
+                  createdAt: 1,
+                  updatedAt: 1,
+                  // One entry past the importer's 512 KiB per-entry cap, as
+                  // an export from before the split would have written it.
+                  items: Array.from(
+                    { length: 10_000 },
+                    (_, index) =>
+                      `https://remote.example/users/someone/statuses/${index}-padding-padding`
+                  )
+                }
+              ])
+            )
+          }
+        ])
+      )
+
+      await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+
+      expect(progress.bookmarkFolderSkips).toEqual({
+        bookmark_folder_too_large: 1
+      })
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Skipped a bookmark folder from the archive',
+          reason: 'bookmark_folder_too_large',
+          entryIndex: 0
+        })
+      )
+    })
+
+    // Last in this describe: it fills the actor's folders up to the cap.
+    it('files a split folder into one folder that counts once against the cap', async () => {
+      const first = await createStatus('split-first')
+      const last = await createStatus('split-last')
+      await database.createBookmark({ actorId: actor.id, statusId: first })
+      await database.createBookmark({ actorId: actor.id, statusId: last })
+      const existing = (
+        await database.getBookmarkFolders({ actorId: actor.id })
+      ).length
+      const now = new Date()
+      await db
+        .insertInto('bookmark_folders')
+        .values(
+          Array.from(
+            { length: MAX_BOOKMARK_FOLDERS_PER_ACTOR - 1 - existing },
+            (_, index) => ({
+              id: randomUUID(),
+              actorId: actor.id,
+              name: `cap filler ${index}`,
+              createdAt: now,
+              updatedAt: now
+            })
+          )
+        )
+        .execute()
+      const name = 'Split folder ' + randomUUID()
+      // Enough padding URIs between the two real ones to need several entries.
+      const uris = [
+        first,
+        ...Array.from(
+          { length: 6_000 },
+          (_, index) =>
+            `https://gone.example/users/someone/statuses/${index}-padding-padding`
+        ),
+        last
+      ]
+      const entries = splitBookmarkFolder(
+        { id: 'source-split', name, createdAt: 1, updatedAt: 1 },
+        uris
+      )
+      expect(entries.length).toBeGreaterThan(1)
+      const progress = progressWithBookmarks()
+      const stagedImport = await stageArchive(
+        await createImport('folders-split-' + randomUUID()),
+        buildZip([
+          {
+            name: `${EXTRAS}/bookmark_folders.json`,
+            data: Buffer.from(JSON.stringify(entries, null, 2))
+          }
+        ])
+      )
+
+      await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+
+      const folders = await database.getBookmarkFolders({ actorId: actor.id })
+      const restored = folders.filter((item) => item.name === name)
+      expect(restored).toHaveLength(1)
+      expect(folders).toHaveLength(MAX_BOOKMARK_FOLDERS_PER_ACTOR)
+      expect(await folderOf(first)).toBe(restored[0].id)
+      expect(await folderOf(last)).toBe(restored[0].id)
+      expect(progress.bookmarkFolderSkips).toBeUndefined()
     })
   })
 })
