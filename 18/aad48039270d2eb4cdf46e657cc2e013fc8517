@@ -1,0 +1,26 @@
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_8d0346d69027f0 1523
+lib/activities/signedRequest.db.test.ts
+  s_2b1a50e2f9b981::t_6dad5532d139e3 336-379
+lib/activities/signedRequest.ts
+  s_2b1a50e2f9b981::t_8d0346d69027f0 377-382,390-393,404-405
+docs/architecture.md
+  s_2b1a50e2f9b981::t_6dad5532d139e3 248
+  s_2b1a50e2f9b981::t_8d0346d69027f0 247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "18aad48039270d2eb4cdf46e657cc2e013fc8517",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
