@@ -33,6 +33,12 @@ const metas = () =>
     })
   )
 
+// hydrateRoot is driven by hand here (no Testing Library render), so tell
+// React this is a test environment that wraps its updates in act().
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
+
 describe('theme-color metas across hydration', () => {
   let root: ReturnType<typeof hydrateRoot> | null = null
 

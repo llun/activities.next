@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 
 import { ThemeProvider, useTheme } from './ThemeProvider'
 import {
@@ -110,6 +117,84 @@ describe('ThemeProvider', () => {
       renderMetas('not all', 'all')
 
       renderProvider()
+
+      expect(medias()).toEqual([
+        THEME_COLOR_LIGHT_MEDIA,
+        THEME_COLOR_DARK_MEDIA
+      ])
+    })
+
+    // A client-side navigation re-renders the viewport metas with their
+    // media-scoped `media`: the explicit choice must come back, not stay lost.
+    it('restores an explicit choice when a navigation resets the metas', async () => {
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+      renderProvider()
+      expect(medias()).toEqual(['not all', 'all'])
+
+      for (const meta of Array.from(
+        document.querySelectorAll('meta[name="theme-color"]')
+      )) {
+        meta.setAttribute(
+          'media',
+          meta.getAttribute('content') === THEME_COLOR_DARK
+            ? THEME_COLOR_DARK_MEDIA
+            : THEME_COLOR_LIGHT_MEDIA
+        )
+      }
+
+      await waitFor(() => expect(medias()).toEqual(['not all', 'all']))
+    })
+
+    it('restores an explicit choice on metas that are put back', async () => {
+      localStorage.setItem(THEME_STORAGE_KEY, 'light')
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+      renderProvider()
+
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+
+      await waitFor(() => expect(medias()).toEqual(['all', 'not all']))
+    })
+
+    // Its own writes notify the observer too: they must settle, not loop.
+    it('settles after restoring instead of rewriting for ever', async () => {
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+      renderProvider()
+      // Capped, so a regression fails here instead of hanging the run: an
+      // observer that rewrites unconditionally re-triggers itself for ever.
+      const original = Element.prototype.setAttribute
+      const setAttribute = vi
+        .spyOn(Element.prototype, 'setAttribute')
+        .mockImplementation(function (
+          this: Element,
+          name: string,
+          value: string
+        ) {
+          if (setAttribute.mock.calls.length > 50) {
+            throw new Error('theme-color observer loop')
+          }
+          original.call(this, name, value)
+        })
+
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+      await waitFor(() => expect(medias()).toEqual(['not all', 'all']))
+      const writes = setAttribute.mock.calls.length
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      expect(setAttribute.mock.calls.length).toBe(writes)
+      expect(writes).toBe(2)
+      setAttribute.mockRestore()
+    })
+
+    it('stops watching the head once unmounted', async () => {
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+      const { unmount } = renderProvider()
+      unmount()
+
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+      await new Promise((resolve) => setTimeout(resolve, 0))
 
       expect(medias()).toEqual([
         THEME_COLOR_LIGHT_MEDIA,

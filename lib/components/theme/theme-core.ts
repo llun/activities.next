@@ -98,10 +98,10 @@ export const applyThemeColor = (mode: ThemeMode): void => {
           ? THEME_COLOR_DARK_MEDIA
           : null
     if (!own) continue
-    meta.setAttribute(
-      'media',
-      chosen === null ? own : content === chosen ? 'all' : 'not all'
-    )
+    const media = chosen === null ? own : content === chosen ? 'all' : 'not all'
+    // Written only when it differs: ThemeProvider reapplies this from a
+    // MutationObserver, and an unchanged write would still notify it.
+    if (meta.getAttribute('media') !== media) meta.setAttribute('media', media)
   }
 }
 

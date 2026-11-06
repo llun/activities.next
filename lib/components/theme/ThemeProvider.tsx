@@ -53,6 +53,24 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
     applyThemeColor(stored)
   }, [])
 
+  // Next re-renders the viewport metas on a client-side navigation and puts
+  // their media-scoped `media` back, which would undo an explicit choice for
+  // the rest of the visit. Reapply whenever the head changes; applyThemeColor
+  // writes only what differs, so its own writes settle instead of looping.
+  useEffect(() => {
+    if (typeof MutationObserver === 'undefined') return
+    const observer = new MutationObserver(() =>
+      applyThemeColor(getStoredTheme())
+    )
+    observer.observe(document.head, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['media', 'content']
+    })
+    return () => observer.disconnect()
+  }, [])
+
   const setTheme = useCallback((mode: ThemeMode) => {
     storeTheme(mode)
     setThemeState(mode)

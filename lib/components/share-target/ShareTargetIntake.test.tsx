@@ -57,6 +57,10 @@ describe('ShareTargetIntake', () => {
     expect(
       await screen.findByText('1 photo and 1 workout were shared')
     ).toBeInTheDocument()
+    // The house Alert's info tone is a polite live region.
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '1 photo and 1 workout were shared'
+    )
     expect(screen.getByText('summit.jpg')).toBeInTheDocument()
     expect(screen.getByText('ride.fit')).toBeInTheDocument()
     // Still staged and unused after the intake has settled.
