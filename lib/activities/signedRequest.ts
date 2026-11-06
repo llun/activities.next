@@ -3,6 +3,7 @@ import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { getConfig } from '@/lib/config'
 import type { Database } from '@/lib/database/types'
 import { normalizeActorHost } from '@/lib/services/federation/domainRules'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Actor } from '@/lib/types/domain/actor'
 import { signHttpMessage } from '@/lib/utils/httpMessageSignature'
 import { RequestOptions, RequestResult, request } from '@/lib/utils/request'
@@ -108,9 +109,10 @@ const isSuccess = (statusCode: number): boolean =>
  *
  * The primary scheme is the one remembered for the target host (default
  * draft-cavage). A 401 (POST) or 401/403 (GET) from the same host is retried
- * once with the other scheme; a 2xx on that second knock remembers it for the
- * host. When both fail, the first response is returned unchanged so delivery
- * classification sees exactly what it saw before.
+ * once with the other scheme; a 2xx on that second knock remembers it only
+ * when neither knock crossed hosts, including chains returning to the initial
+ * host. A failed or throwing second knock returns the first response unchanged
+ * so delivery classification sees exactly what it saw before.
  *
  * Headers are built per hop, so a same-host redirect is re-signed over its own
  * URL. A hop onto another host is never signed.
@@ -129,22 +131,24 @@ export const signedActivityPubRequest = async ({
     ? (getRememberedSignatureScheme(initialHost) ?? 'cavage')
     : 'cavage'
 
-  const send = (
+  const send = async (
     scheme: SignatureScheme,
     overrides: Pick<RequestOptions, 'numberOfRetry' | 'responseTimeout'>
-  ) =>
-    request({
+  ) => {
+    let crossedHosts = false
+    const response = await request({
       ...requestOptions,
       ...overrides,
       url,
       method,
       body,
       headers: ({ body: hopBody, method: hopMethod, url: hopUrl }) => {
-        if (!hasSigningKey || normalizeHost(hopUrl.host) !== initialHost) {
+        if (normalizeHost(hopUrl.host) !== initialHost) {
+          crossedHosts = true
           return { accept }
         }
         const signedMethod = toSignedMethod(hopMethod)
-        if (scheme === 'rfc9421') {
+        if (hasSigningKey && scheme === 'rfc9421') {
           const signed = signHttpMessage({
             body: hopBody,
             keyId: `${(actor as Actor).id}#main-key`,
@@ -164,28 +168,42 @@ export const signedActivityPubRequest = async ({
         })
       }
     })
+    crossedHosts ||=
+      normalizeHost(new URL(response.url ?? url).host) !== initialHost
+    return { response, crossedHosts }
+  }
 
   const startedAt = Date.now()
-  const first = await send(primary, {})
+  const { response: first, crossedHosts } = await send(primary, {})
   if (!hasSigningKey || !shouldKnock(method, first.statusCode)) return first
 
   // A cross-host redirect deliberately dropped the signature, so its answer
   // says nothing about the scheme this host accepts.
-  const finalHost = normalizeHost(new URL(first.url ?? url).host)
-  if (finalHost !== initialHost) return first
+  if (crossedHosts) return first
 
-  const budget = requestOptions?.responseTimeout
-  const remaining =
-    budget === undefined ? undefined : budget - (Date.now() - startedAt)
-  if (remaining !== undefined && remaining <= 0) return first
+  // Match request()'s explicit-timeout fallback to the runtime server setting.
+  const budget =
+    requestOptions?.responseTimeout ||
+    (await getResolvedServerSettings()).network.requestTimeoutMs
+  const remaining = budget - (Date.now() - startedAt)
+  if (remaining <= 0) return first
 
   const alternate: SignatureScheme = primary === 'cavage' ? 'rfc9421' : 'cavage'
-  const second = await send(alternate, {
-    numberOfRetry: 0,
-    ...(remaining === undefined ? {} : { responseTimeout: remaining })
-  })
-  if (!isSuccess(second.statusCode)) return first
+  try {
+    const { response: second, crossedHosts: secondCrossedHosts } = await send(
+      alternate,
+      {
+        numberOfRetry: 0,
+        responseTimeout: remaining
+      }
+    )
+    if (!isSuccess(second.statusCode)) return first
 
-  rememberSignatureScheme(initialHost, alternate)
-  return second
+    if (!secondCrossedHosts) rememberSignatureScheme(initialHost, alternate)
+    return second
+  } catch {
+    // Knock 2 is a scheme probe: its failure must not replace Knock 1's
+    // authentication response with a network failure for delivery tracking.
+    return first
+  }
 }

@@ -14,6 +14,11 @@ import {
 } from './deliverActivityJob'
 
 vi.mock('@/lib/utils/request')
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: vi.fn().mockResolvedValue({
+    network: { requestTimeoutMs: 5000 }
+  })
+}))
 vi.mock('@/lib/activities/activityPubHeaders', () => ({
   activityPubRequestHeaders: vi.fn().mockReturnValue({
     'content-type': 'application/activity+json'
@@ -365,6 +370,21 @@ describe('deliverActivityJob', () => {
         inbox: 'https://Remote.Example/inbox'
       })
       expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
+    })
+
+    it('preserves the 401 classification when Knock 2 throws ETIMEDOUT', async () => {
+      vi.mocked(request)
+        .mockResolvedValueOnce({ statusCode: 401, body: '', headers: {} })
+        .mockRejectedValueOnce(
+          Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })
+        )
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).rejects.toMatchObject({ statusCode: 401 })
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
+      expect(mockDatabase.clearDeliveryFailures).not.toHaveBeenCalled()
     })
 
     it.each([400, 403, 404, 410, 501])(

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { MOCK_SECRET_PHASES } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
 import { verify } from '@/lib/utils/signature'
@@ -28,6 +29,11 @@ vi.mock('@/lib/config', async () => {
 const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }))
 vi.mock('@/lib/utils/request', () => ({
   request: (...params: unknown[]) => mockRequest(...params)
+}))
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: vi.fn().mockResolvedValue({
+    network: { requestTimeoutMs: 1000 }
+  })
 }))
 
 type CapturedCall = {
@@ -209,6 +215,51 @@ describe('signedActivityPubRequest', () => {
     expect(getRememberedSignatureScheme('remote.test')).toBeNull()
   })
 
+  it('returns the first response unchanged when Knock 2 throws ECONNRESET', async () => {
+    const first = respond(401, INBOX)
+    responses = [
+      first,
+      Object.assign(new Error('reset'), { code: 'ECONNRESET' })
+    ]
+
+    await expect(send()).resolves.toBe(first)
+    expect(calls).toHaveLength(2)
+    expect(getRememberedSignatureScheme('remote.test')).toBeNull()
+  })
+
+  it.each([false, true])(
+    'does not remember when Knock 2 crosses hosts (returns to initial host: %s)',
+    async (returnsToInitialHost) => {
+      mockRequest.mockImplementationOnce(async () => respond(401, INBOX))
+      mockRequest.mockImplementationOnce(
+        async (options: RequestOptionsLike) => {
+          resolveHeaders(options)
+          const otherUrl = 'https://other.test/inbox'
+          resolveHeaders({ ...options, url: otherUrl })
+          if (returnsToInitialHost) resolveHeaders(options)
+          return respond(202, returnsToInitialHost ? INBOX : otherUrl)
+        }
+      )
+
+      await expect(send()).resolves.toMatchObject({ statusCode: 202 })
+      expect(mockRequest).toHaveBeenCalledTimes(2)
+      expect(getRememberedSignatureScheme('remote.test')).toBeNull()
+    }
+  )
+
+  it('does not knock when Knock 1 crosses hosts and returns to the initial host', async () => {
+    mockRequest.mockImplementationOnce(async (options: RequestOptionsLike) => {
+      resolveHeaders(options)
+      resolveHeaders({ ...options, url: 'https://other.test/inbox' })
+      resolveHeaders(options)
+      return respond(401, INBOX)
+    })
+
+    await expect(send()).resolves.toMatchObject({ statusCode: 401 })
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+    expect(getRememberedSignatureScheme('remote.test')).toBeNull()
+  })
+
   it.each([404, 410, 429, 500])(
     'does not knock after HTTP %i',
     async (statusCode) => {
@@ -272,7 +323,36 @@ describe('signedActivityPubRequest', () => {
     expect(calls).toHaveLength(1)
     expect(calls[0].headers).not.toHaveProperty('signature')
     expect(calls[0].headers).not.toHaveProperty('signature-input')
+    expect(calls[0].headers).toMatchObject({
+      date: expect.any(String),
+      digest: `SHA-256=${crypto.createHash('sha256').update(BODY).digest('base64')}`,
+      'content-type': 'application/activity+json'
+    })
+    expect(Number.isNaN(Date.parse(calls[0].headers.date))).toBe(false)
   })
+
+  it.each([400, 1000])(
+    'uses the resolved default timeout when no caller budget is set (%i ms elapsed)',
+    async (elapsed) => {
+      let now = 1_000_000
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      afterCall = () => {
+        now += elapsed
+      }
+      responses = [respond(401, INBOX), respond(202, INBOX)]
+
+      await send()
+
+      expect(calls).toHaveLength(elapsed < 1000 ? 2 : 1)
+      if (elapsed < 1000) {
+        expect(mockRequest.mock.calls[1][0]).toMatchObject({
+          numberOfRetry: 0,
+          responseTimeout: 1000 - elapsed
+        })
+      }
+      expect(getResolvedServerSettings).toHaveBeenCalled()
+    }
+  )
 
   it('does not knock when the caller budget is already spent', async () => {
     let now = 1_000_000

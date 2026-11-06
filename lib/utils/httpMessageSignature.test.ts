@@ -661,34 +661,34 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
     ).toBe(true)
   })
 
-  it('signs that base with rsa-v1_5-sha256 deterministically', () => {
-    // The RFC key is PSS-restricted, so only its public half is usable here;
-    // determinism is a property of the padding, checked with a local key.
+  it('signs with rsa-v1_5-sha256 deterministically through signHttpMessage', async () => {
+    // The RFC vector above checks the generic base builder. Exercise our
+    // outbound profile through the production signer with a local RSA key.
     const local = crypto.generateKeyPairSync('rsa', {
       modulusLength: 2048,
       publicKeyEncoding: { type: 'spki', format: 'pem' },
       privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
     })
-    const signLocal = () => {
-      const signer = crypto.createSign('sha256')
-      signer.update(RFC_BASE)
-      signer.end()
-      return signer.sign(
-        {
-          key: local.privateKey,
-          padding: crypto.constants.RSA_PKCS1_PADDING
-        },
-        'base64'
-      )
+    const params = {
+      method: 'POST',
+      url: 'https://example.com/foo?param=Value&Pet=dog',
+      body: '{"hello": "world"}',
+      createdSec: 1618884473,
+      keyId: 'https://example.com/users/alice#main-key',
+      privateKey: local.privateKey
     }
-    expect(signLocal()).toBe(signLocal())
-    expect(
-      crypto.verify(
-        'sha256',
-        Buffer.from(RFC_BASE),
-        local.publicKey,
-        Buffer.from(signLocal(), 'base64')
+    const first = signHttpMessage(params)
+    const second = signHttpMessage(params)
+    expect(first.headers.signature).toBe(second.headers.signature)
+    const headers = new Headers(first.headers)
+    const parsed = parseHttpMessageSignature(headers)
+    expect(parsed).not.toBeNull()
+    await expect(
+      verifyHttpMessageSignature(
+        parsed!,
+        { method: params.method, targetUri: params.url, headers },
+        local.publicKey
       )
-    ).toBe(true)
+    ).resolves.toBe(true)
   })
 })
