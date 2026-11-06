@@ -1,0 +1,24 @@
+lib/client/share-target/useShareTargetIntake.test.tsx
+  s_2b1a50e2f9b981::t_674451c6809305 107-108
+lib/client/share-target/useShareTargetIntake.ts
+  s_2b1a50e2f9b981::t_7963a1f7906899 146-150,175-176
+  s_2b1a50e2f9b981::t_712c6c962f0f59 11
+lib/client/share-target/classify.ts
+  s_2b1a50e2f9b981::t_7963a1f7906899 185-187,195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1d8e29d113f5c563d03b46a54cca0aebebc0b328",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
