@@ -1,0 +1,39 @@
+lib/services/accountImport/progress.ts
+  s_2b1a50e2f9b981::t_84184234288ece 19-20
+docs/architecture.md
+  s_2b1a50e2f9b981::t_84184234288ece 775-777
+lib/services/accountArchive/stepsExtras.ts
+  s_2b1a50e2f9b981::t_52985b248af487 358-360
+lib/services/accountArchive/stepsExtras.test.ts
+  s_2b1a50e2f9b981::t_52985b248af487 7,9,12,101-142,144-156,160
+  s_2b1a50e2f9b981::t_cb87c8186a41ee 143,157-159
+  s_2b1a50e2f9b981::t_c19e2ba5572cb8 161
+lib/services/accountImport/phases.ts
+  s_2b1a50e2f9b981::t_84184234288ece 2610,2614-2621,2625-2629,2631-2633,2639-2641
+app/(timeline)/account/import-export/importCopy.ts
+  s_2b1a50e2f9b981::t_84184234288ece 63-64
+app/(timeline)/account/import-export/importCopy.test.ts
+  s_2b1a50e2f9b981::t_84184234288ece 59
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_2b1a50e2f9b981::t_30628f2e5cf5cf 1142-1184
+  s_2b1a50e2f9b981::t_d5b81ed4d5ec06 1299-1307,1309,1311-1317
+  s_2b1a50e2f9b981::t_8ec30e5c71c077 1066-1095,1253-1280,1283-1294,1298
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_84184234288ece 1255-1256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80382c92c509918a3b2f95a4db2326368edbfe9b",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
