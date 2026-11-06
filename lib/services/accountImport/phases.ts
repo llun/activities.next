@@ -1811,10 +1811,13 @@ const readOwnMediaFile = async (
       },
       patch: {
         subjectLookupStatus:
-          data.subjectTaxonPath !== null || data.subjectIucnCategory !== null
+          data.subjectTaxonRank !== null ||
+          data.subjectTaxonPath !== null ||
+          data.subjectIucnCategory !== null
             ? 'resolved'
             : null,
         subjectTaxonKey: data.subjectTaxonKey,
+        subjectTaxonRank: data.subjectTaxonRank,
         subjectTaxonPath: data.subjectTaxonPath,
         subjectIucnCategory: data.subjectIucnCategory
       }

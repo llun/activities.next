@@ -23,6 +23,7 @@ import * as addAuthRateLimits from './20261105072156_add_auth_rate_limits'
 import * as addDeliveryInboxFailures from './20261105144958_add_delivery_inbox_failures'
 import * as addFitnessSettingsTrainingZones from './20261105174143_add_fitness_settings_training_zones'
 import * as addFitnessBestEfforts from './20261105185059_add_fitness_best_efforts'
+import * as addMediaSubjectTaxonRank from './20261105210627_add_media_subject_taxon_rank'
 import * as addBookmarkFolders from './20261106120000_add_bookmark_folders'
 import type { MigrationName } from './names'
 
@@ -57,5 +58,6 @@ export const migrations: MigrationRegistry = {
   '20261105174143_add_fitness_settings_training_zones':
     addFitnessSettingsTrainingZones,
   '20261105185059_add_fitness_best_efforts': addFitnessBestEfforts,
+  '20261105210627_add_media_subject_taxon_rank': addMediaSubjectTaxonRank,
   '20261106120000_add_bookmark_folders': addBookmarkFolders
 } satisfies Record<MigrationName, MigrationModule>

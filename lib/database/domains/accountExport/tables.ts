@@ -238,6 +238,7 @@ export const ACCOUNT_EXPORT_TABLES: Record<
       'placeNameSource',
       'inGallery',
       'subjectTaxonKey',
+      'subjectTaxonRank',
       'subjectTaxonPath',
       'subjectIucnCategory',
       'subjectSuggestions',

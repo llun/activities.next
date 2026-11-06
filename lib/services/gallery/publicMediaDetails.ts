@@ -204,6 +204,7 @@ export const toSubjectEntity = (
     | 'subjectScientificName'
     | 'subjectCategory'
     | 'subjectTaxonKey'
+    | 'subjectTaxonRank'
     | 'subjectTaxonPath'
   >
 ): MediaPublicDetails['subject'] =>
@@ -217,6 +218,7 @@ export const toSubjectEntity = (
         // Public species facts. The IUCN category and lookup status are never
         // part of this entity.
         taxonKey: details.subjectTaxonKey ?? null,
+        taxonRank: details.subjectTaxonRank ?? null,
         taxonPath: details.subjectTaxonPath ?? null
       }
     : null

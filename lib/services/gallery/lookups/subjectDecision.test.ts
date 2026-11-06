@@ -158,7 +158,8 @@ describe('decideSubjectLookup', () => {
       ['names missing from the evidence', { scientificName: undefined }]
     ])('fails a record that disagrees: %s', (_label, subject) => {
       expect(decideSubjectLookup(stored(KINGFISHER, subject))).toEqual({
-        subjectLookupStatus: 'failed'
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
       })
     })
 
@@ -176,7 +177,10 @@ describe('decideSubjectLookup', () => {
           { name: 'Panda', category: 'mammal', kingdom: 'Animalia' }
         )
       )
-      expect(decision).toEqual({ subjectLookupStatus: 'failed' })
+      expect(decision).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(isPublic(decision)).toBe(false)
     })
   })
@@ -188,6 +192,7 @@ describe('decideSubjectLookup', () => {
         expect(decideSubjectLookup(taxon(via, KINGFISHER))).toEqual({
           subjectLookupStatus: 'resolved',
           subjectTaxonKey: '2475532',
+          subjectTaxonRank: 'SPECIES',
           subjectTaxonPath: KINGFISHER.taxonPath,
           subjectIucnCategory: 'LC'
         })
@@ -243,6 +248,7 @@ describe('decideSubjectLookup', () => {
         expect(decision).toEqual({
           subjectLookupStatus: 'resolved',
           subjectTaxonKey: '5219531',
+          subjectTaxonRank: rank,
           subjectTaxonPath: TIGER.taxonPath,
           subjectIucnCategory: null
         })
@@ -327,7 +333,8 @@ describe('decideSubjectLookup', () => {
       ]
     ])('records failed for %s', (_, evidence) => {
       expect(decideSubjectLookup(evidence)).toEqual({
-        subjectLookupStatus: 'failed'
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
       })
     })
   })
@@ -344,7 +351,10 @@ describe('decideSubjectLookup', () => {
     ]
   ])('records failed for a NONE answer %s', (_, fields) => {
     const decision = decideSubjectLookup({ kind: 'match-none', ...fields })
-    expect(decision).toEqual({ subjectLookupStatus: 'failed' })
+    expect(decision).toEqual({
+      subjectLookupStatus: 'failed',
+      subjectTaxonRank: null
+    })
     expect(isPublic(decision)).toBe(false)
   })
 
@@ -372,6 +382,7 @@ describe('decideSubjectLookup', () => {
         )
         expect(decision).toEqual({
           subjectLookupStatus: 'resolved',
+          subjectTaxonRank: null,
           subjectTaxonPath: null,
           subjectIucnCategory: stored
         })
@@ -387,6 +398,7 @@ describe('decideSubjectLookup', () => {
         )
         expect(decision).toEqual({
           subjectLookupStatus: 'resolved',
+          subjectTaxonRank: null,
           subjectTaxonPath: null,
           subjectIucnCategory: category
         })
@@ -412,7 +424,8 @@ describe('decideSubjectLookup', () => {
       ]
     ])('is failed for %s', (_, evidence) => {
       expect(decideSubjectLookup(evidence)).toEqual({
-        subjectLookupStatus: 'failed'
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
       })
     })
   })
@@ -423,6 +436,7 @@ describe('decideSubjectLookup', () => {
       expect(decision).toEqual({
         subjectLookupStatus: 'resolved',
         subjectTaxonKey: '2475532',
+        subjectTaxonRank: 'SPECIES',
         subjectTaxonPath: KINGFISHER.taxonPath,
         subjectIucnCategory: 'LC'
       })
@@ -486,7 +500,10 @@ describe('decideSubjectLookup', () => {
       ]
     ])('records failed when %s', (_, evidence) => {
       const decision = decideSubjectLookup(evidence)
-      expect(decision).toEqual({ subjectLookupStatus: 'failed' })
+      expect(decision).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(isPublic(decision)).toBe(false)
     })
   })
@@ -505,7 +522,8 @@ describe('decideSubjectLookup', () => {
     ['a list', [{ kind: 'match-none', hinted: false, storedKeySkipped: false }]]
   ])('records failed for %s', (_, evidence) => {
     expect(decideSubjectLookup(evidence)).toEqual({
-      subjectLookupStatus: 'failed'
+      subjectLookupStatus: 'failed',
+      subjectTaxonRank: null
     })
   })
 
@@ -724,6 +742,42 @@ describe('decideSubjectLookup', () => {
       }
       // The generator does reach the allow-list, so the check is not vacuous.
       expect(publicCount).toBeGreaterThan(20)
+    })
+  })
+})
+
+describe('persisted subject rank', () => {
+  it.each(['SPECIES', 'SUBSPECIES', 'GENUS', 'FAMILY'])(
+    'stores normalized %s for confirmed identity',
+    (rank) => {
+      expect(
+        decideSubjectLookup(
+          taxon('stored-key', { ...KINGFISHER, rank: rank.toLowerCase() })
+        )
+      ).toMatchObject({
+        subjectLookupStatus: 'resolved',
+        subjectTaxonRank: rank
+      })
+    }
+  )
+  it('leaves rank unconfirmed when a group match fetched a species', () => {
+    expect(
+      decideSubjectLookup(taxon('match', KINGFISHER, 'GENUS'))
+    ).toMatchObject({ subjectLookupStatus: 'resolved', subjectTaxonRank: null })
+  })
+  it('stores no rank for an IUCN-only uncertain placement or failure', () => {
+    expect(
+      decideSubjectLookup({
+        kind: 'match-uncertain',
+        storedKeySkipped: false,
+        hinted: false,
+        speciesKey: KINGFISHER.taxonKey,
+        species: KINGFISHER
+      })
+    ).toMatchObject({ subjectLookupStatus: 'resolved', subjectTaxonRank: null })
+    expect(decideSubjectLookup(null)).toEqual({
+      subjectLookupStatus: 'failed',
+      subjectTaxonRank: null
     })
   })
 })

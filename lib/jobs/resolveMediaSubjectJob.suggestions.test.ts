@@ -169,7 +169,10 @@ describe('a picked suggestion through the subject job', () => {
         taxonKey: null,
         taxonPath: []
       })
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     }
   )
@@ -191,7 +194,10 @@ describe('a picked suggestion through the subject job', () => {
         subjectTaxonKey: key
       })
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     }
   )

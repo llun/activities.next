@@ -112,6 +112,7 @@ describe('resolveMediaSubjectJob', () => {
       },
       patch: {
         subjectTaxonKey: '2475532',
+        subjectTaxonRank: 'SPECIES',
         subjectTaxonPath: KINGFISHER.taxonPath,
         subjectIucnCategory: 'LC',
         subjectLookupStatus: 'resolved'
@@ -212,7 +213,9 @@ describe('resolveMediaSubjectJob', () => {
 
     expect(gbif.getTaxon).not.toHaveBeenCalled()
     expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-      expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+      expect.objectContaining({
+        patch: { subjectLookupStatus: 'failed', subjectTaxonRank: null }
+      })
     )
   })
 
@@ -226,7 +229,9 @@ describe('resolveMediaSubjectJob', () => {
 
     expect(gbif.getTaxon).toHaveBeenCalledWith('2475532')
     expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-      expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+      expect.objectContaining({
+        patch: { subjectLookupStatus: 'failed', subjectTaxonRank: null }
+      })
     )
   })
 
@@ -238,7 +243,9 @@ describe('resolveMediaSubjectJob', () => {
 
     expect(gbif.lookupMatch).toHaveBeenCalledTimes(1)
     expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-      expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+      expect.objectContaining({
+        patch: { subjectLookupStatus: 'failed', subjectTaxonRank: null }
+      })
     )
   })
 
@@ -297,7 +304,9 @@ describe('resolveMediaSubjectJob', () => {
       await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
       expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+        expect.objectContaining({
+          patch: { subjectLookupStatus: 'failed', subjectTaxonRank: null }
+        })
       )
     })
   })
@@ -329,7 +338,9 @@ describe('resolveMediaSubjectJob', () => {
 
       expect(gbif.lookupMatch).not.toHaveBeenCalled()
       expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-        expect.objectContaining({ patch: { subjectLookupStatus: null } })
+        expect.objectContaining({
+          patch: { subjectLookupStatus: null, subjectTaxonRank: null }
+        })
       )
     })
 
@@ -356,7 +367,7 @@ describe('resolveMediaSubjectJob', () => {
       expect(gbif.getTaxon).not.toHaveBeenCalled()
       expect(setMediaSubjectLookup).toHaveBeenCalledWith(
         expect.objectContaining({
-          patch: { subjectLookupStatus: 'disabled' }
+          patch: { subjectLookupStatus: 'disabled', subjectTaxonRank: null }
         })
       )
     })
@@ -404,7 +415,9 @@ describe('resolveMediaSubjectJob', () => {
       ).resolves.toBeUndefined()
 
       expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+        expect.objectContaining({
+          patch: { subjectLookupStatus: 'failed', subjectTaxonRank: null }
+        })
       )
     })
 

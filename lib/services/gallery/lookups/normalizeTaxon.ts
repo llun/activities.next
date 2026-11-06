@@ -1,7 +1,16 @@
 import {
+  GROUP_RANKS,
+  SPECIES_OR_LOWER_RANKS
+} from '@/lib/services/gallery/taxonRanks'
+import {
   MEDIA_SUBJECT_CATEGORIES,
   MediaSubjectCategory
 } from '@/lib/types/database/gallery'
+
+export {
+  GROUP_RANKS,
+  SPECIES_OR_LOWER_RANKS
+} from '@/lib/services/gallery/taxonRanks'
 
 export const IUCN_CATEGORIES = [
   'CR',
@@ -34,22 +43,6 @@ export interface NormalizedMatch extends NormalizedTaxon {
 }
 
 export const MIN_MATCH_CONFIDENCE = 90
-
-// GBIF ranks at or below species.
-export const SPECIES_OR_LOWER_RANKS: ReadonlySet<string> = new Set([
-  'SPECIES',
-  'SUBSPECIES',
-  'VARIETY',
-  'FORM',
-  'INFRASPECIFIC_NAME',
-  'INFRASUBSPECIFIC_NAME',
-  'ABERRATION',
-  'CULTIVAR',
-  'STRAIN',
-  'FORMA_SPECIALIS'
-])
-// The ranks a group pick ("Just genus") may name.
-export const GROUP_RANKS: ReadonlySet<string> = new Set(['GENUS', 'FAMILY'])
 
 // The kingdom each living category names. `landscape`, `other` and no
 // category name none.

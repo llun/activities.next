@@ -72,6 +72,7 @@ export interface PublicSubjectEntity {
   scientificName: string | null
   category: MediaSubjectCategory | null
   taxonKey: string | null
+  taxonRank?: string | null
   // Kingdom to family names.
   taxonPath: string[] | null
 }
@@ -290,17 +291,29 @@ export interface GallerySubjectsResponse {
 }
 
 export type GalleryLifeListEntry = Omit<GallerySubjectEntry, 'cover'> & {
+  taxonRank?: string | null
+  identificationLevel?: 'species' | 'group' | 'unknown'
   coverMediaId: string
   // The place name of the earliest photo that has one the viewer is shown.
   firstPlaceName: string | null
 }
 
+export interface GalleryIdentificationCounts {
+  species: number
+  groups: number
+  unknown: number
+}
+
 export interface GalleryLifeListResponse {
-  // Number of entries (species), not photos.
+  // Optional for clients reading a server that predates rank classification.
+  counts?: GalleryIdentificationCounts
+  countsByCategory?: Partial<
+    Record<MediaSubjectCategory, GalleryIdentificationCounts>
+  >
+  // Number of named entries, not photos.
   total: number
   byCategory: Partial<Record<MediaSubjectCategory, number>>
-  // Oldest first-seen first, so the row number reads as "the Nth species".
-  // Landscapes and media with no subject name are not species and are left out.
+  // Oldest first-seen first. Landscapes and unnamed media are left out.
   entries: GalleryLifeListEntry[]
   truncated: boolean
 }

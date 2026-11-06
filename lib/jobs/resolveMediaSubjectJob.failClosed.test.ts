@@ -168,7 +168,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
     const { patch, withheld } = await run()
 
-    expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+    expect(patch).toEqual({
+      subjectLookupStatus: 'failed',
+      subjectTaxonRank: null
+    })
     expect(withheld).toBe(true)
   })
 
@@ -219,7 +222,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
     const { patch, withheld } = await run(details)
 
-    expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+    expect(patch).toEqual({
+      subjectLookupStatus: 'failed',
+      subjectTaxonRank: null
+    })
     expect(withheld).toBe(true)
   })
 
@@ -249,7 +255,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
         subjectLookupStatus: 'pending'
       })
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -286,7 +295,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       const { patch, withheld } = await run()
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -308,7 +320,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
         subjectLookupStatus: 'pending'
       })
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -323,7 +338,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
         subjectLookupStatus: 'pending'
       })
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -398,7 +416,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       const { patch, withheld } = await run(TIGER_AS_PLANT)
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -411,7 +432,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       const { patch, withheld } = await run(TIGER_AS_PLANT)
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -423,7 +447,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
         subjectScientificName: 'Zzzqx blorp'
       })
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
   })
@@ -459,6 +486,7 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
       // no taxon key is written.
       expect(patch).toEqual({
         subjectIucnCategory: 'CR',
+        subjectTaxonRank: null,
         subjectTaxonPath: null,
         subjectLookupStatus: 'resolved'
       })
@@ -477,6 +505,7 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
       // name was not confirmed, so no key or path is written.
       expect(patch).toEqual({
         subjectIucnCategory: 'LC',
+        subjectTaxonRank: null,
         subjectTaxonPath: null,
         subjectLookupStatus: 'resolved'
       })
@@ -488,7 +517,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       const { patch, withheld } = await run(MISTYPED_ORANGUTAN)
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -503,7 +535,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
         subjectScientificName: 'Pongo xyzzy'
       })
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -556,7 +591,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       const { patch, withheld } = await run(commonName('Tiger'))
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
       expect(taxonRequests()).toHaveLength(0)
     })
@@ -586,7 +624,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       const { patch, withheld } = await run(commonName('Panda'))
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -608,7 +649,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       // Panda oleosa (Plantae, LC) is the only exact hit; a mammal it is not.
       expect(taxonRequests()).toHaveLength(1)
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
     })
 
@@ -645,7 +689,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       const { patch, withheld } = await run(commonName('Pangolin'))
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
       expect(taxonRequests()).toHaveLength(0)
     })
@@ -663,7 +710,10 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       const { patch, withheld } = await run(commonName('Vaquita'))
 
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(patch).toEqual({
+        subjectLookupStatus: 'failed',
+        subjectTaxonRank: null
+      })
       expect(withheld).toBe(true)
       expect(taxonRequests()).toHaveLength(0)
     })
@@ -706,6 +756,7 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
         expect(patch).toEqual({
           subjectTaxonKey: key,
+          subjectTaxonRank: record.rank,
           subjectTaxonPath: [
             'Animalia',
             'Chordata',
@@ -732,11 +783,13 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
         subjectScientificName: 'Pongo',
         subjectCategory: 'mammal',
         subjectTaxonKey: '5219531',
+        subjectTaxonRank: 'GENUS',
         subjectLookupStatus: 'pending'
       })
 
       expect(patch).toMatchObject({
         subjectTaxonKey: '5219531',
+        subjectTaxonRank: 'GENUS',
         subjectIucnCategory: null,
         subjectLookupStatus: 'resolved'
       })

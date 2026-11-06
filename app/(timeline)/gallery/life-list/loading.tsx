@@ -1,4 +1,4 @@
-import { Bird, Bug, Images, ListChecks } from 'lucide-react'
+import { CircleHelp, Images, Layers, ListChecks } from 'lucide-react'
 import { FC } from 'react'
 
 import {
@@ -8,7 +8,7 @@ import {
 } from '@/lib/components/surface/ScreenSkeleton'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 
-// Life list: the title, the totals strip and the species table (a header band
+// Life list: the title, the totals strip and the subject table (a header band
 // over rows).
 const Loading: FC = () => (
   <ScreenSkeleton
@@ -20,11 +20,12 @@ const Loading: FC = () => (
       <StatStripSkeleton
         cells={[
           { label: 'Species', icon: ListChecks },
-          { label: 'Photos', icon: Images },
-          { label: 'Birds', icon: Bird },
-          { label: 'Insects', icon: Bug }
+          { label: 'Groups', icon: Layers },
+          { label: 'Unconfirmed', icon: CircleHelp },
+          { label: 'Photos', icon: Images }
         ]}
       />
+      {/* No second (category) strip: its cells depend on the data. */}
       <div className="rounded-lg border">
         <div className="bg-muted/40 h-10 border-b" />
         {Array.from({ length: 5 }, (_, index) => (

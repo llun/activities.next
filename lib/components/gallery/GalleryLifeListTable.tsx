@@ -1,6 +1,6 @@
 'use client'
 
-import { Images, ListChecks } from 'lucide-react'
+import { CircleHelp, Images, Layers, ListChecks } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
@@ -13,6 +13,7 @@ import {
 import { StatCell } from '@/lib/components/surface/StatCell'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { TABLE_HEAD_ROW_CLASS } from '@/lib/components/surface/TableFrame'
+import { Badge } from '@/lib/components/ui/badge'
 import type { GalleryLifeListResponse } from '@/lib/services/gallery/galleryEntities'
 import type { MediaSubjectCategory } from '@/lib/types/database/gallery'
 
@@ -27,8 +28,7 @@ interface Props {
 const numberFormat = new Intl.NumberFormat('en-US')
 
 /**
- * The life list: a totals strip (species, photos and the biggest categories)
- * over a table of every species, first sighting first.
+ * Confirmed species, groups and unconfirmed subjects, first sighting first.
  */
 export const GalleryLifeListTable: FC<Props> = ({
   data,
@@ -36,41 +36,60 @@ export const GalleryLifeListTable: FC<Props> = ({
   onSelectSubject
 }) => {
   const photos = data.entries.reduce((total, entry) => total + entry.count, 0)
+  const counts = data.counts ?? { species: 0, groups: 0, unknown: data.total }
   const topCategories = (
-    Object.entries(data.byCategory) as [MediaSubjectCategory, number][]
+    Object.entries(data.counts ? (data.countsByCategory ?? {}) : {}).map(
+      ([category, value]) => [category, value.species]
+    ) as [MediaSubjectCategory, number][]
   )
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 2)
-  const columns = (2 + topCategories.length) as 2 | 3 | 4
+  let speciesNumber = 0
   const suffix = data.truncated ? '+' : ''
 
   return (
     <div className="space-y-4">
-      <StatStrip variant="summary" columns={columns}>
+      <StatStrip variant="summary" columns={4}>
         <StatCell
           label="Species"
           icon={ListChecks}
-          value={`${numberFormat.format(data.total)}${suffix}`}
+          value={`${numberFormat.format(counts.species)}${suffix}`}
+        />
+        <StatCell
+          label="Groups"
+          icon={Layers}
+          value={`${numberFormat.format(counts.groups)}${suffix}`}
+        />
+        <StatCell
+          label="Unconfirmed"
+          icon={CircleHelp}
+          value={`${numberFormat.format(counts.unknown)}${suffix}`}
         />
         <StatCell
           label="Photos"
           icon={Images}
           value={`${numberFormat.format(photos)}${suffix}`}
         />
-        {topCategories.map(([category, count]) => (
-          <StatCell
-            key={category}
-            label={GALLERY_CATEGORY_LABELS[category]}
-            icon={GALLERY_CATEGORY_ICONS[category]}
-            value={numberFormat.format(count)}
-          />
-        ))}
       </StatStrip>
+      {topCategories.length > 0 ? (
+        <StatStrip variant="summary" columns={topCategories.length as 1 | 2}>
+          {topCategories.map(([category, count]) => (
+            <StatCell
+              key={category}
+              label={GALLERY_CATEGORY_LABELS[category]}
+              icon={GALLERY_CATEGORY_ICONS[category]}
+              value={numberFormat.format(count)}
+            />
+          ))}
+        </StatStrip>
+      ) : null}
 
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
-          <caption className="sr-only">Species, first sighting first</caption>
+          <caption className="sr-only">
+            Species, groups and unconfirmed subjects, first sighting first
+          </caption>
           <thead>
             <tr className={TABLE_HEAD_ROW_CLASS}>
               <th
@@ -106,12 +125,25 @@ export const GalleryLifeListTable: FC<Props> = ({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {data.entries.map((entry, index) => {
+            {data.entries.map((entry) => {
+              const level = data.counts
+                ? (entry.identificationLevel ?? 'unknown')
+                : 'unknown'
+              const ordinal = level === 'species' ? ++speciesNumber : null
+              const rankLabel =
+                level === 'group' && entry.taxonRank
+                  ? entry.taxonRank[0] + entry.taxonRank.slice(1).toLowerCase()
+                  : 'Unconfirmed'
               const name = entry.name ?? entry.scientificName ?? 'Unnamed'
               return (
                 <tr key={entry.key}>
                   <td className="text-muted-foreground px-2 py-2 tabular-nums sm:px-3">
-                    {index + 1}
+                    {ordinal ?? (
+                      <>
+                        <span aria-hidden="true">–</span>
+                        <span className="sr-only">Not a confirmed species</span>
+                      </>
+                    )}
                   </td>
                   <td className="px-3 py-2 font-medium">
                     {linkSubjects ? (
@@ -133,6 +165,9 @@ export const GalleryLifeListTable: FC<Props> = ({
                     ) : (
                       name
                     )}
+                    {level !== 'species' ? (
+                      <Badge className="ml-2">{rankLabel}</Badge>
+                    ) : null}
                     {/* The First seen and Where columns are hidden below `sm`, so
                         the date (and place) sit under the name and Photos stays
                         on screen. */}

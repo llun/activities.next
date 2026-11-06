@@ -18,6 +18,7 @@ const details: MediaDetailsEntity = {
     scientificName: 'Ardea cinerea',
     category: 'bird',
     taxonKey: '2480',
+    taxonRank: null,
     taxonPath: ['Animalia', 'Chordata'],
     iucnCategory: null,
     threatStatus: 'not-threatened',
@@ -146,6 +147,7 @@ describe('applySavedToItem', () => {
       scientificName: 'Ardea cinerea',
       category: 'bird',
       taxonKey: '2480',
+      taxonRank: null,
       taxonPath: ['Animalia', 'Chordata']
     })
     expect(next.takenAt).toBe('2025-04-02T06:00:00.000Z')
@@ -160,6 +162,19 @@ describe('applySavedToItem', () => {
       longitude: 2.5,
       countryCode: 'TH'
     })
+  })
+
+  it('carries the taxon rank from fresh details', () => {
+    const next = applySavedToItem(item, {
+      id: 'm1',
+      description: 'New alt',
+      decorative: false,
+      details: {
+        ...details,
+        subject: { ...details.subject!, taxonRank: 'SPECIES' }
+      }
+    })
+    expect(next.subject?.taxonRank).toBe('SPECIES')
   })
 
   it('clears details the save removed', () => {

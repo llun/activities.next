@@ -52,7 +52,7 @@ describe('GallerySubjectsOverview', () => {
       .closest('dl')
     expect(photos).toHaveTextContent('18')
     expect(
-      screen.getByText('Species', { selector: 'dt' }).closest('dl')
+      screen.getByText('Identified', { selector: 'dt' }).closest('dl')
     ).toHaveTextContent('2')
     expect(
       screen.getByText('Without a subject', { selector: 'dt' }).closest('dl')

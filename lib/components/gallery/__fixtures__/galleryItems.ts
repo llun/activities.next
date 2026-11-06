@@ -62,6 +62,8 @@ export const buildLifeListEntry = (
     ...entry,
     coverMediaId: cover.mediaId,
     firstPlaceName: null,
+    taxonRank: null,
+    identificationLevel: 'unknown',
     ...overrides
   }
 }

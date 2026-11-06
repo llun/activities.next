@@ -94,7 +94,7 @@ export const GallerySubjectsOverview: FC<Props> = ({
           value={`${numberFormat.format(totals.photos)}${suffix}`}
         />
         <StatCell
-          label="Species"
+          label="Identified"
           icon={ListChecks}
           value={`${numberFormat.format(totals.species)}${suffix}`}
         />

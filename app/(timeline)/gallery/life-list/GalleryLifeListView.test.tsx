@@ -21,9 +21,7 @@ describe('GalleryLifeListView', () => {
       />
     )
     expect(
-      screen.getByText(
-        'Every species you have photographed, first sighting first'
-      )
+      screen.getByText('Every identified subject, first sighting first')
     ).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: 'Keel-billed Toucan' })
@@ -36,7 +34,7 @@ describe('GalleryLifeListView', () => {
         data={{ total: 0, byCategory: {}, entries: [], truncated: false }}
       />
     )
-    expect(screen.getByText('No species yet')).toBeInTheDocument()
+    expect(screen.getByText('No subjects yet')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 })

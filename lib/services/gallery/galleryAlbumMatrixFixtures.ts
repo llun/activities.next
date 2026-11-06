@@ -107,6 +107,8 @@ export const seedGalleryAlbumMatrix = async (
         },
         patch: {
           subjectLookupStatus: options.lookup.status,
+          subjectTaxonRank:
+            options.lookup.status === 'resolved' ? 'SPECIES' : null,
           subjectIucnCategory: options.lookup.iucn ?? null
         }
       })

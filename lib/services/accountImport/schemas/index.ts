@@ -594,6 +594,12 @@ export const ownMediaLineSchema = z
     placeNameSource: z.enum(['owner', 'geocoder']).nullable(),
     inGallery: z.boolean(),
     subjectTaxonKey: text(128).nullable(),
+    subjectTaxonRank: z
+      .string()
+      .regex(/^[A-Z_]{1,64}$/)
+      .nullable()
+      .optional()
+      .default(null),
     subjectTaxonPath: smallCount(text(1_024), 100).nullable(),
     subjectIucnCategory: z.enum(IUCN_CATEGORIES).nullable(),
     subjectSuggestions: subjectSuggestionsSchema.nullable(),

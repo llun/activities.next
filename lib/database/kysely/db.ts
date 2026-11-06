@@ -992,6 +992,7 @@ export interface Medias {
   subjectSuggestions: Nullable<string>
   subjectTaxonKey: Nullable<string>
   subjectTaxonPath: Nullable<string>
+  subjectTaxonRank: Nullable<string>
   takenAt: Nullable<Timestamp>
   thumbnail: Nullable<string>
   thumbnailBytes: Nullable<number>

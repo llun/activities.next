@@ -1,4 +1,3 @@
-import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import {
   OrderedCollection,
@@ -6,10 +5,10 @@ import {
   getOrderCollectionFirstPage,
   toCollectionItems
 } from '@/lib/activities/orderedCollection'
+import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
-import { request } from '@/lib/utils/request'
 import { withSpan } from '@/lib/utils/trace'
 import { isRecord } from '@/lib/utils/typeGuards'
 
@@ -52,9 +51,10 @@ export const fetchCollectionRoot = async ({
   url: string
   signingActor?: DomainActor
 }): Promise<{ statusCode: number; collection: OrderedCollection | null }> => {
-  const response = await request({
-    url,
-    headers: activityPubRequestHeaders({ url, signingActor })
+  const response = await signedActivityPubRequest({
+    actor: signingActor,
+    method: 'GET',
+    url
   })
   if (!isActivityPubDocumentResponse(response, url)) {
     return { statusCode: response.statusCode, collection: null }
@@ -152,12 +152,10 @@ export const getActorCollections = async ({
       }
 
       try {
-        const response = await request({
-          url: collectionPageUrl,
-          headers: activityPubRequestHeaders({
-            url: collectionPageUrl,
-            signingActor
-          })
+        const response = await signedActivityPubRequest({
+          actor: signingActor,
+          method: 'GET',
+          url: collectionPageUrl
         })
         if (!isActivityPubDocumentResponse(response, collectionPageUrl)) {
           span.setAttributes({

@@ -1,8 +1,10 @@
 import crypto from 'node:crypto'
 
+import { createContentDigestHeader } from '@/lib/utils/contentDigest'
 import {
   SfBareItem,
   SfInnerList,
+  SfParameters,
   parseSfDictionary,
   serializeSfInnerList
 } from '@/lib/utils/structuredFields'
@@ -179,10 +181,12 @@ const componentValue = (
 
 /**
  * Build the RFC 9421 section 2.5 signature base from our own view of the
- * request. Returns null if a covered component cannot be derived.
+ * request. Returns null if a covered component cannot be derived. Signing and
+ * verification share this builder, so a signature we produce is one we can
+ * verify.
  */
 export function buildSignatureBase(
-  parsed: ParsedHttpMessageSignature,
+  parsed: Pick<ParsedHttpMessageSignature, 'components' | 'signatureParams'>,
   request: HttpMessageSignatureRequest
 ): string | null {
   try {
@@ -243,4 +247,110 @@ export async function verifyHttpMessageSignature(
       }
     }
   )
+}
+
+/** The label every outbound signature uses. */
+export const OUTBOUND_SIGNATURE_LABEL = 'sig1'
+/** The only algorithm we sign outbound with, matching our RSA actor keys. */
+export const OUTBOUND_SIGNATURE_ALGORITHM = 'rsa-v1_5-sha256'
+
+export interface SignHttpMessageParams {
+  /** Serialized request body, exactly as it goes on the wire. */
+  body?: string | Buffer
+  /** Unix seconds; defaults to now. */
+  createdSec?: number
+  keyId: string
+  method: string
+  passphrase?: string
+  privateKey: string
+  url: string
+}
+
+export interface SignedHttpMessage {
+  headers: Record<string, string>
+  signatureBase: string
+}
+
+/**
+ * Sign one outbound request as an RFC 9421 HTTP Message Signature. Covers
+ * `@method` and `@target-uri` (so the query string is bound), plus
+ * `content-digest` when there is a body. `created` rides in the signature
+ * parameters instead of a covered `date`, and `content-type` is sent but not
+ * covered, so a proxy that appends `; charset=utf-8` cannot break the
+ * signature.
+ */
+export function signHttpMessage({
+  body,
+  createdSec,
+  keyId,
+  method,
+  passphrase,
+  privateKey,
+  url
+}: SignHttpMessageParams): SignedHttpMessage {
+  const bodyBuffer =
+    body === undefined
+      ? undefined
+      : Buffer.isBuffer(body)
+        ? body
+        : Buffer.from(body, 'utf8')
+  const contentDigest =
+    bodyBuffer === undefined ? undefined : createContentDigestHeader(bodyBuffer)
+  const components = contentDigest
+    ? ['@method', '@target-uri', 'content-digest']
+    : ['@method', '@target-uri']
+  const params: SfParameters = [
+    [
+      'created',
+      { type: 'integer', value: createdSec ?? Math.floor(Date.now() / 1000) }
+    ],
+    ['keyid', { type: 'string', value: keyId }],
+    ['alg', { type: 'string', value: OUTBOUND_SIGNATURE_ALGORITHM }]
+  ]
+  const signatureParams = serializeSfInnerList({
+    items: components.map((name) => ({
+      item: { type: 'string', value: name },
+      params: []
+    })),
+    params
+  })
+
+  const headers = new Headers()
+  if (contentDigest !== undefined) {
+    headers.set('content-digest', contentDigest)
+  }
+  const signatureBase = buildSignatureBase(
+    { components, signatureParams },
+    { method, targetUri: url, headers }
+  )
+  if (signatureBase === null) {
+    throw new Error('Unable to build the RFC 9421 signature base')
+  }
+
+  const signer = crypto.createSign('sha256')
+  signer.update(signatureBase)
+  signer.end()
+  const signature = signer.sign(
+    {
+      key: privateKey,
+      passphrase,
+      padding: crypto.constants.RSA_PKCS1_PADDING
+    },
+    'base64'
+  )
+
+  return {
+    headers: {
+      ...(contentDigest === undefined
+        ? {}
+        : {
+            'content-digest': contentDigest,
+            'content-type': 'application/activity+json'
+          }),
+      date: new Date().toUTCString(),
+      'signature-input': `${OUTBOUND_SIGNATURE_LABEL}=${signatureParams}`,
+      signature: `${OUTBOUND_SIGNATURE_LABEL}=:${signature}:`
+    },
+    signatureBase
+  }
 }

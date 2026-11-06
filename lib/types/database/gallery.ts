@@ -180,6 +180,9 @@ export interface MediaDetailsRecord {
   // `setMediaSubjectLookup` / `setMediaPlaceLookup` /
   // `setMediaSubjectSuggestions` write it.
   //
+  // GBIF rank of the resolved taxon (upper case, e.g. `SPECIES`, `GENUS`);
+  // null unless the subject lookup is `resolved`.
+  subjectTaxonRank: string | null
   // Kingdom to family names, stored at resolve time so a public read never
   // triggers a lookup.
   subjectTaxonPath: string[] | null
@@ -200,6 +203,7 @@ export interface MediaDetailsRecord {
 
 // The details only the lookups write (see `MediaDetailsRecord`).
 export const MEDIA_LOOKUP_OWNED_DETAILS = [
+  'subjectTaxonRank',
   'subjectTaxonPath',
   'subjectIucnCategory',
   'subjectLookupStatus',
@@ -226,6 +230,7 @@ export const EMPTY_MEDIA_DETAILS: MediaDetailsRecord = {
   placePrecision: null,
   inGallery: false,
   subjectTaxonKey: null,
+  subjectTaxonRank: null,
   subjectTaxonPath: null,
   subjectIucnCategory: null,
   subjectLookupStatus: null,

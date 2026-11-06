@@ -39,7 +39,7 @@ const Loading: FC = () => (
       <StatStripSkeleton
         cells={[
           { label: 'Photos and videos', icon: Images },
-          { label: 'Species', icon: ListChecks },
+          { label: 'Identified', icon: ListChecks },
           { label: 'Without a subject', icon: Shapes },
           { label: 'Places', icon: MapPin }
         ]}

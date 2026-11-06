@@ -61,6 +61,7 @@ export const buildOwnerMediaDetails = async (
             scientificName: details.subjectScientificName,
             category: details.subjectCategory,
             taxonKey: details.subjectTaxonKey,
+            taxonRank: details.subjectTaxonRank ?? null,
             taxonPath: details.subjectTaxonPath,
             iucnCategory: details.subjectIucnCategory,
             threatStatus: getSubjectThreatStatus(details),
