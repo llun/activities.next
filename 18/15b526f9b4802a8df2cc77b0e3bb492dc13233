@@ -1,0 +1,76 @@
+app/(timeline)/bookmarks/BookmarksTimeline.folders.test.tsx
+  s_2b1a50e2f9b981::t_d6f05dd256ed8e 187-188
+  s_2b1a50e2f9b981::t_30142c4555b132 176-178,180
+  s_2b1a50e2f9b981::t_e00b98ac32513a 302-305,309-371
+  s_2b1a50e2f9b981::t_e1ed1e2a444df4 306-308
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_2b1a50e2f9b981::t_1e19d28edb62d7 343-348
+  s_2b1a50e2f9b981::t_26d6dab64802ad 17-18,163-165
+  s_2b1a50e2f9b981::t_8fcde4d1775130 36-41,59-71,249-253,264,269,271,275-287,290-298,300
+  s_2b1a50e2f9b981::t_8d1932c61a140b 78-80
+lib/components/posts/statusArray.test.ts
+  s_2b1a50e2f9b981::t_56bb92246f6740 15-16,560-587
+  s_2b1a50e2f9b981::t_53e17ed785bc19 588
+lib/components/bookmarks/errorMessage.ts
+  s_2b1a50e2f9b981::t_6605c11e8f73a5 1-4
+lib/components/posts/actions/post-menu.bookmarkFolders.test.tsx
+  s_2b1a50e2f9b981::t_e1ed1e2a444df4 14,205,230-247
+  s_2b1a50e2f9b981::t_71ef11d62b6e00 22,201-204,206-229
+  s_2b1a50e2f9b981::t_d35b09439bbc23 248
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_2b1a50e2f9b981::t_387105053ce2de 963-998
+lib/components/posts/actions/post-menu.tsx
+  s_2b1a50e2f9b981::t_26d6dab64802ad 317-320,323-326
+lib/components/posts/combined-post-list-item.tsx
+  s_2b1a50e2f9b981::t_a77ee4c4f61f1e 256-260,288,369-371,533
+app/(timeline)/bookmarks/loading.tsx
+  s_2b1a50e2f9b981::t_7b3bbee9d2bfd6 10-14
+lib/components/posts/statusArray.ts
+  s_2b1a50e2f9b981::t_e83135308f50f3 17-35
+migrations/20261106120000_add_bookmark_folders.ts
+  s_2b1a50e2f9b981::t_2afe1376991eb2 42-52
+lib/database/domains/bookmark/queries.ts
+  s_2b1a50e2f9b981::t_a7dfc6bd16f4f8 182-186
+lib/components/bookmarks/NewBookmarkFolderDialog.tsx
+  s_2b1a50e2f9b981::t_6605c11e8f73a5 8
+lib/components/posts/timeline-feed.test.tsx
+  s_2b1a50e2f9b981::t_e0ea1b691322fa 90-95,1000-1040
+  s_2b1a50e2f9b981::t_818409df011180 6
+  s_2b1a50e2f9b981::t_be8fb74dedb122 1041-1042
+app/(timeline)/lists/[id]/ListTimeline.tsx
+  s_2b1a50e2f9b981::t_e83135308f50f3 12-13,150-154,156-158
+app/(timeline)/bookmarks/BookmarkFoldersDialog.tsx
+  s_2b1a50e2f9b981::t_640e9c90f4d556 242,255
+  s_2b1a50e2f9b981::t_e1ed1e2a444df4 15,186,194,212,222
+  s_2b1a50e2f9b981::t_7b3bbee9d2bfd6 4,58,82-84,149
+docs/architecture.md
+  s_2b1a50e2f9b981::t_29d084606cd4a3 1453
+lib/services/accountImport/phases.ts
+  s_2b1a50e2f9b981::t_b1458798f7617e 2519-2523,2525-2526,2579-2582
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_2b1a50e2f9b981::t_e83135308f50f3 32-33,450-454,456-458
+app/(timeline)/MainPageTimeline.tsx
+  s_2b1a50e2f9b981::t_e83135308f50f3 49-50,957-961,965-967
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_29d084606cd4a3 2340-2343
+app/(timeline)/tags/[tag]/HashtagTimeline.tsx
+  s_2b1a50e2f9b981::t_e83135308f50f3 13-14,92-96,98-100
+app/(timeline)/favorites/FavoritesTimeline.tsx
+  s_2b1a50e2f9b981::t_e83135308f50f3 12-13,91-95,97-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1815b526f9b4802a8df2cc77b0e3bb492dc13233",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
