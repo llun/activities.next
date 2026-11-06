@@ -8,6 +8,7 @@ import {
   classifySharedFiles,
   describeSharedFiles,
   describeSkippedFiles,
+  isSharedLink,
   joinSharedText
 } from './classify'
 import {
@@ -142,6 +143,11 @@ export function useShareTargetIntake({
         share.skipped ?? 0
       )
       const text = joinSharedText(share)
+      // A link with only its page title (no body text) is still a link share.
+      const isLink =
+        Boolean(share.url?.trim()) && !share.text?.trim()
+          ? true
+          : isSharedLink(text)
       if (plan.kind === 'import') {
         // The import page reads the record, so it is not deleted here.
         stripShareParams()
@@ -166,8 +172,8 @@ export function useShareTargetIntake({
           text,
           summary:
             plan.kind === 'composer'
-              ? describeSharedFiles(plan.media, plan.fitnessFile, text)
-              : describeSharedFiles([], undefined, text)
+              ? describeSharedFiles(plan.media, plan.fitnessFile, text, isLink)
+              : describeSharedFiles([], undefined, text, isLink)
         },
         notice: describeSkippedFiles(plan.skipped)
       })

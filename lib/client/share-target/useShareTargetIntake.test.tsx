@@ -104,7 +104,8 @@ describe('useShareTargetIntake', () => {
     )
 
     await waitFor(() => expect(result.current.pending).not.toBeNull())
-    expect(result.current.pending!.summary).toBe('Some text was shared')
+    // A link with only its page title is still a link share.
+    expect(result.current.pending!.summary).toBe('A link was shared')
     expect(result.current.pending!.text).toBe(
       'A trail\nhttps://example.com/trail'
     )

@@ -182,7 +182,9 @@ export const joinSharedText = ({
 export const describeSharedFiles = (
   media: File[],
   fitnessFile?: File,
-  text = ''
+  text = '',
+  // A share whose only text is a link, with or without the page title.
+  isLink = isSharedLink(text)
 ): string => {
   const videos = media.filter((file) => file.type.startsWith('video/')).length
   const photos = media.length - videos
@@ -190,7 +192,7 @@ export const describeSharedFiles = (
   if (photos > 0) parts.push(count(photos, 'photo', 'photos'))
   if (videos > 0) parts.push(count(videos, 'video', 'videos'))
   if (fitnessFile) parts.push('1 workout')
-  if (text) parts.push(isSharedLink(text) ? 'a link' : 'some text')
+  if (text) parts.push(isLink ? 'a link' : 'some text')
   const list =
     parts.length > 1
       ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
