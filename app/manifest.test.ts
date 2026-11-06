@@ -36,14 +36,86 @@ describe('manifest', () => {
       {
         src: `/icon-192.png?v=${v}`,
         sizes: '192x192',
-        type: 'image/png'
+        type: 'image/png',
+        purpose: 'any'
       },
       {
         src: `/icon-512.png?v=${v}`,
         sizes: '512x512',
-        type: 'image/png'
+        type: 'image/png',
+        purpose: 'any'
+      },
+      {
+        src: `/icon-maskable-192.png?v=${v}`,
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'maskable'
+      },
+      {
+        src: `/icon-maskable-512.png?v=${v}`,
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable'
       }
     ])
+  })
+
+  it('keeps the static light colours the install prompt reads', async () => {
+    const m = await manifest()
+
+    expect(m.background_color).toBe('#ffffff')
+    expect(m.theme_color).toBe('#ffffff')
+  })
+
+  it('registers the share target the service worker answers', async () => {
+    const m = await manifest()
+
+    expect(m.share_target).toEqual({
+      action: '/_share-target',
+      method: 'POST',
+      enctype: 'multipart/form-data',
+      params: {
+        title: 'title',
+        text: 'text',
+        url: 'url',
+        files: [
+          {
+            name: 'files',
+            accept: [
+              'image/*',
+              'video/*',
+              '.fit',
+              '.gpx',
+              '.tcx',
+              'application/vnd.ant.fit',
+              'application/gpx+xml',
+              'application/vnd.garmin.tcx+xml',
+              'application/octet-stream'
+            ]
+          }
+        ]
+      }
+    })
+  })
+
+  it('offers shortcuts to the composer, the fitness import and the gallery', async () => {
+    const m = await manifest()
+    const v = encodeURIComponent(VERSION)
+
+    expect(m.shortcuts?.map((shortcut) => shortcut.url)).toEqual([
+      '/app',
+      '/fitness/files',
+      '/gallery'
+    ])
+    for (const shortcut of m.shortcuts ?? []) {
+      expect(shortcut.icons).toEqual([
+        {
+          src: `/icon-192.png?v=${v}`,
+          sizes: '192x192',
+          type: 'image/png'
+        }
+      ])
+    }
   })
 
   it.each([

@@ -164,6 +164,11 @@ const isRewrittenApiRoute = (pathname: string): boolean => {
   return pathname === '/inbox' || pathname.startsWith('/users/')
 }
 
+// The Web Share Target POST (app/manifest.ts). `public/sw.js` answers it on the
+// device; it reaches the server only before the worker is installed (a first
+// visit). It has no route: `app/_share-target` would be a private folder.
+const SHARE_TARGET_PATH = '/_share-target'
+
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
@@ -192,6 +197,22 @@ export async function proxy(request: NextRequest) {
         request
       )
     }
+  }
+
+  // The share's files are never read or stored on the server: the reader is
+  // sent to the composer, which asks them to share again. Answered before the
+  // POST allowlist below, and the body (past the proxy's 10 MB buffer) is
+  // never touched.
+  if (request.method === 'POST' && pathname === SHARE_TARGET_PATH) {
+    // Absolute: Next parses a proxy's Location without a base, then makes a
+    // same-host one relative again.
+    const target = request.nextUrl.clone()
+    target.pathname = '/app'
+    target.search = '?shareUnavailable=1'
+    return withContentSecurityPolicy(
+      NextResponse.redirect(target, 303),
+      request
+    )
   }
 
   // Next.js App Router inspects incoming requests to determine if they are Server

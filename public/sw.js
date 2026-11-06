@@ -8,6 +8,20 @@ const MAX_MEDIA_ENTRIES = 150
 const SHELL_CACHE_PREFIX = 'activities-shell-'
 const OFFLINE_DB_NAME = 'activities_offline_v1'
 
+// Web Share Target staging. The worker answers the share POST itself, so the
+// files never reach the server: it writes them to a short-lived database of its
+// own and redirects to `/app?share=<id>`, where the client reads and deletes the
+// record. It never opens `activities_drafts_v1` (see docs/architecture.md), so
+// the drafts isolation holds.
+const SHARE_TARGET_PATH = '/_share-target'
+const SHARE_TARGET_DB_NAME = 'activities_share_target_v1'
+const SHARE_TARGET_STORE = 'shares'
+const SHARE_TARGET_TTL_MS = 24 * 60 * 60 * 1000
+// A hard ceiling so a malformed share cannot make the worker read gigabytes
+// into memory. The client applies the real per-type limits.
+const SHARE_TARGET_MAX_FILES = 20
+const SHARE_TARGET_MAX_FILE_BYTES = 1_073_741_824
+
 const SVG_PLACEHOLDER =
   '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" fill="#e2e8f0"/><path d="M35 45a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM25 70h50L60 50 48 65l-8-10-15 15Z" fill="#94a3b8"/></svg>'
 
@@ -93,7 +107,7 @@ function extractAppShellAssets(html) {
   }
 
   const iconMatches = html.match(
-    /(?:\/(?:icon-192|icon-512|apple-touch-icon)\.png|\/favicon\.ico)(?:\?[^"'\s<>]*)?/g
+    /(?:\/(?:icon-192|icon-512|icon-maskable-192|icon-maskable-512|apple-touch-icon)\.png|\/favicon\.ico)(?:\?[^"'\s<>]*)?/g
   )
   if (iconMatches) {
     for (const match of iconMatches) {
@@ -104,6 +118,8 @@ function extractAppShellAssets(html) {
   assets.add('/manifest.webmanifest')
   assets.add('/icon-192.png')
   assets.add('/icon-512.png')
+  assets.add('/icon-maskable-192.png')
+  assets.add('/icon-maskable-512.png')
   assets.add('/apple-touch-icon.png')
   assets.add('/favicon.ico')
 
@@ -257,6 +273,159 @@ async function hasActiveOfflineSession() {
   })
 }
 
+const openShareTargetDb = () =>
+  new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB is unavailable'))
+      return
+    }
+    const request = indexedDB.open(SHARE_TARGET_DB_NAME, 1)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(SHARE_TARGET_STORE)) {
+        db.createObjectStore(SHARE_TARGET_STORE, { keyPath: 'id' })
+      }
+    }
+    request.onerror = () => reject(request.error)
+    request.onblocked = () => reject(new Error('Share target DB is blocked'))
+    request.onsuccess = () => resolve(request.result)
+  })
+
+// Deletes every staged share past its 24 h life. Runs on activate and before
+// each new share, so an unclaimed share never lingers on a shared device.
+async function pruneExpiredShares(db) {
+  const cutoff = Date.now() - SHARE_TARGET_TTL_MS
+  await new Promise((resolve) => {
+    try {
+      const tx = db.transaction(SHARE_TARGET_STORE, 'readwrite')
+      const store = tx.objectStore(SHARE_TARGET_STORE)
+      const cursorRequest = store.openCursor()
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result
+        if (!cursor) return
+        const value = cursor.value
+        if (
+          !value ||
+          typeof value.createdAt !== 'number' ||
+          value.createdAt < cutoff
+        ) {
+          cursor.delete()
+        }
+        cursor.continue()
+      }
+      tx.oncomplete = () => resolve()
+      tx.onabort = () => resolve()
+      tx.onerror = () => resolve()
+    } catch {
+      resolve()
+    }
+  })
+}
+
+const isSharedFile = (value) =>
+  Boolean(value) &&
+  typeof value === 'object' &&
+  typeof value.arrayBuffer === 'function' &&
+  typeof value.name === 'string'
+
+const createShareId = () => {
+  try {
+    if (
+      typeof crypto !== 'undefined' &&
+      typeof crypto.randomUUID === 'function'
+    ) {
+      return crypto.randomUUID()
+    }
+  } catch {
+    // fall through to the random string below
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
+// Reads the multipart share into plain ArrayBuffers (never Blob/File, which
+// WebKit and Chromium have historically failed to persist reliably) and writes
+// one record. Returns the record id, or null when nothing could be staged.
+async function stageShareTarget(formData) {
+  const files = formData
+    .getAll('files')
+    .filter(isSharedFile)
+    .slice(0, SHARE_TARGET_MAX_FILES)
+  const staged = []
+  let skipped = 0
+  for (const file of files) {
+    if (file.size > SHARE_TARGET_MAX_FILE_BYTES) {
+      skipped += 1
+      continue
+    }
+    try {
+      staged.push({
+        name: file.name,
+        type: file.type || '',
+        lastModified: file.lastModified || Date.now(),
+        size: file.size,
+        bytes: await file.arrayBuffer()
+      })
+    } catch {
+      skipped += 1
+    }
+  }
+
+  const text = (name) => {
+    const value = formData.get(name)
+    return typeof value === 'string' && value ? value : undefined
+  }
+
+  const record = {
+    id: createShareId(),
+    createdAt: Date.now(),
+    title: text('title'),
+    text: text('text'),
+    url: text('url'),
+    files: staged,
+    skipped
+  }
+
+  const db = await openShareTargetDb()
+  try {
+    await pruneExpiredShares(db)
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SHARE_TARGET_STORE, 'readwrite')
+      tx.objectStore(SHARE_TARGET_STORE).put(record)
+      tx.oncomplete = () => resolve()
+      tx.onabort = () => reject(tx.error)
+      tx.onerror = () => reject(tx.error)
+    })
+  } finally {
+    try {
+      db.close()
+    } catch {
+      // ignore
+    }
+  }
+
+  return record.id
+}
+
+const shareRedirect = (location) =>
+  new Response(null, {
+    status: 303,
+    headers: {
+      Location: location,
+      'Cache-Control': 'no-store'
+    }
+  })
+
+async function handleShareTarget(request) {
+  try {
+    const formData = await request.formData()
+    const id = await stageShareTarget(formData)
+    if (!id) return shareRedirect('/app?shareUnavailable=1')
+    return shareRedirect(`/app?share=${encodeURIComponent(id)}`)
+  } catch {
+    return shareRedirect('/app?shareUnavailable=1')
+  }
+}
+
 async function trimLru(cache, maxEntries) {
   try {
     const keys = await cache.keys()
@@ -286,6 +455,21 @@ sw.addEventListener('activate', (event) => {
   if (preload && typeof preload.enable === 'function') {
     tasks.push(preload.enable())
   }
+  // Drop staged shares past their 24 h life on every activation.
+  tasks.push(
+    (async () => {
+      try {
+        const db = await openShareTargetDb()
+        try {
+          await pruneExpiredShares(db)
+        } finally {
+          db.close()
+        }
+      } catch {
+        // IndexedDB unavailable: nothing to prune.
+      }
+    })()
+  )
   event.waitUntil(Promise.all(tasks))
 })
 
@@ -300,6 +484,14 @@ sw.addEventListener('fetch', (event) => {
   // them would turn into the placeholder below. The page's `img-src` is what
   // allows them, and that only applies when the browser loads them itself.
   if (url.origin !== sw.location.origin) {
+    return
+  }
+
+  // 0. Web Share Target. The worker answers the share POST itself: it stages
+  // the files on this device and redirects to the composer. Only that exact
+  // path and method are handled; every other request is unchanged.
+  if (request.method === 'POST' && url.pathname === SHARE_TARGET_PATH) {
+    event.respondWith(handleShareTarget(request))
     return
   }
 
@@ -398,11 +590,15 @@ sw.addEventListener('fetch', (event) => {
     url.pathname === '/manifest.webmanifest' ||
     url.pathname === '/icon-192.png' ||
     url.pathname === '/icon-512.png' ||
+    url.pathname === '/icon-maskable-192.png' ||
+    url.pathname === '/icon-maskable-512.png' ||
     url.pathname === '/apple-touch-icon.png' ||
     url.pathname === '/favicon.ico' ||
     url.pathname.endsWith('/manifest.webmanifest') ||
     url.pathname.endsWith('/icon-192.png') ||
     url.pathname.endsWith('/icon-512.png') ||
+    url.pathname.endsWith('/icon-maskable-192.png') ||
+    url.pathname.endsWith('/icon-maskable-512.png') ||
     url.pathname.endsWith('/apple-touch-icon.png') ||
     url.pathname.endsWith('/favicon.ico')
 

@@ -32,9 +32,11 @@ export const FitnessFileSchema = z
       return false
     }
 
-    // Allow generic binary uploads only for .fit files.
+    // Allow generic binary uploads for any accepted extension: some Android
+    // file managers and watch apps share `.gpx`/`.tcx` as octet-stream, the
+    // same way `.fit` arrives. The extension check above already ran.
     if (file.type === 'application/octet-stream') {
-      return lowerName.endsWith('.fit')
+      return true
     }
 
     // Some browsers omit file.type for uncommon uploads; rely on extension.

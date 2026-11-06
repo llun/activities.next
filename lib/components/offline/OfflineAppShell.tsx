@@ -29,6 +29,10 @@ import {
   getOfflineTimeline,
   saveClientBootstrapSnapshot
 } from '@/lib/client/offline'
+import {
+  SHARE_PARAM,
+  type ShareTargetSeed
+} from '@/lib/client/share-target/useShareTargetIntake'
 import { TimelineRequestError } from '@/lib/client/timelines'
 import {
   ConnectionAnnouncer,
@@ -43,6 +47,7 @@ import { Sidebar } from '@/lib/components/layout/sidebar'
 import { PageHeader } from '@/lib/components/page-header'
 import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
 import { SessionKeepAlive } from '@/lib/components/session-keep-alive'
+import { ShareTargetIntake } from '@/lib/components/share-target/ShareTargetIntake'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -76,6 +81,15 @@ export function OfflineAppShell() {
   const [shellState, setShellState] = useState<ShellState>({
     status: 'loading'
   })
+  // Files a Web Share Target handed over, for the top composer.
+  const [shareSeed, setShareSeed] = useState<ShareTargetSeed | null>(null)
+  // A share is read (and deleted) only once the server has confirmed the
+  // session. A cached session can be stale: reading the share first would
+  // consume it, and strip `?share=` from the URL, before the 401 sends the
+  // reader to sign in, so the share would not survive it. Waiting also lets
+  // the fresh bootstrap's new `profile` reset the composer before the seed
+  // lands, not after.
+  const [sessionConfirmed, setSessionConfirmed] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -113,8 +127,14 @@ export function OfflineAppShell() {
                       : prev
                   )
                 }
-              } catch {
-                // Background refresh error ignored
+                if (mounted) setSessionConfirmed(true)
+              } catch (error) {
+                // Background refresh error ignored. Offline, the cached
+                // session is all there is, so a share is still taken.
+                const unauthorized =
+                  error instanceof TimelineRequestError &&
+                  (error.status === 401 || error.status === 403)
+                if (mounted && !unauthorized) setSessionConfirmed(true)
               }
             })()
             return
@@ -140,6 +160,7 @@ export function OfflineAppShell() {
             bootstrap: fresh,
             timeline: cachedTimeline
           })
+          setSessionConfirmed(true)
           return
         }
       } catch (error) {
@@ -178,9 +199,19 @@ export function OfflineAppShell() {
     return stop
   }, [view])
 
+  // A share that arrives while signed out must survive sign-in: the staged
+  // files stay on the device for 24 h, and `resolveSignInRedirect` honours the
+  // `redirectBack` that brings the reader back to `/app?share=<id>`.
+  const signInPath = useCallback(() => {
+    if (typeof window === 'undefined') return '/auth/signin'
+    const share = new URLSearchParams(window.location.search).get(SHARE_PARAM)
+    if (!share) return '/auth/signin'
+    return `/auth/signin?redirectBack=${encodeURIComponent(`/app?share=${encodeURIComponent(share)}`)}`
+  }, [])
+
   const handleUnauthorized = useCallback(() => {
-    router.push('/auth/signin')
-  }, [router])
+    router.push(signInPath())
+  }, [router, signInPath])
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
@@ -360,7 +391,8 @@ export function OfflineAppShell() {
             title="Not signed in"
             action={
               <Button asChild size="sm">
-                <Link href="/auth/signin">Sign in</Link>
+                {/* Only drawn on the client, after init: no hydration mismatch. */}
+                <Link href={signInPath()}>Sign in</Link>
               </Button>
             }
           >
@@ -462,6 +494,9 @@ export function OfflineAppShell() {
                     >
                       <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
                         <ConnectionStatusBar />
+                        {view === 'timeline' && sessionConfirmed && (
+                          <ShareTargetIntake onSeed={setShareSeed} />
+                        )}
                         {view === 'timeline' && (
                           <MainPageTimeline
                             host={bootstrap.host}
@@ -479,6 +514,8 @@ export function OfflineAppShell() {
                             isMediaUploadEnabled={
                               bootstrap.isMediaUploadEnabled
                             }
+                            initialFiles={shareSeed?.media}
+                            initialFitnessFile={shareSeed?.fitnessFile}
                             initialSegments={timeline?.segments}
                             initialScrollAnchor={timeline?.scrollAnchor}
                             initialLastRefreshedAt={timeline?.lastRefreshedAt}

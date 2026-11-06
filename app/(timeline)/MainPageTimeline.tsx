@@ -101,6 +101,10 @@ export interface MainPageTimelineProps {
   isMediaUploadEnabled: boolean
   /** Photos the top composer opens with (`/?media=`), already validated. */
   initialMedia?: PostBoxAttachment[]
+  /** Files a Web Share Target handed over, seeded into the top composer. */
+  initialFiles?: File[]
+  /** A workout file a Web Share Target handed over. */
+  initialFitnessFile?: File
   statuses: Status[]
   timelineContext?: CompatibleTimelineContext
   initialNextMaxStatusId?: string | null
@@ -211,6 +215,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   currentTime,
   isMediaUploadEnabled,
   initialMedia,
+  initialFiles,
+  initialFitnessFile,
   statuses,
   timelineContext,
   initialNextMaxStatusId = null,
@@ -1656,6 +1662,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         profile={profile}
         isMediaUploadEnabled={isMediaUploadEnabled}
         initialMedia={initialMedia}
+        initialFiles={initialFiles}
+        initialFitnessFile={initialFitnessFile}
         frameClassName={cn(
           POST_LIST_FRAME_CLASS,
           'p-4',

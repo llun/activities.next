@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { requiredStorageValue } from '@/lib/config/storageValue'
 import { matcher } from '@/lib/config/utils'
+import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/services/fitness-files/constants'
 import { logger } from '@/lib/utils/logger'
 
 export enum FitnessStorageType {
@@ -43,8 +44,9 @@ export const FitnessStorageConfig = z.union([
 ])
 export type FitnessStorageConfig = z.infer<typeof FitnessStorageConfig>
 
-// Maximum file size is 50 MB for fitness files
-export const DEFAULT_FITNESS_MAX_FILE_SIZE = 52_428_800
+// Maximum file size is 50 MB for fitness files. Defined beside the accepted
+// extensions so client code can import it without this module's fs/logger deps.
+export { DEFAULT_FITNESS_MAX_FILE_SIZE }
 
 const parseIntegerEnv = (value: string | undefined): number | undefined => {
   if (typeof value === 'undefined') return undefined

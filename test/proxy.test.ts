@@ -691,6 +691,40 @@ describe('proxy', () => {
     expect(lookalikeActionResponse?.status).toBe(200)
   })
 
+  // The first-visit fallback for the Web Share Target, before public/sw.js is
+  // installed: a 303 to the composer's notice, the files never read.
+  it('answers a share target POST with a 303 to the composer without reading it', async () => {
+    const formData = new FormData()
+    formData.append('files', new File(['run'], 'run.fit'))
+    const request = new NextRequest('https://llun.social/_share-target', {
+      method: 'POST',
+      body: formData
+    })
+    const formDataSpy = vi.spyOn(request, 'formData')
+    const arrayBufferSpy = vi.spyOn(request, 'arrayBuffer')
+
+    const response = await proxy(request)
+
+    expect(response?.status).toBe(303)
+    expect(response?.headers.get('location')).toBe(
+      'https://llun.social/app?shareUnavailable=1'
+    )
+    expect(response?.headers.get('Content-Security-Policy')).toContain(
+      "default-src 'none'"
+    )
+    expect(formDataSpy).not.toHaveBeenCalled()
+    expect(arrayBufferSpy).not.toHaveBeenCalled()
+    expect(request.bodyUsed).toBe(false)
+  })
+
+  it('leaves other methods on the share target path to the app', async () => {
+    const request = new NextRequest('https://llun.social/_share-target')
+
+    const response = await proxy(request)
+
+    expect(response?.status).toBe(200)
+  })
+
   it('allows POST requests to rewritten API routes', async () => {
     for (const path of ['/inbox', '/users/alice/inbox']) {
       const request = new NextRequest(`https://llun.social${path}`, {

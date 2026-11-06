@@ -24,7 +24,15 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 2,
-  viewportFit: 'cover'
+  viewportFit: 'cover',
+  // The browser chrome and an installed PWA's title bar follow the colour
+  // scheme. The manifest keeps a static `#ffffff` (it has no media queries);
+  // these metas override it live, and ThemeProvider rewrites them when the
+  // reader picks light or dark explicitly.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' }
+  ]
 }
 
 const icons: Metadata['icons'] = {

@@ -1,3 +1,4 @@
+import { IDBFactory } from 'fake-indexeddb'
 import fs from 'fs'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -103,18 +104,27 @@ describe('Service Worker (public/sw.js)', () => {
       'fetch',
       'Response',
       'Request',
+      'indexedDB',
       `${swCode}
 return {
   MEDIA_CACHE_NAME,
   MAX_MEDIA_ENTRIES,
   SHELL_CACHE_PREFIX,
+  SHARE_TARGET_PATH,
+  SHARE_TARGET_DB_NAME,
+  SHARE_TARGET_STORE,
+  SHARE_TARGET_TTL_MS,
   extractBuildId,
   extractAppShellAssets,
   stageAppShell,
   getCachedAppShell,
   hasActiveOfflineSession,
   trimLru,
-  getSvgPlaceholderResponse
+  getSvgPlaceholderResponse,
+  openShareTargetDb,
+  pruneExpiredShares,
+  stageShareTarget,
+  handleShareTarget
 };`
     )
     swModule = runSw(
@@ -123,7 +133,16 @@ return {
       mockCaches,
       mockFetch,
       Response,
-      Request
+      Request,
+      // Read through to the global on every access: the tests below swap in a
+      // fresh fake-indexeddb factory per case, after the worker is loaded.
+      new Proxy(
+        {},
+        {
+          get: (_target, property) =>
+            (globalThis as any).indexedDB?.[property as any]
+        }
+      )
     )
   })
 
@@ -873,6 +892,195 @@ return {
       await swModule.trimLru(mediaCache, 150)
       const remaining = await mediaCache.keys()
       expect(remaining.length).toBe(150)
+    })
+  })
+
+  describe('Web Share Target', () => {
+    const readAllShares = async (): Promise<any[]> => {
+      const db = await swModule.openShareTargetDb()
+      try {
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(swModule.SHARE_TARGET_STORE, 'readonly')
+          const request = tx.objectStore(swModule.SHARE_TARGET_STORE).getAll()
+          request.onsuccess = () => resolve(request.result)
+          request.onerror = () => reject(request.error)
+        })
+      } finally {
+        db.close()
+      }
+    }
+
+    const writeShare = async (record: any) => {
+      const db = await swModule.openShareTargetDb()
+      try {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(swModule.SHARE_TARGET_STORE, 'readwrite')
+          tx.objectStore(swModule.SHARE_TARGET_STORE).put(record)
+          tx.oncomplete = () => resolve(undefined)
+          tx.onerror = () => reject(tx.error)
+        })
+      } finally {
+        db.close()
+      }
+    }
+
+    const shareRequest = (
+      files: File[],
+      fields: Record<string, string> = {}
+    ) => {
+      const form = new FormData()
+      for (const [key, value] of Object.entries(fields)) form.set(key, value)
+      for (const file of files) form.append('files', file)
+      return new Request('https://llun.social/_share-target', {
+        method: 'POST',
+        body: form
+      })
+    }
+
+    const triggerFetch = async (req: Request): Promise<Response | null> => {
+      // Assigned inside the listener, which TypeScript's narrowing cannot see.
+      let respondedWith = null as Promise<Response> | null
+      const event = {
+        request: req,
+        respondWith: (promise: Promise<Response>) => {
+          respondedWith = promise
+        },
+        waitUntil: vi.fn()
+      }
+      for (const listener of eventListeners['fetch'] || []) {
+        listener(event)
+        if (respondedWith) break
+      }
+      return respondedWith ? await respondedWith : null
+    }
+
+    beforeEach(() => {
+      vi.stubGlobal('indexedDB', new IDBFactory())
+    })
+
+    it('stages the shared files and answers 303 to the composer', async () => {
+      const photo = new File([new Uint8Array([1, 2, 3])], 'photo.jpg', {
+        type: 'image/jpeg'
+      })
+      const workout = new File([new Uint8Array([4, 5])], 'run.fit', {
+        type: 'application/vnd.ant.fit'
+      })
+
+      const response = await triggerFetch(
+        shareRequest([photo, workout], { title: 'Morning run', text: 'hi' })
+      )
+
+      expect(response).not.toBeNull()
+      expect(response!.status).toBe(303)
+      const location = response!.headers.get('Location')!
+      expect(location).toMatch(/^\/app\?share=/)
+      const id = decodeURIComponent(location.split('share=')[1])
+
+      const shares = await readAllShares()
+      expect(shares).toHaveLength(1)
+      const [share] = shares
+      expect(share.id).toBe(id)
+      expect(typeof share.createdAt).toBe('number')
+      expect(share.title).toBe('Morning run')
+      expect(share.text).toBe('hi')
+      expect(share.files).toHaveLength(2)
+      expect(share.files[0]).toMatchObject({
+        name: 'photo.jpg',
+        type: 'image/jpeg',
+        size: 3
+      })
+      expect(share.files[0].bytes).toBeInstanceOf(ArrayBuffer)
+      expect(Array.from(new Uint8Array(share.files[0].bytes))).toEqual([
+        1, 2, 3
+      ])
+      expect(share.files[1].name).toBe('run.fit')
+    })
+
+    it('never opens the drafts database', async () => {
+      await triggerFetch(
+        shareRequest([new File(['x'], 'photo.jpg', { type: 'image/jpeg' })])
+      )
+
+      const names = (await (globalThis as any).indexedDB.databases()).map(
+        (db: any) => db.name
+      )
+      expect(names).toContain(swModule.SHARE_TARGET_DB_NAME)
+      expect(names).not.toContain('activities_drafts_v1')
+    })
+
+    it('prunes shares older than 24 hours and keeps fresh ones', async () => {
+      const now = Date.now()
+      await writeShare({
+        id: 'stale',
+        createdAt: now - swModule.SHARE_TARGET_TTL_MS - 1000,
+        files: []
+      })
+      await writeShare({ id: 'fresh', createdAt: now, files: [] })
+
+      const db = await swModule.openShareTargetDb()
+      try {
+        await swModule.pruneExpiredShares(db)
+      } finally {
+        db.close()
+      }
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).toEqual(['fresh'])
+    })
+
+    it('prunes expired shares before staging a new one', async () => {
+      await writeShare({
+        id: 'stale',
+        createdAt: Date.now() - swModule.SHARE_TARGET_TTL_MS - 1000,
+        files: []
+      })
+
+      await triggerFetch(
+        shareRequest([new File(['x'], 'photo.jpg', { type: 'image/jpeg' })])
+      )
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).not.toContain('stale')
+      expect(ids).toHaveLength(1)
+    })
+
+    it('prunes expired shares on activate', async () => {
+      await writeShare({
+        id: 'stale',
+        createdAt: Date.now() - swModule.SHARE_TARGET_TTL_MS - 1000,
+        files: []
+      })
+
+      const event: any = { waitUntil: vi.fn((promise) => promise) }
+      for (const listener of eventListeners['activate'] || []) listener(event)
+      await Promise.all(event.waitUntil.mock.results.map((r: any) => r.value))
+
+      expect(await readAllShares()).toEqual([])
+    })
+
+    it('falls back to the unavailable redirect when staging fails', async () => {
+      vi.stubGlobal('indexedDB', undefined)
+      ;(globalThis as any).indexedDB = undefined
+
+      const response = await triggerFetch(
+        shareRequest([new File(['x'], 'photo.jpg', { type: 'image/jpeg' })])
+      )
+
+      expect(response!.status).toBe(303)
+      expect(response!.headers.get('Location')).toBe('/app?shareUnavailable=1')
+    })
+
+    it('leaves other POSTs and GETs to the browser', async () => {
+      const otherPost = new Request('https://llun.social/api/v1/statuses', {
+        method: 'POST',
+        body: 'x'
+      })
+      expect(await triggerFetch(otherPost)).toBeNull()
+
+      const shareGet = new Request('https://llun.social/_share-target')
+      expect(await triggerFetch(shareGet)).toBeNull()
+
+      expect(await readAllShares()).toEqual([])
     })
   })
 

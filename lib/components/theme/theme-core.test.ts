@@ -2,9 +2,12 @@
  * @vitest-environment jsdom
  */
 import {
+  THEME_COLOR_DARK,
+  THEME_COLOR_LIGHT,
   THEME_INIT_SCRIPT,
   THEME_STORAGE_KEY,
   applyTheme,
+  applyThemeColor,
   getStoredTheme,
   isThemeMode,
   resolveIsDark,
@@ -97,6 +100,88 @@ describe('theme-core', () => {
       expect(applyTheme('light')).toBe(false)
       expect(document.documentElement.classList.contains('dark')).toBe(false)
       expect(document.documentElement.style.colorScheme).toBe('light')
+    })
+
+    // ThemeProvider applies the reader's explicit choice through applyTheme,
+    // so the browser chrome follows it rather than the OS preference.
+    it('repaints the theme-color meta for the chosen mode', () => {
+      document.head.innerHTML =
+        '<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">'
+
+      applyTheme('dark')
+
+      expect(
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.getAttribute('content')
+      ).toBe(THEME_COLOR_DARK)
+      document.head.innerHTML = ''
+    })
+  })
+
+  describe('applyThemeColor', () => {
+    const metas = () =>
+      Array.from(document.querySelectorAll('meta[name="theme-color"]'))
+
+    const renderMetas = () => {
+      document.head.innerHTML = ''
+      for (const [media, color] of [
+        ['(prefers-color-scheme: light)', THEME_COLOR_LIGHT],
+        ['(prefers-color-scheme: dark)', THEME_COLOR_DARK]
+      ]) {
+        const meta = document.createElement('meta')
+        meta.setAttribute('name', 'theme-color')
+        meta.setAttribute('media', media)
+        meta.setAttribute('content', color)
+        document.head.appendChild(meta)
+      }
+    }
+
+    afterEach(() => {
+      document.head.innerHTML = ''
+    })
+
+    it('writes the dark colour to every meta for an explicit dark choice', () => {
+      renderMetas()
+
+      applyThemeColor('dark')
+
+      expect(metas().map((meta) => meta.getAttribute('content'))).toEqual([
+        THEME_COLOR_DARK,
+        THEME_COLOR_DARK
+      ])
+    })
+
+    it('writes the light colour to every meta for an explicit light choice', () => {
+      renderMetas()
+
+      applyThemeColor('light')
+
+      expect(metas().map((meta) => meta.getAttribute('content'))).toEqual([
+        THEME_COLOR_LIGHT,
+        THEME_COLOR_LIGHT
+      ])
+    })
+
+    it('restores the media-scoped values for system', () => {
+      renderMetas()
+      applyThemeColor('dark')
+
+      applyThemeColor('system')
+
+      expect(metas().map((meta) => meta.getAttribute('content'))).toEqual([
+        THEME_COLOR_LIGHT,
+        THEME_COLOR_DARK
+      ])
+    })
+
+    it('creates the meta when the document has none', () => {
+      document.head.innerHTML = ''
+
+      applyThemeColor('dark')
+
+      expect(metas()).toHaveLength(1)
+      expect(metas()[0].getAttribute('content')).toBe(THEME_COLOR_DARK)
     })
   })
 

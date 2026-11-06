@@ -9,6 +9,12 @@ import {
   retryFitnessImportBatch,
   startFitnessImport
 } from '@/lib/client'
+import { isFitnessShareFile } from '@/lib/client/share-target/classify'
+import {
+  takeStagedShare,
+  toShareFiles
+} from '@/lib/client/share-target/shareTargetDb'
+import { SHARE_PARAM } from '@/lib/client/share-target/useShareTargetIntake'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { ActorInfoBanner } from '@/lib/components/settings/ActorInfoBanner'
 import {
@@ -49,6 +55,9 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
   const [isRetrying, setIsRetrying] = useState(false)
   const [isPolling, setIsPolling] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Photos a share carried alongside two or more workouts: the batch importer
+  // cannot take them, so it says so instead of dropping them silently.
+  const [skippedMedia, setSkippedMedia] = useState(0)
 
   const failedCount = batchResult?.summary.failed ?? 0
   const selectedFileNames = useMemo(
@@ -94,6 +103,36 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
   const handleChooseFiles = () => {
     fileInputRef.current?.click()
   }
+
+  // A share of two or more workouts lands here with `?share=<id>`. The record
+  // is read and deleted once, its workout files are preselected, and the query
+  // parameter is stripped so a reload does not try again.
+  const shareTakenRef = useRef(false)
+  useEffect(() => {
+    if (shareTakenRef.current) return
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get(SHARE_PARAM)
+    if (!id) return
+    shareTakenRef.current = true
+
+    params.delete(SHARE_PARAM)
+    const query = params.toString()
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+    )
+
+    void (async () => {
+      const share = await takeStagedShare(id)
+      if (!share) return
+      const shared = toShareFiles(share)
+      const fitnessFiles = shared.filter(isFitnessShareFile)
+      setFiles(fitnessFiles)
+      setSkippedMedia(shared.length - fitnessFiles.length)
+    })()
+  }, [])
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files ?? [])
@@ -172,6 +211,13 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
       }
     >
       {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
+      {skippedMedia > 0 ? (
+        <Alert tone="info" title="Photos weren't imported">
+          {skippedMedia} shared{' '}
+          {skippedMedia === 1 ? 'photo was' : 'photos were'} left out. Add them
+          to a post from the composer instead.
+        </Alert>
+      ) : null}
       <Frame
         form
         footer={

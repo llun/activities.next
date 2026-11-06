@@ -3,17 +3,11 @@ import { FC, SyntheticEvent, useRef } from 'react'
 
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { Button } from '@/lib/components/ui/button'
-import {
-  ACCEPTED_FILE_TYPES,
-  MAX_HEIGHT,
-  MAX_WIDTH
-} from '@/lib/services/medias/constants'
+import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
-import { extractVideoPoster } from '@/lib/utils/extractVideoPoster'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
-import { resizeImage } from '@/lib/utils/resizeImage'
 
-const MEDIA_TYPE = 'upload'
+import { prepareComposerMediaFiles } from './prepareComposerMediaFiles'
 
 interface Props {
   isMediaUploadEnabled?: boolean
@@ -32,6 +26,12 @@ interface Props {
   onFilesRejected?: (message: string) => void
   onUploadStart: () => void
   onBeforeAddAttachments?: () => boolean | void | Promise<boolean | void>
+  /**
+   * Overrides the picker's slot cap. The composer passes
+   * `maxMediaAttachments - 1` while a workout file is attached, because the
+   * route map the fitness job adds takes the last slot.
+   */
+  maxAttachments?: number
 }
 
 export const UploadMediaButton: FC<Props> = ({
@@ -43,9 +43,11 @@ export const UploadMediaButton: FC<Props> = ({
   onDuplicateError,
   onFilesRejected,
   onUploadStart,
-  onBeforeAddAttachments
+  onBeforeAddAttachments,
+  maxAttachments
 }) => {
   const { maxMediaFileSize, maxMediaAttachments } = useInstanceLimits()
+  const attachmentCap = maxAttachments ?? maxMediaAttachments
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onOpenFile = () => {
     const input = fileInputRef.current
@@ -67,8 +69,9 @@ export const UploadMediaButton: FC<Props> = ({
     onUploadStart()
 
     // The instance's resolved posts.maxMediaAttachments, not a build-time
-    // constant, so raising the admin setting raises the picker with it.
-    const availableSlots = maxMediaAttachments - attachments.length
+    // constant, so raising the admin setting raises the picker with it. The
+    // composer lowers it by one while a workout file is attached.
+    const availableSlots = attachmentCap - attachments.length
     if (availableSlots <= 0) return
 
     const filteredFiles = selectedFiles.filter((file) => {
@@ -84,72 +87,27 @@ export const UploadMediaButton: FC<Props> = ({
       onDuplicateError()
     }
 
-    const files = filteredFiles.slice(0, availableSlots)
-    const oversizeFileNames: string[] = []
+    const {
+      attachments: processedAttachments,
+      oversizeFileNames,
+      unsupportedFileNames
+    } = await prepareComposerMediaFiles(filteredFiles, {
+      maxMediaFileSize,
+      maxAttachments: availableSlots
+    })
 
-    const processedAttachments = (
-      await Promise.all(
-        files.map(async (targetFile): Promise<PostBoxAttachment | null> => {
-          const previewUrl = URL.createObjectURL(targetFile)
-          let posterUrl: string | undefined
-          let posterFile: File | undefined
-          try {
-            if (targetFile.type.startsWith('video')) {
-              const extracted = await extractVideoPoster(targetFile)
-              if (extracted) {
-                posterFile = extracted
-                posterUrl = URL.createObjectURL(extracted)
-              }
-            }
-
-            const tempId = crypto.randomUUID()
-            const file = await resizeImage(targetFile, MAX_WIDTH, MAX_HEIGHT, {
-              keepMetadata: true
-            })
-            // The upload endpoint enforces the instance's resolved
-            // media.maxFileSize, so reject over-cap files here rather than
-            // after a full upload round trip. Checked after resizing, which is
-            // what actually gets uploaded. Collected and reported together
-            // below, so a multi-select does not overwrite its own message.
-            if (file.size > maxMediaFileSize) {
-              oversizeFileNames.push(targetFile.name)
-              if (posterUrl?.startsWith('blob:')) {
-                URL.revokeObjectURL(posterUrl)
-              }
-              URL.revokeObjectURL(previewUrl)
-              return null
-            }
-            return {
-              type: MEDIA_TYPE,
-              id: tempId,
-              mediaType: targetFile.type,
-              url: previewUrl,
-              posterUrl,
-              posterFile,
-              width: 0,
-              height: 0,
-              name: '',
-              file
-            }
-          } catch {
-            // Revoke the blob URL if processing fails
-            if (posterUrl?.startsWith('blob:')) {
-              URL.revokeObjectURL(posterUrl)
-            }
-            URL.revokeObjectURL(previewUrl)
-            return null
-          }
-        })
-      )
-    ).filter(
-      (attachment): attachment is PostBoxAttachment => attachment !== null
-    )
-
+    const rejected: string[] = []
     if (oversizeFileNames.length > 0) {
-      onFilesRejected?.(
+      rejected.push(
         `${oversizeFileNames.join(', ')} ${oversizeFileNames.length === 1 ? 'is' : 'are'} larger than the ${formatFileSize(maxMediaFileSize)} upload limit`
       )
     }
+    if (unsupportedFileNames.length > 0) {
+      rejected.push(
+        `${unsupportedFileNames.join(', ')} ${unsupportedFileNames.length === 1 ? 'is not a supported type' : 'are not supported types'}`
+      )
+    }
+    if (rejected.length > 0) onFilesRejected?.(rejected.join('. '))
 
     if (!processedAttachments.length) return
 
@@ -192,10 +150,10 @@ export const UploadMediaButton: FC<Props> = ({
         variant="ghost"
         size="icon-sm"
         onClick={onOpenFile}
-        disabled={disabled || attachments.length >= maxMediaAttachments}
+        disabled={disabled || attachments.length >= attachmentCap}
         className="size-10 text-muted-foreground hover:text-foreground md:size-8"
-        aria-label={`Add media (${attachments.length}/${maxMediaAttachments})`}
-        title={`Add media (${attachments.length}/${maxMediaAttachments})`}
+        aria-label={`Add media (${attachments.length}/${attachmentCap})`}
+        title={`Add media (${attachments.length}/${attachmentCap})`}
       >
         <ImagePlus className="size-4" />
       </Button>

@@ -338,6 +338,40 @@ describe('OfflineAppShell', () => {
     expect(mockPush).toHaveBeenCalledWith('/auth/signin')
   })
 
+  // A cached session whose server session expired: the share must not be read
+  // (and deleted, and stripped from the URL) before the 401 sends the reader
+  // to sign in, or it would not survive sign-in.
+  it('carries a staged share through sign-in when the cached session is stale', async () => {
+    window.history.replaceState(null, '', '/app?share=share-123')
+    mockGetActiveOfflineSession.mockResolvedValueOnce({
+      actorId: 'actor-1',
+      accountId: 'account-1'
+    })
+    mockGetClientBootstrapSnapshot.mockResolvedValueOnce(dummyBootstrap)
+    mockGetOfflineTimeline.mockResolvedValueOnce(dummyTimeline)
+    mockGetAccountBootstrap.mockRejectedValueOnce(
+      new TimelineRequestError('Unauthorized', 401)
+    )
+
+    render(<OfflineAppShell />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('main-timeline')).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(mockGetAccountBootstrap).toHaveBeenCalled()
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(window.location.search).toBe('?share=share-123')
+
+    fireEvent.click(screen.getByText('Trigger 401'))
+    expect(mockPush).toHaveBeenCalledWith(
+      `/auth/signin?redirectBack=${encodeURIComponent('/app?share=share-123')}`
+    )
+
+    window.history.replaceState(null, '', '/app')
+  })
+
   it('falls back to network bootstrap when cache is empty and user is online', async () => {
     mockGetActiveOfflineSession.mockResolvedValueOnce(null)
     mockGetAccountBootstrap.mockResolvedValueOnce(dummyBootstrap)
@@ -380,6 +414,25 @@ describe('OfflineAppShell', () => {
       expect(screen.getByText('Not signed in')).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument()
     })
+  })
+
+  it('keeps a staged share in the sign-in link when signed out', async () => {
+    window.history.replaceState(null, '', '/app?share=share-123')
+    mockGetActiveOfflineSession.mockResolvedValueOnce(null)
+    mockGetAccountBootstrap.mockRejectedValueOnce(
+      new TimelineRequestError('Unauthorized', 401)
+    )
+
+    render(<OfflineAppShell />)
+
+    expect(
+      await screen.findByRole('link', { name: 'Sign in' })
+    ).toHaveAttribute(
+      'href',
+      `/auth/signin?redirectBack=${encodeURIComponent('/app?share=share-123')}`
+    )
+
+    window.history.replaceState(null, '', '/app')
   })
 
   describe('wrapper backdrop', () => {

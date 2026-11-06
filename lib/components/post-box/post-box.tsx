@@ -41,6 +41,8 @@ import {
   classifyFailedPost,
   isPostKeptByServer
 } from '@/lib/client/http'
+import { getMediaAttachmentCap } from '@/lib/client/share-target/classify'
+import { stageShareFiles } from '@/lib/client/share-target/shareTargetDb'
 import { DraftsLink } from '@/lib/components/drafts/DraftsLink'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
@@ -111,6 +113,7 @@ import { EmojiPickerButton } from './emoji-picker-button'
 import { FitnessFileInput, FitnessFileInputHandle } from './fitness-file-input'
 import { PollChoices } from './poll-choices'
 import { PostOptionsMenu } from './post-options-menu'
+import { prepareComposerMediaFiles } from './prepareComposerMediaFiles'
 import { QuotedPreview } from './quoted-preview'
 import {
   addAttachment,
@@ -176,6 +179,13 @@ interface Props {
    * them.
    */
   initialMedia?: PostBoxAttachment[]
+  /**
+   * Files a Web Share Target handed over. They seed the composer once, through
+   * the same media path as the picker (resize, limits, types, drafts).
+   */
+  initialFiles?: File[]
+  /** A workout file a Web Share Target handed over; seeded once. */
+  initialFitnessFile?: File
   onDiscardReply: () => void
   onDiscardQuote?: () => void
   onPostCreated: (status: Status, attachments: Attachment[]) => void
@@ -207,6 +217,8 @@ export const PostBox: FC<Props> = ({
   quotedStatus,
   isMediaUploadEnabled,
   initialMedia,
+  initialFiles,
+  initialFitnessFile,
   onPostCreated,
   onPostUpdated,
   onDiscardReply,
@@ -221,8 +233,12 @@ export const PostBox: FC<Props> = ({
   // The instance's configured status length (admin setting `posts.maxCharacters`,
   // published by the (timeline) layout). Client-side UX only — the create/edit
   // routes enforce the same resolved limit server-side.
-  const { maxStatusCharacters, maxPollOptions, maxMediaAttachments } =
-    useInstanceLimits()
+  const {
+    maxStatusCharacters,
+    maxPollOptions,
+    maxMediaAttachments,
+    maxMediaFileSize
+  } = useInstanceLimits()
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [showPreview, setShowPreview] = useState<boolean>(false)
@@ -1698,20 +1714,31 @@ export const PostBox: FC<Props> = ({
 
   const onFitnessFileSelected = (file: File) => {
     setWarningMsg(null)
-    discardUploadedMedia(postExtensionRef.current.attachments)
-    resetMediaState()
-    postExtensionRef.current.attachments.forEach((attachment) => {
-      if (attachment.url.startsWith('blob:')) {
-        URL.revokeObjectURL(attachment.url)
+    // A workout and media may share one post. The route map the fitness job
+    // adds takes the last attachment slot, so keep at most
+    // `maxMediaAttachments - 1` photos and drop the newest extras.
+    const cap = getMediaAttachmentCap(maxMediaAttachments, true)
+    const current = postExtensionRef.current.attachments
+    if (current.length > cap) {
+      const removed = current.slice(cap)
+      discardUploadedMedia(removed)
+      removed.forEach((attachment) => {
+        if (attachment.url.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.url)
+        }
+        if (attachment.posterUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.posterUrl)
+        }
+      })
+      const kept = current.slice(0, cap)
+      postExtensionRef.current = {
+        ...postExtensionRef.current,
+        attachments: kept
       }
-      if (attachment.posterUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(attachment.posterUrl)
-      }
-    })
-    dispatch(setAttachments([]))
-    postExtensionRef.current = {
-      ...postExtensionRef.current,
-      attachments: []
+      dispatch(setAttachments(kept))
+      setWarningMsg(
+        `A workout leaves room for ${cap} ${cap === 1 ? 'attachment' : 'attachments'}; the extra ${removed.length} ${removed.length === 1 ? 'was' : 'were'} removed.`
+      )
     }
     const nextExtension = {
       ...postExtensionRef.current,
@@ -1726,6 +1753,83 @@ export const PostBox: FC<Props> = ({
     setAllowPost(
       hasNewPostContent(textRef.current, nextExtension, maxStatusCharacters)
     )
+  }
+
+  // Adds one prepared attachment to the composer. Shared by the media picker
+  // and the Web Share Target seed so both take the same path (upload, draft
+  // blob, cap).
+  const addAttachmentToComposer = (attachment: PostBoxAttachment) => {
+    // A picker batch that resolves after submit began must not change what is
+    // being posted: the submit already captured the attachments, and a late
+    // one would upload for nothing.
+    if (submitInFlightRef.current || draftLockedRef.current) {
+      if (attachment.url.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.url)
+      }
+      if (attachment.posterUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.posterUrl)
+      }
+      return
+    }
+    // Bounds postExtensionRef, not postExtension: this callback writes the ref
+    // synchronously below, before dispatch, so the reducer's own addAttachment
+    // cap (which guards only the committed postExtension) never sees a ref that
+    // already raced ahead of it. Two overlapping picker batches can each read a
+    // stale, still-below-cap availableSlots before either resolves, so this
+    // check is not redundant with the picker's availableSlots gate or the
+    // reducer's cap — do not delete it as a "already checked twice"
+    // simplification.
+    const cap = getMediaAttachmentCap(
+      maxMediaAttachments,
+      Boolean(postExtensionRef.current.fitnessFile)
+    )
+    if (postExtensionRef.current.attachments.length >= cap) {
+      if (attachment.url.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.url)
+      }
+      if (attachment.posterUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.posterUrl)
+      }
+      return
+    }
+    // Pending from the start: the upload begins right below.
+    const pendingAttachment = attachment.file
+      ? { ...attachment, isLoading: true }
+      : attachment
+    const nextExtension = {
+      ...postExtensionRef.current,
+      attachments: [...postExtensionRef.current.attachments, pendingAttachment],
+      poll: {
+        ...createDefaultState().poll
+      }
+    }
+    postExtensionRef.current = nextExtension
+    dispatch(addAttachment(pendingAttachment, cap))
+    startUpload(pendingAttachment)
+    if (!editStatus && attachment.file) {
+      composerDraft.attachBlob(
+        pendingAttachment.id,
+        attachment.file,
+        attachment.posterFile
+      )
+    }
+    if (editStatus) {
+      setAllowPost(isEditSubmittable(textRef.current, nextExtension))
+      return
+    }
+    setAllowPost(
+      hasNewPostContent(textRef.current, nextExtension, maxStatusCharacters)
+    )
+  }
+
+  // Hands the composer's workout file to the batch importer. The file is staged
+  // in the share database, which `/fitness/files` reads and deletes.
+  const onBatchImportFitnessFile = async () => {
+    const fitness = postExtensionRef.current.fitnessFile
+    if (!fitness) return
+    const id = await stageShareFiles([fitness.file])
+    if (!id) return
+    window.location.assign(`/fitness/files?share=${encodeURIComponent(id)}`)
   }
 
   const onTogglePoll = () => {
@@ -2065,6 +2169,30 @@ export const PostBox: FC<Props> = ({
     // retargetAfterSend: run again with the latest props once a send settles.
   }, [profile, replyStatus, editStatus, quotedStatus, retargetAfterSend])
 
+  // Seeds the files a Web Share Target handed over, once. Runs after the
+  // composer's own reset above so the seed is not wiped by it, and takes the
+  // same path as the picker: resize, limits, upload and the draft blob.
+  const shareSeedTakenRef = useRef(false)
+  useEffect(() => {
+    if (shareSeedTakenRef.current) return
+    if (!initialFitnessFile && !initialFiles?.length) return
+    shareSeedTakenRef.current = true
+    if (initialFitnessFile) onFitnessFileSelected(initialFitnessFile)
+    if (!initialFiles?.length) return
+    void (async () => {
+      const { attachments } = await prepareComposerMediaFiles(initialFiles, {
+        maxMediaFileSize,
+        maxAttachments: getMediaAttachmentCap(
+          maxMediaAttachments,
+          Boolean(postExtensionRef.current.fitnessFile)
+        )
+      })
+      attachments.forEach(addAttachmentToComposer)
+    })()
+    // The seed is taken once; the handlers are recreated every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFiles, initialFitnessFile])
+
   const detailsDialogItems: MediaDetailsDialogItem[] = postExtension.attachments
     // Items still reading their details have nothing to edit yet.
     .filter((item) => !item.file && !item.isLoading && !detailsPending[item.id])
@@ -2236,85 +2364,16 @@ export const PostBox: FC<Props> = ({
               attachments={postExtension.attachments}
               fileNames={fileNames}
               disabled={isPosting || draftLocked}
-              onAddAttachment={(attachment) => {
-                // A picker batch that resolves after submit began must not
-                // change what is being posted: the submit already captured
-                // the attachments, and a late one would upload for nothing.
-                if (submitInFlightRef.current || draftLockedRef.current) {
-                  if (attachment.url.startsWith('blob:')) {
-                    URL.revokeObjectURL(attachment.url)
-                  }
-                  if (attachment.posterUrl?.startsWith('blob:')) {
-                    URL.revokeObjectURL(attachment.posterUrl)
-                  }
-                  return
-                }
-                // Bounds postExtensionRef, not postExtension: this callback
-                // writes the ref synchronously below, before dispatch, so
-                // the reducer's own addAttachment cap (which guards only the
-                // committed postExtension) never sees a ref that already
-                // raced ahead of it. Two overlapping picker batches can each
-                // read a stale, still-below-cap availableSlots before either
-                // resolves, so this check is not redundant with the
-                // picker's availableSlots gate or the reducer's cap — do not
-                // delete it as a "already checked twice" simplification.
-                if (
-                  postExtensionRef.current.attachments.length >=
-                  maxMediaAttachments
-                ) {
-                  if (attachment.url.startsWith('blob:')) {
-                    URL.revokeObjectURL(attachment.url)
-                  }
-                  if (attachment.posterUrl?.startsWith('blob:')) {
-                    URL.revokeObjectURL(attachment.posterUrl)
-                  }
-                  return
-                }
-                // Pending from the start: the upload begins right below.
-                const pendingAttachment = attachment.file
-                  ? { ...attachment, isLoading: true }
-                  : attachment
-                const nextExtension = {
-                  ...postExtensionRef.current,
-                  attachments: [
-                    ...postExtensionRef.current.attachments,
-                    pendingAttachment
-                  ],
-                  fitnessFile: undefined,
-                  poll: {
-                    ...createDefaultState().poll
-                  }
-                }
-                postExtensionRef.current = nextExtension
-                dispatch(addAttachment(pendingAttachment, maxMediaAttachments))
-                startUpload(pendingAttachment)
-                if (!editStatus && attachment.file) {
-                  composerDraft.attachBlob(
-                    pendingAttachment.id,
-                    attachment.file,
-                    attachment.posterFile
-                  )
-                }
-                if (editStatus) {
-                  setAllowPost(
-                    isEditSubmittable(textRef.current, nextExtension)
-                  )
-                  return
-                }
-                setAllowPost(
-                  hasNewPostContent(
-                    textRef.current,
-                    nextExtension,
-                    maxStatusCharacters
-                  )
-                )
-              }}
+              maxAttachments={getMediaAttachmentCap(
+                maxMediaAttachments,
+                Boolean(postExtension.fitnessFile)
+              )}
+              onAddAttachment={addAttachmentToComposer}
               onDuplicateError={() =>
                 setWarningMsg('Some files are already selected')
               }
               onFilesRejected={(message) => setWarningMsg(message)}
               onUploadStart={() => setWarningMsg(null)}
-              onBeforeAddAttachments={onRemoveFitnessFile}
             />
             <EmojiPickerButton
               customEmojis={customEmojis}
@@ -2463,6 +2522,17 @@ export const PostBox: FC<Props> = ({
               <X className="size-4" />
             </Button>
           </div>
+        ) : null}
+        {!replyStatus && !editStatus && postExtension.fitnessFile ? (
+          <Button
+            type="button"
+            variant="link"
+            className="mt-1 h-auto px-0 text-xs"
+            disabled={draftLocked}
+            onClick={() => void onBatchImportFitnessFile()}
+          >
+            Batch import instead →
+          </Button>
         ) : null}
         <ComposerAttachmentTiles
           attachments={postExtension.attachments}
