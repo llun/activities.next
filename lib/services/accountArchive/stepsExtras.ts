@@ -355,7 +355,9 @@ export const bookmarkFoldersStep: CollectorStep = {
     if (omitted > 0) {
       // A count only: the URIs (and the folders) are the owner's private data.
       context.warn(
-        `${omitted} filed ${omitted === 1 ? 'bookmark was' : 'bookmarks were'} left out of bookmark_folders.json: the status URI is longer than an import accepts. The bookmark itself is in bookmarks.json.`
+        omitted === 1
+          ? "1 bookmark couldn't be filed in its folder in bookmark_folders.json because its address is too long to import. It is still in bookmarks.json."
+          : `${omitted} bookmarks couldn't be filed in their folders in bookmark_folders.json because their address is too long to import. They are still in bookmarks.json.`
       )
       logger.warn({
         message:

@@ -4,9 +4,12 @@ import {
   BOOKMARK_FOLDER_ENTRY_MAX_ITEMS,
   ownBookmarkFolderSchema
 } from '@/lib/services/accountImport/schemas'
+import { logger } from '@/lib/utils/logger'
 
+import type { StepContext } from './steps.types'
 import {
   BOOKMARK_FOLDER_ENTRY_MAX_BYTES,
+  bookmarkFoldersStep,
   splitBookmarkFolder
 } from './stepsExtras'
 
@@ -93,5 +96,66 @@ describe('splitBookmarkFolder', () => {
     expect(entries).toEqual([{ ...folder, items: [kept] }])
     expect(ownBookmarkFolderSchema.safeParse(entries[0]).success).toBe(true)
     expect(splitBookmarkFolder(folder, [kept]).omitted).toBe(0)
+  })
+})
+
+describe('bookmarkFoldersStep', () => {
+  const tooLong = (n: number) =>
+    `https://remote.example/${n}/` + 'x'.repeat(ARCHIVE_URI_MAX_LENGTH)
+
+  // Only what the step reads: the two export tables, the stage and warn.
+  const run = async (uris: string[]) => {
+    const rows: Record<string, Record<string, unknown>[]> = {
+      bookmark_folders: [{ ...folder }],
+      bookmark_folder_items: uris.map((statusId, index) => ({
+        id: index + 1,
+        statusId,
+        folderId: folder.id
+      }))
+    }
+    const append = vi.fn(async () => {})
+    const warn = vi.fn()
+    const context = {
+      database: {
+        getAccountExportRows: async ({ table }: { table: string }) => ({
+          rows: rows[table] ?? [],
+          next: null
+        })
+      },
+      actor: { id: 'https://llun.test/users/owner', dir: 'activities.next' },
+      stage: { append },
+      pageSize: 100,
+      warn
+    } as unknown as StepContext
+    await expect(bookmarkFoldersStep.run(context, null)).resolves.toBe('done')
+    return { append, warn }
+  }
+
+  it('warns with a count of the URIs too long to import, and logs no URI', async () => {
+    const logged = vi.spyOn(logger, 'warn')
+    const long = [tooLong(1), tooLong(2)]
+
+    const { append, warn } = await run([...long, 'https://remote.example/ok'])
+
+    expect(warn).toHaveBeenCalledWith(
+      "2 bookmarks couldn't be filed in their folders in bookmark_folders.json because their address is too long to import. They are still in bookmarks.json."
+    )
+    expect(logged).toHaveBeenCalledWith(expect.objectContaining({ omitted: 2 }))
+    const logText = JSON.stringify(logged.mock.calls)
+    for (const uri of long) expect(logText).not.toContain(uri)
+    expect(logText).not.toContain('remote.example')
+    const written = String((append.mock.calls[0] as unknown[])[1])
+    expect(written).toContain('https://remote.example/ok')
+    for (const uri of long) expect(written).not.toContain(uri)
+    logged.mockRestore()
+  })
+
+  it('uses the singular for one, and warns about nothing when all fit', async () => {
+    expect((await run([tooLong(1)])).warn).toHaveBeenCalledWith(
+      "1 bookmark couldn't be filed in its folder in bookmark_folders.json because its address is too long to import. It is still in bookmarks.json."
+    )
+    expect(
+      (await run(['https://remote.example/ok'])).warn
+    ).not.toHaveBeenCalled()
   })
 })

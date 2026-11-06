@@ -56,6 +56,7 @@ const DOCUMENTED_REASONS = [
   'bookmark_folder_invalid',
   'bookmark_folder_name_invalid',
   'bookmark_folder_limit',
+  'bookmark_folder_conflict',
   'fitness_invalid',
   'fitness_missing',
   'status_unavailable',

@@ -2607,27 +2607,38 @@ export const runBookmarkFoldersPhase = async (
       if (refusedNames.has(nameKey)) continue
       let folderId = folderByName.get(nameKey)
       if (!folderId) {
-        const created = await database.createBookmarkFolder({
+        let created = await database.createBookmarkFolder({
           actorId,
           name: folderName
         })
-        if (created.status === 'ok') {
-          folderId = created.folder.id
-        } else if (created.status === 'duplicate-name') {
-          // The owner made one with this name while the import ran: file
-          // into theirs.
+        // The owner made one with this name while the import ran: file into
+        // theirs. If it is gone again by the time it is read, create once
+        // more.
+        for (
+          let attempt = 0;
+          created.status === 'duplicate-name' && attempt < 2;
+          attempt += 1
+        ) {
           folderId = (await database.getBookmarkFolders({ actorId })).find(
             (folder) => folder.name.toLowerCase() === nameKey
           )?.id
+          if (folderId || attempt > 0) break
+          created = await database.createBookmarkFolder({
+            actorId,
+            name: folderName
+          })
         }
-        // A name the folder rules refuse, or a full set of folders: its
-        // bookmarks stay unfiled.
+        if (created.status === 'ok') folderId = created.folder.id
+        // A name the folder rules refuse, a full set of folders, or a name
+        // that kept changing under the import: its bookmarks stay unfiled.
         if (!folderId) {
           refusedNames.add(nameKey)
           skip(
             created.status === 'limit-reached'
               ? 'bookmark_folder_limit'
-              : 'bookmark_folder_name_invalid',
+              : created.status === 'duplicate-name'
+                ? 'bookmark_folder_conflict'
+                : 'bookmark_folder_name_invalid',
             event.index
           )
           continue

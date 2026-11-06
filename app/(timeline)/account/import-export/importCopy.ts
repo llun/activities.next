@@ -60,6 +60,8 @@ export const IMPORT_REASON_LABELS: Record<string, string> = {
   bookmark_folder_name_invalid: 'the folder name is not allowed',
   bookmark_folder_limit:
     'the account already has the maximum number of bookmark folders',
+  bookmark_folder_conflict:
+    'a folder with that name kept changing while the import ran',
   fitness_invalid: 'the fitness file could not be read',
   fitness_missing: 'the fitness file was not in the archive',
   status_unavailable: 'its post could not be imported',

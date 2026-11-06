@@ -772,7 +772,9 @@ unreadable, a refused name, past the cap) is logged (import id, reason and
 entry index; never the folder's name, which is private) and counted by reason
 in `progress.bookmarkFolderSkips`, which the import report lists. A refused
 name is counted once however many entries the folder was split into, and a
-same-name folder the owner creates while the import runs is filed into. An archive without the file (a Mastodon one, or
+same-name folder the owner creates while the import runs is filed into (if
+it is deleted again before it is read, the import creates the folder once
+more, and reports `bookmark_folder_conflict` if that also collides). An archive without the file (a Mastodon one, or
 an older export) imports every bookmark unfiled.
 With `repliesToOthers: "keep"`, a foreign parent's URI is stored as data in the
 imported status's `statuses.reply` field, which is limited to 255 characters;

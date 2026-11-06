@@ -1063,6 +1063,36 @@ describe('own archive import phases', () => {
       items
     })
 
+    // Fills the actor's folders up to `total` with fillers this test owns,
+    // and hands back the cleanup, so no test depends on another's state.
+    const fillFoldersTo = async (total: number) => {
+      const existing = (
+        await database.getBookmarkFolders({ actorId: actor.id })
+      ).length
+      const ids = Array.from({ length: Math.max(0, total - existing) }, () =>
+        randomUUID()
+      )
+      const now = new Date()
+      if (ids.length > 0) {
+        await db
+          .insertInto('bookmark_folders')
+          .values(
+            ids.map((id) => ({
+              id,
+              actorId: actor.id,
+              name: `filler ${id}`,
+              createdAt: now,
+              updatedAt: now
+            }))
+          )
+          .execute()
+      }
+      return async () => {
+        if (ids.length === 0) return
+        await db.deleteFrom('bookmark_folders').where('id', 'in', ids).execute()
+      }
+    }
+
     it('counts a refused name once for all the entries of a split folder', async () => {
       const progress = progressWithBookmarks()
       const create = vi.spyOn(database, 'createBookmarkFolder')
@@ -1107,6 +1137,49 @@ describe('own archive import phases', () => {
       expect(ownerFolderId).toBeTruthy()
       expect(await folderOf(statusId)).toBe(ownerFolderId)
       expect(progress.bookmarkFolderSkips).toBeUndefined()
+    })
+
+    it('creates the folder again when the same-name folder is gone by the time it is read', async () => {
+      const statusId = await createStatus('race-gone')
+      await database.createBookmark({ actorId: actor.id, statusId })
+      const name = 'Vanished folder ' + randomUUID()
+      // The owner's folder collided, then was deleted before the re-read.
+      const create = vi
+        .spyOn(database, 'createBookmarkFolder')
+        .mockResolvedValueOnce({ status: 'duplicate-name' })
+      const progress = progressWithBookmarks()
+      const stagedImport = await folderArchive('folders-race-gone', [
+        entry(name, [statusId])
+      ])
+
+      await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+
+      expect(create).toHaveBeenCalledTimes(2)
+      const restored = (
+        await database.getBookmarkFolders({ actorId: actor.id })
+      ).find((folder) => folder.name === name)
+      expect(restored).toBeTruthy()
+      expect(await folderOf(statusId)).toBe(restored!.id)
+      expect(progress.bookmarkFolderSkips).toBeUndefined()
+    })
+
+    it('reports a name that keeps colliding as a conflict, once', async () => {
+      const create = vi
+        .spyOn(database, 'createBookmarkFolder')
+        .mockResolvedValue({ status: 'duplicate-name' })
+      const name = 'Contested folder ' + randomUUID()
+      const progress = progressWithBookmarks()
+      const stagedImport = await folderArchive('folders-conflict', [
+        entry(name),
+        entry(name)
+      ])
+
+      await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+
+      expect(create).toHaveBeenCalledTimes(2)
+      expect(progress.bookmarkFolderSkips).toEqual({
+        bookmark_folder_conflict: 1
+      })
     })
 
     it('logs a skip without the folder name', async () => {
@@ -1172,84 +1245,76 @@ describe('own archive import phases', () => {
       )
     })
 
-    // Last in this describe: it fills the actor's folders up to the cap.
     it('files a split folder into one folder that counts once against the cap', async () => {
       const first = await createStatus('split-first')
       const last = await createStatus('split-last')
       await database.createBookmark({ actorId: actor.id, statusId: first })
       await database.createBookmark({ actorId: actor.id, statusId: last })
-      const existing = (
-        await database.getBookmarkFolders({ actorId: actor.id })
-      ).length
-      const now = new Date()
-      await db
-        .insertInto('bookmark_folders')
-        .values(
-          Array.from(
-            { length: MAX_BOOKMARK_FOLDERS_PER_ACTOR - 1 - existing },
-            (_, index) => ({
-              id: randomUUID(),
-              actorId: actor.id,
-              name: `cap filler ${index}`,
-              createdAt: now,
-              updatedAt: now
-            })
-          )
+      // One below the cap: the split folder's entries must count as one.
+      const cleanUp = await fillFoldersTo(MAX_BOOKMARK_FOLDERS_PER_ACTOR - 1)
+      try {
+        const name = 'Split folder ' + randomUUID()
+        // Enough padding URIs between the two real ones to need several entries.
+        const uris = [
+          first,
+          ...Array.from(
+            { length: 6_000 },
+            (_, index) =>
+              `https://gone.example/users/someone/statuses/${index}-padding-padding`
+          ),
+          last
+        ]
+        const { entries } = splitBookmarkFolder(
+          { id: 'source-split', name, createdAt: 1, updatedAt: 1 },
+          uris
         )
-        .execute()
-      const name = 'Split folder ' + randomUUID()
-      // Enough padding URIs between the two real ones to need several entries.
-      const uris = [
-        first,
-        ...Array.from(
-          { length: 6_000 },
-          (_, index) =>
-            `https://gone.example/users/someone/statuses/${index}-padding-padding`
-        ),
-        last
-      ]
-      const { entries } = splitBookmarkFolder(
-        { id: 'source-split', name, createdAt: 1, updatedAt: 1 },
-        uris
-      )
-      expect(entries.length).toBeGreaterThan(1)
-      const progress = progressWithBookmarks()
-      const stagedImport = await stageArchive(
-        await createImport('folders-split-' + randomUUID()),
-        buildZip([
-          {
-            name: `${EXTRAS}/bookmark_folders.json`,
-            data: Buffer.from(JSON.stringify(entries, null, 2))
-          }
-        ])
-      )
+        expect(entries.length).toBeGreaterThan(1)
+        const progress = progressWithBookmarks()
+        const stagedImport = await stageArchive(
+          await createImport('folders-split-' + randomUUID()),
+          buildZip([
+            {
+              name: `${EXTRAS}/bookmark_folders.json`,
+              data: Buffer.from(JSON.stringify(entries, null, 2))
+            }
+          ])
+        )
 
-      await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+        await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
 
-      const folders = await database.getBookmarkFolders({ actorId: actor.id })
-      const restored = folders.filter((item) => item.name === name)
-      expect(restored).toHaveLength(1)
-      expect(folders).toHaveLength(MAX_BOOKMARK_FOLDERS_PER_ACTOR)
-      expect(await folderOf(first)).toBe(restored[0].id)
-      expect(await folderOf(last)).toBe(restored[0].id)
-      expect(progress.bookmarkFolderSkips).toBeUndefined()
+        const folders = await database.getBookmarkFolders({ actorId: actor.id })
+        const restored = folders.filter((item) => item.name === name)
+        expect(restored).toHaveLength(1)
+        expect(folders).toHaveLength(MAX_BOOKMARK_FOLDERS_PER_ACTOR)
+        expect(await folderOf(first)).toBe(restored[0].id)
+        expect(await folderOf(last)).toBe(restored[0].id)
+        expect(progress.bookmarkFolderSkips).toBeUndefined()
+      } finally {
+        await cleanUp()
+      }
     })
 
-    // After the test above, which leaves the actor at the folder cap.
     it('counts a split folder past the cap once', async () => {
-      const create = vi.spyOn(database, 'createBookmarkFolder')
-      const name = 'Over the cap ' + randomUUID()
-      const progress = progressWithBookmarks()
-      const stagedImport = await folderArchive('folders-cap-once', [
-        entry(name),
-        entry(name),
-        entry(name)
-      ])
+      const cleanUp = await fillFoldersTo(MAX_BOOKMARK_FOLDERS_PER_ACTOR)
+      try {
+        const create = vi.spyOn(database, 'createBookmarkFolder')
+        const name = 'Over the cap ' + randomUUID()
+        const progress = progressWithBookmarks()
+        const stagedImport = await folderArchive('folders-cap-once', [
+          entry(name),
+          entry(name),
+          entry(name)
+        ])
 
-      await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
+        await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
 
-      expect(create).toHaveBeenCalledTimes(1)
-      expect(progress.bookmarkFolderSkips).toEqual({ bookmark_folder_limit: 1 })
+        expect(create).toHaveBeenCalledTimes(1)
+        expect(progress.bookmarkFolderSkips).toEqual({
+          bookmark_folder_limit: 1
+        })
+      } finally {
+        await cleanUp()
+      }
     })
   })
 })

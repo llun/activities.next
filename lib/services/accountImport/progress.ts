@@ -16,7 +16,8 @@ export const BOOKMARK_FOLDER_SKIP_REASONS = [
   'bookmark_folder_too_large',
   'bookmark_folder_invalid',
   'bookmark_folder_name_invalid',
-  'bookmark_folder_limit'
+  'bookmark_folder_limit',
+  'bookmark_folder_conflict'
 ] as const
 export type BookmarkFolderSkipReason =
   (typeof BOOKMARK_FOLDER_SKIP_REASONS)[number]
