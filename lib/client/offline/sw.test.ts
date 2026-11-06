@@ -120,7 +120,7 @@ return {
   SHARE_TARGET_MAX_TEXT_LENGTH,
   SHARE_TARGET_MAX_RECORDS,
   SHARE_PURGE_CACHE,
-  SHARE_PURGE_CACHE_KEY,
+  SHARE_PURGE_CACHE_KEY_PREFIX,
   extractBuildId,
   extractAppShellAssets,
   stageAppShell,
@@ -1039,7 +1039,9 @@ return {
       )
       const purge = await import('@/lib/client/share-target/pendingSharePurge')
       expect(swModule.SHARE_PURGE_CACHE).toBe(purge.SHARE_PURGE_CACHE)
-      expect(swModule.SHARE_PURGE_CACHE_KEY).toBe(purge.SHARE_PURGE_CACHE_KEY)
+      expect(swModule.SHARE_PURGE_CACHE_KEY_PREFIX).toBe(
+        purge.SHARE_PURGE_CACHE_KEY_PREFIX
+      )
     })
 
     it.each(['cross-site', 'same-site'])(
@@ -1103,6 +1105,13 @@ return {
     // The pages copy a failed sign-out's purge marker to Cache Storage (a
     // worker has no localStorage). The next stage deletes the shares staged
     // up to the sign-out, keeps later ones, and drops the marker.
+    const purgeKey = (markedAt: number) =>
+      `https://llun.social/__share-target-pending-purge/${markedAt}`
+    const purgeKeys = () =>
+      Array.from(
+        cacheStore.get('activities-share-target-purge-v1')?.keys() ?? []
+      )
+
     it("purges a failed sign-out's shares before staging a new one", async () => {
       const markedAt = Date.now() - 1000
       await writeShare({ id: 'old', createdAt: markedAt - 10, files: [] })
@@ -1110,10 +1119,7 @@ return {
       const cache = await (globalThis as any).caches.open(
         'activities-share-target-purge-v1'
       )
-      await cache.put(
-        '/__share-target-pending-purge',
-        new Response(String(markedAt))
-      )
+      await cache.put(purgeKey(markedAt), new Response(String(markedAt)))
 
       await triggerFetch(shareRequest([photoFile()]))
 
@@ -1121,40 +1127,47 @@ return {
       expect(ids).not.toContain('old')
       expect(ids).toContain('later')
       expect(ids).toHaveLength(2)
-      expect(
-        cacheStore
-          .get('activities-share-target-purge-v1')
-          ?.has('/__share-target-pending-purge')
-      ).toBe(false)
+      expect(purgeKeys()).toEqual([])
     })
 
-    // A newer sign-out wrote its marker while this stage purged the older
-    // one: the newer marker stays for the next reader.
+    it('purges up to the newest of several generations, and retires them all', async () => {
+      const now = Date.now()
+      await writeShare({ id: 'a', createdAt: now - 3000, files: [] })
+      await writeShare({ id: 'b', createdAt: now - 1500, files: [] })
+      const cache = await (globalThis as any).caches.open(
+        'activities-share-target-purge-v1'
+      )
+      await cache.put(purgeKey(now - 2000), new Response(String(now - 2000)))
+      await cache.put(purgeKey(now - 1000), new Response(String(now - 1000)))
+
+      await triggerFetch(shareRequest([photoFile()]))
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).not.toContain('a')
+      expect(ids).not.toContain('b')
+      expect(purgeKeys()).toEqual([])
+    })
+
+    // The race review reproduced: a newer sign-out writes its marker just as
+    // the worker retires the older one. Each generation has its own key, so
+    // the newer one survives for the next reader.
     it('keeps a newer purge marker written during the stage', async () => {
       const older = Date.now() - 2000
       const newer = Date.now() - 1000
       const cache = await (globalThis as any).caches.open(
         'activities-share-target-purge-v1'
       )
-      await cache.put(
-        '/__share-target-pending-purge',
-        new Response(String(older))
-      )
-      const match = cache.match.getMockImplementation()
-      cache.match.mockImplementationOnce(async (request: any) => {
-        const response = await match(request)
-        // The newer sign-out lands right after the worker read the marker.
-        await cache.put(
-          '/__share-target-pending-purge',
-          new Response(String(newer))
-        )
-        return response
+      await cache.put(purgeKey(older), new Response(String(older)))
+      const remove = cache.delete.getMockImplementation()
+      cache.delete.mockImplementationOnce(async (request: any) => {
+        // The newer sign-out lands as the delete runs.
+        await cache.put(purgeKey(newer), new Response(String(newer)))
+        return remove(request)
       })
 
       await triggerFetch(shareRequest([photoFile()]))
 
-      const kept = await cache.match('/__share-target-pending-purge')
-      expect(await kept.text()).toBe(String(newer))
+      expect(purgeKeys()).toEqual([purgeKey(newer)])
     })
 
     it('counts the files past the 20-file cap as skipped', async () => {

@@ -353,18 +353,26 @@ async function pruneExpiredShares(
 // shares (lib/client/share-target/pendingSharePurge.ts). The pages keep it in
 // localStorage, which a worker cannot read, so they copy it to this cache.
 const SHARE_PURGE_CACHE = 'activities-share-target-purge-v1'
-const SHARE_PURGE_CACHE_KEY = '/__share-target-pending-purge'
+// Each sign-out writes its own entry, `<prefix><time>`, so retiring one
+// generation deletes only its own keys and never a newer sign-out's.
+const SHARE_PURGE_CACHE_KEY_PREFIX = '/__share-target-pending-purge/'
 
-async function readSharePurgeMarker() {
+// Every cached generation, as { request, markedAt }.
+async function readSharePurgeGenerations() {
   try {
     const cache = await caches.open(SHARE_PURGE_CACHE)
-    const response = await cache.match(SHARE_PURGE_CACHE_KEY)
-    if (!response) return null
-    // A clone: the marker is read again before it is retired.
-    const markedAt = Number(await response.clone().text())
-    return Number.isFinite(markedAt) ? markedAt : null
+    const generations = []
+    for (const request of await cache.keys()) {
+      const { pathname } = new URL(request.url)
+      if (!pathname.startsWith(SHARE_PURGE_CACHE_KEY_PREFIX)) continue
+      const markedAt = Number(
+        pathname.slice(SHARE_PURGE_CACHE_KEY_PREFIX.length)
+      )
+      if (Number.isFinite(markedAt)) generations.push({ request, markedAt })
+    }
+    return generations
   } catch {
-    return null
+    return []
   }
 }
 
@@ -454,20 +462,22 @@ async function stageShareTarget(formData) {
   const db = await openShareTargetDb()
   try {
     // A failed sign-out's shares go before anything new is staged beside them.
-    const purgeBefore = await readSharePurgeMarker()
+    const generations = await readSharePurgeGenerations()
+    const purgeBefore =
+      generations.length > 0
+        ? Math.max(...generations.map(({ markedAt }) => markedAt))
+        : null
     const pruned = await pruneExpiredShares(
       db,
       SHARE_TARGET_MAX_RECORDS - 1,
       purgeBefore
     )
     if (purgeBefore !== null && pruned) {
-      // Retire only the generation purged: a sign-out may have written a
-      // newer marker meanwhile, which must stay for the next purge.
+      // Retire only the generations purged, each by its own key: a newer
+      // sign-out's entry, written meanwhile, stays for the next purge.
       try {
-        if ((await readSharePurgeMarker()) === purgeBefore) {
-          const cache = await caches.open(SHARE_PURGE_CACHE)
-          await cache.delete(SHARE_PURGE_CACHE_KEY)
-        }
+        const cache = await caches.open(SHARE_PURGE_CACHE)
+        for (const { request } of generations) await cache.delete(request)
       } catch {
         // The pages purge again from their own copy; only older shares go.
       }

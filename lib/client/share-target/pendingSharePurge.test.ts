@@ -30,6 +30,43 @@ const brokenIndexedDB = {
   }
 }
 
+// An in-memory Cache Storage (jsdom has none). `onNextDelete` runs a write
+// just as a delete happens, the window the race review found.
+const fakeCacheStorage = () => {
+  const stores = new Map<string, Map<string, Response>>()
+  let beforeDelete: (() => Promise<unknown>) | null = null
+  const keyOf = (request: RequestInfo | URL) =>
+    typeof request === 'string'
+      ? request
+      : request instanceof URL
+        ? request.href
+        : request.url
+  const open = async (name: string) => {
+    if (!stores.has(name)) stores.set(name, new Map())
+    const store = stores.get(name)!
+    return {
+      put: async (request: RequestInfo | URL, response: Response) => {
+        store.set(keyOf(request), response)
+      },
+      match: async (request: RequestInfo | URL) =>
+        store.get(keyOf(request))?.clone(),
+      keys: async () => Array.from(store.keys(), (key) => new Request(key)),
+      delete: async (request: RequestInfo | URL) => {
+        const hook = beforeDelete
+        beforeDelete = null
+        if (hook) await hook()
+        return store.delete(keyOf(request))
+      }
+    }
+  }
+  return {
+    caches: { open, delete: async (name: string) => stores.delete(name) },
+    onNextDelete: (hook: () => Promise<unknown>) => {
+      beforeDelete = hook
+    }
+  }
+}
+
 describe('pending share purge', () => {
   beforeEach(() => {
     vi.stubGlobal('indexedDB', new IDBFactory())
@@ -71,6 +108,62 @@ describe('pending share purge', () => {
 
     expect(await honourPendingSharePurge()).toBe(false)
     expect(await readSharePurgePending()).not.toBeNull()
+  })
+
+  // localStorage writes failing (private mode) leave Cache Storage as the
+  // only copy of the marker.
+  describe('with only Cache Storage', () => {
+    let storage: ReturnType<typeof fakeCacheStorage>
+
+    beforeEach(() => {
+      storage = fakeCacheStorage()
+      vi.stubGlobal('caches', storage.caches)
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('QuotaExceededError')
+      })
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('keeps the marker in the cache until it is settled', async () => {
+      await markSharePurgePending(1000)
+      expect(
+        localStorage.getItem('activities-share-target-pending-purge')
+      ).toBeNull()
+      expect(await readSharePurgePending()).toBe(1000)
+
+      await settleSharePurge(1000)
+
+      expect(await readSharePurgePending()).toBeNull()
+    })
+
+    // The interleaving the race review reproduced: the reader retires T1
+    // while account B's sign-out writes T2 at that very moment. B's share
+    // must still be purged (or nothing read), never left readable.
+    it('purges a newer marker written as the older one is retired', async () => {
+      const t1 = Date.now()
+      await markSharePurgePending(t1)
+      vi.spyOn(Date, 'now').mockReturnValue(t1 + 500)
+      const workout = await stageShareFiles([file('ride.fit')])
+      vi.mocked(Date.now).mockRestore()
+      storage.onNextDelete(() => markSharePurgePending(t1 + 1000))
+
+      expect(await honourPendingSharePurge()).toBe(true)
+
+      expect(await peekStagedShare(workout!)).toBeNull()
+      expect(await readSharePurgePending()).toBeNull()
+    })
+
+    it('settles only the generations at or before the purged time', async () => {
+      await markSharePurgePending(1000)
+      await markSharePurgePending(2000)
+
+      await settleSharePurge(1000)
+
+      expect(await readSharePurgePending()).toBe(2000)
+    })
   })
 
   it('removes the marker once settled', async () => {

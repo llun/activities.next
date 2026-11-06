@@ -8,11 +8,15 @@
 //
 // The marker is the sign-out time. Only shares staged up to then are purged, so
 // a share the next account makes afterwards survives. It is kept in
-// localStorage for the pages and copied to Cache Storage for the service
-// worker, which has no localStorage; public/sw.js names the same cache.
+// localStorage for the pages (one value, compared and removed synchronously)
+// and in Cache Storage for the service worker, which has no localStorage. In
+// the cache every sign-out writes its own entry, keyed by its time, so retiring
+// one generation deletes only its own keys: there is no read-then-delete of a
+// shared key that a newer sign-out could slip into. public/sw.js names the same
+// cache and key prefix.
 const STORAGE_KEY = 'activities-share-target-pending-purge'
 export const SHARE_PURGE_CACHE = 'activities-share-target-purge-v1'
-export const SHARE_PURGE_CACHE_KEY = '/__share-target-pending-purge'
+export const SHARE_PURGE_CACHE_KEY_PREFIX = '/__share-target-pending-purge/'
 
 const parse = (value: string | null | undefined): number | null => {
   const markedAt = Number(value)
@@ -27,14 +31,42 @@ const readStored = (): number | null => {
   }
 }
 
-const readCached = async (): Promise<number | null> => {
+// Absolute, as Cache Storage keys resolve to; the pathname carries the time.
+const cacheKeyFor = (markedAt: number) =>
+  `${window.location.origin}${SHARE_PURGE_CACHE_KEY_PREFIX}${markedAt}`
+
+const timeOfCacheKey = (request: Request): number | null => {
   try {
-    if (typeof caches === 'undefined') return null
-    const cache = await caches.open(SHARE_PURGE_CACHE)
-    const response = await cache.match(SHARE_PURGE_CACHE_KEY)
-    return response ? parse(await response.text()) : null
+    const { pathname } = new URL(request.url)
+    if (!pathname.startsWith(SHARE_PURGE_CACHE_KEY_PREFIX)) return null
+    return parse(pathname.slice(SHARE_PURGE_CACHE_KEY_PREFIX.length))
   } catch {
     return null
+  }
+}
+
+const openPurgeCache = async (): Promise<Cache | null> => {
+  try {
+    if (typeof caches === 'undefined') return null
+    return await caches.open(SHARE_PURGE_CACHE)
+  } catch {
+    return null
+  }
+}
+
+// Every cached generation, as [key, time].
+const readCachedGenerations = async (
+  cache: Cache
+): Promise<[Request, number][]> => {
+  try {
+    const generations: [Request, number][] = []
+    for (const request of await cache.keys()) {
+      const markedAt = timeOfCacheKey(request)
+      if (markedAt !== null) generations.push([request, markedAt])
+    }
+    return generations
+  } catch {
+    return []
   }
 }
 
@@ -52,9 +84,8 @@ export const markSharePurgePending = async (
     // Kept in Cache Storage below, or not at all: the clear is still tried.
   }
   try {
-    if (typeof caches === 'undefined') return markedAt
-    const cache = await caches.open(SHARE_PURGE_CACHE)
-    await cache.put(SHARE_PURGE_CACHE_KEY, new Response(String(markedAt)))
+    const cache = await openPurgeCache()
+    await cache?.put(cacheKeyFor(markedAt), new Response(String(markedAt)))
   } catch {
     // Cache Storage unavailable: the pages still have localStorage.
   }
@@ -62,21 +93,28 @@ export const markSharePurgePending = async (
 }
 
 /**
- * The newest pending purge's sign-out time across both copies, or null when
- * none is pending. Purging up to the newest also covers any older one.
+ * The newest pending purge's sign-out time across localStorage and every
+ * cached generation, or null when none is pending. Purging up to the newest
+ * also covers any older one.
  */
 export const readSharePurgePending = async (): Promise<number | null> => {
+  const times: number[] = []
   const stored = readStored()
-  const cached = await readCached()
-  if (stored === null) return cached
-  if (cached === null) return stored
-  return Math.max(stored, cached)
+  if (stored !== null) times.push(stored)
+  const cache = await openPurgeCache()
+  if (cache) {
+    for (const [, markedAt] of await readCachedGenerations(cache)) {
+      times.push(markedAt)
+    }
+  }
+  return times.length > 0 ? Math.max(...times) : null
 }
 
 /**
- * The purge up to `markedAt` is done: each copy of the marker goes only if it
- * still holds that time. A newer sign-out may have written its own while this
- * purge waited on IndexedDB; that one stays for the next purge.
+ * The purge up to `markedAt` is done. localStorage loses its value only if it
+ * still holds that time; the cache loses only the generations at or before it,
+ * each by its own key. A newer sign-out's marker, written while this purge
+ * waited on IndexedDB, stays for the next purge.
  */
 export const settleSharePurge = async (markedAt: number): Promise<void> => {
   try {
@@ -84,12 +122,14 @@ export const settleSharePurge = async (markedAt: number): Promise<void> => {
   } catch {
     // Nothing stored.
   }
-  try {
-    if (typeof caches === 'undefined') return
-    if ((await readCached()) !== markedAt) return
-    const cache = await caches.open(SHARE_PURGE_CACHE)
-    await cache.delete(SHARE_PURGE_CACHE_KEY)
-  } catch {
-    // Nothing cached.
+  const cache = await openPurgeCache()
+  if (!cache) return
+  for (const [request, time] of await readCachedGenerations(cache)) {
+    if (time > markedAt) continue
+    try {
+      await cache.delete(request)
+    } catch {
+      // Left for the next purge, which only deletes older shares again.
+    }
   }
 }
