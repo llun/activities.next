@@ -1,0 +1,42 @@
+docs/architecture.md
+  s_2b1a50e2f9b981::t_76cddb693861ff 3590,3596
+lib/client/share-target/classify.ts
+  s_2b1a50e2f9b981::t_14978482c120dc 8-10,143-144
+lib/components/sign-out/useSignOut.test.tsx
+  s_2b1a50e2f9b981::t_1970649d081e9d 25,83-84
+lib/client/share-target/pendingSharePurge.test.ts
+  s_2b1a50e2f9b981::t_1970649d081e9d 80,84-112,114
+  s_2b1a50e2f9b981::t_fe8d8a47f8e7db 113
+lib/client/offline/sw.test.ts
+  s_2b1a50e2f9b981::t_98398b7af0368c 118,1036-1038
+  s_2b1a50e2f9b981::t_9ba6ef5279f9e4 1124-1138,1143-1157
+  s_2b1a50e2f9b981::t_76cddb693861ff 1139-1142
+  s_2b1a50e2f9b981::t_14978482c120dc 1034-1035,1039
+lib/client/share-target/types.ts
+  s_2b1a50e2f9b981::t_14978482c120dc 32-34
+public/sw.js
+  s_2b1a50e2f9b981::t_ef86a60f6104d6 363-364
+  s_2b1a50e2f9b981::t_9ba6ef5279f9e4 464-465,467-470
+lib/components/sign-out/useSignOut.ts
+  s_2b1a50e2f9b981::t_ee41978cf473e6 78-79
+lib/client/share-target/pendingSharePurge.ts
+  s_2b1a50e2f9b981::t_ee41978cf473e6 22,24,26,28-30,32,34-35,37,41-48,50,52,55,57,59,61,64-81,83,88-91
+lib/client/share-target/shareTargetDb.ts
+  s_2b1a50e2f9b981::t_ee41978cf473e6 227-228,236-246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5eb0bc189e598e035a56c8bf32b0e77dfa33bb7e",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
