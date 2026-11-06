@@ -1340,6 +1340,14 @@ CREATE TABLE public.relays (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.remote_signature_schemes (
+    domain character varying(255) NOT NULL,
+    scheme character varying(16) NOT NULL,
+    "expiresAt" timestamp with time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.reports (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -2068,6 +2076,9 @@ ALTER TABLE ONLY public.relays
 ALTER TABLE ONLY public.relays
     ADD CONSTRAINT relays_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.remote_signature_schemes
+    ADD CONSTRAINT remote_signature_schemes_pkey PRIMARY KEY (domain);
+
 ALTER TABLE ONLY public.reports
     ADD CONSTRAINT reports_pkey PRIMARY KEY (id);
 
@@ -2416,6 +2427,8 @@ CREATE INDEX recipients_type_actor_created_status_idx ON public.recipients USING
 CREATE INDEX relays_actor_id ON public.relays USING btree ("actorId");
 
 CREATE INDEX relays_state ON public.relays USING btree (state);
+
+CREATE INDEX remote_signature_schemes_expires_at_idx ON public.remote_signature_schemes USING btree ("expiresAt");
 
 CREATE INDEX reports_actor_created ON public.reports USING btree ("actorId", "createdAt");
 

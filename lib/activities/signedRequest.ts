@@ -1,62 +1,69 @@
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubContentType } from '@/lib/activities/activityPubResponse'
 import { DEFAULT_ACCEPT } from '@/lib/activities/constants'
 import { getConfig } from '@/lib/config'
+import { getDatabase } from '@/lib/database'
+import type { RemoteSignatureScheme } from '@/lib/database/domains/remoteSignatureScheme/types'
+import type { Database } from '@/lib/database/types'
 import { normalizeActorHost } from '@/lib/services/federation/domainRules'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Actor } from '@/lib/types/domain/actor'
+import { getHeaderValue } from '@/lib/utils/getHeaderValue'
 import { signHttpMessage } from '@/lib/utils/httpMessageSignature'
 import { logger } from '@/lib/utils/logger'
 import { RequestOptions, RequestResult, request } from '@/lib/utils/request'
 import { signedHeaders } from '@/lib/utils/signature'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-export type SignatureScheme = 'cavage' | 'rfc9421'
+export type SignatureScheme = RemoteSignatureScheme
 
 export const REMEMBERED_SIGNATURE_SCHEME_MAX_HOSTS = 2048
-export const REMEMBERED_SIGNATURE_SCHEME_TTL_MS = 6 * 60 * 60 * 1000
+// Short in-process cache TTL (positive and negative) so outbound hot paths do
+// not query the database on every request while multi-worker deployments still
+// converge within minutes.
+export const SIGNATURE_SCHEME_CACHE_TTL_MS = 5 * 60 * 1000
+// Shared database TTL: HTTP signature support is tied to a remote server's
+// software and rarely changes, double-knock self-heals immediately in either
+// direction if a peer switches earlier, and 7 days lets cold starts and queue
+// workers reuse learned schemes across days while expiring inactive peers.
+export const REMOTE_SIGNATURE_SCHEME_TTL_MS = 7 * 24 * 60 * 60 * 1000
+// Refresh a working stored row's expiry at most once per 24 hours per host so
+// active RFC 9421 peers do not re-knock every week without adding per-request
+// database writes.
+export const REMOTE_SIGNATURE_SCHEME_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000
 
-type RememberedScheme = {
+type CachedSchemeEntry = {
+  dbExpiresAt: number | null
   expiresAt: number
-  scheme: SignatureScheme
+  scheme: SignatureScheme | null
 }
 
-// shortcut: this memory is per process, so a serverless cold start or another
-// worker re-learns a host with one extra knock. It is deliberately cache-only
-// (no table, no migration); upgrade it to a shared table once peers that
-// reject draft-cavage are common enough that the extra request matters.
-const rememberedSchemes = new Map<string, RememberedScheme>()
+type SignatureSchemeStore = Pick<
+  Database,
+  'getRemoteSignatureScheme' | 'upsertRemoteSignatureScheme'
+>
 
-const normalizeHost = (value: string): string =>
+const rememberedSchemes = new Map<string, CachedSchemeEntry>()
+
+const normalizeHostKey = (value: string): string | null =>
+  normalizeActorHost(value)
+
+const normalizeComparableHost = (value: string): string =>
   normalizeActorHost(value) ?? value.trim().toLowerCase()
 
-/** The scheme last seen working for `host`, or null when nothing is remembered. */
-export const getRememberedSignatureScheme = (
-  host: string
-): SignatureScheme | null => {
-  const key = normalizeHost(host)
-  const entry = rememberedSchemes.get(key)
-  if (!entry) return null
-  if (entry.expiresAt <= Date.now()) {
-    rememberedSchemes.delete(key)
-    return null
-  }
-  // Re-insert so the oldest-first eviction below behaves like an LRU.
-  rememberedSchemes.delete(key)
-  rememberedSchemes.set(key, entry)
-  return entry.scheme
-}
+const isEntryFresh = (entry: CachedSchemeEntry, now: number): boolean =>
+  entry.expiresAt > now &&
+  (entry.dbExpiresAt === null || entry.dbExpiresAt > now)
 
-/** Remember `scheme` for `host` for `REMEMBERED_SIGNATURE_SCHEME_TTL_MS`. */
-export const rememberSignatureScheme = (
-  host: string,
-  scheme: SignatureScheme
+const setCachedScheme = (
+  key: string,
+  entry: CachedSchemeEntry,
+  now: number
 ): void => {
-  const key = normalizeHost(host)
   rememberedSchemes.delete(key)
   if (rememberedSchemes.size >= REMEMBERED_SIGNATURE_SCHEME_MAX_HOSTS) {
-    const now = Date.now()
-    for (const [entryKey, entry] of rememberedSchemes) {
-      if (entry.expiresAt <= now) rememberedSchemes.delete(entryKey)
+    for (const [entryKey, existing] of rememberedSchemes) {
+      if (!isEntryFresh(existing, now)) rememberedSchemes.delete(entryKey)
     }
     while (rememberedSchemes.size >= REMEMBERED_SIGNATURE_SCHEME_MAX_HOSTS) {
       const oldest = rememberedSchemes.keys().next().value
@@ -64,15 +71,277 @@ export const rememberSignatureScheme = (
       rememberedSchemes.delete(oldest)
     }
   }
-  rememberedSchemes.set(key, {
-    expiresAt: Date.now() + REMEMBERED_SIGNATURE_SCHEME_TTL_MS,
-    scheme
-  })
+  rememberedSchemes.set(key, entry)
 }
 
-/** Drops every remembered scheme. Tests use it; production never needs to. */
+const resolveSchemeStore = (
+  database: Database | null | undefined
+): SignatureSchemeStore | null => {
+  const resolved = database === undefined ? getDatabase() : database
+  if (
+    !resolved ||
+    typeof resolved.getRemoteSignatureScheme !== 'function' ||
+    typeof resolved.upsertRemoteSignatureScheme !== 'function'
+  ) {
+    return null
+  }
+  return resolved
+}
+
+/**
+ * The scheme currently cached in process for `host`, or null when nothing (or
+ * a negative entry) is cached.
+ */
+export const getRememberedSignatureScheme = (
+  host: string
+): SignatureScheme | null => {
+  const key = normalizeHostKey(host)
+  if (!key) return null
+  const entry = rememberedSchemes.get(key)
+  if (!entry) return null
+  const now = Date.now()
+  if (!isEntryFresh(entry, now)) {
+    rememberedSchemes.delete(key)
+    return null
+  }
+  // Re-insert so the oldest-first eviction behaves like an LRU.
+  rememberedSchemes.delete(key)
+  rememberedSchemes.set(key, entry)
+  return entry.scheme
+}
+
+/** Cache `scheme` in process for `host` for `SIGNATURE_SCHEME_CACHE_TTL_MS`. */
+export const rememberSignatureScheme = (
+  host: string,
+  scheme: SignatureScheme
+): void => {
+  const key = normalizeHostKey(host)
+  if (!key) return
+  const now = Date.now()
+  setCachedScheme(
+    key,
+    {
+      scheme,
+      expiresAt: now + SIGNATURE_SCHEME_CACHE_TTL_MS,
+      dbExpiresAt: null
+    },
+    now
+  )
+}
+
+// Whether the cache holds a still-fresh entry read from (or written to) the
+// shared table for `hostKey`.
+const hasFreshStoredScheme = (hostKey: string): boolean => {
+  const entry = rememberedSchemes.get(hostKey)
+  return Boolean(
+    entry && entry.dbExpiresAt !== null && isEntryFresh(entry, Date.now())
+  )
+}
+
+/** Drops every in-process cached scheme. Tests use it; production never needs to. */
 export const clearRememberedSignatureSchemes = (): void => {
   rememberedSchemes.clear()
+}
+
+const readPrimarySignatureScheme = async (
+  hostKey: string | null,
+  database: Database | null | undefined
+): Promise<{
+  /** A scheme learned into this process only, never written to the table. */
+  cacheOnly?: boolean
+  dbExpiresAt: number | null
+  scheme: SignatureScheme
+}> => {
+  if (!hostKey) return { scheme: 'cavage', dbExpiresAt: null }
+
+  const now = Date.now()
+  const cached = rememberedSchemes.get(hostKey)
+  let staleFallbackScheme: SignatureScheme | null = null
+  // On a database failure, keep serving what was known (or the default) for
+  // one cache TTL, so an outage costs one read and one warning per host per
+  // TTL instead of one per request.
+  const fallBack = () => {
+    const dbExpiresAt =
+      staleFallbackScheme !== null ? (cached?.dbExpiresAt ?? null) : null
+    setCachedScheme(
+      hostKey,
+      {
+        scheme: staleFallbackScheme,
+        expiresAt:
+          dbExpiresAt === null
+            ? now + SIGNATURE_SCHEME_CACHE_TTL_MS
+            : Math.min(now + SIGNATURE_SCHEME_CACHE_TTL_MS, dbExpiresAt),
+        dbExpiresAt
+      },
+      now
+    )
+    return { scheme: staleFallbackScheme ?? 'cavage', dbExpiresAt: null }
+  }
+  if (cached) {
+    if (isEntryFresh(cached, now)) {
+      rememberedSchemes.delete(hostKey)
+      rememberedSchemes.set(hostKey, cached)
+      return {
+        scheme: cached.scheme ?? 'cavage',
+        dbExpiresAt: cached.dbExpiresAt,
+        cacheOnly: cached.scheme !== null && cached.dbExpiresAt === null
+      }
+    }
+    if (cached.dbExpiresAt === null || cached.dbExpiresAt > now) {
+      staleFallbackScheme = cached.scheme
+    }
+    rememberedSchemes.delete(hostKey)
+  }
+
+  let store: SignatureSchemeStore | null
+  try {
+    store = resolveSchemeStore(database)
+  } catch (error) {
+    logger.warn({
+      message:
+        'Failed to resolve database for remote signature scheme; using fallback',
+      host: hostKey,
+      err: toLoggableError(error)
+    })
+    return fallBack()
+  }
+
+  if (!store) {
+    setCachedScheme(
+      hostKey,
+      {
+        scheme: null,
+        expiresAt: now + SIGNATURE_SCHEME_CACHE_TTL_MS,
+        dbExpiresAt: null
+      },
+      now
+    )
+    return { scheme: 'cavage', dbExpiresAt: null }
+  }
+
+  try {
+    const stored = await store.getRemoteSignatureScheme({
+      domain: hostKey,
+      now
+    })
+    const completedAt = Date.now()
+    if (stored && stored.expiresAt > completedAt) {
+      setCachedScheme(
+        hostKey,
+        {
+          scheme: stored.scheme,
+          expiresAt: Math.min(
+            completedAt + SIGNATURE_SCHEME_CACHE_TTL_MS,
+            stored.expiresAt
+          ),
+          dbExpiresAt: stored.expiresAt
+        },
+        completedAt
+      )
+      return { scheme: stored.scheme, dbExpiresAt: stored.expiresAt }
+    }
+
+    setCachedScheme(
+      hostKey,
+      {
+        scheme: null,
+        expiresAt: completedAt + SIGNATURE_SCHEME_CACHE_TTL_MS,
+        dbExpiresAt: null
+      },
+      completedAt
+    )
+    return { scheme: 'cavage', dbExpiresAt: null }
+  } catch (error) {
+    logger.warn({
+      message:
+        'Failed to read remote signature scheme from database; using fallback',
+      host: hostKey,
+      err: toLoggableError(error)
+    })
+    return fallBack()
+  }
+}
+
+const persistSignatureScheme = async (
+  hostKey: string | null,
+  scheme: SignatureScheme,
+  database: Database | null | undefined
+): Promise<void> => {
+  if (!hostKey) return
+
+  const now = Date.now()
+  const nextDbExpiresAt = now + REMOTE_SIGNATURE_SCHEME_TTL_MS
+  setCachedScheme(
+    hostKey,
+    {
+      scheme,
+      expiresAt: now + SIGNATURE_SCHEME_CACHE_TTL_MS,
+      dbExpiresAt: nextDbExpiresAt
+    },
+    now
+  )
+
+  try {
+    const store = resolveSchemeStore(database)
+    if (!store) return
+    await store.upsertRemoteSignatureScheme({
+      domain: hostKey,
+      scheme,
+      expiresAt: nextDbExpiresAt,
+      now
+    })
+  } catch (error) {
+    logger.warn({
+      message:
+        'Failed to persist remote signature scheme to database; keeping in-memory value',
+      host: hostKey,
+      scheme,
+      err: toLoggableError(error)
+    })
+  }
+}
+
+const maybeRefreshSignatureScheme = async (
+  hostKey: string | null,
+  scheme: SignatureScheme,
+  dbExpiresAt: number | null,
+  database: Database | null | undefined
+): Promise<void> => {
+  if (!hostKey || dbExpiresAt === null) return
+
+  const now = Date.now()
+  const refreshWindowMs =
+    REMOTE_SIGNATURE_SCHEME_TTL_MS - REMOTE_SIGNATURE_SCHEME_REFRESH_INTERVAL_MS
+  if (dbExpiresAt - now > refreshWindowMs) return
+
+  const nextDbExpiresAt = now + REMOTE_SIGNATURE_SCHEME_TTL_MS
+  setCachedScheme(
+    hostKey,
+    {
+      scheme,
+      expiresAt: now + SIGNATURE_SCHEME_CACHE_TTL_MS,
+      dbExpiresAt: nextDbExpiresAt
+    },
+    now
+  )
+
+  try {
+    const store = resolveSchemeStore(database)
+    if (!store) return
+    await store.upsertRemoteSignatureScheme({
+      domain: hostKey,
+      scheme,
+      expiresAt: nextDbExpiresAt,
+      now
+    })
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to refresh remote signature scheme expiry in database',
+      host: hostKey,
+      scheme,
+      err: toLoggableError(error)
+    })
+  }
 }
 
 export interface SignedActivityPubRequestOptions {
@@ -81,7 +350,18 @@ export interface SignedActivityPubRequestOptions {
   accept?: string
   /** The serialized request body, exactly as it is sent. */
   body?: string
+  /** Optional database override; defaults to `getDatabase()`. */
+  database?: Database | null
   method: 'GET' | 'POST'
+  /**
+   * Whether a scheme this request learns is written to the shared table
+   * (default false: learn into the short in-process cache only). Only our own
+   * inbox deliveries opt in. A fetch whose target remote content or a stranger
+   * chose (an inbox guard key fetch, a forwarded object, a quote, a lookup)
+   * still reads the table but must not write it, or forged input could fill it
+   * with one row per hostname.
+   */
+  persistScheme?: boolean
   /** Everything `request()` takes except the URL, method, headers and body. */
   requestOptions?: Omit<RequestOptions, 'body' | 'headers' | 'method' | 'url'>
   url: string
@@ -92,10 +372,25 @@ const toSignedMethod = (method: string): 'GET' | 'POST' =>
 
 // A POST is only re-knocked on 401: a 403 is a policy answer, not a signature
 // one. A GET is read-only, so a 403 is worth one more try with the other
-// scheme.
-const shouldKnock = (method: 'GET' | 'POST', statusCode: number): boolean =>
+// scheme. A POST we signed RFC 9421 (a learned, non-default scheme) also falls
+// back to draft-cavage on any other refusal (a 4xx except 404, 409, 410, 413
+// and 429, which say the inbox is gone, busy, already has the activity or
+// refuses its size, not that the signature was wrong):
+// draft-cavage-only inboxes refuse an RFC 9421 POST with 400, 403, 415 or 422
+// as often as 401, and without this a wrong stored scheme would never heal and
+// every delivery would be dropped.
+const NOT_A_SIGNATURE_REFUSAL = new Set([404, 409, 410, 413, 429])
+const shouldKnock = (
+  method: 'GET' | 'POST',
+  statusCode: number,
+  primary: SignatureScheme
+): boolean =>
   method === 'POST'
-    ? statusCode === 401
+    ? statusCode === 401 ||
+      (primary === 'rfc9421' &&
+        statusCode >= 400 &&
+        statusCode < 500 &&
+        !NOT_A_SIGNATURE_REFUSAL.has(statusCode))
     : statusCode === 401 || statusCode === 403
 
 const isSuccess = (statusCode: number): boolean =>
@@ -104,11 +399,15 @@ const isSuccess = (statusCode: number): boolean =>
 /**
  * Signed ActivityPub request with a bounded double-knock.
  *
- * The primary scheme is the one remembered for the target host (default
- * draft-cavage). A 401 (POST) or 401/403 (GET) from the same host is retried
- * once with the other scheme; a 2xx on that second knock remembers it only
- * when neither knock crossed hosts, including chains returning to the initial
- * host. A failed or throwing second knock returns the first response unchanged
+ * The primary scheme is the one remembered for the target host in
+ * `remote_signature_schemes` (cached briefly in process, defaulting to
+ * draft-cavage). A 401 (POST), another 4xx refusal (not 404, 409, 410, 413 or 429) to a
+ * POST signed RFC 9421, or a
+ * 401/403 (GET) from the same host is retried once with the other scheme; a
+ * 2xx on that second knock remembers it only when neither knock crossed hosts
+ * (including chains returning to the initial host), a GET's first knock was a
+ * 401, and the answer proves the scheme (an unredirected POST, or an
+ * ActivityPub document). A failed or throwing second knock returns the first response unchanged
  * so delivery classification sees exactly what it saw before.
  *
  * Headers are built per hop, so a same-host redirect is re-signed over its own
@@ -118,15 +417,23 @@ export const signedActivityPubRequest = async ({
   actor,
   accept = DEFAULT_ACCEPT,
   body,
+  database,
   method,
+  persistScheme = false,
   requestOptions,
   url
 }: SignedActivityPubRequestOptions): Promise<RequestResult> => {
-  const initialHost = normalizeHost(new URL(url).host)
+  const rawUrlHost = new URL(url).host
+  const initialHost = normalizeComparableHost(rawUrlHost)
+  const hostKey = normalizeHostKey(rawUrlHost)
   const hasSigningKey = Boolean(actor?.privateKey)
-  const primary: SignatureScheme = hasSigningKey
-    ? (getRememberedSignatureScheme(initialHost) ?? 'cavage')
-    : 'cavage'
+  const {
+    scheme: primary,
+    dbExpiresAt,
+    cacheOnly
+  } = hasSigningKey
+    ? await readPrimarySignatureScheme(hostKey, database)
+    : { scheme: 'cavage' as SignatureScheme, dbExpiresAt: null }
 
   const send = async (
     scheme: SignatureScheme,
@@ -140,7 +447,7 @@ export const signedActivityPubRequest = async ({
       method,
       body,
       headers: ({ body: hopBody, method: hopMethod, url: hopUrl }) => {
-        if (normalizeHost(hopUrl.host) !== initialHost) {
+        if (normalizeComparableHost(hopUrl.host) !== initialHost) {
           crossedHosts = true
           // Never signed off-host, but a redirected POST keeps its unsigned
           // date, digest and content-type, as it did before per-hop headers.
@@ -178,13 +485,47 @@ export const signedActivityPubRequest = async ({
       }
     })
     crossedHosts ||=
-      normalizeHost(new URL(response.url ?? url).host) !== initialHost
+      normalizeComparableHost(new URL(response.url ?? url).host) !== initialHost
     return { response, crossedHosts }
   }
 
+  // What a 2xx proves about the host: a POST reached its inbox, but a GET
+  // only counts when it returned an ActivityPub document. An HTML page or an
+  // anonymous fallback on some other path says nothing about which scheme the
+  // host's inbox needs, so it must not set the scheme every delivery uses.
+  // A POST counts only when it was not redirected: a same-host 303 turns it
+  // into a GET whose 2xx says nothing about the inbox.
+  const requestedHref = new URL(url).href
+  const provesScheme = (response: RequestResult) =>
+    method === 'POST'
+      ? new URL(response.url ?? url).href === requestedHref
+      : isActivityPubContentType(
+          getHeaderValue(response.headers, 'content-type')
+        )
+
   const startedAt = Date.now()
   const { response: first, crossedHosts } = await send(primary, {})
-  if (!hasSigningKey || !shouldKnock(method, first.statusCode)) return first
+  if (!hasSigningKey) return first
+
+  if (isSuccess(first.statusCode)) {
+    if (!crossedHosts && persistScheme && provesScheme(first)) {
+      // A scheme an earlier lookup learned into this process (say, the actor
+      // fetch before a Follow) is written by the first delivery it works for;
+      // otherwise that delivery would skip the table and every other worker
+      // would knock again.
+      if (cacheOnly) await persistSignatureScheme(hostKey, primary, database)
+      else
+        await maybeRefreshSignatureScheme(
+          hostKey,
+          primary,
+          dbExpiresAt,
+          database
+        )
+    }
+    return first
+  }
+
+  if (!shouldKnock(method, first.statusCode, primary)) return first
 
   // A cross-host redirect deliberately dropped the signature, so its answer
   // says nothing about the scheme this host accepts.
@@ -208,7 +549,18 @@ export const signedActivityPubRequest = async ({
     )
     if (!isSuccess(second.statusCode)) return first
 
-    if (!secondCrossedHosts) rememberSignatureScheme(initialHost, alternate)
+    // A GET refused with 403 and answered on the other knock may only have
+    // been read anonymously (an unrecognised signature treated as none), so
+    // only a 401 teaches a GET anything.
+    const learns = method === 'POST' || first.statusCode === 401
+    if (!secondCrossedHosts && learns && provesScheme(second)) {
+      if (persistScheme) {
+        await persistSignatureScheme(hostKey, alternate, database)
+      } else if (hostKey && !hasFreshStoredScheme(hostKey)) {
+        // A lookup never overrides what the shared table says for the host.
+        rememberSignatureScheme(hostKey, alternate)
+      }
+    }
     return second
   } catch (error) {
     // Knock 2 is a scheme probe: its failure must not replace Knock 1's

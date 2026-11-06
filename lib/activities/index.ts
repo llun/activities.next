@@ -97,6 +97,7 @@ const postActivityToInbox = async ({
     const { statusCode } = await signedActivityPubRequest({
       actor: currentActor,
       method,
+      persistScheme: true,
       url: inbox,
       body: JSON.stringify(activity),
       requestOptions

@@ -25,6 +25,12 @@ vi.mock('@/lib/activities/activityPubHeaders', () => ({
   })
 }))
 
+vi.mock('@/lib/utils/httpMessageSignature', () => ({
+  signHttpMessage: vi.fn().mockReturnValue({
+    headers: { 'signature-input': 'sig1=()', signature: 'sig1=:c2ln:' }
+  })
+}))
+
 describe('deliverActivityJob', () => {
   let harness: ReturnType<typeof setupRecordingTracer>
   const mockDatabase = {
@@ -33,7 +39,9 @@ describe('deliverActivityJob', () => {
     updateFollowStatus: vi.fn(),
     isInboxUnavailable: vi.fn(),
     recordDeliveryFailure: vi.fn(),
-    clearDeliveryFailures: vi.fn()
+    clearDeliveryFailures: vi.fn(),
+    getRemoteSignatureScheme: vi.fn(),
+    upsertRemoteSignatureScheme: vi.fn()
   } as unknown as Database
 
   beforeEach(() => {
@@ -47,6 +55,10 @@ describe('deliverActivityJob', () => {
     vi.mocked(mockDatabase.isInboxUnavailable).mockResolvedValue(false)
     vi.mocked(mockDatabase.recordDeliveryFailure).mockResolvedValue(false)
     vi.mocked(mockDatabase.clearDeliveryFailures).mockResolvedValue(undefined)
+    vi.mocked(mockDatabase.getRemoteSignatureScheme).mockResolvedValue(null)
+    vi.mocked(mockDatabase.upsertRemoteSignatureScheme).mockResolvedValue(
+      undefined
+    )
   })
 
   afterEach(() => {
@@ -67,6 +79,27 @@ describe('deliverActivityJob', () => {
       activity: 'not-an-object'
     }
     expect(DeliverActivityJobData.safeParse(invalid).success).toBe(false)
+  })
+
+  it('stores the scheme a delivery learns in the shared table', async () => {
+    vi.mocked(request)
+      .mockResolvedValueOnce({ statusCode: 401, body: '', headers: {} })
+      .mockResolvedValueOnce({ statusCode: 202, body: '', headers: {} })
+
+    await deliverActivityJob(mockDatabase, {
+      id: 'msg-learn',
+      name: 'DeliverActivityJob',
+      data: {
+        inbox: 'https://remote.example/inbox',
+        actorId: 'https://activities.local/users/alice',
+        activity: { type: 'Create', id: 'https://activities.local/status/1' }
+      }
+    })
+
+    expect(vi.mocked(request)).toHaveBeenCalledTimes(2)
+    expect(mockDatabase.upsertRemoteSignatureScheme).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'remote.example', scheme: 'rfc9421' })
+    )
   })
 
   it('throws SalvageableDeliveryError on HTTP 503', async () => {

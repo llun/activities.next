@@ -211,13 +211,20 @@ const parseSenderPublicKey = ({
 const SENDER_KEY_FETCH_TIMEOUT_MS = 3000
 
 const fetchSenderPublicKey = async (
+  database: Database,
   actorId: string,
   signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>,
   selectKeyId?: string
 ) => {
   const response = await signedActivityPubRequest({
     actor: signingActor,
+    database,
     method: 'GET',
+    // This fetch runs before the inbox signature is verified, against a host
+    // the sender named: what it learns stays in process, never in the shared
+    // table, so forged inbox posts cannot fill it. (False is the default;
+    // spelled out because this is the path that needs it most.)
+    persistScheme: false,
     url: actorId,
     requestOptions: {
       numberOfRetry: 0,
@@ -267,6 +274,7 @@ const validateOwnerActorKey = async (
   if (!(await canFederateWithDomain(database, normalizedOwner))) return null
 
   const ownerResponse = await fetchSenderPublicKey(
+    database,
     normalizedOwner,
     signingActor,
     keyId
@@ -345,7 +353,7 @@ const fetchSenderPublicKeyDetails = async (
   signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>,
   database: Database
 ) => {
-  const response = await fetchSenderPublicKey(actorId, signingActor)
+  const response = await fetchSenderPublicKey(database, actorId, signingActor)
   const resolved = await resolveFetchedPublicKey(
     response.document,
     signingActor,

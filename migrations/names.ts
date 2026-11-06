@@ -25,6 +25,7 @@ export const MIGRATION_NAMES = [
   '20261105174143_add_fitness_settings_training_zones',
   '20261105185059_add_fitness_best_efforts',
   '20261105210627_add_media_subject_taxon_rank',
+  '20261106094910_add_remote_signature_schemes',
   '20261106120000_add_bookmark_folders'
 ] as const
 

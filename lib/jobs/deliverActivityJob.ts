@@ -108,7 +108,11 @@ export const deliverActivityJob: JobHandle = createJobHandle(
     try {
       const { statusCode } = await signedActivityPubRequest({
         actor,
+        database,
         method,
+        // A delivery to a follower's inbox: the one request that teaches the
+        // shared table (see SignedActivityPubRequestOptions.persistScheme).
+        persistScheme: true,
         url: inbox,
         body: JSON.stringify(activity)
       })

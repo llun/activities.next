@@ -1,6 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import crypto from 'node:crypto'
 
+import { clearRememberedSignatureSchemes } from '@/lib/activities/signedRequest'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
   KEY_REFRESH_ATTEMPTS_MAX,
@@ -150,6 +151,8 @@ describe('getSenderPublicKey', () => {
   })
 
   beforeEach(() => {
+    // The learned-scheme cache is module state: start every test without it.
+    clearRememberedSignatureSchemes()
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     mockSpan.end.mockClear()
@@ -1018,6 +1021,34 @@ describe('getSenderPublicKey', () => {
         responseTimeout: 3000
       })
     )
+  })
+
+  it('never stores a signature scheme learned by the unverified key fetch', async () => {
+    const actorId = 'https://scheme-probe.test/users/forged'
+    fetchMock.resetMocks()
+    // Knock 1 (draft-cavage) is refused, Knock 2 (RFC 9421) answers: the
+    // sender's own host decides both answers.
+    fetchMock.mockResponseOnce('', { status: 401 })
+    fetchMock.mockResponseOnce(
+      JSON.stringify(createActorDocument({ id: actorId })),
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
+    )
+
+    await getSenderPublicKeyDetails(database, actorId)
+
+    // Knock 2 was sent (an RFC 9421 Signature-Input) and answered 2xx.
+    expect(
+      fetchMock.mock.calls.some(([, init]) =>
+        Boolean(
+          new Headers((init as RequestInit | undefined)?.headers).get(
+            'signature-input'
+          )
+        )
+      )
+    ).toBe(true)
+    expect(
+      await database.getRemoteSignatureScheme({ domain: 'scheme-probe.test' })
+    ).toBeNull()
   })
 
   it('records sender public key lookup exceptions before returning empty details', async () => {
