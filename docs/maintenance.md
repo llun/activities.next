@@ -1491,5 +1491,5 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   into the process cache only, and a `GET` counts only when it returned an
   ActivityPub document. So the table grows by at most one row per host we
   deliver to: a stranger cannot add rows by sending unverified input, though
-  a verified remote that gets deliveries sent to inboxes on many of its own
-  hosts still adds one row each (pruned after 7 days).
+  a verified remote whose actors advertise inboxes on many hosts still adds one
+  row per host it gets deliveries on (pruned after 7 days).

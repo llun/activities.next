@@ -76,6 +76,7 @@ describe('signedActivityPubRequest with SQL database', () => {
   const headersSent: Record<string, string>[] = []
   let statuses: number[] = []
   let contentTypes: (string | undefined)[] = []
+  let finalUrls: (string | undefined)[] = []
 
   beforeAll(async () => {
     await prepare()
@@ -92,6 +93,7 @@ describe('signedActivityPubRequest with SQL database', () => {
     headersSent.length = 0
     statuses = []
     contentTypes = []
+    finalUrls = []
     await db.deleteFrom('remote_signature_schemes').execute()
     mockRequest.mockImplementation(async (options: RequestOptionsLike) => {
       const resolved =
@@ -109,7 +111,7 @@ describe('signedActivityPubRequest with SQL database', () => {
         body: '',
         headers: contentType ? { 'content-type': contentType } : {},
         statusCode,
-        url: options.url
+        url: finalUrls.shift() ?? options.url
       }
     })
   })
@@ -266,6 +268,88 @@ describe('signedActivityPubRequest with SQL database', () => {
       domain: 'follow.example'
     })
     expect(stored?.scheme).toBe('rfc9421')
+  })
+
+  it('learns nothing from a GET refused with 403 and read on the other knock', async () => {
+    statuses = [403, 200]
+    contentTypes = ['text/html', 'application/activity+json']
+    const result = await signedActivityPubRequest({
+      actor,
+      database,
+      method: 'GET',
+      persistScheme: true,
+      url: 'https://anon.example/users/bob'
+    })
+
+    expect(result.statusCode).toBe(200)
+    expect(headersSent).toHaveLength(2)
+    expect(
+      await database.getRemoteSignatureScheme({ domain: 'anon.example' })
+    ).toBeNull()
+    expect(getRememberedSignatureScheme('anon.example')).toBeNull()
+  })
+
+  it('falls back to draft-cavage when an RFC 9421 POST is refused with 400', async () => {
+    await database.upsertRemoteSignatureScheme({
+      domain: 'rollback.example',
+      scheme: 'rfc9421',
+      expiresAt: Date.now() + REMOTE_SIGNATURE_SCHEME_TTL_MS
+    })
+    statuses = [400, 202]
+    const result = await signedActivityPubRequest({
+      actor,
+      database,
+      method: 'POST',
+      persistScheme: true,
+      url: 'https://rollback.example/inbox',
+      body: '{"type":"Follow"}'
+    })
+
+    expect(result.statusCode).toBe(202)
+    expect(headersSent).toHaveLength(2)
+    expect(headersSent[0]['signature-input']).toEqual(expect.any(String))
+    expect(headersSent[1].signature).toMatch(/^keyId=/)
+    const stored = await database.getRemoteSignatureScheme({
+      domain: 'rollback.example'
+    })
+    expect(stored?.scheme).toBe('cavage')
+  })
+
+  it('does not count a POST redirected to a GET page as proof', async () => {
+    statuses = [401, 200]
+    contentTypes = [undefined, 'text/html']
+    finalUrls = [undefined, 'https://redirect.example/thanks']
+    await signedActivityPubRequest({
+      actor,
+      database,
+      method: 'POST',
+      persistScheme: true,
+      url: 'https://redirect.example/inbox',
+      body: '{"type":"Follow"}'
+    })
+
+    expect(
+      await database.getRemoteSignatureScheme({ domain: 'redirect.example' })
+    ).toBeNull()
+  })
+
+  it('a lookup never overrides the scheme the table holds for a host', async () => {
+    await database.upsertRemoteSignatureScheme({
+      domain: 'stored.example',
+      scheme: 'rfc9421',
+      expiresAt: Date.now() + REMOTE_SIGNATURE_SCHEME_TTL_MS
+    })
+    // Knock 1 (RFC 9421, from the table) is refused, Knock 2 (cavage) reads.
+    statuses = [401, 200]
+    contentTypes = ['text/html', 'application/activity+json']
+    await signedActivityPubRequest({
+      actor,
+      database,
+      method: 'GET',
+      url: 'https://stored.example/users/bob'
+    })
+
+    expect(getRememberedSignatureScheme('stored.example')).toBe('rfc9421')
   })
 
   it('keeps a scheme learned with persistScheme false in process only', async () => {

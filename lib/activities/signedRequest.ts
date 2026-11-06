@@ -130,6 +130,15 @@ export const rememberSignatureScheme = (
   )
 }
 
+// Whether the cache holds a still-fresh entry read from (or written to) the
+// shared table for `hostKey`.
+const hasFreshStoredScheme = (hostKey: string): boolean => {
+  const entry = rememberedSchemes.get(hostKey)
+  return Boolean(
+    entry && entry.dbExpiresAt !== null && isEntryFresh(entry, Date.now())
+  )
+}
+
 /** Drops every in-process cached scheme. Tests use it; production never needs to. */
 export const clearRememberedSignatureSchemes = (): void => {
   rememberedSchemes.clear()
@@ -364,10 +373,18 @@ const toSignedMethod = (method: string): 'GET' | 'POST' =>
 
 // A POST is only re-knocked on 401: a 403 is a policy answer, not a signature
 // one. A GET is read-only, so a 403 is worth one more try with the other
-// scheme.
-const shouldKnock = (method: 'GET' | 'POST', statusCode: number): boolean =>
+// scheme. A POST we signed RFC 9421 (a learned, non-default scheme) also falls
+// back to draft-cavage on 400 or 403: some draft-cavage-only inboxes refuse an
+// RFC 9421 POST that way rather than with a 401, and without this a wrong
+// stored scheme would never heal and every delivery would be dropped.
+const shouldKnock = (
+  method: 'GET' | 'POST',
+  statusCode: number,
+  primary: SignatureScheme
+): boolean =>
   method === 'POST'
-    ? statusCode === 401
+    ? statusCode === 401 ||
+      (primary === 'rfc9421' && (statusCode === 400 || statusCode === 403))
     : statusCode === 401 || statusCode === 403
 
 const isSuccess = (statusCode: number): boolean =>
@@ -378,10 +395,12 @@ const isSuccess = (statusCode: number): boolean =>
  *
  * The primary scheme is the one remembered for the target host in
  * `remote_signature_schemes` (cached briefly in process, defaulting to
- * draft-cavage). A 401 (POST) or 401/403 (GET) from the same host is retried
- * once with the other scheme; a 2xx on that second knock remembers it only
- * when neither knock crossed hosts, including chains returning to the initial
- * host. A failed or throwing second knock returns the first response unchanged
+ * draft-cavage). A 401 (POST), a 400/403 to a POST signed RFC 9421, or a
+ * 401/403 (GET) from the same host is retried once with the other scheme; a
+ * 2xx on that second knock remembers it only when neither knock crossed hosts
+ * (including chains returning to the initial host), a GET's first knock was a
+ * 401, and the answer proves the scheme (an unredirected POST, or an
+ * ActivityPub document). A failed or throwing second knock returns the first response unchanged
  * so delivery classification sees exactly what it saw before.
  *
  * Headers are built per hop, so a same-host redirect is re-signed over its own
@@ -467,8 +486,12 @@ export const signedActivityPubRequest = async ({
   // only counts when it returned an ActivityPub document. An HTML page or an
   // anonymous fallback on some other path says nothing about which scheme the
   // host's inbox needs, so it must not set the scheme every delivery uses.
+  // A POST counts only when it was not redirected: a same-host 303 turns it
+  // into a GET whose 2xx says nothing about the inbox.
+  const requestedHref = new URL(url).href
   const provesScheme = (response: RequestResult) =>
-    method === 'POST' ||
+    (method === 'POST' &&
+      new URL(response.url ?? url).href === requestedHref) ||
     isActivityPubContentType(getHeaderValue(response.headers, 'content-type'))
 
   const startedAt = Date.now()
@@ -493,7 +516,7 @@ export const signedActivityPubRequest = async ({
     return first
   }
 
-  if (!shouldKnock(method, first.statusCode)) return first
+  if (!shouldKnock(method, first.statusCode, primary)) return first
 
   // A cross-host redirect deliberately dropped the signature, so its answer
   // says nothing about the scheme this host accepts.
@@ -517,10 +540,15 @@ export const signedActivityPubRequest = async ({
     )
     if (!isSuccess(second.statusCode)) return first
 
-    if (!secondCrossedHosts && provesScheme(second)) {
+    // A GET refused with 403 and answered on the other knock may only have
+    // been read anonymously (an unrecognised signature treated as none), so
+    // only a 401 teaches a GET anything.
+    const learns = method === 'POST' || first.statusCode === 401
+    if (!secondCrossedHosts && learns && provesScheme(second)) {
       if (persistScheme) {
         await persistSignatureScheme(hostKey, alternate, database)
-      } else if (hostKey) {
+      } else if (hostKey && !hasFreshStoredScheme(hostKey)) {
+        // A lookup never overrides what the shared table says for the host.
         rememberSignatureScheme(hostKey, alternate)
       }
     }
