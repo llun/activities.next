@@ -22,7 +22,7 @@ vi.mock('@/lib/client/share-target/shareTargetDb', () => ({
   clearStagedShares: vi.fn().mockResolvedValue(true)
 }))
 vi.mock('@/lib/client/share-target/pendingSharePurge', () => ({
-  markSharePurgePending: vi.fn().mockResolvedValue(undefined),
+  markSharePurgePending: vi.fn().mockResolvedValue(1234),
   settleSharePurge: vi.fn().mockResolvedValue(undefined)
 }))
 vi.mock('@/lib/client/drafts', () => ({
@@ -80,7 +80,8 @@ describe('useSignOut', () => {
     })
 
     expect(markSharePurgePending).toHaveBeenCalledTimes(1)
-    expect(settleSharePurge).toHaveBeenCalledTimes(1)
+    // Only the generation this sign-out wrote is retired.
+    expect(settleSharePurge).toHaveBeenCalledWith(1234)
   })
 
   // The clear failed or timed out: the marker stays, so the next reader on

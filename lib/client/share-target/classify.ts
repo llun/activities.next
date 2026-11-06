@@ -5,6 +5,9 @@
 // everything else is skipped with a reason.
 import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
 import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
+import { formatFileSize } from '@/lib/utils/formatFileSize'
+
+import { SHARE_TARGET_MAX_FILES, SHARE_TARGET_MAX_TOTAL_BYTES } from './types'
 
 export interface ShareTargetLimits {
   /** Resolved `media.maxFileSize`. */
@@ -137,7 +140,8 @@ export const classifySharedFiles = (
  * the /app card and the batch importer use.
  */
 export const describeNotStaged = (count: number): string =>
-  `${count} ${count === 1 ? 'file was' : 'files were'} past the share limit of 20 files and 250 MB`
+  // formatFileSize is the house unit for user copy (1024-based, written "MB").
+  `${count} ${count === 1 ? 'file was' : 'files were'} past the share limit of ${SHARE_TARGET_MAX_FILES} files and ${formatFileSize(SHARE_TARGET_MAX_TOTAL_BYTES)}`
 
 const totalSkipped = (skipped: ShareTargetSkipSummary) =>
   skipped.unsupported +

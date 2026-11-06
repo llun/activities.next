@@ -19,32 +19,15 @@ const parse = (value: string | null | undefined): number | null => {
   return value && Number.isFinite(markedAt) ? markedAt : null
 }
 
-/** Records that shares staged up to `markedAt` are still to be deleted. */
-export const markSharePurgePending = async (
-  markedAt: number = Date.now()
-): Promise<void> => {
+const readStored = (): number | null => {
   try {
-    window.localStorage.setItem(STORAGE_KEY, String(markedAt))
+    return parse(window.localStorage.getItem(STORAGE_KEY))
   } catch {
-    // Kept in Cache Storage below, or not at all: the clear is still tried.
-  }
-  try {
-    if (typeof caches === 'undefined') return
-    const cache = await caches.open(SHARE_PURGE_CACHE)
-    await cache.put(SHARE_PURGE_CACHE_KEY, new Response(String(markedAt)))
-  } catch {
-    // Cache Storage unavailable: the pages still have localStorage.
+    return null
   }
 }
 
-/** The pending purge's sign-out time, or null when none is pending. */
-export const readSharePurgePending = async (): Promise<number | null> => {
-  try {
-    const stored = parse(window.localStorage.getItem(STORAGE_KEY))
-    if (stored !== null) return stored
-  } catch {
-    // Fall through to the Cache Storage copy.
-  }
+const readCached = async (): Promise<number | null> => {
   try {
     if (typeof caches === 'undefined') return null
     const cache = await caches.open(SHARE_PURGE_CACHE)
@@ -55,15 +38,57 @@ export const readSharePurgePending = async (): Promise<number | null> => {
   }
 }
 
-/** The purge is done: both copies of the marker go. */
-export const settleSharePurge = async (): Promise<void> => {
+/**
+ * Records that shares staged up to `markedAt` are still to be deleted, and
+ * returns it: the caller settles this generation, and only this one. The
+ * localStorage copy is written before anything awaits.
+ */
+export const markSharePurgePending = async (
+  markedAt: number = Date.now()
+): Promise<number> => {
   try {
-    window.localStorage.removeItem(STORAGE_KEY)
+    window.localStorage.setItem(STORAGE_KEY, String(markedAt))
+  } catch {
+    // Kept in Cache Storage below, or not at all: the clear is still tried.
+  }
+  try {
+    if (typeof caches === 'undefined') return markedAt
+    const cache = await caches.open(SHARE_PURGE_CACHE)
+    await cache.put(SHARE_PURGE_CACHE_KEY, new Response(String(markedAt)))
+  } catch {
+    // Cache Storage unavailable: the pages still have localStorage.
+  }
+  return markedAt
+}
+
+/**
+ * The newest pending purge's sign-out time across both copies, or null when
+ * none is pending. Purging up to the newest also covers any older one.
+ */
+export const readSharePurgePending = async (): Promise<number | null> => {
+  const stored = readStored()
+  const cached = await readCached()
+  if (stored === null) return cached
+  if (cached === null) return stored
+  return Math.max(stored, cached)
+}
+
+/**
+ * The purge up to `markedAt` is done: each copy of the marker goes only if it
+ * still holds that time. A newer sign-out may have written its own while this
+ * purge waited on IndexedDB; that one stays for the next purge.
+ */
+export const settleSharePurge = async (markedAt: number): Promise<void> => {
+  try {
+    if (readStored() === markedAt) window.localStorage.removeItem(STORAGE_KEY)
   } catch {
     // Nothing stored.
   }
   try {
-    if (typeof caches !== 'undefined') await caches.delete(SHARE_PURGE_CACHE)
+    if (typeof caches === 'undefined') return
+    if ((await readCached()) !== markedAt) return
+    const cache = await caches.open(SHARE_PURGE_CACHE)
+    await cache.delete(SHARE_PURGE_CACHE_KEY)
   } catch {
     // Nothing cached.
   }

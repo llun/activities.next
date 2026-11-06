@@ -360,7 +360,8 @@ async function readSharePurgeMarker() {
     const cache = await caches.open(SHARE_PURGE_CACHE)
     const response = await cache.match(SHARE_PURGE_CACHE_KEY)
     if (!response) return null
-    const markedAt = Number(await response.text())
+    // A clone: the marker is read again before it is retired.
+    const markedAt = Number(await response.clone().text())
     return Number.isFinite(markedAt) ? markedAt : null
   } catch {
     return null
@@ -460,8 +461,13 @@ async function stageShareTarget(formData) {
       purgeBefore
     )
     if (purgeBefore !== null && pruned) {
+      // Retire only the generation purged: a sign-out may have written a
+      // newer marker meanwhile, which must stay for the next purge.
       try {
-        await caches.delete(SHARE_PURGE_CACHE)
+        if ((await readSharePurgeMarker()) === purgeBefore) {
+          const cache = await caches.open(SHARE_PURGE_CACHE)
+          await cache.delete(SHARE_PURGE_CACHE_KEY)
+        }
       } catch {
         // The pages purge again from their own copy; only older shares go.
       }

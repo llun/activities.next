@@ -29,3 +29,6 @@ export const SHARE_TARGET_DB_NAME = 'activities_share_target_v1'
 export const SHARE_TARGET_DB_VERSION = 1
 export const SHARE_TARGET_STORE = 'shares'
 export const SHARE_TARGET_TTL_MS = 24 * 60 * 60 * 1000
+/** The worker's per-share ceilings (public/sw.js), named in the skip notice. */
+export const SHARE_TARGET_MAX_FILES = 20
+export const SHARE_TARGET_MAX_TOTAL_BYTES = 250 * 1024 * 1024

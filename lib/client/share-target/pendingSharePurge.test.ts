@@ -77,8 +77,39 @@ describe('pending share purge', () => {
     await markSharePurgePending(1234)
     expect(await readSharePurgePending()).toBe(1234)
 
-    await settleSharePurge()
+    await settleSharePurge(1234)
 
+    expect(await readSharePurgePending()).toBeNull()
+  })
+
+  // A newer sign-out wrote its marker while an older purge was running: the
+  // older purge must not retire it.
+  it('keeps a newer marker when settling an older one', async () => {
+    await markSharePurgePending(1000)
+    await markSharePurgePending(2000)
+
+    await settleSharePurge(1000)
+
+    expect(await readSharePurgePending()).toBe(2000)
+  })
+
+  // The interleaving review reproduced: a reader starts purging marker T1 and
+  // waits on IndexedDB; meanwhile account B, which staged a workout after T1,
+  // signs out elsewhere (T2) and its clear fails. When the first purge
+  // resumes, B's workout must still be purged before anything is read.
+  it('purges a newer marker written during the purge before allowing a read', async () => {
+    const t1 = Date.now()
+    await markSharePurgePending(t1)
+    vi.spyOn(Date, 'now').mockReturnValue(t1 + 500)
+    const workout = await stageShareFiles([file('ride.fit')])
+    vi.mocked(Date.now).mockRestore()
+
+    const honoured = honourPendingSharePurge()
+    // Written synchronously while the purge of T1 waits on IndexedDB.
+    void markSharePurgePending(t1 + 1000)
+
+    expect(await honoured).toBe(true)
+    expect(await peekStagedShare(workout!)).toBeNull()
     expect(await readSharePurgePending()).toBeNull()
   })
 })

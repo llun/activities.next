@@ -75,8 +75,8 @@ export function useSignOut(): {
             // which a session expiry also runs: a share survives that.
             // Marked first, as the drafts purge is: if the clear fails or
             // times out, every reader purges them before reading anything.
-            await markSharePurgePending()
-            if (await clearStagedShares()) await settleSharePurge()
+            const markedAt = await markSharePurgePending()
+            if (await clearStagedShares()) await settleSharePurge(markedAt)
             window.location.href = '/auth/signin'
           },
           onError: failed

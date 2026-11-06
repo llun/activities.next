@@ -115,6 +115,7 @@ return {
   SHARE_TARGET_DB_VERSION,
   SHARE_TARGET_STORE,
   SHARE_TARGET_TTL_MS,
+  SHARE_TARGET_MAX_FILES,
   SHARE_TARGET_MAX_TOTAL_BYTES,
   SHARE_TARGET_MAX_TEXT_LENGTH,
   SHARE_TARGET_MAX_RECORDS,
@@ -1030,6 +1031,12 @@ return {
       )
       expect(swModule.SHARE_TARGET_STORE).toBe(client.SHARE_TARGET_STORE)
       expect(swModule.SHARE_TARGET_TTL_MS).toBe(client.SHARE_TARGET_TTL_MS)
+      expect(swModule.SHARE_TARGET_MAX_TOTAL_BYTES).toBe(
+        client.SHARE_TARGET_MAX_TOTAL_BYTES
+      )
+      expect(swModule.SHARE_TARGET_MAX_FILES).toBe(
+        client.SHARE_TARGET_MAX_FILES
+      )
       const purge = await import('@/lib/client/share-target/pendingSharePurge')
       expect(swModule.SHARE_PURGE_CACHE).toBe(purge.SHARE_PURGE_CACHE)
       expect(swModule.SHARE_PURGE_CACHE_KEY).toBe(purge.SHARE_PURGE_CACHE_KEY)
@@ -1114,7 +1121,40 @@ return {
       expect(ids).not.toContain('old')
       expect(ids).toContain('later')
       expect(ids).toHaveLength(2)
-      expect(cacheStore.has('activities-share-target-purge-v1')).toBe(false)
+      expect(
+        cacheStore
+          .get('activities-share-target-purge-v1')
+          ?.has('/__share-target-pending-purge')
+      ).toBe(false)
+    })
+
+    // A newer sign-out wrote its marker while this stage purged the older
+    // one: the newer marker stays for the next reader.
+    it('keeps a newer purge marker written during the stage', async () => {
+      const older = Date.now() - 2000
+      const newer = Date.now() - 1000
+      const cache = await (globalThis as any).caches.open(
+        'activities-share-target-purge-v1'
+      )
+      await cache.put(
+        '/__share-target-pending-purge',
+        new Response(String(older))
+      )
+      const match = cache.match.getMockImplementation()
+      cache.match.mockImplementationOnce(async (request: any) => {
+        const response = await match(request)
+        // The newer sign-out lands right after the worker read the marker.
+        await cache.put(
+          '/__share-target-pending-purge',
+          new Response(String(newer))
+        )
+        return response
+      })
+
+      await triggerFetch(shareRequest([photoFile()]))
+
+      const kept = await cache.match('/__share-target-pending-purge')
+      expect(await kept.text()).toBe(String(newer))
     })
 
     it('counts the files past the 20-file cap as skipped', async () => {
