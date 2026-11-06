@@ -374,9 +374,12 @@ const toSignedMethod = (method: string): 'GET' | 'POST' =>
 // A POST is only re-knocked on 401: a 403 is a policy answer, not a signature
 // one. A GET is read-only, so a 403 is worth one more try with the other
 // scheme. A POST we signed RFC 9421 (a learned, non-default scheme) also falls
-// back to draft-cavage on 400 or 403: some draft-cavage-only inboxes refuse an
-// RFC 9421 POST that way rather than with a 401, and without this a wrong
-// stored scheme would never heal and every delivery would be dropped.
+// back to draft-cavage on any other refusal (a 4xx except 404, 410 and 429,
+// which say the inbox is gone or busy, not that the signature was wrong):
+// draft-cavage-only inboxes refuse an RFC 9421 POST with 400, 403, 415 or 422
+// as often as 401, and without this a wrong stored scheme would never heal and
+// every delivery would be dropped.
+const NOT_A_SIGNATURE_REFUSAL = new Set([404, 410, 429])
 const shouldKnock = (
   method: 'GET' | 'POST',
   statusCode: number,
@@ -384,7 +387,10 @@ const shouldKnock = (
 ): boolean =>
   method === 'POST'
     ? statusCode === 401 ||
-      (primary === 'rfc9421' && (statusCode === 400 || statusCode === 403))
+      (primary === 'rfc9421' &&
+        statusCode >= 400 &&
+        statusCode < 500 &&
+        !NOT_A_SIGNATURE_REFUSAL.has(statusCode))
     : statusCode === 401 || statusCode === 403
 
 const isSuccess = (statusCode: number): boolean =>
@@ -395,7 +401,8 @@ const isSuccess = (statusCode: number): boolean =>
  *
  * The primary scheme is the one remembered for the target host in
  * `remote_signature_schemes` (cached briefly in process, defaulting to
- * draft-cavage). A 401 (POST), a 400/403 to a POST signed RFC 9421, or a
+ * draft-cavage). A 401 (POST), another 4xx refusal (not 404, 410 or 429) to a
+ * POST signed RFC 9421, or a
  * 401/403 (GET) from the same host is retried once with the other scheme; a
  * 2xx on that second knock remembers it only when neither knock crossed hosts
  * (including chains returning to the initial host), a GET's first knock was a

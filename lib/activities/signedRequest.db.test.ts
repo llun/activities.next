@@ -333,6 +333,50 @@ describe('signedActivityPubRequest with SQL database', () => {
     ).toBeNull()
   })
 
+  it.each([403, 415, 422])(
+    'also falls back to draft-cavage when an RFC 9421 POST is refused with %i',
+    async (status) => {
+      await database.upsertRemoteSignatureScheme({
+        domain: `refuse-${status}.example`,
+        scheme: 'rfc9421',
+        expiresAt: Date.now() + REMOTE_SIGNATURE_SCHEME_TTL_MS
+      })
+      statuses = [status, 202]
+      const result = await signedActivityPubRequest({
+        actor,
+        database,
+        method: 'POST',
+        persistScheme: true,
+        url: `https://refuse-${status}.example/inbox`,
+        body: '{"type":"Follow"}'
+      })
+      expect(result.statusCode).toBe(202)
+      expect(headersSent).toHaveLength(2)
+    }
+  )
+
+  it.each([404, 410, 429])(
+    'does not re-knock an RFC 9421 POST answered %i',
+    async (status) => {
+      await database.upsertRemoteSignatureScheme({
+        domain: `gone-${status}.example`,
+        scheme: 'rfc9421',
+        expiresAt: Date.now() + REMOTE_SIGNATURE_SCHEME_TTL_MS
+      })
+      statuses = [status]
+      const result = await signedActivityPubRequest({
+        actor,
+        database,
+        method: 'POST',
+        persistScheme: true,
+        url: `https://gone-${status}.example/inbox`,
+        body: '{"type":"Follow"}'
+      })
+      expect(result.statusCode).toBe(status)
+      expect(headersSent).toHaveLength(1)
+    }
+  )
+
   it('a lookup never overrides the scheme the table holds for a host', async () => {
     await database.upsertRemoteSignatureScheme({
       domain: 'stored.example',
