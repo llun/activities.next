@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { confirmActorHandle } from '@/lib/activities/confirmActorHandle'
+import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -13,7 +13,6 @@ import {
   normalizeActorId
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
-import { request } from '@/lib/utils/request'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 import { isRecord } from '@/lib/utils/typeGuards'
@@ -216,19 +215,18 @@ const fetchSenderPublicKey = async (
   signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>,
   selectKeyId?: string
 ) => {
-  const response = await request({
+  const response = await signedActivityPubRequest({
+    actor: signingActor,
+    method: 'GET',
     url: actorId,
-    headers: ({ url }) =>
-      activityPubRequestHeaders({
-        url: url.toString(),
-        signingActor
-      }),
-    numberOfRetry: 0,
-    responseTimeout: SENDER_KEY_FETCH_TIMEOUT_MS,
-    // The document is trusted because the keyId's origin served it (its id
-    // must equal the requested one). A hop onto another host would let that
-    // host — never checked against domain blocks — mint the sender's key.
-    allowCrossHostRedirects: false
+    requestOptions: {
+      numberOfRetry: 0,
+      responseTimeout: SENDER_KEY_FETCH_TIMEOUT_MS,
+      // The document is trusted because the keyId's origin served it (its id
+      // must equal the requested one). A hop onto another host would let that
+      // host — never checked against domain blocks — mint the sender's key.
+      allowCrossHostRedirects: false
+    }
   })
   // The keyId names any URL on the sender's origin, and a user upload there
   // (served as `application/json`) could otherwise mint a signing key.

@@ -97,11 +97,16 @@ export async function verify(
   })
 }
 
+/**
+ * Draft-cavage headers for one request. `body` is the serialized request body
+ * exactly as it goes on the wire, so the `Digest` covers the bytes actually
+ * sent rather than a second serialization of the same object.
+ */
 export function signedHeaders(
   currentActor: Actor,
   method: SignedHttpMethod,
   targetUrl: string,
-  content?: unknown
+  body?: string
 ) {
   const url = new URL(targetUrl)
   const host = url.host
@@ -114,10 +119,10 @@ export function signedHeaders(
   }
   const headerKeys = ['(request-target)', 'host', 'date']
 
-  if (content) {
+  if (body !== undefined) {
     const digest = `SHA-256=${crypto
       .createHash('sha-256')
-      .update(JSON.stringify(content))
+      .update(body, 'utf8')
       .digest('base64')}`
     const contentType = 'application/activity+json'
     headers['digest'] = digest

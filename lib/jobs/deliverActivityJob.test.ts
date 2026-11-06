@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { clearRememberedSignatureSchemes } from '@/lib/activities/signedRequest'
 import { Database } from '@/lib/database/types'
 import { SalvageableDeliveryError } from '@/lib/services/federation/deliveryError'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
@@ -13,6 +14,11 @@ import {
 } from './deliverActivityJob'
 
 vi.mock('@/lib/utils/request')
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: vi.fn().mockResolvedValue({
+    network: { requestTimeoutMs: 5000 }
+  })
+}))
 vi.mock('@/lib/activities/activityPubHeaders', () => ({
   activityPubRequestHeaders: vi.fn().mockReturnValue({
     'content-type': 'application/activity+json'
@@ -32,6 +38,7 @@ describe('deliverActivityJob', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    clearRememberedSignatureSchemes()
     harness = setupRecordingTracer()
     vi.mocked(mockDatabase.getActorFromId).mockResolvedValue({
       id: 'https://activities.local/users/alice',
@@ -327,6 +334,55 @@ describe('deliverActivityJob', () => {
       await expect(
         deliverActivityJob(mockDatabase, baseMessage)
       ).rejects.toBeInstanceOf(SalvageableDeliveryError)
+      expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
+      expect(mockDatabase.clearDeliveryFailures).not.toHaveBeenCalled()
+    })
+
+    it('classifies a 401 the same way after the double-knock also fails', async () => {
+      vi.mocked(request).mockResolvedValue({
+        statusCode: 401,
+        body: '',
+        headers: {}
+      })
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).rejects.toBeInstanceOf(SalvageableDeliveryError)
+
+      // Knock 1 (cavage) and Knock 2 (rfc9421) both ran, and the first
+      // response is the one that reached classification.
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
+      expect(mockDatabase.clearDeliveryFailures).not.toHaveBeenCalled()
+    })
+
+    it('delivers when the double-knock succeeds', async () => {
+      vi.mocked(request)
+        .mockResolvedValueOnce({ statusCode: 401, body: '', headers: {} })
+        .mockResolvedValueOnce({ statusCode: 202, body: '', headers: {} })
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).resolves.toBeUndefined()
+
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(mockDatabase.clearDeliveryFailures).toHaveBeenCalledWith({
+        inbox: 'https://Remote.Example/inbox'
+      })
+      expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
+    })
+
+    it('preserves the 401 classification when Knock 2 throws ETIMEDOUT', async () => {
+      vi.mocked(request)
+        .mockResolvedValueOnce({ statusCode: 401, body: '', headers: {} })
+        .mockRejectedValueOnce(
+          Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })
+        )
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).rejects.toMatchObject({ statusCode: 401 })
+      expect(request).toHaveBeenCalledTimes(2)
       expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
       expect(mockDatabase.clearDeliveryFailures).not.toHaveBeenCalled()
     })

@@ -1,6 +1,6 @@
-import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
+import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import {
@@ -8,7 +8,6 @@ import {
   normalizeActorId
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
-import { request } from '@/lib/utils/request'
 import { withSpan } from '@/lib/utils/trace'
 
 export type GetActorPersonFunction = (params: {
@@ -33,14 +32,14 @@ const fetchActorDocument = async ({
   withNetworkRetry: boolean
   signingActor?: DomainActor
 }): Promise<FetchedActorDocument | null> => {
-  const response = await request({
+  const response = await signedActivityPubRequest({
+    actor: signingActor,
+    method: 'GET',
     url,
-    headers: activityPubRequestHeaders({
-      url,
-      signingActor
-    }),
-    // Use default retry by set it to undefined, otherwise 0 retry
-    numberOfRetry: withNetworkRetry ? undefined : 0
+    requestOptions: {
+      // Use default retry by set it to undefined, otherwise 0 retry
+      numberOfRetry: withNetworkRetry ? undefined : 0
+    }
   })
   if (!isActivityPubDocumentResponse(response, url)) {
     return null

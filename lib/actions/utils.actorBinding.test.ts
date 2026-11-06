@@ -213,8 +213,11 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   // authorized-fetch origin answers 401 to an unsigned one, which would leave
   // every alias-reached actor from such a server unrecorded.
   it('signs the canonical re-fetch behind an alias', async () => {
+    // `signedActivityPubRequest` only signs when the actor carries a key; the
+    // `signedHeaders` mock above supplies the header itself.
     vi.mocked(getFederationSigningActor).mockResolvedValue({
-      id: 'https://local.test/users/__instance__'
+      id: 'https://local.test/users/__instance__',
+      privateKey: 'mock-key'
     } as unknown as Actor)
     const uploadId = 'https://victim.test/media/upload.json'
     serve(

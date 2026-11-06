@@ -2,7 +2,6 @@ import { Span } from '@opentelemetry/api'
 import crypto from 'crypto'
 
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
-import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { BlockRequest } from '@/lib/activities/blockAction'
@@ -26,6 +25,7 @@ import {
   reactionActivityId
 } from '@/lib/activities/reactionActivity'
 import { RejectFollow } from '@/lib/activities/rejectFollow'
+import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { UndoBlock } from '@/lib/activities/undoBlock'
 import { UndoFollow } from '@/lib/activities/undoFollow'
 import { UndoLike } from '@/lib/activities/undoLike'
@@ -60,7 +60,7 @@ import {
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
-import { RequestOptions, request } from '@/lib/utils/request'
+import { RequestOptions } from '@/lib/utils/request'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -94,17 +94,12 @@ const postActivityToInbox = async ({
 }: PostActivityToInboxParams): Promise<number | undefined> => {
   const method = 'POST'
   try {
-    const { statusCode } = await request({
-      ...requestOptions,
-      url: inbox,
+    const { statusCode } = await signedActivityPubRequest({
+      actor: currentActor,
       method,
-      headers: activityPubRequestHeaders({
-        url: inbox,
-        method,
-        signingActor: currentActor,
-        content: activity
-      }),
-      body: JSON.stringify(activity)
+      url: inbox,
+      body: JSON.stringify(activity),
+      requestOptions
     })
     return statusCode
   } catch (error) {
@@ -137,7 +132,9 @@ export const getNote = async ({
 }: GetNoteParams): Promise<BaseNote | null> =>
   withSpan('activity', 'getNote', { statusId }, async (span) => {
     try {
-      const response = await request({
+      const response = await signedActivityPubRequest({
+        actor: signingActor,
+        method: 'GET',
         url: statusId,
         // Callers authenticate the note by the origin it was fetched from:
         // the paths that store it check its `id` against `statusId`, and its
@@ -146,11 +143,7 @@ export const getNote = async ({
         // `dispatchCreateNoteOrPollJob`). A hop onto another host would let
         // that host answer for this one, so an open redirect on the claimed
         // origin must not be followed.
-        allowCrossHostRedirects: false,
-        headers: activityPubRequestHeaders({
-          url: statusId,
-          signingActor
-        })
+        requestOptions: { allowCrossHostRedirects: false }
       })
       if (!isActivityPubDocumentResponse(response, statusId)) return null
       // Canonicalise the fetched note via JSON-LD compaction so every caller

@@ -1,12 +1,14 @@
 import crypto from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 
+import { createContentDigestHeader } from './contentDigest'
 import {
   MAX_COVERED_COMPONENTS,
   MAX_SIGNATURE_INPUT_LENGTH,
   buildSignatureBase,
   hasRequiredHttpMessageSignatureComponents,
   parseHttpMessageSignature,
+  signHttpMessage,
   verifyHttpMessageSignature
 } from './httpMessageSignature'
 
@@ -449,5 +451,244 @@ describe('verifyHttpMessageSignature', () => {
     expect(
       await verifyHttpMessageSignature(parsed, edRequest(), 'not a pem')
     ).toBe(false)
+  })
+})
+
+describe('signHttpMessage', () => {
+  const keyPair = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+  })
+  const keyId = 'https://local.test/users/alice#main-key'
+  const createdSec = 1618884473
+
+  const sign = (params: { body?: string; method: string; url: string }) =>
+    signHttpMessage({
+      ...params,
+      createdSec,
+      keyId,
+      privateKey: keyPair.privateKey
+    })
+
+  it('signs a GET over @method and @target-uri only', async () => {
+    const url = 'https://remote.test/users/alice/outbox?page=true'
+    const signed = sign({ method: 'GET', url })
+
+    expect(signed.headers['signature-input']).toBe(
+      `sig1=("@method" "@target-uri");created=${createdSec};keyid="${keyId}";alg="rsa-v1_5-sha256"`
+    )
+    expect(signed.headers['signature-input']).not.toContain('expires')
+    expect(signed.headers['signature-input']).not.toContain('content-type')
+    expect(signed.headers).not.toHaveProperty('content-digest')
+    expect(signed.headers).not.toHaveProperty('content-type')
+
+    const headers = new Headers(signed.headers)
+    const parsed = parseHttpMessageSignature(headers)
+    expect(parsed).not.toBeNull()
+    await expect(
+      verifyHttpMessageSignature(
+        parsed!,
+        { method: 'GET', targetUri: url, headers },
+        keyPair.publicKey
+      )
+    ).resolves.toBe(true)
+  })
+
+  it('covers content-digest for a POST body', async () => {
+    const url = 'https://remote.test/inbox'
+    const body = JSON.stringify({
+      type: 'Follow',
+      object: 'https://remote.test/b'
+    })
+    const signed = sign({ body, method: 'POST', url })
+
+    expect(signed.headers['signature-input']).toBe(
+      `sig1=("@method" "@target-uri" "content-digest");created=${createdSec};keyid="${keyId}";alg="rsa-v1_5-sha256"`
+    )
+    expect(signed.headers['content-digest']).toBe(
+      createContentDigestHeader(Buffer.from(body))
+    )
+    expect(signed.headers['content-type']).toBe('application/activity+json')
+
+    const headers = new Headers(signed.headers)
+    const parsed = parseHttpMessageSignature(headers)
+    await expect(
+      verifyHttpMessageSignature(
+        parsed!,
+        { method: 'POST', targetUri: url, headers },
+        keyPair.publicKey
+      )
+    ).resolves.toBe(true)
+  })
+
+  it('is deterministic for the same base', () => {
+    const params = { method: 'GET', url: 'https://remote.test/users/alice' }
+    expect(sign(params).headers.signature).toBe(sign(params).headers.signature)
+  })
+
+  it('rejects a tampered body, method, query and target', async () => {
+    const url = 'https://remote.test/inbox?page=true'
+    const body = JSON.stringify({ type: 'Follow' })
+    const signed = sign({ body, method: 'POST', url })
+    const headers = new Headers(signed.headers)
+    const parsed = parseHttpMessageSignature(headers)!
+
+    await expect(
+      verifyHttpMessageSignature(
+        parsed,
+        { method: 'POST', targetUri: url, headers },
+        keyPair.publicKey
+      )
+    ).resolves.toBe(true)
+    await expect(
+      verifyHttpMessageSignature(
+        parsed,
+        {
+          method: 'POST',
+          targetUri: 'https://remote.test/inbox?page=false',
+          headers
+        },
+        keyPair.publicKey
+      )
+    ).resolves.toBe(false)
+    await expect(
+      verifyHttpMessageSignature(
+        parsed,
+        { method: 'PUT', targetUri: url, headers },
+        keyPair.publicKey
+      )
+    ).resolves.toBe(false)
+    await expect(
+      verifyHttpMessageSignature(
+        parsed,
+        { method: 'POST', targetUri: 'https://remote.test/other', headers },
+        keyPair.publicKey
+      )
+    ).resolves.toBe(false)
+
+    const tampered = new Headers(headers)
+    tampered.set(
+      'content-digest',
+      createContentDigestHeader(Buffer.from(JSON.stringify({ type: 'Undo' })))
+    )
+    await expect(
+      verifyHttpMessageSignature(
+        parsed,
+        { method: 'POST', targetUri: url, headers: tampered },
+        keyPair.publicKey
+      )
+    ).resolves.toBe(false)
+  })
+})
+
+describe('RFC 9421 Appendix B vectors', () => {
+  // Appendix B.1.2, test-key-rsa-pss.
+  const RFC_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr4tmm3r20Wd/PbqvP1s2
++QEtvpuRaV8Yq40gjUR8y2Rjxa6dpG2GXHbPfvMs8ct+Lh1GH45x28Rw3Ry53mm+
+oAXjyQ86OnDkZ5N8lYbggD4O3w6M6pAvLkhk95AndTrifbIFPNU8PPMO7OyrFAHq
+gDsznjPFmTOtCEcN2Z1FpWgchwuYLPL+Wokqltd11nqqzi+bJ9cvSKADYdUAAN5W
+Utzdpiy6LbTgSxP7ociU4Tn0g5I6aDZJ7A8Lzo0KSyZYoA485mqcO0GVAdVw9lq4
+aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
+2wIDAQAB
+-----END PUBLIC KEY-----`
+  const RFC_SIGNATURE_PARAMS =
+    '("date" "@method" "@path" "@query" "@authority" "content-type" "content-digest" "content-length");created=1618884473;keyid="test-key-rsa-pss"'
+  const RFC_BASE = [
+    '"date": Tue, 20 Apr 2021 02:07:55 GMT',
+    '"@method": POST',
+    '"@path": /foo',
+    '"@query": ?param=Value&Pet=dog',
+    '"@authority": example.com',
+    '"content-type": application/json',
+    '"content-digest": sha-512=:WZDPaVn/7XgHaAy8pmojAkGWoRx2UFChF41A2svX+TaPm+AbwAgBWnrIiYllu7BNNyealdVLvRwEmTHWXvJwew==:',
+    '"content-length": 18',
+    `"@signature-params": ${RFC_SIGNATURE_PARAMS}`
+  ].join('\n')
+  const RFC_SIGNATURE =
+    'bbN8oArOxYoyylQQUU6QYwrTuaxLwjAC9fbY2F6SVWvh0yBiMIRGOnMYwZ/5MR6fb0Kh1rIRASVxFkeGt683+qRpRRU5p2voTp768ZrCUb38K0fUxN0O0iC59DzYx8DFll5GmydPxSmme9v6ULbMFkl+V5B1TP/yPViV7KsLNmvKiLJH1pFkh/aYA2HXXZzNBXmIkoQoLd7YfW91kE9o/CCoC1xMy7JA1ipwvKvfrs65ldmlu9bpG6A9BmzhuzF8Eim5f8ui9eH8LZH896+QIF61ka39VBrohr9iyMUJpvRX2Zbhl5ZJzSRxpJyoEZAFL2FUo5fTIztsDZKEgM4cUA=='
+
+  const rfcRequest = () => ({
+    method: 'POST',
+    targetUri: 'https://example.com/foo?param=Value&Pet=dog',
+    headers: new Headers({
+      date: 'Tue, 20 Apr 2021 02:07:55 GMT',
+      'content-type': 'application/json',
+      'content-digest':
+        'sha-512=:WZDPaVn/7XgHaAy8pmojAkGWoRx2UFChF41A2svX+TaPm+AbwAgBWnrIiYllu7BNNyealdVLvRwEmTHWXvJwew==:',
+      'content-length': '18'
+    })
+  })
+
+  // RFC 9421's own RSA vectors are rsa-pss-sha512, which is non-deterministic,
+  // and Appendix B.2.2 covers @query-param, which this builder does not
+  // support. Appendix B.2.3 covers only components we do support, so it is the
+  // vector that can prove the base byte for byte: the RFC's published
+  // signature verifies against our base with the RFC's key.
+  it('reproduces the Appendix B.2.3 signature base byte for byte', () => {
+    const base = buildSignatureBase(
+      {
+        components: [
+          'date',
+          '@method',
+          '@path',
+          '@query',
+          '@authority',
+          'content-type',
+          'content-digest',
+          'content-length'
+        ],
+        signatureParams: RFC_SIGNATURE_PARAMS
+      },
+      rfcRequest()
+    )
+    expect(base).toBe(RFC_BASE)
+  })
+
+  it('verifies the RFC published signature over that base', () => {
+    expect(
+      crypto.verify(
+        'sha512',
+        Buffer.from(RFC_BASE),
+        {
+          key: RFC_PUBLIC_KEY,
+          padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST
+        },
+        Buffer.from(RFC_SIGNATURE, 'base64')
+      )
+    ).toBe(true)
+  })
+
+  it('signs with rsa-v1_5-sha256 deterministically through signHttpMessage', async () => {
+    // The RFC vector above checks the generic base builder. Exercise our
+    // outbound profile through the production signer with a local RSA key.
+    const local = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+    })
+    const params = {
+      method: 'POST',
+      url: 'https://example.com/foo?param=Value&Pet=dog',
+      body: '{"hello": "world"}',
+      createdSec: 1618884473,
+      keyId: 'https://example.com/users/alice#main-key',
+      privateKey: local.privateKey
+    }
+    const first = signHttpMessage(params)
+    const second = signHttpMessage(params)
+    expect(first.headers.signature).toBe(second.headers.signature)
+    const headers = new Headers(first.headers)
+    const parsed = parseHttpMessageSignature(headers)
+    expect(parsed).not.toBeNull()
+    await expect(
+      verifyHttpMessageSignature(
+        parsed!,
+        { method: params.method, targetUri: params.url, headers },
+        local.publicKey
+      )
+    ).resolves.toBe(true)
   })
 })
