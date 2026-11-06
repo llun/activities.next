@@ -1,0 +1,23 @@
+lib/activities/signedRequest.test.ts
+  s_2b1a50e2f9b981::t_fdaaca081931e2 306-313
+docs/architecture.md
+  s_2b1a50e2f9b981::t_5fe79ad09ac259 252,1374
+lib/activities/signedRequest.ts
+  s_2b1a50e2f9b981::t_5fe79ad09ac259 11,151-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "62fab033d7749acb72485a2b127f8d37f9288247",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
