@@ -1,0 +1,37 @@
+app/api/v1/bookmarks/route.test.ts
+  s_2b1a50e2f9b981::t_4d35de1c0256b6 199,229-257
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_c559db0906ddcb 813-821
+lib/database/domains/bookmark/bookmark.test.ts
+  s_2b1a50e2f9b981::t_0e629d9c9e6ae0 3,758-903
+lib/database/domains/bookmark/bookmarkCursor.test.ts
+  s_2b1a50e2f9b981::t_374f4b3a23ef04 1-47
+lib/database/domains/bookmark/bookmarkCursor.ts
+  s_2b1a50e2f9b981::t_43d71ed11c57b7 1-67
+lib/database/domains/bookmark/queries.ts
+  s_2b1a50e2f9b981::t_85dd84e5e29c4d 3-6,245-262,267-269,271-273,279-280,285-287,289-294,298
+lib/services/accountArchive/actorArchive.ts
+  s_2b1a50e2f9b981::t_6c5eeda83c895d 15,380
+lib/services/bookmarks/getBookmarkedStatusesPage.test.ts
+  s_2b1a50e2f9b981::t_a2fbb8d463a274 1-4,23-34,94-97,107,130,147,160,164,187-217,227,251-252,272,274-275
+lib/services/bookmarks/getBookmarkedStatusesPage.ts
+  s_2b1a50e2f9b981::t_f9e794fb283cc2 1,41,93-94,104,106,115-116,118,125-127
+lib/services/imports/overwrite.ts
+  s_2b1a50e2f9b981::t_894657abab28cc 5,51-54,62,385-387
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "510697ca672e3a2f6d6a356938040acb5a09f32c",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
