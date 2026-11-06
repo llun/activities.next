@@ -1,0 +1,47 @@
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_2b1a50e2f9b981::t_79140f26a7b5c3 13,35
+  s_2b1a50e2f9b981::t_b543fef7078501 37,1047-1152
+lib/services/accountImport/schemas/index.ts
+  s_2b1a50e2f9b981::t_07cfef9ca5d932 624-630,637
+lib/services/accountImport/progress.ts
+  s_2b1a50e2f9b981::t_a7e52066ec94f5 15-23,57-62,164-179
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_32f9b5a45d84ad 1252-1255
+app/(timeline)/account/import-export/importCopy.ts
+  s_2b1a50e2f9b981::t_a7e52066ec94f5 58-62,151-152,174-180
+  s_2b1a50e2f9b981::t_c1d6b6f2e9c8ad 181
+lib/services/accountImport/phases.ts
+  s_2b1a50e2f9b981::t_a7e52066ec94f5 2522-2532,2554-2570,2580-2589,2594,2598-2606,2609-2610,2619-2628,2653-2654
+  s_2b1a50e2f9b981::t_548e6a553971ac 33
+lib/services/accountArchive/stepsExtras.ts
+  s_2b1a50e2f9b981::t_0d67cbdb4f946c 287-288,296-299
+  s_2b1a50e2f9b981::t_07cfef9ca5d932 5-6,282-286,289-295,300-303,306-321,323,338-343,345
+  s_2b1a50e2f9b981::t_79140f26a7b5c3 304-305
+app/(timeline)/account/import-export/importCopy.test.ts
+  s_2b1a50e2f9b981::t_5174ddcc1fdc37 54-58,120-128
+  s_2b1a50e2f9b981::t_dc1c2cb89b9467 129-131
+lib/services/accountArchive/stepsExtras.test.ts
+  s_2b1a50e2f9b981::t_5174ddcc1fdc37 1-23,30-54,57-81
+  s_2b1a50e2f9b981::t_572239b7a1e2eb 24-29
+  s_2b1a50e2f9b981::t_79140f26a7b5c3 55-56
+app/(timeline)/account/import-export/ImportReport.tsx
+  s_2b1a50e2f9b981::t_a7e52066ec94f5 37-38
+docs/architecture.md
+  s_2b1a50e2f9b981::t_32f9b5a45d84ad 426-428,766-770
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "10ff270378bed394e3e55d111ac3d90dd0a63e77",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
