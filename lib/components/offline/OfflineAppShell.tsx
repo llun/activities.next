@@ -72,6 +72,10 @@ const getShellView = (pathname: string | null): ShellView => {
   return 'unavailable'
 }
 
+// How long a share waits for the background bootstrap refresh to confirm the
+// cached session before it is shown anyway (as offline).
+export const SHARE_SESSION_CONFIRM_TIMEOUT_MS = 8_000
+
 export function OfflineAppShell() {
   const router = useRouter()
   const view = getShellView(usePathname())
@@ -115,10 +119,19 @@ export function OfflineAppShell() {
               timeline: cachedTimeline
             })
 
+            // A refresh that never settles (a connection that accepts and
+            // then stalls) must not hold a share back for ever: past the
+            // timeout the cached session is taken, as offline. The staged
+            // share is only used once the reader confirms it, so a 401 that
+            // lands later still finds it, and `?share=` still in the URL.
+            const confirmTimer = setTimeout(() => {
+              if (mounted) setSessionConfirmed(true)
+            }, SHARE_SESSION_CONFIRM_TIMEOUT_MS)
             void (async () => {
               try {
                 const fresh =
                   await getAccountBootstrap<ClientBootstrapSnapshot>()
+                clearTimeout(confirmTimer)
                 if (fresh && mounted) {
                   await saveClientBootstrapSnapshot(fresh)
                   setShellState((prev) =>
@@ -129,6 +142,7 @@ export function OfflineAppShell() {
                 }
                 if (mounted) setSessionConfirmed(true)
               } catch (error) {
+                clearTimeout(confirmTimer)
                 // Background refresh error ignored. Offline, the cached
                 // session is all there is, so a share is still taken.
                 const unauthorized =
@@ -495,7 +509,12 @@ export function OfflineAppShell() {
                       <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
                         <ConnectionStatusBar />
                         {view === 'timeline' && sessionConfirmed && (
-                          <ShareTargetIntake onSeed={setShareSeed} />
+                          <ShareTargetIntake
+                            isMediaUploadEnabled={
+                              bootstrap.isMediaUploadEnabled
+                            }
+                            onSeed={setShareSeed}
+                          />
                         )}
                         {view === 'timeline' && (
                           <MainPageTimeline

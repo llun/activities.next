@@ -9,9 +9,13 @@ import {
   retryFitnessImportBatch,
   startFitnessImport
 } from '@/lib/client'
-import { isFitnessShareFile } from '@/lib/client/share-target/classify'
 import {
-  takeStagedShare,
+  isFitnessShareFile,
+  isMediaShareFile
+} from '@/lib/client/share-target/classify'
+import {
+  deleteStagedShare,
+  peekStagedShare,
   toShareFiles
 } from '@/lib/client/share-target/shareTargetDb'
 import { SHARE_PARAM } from '@/lib/client/share-target/useShareTargetIntake'
@@ -27,8 +31,12 @@ import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
-import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
+import {
+  ACCEPTED_FITNESS_FILE_EXTENSIONS,
+  DEFAULT_FITNESS_MAX_FILE_SIZE
+} from '@/lib/services/fitness-files/constants'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
+import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 interface FitnessImportProps {
@@ -58,6 +66,9 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
   // Photos a share carried alongside two or more workouts: the batch importer
   // cannot take them, so it says so instead of dropping them silently.
   const [skippedMedia, setSkippedMedia] = useState(0)
+  // Shared workouts over the upload limit, and files that are neither.
+  const [skippedOversize, setSkippedOversize] = useState(0)
+  const [skippedOther, setSkippedOther] = useState(0)
 
   const failedCount = batchResult?.summary.failed ?? 0
   const selectedFileNames = useMemo(
@@ -104,18 +115,19 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
     fileInputRef.current?.click()
   }
 
-  // A share of two or more workouts lands here with `?share=<id>`. The record
-  // is read and deleted once, its workout files are preselected, and the query
-  // parameter is stripped so a reload does not try again.
-  const shareTakenRef = useRef(false)
-  useEffect(() => {
-    if (shareTakenRef.current) return
-    if (typeof window === 'undefined') return
+  // A share of two or more workouts (or the composer's "Batch import instead")
+  // lands here with `?share=<id>`. Its workouts are preselected, with the same
+  // extension and 50 MiB checks the composer's intake applies, and nothing is
+  // uploaded until Import is pressed. The record (and the parameter) stay until
+  // then, or until other files are chosen, so a reload shows them again.
+  const shareIdRef = useRef<string | null>(null)
+  // Deletes the staged share and strips `?share=` once it has been used or
+  // replaced, as the composer's intake does.
+  const releaseShare = (id = shareIdRef.current) => {
+    shareIdRef.current = null
+    if (id) void deleteStagedShare(id)
     const params = new URLSearchParams(window.location.search)
-    const id = params.get(SHARE_PARAM)
-    if (!id) return
-    shareTakenRef.current = true
-
+    if (!params.has(SHARE_PARAM)) return
     params.delete(SHARE_PARAM)
     const query = params.toString()
     window.history.replaceState(
@@ -123,14 +135,35 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
       '',
       `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
     )
+  }
+
+  const shareReadRef = useRef(false)
+  useEffect(() => {
+    if (shareReadRef.current) return
+    if (typeof window === 'undefined') return
+    const id = new URLSearchParams(window.location.search).get(SHARE_PARAM)
+    if (!id) return
+    shareReadRef.current = true
 
     void (async () => {
-      const share = await takeStagedShare(id)
-      if (!share) return
+      const share = await peekStagedShare(id)
+      if (!share) {
+        releaseShare(id)
+        return
+      }
+      shareIdRef.current = id
       const shared = toShareFiles(share)
-      const fitnessFiles = shared.filter(isFitnessShareFile)
-      setFiles(fitnessFiles)
-      setSkippedMedia(shared.length - fitnessFiles.length)
+      const workouts = shared.filter(isFitnessShareFile)
+      const fitting = workouts.filter(
+        (file) => file.size <= DEFAULT_FITNESS_MAX_FILE_SIZE
+      )
+      const media = shared.filter(
+        (file) => !isFitnessShareFile(file) && isMediaShareFile(file)
+      ).length
+      setFiles(fitting)
+      setSkippedMedia(media)
+      setSkippedOversize(workouts.length - fitting.length)
+      setSkippedOther(shared.length - workouts.length - media)
     })()
   }, [])
 
@@ -154,6 +187,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
 
     setError(null)
     setFiles(selected)
+    releaseShare()
     event.currentTarget.value = ''
   }
 
@@ -165,6 +199,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
 
     try {
       const result = await startFitnessImport(files, visibility)
+      releaseShare()
       setBatchId(result.batchId)
       setBatchResult(null)
       setIsPolling(true)
@@ -216,6 +251,20 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
           {skippedMedia} shared{' '}
           {skippedMedia === 1 ? 'photo was' : 'photos were'} left out. Add them
           to a post from the composer instead.
+        </Alert>
+      ) : null}
+      {skippedOversize + skippedOther > 0 ? (
+        <Alert tone="info" title="Some shared files were skipped">
+          {[
+            skippedOversize > 0
+              ? `${skippedOversize} ${skippedOversize === 1 ? 'workout is' : 'workouts are'} over the ${formatFileSize(DEFAULT_FITNESS_MAX_FILE_SIZE)} limit`
+              : null,
+            skippedOther > 0
+              ? `${skippedOther} ${skippedOther === 1 ? 'file is not a' : 'files are not'} .fit, .gpx or .tcx ${skippedOther === 1 ? 'file' : 'files'}`
+              : null
+          ]
+            .filter(Boolean)
+            .join('; ')}
         </Alert>
       ) : null}
       <Frame

@@ -25,7 +25,6 @@ interface Props {
   /** Reports every file rejected before upload (currently: over the size cap). */
   onFilesRejected?: (message: string) => void
   onUploadStart: () => void
-  onBeforeAddAttachments?: () => boolean | void | Promise<boolean | void>
   /**
    * Overrides the picker's slot cap. The composer passes
    * `maxMediaAttachments - 1` while a workout file is attached, because the
@@ -43,7 +42,6 @@ export const UploadMediaButton: FC<Props> = ({
   onDuplicateError,
   onFilesRejected,
   onUploadStart,
-  onBeforeAddAttachments,
   maxAttachments
 }) => {
   const { maxMediaFileSize, maxMediaAttachments } = useInstanceLimits()
@@ -110,19 +108,6 @@ export const UploadMediaButton: FC<Props> = ({
     if (rejected.length > 0) onFilesRejected?.(rejected.join('. '))
 
     if (!processedAttachments.length) return
-
-    const shouldAddAttachments = await onBeforeAddAttachments?.()
-    if (shouldAddAttachments === false) {
-      processedAttachments.forEach((attachment) => {
-        if (attachment.url.startsWith('blob:')) {
-          URL.revokeObjectURL(attachment.url)
-        }
-        if (attachment.posterUrl?.startsWith('blob:')) {
-          URL.revokeObjectURL(attachment.posterUrl)
-        }
-      })
-      return
-    }
 
     processedAttachments.forEach((attachment) => {
       onAddAttachment(attachment)

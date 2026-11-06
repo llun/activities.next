@@ -320,6 +320,26 @@ describe('proxy', () => {
       expect(matches('/apis', { 'content-type': MULTIPART })).toBe(true)
     })
 
+    // The share target fallback never reads its body, so a multipart share
+    // must not be buffered by the proxy; anything else still gets its CSP.
+    it('skips the proxy for a multipart share to the share target', () => {
+      expect(matches('/_share-target', { 'content-type': MULTIPART })).toBe(
+        false
+      )
+      expect(matches('/_share-target')).toBe(true)
+      expect(
+        matches('/_share-target', {
+          'content-type': 'application/x-www-form-urlencoded'
+        })
+      ).toBe(true)
+      expect(matches('/_share-target-x', { 'content-type': MULTIPART })).toBe(
+        true
+      )
+      expect(matches('/_share-target/x', { 'content-type': MULTIPART })).toBe(
+        true
+      )
+    })
+
     it('never runs the proxy on static assets', () => {
       expect(matches('/_next/static/chunk.js')).toBe(false)
       expect(matches('/_next/image/x')).toBe(false)
@@ -691,30 +711,20 @@ describe('proxy', () => {
     expect(lookalikeActionResponse?.status).toBe(200)
   })
 
-  // The first-visit fallback for the Web Share Target, before public/sw.js is
-  // installed: a 303 to the composer's notice, the files never read.
-  it('answers a share target POST with a 303 to the composer without reading it', async () => {
-    const formData = new FormData()
-    formData.append('files', new File(['run'], 'run.fit'))
+  // A non-multipart POST to the Web Share Target fallback still runs the proxy
+  // (a multipart one skips it, see the matcher), and must reach the route
+  // rather than the page-POST 404.
+  it('passes a share target POST to its route', async () => {
     const request = new NextRequest('https://llun.social/_share-target', {
       method: 'POST',
-      body: formData
+      body: 'title=hi',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }
     })
-    const formDataSpy = vi.spyOn(request, 'formData')
-    const arrayBufferSpy = vi.spyOn(request, 'arrayBuffer')
 
     const response = await proxy(request)
 
-    expect(response?.status).toBe(303)
-    expect(response?.headers.get('location')).toBe(
-      'https://llun.social/app?shareUnavailable=1'
-    )
-    expect(response?.headers.get('Content-Security-Policy')).toContain(
-      "default-src 'none'"
-    )
-    expect(formDataSpy).not.toHaveBeenCalled()
-    expect(arrayBufferSpy).not.toHaveBeenCalled()
-    expect(request.bodyUsed).toBe(false)
+    expect(response?.status).toBe(200)
+    expect(response?.headers.get('Content-Security-Policy')).toBeTruthy()
   })
 
   it('leaves other methods on the share target path to the app', async () => {

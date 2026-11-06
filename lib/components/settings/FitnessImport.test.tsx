@@ -2,11 +2,21 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { stageShareFiles } from '@/lib/client/share-target/shareTargetDb'
+import { startFitnessImport } from '@/lib/client'
+import {
+  peekStagedShare,
+  stageShareFiles
+} from '@/lib/client/share-target/shareTargetDb'
 
 import { FitnessImport } from './FitnessImport'
 
@@ -16,12 +26,21 @@ vi.mock('@/lib/client', () => ({
   retryFitnessImportBatch: vi.fn()
 }))
 
-const file = (name: string, type: string) =>
-  new File([new Uint8Array([1, 2, 3])], name, { type })
+// A 4-byte limit, so an "oversize" workout needs no 50 MiB fixture.
+vi.mock('@/lib/services/fitness-files/constants', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/lib/services/fitness-files/constants')
+  >()),
+  DEFAULT_FITNESS_MAX_FILE_SIZE: 4
+}))
+
+const file = (name: string, type: string, bytes = [1, 2, 3]) =>
+  new File([new Uint8Array(bytes)], name, { type })
 
 describe('FitnessImport share intake', () => {
   beforeEach(() => {
     vi.stubGlobal('indexedDB', new IDBFactory())
+    vi.mocked(startFitnessImport).mockReset()
     window.history.replaceState(null, '', '/fitness/files')
   })
 
@@ -30,7 +49,10 @@ describe('FitnessImport share intake', () => {
     vi.unstubAllGlobals()
   })
 
-  it('preselects the shared workouts and strips the parameter', async () => {
+  // Any site can submit a share: the preselected workouts upload only when
+  // the reader presses Import, and the share is kept until then.
+  it('preselects the shared workouts and uploads nothing before Import', async () => {
+    vi.mocked(startFitnessImport).mockResolvedValue({ batchId: 'b1' } as never)
     const id = await stageShareFiles([
       file('run.fit', 'application/vnd.ant.fit'),
       file('ride.gpx', 'application/gpx+xml')
@@ -44,7 +66,39 @@ describe('FitnessImport share intake', () => {
     )
     expect(screen.getByText('run.fit')).toBeInTheDocument()
     expect(screen.getByText('ride.gpx')).toBeInTheDocument()
-    expect(window.location.search).toBe('')
+    expect(startFitnessImport).not.toHaveBeenCalled()
+    expect(window.location.search).toBe(`?share=${id}`)
+    expect(await peekStagedShare(id!)).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import 2' }))
+
+    await waitFor(() => expect(startFitnessImport).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(window.location.search).toBe(''))
+    expect(await peekStagedShare(id!)).toBeNull()
+  })
+
+  it('skips oversize workouts and files without a fitness extension', async () => {
+    const id = await stageShareFiles([
+      file('run.fit', 'application/vnd.ant.fit'),
+      file('huge.gpx', 'application/gpx+xml', [1, 2, 3, 4, 5]),
+      file('notes.xml', 'text/xml')
+    ])
+    window.history.replaceState(null, '', `/fitness/files?share=${id}`)
+
+    render(<FitnessImport />)
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Some shared files were skipped')
+      ).toBeInTheDocument()
+    )
+    expect(screen.getByText(/1 workout is over the/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/1 file is not a .fit, .gpx or .tcx file/)
+    ).toBeInTheDocument()
+    expect(screen.getByText('run.fit')).toBeInTheDocument()
+    expect(screen.queryByText('huge.gpx')).not.toBeInTheDocument()
+    expect(screen.queryByText('notes.xml')).not.toBeInTheDocument()
   })
 
   it('notes the photos a batch share could not import', async () => {

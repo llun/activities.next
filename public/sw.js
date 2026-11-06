@@ -10,17 +10,24 @@ const OFFLINE_DB_NAME = 'activities_offline_v1'
 
 // Web Share Target staging. The worker answers the share POST itself, so the
 // files never reach the server: it writes them to a short-lived database of its
-// own and redirects to `/app?share=<id>`, where the client reads and deletes the
-// record. It never opens `activities_drafts_v1` (see docs/architecture.md), so
-// the drafts isolation holds.
+// own and redirects to `/app?share=<id>`, where the reader confirms (or
+// discards) the files before anything is uploaded. It never opens
+// `activities_drafts_v1` (see docs/architecture.md), so the drafts isolation
+// holds. The name, version and store must match lib/client/share-target/types.ts
+// (sw.test.ts checks it).
 const SHARE_TARGET_PATH = '/_share-target'
 const SHARE_TARGET_DB_NAME = 'activities_share_target_v1'
+const SHARE_TARGET_DB_VERSION = 1
 const SHARE_TARGET_STORE = 'shares'
 const SHARE_TARGET_TTL_MS = 24 * 60 * 60 * 1000
-// A hard ceiling so a malformed share cannot make the worker read gigabytes
-// into memory. The client applies the real per-type limits.
+// Ceilings so a hostile or malformed share cannot fill the device's storage.
+// The client applies the real per-type limits on intake. 250 MiB in all is
+// above any one post the instance accepts (media and a 50 MiB workout).
 const SHARE_TARGET_MAX_FILES = 20
-const SHARE_TARGET_MAX_FILE_BYTES = 1_073_741_824
+const SHARE_TARGET_MAX_TOTAL_BYTES = 250 * 1024 * 1024
+const SHARE_TARGET_MAX_TEXT_LENGTH = 2048
+// Staged shares kept at once; the oldest is evicted to make room.
+const SHARE_TARGET_MAX_RECORDS = 5
 
 const SVG_PLACEHOLDER =
   '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" fill="#e2e8f0"/><path d="M35 45a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM25 70h50L60 50 48 65l-8-10-15 15Z" fill="#94a3b8"/></svg>'
@@ -279,7 +286,10 @@ const openShareTargetDb = () =>
       reject(new Error('IndexedDB is unavailable'))
       return
     }
-    const request = indexedDB.open(SHARE_TARGET_DB_NAME, 1)
+    const request = indexedDB.open(
+      SHARE_TARGET_DB_NAME,
+      SHARE_TARGET_DB_VERSION
+    )
     request.onupgradeneeded = () => {
       const db = request.result
       if (!db.objectStoreNames.contains(SHARE_TARGET_STORE)) {
@@ -291,18 +301,26 @@ const openShareTargetDb = () =>
     request.onsuccess = () => resolve(request.result)
   })
 
-// Deletes every staged share past its 24 h life. Runs on activate and before
-// each new share, so an unclaimed share never lingers on a shared device.
-async function pruneExpiredShares(db) {
+// Deletes every staged share past its 24 h life, then the oldest beyond
+// `keep`. Runs on activate and before each new share (keeping room for it), so
+// an unclaimed share never lingers and shares cannot pile up.
+async function pruneExpiredShares(db, keep = SHARE_TARGET_MAX_RECORDS) {
   const cutoff = Date.now() - SHARE_TARGET_TTL_MS
   await new Promise((resolve) => {
     try {
       const tx = db.transaction(SHARE_TARGET_STORE, 'readwrite')
       const store = tx.objectStore(SHARE_TARGET_STORE)
       const cursorRequest = store.openCursor()
+      const kept = []
       cursorRequest.onsuccess = () => {
         const cursor = cursorRequest.result
-        if (!cursor) return
+        if (!cursor) {
+          kept.sort((a, b) => b.createdAt - a.createdAt)
+          for (const { key } of kept.slice(Math.max(0, keep))) {
+            store.delete(key)
+          }
+          return
+        }
         const value = cursor.value
         if (
           !value ||
@@ -310,6 +328,8 @@ async function pruneExpiredShares(db) {
           value.createdAt < cutoff
         ) {
           cursor.delete()
+        } else {
+          kept.push({ key: cursor.key, createdAt: value.createdAt })
         }
         cursor.continue()
       }
@@ -328,18 +348,32 @@ const isSharedFile = (value) =>
   typeof value.arrayBuffer === 'function' &&
   typeof value.name === 'string'
 
+// The id is the only handle on a staged share, so it must be unguessable:
+// without a CSPRNG this throws and the share is refused (fail closed).
 const createShareId = () => {
-  try {
-    if (
-      typeof crypto !== 'undefined' &&
-      typeof crypto.randomUUID === 'function'
-    ) {
-      return crypto.randomUUID()
-    }
-  } catch {
-    // fall through to the random string below
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID()
   }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+    ''
+  )
+}
+
+// Fetch Metadata. A share the OS launches is a top-level navigation; any other
+// site can also auto-submit a form here, so the request must be a navigation
+// and, where the browser exposes `Sec-Fetch-Site` to the worker, it must be
+// `none` (browser-initiated) or `same-origin`. The fetch algorithm adds Fetch
+// Metadata after the service worker step, so the worker usually sees no such
+// header; a missing one is allowed, and the confirmation on /app (nothing is
+// uploaded until the reader presses Add to post) is the guard that holds then.
+const isShareTargetRequestAllowed = (request) => {
+  if (request.mode !== 'navigate') return false
+  const site = request.headers.get('Sec-Fetch-Site')
+  return !site || site === 'none' || site === 'same-origin'
 }
 
 // Reads the multipart share into plain ArrayBuffers (never Blob/File, which
@@ -352,11 +386,13 @@ async function stageShareTarget(formData) {
     .slice(0, SHARE_TARGET_MAX_FILES)
   const staged = []
   let skipped = 0
+  let budget = SHARE_TARGET_MAX_TOTAL_BYTES
   for (const file of files) {
-    if (file.size > SHARE_TARGET_MAX_FILE_BYTES) {
+    if (file.size > budget) {
       skipped += 1
       continue
     }
+    budget -= file.size
     try {
       staged.push({
         name: file.name,
@@ -372,7 +408,9 @@ async function stageShareTarget(formData) {
 
   const text = (name) => {
     const value = formData.get(name)
-    return typeof value === 'string' && value ? value : undefined
+    return typeof value === 'string' && value
+      ? value.slice(0, SHARE_TARGET_MAX_TEXT_LENGTH)
+      : undefined
   }
 
   const record = {
@@ -387,7 +425,7 @@ async function stageShareTarget(formData) {
 
   const db = await openShareTargetDb()
   try {
-    await pruneExpiredShares(db)
+    await pruneExpiredShares(db, SHARE_TARGET_MAX_RECORDS - 1)
     await new Promise((resolve, reject) => {
       const tx = db.transaction(SHARE_TARGET_STORE, 'readwrite')
       tx.objectStore(SHARE_TARGET_STORE).put(record)
@@ -416,6 +454,8 @@ const shareRedirect = (location) =>
   })
 
 async function handleShareTarget(request) {
+  // Refused without reading or staging anything.
+  if (!isShareTargetRequestAllowed(request)) return shareRedirect('/app')
   try {
     const formData = await request.formData()
     const id = await stageShareTarget(formData)

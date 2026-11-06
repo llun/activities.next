@@ -35,7 +35,7 @@ import {
 // spelled-out character classes.
 export const config = {
   matcher: [
-    '/((?!(?:_next/static|_next/image)(?:/|$)|api/.|favicon\\.ico$|activities/_next(?:/|$)).*)',
+    '/((?!(?:_next/static|_next/image)(?:/|$)|api/.|_share-target$|favicon\\.ico$|activities/_next(?:/|$)).*)',
     {
       source: '/api/:path+',
       missing: [
@@ -47,7 +47,20 @@ export const config = {
         }
       ]
     },
-    { source: '/api/v1/files/:path*' }
+    { source: '/api/v1/files/:path*' },
+    // The Web Share Target fallback (app/%5Fshare-target/route.ts) never reads
+    // its multipart body, so the proxy must not buffer it either.
+    {
+      source: '/_share-target',
+      missing: [
+        {
+          type: 'header',
+          key: 'content-type',
+          value:
+            '\\s*[Mm][Uu][Ll][Tt][Ii][Pp][Aa][Rr][Tt]/[Ff][Oo][Rr][Mm]-[Dd][Aa][Tt][Aa].*'
+        }
+      ]
+    }
   ]
 }
 
@@ -165,8 +178,9 @@ const isRewrittenApiRoute = (pathname: string): boolean => {
 }
 
 // The Web Share Target POST (app/manifest.ts). `public/sw.js` answers it on the
-// device; it reaches the server only before the worker is installed (a first
-// visit). It has no route: `app/_share-target` would be a private folder.
+// device; before the worker is installed it reaches app/%5Fshare-target. A
+// multipart one skips the proxy (see the matcher); any other POST passes the
+// allowlist below to that route, which answers both the same way.
 const SHARE_TARGET_PATH = '/_share-target'
 
 export async function proxy(request: NextRequest) {
@@ -199,22 +213,6 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // The share's files are never read or stored on the server: the reader is
-  // sent to the composer, which asks them to share again. Answered before the
-  // POST allowlist below, and the body (past the proxy's 10 MB buffer) is
-  // never touched.
-  if (request.method === 'POST' && pathname === SHARE_TARGET_PATH) {
-    // Absolute: Next parses a proxy's Location without a base, then makes a
-    // same-host one relative again.
-    const target = request.nextUrl.clone()
-    target.pathname = '/app'
-    target.search = '?shareUnavailable=1'
-    return withContentSecurityPolicy(
-      NextResponse.redirect(target, 303),
-      request
-    )
-  }
-
   // Next.js App Router inspects incoming requests to determine if they are Server
   // Action invocations based on request method (POST), headers (e.g. Next-Action /
   // ACTION_HEADER), and content type (multipart/form-data or urlencoded). If a request
@@ -230,6 +228,7 @@ export async function proxy(request: NextRequest) {
     !pathname.startsWith('/oauth/') &&
     pathname !== '/admin' &&
     !pathname.startsWith('/admin/') &&
+    pathname !== SHARE_TARGET_PATH &&
     !isRewrittenApiRoute(pathname) &&
     !request.headers.has('next-action')
   ) {

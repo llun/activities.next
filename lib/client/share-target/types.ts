@@ -21,7 +21,11 @@ export interface StagedShare {
   skipped?: number
 }
 
-/** The database the worker owns; the client only reads and deletes from it. */
+/**
+ * The database the worker owns. Must match `public/sw.js` (sw.test.ts checks
+ * it). The client reads, deletes, and stages a batch-import handoff.
+ */
 export const SHARE_TARGET_DB_NAME = 'activities_share_target_v1'
+export const SHARE_TARGET_DB_VERSION = 1
 export const SHARE_TARGET_STORE = 'shares'
 export const SHARE_TARGET_TTL_MS = 24 * 60 * 60 * 1000

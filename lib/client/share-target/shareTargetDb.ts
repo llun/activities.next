@@ -1,8 +1,11 @@
 // Client access to the Web Share Target staging database. `public/sw.js` writes
-// the records; this module reads one and deletes it in the same transaction, so
-// a share is consumed exactly once. It never opens `activities_drafts_v1`.
+// the records; this module reads one (`peekStagedShare`, for the confirmation),
+// deletes it once the reader adds or discards it (`takeStagedShare`,
+// `deleteStagedShare`), and clears them all on sign-out. It never opens
+// `activities_drafts_v1`.
 import {
   SHARE_TARGET_DB_NAME,
+  SHARE_TARGET_DB_VERSION,
   SHARE_TARGET_STORE,
   SHARE_TARGET_TTL_MS,
   type StagedShare,
@@ -15,7 +18,10 @@ const openDb = (): Promise<IDBDatabase> =>
       reject(new Error('IndexedDB is unavailable'))
       return
     }
-    const request = indexedDB.open(SHARE_TARGET_DB_NAME, 1)
+    const request = indexedDB.open(
+      SHARE_TARGET_DB_NAME,
+      SHARE_TARGET_DB_VERSION
+    )
     request.onupgradeneeded = () => {
       const db = request.result
       if (!db.objectStoreNames.contains(SHARE_TARGET_STORE)) {
@@ -122,10 +128,8 @@ export const stageShareFiles = async (
         bytes: await file.arrayBuffer()
       })
     }
-    const id =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+    // Unguessable or nothing: without a CSPRNG this throws (caught below).
+    const id = crypto.randomUUID()
     const record: StagedShare = {
       id,
       createdAt: Date.now(),
@@ -139,6 +143,28 @@ export const stageShareFiles = async (
     return id
   } catch {
     return null
+  }
+}
+
+/** Deletes one staged share (the reader discarded it). */
+export const deleteStagedShare = async (id: string): Promise<void> => {
+  try {
+    await withStore('readwrite', (store) => store.delete(id))
+  } catch {
+    // Nothing staged, or IndexedDB is unavailable: nothing to delete.
+  }
+}
+
+/**
+ * Deletes every staged share. Called on an explicit sign-out only, so the
+ * next account on a shared device never sees the previous reader's files; a
+ * session expiry (401) keeps them, so a share survives signing in again.
+ */
+export const clearStagedShares = async (): Promise<void> => {
+  try {
+    await withStore('readwrite', (store) => store.clear())
+  } catch {
+    // IndexedDB is unavailable: there is nothing staged to clear.
   }
 }
 

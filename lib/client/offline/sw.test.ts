@@ -112,8 +112,12 @@ return {
   SHELL_CACHE_PREFIX,
   SHARE_TARGET_PATH,
   SHARE_TARGET_DB_NAME,
+  SHARE_TARGET_DB_VERSION,
   SHARE_TARGET_STORE,
   SHARE_TARGET_TTL_MS,
+  SHARE_TARGET_MAX_TOTAL_BYTES,
+  SHARE_TARGET_MAX_TEXT_LENGTH,
+  SHARE_TARGET_MAX_RECORDS,
   extractBuildId,
   extractAppShellAssets,
   stageAppShell,
@@ -924,18 +928,29 @@ return {
       }
     }
 
+    // An OS share launch: a top-level navigation. A constructed Request
+    // cannot have mode `navigate`, so it is defined on the instance.
     const shareRequest = (
       files: File[],
-      fields: Record<string, string> = {}
+      fields: Record<string, string> = {},
+      {
+        mode = 'navigate',
+        headers = {}
+      }: { mode?: string; headers?: Record<string, string> } = {}
     ) => {
       const form = new FormData()
       for (const [key, value] of Object.entries(fields)) form.set(key, value)
       for (const file of files) form.append('files', file)
-      return new Request('https://llun.social/_share-target', {
+      const request = new Request('https://llun.social/_share-target', {
         method: 'POST',
-        body: form
+        body: form,
+        headers
       })
+      Object.defineProperty(request, 'mode', { value: mode })
+      return request
     }
+
+    const photoFile = () => new File(['x'], 'photo.jpg', { type: 'image/jpeg' })
 
     const triggerFetch = async (req: Request): Promise<Response | null> => {
       // Assigned inside the listener, which TypeScript's narrowing cannot see.
@@ -994,6 +1009,130 @@ return {
         1, 2, 3
       ])
       expect(share.files[1].name).toBe('run.fit')
+    })
+
+    // The worker and the client open the same database: a drift in its name,
+    // version or store would leave every share unreadable.
+    it('names the staging database as the client does', async () => {
+      const client = await import('@/lib/client/share-target/types')
+
+      expect(swModule.SHARE_TARGET_DB_NAME).toBe(client.SHARE_TARGET_DB_NAME)
+      expect(swModule.SHARE_TARGET_DB_VERSION).toBe(
+        client.SHARE_TARGET_DB_VERSION
+      )
+      expect(swModule.SHARE_TARGET_STORE).toBe(client.SHARE_TARGET_STORE)
+      expect(swModule.SHARE_TARGET_TTL_MS).toBe(client.SHARE_TARGET_TTL_MS)
+    })
+
+    it.each(['cross-site', 'same-site'])(
+      'refuses a share whose Sec-Fetch-Site is %s, staging nothing',
+      async (site) => {
+        const response = await triggerFetch(
+          shareRequest(
+            [photoFile()],
+            {},
+            {
+              headers: { 'Sec-Fetch-Site': site }
+            }
+          )
+        )
+
+        expect(response!.status).toBe(303)
+        expect(response!.headers.get('Location')).toBe('/app')
+        expect(await readAllShares()).toEqual([])
+      }
+    )
+
+    it('refuses a share that is not a navigation, staging nothing', async () => {
+      const response = await triggerFetch(
+        shareRequest([photoFile()], {}, { mode: 'cors' })
+      )
+
+      expect(response!.status).toBe(303)
+      expect(response!.headers.get('Location')).toBe('/app')
+      expect(await readAllShares()).toEqual([])
+    })
+
+    it.each([['none'], ['same-origin'], [undefined]])(
+      'stages a navigation share whose Sec-Fetch-Site is %s',
+      async (site) => {
+        const response = await triggerFetch(
+          shareRequest(
+            [photoFile()],
+            {},
+            {
+              headers: site ? { 'Sec-Fetch-Site': site } : {}
+            }
+          )
+        )
+
+        expect(response!.headers.get('Location')).toMatch(/^\/app\?share=/)
+        expect(await readAllShares()).toHaveLength(1)
+      }
+    )
+
+    it('stops staging files once the total budget is spent', async () => {
+      const bigFile = (name: string) => ({
+        name,
+        type: 'video/mp4',
+        size: 100 * 1024 * 1024,
+        lastModified: 1,
+        arrayBuffer: async () => new ArrayBuffer(1)
+      })
+      const files = [bigFile('a.mp4'), bigFile('b.mp4'), bigFile('c.mp4')]
+      const formData = {
+        getAll: () => files,
+        get: () => null
+      }
+
+      await swModule.stageShareTarget(formData)
+
+      const [share] = await readAllShares()
+      expect(swModule.SHARE_TARGET_MAX_TOTAL_BYTES).toBe(250 * 1024 * 1024)
+      expect(share.files.map((file: any) => file.name)).toEqual([
+        'a.mp4',
+        'b.mp4'
+      ])
+      expect(share.skipped).toBe(1)
+    })
+
+    it('caps the shared title, text and url', async () => {
+      const long = 'x'.repeat(swModule.SHARE_TARGET_MAX_TEXT_LENGTH + 10)
+
+      await triggerFetch(
+        shareRequest([photoFile()], { title: long, text: long, url: long })
+      )
+
+      const [share] = await readAllShares()
+      for (const field of [share.title, share.text, share.url]) {
+        expect(field).toHaveLength(swModule.SHARE_TARGET_MAX_TEXT_LENGTH)
+      }
+    })
+
+    it('keeps at most the newest staged shares, evicting the oldest', async () => {
+      const now = Date.now()
+      for (let index = 0; index < swModule.SHARE_TARGET_MAX_RECORDS; index++) {
+        await writeShare({
+          id: `old-${index}`,
+          createdAt: now - 1000 * (index + 1),
+          files: []
+        })
+      }
+
+      await triggerFetch(shareRequest([photoFile()]))
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).toHaveLength(swModule.SHARE_TARGET_MAX_RECORDS)
+      expect(ids).not.toContain(`old-${swModule.SHARE_TARGET_MAX_RECORDS - 1}`)
+    })
+
+    it('refuses a share when no secure random source exists', async () => {
+      vi.stubGlobal('crypto', {})
+
+      const response = await triggerFetch(shareRequest([photoFile()]))
+
+      vi.unstubAllGlobals()
+      expect(response!.headers.get('Location')).toBe('/app?shareUnavailable=1')
     })
 
     it('never opens the drafts database', async () => {

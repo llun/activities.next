@@ -1,11 +1,9 @@
 // Decides where a shared payload goes. The rules are deterministic: a workout
-// file is recognised by extension first (some Android apps send `.gpx`/`.tcx`
-// as `application/octet-stream`), then by MIME type; media by the composer's
-// accepted types; everything else is skipped with a reason.
-import {
-  ACCEPTED_FITNESS_FILE_EXTENSIONS,
-  ACCEPTED_FITNESS_FILE_TYPES
-} from '@/lib/services/fitness-files/constants'
+// file is recognised by its extension alone, as the upload route requires one
+// (some Android apps send `.gpx`/`.tcx` as `application/octet-stream`, and a
+// bare `text/xml` is not a workout); media by the composer's accepted types;
+// everything else is skipped with a reason.
+import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
 import { ACCEPTED_FILE_TYPES } from '@/lib/services/medias/constants'
 
 export interface ShareTargetLimits {
@@ -15,6 +13,8 @@ export interface ShareTargetLimits {
   maxFitnessFileSize: number
   /** Resolved `posts.maxMediaAttachments`. */
   maxMediaAttachments: number
+  /** Whether this instance takes media uploads; off, shared media is skipped. */
+  isMediaUploadEnabled: boolean
 }
 
 export interface ShareTargetSkipSummary {
@@ -24,6 +24,8 @@ export interface ShareTargetSkipSummary {
   tooLarge: number
   /** Over the attachment cap for the destination. */
   overLimit: number
+  /** Media, while this instance takes no media uploads. */
+  uploadsOff: number
 }
 
 export type ShareTargetPlan =
@@ -44,7 +46,8 @@ export type ShareTargetPlan =
 const emptySkips = (): ShareTargetSkipSummary => ({
   unsupported: 0,
   tooLarge: 0,
-  overLimit: 0
+  overLimit: 0,
+  uploadsOff: 0
 })
 
 const hasFitnessExtension = (name: string) => {
@@ -53,8 +56,7 @@ const hasFitnessExtension = (name: string) => {
 }
 
 export const isFitnessShareFile = (file: File): boolean =>
-  hasFitnessExtension(file.name) ||
-  ACCEPTED_FITNESS_FILE_TYPES.includes(file.type)
+  hasFitnessExtension(file.name)
 
 export const isMediaShareFile = (file: File): boolean =>
   ACCEPTED_FILE_TYPES.includes(file.type)
@@ -86,6 +88,10 @@ export const classifySharedFiles = (
       continue
     }
     if (isMediaShareFile(file)) {
+      if (!limits.isMediaUploadEnabled) {
+        skipped.uploadsOff += 1
+        continue
+      }
       if (file.size > limits.maxMediaFileSize) {
         skipped.tooLarge += 1
         continue
@@ -121,8 +127,36 @@ export const classifySharedFiles = (
   return { kind: 'composer', media, fitnessFile, skipped }
 }
 
+const totalSkipped = (skipped: ShareTargetSkipSummary) =>
+  skipped.unsupported +
+  skipped.tooLarge +
+  skipped.overLimit +
+  skipped.uploadsOff
+
 export const hasSkippedFiles = (skipped: ShareTargetSkipSummary): boolean =>
-  skipped.unsupported + skipped.tooLarge + skipped.overLimit > 0
+  totalSkipped(skipped) > 0
+
+const count = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`
+
+/** "2 photos, 1 video and 1 workout were shared", for the confirmation. */
+export const describeSharedFiles = (
+  media: File[],
+  fitnessFile?: File
+): string => {
+  const videos = media.filter((file) => file.type.startsWith('video/')).length
+  const photos = media.length - videos
+  const parts: string[] = []
+  if (photos > 0) parts.push(count(photos, 'photo', 'photos'))
+  if (videos > 0) parts.push(count(videos, 'video', 'videos'))
+  if (fitnessFile) parts.push('1 workout')
+  const list =
+    parts.length > 1
+      ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
+      : (parts[0] ?? 'Nothing')
+  const total = media.length + (fitnessFile ? 1 : 0)
+  return `${list} ${total === 1 ? 'was' : 'were'} shared`
+}
 
 /** One sentence naming how many files were skipped and why. */
 export const describeSkippedFiles = (
@@ -144,7 +178,12 @@ export const describeSkippedFiles = (
       `${skipped.overLimit} ${skipped.overLimit === 1 ? 'file was' : 'files were'} over the attachment limit`
     )
   }
+  if (skipped.uploadsOff > 0) {
+    reasons.push(
+      `${skipped.uploadsOff} ${skipped.uploadsOff === 1 ? 'photo or video' : 'photos or videos'} because this server takes no media uploads`
+    )
+  }
   if (reasons.length === 0) return null
-  const total = skipped.unsupported + skipped.tooLarge + skipped.overLimit
+  const total = totalSkipped(skipped)
   return `${total} shared ${total === 1 ? 'file was' : 'files were'} skipped: ${reasons.join('; ')}.`
 }

@@ -27,7 +27,6 @@ describe('UploadMediaButton', () => {
   const mockOnAddAttachment = vi.fn()
   const mockOnDuplicateError = vi.fn()
   const mockOnUploadStart = vi.fn()
-  const mockOnBeforeAddAttachments = vi.fn()
 
   const createMockFile = (name: string, type = 'image/jpeg') => {
     return new File(['test'], name, { type })
@@ -287,35 +286,6 @@ describe('UploadMediaButton', () => {
   })
 
   describe('async file processing', () => {
-    it('does not add processed files when the before-add hook returns false', async () => {
-      mockOnBeforeAddAttachments.mockResolvedValue(false)
-
-      render(
-        <UploadMediaButton
-          isMediaUploadEnabled={true}
-          attachments={[]}
-          onAddAttachment={mockOnAddAttachment}
-          onDuplicateError={mockOnDuplicateError}
-          onUploadStart={mockOnUploadStart}
-          onBeforeAddAttachments={mockOnBeforeAddAttachments}
-        />
-      )
-
-      const input =
-        document.querySelector<HTMLInputElement>('input[type="file"]')!
-      const file = createMockFile('file1.jpg')
-
-      fireEvent.change(input, { target: { files: [file] } })
-
-      await waitFor(() => {
-        expect(mockOnBeforeAddAttachments).toHaveBeenCalledTimes(1)
-      })
-
-      expect(mockResizeImage).toHaveBeenCalledTimes(1)
-      expect(mockOnAddAttachment).not.toHaveBeenCalled()
-      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-url')
-    })
-
     it('awaits all file processing before completing', async () => {
       const processingOrder: string[] = []
 
@@ -462,36 +432,6 @@ describe('UploadMediaButton', () => {
           file: expect.any(File)
         })
       })
-    })
-
-    it('revokes posterUrl when onBeforeAddAttachments returns false', async () => {
-      const poster = createMockFile('poster.jpg', 'image/jpeg')
-      mockExtractVideoPoster.mockResolvedValueOnce(poster)
-      mockOnBeforeAddAttachments.mockResolvedValue(false)
-
-      render(
-        <UploadMediaButton
-          isMediaUploadEnabled={true}
-          attachments={[]}
-          onAddAttachment={mockOnAddAttachment}
-          onDuplicateError={mockOnDuplicateError}
-          onUploadStart={mockOnUploadStart}
-          onBeforeAddAttachments={mockOnBeforeAddAttachments}
-        />
-      )
-
-      const input =
-        document.querySelector<HTMLInputElement>('input[type="file"]')!
-      const file = createMockFile('test.mp4', 'video/mp4')
-
-      fireEvent.change(input, { target: { files: [file] } })
-
-      await waitFor(() => {
-        expect(mockOnBeforeAddAttachments).toHaveBeenCalledTimes(1)
-      })
-
-      expect(mockOnAddAttachment).not.toHaveBeenCalled()
-      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-url')
     })
   })
 

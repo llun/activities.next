@@ -1721,21 +1721,9 @@ export const PostBox: FC<Props> = ({
     const current = postExtensionRef.current.attachments
     if (current.length > cap) {
       const removed = current.slice(cap)
-      discardUploadedMedia(removed)
-      removed.forEach((attachment) => {
-        if (attachment.url.startsWith('blob:')) {
-          URL.revokeObjectURL(attachment.url)
-        }
-        if (attachment.posterUrl?.startsWith('blob:')) {
-          URL.revokeObjectURL(attachment.posterUrl)
-        }
-      })
-      const kept = current.slice(0, cap)
-      postExtensionRef.current = {
-        ...postExtensionRef.current,
-        attachments: kept
-      }
-      dispatch(setAttachments(kept))
+      // The same removal as the tile's Remove button: revoke, delete the
+      // upload, and prune the per-id names, details and decorative marks.
+      removed.forEach((attachment) => onRemoveAttachment(attachment.id))
       setWarningMsg(
         `A workout leaves room for ${cap} ${cap === 1 ? 'attachment' : 'attachments'}; the extra ${removed.length} ${removed.length === 1 ? 'was' : 'were'} removed.`
       )
@@ -2169,16 +2157,20 @@ export const PostBox: FC<Props> = ({
     // retargetAfterSend: run again with the latest props once a send settles.
   }, [profile, replyStatus, editStatus, quotedStatus, retargetAfterSend])
 
-  // Seeds the files a Web Share Target handed over, once. Runs after the
-  // composer's own reset above so the seed is not wiped by it, and takes the
-  // same path as the picker: resize, limits, upload and the draft blob.
+  // Seeds the files a Web Share Target handed over, once. They arrive only
+  // after the reader pressed "Add to post" (ShareTargetIntake), never on the
+  // share's arrival. Runs after the composer's own reset above so the seed is
+  // not wiped by it, and takes the same path as the picker: resize, limits,
+  // upload and the draft blob.
   const shareSeedTakenRef = useRef(false)
   useEffect(() => {
     if (shareSeedTakenRef.current) return
     if (!initialFitnessFile && !initialFiles?.length) return
     shareSeedTakenRef.current = true
     if (initialFitnessFile) onFitnessFileSelected(initialFitnessFile)
-    if (!initialFiles?.length) return
+    // The intake already skips media (with a notice) when uploads are off;
+    // this keeps the composer from ever uploading behind that setting.
+    if (!initialFiles?.length || !isMediaUploadEnabled) return
     void (async () => {
       const { attachments } = await prepareComposerMediaFiles(initialFiles, {
         maxMediaFileSize,

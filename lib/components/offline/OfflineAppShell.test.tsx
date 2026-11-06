@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -13,7 +14,10 @@ import { type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TimelineRequestError } from '@/lib/client/timelines'
-import { OfflineAppShell } from '@/lib/components/offline/OfflineAppShell'
+import {
+  OfflineAppShell,
+  SHARE_SESSION_CONFIRM_TIMEOUT_MS
+} from '@/lib/components/offline/OfflineAppShell'
 
 const mockPush = vi.fn()
 let mockPathname = '/app'
@@ -370,6 +374,42 @@ describe('OfflineAppShell', () => {
     )
 
     window.history.replaceState(null, '', '/app')
+  })
+
+  // A refresh that never settles must not hold the share back for ever.
+  it('shows a share once the session check times out', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      window.history.replaceState(null, '', '/app?share=missing-share')
+      mockGetActiveOfflineSession.mockResolvedValueOnce({
+        actorId: 'actor-1',
+        accountId: 'account-1'
+      })
+      mockGetClientBootstrapSnapshot.mockResolvedValueOnce(dummyBootstrap)
+      mockGetOfflineTimeline.mockResolvedValueOnce(dummyTimeline)
+      mockGetAccountBootstrap.mockReturnValueOnce(new Promise(() => {}))
+
+      render(<OfflineAppShell />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('main-timeline')).toBeInTheDocument()
+      })
+      expect(
+        screen.queryByText("Shared files weren't attached")
+      ).not.toBeInTheDocument()
+
+      await act(async () => {
+        vi.advanceTimersByTime(SHARE_SESSION_CONFIRM_TIMEOUT_MS)
+      })
+
+      // The intake ran: this share id was never staged, so it says so.
+      expect(
+        await screen.findByText("Shared files weren't attached")
+      ).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+      window.history.replaceState(null, '', '/app')
+    }
   })
 
   it('falls back to network bootstrap when cache is empty and user is online', async () => {

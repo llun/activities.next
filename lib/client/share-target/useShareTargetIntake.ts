@@ -6,9 +6,15 @@ import { useEffect, useRef, useState } from 'react'
 import {
   type ShareTargetLimits,
   classifySharedFiles,
+  describeSharedFiles,
   describeSkippedFiles
 } from './classify'
-import { peekStagedShare, takeStagedShare, toShareFiles } from './shareTargetDb'
+import {
+  deleteStagedShare,
+  peekStagedShare,
+  takeStagedShare,
+  toShareFiles
+} from './shareTargetDb'
 
 export const SHARE_PARAM = 'share'
 export const SHARE_UNAVAILABLE_PARAM = 'shareUnavailable'
@@ -18,13 +24,31 @@ export interface ShareTargetSeed {
   fitnessFile?: File
 }
 
+/** A share waiting for the reader to add it to the post or discard it. */
+export interface ShareTargetPending {
+  id: string
+  media: File[]
+  fitnessFile?: File
+  /** "2 photos and 1 workout were shared". */
+  summary: string
+}
+
 export interface ShareTargetIntakeState {
-  /** Files to hand to the composer, once. */
+  /** Files to hand to the composer, once the reader pressed Add to post. */
   seed: ShareTargetSeed | null
+  /** Files shown for confirmation; nothing is uploaded until accepted. */
+  pending: ShareTargetPending | null
   /** A one-off note about files that were skipped. */
   notice: string | null
   /** The share arrived before the worker could stage it, or it expired. */
   unavailable: boolean
+}
+
+export interface ShareTargetIntake extends ShareTargetIntakeState {
+  /** Consumes the staged share and hands its files to the composer. */
+  accept: () => Promise<void>
+  /** Deletes the staged share without using it. */
+  discard: () => Promise<void>
 }
 
 const readParams = () =>
@@ -33,7 +57,7 @@ const readParams = () =>
     : new URLSearchParams(window.location.search)
 
 // Removes the one-time share parameters, as the `?media=` seeding does, so a
-// reload does not try to consume the same share again.
+// reload does not try to use the same share again.
 const stripShareParams = () => {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
@@ -52,11 +76,21 @@ const stripShareParams = () => {
   )
 }
 
+const IDLE: ShareTargetIntakeState = {
+  seed: null,
+  pending: null,
+  notice: null,
+  unavailable: false
+}
+
 /**
- * Reads the staged share named by `?share=<id>` once. Media and a single
- * workout come back as a composer seed; two or more workouts hand the record to
- * `/fitness/files`, which consumes it there. The record is deleted after it is
- * read, and the query parameter is stripped from the URL.
+ * Reads the staged share named by `?share=<id>`. Any page can submit a share
+ * to this origin, so a share is never used on arrival: media and a single
+ * workout come back as `pending`, for the reader to confirm (`accept`, which
+ * consumes the record and returns the composer seed) or `discard`. Until then
+ * the record and the query parameter stay, so a reload asks again (within the
+ * 24 h expiry). Two or more workouts hand the record to `/fitness/files`, which
+ * preselects them and uploads nothing until Import is pressed.
  */
 export function useShareTargetIntake({
   enabled,
@@ -64,13 +98,9 @@ export function useShareTargetIntake({
 }: {
   enabled: boolean
   limits: ShareTargetLimits
-}): ShareTargetIntakeState {
+}): ShareTargetIntake {
   const router = useRouter()
-  const [state, setState] = useState<ShareTargetIntakeState>({
-    seed: null,
-    notice: null,
-    unavailable: false
-  })
+  const [state, setState] = useState<ShareTargetIntakeState>(IDLE)
   const startedRef = useRef(false)
 
   useEffect(() => {
@@ -81,49 +111,72 @@ export function useShareTargetIntake({
     if (!unavailable && !id) return
 
     startedRef.current = true
-    stripShareParams()
 
     if (unavailable || !id) {
-      setState({ seed: null, notice: null, unavailable: true })
+      stripShareParams()
+      setState({ ...IDLE, unavailable: true })
       return
     }
 
     void (async () => {
       const share = await peekStagedShare(id)
       if (!share) {
-        setState({ seed: null, notice: null, unavailable: true })
+        stripShareParams()
+        setState({ ...IDLE, unavailable: true })
         return
       }
 
       const plan = classifySharedFiles(toShareFiles(share), limits)
       if (plan.kind === 'import') {
-        // The import page consumes the record, so it is not deleted here.
+        // The import page reads the record, so it is not deleted here.
+        stripShareParams()
         router.replace(`/fitness/files?share=${encodeURIComponent(id)}`)
         return
       }
 
-      const consumed = await takeStagedShare(id)
-      if (!consumed) {
-        setState({ seed: null, notice: null, unavailable: true })
-        return
-      }
-
       if (plan.kind === 'empty') {
-        setState({
-          seed: null,
-          notice: describeSkippedFiles(plan.skipped),
-          unavailable: false
-        })
+        // Nothing to confirm: the record has no use left.
+        await deleteStagedShare(id)
+        stripShareParams()
+        setState({ ...IDLE, notice: describeSkippedFiles(plan.skipped) })
         return
       }
 
       setState({
-        seed: { media: plan.media, fitnessFile: plan.fitnessFile },
-        notice: describeSkippedFiles(plan.skipped),
-        unavailable: false
+        ...IDLE,
+        pending: {
+          id,
+          media: plan.media,
+          fitnessFile: plan.fitnessFile,
+          summary: describeSharedFiles(plan.media, plan.fitnessFile)
+        },
+        notice: describeSkippedFiles(plan.skipped)
       })
     })()
   }, [enabled, limits, router])
 
-  return state
+  const accept = async () => {
+    const pending = state.pending
+    if (!pending) return
+    const consumed = await takeStagedShare(pending.id)
+    stripShareParams()
+    if (!consumed) {
+      setState({ ...IDLE, unavailable: true })
+      return
+    }
+    setState({
+      ...IDLE,
+      seed: { media: pending.media, fitnessFile: pending.fitnessFile }
+    })
+  }
+
+  const discard = async () => {
+    const pending = state.pending
+    if (!pending) return
+    await deleteStagedShare(pending.id)
+    stripShareParams()
+    setState(IDLE)
+  }
+
+  return { ...state, accept, discard }
 }

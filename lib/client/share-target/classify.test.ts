@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type ShareTargetLimits,
   classifySharedFiles,
+  describeSharedFiles,
   describeSkippedFiles,
   getMediaAttachmentCap,
   hasSkippedFiles,
@@ -13,7 +14,8 @@ import {
 const limits: ShareTargetLimits = {
   maxMediaFileSize: 10 * 1024 * 1024,
   maxFitnessFileSize: 50 * 1024 * 1024,
-  maxMediaAttachments: 4
+  maxMediaAttachments: 4,
+  isMediaUploadEnabled: true
 }
 
 const file = (name: string, type: string, size = 10) =>
@@ -29,10 +31,14 @@ describe('isFitnessShareFile', () => {
     }
   )
 
-  it('recognises a fitness MIME type without a known extension', () => {
-    expect(
-      isFitnessShareFile(file('download', 'application/vnd.ant.fit'))
-    ).toBe(true)
+  // The upload route requires a fitness extension, so a type alone (a bare
+  // `text/xml`, or a FIT type on a name without one) is not a workout.
+  it.each([
+    ['download', 'application/vnd.ant.fit'],
+    ['notes.xml', 'text/xml'],
+    ['data.xml', 'application/xml']
+  ])('rejects %s (%s) without a fitness extension', (name, type) => {
+    expect(isFitnessShareFile(file(name, type))).toBe(false)
   })
 
   it('rejects a photo', () => {
@@ -156,6 +162,23 @@ describe('classifySharedFiles', () => {
     expect(plan.skipped.tooLarge).toBe(2)
   })
 
+  // The share seed must not upload behind a server that takes no media.
+  it('skips media when media uploads are off, keeping the workout', () => {
+    const plan = classifySharedFiles(
+      [file('a.jpg', 'image/jpeg'), file('run.fit', '')],
+      { ...limits, isMediaUploadEnabled: false }
+    )
+
+    expect(plan.kind).toBe('composer')
+    if (plan.kind !== 'composer') return
+    expect(plan.media).toEqual([])
+    expect(plan.fitnessFile?.name).toBe('run.fit')
+    expect(plan.skipped.uploadsOff).toBe(1)
+    expect(describeSkippedFiles(plan.skipped)).toBe(
+      '1 shared file was skipped: 1 photo or video because this server takes no media uploads.'
+    )
+  })
+
   it('returns empty when nothing can be attached', () => {
     const plan = classifySharedFiles([file('a.heic', 'image/heic')], limits)
 
@@ -164,22 +187,58 @@ describe('classifySharedFiles', () => {
   })
 })
 
+describe('describeSharedFiles', () => {
+  it('counts photos, videos and the workout', () => {
+    expect(
+      describeSharedFiles(
+        [
+          file('a.jpg', 'image/jpeg'),
+          file('b.jpg', 'image/jpeg'),
+          file('c.mp4', 'video/mp4')
+        ],
+        file('run.fit', '')
+      )
+    ).toBe('2 photos, 1 video and 1 workout were shared')
+    expect(describeSharedFiles([file('a.jpg', 'image/jpeg')])).toBe(
+      '1 photo was shared'
+    )
+    expect(describeSharedFiles([], file('run.fit', ''))).toBe(
+      '1 workout was shared'
+    )
+  })
+})
+
 describe('describeSkippedFiles', () => {
   it('returns null when nothing was skipped', () => {
     expect(
-      describeSkippedFiles({ unsupported: 0, tooLarge: 0, overLimit: 0 })
+      describeSkippedFiles({
+        unsupported: 0,
+        tooLarge: 0,
+        overLimit: 0,
+        uploadsOff: 0
+      })
     ).toBeNull()
   })
 
   it('names the count and the reason', () => {
     expect(
-      describeSkippedFiles({ unsupported: 1, tooLarge: 0, overLimit: 0 })
+      describeSkippedFiles({
+        unsupported: 1,
+        tooLarge: 0,
+        overLimit: 0,
+        uploadsOff: 0
+      })
     ).toBe(
       "1 shared file was skipped: 1 file has a type the composer can't attach."
     )
 
     expect(
-      describeSkippedFiles({ unsupported: 0, tooLarge: 2, overLimit: 1 })
+      describeSkippedFiles({
+        unsupported: 0,
+        tooLarge: 2,
+        overLimit: 1,
+        uploadsOff: 0
+      })
     ).toBe(
       '3 shared files were skipped: 2 files are over the size limit; 1 file was over the attachment limit.'
     )

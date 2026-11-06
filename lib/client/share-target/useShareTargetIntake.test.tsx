@@ -5,7 +5,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { stageShareFiles } from './shareTargetDb'
+import { peekStagedShare, stageShareFiles } from './shareTargetDb'
 import { useShareTargetIntake } from './useShareTargetIntake'
 
 const replace = vi.fn()
@@ -17,7 +17,8 @@ vi.mock('next/navigation', () => ({
 const limits = {
   maxMediaFileSize: 10 * 1024 * 1024,
   maxFitnessFileSize: 50 * 1024 * 1024,
-  maxMediaAttachments: 4
+  maxMediaAttachments: 4,
+  isMediaUploadEnabled: true
 }
 
 const file = (name: string, type: string) =>
@@ -45,14 +46,17 @@ describe('useShareTargetIntake', () => {
     )
 
     await act(async () => {})
-    expect(result.current).toEqual({
+    expect(result.current).toMatchObject({
       seed: null,
+      pending: null,
       notice: null,
       unavailable: false
     })
   })
 
-  it('seeds the composer with media and consumes the share once', async () => {
+  // Any site can submit a share to this origin: nothing reaches the composer
+  // (and so nothing uploads) until the reader confirms it.
+  it('asks before using a share, then consumes it once on accept', async () => {
     const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
     setSearch(`?share=${id}`)
 
@@ -60,20 +64,64 @@ describe('useShareTargetIntake', () => {
       useShareTargetIntake({ enabled: true, limits })
     )
 
-    await waitFor(() => expect(result.current.seed).not.toBeNull())
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+    expect(result.current.seed).toBeNull()
+    expect(result.current.pending!.summary).toBe('1 photo was shared')
+    expect(result.current.pending!.media.map((f) => f.name)).toEqual([
+      'photo.jpg'
+    ])
+    // Kept until the reader decides, so a reload asks again.
+    expect(window.location.search).toBe(`?share=${id}`)
+    expect(await peekStagedShare(id!)).not.toBeNull()
+
+    await act(async () => {
+      await result.current.accept()
+    })
+
     expect(result.current.seed!.media.map((f) => f.name)).toEqual(['photo.jpg'])
     expect(result.current.seed!.fitnessFile).toBeUndefined()
+    expect(result.current.pending).toBeNull()
     expect(window.location.search).toBe('')
+    expect(await peekStagedShare(id!)).toBeNull()
+  })
 
-    // A second mount finds nothing: the record was deleted.
+  it('asks again after a reload until the reader decides', async () => {
+    const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
+    setSearch(`?share=${id}`)
+
+    const first = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+    await waitFor(() => expect(first.result.current.pending).not.toBeNull())
+    first.unmount()
+
     const second = renderHook(() =>
       useShareTargetIntake({ enabled: true, limits })
     )
-    await act(async () => {})
-    expect(second.result.current.seed).toBeNull()
+    await waitFor(() => expect(second.result.current.pending).not.toBeNull())
+    expect(second.result.current.pending!.id).toBe(id)
   })
 
-  it('seeds the composer with one workout', async () => {
+  it('deletes a discarded share without seeding the composer', async () => {
+    const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
+    setSearch(`?share=${id}`)
+
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+
+    await act(async () => {
+      await result.current.discard()
+    })
+
+    expect(result.current.seed).toBeNull()
+    expect(result.current.pending).toBeNull()
+    expect(window.location.search).toBe('')
+    expect(await peekStagedShare(id!)).toBeNull()
+  })
+
+  it('offers one workout for the composer', async () => {
     const id = await stageShareFiles([
       file('run.fit', 'application/vnd.ant.fit')
     ])
@@ -83,7 +131,11 @@ describe('useShareTargetIntake', () => {
       useShareTargetIntake({ enabled: true, limits })
     )
 
-    await waitFor(() => expect(result.current.seed).not.toBeNull())
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+    expect(result.current.pending!.summary).toBe('1 workout was shared')
+    await act(async () => {
+      await result.current.accept()
+    })
     expect(result.current.seed!.fitnessFile?.name).toBe('run.fit')
     expect(result.current.seed!.media).toEqual([])
   })
@@ -137,7 +189,7 @@ describe('useShareTargetIntake', () => {
       useShareTargetIntake({ enabled: true, limits })
     )
 
-    await waitFor(() => expect(result.current.seed).not.toBeNull())
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
     expect(result.current.notice).toContain('1 shared file was skipped')
   })
 
@@ -151,10 +203,10 @@ describe('useShareTargetIntake', () => {
     )
 
     await act(async () => {})
-    expect(result.current.seed).toBeNull()
+    expect(result.current.pending).toBeNull()
     expect(window.location.search).toBe(`?share=${id}`)
 
     rerender({ enabled: true })
-    await waitFor(() => expect(result.current.seed).not.toBeNull())
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
   })
 })

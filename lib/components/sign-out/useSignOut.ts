@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from 'react'
 import { postDraftsMessage } from '@/lib/client/drafts/draftsChannel'
 import { markPurgePending } from '@/lib/client/drafts/pendingPurgeMarker'
 import { clearAllOfflineData } from '@/lib/client/offline'
+import { clearStagedShares } from '@/lib/client/share-target/shareTargetDb'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { authClient } from '@/lib/services/auth/auth-client'
 
@@ -65,6 +66,10 @@ export function useSignOut(): {
                 // Stays pending.
               }
             }
+            // Files shared to this device and not yet added or discarded
+            // must not reach the next account. Not in clearAllOfflineData,
+            // which a session expiry also runs: a share survives that.
+            await clearStagedShares()
             window.location.href = '/auth/signin'
           },
           onError: failed

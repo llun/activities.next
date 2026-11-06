@@ -3,6 +3,8 @@ import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  clearStagedShares,
+  deleteStagedShare,
   peekStagedShare,
   stageShareFiles,
   takeStagedShare,
@@ -63,6 +65,34 @@ describe('shareTargetDb', () => {
     expect(Array.from(new Uint8Array(await files[0].arrayBuffer()))).toEqual([
       1, 2, 3
     ])
+  })
+
+  it('deletes one discarded share and leaves the others', async () => {
+    const discarded = await stageShareFiles([file('a.jpg', 'image/jpeg')])
+    const kept = await stageShareFiles([file('b.jpg', 'image/jpeg')])
+
+    await deleteStagedShare(discarded!)
+
+    expect(await peekStagedShare(discarded!)).toBeNull()
+    expect(await peekStagedShare(kept!)).not.toBeNull()
+  })
+
+  // A shared device: the next account must never see the previous reader's
+  // staged files.
+  it('clears every staged share on sign-out', async () => {
+    const first = await stageShareFiles([file('a.jpg', 'image/jpeg')])
+    const second = await stageShareFiles([file('b.fit', '')])
+
+    await clearStagedShares()
+
+    expect(await peekStagedShare(first!)).toBeNull()
+    expect(await peekStagedShare(second!)).toBeNull()
+  })
+
+  it('refuses to stage without a secure random source', async () => {
+    vi.stubGlobal('crypto', {})
+
+    expect(await stageShareFiles([file('a.jpg', 'image/jpeg')])).toBeNull()
   })
 
   it('consumes a share exactly once', async () => {

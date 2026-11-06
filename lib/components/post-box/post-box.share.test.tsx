@@ -10,7 +10,7 @@ import {
   waitFor
 } from '@testing-library/react'
 
-import { uploadFitnessFile } from '@/lib/client'
+import { deleteUnpostedMedia, uploadFitnessFile } from '@/lib/client'
 import { resetConnectionForTesting } from '@/lib/client/connection'
 import { stageShareFiles } from '@/lib/client/share-target/shareTargetDb'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
@@ -60,18 +60,20 @@ beforeEach(() => resetConnectionForTesting())
 const renderComposer = ({
   maxMediaAttachments = 4,
   initialFiles,
-  initialFitnessFile
+  initialFitnessFile,
+  isMediaUploadEnabled = true
 }: {
   maxMediaAttachments?: number
   initialFiles?: File[]
   initialFitnessFile?: File
+  isMediaUploadEnabled?: boolean
 } = {}) => {
   const ui = (files?: File[], fitness?: File) => (
     <InstanceLimitsProvider maxMediaAttachments={maxMediaAttachments}>
       <PostBox
         host="activities.local"
         profile={profile}
-        isMediaUploadEnabled
+        isMediaUploadEnabled={isMediaUploadEnabled}
         initialFiles={files}
         initialFitnessFile={fitness}
         onDiscardReply={vi.fn()}
@@ -169,6 +171,12 @@ describe('PostBox with a workout and media', () => {
     expect(
       await screen.findByText(/A workout leaves room for 1 attachment/)
     ).toBeInTheDocument()
+    // Removed as the tile's Remove button does: its upload is deleted.
+    await waitFor(() =>
+      expect(vi.mocked(deleteUnpostedMedia)).toHaveBeenCalledWith(
+        'media-egret.png'
+      )
+    )
     expect(
       screen.getByRole('button', { name: 'Add media (1/1)' })
     ).toBeDisabled()
@@ -194,6 +202,18 @@ describe('PostBox with a workout and media', () => {
     rerenderWith([photo('summit.jpg')], new File(['data'], 'ride.gpx'))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(uploadAttachmentMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('never uploads shared media while media uploads are off', async () => {
+    renderComposer({
+      isMediaUploadEnabled: false,
+      initialFiles: [photo('summit.jpg')],
+      initialFitnessFile: new File(['data'], 'ride.fit')
+    })
+
+    expect(await screen.findByText('ride.fit')).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(uploadAttachmentMock).not.toHaveBeenCalled()
   })
 
   it('caps shared photos at one less than the limit with a shared workout', async () => {
