@@ -1489,7 +1489,7 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   `postActivityToInbox`); fetches whose target remote content chose (the inbox
   guard's pre-verification key fetch, forwarded objects, quotes, lookups) learn
   into the process cache only, and a `GET` counts only when it returned an
-  ActivityPub document. So the table grows by at most one row per host we
+  ActivityPub document after a `401` on its first knock. So the table grows by at most one row per host we
   deliver to: a stranger cannot add rows by sending unverified input, though
   a verified remote whose actors advertise inboxes on many hosts still adds one
   row per host it gets deliveries on (pruned after 7 days).
