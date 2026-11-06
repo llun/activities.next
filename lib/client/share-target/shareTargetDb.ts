@@ -3,6 +3,7 @@
 // deletes it once the reader adds or discards it (`takeStagedShare`,
 // `deleteStagedShare`), and clears them all on sign-out. It never opens
 // `activities_drafts_v1`.
+import { readSharePurgePending, settleSharePurge } from './pendingSharePurge'
 import {
   SHARE_TARGET_DB_NAME,
   SHARE_TARGET_DB_VERSION,
@@ -149,6 +150,25 @@ export const stageShareFiles = async (
 /** How long sign-out waits for `clearStagedShares` before going on. */
 export const CLEAR_STAGED_SHARES_TIMEOUT_MS = 5_000
 
+// Bounded, as draftsDb bounds its opens: sign-out awaits a clear, and a hung
+// IndexedDB must not keep the reader on a "signing out" screen. True only when
+// the work finished in time.
+const bounded = async (work: Promise<unknown>): Promise<boolean> => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      work.then(() => true),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), CLEAR_STAGED_SHARES_TIMEOUT_MS)
+      })
+    ])
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Deletes one staged share (the reader discarded it). */
 export const deleteStagedShare = async (id: string): Promise<void> => {
   try {
@@ -162,23 +182,60 @@ export const deleteStagedShare = async (id: string): Promise<void> => {
  * Deletes every staged share. Called on an explicit sign-out only, so the
  * next account on a shared device never sees the previous reader's files; a
  * session expiry (401) keeps them, so a share survives signing in again.
+ * False when the clear failed or timed out: the caller keeps the purge marker.
  */
-export const clearStagedShares = async (): Promise<void> => {
-  // Bounded, as draftsDb bounds its opens: sign-out awaits this, and a hung
-  // IndexedDB must not keep the reader on a "signing out" screen.
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    await Promise.race([
-      withStore('readwrite', (store) => store.clear()),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, CLEAR_STAGED_SHARES_TIMEOUT_MS)
-      })
-    ])
-  } catch {
-    // IndexedDB is unavailable: there is nothing staged to clear.
-  } finally {
-    clearTimeout(timer)
-  }
+export const clearStagedShares = async (): Promise<boolean> =>
+  bounded(withStore('readwrite', (store) => store.clear()))
+
+/**
+ * Deletes the shares staged at or before `markedAt` (a sign-out time), keeping
+ * any made after it. True once they are gone.
+ */
+export const deleteSharesStagedBefore = async (
+  markedAt: number
+): Promise<boolean> =>
+  bounded(
+    (async () => {
+      const db = await openDb()
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db['transaction'](SHARE_TARGET_STORE, 'readwrite')
+          const cursorRequest = tx.objectStore(SHARE_TARGET_STORE).openCursor()
+          cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result
+            if (!cursor) return
+            const value = cursor.value as StagedShare | undefined
+            if (
+              !value ||
+              typeof value.createdAt !== 'number' ||
+              value.createdAt <= markedAt
+            ) {
+              cursor.delete()
+            }
+            cursor.continue()
+          }
+          tx.oncomplete = () => resolve()
+          tx.onabort = () => reject(tx.error)
+          tx.onerror = () => reject(tx.error)
+        })
+      } finally {
+        db.close()
+      }
+    })()
+  )
+
+/**
+ * Run before any share is read. A sign-out that could not clear the staged
+ * shares left a marker (pendingSharePurge.ts): its shares are deleted first
+ * and the marker removed. False when that purge still fails, and then nothing
+ * may be read: a previous account's files could still be there.
+ */
+export const honourPendingSharePurge = async (): Promise<boolean> => {
+  const markedAt = await readSharePurgePending()
+  if (markedAt === null) return true
+  if (!(await deleteSharesStagedBefore(markedAt))) return false
+  await settleSharePurge()
+  return true
 }
 
 /** Rebuilds the Files the worker staged. */

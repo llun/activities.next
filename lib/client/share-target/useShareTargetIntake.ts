@@ -13,6 +13,7 @@ import {
 } from './classify'
 import {
   deleteStagedShare,
+  honourPendingSharePurge,
   peekStagedShare,
   takeStagedShare,
   toShareFiles
@@ -130,6 +131,13 @@ export function useShareTargetIntake({
     }
 
     void (async () => {
+      // A failed sign-out's shares are purged before anything is read; if
+      // that still fails, nothing is read at all.
+      if (!(await honourPendingSharePurge())) {
+        stripShareParams()
+        setState({ ...IDLE, expired: true })
+        return
+      }
       const share = await peekStagedShare(id)
       if (!share) {
         stripShareParams()

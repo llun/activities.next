@@ -6,6 +6,10 @@ import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  markSharePurgePending,
+  readSharePurgePending
+} from './pendingSharePurge'
+import {
   deleteStagedShare,
   peekStagedShare,
   stageShareFiles
@@ -36,6 +40,7 @@ describe('useShareTargetIntake', () => {
   beforeEach(() => {
     vi.stubGlobal('indexedDB', new IDBFactory())
     replace.mockReset()
+    localStorage.clear()
     setSearch('')
   })
 
@@ -182,6 +187,46 @@ describe('useShareTargetIntake', () => {
 
     await waitFor(() => expect(result.current.pending).not.toBeNull())
     expect(result.current.notice).toContain('3 files were past the share limit')
+  })
+
+  // A sign-out on this device could not clear the staged shares: the next
+  // visit to the old `?share=` URL (from history) must read none of them.
+  it("purges a failed sign-out's shares before reading, and reads nothing", async () => {
+    const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
+    await markSharePurgePending(Date.now())
+    setSearch(`?share=${id}`)
+
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+
+    await waitFor(() => expect(result.current.expired).toBe(true))
+    expect(result.current.pending).toBeNull()
+    expect(await peekStagedShare(id!)).toBeNull()
+    expect(await readSharePurgePending()).toBeNull()
+  })
+
+  it('reads nothing while a pending purge cannot run', async () => {
+    const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
+    await markSharePurgePending(Date.now())
+    setSearch(`?share=${id}`)
+    vi.stubGlobal('indexedDB', {
+      open: () => {
+        const request: { onerror?: () => void; error: Error } = {
+          error: new Error('broken')
+        }
+        setTimeout(() => request.onerror?.(), 0)
+        return request
+      }
+    })
+
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+
+    await waitFor(() => expect(result.current.expired).toBe(true))
+    expect(result.current.pending).toBeNull()
+    expect(await readSharePurgePending()).not.toBeNull()
   })
 
   it('asks again after a reload until the reader decides', async () => {

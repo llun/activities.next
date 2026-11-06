@@ -132,6 +132,13 @@ export const classifySharedFiles = (
   return { kind: 'composer', media, fitnessFile, skipped }
 }
 
+/**
+ * The files the worker never staged (`StagedShare.skipped`), in the words both
+ * the /app card and the batch importer use.
+ */
+export const describeNotStaged = (count: number): string =>
+  `${count} ${count === 1 ? 'file was' : 'files were'} past the share limit of 20 files and 250 MB`
+
 const totalSkipped = (skipped: ShareTargetSkipSummary) =>
   skipped.unsupported +
   skipped.tooLarge +
@@ -227,11 +234,7 @@ export const describeSkippedFiles = (
       `${skipped.uploadsOff} ${skipped.uploadsOff === 1 ? 'photo or video' : 'photos or videos'} because this server takes no media uploads`
     )
   }
-  if (skipped.notStaged > 0) {
-    reasons.push(
-      `${skipped.notStaged} ${skipped.notStaged === 1 ? 'file was' : 'files were'} past the share limit of 20 files and 250 MB`
-    )
-  }
+  if (skipped.notStaged > 0) reasons.push(describeNotStaged(skipped.notStaged))
   if (reasons.length === 0) return null
   const total = totalSkipped(skipped)
   return `${total} shared ${total === 1 ? 'file was' : 'files were'} skipped: ${reasons.join('; ')}.`

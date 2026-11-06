@@ -10,11 +10,13 @@ import {
   startFitnessImport
 } from '@/lib/client'
 import {
+  describeNotStaged,
   isFitnessShareFile,
   isMediaShareFile
 } from '@/lib/client/share-target/classify'
 import {
   deleteStagedShare,
+  honourPendingSharePurge,
   peekStagedShare,
   toShareFiles
 } from '@/lib/client/share-target/shareTargetDb'
@@ -69,6 +71,8 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
   // Shared workouts over the upload limit, and files that are neither.
   const [skippedOversize, setSkippedOversize] = useState(0)
   const [skippedOther, setSkippedOther] = useState(0)
+  // Files the worker refused before staging (over 20, or the 250 MiB budget).
+  const [skippedNotStaged, setSkippedNotStaged] = useState(0)
 
   const failedCount = batchResult?.summary.failed ?? 0
   const selectedFileNames = useMemo(
@@ -146,6 +150,12 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
     shareReadRef.current = true
 
     void (async () => {
+      // As on /app: a failed sign-out's shares go first, and if they cannot,
+      // nothing is read.
+      if (!(await honourPendingSharePurge())) {
+        releaseShare(id)
+        return
+      }
       const share = await peekStagedShare(id)
       if (!share) {
         releaseShare(id)
@@ -164,6 +174,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
       setSkippedMedia(media)
       setSkippedOversize(workouts.length - fitting.length)
       setSkippedOther(shared.length - workouts.length - media)
+      setSkippedNotStaged(share.skipped ?? 0)
     })()
   }, [])
 
@@ -253,7 +264,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
           to a post from the composer instead.
         </Alert>
       ) : null}
-      {skippedOversize + skippedOther > 0 ? (
+      {skippedOversize + skippedOther + skippedNotStaged > 0 ? (
         <Alert tone="info" title="Some shared files were skipped">
           {[
             skippedOversize > 0
@@ -261,7 +272,8 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
               : null,
             skippedOther > 0
               ? `${skippedOther} ${skippedOther === 1 ? 'file is not a' : 'files are not'} .fit, .gpx or .tcx ${skippedOther === 1 ? 'file' : 'files'}`
-              : null
+              : null,
+            skippedNotStaged > 0 ? describeNotStaged(skippedNotStaged) : null
           ]
             .filter(Boolean)
             .join('; ')}

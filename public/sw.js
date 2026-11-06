@@ -304,9 +304,15 @@ const openShareTargetDb = () =>
 // Deletes every staged share past its 24 h life, then the oldest beyond
 // `keep`. Runs on activate and before each new share (keeping room for it), so
 // an unclaimed share never lingers and shares cannot pile up.
-async function pruneExpiredShares(db, keep = SHARE_TARGET_MAX_RECORDS) {
+// `purgeBefore` (a sign-out time from the pending-purge marker) also deletes
+// every share staged up to then. Resolves true once the transaction completed.
+async function pruneExpiredShares(
+  db,
+  keep = SHARE_TARGET_MAX_RECORDS,
+  purgeBefore = null
+) {
   const cutoff = Date.now() - SHARE_TARGET_TTL_MS
-  await new Promise((resolve) => {
+  return new Promise((resolve) => {
     try {
       const tx = db.transaction(SHARE_TARGET_STORE, 'readwrite')
       const store = tx.objectStore(SHARE_TARGET_STORE)
@@ -325,7 +331,8 @@ async function pruneExpiredShares(db, keep = SHARE_TARGET_MAX_RECORDS) {
         if (
           !value ||
           typeof value.createdAt !== 'number' ||
-          value.createdAt < cutoff
+          value.createdAt < cutoff ||
+          (purgeBefore !== null && value.createdAt <= purgeBefore)
         ) {
           cursor.delete()
         } else {
@@ -333,13 +340,31 @@ async function pruneExpiredShares(db, keep = SHARE_TARGET_MAX_RECORDS) {
         }
         cursor.continue()
       }
-      tx.oncomplete = () => resolve()
-      tx.onabort = () => resolve()
-      tx.onerror = () => resolve()
+      tx.oncomplete = () => resolve(true)
+      tx.onabort = () => resolve(false)
+      tx.onerror = () => resolve(false)
     } catch {
-      resolve()
+      resolve(false)
     }
   })
+}
+
+// The pending-purge marker a sign-out leaves when it could not clear the staged
+// shares (lib/client/share-target/pendingSharePurge.ts). The pages keep it in
+// localStorage, which a worker cannot read, so they copy it to this cache.
+const SHARE_PURGE_CACHE = 'activities-share-target-purge-v1'
+const SHARE_PURGE_CACHE_KEY = '/__share-target-pending-purge'
+
+async function readSharePurgeMarker() {
+  try {
+    const cache = await caches.open(SHARE_PURGE_CACHE)
+    const response = await cache.match(SHARE_PURGE_CACHE_KEY)
+    if (!response) return null
+    const markedAt = Number(await response.text())
+    return Number.isFinite(markedAt) ? markedAt : null
+  } catch {
+    return null
+  }
 }
 
 const isSharedFile = (value) =>
@@ -427,7 +452,20 @@ async function stageShareTarget(formData) {
 
   const db = await openShareTargetDb()
   try {
-    await pruneExpiredShares(db, SHARE_TARGET_MAX_RECORDS - 1)
+    // A failed sign-out's shares go before anything new is staged beside them.
+    const purgeBefore = await readSharePurgeMarker()
+    const pruned = await pruneExpiredShares(
+      db,
+      SHARE_TARGET_MAX_RECORDS - 1,
+      purgeBefore
+    )
+    if (purgeBefore !== null && pruned) {
+      try {
+        await caches.delete(SHARE_PURGE_CACHE)
+      } catch {
+        // The pages purge again from their own copy; only older shares go.
+      }
+    }
     await new Promise((resolve, reject) => {
       const tx = db.transaction(SHARE_TARGET_STORE, 'readwrite')
       tx.objectStore(SHARE_TARGET_STORE).put(record)

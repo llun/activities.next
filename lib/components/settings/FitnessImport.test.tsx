@@ -14,6 +14,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startFitnessImport } from '@/lib/client'
 import {
+  markSharePurgePending,
+  readSharePurgePending
+} from '@/lib/client/share-target/pendingSharePurge'
+import {
   peekStagedShare,
   stageShareFiles
 } from '@/lib/client/share-target/shareTargetDb'
@@ -41,6 +45,7 @@ describe('FitnessImport share intake', () => {
   beforeEach(() => {
     vi.stubGlobal('indexedDB', new IDBFactory())
     vi.mocked(startFitnessImport).mockReset()
+    localStorage.clear()
     window.history.replaceState(null, '', '/fitness/files')
   })
 
@@ -116,6 +121,43 @@ describe('FitnessImport share intake', () => {
     )
     expect(screen.getByText(/1 shared photo was left out/)).toBeInTheDocument()
     expect(screen.getByText('2 files chosen')).toBeInTheDocument()
+  })
+
+  // 21 workouts: the worker staged 20 and counted one in `skipped`.
+  it('names the files the worker could not stage', async () => {
+    const id = await stageShareFiles(
+      [
+        file('run.fit', 'application/vnd.ant.fit'),
+        file('ride.gpx', 'application/gpx+xml')
+      ],
+      { skipped: 1 }
+    )
+    window.history.replaceState(null, '', `/fitness/files?share=${id}`)
+
+    render(<FitnessImport />)
+
+    expect(
+      await screen.findByText(
+        /1 file was past the share limit of 20 files and 250 MB/
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByText('2 files chosen')).toBeInTheDocument()
+  })
+
+  it("preselects nothing from a failed sign-out's shares", async () => {
+    const id = await stageShareFiles([
+      file('run.fit', 'application/vnd.ant.fit'),
+      file('ride.gpx', 'application/gpx+xml')
+    ])
+    await markSharePurgePending(Date.now())
+    window.history.replaceState(null, '', `/fitness/files?share=${id}`)
+
+    render(<FitnessImport />)
+
+    await waitFor(() => expect(window.location.search).toBe(''))
+    expect(screen.getByText('No files chosen')).toBeInTheDocument()
+    expect(await peekStagedShare(id!)).toBeNull()
+    expect(await readSharePurgePending()).toBeNull()
   })
 
   it('does nothing without a share parameter', async () => {

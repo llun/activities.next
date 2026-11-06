@@ -118,6 +118,8 @@ return {
   SHARE_TARGET_MAX_TOTAL_BYTES,
   SHARE_TARGET_MAX_TEXT_LENGTH,
   SHARE_TARGET_MAX_RECORDS,
+  SHARE_PURGE_CACHE,
+  SHARE_PURGE_CACHE_KEY,
   extractBuildId,
   extractAppShellAssets,
   stageAppShell,
@@ -1028,6 +1030,9 @@ return {
       )
       expect(swModule.SHARE_TARGET_STORE).toBe(client.SHARE_TARGET_STORE)
       expect(swModule.SHARE_TARGET_TTL_MS).toBe(client.SHARE_TARGET_TTL_MS)
+      const purge = await import('@/lib/client/share-target/pendingSharePurge')
+      expect(swModule.SHARE_PURGE_CACHE).toBe(purge.SHARE_PURGE_CACHE)
+      expect(swModule.SHARE_PURGE_CACHE_KEY).toBe(purge.SHARE_PURGE_CACHE_KEY)
     })
 
     it.each(['cross-site', 'same-site'])(
@@ -1088,6 +1093,30 @@ return {
     )
 
     // The intake shows these in its skip notice, so none is dropped silently.
+    // The pages copy a failed sign-out's purge marker to Cache Storage (a
+    // worker has no localStorage). The next stage deletes the shares staged
+    // up to the sign-out, keeps later ones, and drops the marker.
+    it("purges a failed sign-out's shares before staging a new one", async () => {
+      const markedAt = Date.now() - 1000
+      await writeShare({ id: 'old', createdAt: markedAt - 10, files: [] })
+      await writeShare({ id: 'later', createdAt: markedAt + 10, files: [] })
+      const cache = await (globalThis as any).caches.open(
+        'activities-share-target-purge-v1'
+      )
+      await cache.put(
+        '/__share-target-pending-purge',
+        new Response(String(markedAt))
+      )
+
+      await triggerFetch(shareRequest([photoFile()]))
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).not.toContain('old')
+      expect(ids).toContain('later')
+      expect(ids).toHaveLength(2)
+      expect(cacheStore.has('activities-share-target-purge-v1')).toBe(false)
+    })
+
     it('counts the files past the 20-file cap as skipped', async () => {
       const files = Array.from(
         { length: 22 },
