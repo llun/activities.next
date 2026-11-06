@@ -8,6 +8,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { signHttpMessage } from '@/lib/utils/httpMessageSignature'
 import { logger } from '@/lib/utils/logger'
 import { RequestOptions, RequestResult, request } from '@/lib/utils/request'
+import { signedHeaders } from '@/lib/utils/signature'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 export type SignatureScheme = 'cavage' | 'rfc9421'
@@ -147,7 +148,19 @@ export const signedActivityPubRequest = async ({
       headers: ({ body: hopBody, method: hopMethod, url: hopUrl }) => {
         if (normalizeHost(hopUrl.host) !== initialHost) {
           crossedHosts = true
-          return { accept }
+          // Never signed off-host, but a redirected POST keeps its unsigned
+          // date, digest and content-type, as it did before per-hop headers.
+          return actor
+            ? {
+                ...signedHeaders(
+                  { ...actor, privateKey: undefined },
+                  toSignedMethod(hopMethod),
+                  hopUrl.toString(),
+                  hopBody
+                ),
+                accept
+              }
+            : { accept }
         }
         const signedMethod = toSignedMethod(hopMethod)
         if (hasSigningKey && scheme === 'rfc9421') {

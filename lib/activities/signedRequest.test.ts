@@ -303,7 +303,14 @@ describe('signedActivityPubRequest', () => {
     })
     expect(otherHostHeaders).not.toHaveProperty('signature')
     expect(otherHostHeaders).not.toHaveProperty('signature-input')
-    expect(otherHostHeaders).toEqual({ accept: expect.any(String) })
+    // A redirected POST keeps its unsigned base headers off-host.
+    expect(otherHostHeaders).toEqual({
+      accept: expect.any(String),
+      host: 'other.test',
+      date: expect.any(String),
+      digest: expect.stringMatching(/^SHA-256=/),
+      'content-type': 'application/activity+json'
+    })
   })
 
   it('re-signs a same-host 307 over the new URL', async () => {
