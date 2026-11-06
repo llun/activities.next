@@ -1,0 +1,81 @@
+lib/services/guards/getSenderPublicKey.ts
+  s_2b1a50e2f9b981::t_1db0087faa7713 223-226
+  s_2b1a50e2f9b981::t_b8485c94a57d02 214,221,276,355
+lib/services/actors/actorDeletion.ts
+  s_2b1a50e2f9b981::t_ed614f3af15f7d 11,177-181
+  s_2b1a50e2f9b981::t_1db0087faa7713 174-176,182-187,192-193
+  s_2b1a50e2f9b981::t_5ef432cbcc7ad9 1,12,173,188-191,194-199
+lib/services/guards/getSenderPublicKey.test.ts
+  s_2b1a50e2f9b981::t_89d2bc016d2e53 1023-1035,1046-1050
+  s_2b1a50e2f9b981::t_1682fd84af4aa5 1036-1045
+lib/activities/signedRequest.ts
+  s_2b1a50e2f9b981::t_a84701bef3812a 2,74,88,147-174,176-227,229-247,251-330,339-340,342-348,371-372,386,388,392-394,396-398,412,450,454-461,464-473,497-502
+  s_2b1a50e2f9b981::t_ed614f3af15f7d 11
+  s_2b1a50e2f9b981::t_e8ba9e5e5ad0e6 5-7,18,21-34,36-37,39,42-50,52,55-73,75-87,89-95,99-100,103-104,108,114,119-146,503
+lib/activities/signedRequest.db.test.ts
+  s_2b1a50e2f9b981::t_61ccaa937c64ed 19-255
+  s_2b1a50e2f9b981::t_470127a003ee02 1-18,256
+migrations/schema.sqlite.sql
+  s_2b1a50e2f9b981::t_ca52d95db1a2b5 356
+  s_2b1a50e2f9b981::t_5d85332d8cbf4b 357
+docs/architecture.md
+  s_2b1a50e2f9b981::t_b426ffe1ad6ea2 247
+lib/services/actors/actorDeletion.test.ts
+  s_2b1a50e2f9b981::t_4a2c48877399ff 196,235,256-257,263,275-298
+  s_2b1a50e2f9b981::t_2619a5bc578c64 192,195,208-211,216,231,234,244,258-259,262,272-274
+docs/maintenance.md
+  s_2b1a50e2f9b981::t_334bfaef8687aa 1484-1488
+  s_2b1a50e2f9b981::t_0d288bf9c39ff2 1477-1483
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_3c525303634638 1514
+lib/activities/signedRequest.test.ts
+  s_2b1a50e2f9b981::t_25b70634bec469 3,10-12,19-25,141,425,428-625
+lib/database/domains/remoteSignatureScheme/queries.ts
+  s_2b1a50e2f9b981::t_d597a3825f4433 1-140
+lib/database/domains/remoteSignatureScheme/remoteSignatureScheme.test.ts
+  s_2b1a50e2f9b981::t_4d5bd61aabdb2c 1-264
+lib/database/domains/remoteSignatureScheme/types.ts
+  s_2b1a50e2f9b981::t_6c764dc400f06b 1-42
+lib/database/getSQLDatabase.ts
+  s_2b1a50e2f9b981::t_5590acea6ff125 54,176
+lib/database/kysely/db.ts
+  s_2b1a50e2f9b981::t_4ed65fb9901235 1263-1270,1648
+lib/database/types.ts
+  s_2b1a50e2f9b981::t_3b44dba843aa7f 25,135
+lib/jobs/deliverActivityJob.test.ts
+  s_2b1a50e2f9b981::t_bd701d0a703826 36-38,52-55
+lib/jobs/deliverActivityJob.ts
+  s_2b1a50e2f9b981::t_cacaac0671b465 111
+lib/jobs/fetchRemoteStatusJob.ts
+  s_2b1a50e2f9b981::t_f7cd793b88cc79 405
+lib/jobs/processForwardedActivityJob.ts
+  s_2b1a50e2f9b981::t_a55c57539ad215 136
+lib/services/quotes/verifyRemoteQuote.ts
+  s_2b1a50e2f9b981::t_46e157688d4ee2 85
+lib/types/database/operations.ts
+  s_2b1a50e2f9b981::t_c0326ad75daaed 1017-1029
+migrations/20261106094910_add_remote_signature_schemes.ts
+  s_2b1a50e2f9b981::t_90c12c5794bca5 1-42
+migrations/index.ts
+  s_2b1a50e2f9b981::t_6ede5636d89b6d 27,63
+migrations/names.ts
+  s_2b1a50e2f9b981::t_9fec76b1723896 28
+migrations/schema.sql
+  s_2b1a50e2f9b981::t_fc74b57c45a8d9 1343-1350,2079-2081,2431-2432
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "40f00893198582c0bbd0477b9319e8fc868c7a3b",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
