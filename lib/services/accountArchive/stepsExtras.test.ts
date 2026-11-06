@@ -1,5 +1,6 @@
 import { iterateArrayItems } from '@/lib/services/accountImport/json/arrayItems'
 import {
+  ARCHIVE_URI_MAX_LENGTH,
   BOOKMARK_FOLDER_ENTRY_MAX_ITEMS,
   ownBookmarkFolderSchema
 } from '@/lib/services/accountImport/schemas'
@@ -32,10 +33,12 @@ const readBack = async (entries: Record<string, unknown>[]) => {
 
 describe('splitBookmarkFolder', () => {
   it('keeps a small folder as one entry', () => {
-    expect(splitBookmarkFolder(folder, ['https://a.example/1'])).toEqual([
-      { ...folder, items: ['https://a.example/1'] }
+    expect(
+      splitBookmarkFolder(folder, ['https://a.example/1']).entries
+    ).toEqual([{ ...folder, items: ['https://a.example/1'] }])
+    expect(splitBookmarkFolder(folder, []).entries).toEqual([
+      { ...folder, items: [] }
     ])
-    expect(splitBookmarkFolder(folder, [])).toEqual([{ ...folder, items: [] }])
   })
 
   it('splits a folder past the byte budget into same-name entries the importer reads whole', async () => {
@@ -46,7 +49,7 @@ describe('splitBookmarkFolder', () => {
         `https://remote.example/users/someone/statuses/${index}${'x'.repeat(index % 60)}`
     )
 
-    const entries = splitBookmarkFolder(folder, uris)
+    const { entries } = splitBookmarkFolder(folder, uris)
 
     expect(entries.length).toBeGreaterThan(1)
     expect(entries.every((entry) => entry.name === 'Birding')).toBe(true)
@@ -69,7 +72,7 @@ describe('splitBookmarkFolder', () => {
       (_, index) => `u${index}`
     )
 
-    const entries = splitBookmarkFolder(folder, uris)
+    const { entries } = splitBookmarkFolder(folder, uris)
 
     expect(entries.length).toBeGreaterThan(1)
     for (const entry of entries) {
@@ -77,5 +80,18 @@ describe('splitBookmarkFolder', () => {
         BOOKMARK_FOLDER_ENTRY_MAX_ITEMS
       )
     }
+  })
+
+  it('leaves out a URI longer than the import accepts, and counts it', () => {
+    const tooLong =
+      'https://remote.example/' + 'x'.repeat(ARCHIVE_URI_MAX_LENGTH)
+    const kept = 'https://remote.example/kept'
+
+    const { entries, omitted } = splitBookmarkFolder(folder, [tooLong, kept])
+
+    expect(omitted).toBe(1)
+    expect(entries).toEqual([{ ...folder, items: [kept] }])
+    expect(ownBookmarkFolderSchema.safeParse(entries[0]).success).toBe(true)
+    expect(splitBookmarkFolder(folder, [kept]).omitted).toBe(0)
   })
 })

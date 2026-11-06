@@ -14,7 +14,10 @@ import {
 } from '@/lib/types/database/galleryAlbums'
 
 const text = (max = 16_384) => z.string().max(max)
-const uri = text(4_096)
+// The longest URI an archive document may carry; the export leaves out a
+// bookmark folder URI past it rather than write one the import refuses.
+export const ARCHIVE_URI_MAX_LENGTH = 4_096
+const uri = text(ARCHIVE_URI_MAX_LENGTH)
 const dateText = text(64)
 const finiteNumber = z.number().finite()
 const smallCount = <Schema extends z.ZodTypeAny>(schema: Schema, max = 200) =>

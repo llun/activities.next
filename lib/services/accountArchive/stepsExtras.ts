@@ -3,8 +3,12 @@ import type {
   AccountExportTableName
 } from '@/lib/database/domains/accountExport/types'
 import { ARRAY_ITEM_MAX_BYTES } from '@/lib/services/accountImport/json/arrayItems'
-import { BOOKMARK_FOLDER_ENTRY_MAX_ITEMS } from '@/lib/services/accountImport/schemas'
+import {
+  ARCHIVE_URI_MAX_LENGTH,
+  BOOKMARK_FOLDER_ENTRY_MAX_ITEMS
+} from '@/lib/services/accountImport/schemas'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { logger } from '@/lib/utils/logger'
 
 import { MEDIA_ARCHIVE_DIR } from './actorArchive'
 import { entryPath } from './layout'
@@ -288,11 +292,16 @@ export const BOOKMARK_FOLDER_ENTRY_MAX_BYTES = ARRAY_ITEM_MAX_BYTES / 2
 // spaces, after a comma.
 const ITEM_OVERHEAD_BYTES = 8
 
-/** One folder as one entry or more, each within the import's limits. */
+/**
+ * One folder as one entry or more, each within the import's limits. A URI
+ * longer than the import accepts would fail its whole entry, so it is left
+ * out and counted in `omitted`.
+ */
 export const splitBookmarkFolder = (
   folder: Record<string, unknown>,
-  uris: string[]
-): Record<string, unknown>[] => {
+  allUris: string[]
+): { entries: Record<string, unknown>[]; omitted: number } => {
+  const uris = allUris.filter((uri) => uri.length <= ARCHIVE_URI_MAX_LENGTH)
   // The entry as it sits inside the document's array (one level deeper), with
   // a few bytes for the items' closing bracket on its own line.
   const baseBytes =
@@ -316,7 +325,7 @@ export const splitBookmarkFolder = (
     bytes += itemBytes
   }
   entries.push({ ...folder, items: current })
-  return entries
+  return { entries, omitted: allUris.length - uris.length }
 }
 
 // The owner's private bookmark folders, each with the status URIs filed in
@@ -332,18 +341,32 @@ export const bookmarkFoldersStep: CollectorStep = {
       readAllExportRows(database, 'bookmark_folder_items', actor.id, pageSize)
     ])
     const itemsByFolder = groupBy(items, 'folderId')
-    await stage.append(
-      entryPath(actor.dir, 'bookmark_folders.json'),
-      json(
-        folders.flatMap((folder) =>
-          splitBookmarkFolder(
-            folder,
-            (itemsByFolder.get(String(folder.id)) ?? []).map((item) =>
-              String(item.statusId)
-            )
-          )
+    let omitted = 0
+    const entries = folders.flatMap((folder) => {
+      const split = splitBookmarkFolder(
+        folder,
+        (itemsByFolder.get(String(folder.id)) ?? []).map((item) =>
+          String(item.statusId)
         )
       )
+      omitted += split.omitted
+      return split.entries
+    })
+    if (omitted > 0) {
+      // A count only: the URIs (and the folders) are the owner's private data.
+      context.warn(
+        `${omitted} filed ${omitted === 1 ? 'bookmark was' : 'bookmarks were'} left out of bookmark_folders.json: the status URI is longer than an import accepts. The bookmark itself is in bookmarks.json.`
+      )
+      logger.warn({
+        message:
+          'Left bookmark folder URIs too long to import out of an archive',
+        actorId: actor.id,
+        omitted
+      })
+    }
+    await stage.append(
+      entryPath(actor.dir, 'bookmark_folders.json'),
+      json(entries)
     )
     return 'done'
   }

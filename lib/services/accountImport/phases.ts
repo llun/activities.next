@@ -2553,21 +2553,21 @@ export const runBookmarkFoldersPhase = async (
     const actorId = context.accountImport.actorId
     // Counted afresh on every run, so a rerun of the pass does not double it.
     const skips: Partial<Record<BookmarkFolderSkipReason, number>> = {}
-    const skip = (
-      reason: BookmarkFolderSkipReason,
-      index: number,
-      folderName?: string
-    ) => {
+    // Folder names are the owner's private data, so the log never has one.
+    const skip = (reason: BookmarkFolderSkipReason, index: number) => {
       skips[reason] = (skips[reason] ?? 0) + 1
       // Its bookmarks were imported but stay unfiled.
       logger.warn({
         message: 'Skipped a bookmark folder from the archive',
         importId: context.accountImport.id,
         reason,
-        entryIndex: index,
-        ...(folderName ? { folderName } : {})
+        entryIndex: index
       })
     }
+    // Names refused this run (the cap, or a name the folder rules reject):
+    // the other entries of a split folder are skipped without a retry, and
+    // the folder is counted and logged once.
+    const refusedNames = new Set<string>()
     const folderByName = new Map(
       (await database.getBookmarkFolders({ actorId })).map((folder) => [
         folder.name.toLowerCase(),
@@ -2596,38 +2596,43 @@ export const runBookmarkFoldersPhase = async (
       }
       const parsed = ownBookmarkFolderSchema.safeParse(value)
       if (!parsed.success) {
-        const name = (value as { name?: unknown } | null)?.name
-        skip(
-          'bookmark_folder_invalid',
-          event.index,
-          typeof name === 'string' ? name.slice(0, 256) : undefined
-        )
+        skip('bookmark_folder_invalid', event.index)
         continue
       }
       await context.renew()
       const folderName = parsed.data.name.trim()
       // A large folder is several entries of the same name: the first one
       // creates it, the rest file into it without counting as more folders.
-      let folderId = folderByName.get(folderName.toLowerCase())
+      const nameKey = folderName.toLowerCase()
+      if (refusedNames.has(nameKey)) continue
+      let folderId = folderByName.get(nameKey)
       if (!folderId) {
         const created = await database.createBookmarkFolder({
           actorId,
           name: folderName
         })
+        if (created.status === 'ok') {
+          folderId = created.folder.id
+        } else if (created.status === 'duplicate-name') {
+          // The owner made one with this name while the import ran: file
+          // into theirs.
+          folderId = (await database.getBookmarkFolders({ actorId })).find(
+            (folder) => folder.name.toLowerCase() === nameKey
+          )?.id
+        }
         // A name the folder rules refuse, or a full set of folders: its
         // bookmarks stay unfiled.
-        if (created.status !== 'ok') {
+        if (!folderId) {
+          refusedNames.add(nameKey)
           skip(
             created.status === 'limit-reached'
               ? 'bookmark_folder_limit'
               : 'bookmark_folder_name_invalid',
-            event.index,
-            folderName
+            event.index
           )
           continue
         }
-        folderId = created.folder.id
-        folderByName.set(created.folder.name.toLowerCase(), folderId)
+        folderByName.set(nameKey, folderId)
       }
       for (const [index, uri] of parsed.data.items.entries()) {
         if (index > 0 && index % BOOKMARK_FOLDER_RENEW_EVERY === 0) {
