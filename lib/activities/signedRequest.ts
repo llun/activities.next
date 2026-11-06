@@ -22,7 +22,6 @@ export const REMEMBERED_SIGNATURE_SCHEME_MAX_HOSTS = 2048
 // not query the database on every request while multi-worker deployments still
 // converge within minutes.
 export const SIGNATURE_SCHEME_CACHE_TTL_MS = 5 * 60 * 1000
-export const REMEMBERED_SIGNATURE_SCHEME_TTL_MS = SIGNATURE_SCHEME_CACHE_TTL_MS
 // Shared database TTL: HTTP signature support is tied to a remote server's
 // software and rarely changes, double-knock self-heals immediately in either
 // direction if a peer switches earlier, and 7 days lets cold starts and queue
@@ -374,12 +373,13 @@ const toSignedMethod = (method: string): 'GET' | 'POST' =>
 // A POST is only re-knocked on 401: a 403 is a policy answer, not a signature
 // one. A GET is read-only, so a 403 is worth one more try with the other
 // scheme. A POST we signed RFC 9421 (a learned, non-default scheme) also falls
-// back to draft-cavage on any other refusal (a 4xx except 404, 410 and 429,
-// which say the inbox is gone or busy, not that the signature was wrong):
+// back to draft-cavage on any other refusal (a 4xx except 404, 409, 410, 413
+// and 429, which say the inbox is gone, busy, already has the activity or
+// refuses its size, not that the signature was wrong):
 // draft-cavage-only inboxes refuse an RFC 9421 POST with 400, 403, 415 or 422
 // as often as 401, and without this a wrong stored scheme would never heal and
 // every delivery would be dropped.
-const NOT_A_SIGNATURE_REFUSAL = new Set([404, 410, 429])
+const NOT_A_SIGNATURE_REFUSAL = new Set([404, 409, 410, 413, 429])
 const shouldKnock = (
   method: 'GET' | 'POST',
   statusCode: number,
@@ -401,7 +401,7 @@ const isSuccess = (statusCode: number): boolean =>
  *
  * The primary scheme is the one remembered for the target host in
  * `remote_signature_schemes` (cached briefly in process, defaulting to
- * draft-cavage). A 401 (POST), another 4xx refusal (not 404, 410 or 429) to a
+ * draft-cavage). A 401 (POST), another 4xx refusal (not 404, 409, 410, 413 or 429) to a
  * POST signed RFC 9421, or a
  * 401/403 (GET) from the same host is retried once with the other scheme; a
  * 2xx on that second knock remembers it only when neither knock crossed hosts
@@ -497,9 +497,11 @@ export const signedActivityPubRequest = async ({
   // into a GET whose 2xx says nothing about the inbox.
   const requestedHref = new URL(url).href
   const provesScheme = (response: RequestResult) =>
-    (method === 'POST' &&
-      new URL(response.url ?? url).href === requestedHref) ||
-    isActivityPubContentType(getHeaderValue(response.headers, 'content-type'))
+    method === 'POST'
+      ? new URL(response.url ?? url).href === requestedHref
+      : isActivityPubContentType(
+          getHeaderValue(response.headers, 'content-type')
+        )
 
   const startedAt = Date.now()
   const { response: first, crossedHosts } = await send(primary, {})

@@ -355,7 +355,7 @@ describe('signedActivityPubRequest with SQL database', () => {
     }
   )
 
-  it.each([404, 410, 429])(
+  it.each([404, 409, 410, 413, 429])(
     'does not re-knock an RFC 9421 POST answered %i',
     async (status) => {
       await database.upsertRemoteSignatureScheme({
@@ -376,6 +376,24 @@ describe('signedActivityPubRequest with SQL database', () => {
       expect(headersSent).toHaveLength(1)
     }
   )
+
+  it('does not count a redirected POST even when the page is ActivityPub', async () => {
+    statuses = [401, 200]
+    contentTypes = [undefined, 'application/activity+json']
+    finalUrls = [undefined, 'https://redirect-ap.example/activities/1']
+    await signedActivityPubRequest({
+      actor,
+      database,
+      method: 'POST',
+      persistScheme: true,
+      url: 'https://redirect-ap.example/inbox',
+      body: '{"type":"Follow"}'
+    })
+
+    expect(
+      await database.getRemoteSignatureScheme({ domain: 'redirect-ap.example' })
+    ).toBeNull()
+  })
 
   it('a lookup never overrides the scheme the table holds for a host', async () => {
     await database.upsertRemoteSignatureScheme({
