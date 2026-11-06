@@ -182,6 +182,40 @@ describe('bookmark folder store', () => {
     expect(result.current.status).toBe('loaded')
   })
 
+  it.each([
+    [
+      'a folder made',
+      () => putBookmarkFolder(ACTOR_A, folder('new', 'New')),
+      ['New', 'Old']
+    ],
+    [
+      'a folder deleted',
+      () => removeBookmarkFolder(ACTOR_A, 'old'),
+      [] as string[]
+    ]
+  ])(
+    'keeps %s while the background refresh was in flight',
+    async (_, write, expected) => {
+      const refresh = deferred<BookmarkFolderEntity[]>()
+      vi.mocked(getBookmarkFolders).mockReturnValueOnce(refresh.promise)
+      const { result } = renderHook(() => useBookmarkFolders(ACTOR_A))
+      act(() => setBookmarkFolders(ACTOR_A, [folder('old', 'Old')]))
+
+      // A loaded store: the seed refreshes it in the background.
+      act(() => seedBookmarkFolders(ACTOR_A, [folder('old', 'Old')]))
+      expect(getBookmarkFolders).toHaveBeenCalledTimes(1)
+      act(() => write())
+      await act(async () => {
+        // The refresh read the list before the write landed.
+        refresh.resolve([folder('old', 'Old')])
+        await new Promise((settle) => setTimeout(settle, 0))
+      })
+
+      expect(names(result.current)).toEqual(expected)
+      expect(result.current.status).toBe('loaded')
+    }
+  )
+
   it('seeds a store that has not loaded for this actor', () => {
     const { result } = renderHook(() => useBookmarkFolders(ACTOR_A))
     act(() => setBookmarkFolders(ACTOR_B, [folder('b', 'B folder')]))

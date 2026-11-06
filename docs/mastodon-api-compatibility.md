@@ -2346,7 +2346,14 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   `currentActor.id` as `viewerId` and offers no submenu without it), so after a
   profile switch in another tab the next page's menus load the new actor's
   folders and never show the old one's. A write to a list that has not loaded
-  keeps the load pending, and a load that a write overtook is read again. A filing reaches the
+  keeps the load pending, and a load that a write overtook is read again, but
+  only by the newest load (a token per load), so loads left in flight across
+  an actor switch and back never keep restarting each other. The Bookmarks
+  page seeds the store with its server list only when the store is not loaded
+  for that actor yet: a loaded store (a router-cache back navigation hands the
+  page its first list again) may hold newer writes, so it is kept and
+  refreshed in the background, and a write that lands during the refresh wins
+  over it. A filing reaches the
   feed as `onBookmarkChanged(status, true, folderId)`, and every feed stores it
   with `withBookmarkChange` (`lib/components/posts/statusArray.ts`), so the
   menu it re-renders still checks that folder. The menu also keeps the folder

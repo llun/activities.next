@@ -782,9 +782,13 @@ handled:
   `bookmark_folder_conflict` if that also collides.
 - **Folder deleted mid-import.** When a folder the import already resolved
   (found by name at the start, or created) answers not-found on a filing, the
-  owner deleted it. The import respects that and does not make it again: the
-  folder's remaining bookmarks and later entries stay unfiled, and it is
-  counted once as `bookmark_folder_conflict`.
+  owner deleted it. The import respects that and does not make it again. The
+  delete itself unfiled the folder's bookmarks, including the ones this run
+  had already filed in it; the folder's remaining bookmarks and its later
+  entries in the archive stay unfiled too, and it is counted once as
+  `bookmark_folder_conflict`. The rule holds for one run of the phase: a
+  retried phase starts from a fresh read of the folders, and could create the
+  name again.
 
 An archive without the file (a Mastodon one, or
 an older export) imports every bookmark unfiled.

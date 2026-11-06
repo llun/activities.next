@@ -2647,8 +2647,10 @@ export const runBookmarkFoldersPhase = async (
       let folderId = folderByName.get(nameKey)
       if (!folderId) {
         const resolved = await resolveFolder(folderName)
-        // A name the folder rules refuse, a full set of folders, or a name
-        // that kept changing under the import: its bookmarks stay unfiled.
+        // A name the folder rules refuse, a full set of folders, or a
+        // same-name folder that kept colliding (`bookmark_folder_conflict`,
+        // the reason a folder deleted mid-import, below, is counted under
+        // too): its bookmarks stay unfiled.
         if ('reason' in resolved) {
           refusedNames.add(nameKey)
           skip(resolved.reason, event.index)
