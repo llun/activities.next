@@ -1148,6 +1148,25 @@ return {
       expect(purgeKeys()).toEqual([])
     })
 
+    // An unreadable marker cache may hide a failed sign-out's purge: the
+    // share is refused like a cross-site one, with nothing read or purged.
+    it('refuses the share when the marker cache cannot be listed', async () => {
+      await writeShare({ id: 'old', createdAt: Date.now() - 10, files: [] })
+      const cache = await (globalThis as any).caches.open(
+        'activities-share-target-purge-v1'
+      )
+      cache.keys.mockRejectedValueOnce(new Error('keys rejected'))
+      const request = shareRequest([photoFile()])
+      const formData = vi.spyOn(request, 'formData')
+
+      const response = await triggerFetch(request)
+
+      expect(response!.status).toBe(303)
+      expect(response!.headers.get('Location')).toBe('/app')
+      expect(formData).not.toHaveBeenCalled()
+      expect((await readAllShares()).map((share) => share.id)).toEqual(['old'])
+    })
+
     // The race review reproduced: a newer sign-out writes its marker just as
     // the worker retires the older one. Each generation has its own key, so
     // the newer one survives for the next reader.

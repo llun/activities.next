@@ -229,8 +229,9 @@ const MAX_PURGE_PASSES = 3
 /**
  * Run before any share is read. A sign-out that could not clear the staged
  * shares left a marker (pendingSharePurge.ts): its shares are deleted first
- * and the marker removed. False when that purge still fails, and then nothing
- * may be read: a previous account's files could still be there.
+ * and the marker removed. False when that purge still fails, or a marker
+ * store cannot be read, and then nothing may be read: a previous account's
+ * files could still be there.
  */
 export const honourPendingSharePurge = async (): Promise<boolean> => {
   // Re-read after each purge: a sign-out elsewhere can write a newer marker
@@ -238,12 +239,14 @@ export const honourPendingSharePurge = async (): Promise<boolean> => {
   // time, so the newer one is purged on the next pass. Bounded: a marker that
   // keeps moving fails closed instead of looping.
   for (let pass = 0; pass < MAX_PURGE_PASSES; pass += 1) {
-    const markedAt = await readSharePurgePending()
-    if (markedAt === null) return true
-    if (!(await deleteSharesStagedBefore(markedAt))) return false
-    await settleSharePurge(markedAt)
+    const state = await readSharePurgePending()
+    // A marker store that cannot be read may hide a marker: fail closed.
+    if (state === 'unreadable') return false
+    if (state === 'none') return true
+    if (!(await deleteSharesStagedBefore(state.markedAt))) return false
+    await settleSharePurge(state.markedAt)
   }
-  return (await readSharePurgePending()) === null
+  return (await readSharePurgePending()) === 'none'
 }
 
 /** Rebuilds the Files the worker staged. */

@@ -357,8 +357,11 @@ const SHARE_PURGE_CACHE = 'activities-share-target-purge-v1'
 // generation deletes only its own keys and never a newer sign-out's.
 const SHARE_PURGE_CACHE_KEY_PREFIX = '/__share-target-pending-purge/'
 
-// Every cached generation, as { request, markedAt }.
+// Every cached generation, as { request, markedAt }. Null when the marker
+// cache cannot be listed: it may hide a marker, so the caller must not stage
+// (nor purge on a guess). No Cache Storage at all counts as no marker.
 async function readSharePurgeGenerations() {
+  if (typeof caches === 'undefined') return []
   try {
     const cache = await caches.open(SHARE_PURGE_CACHE)
     const generations = []
@@ -372,7 +375,7 @@ async function readSharePurgeGenerations() {
     }
     return generations
   } catch {
-    return []
+    return null
   }
 }
 
@@ -416,7 +419,13 @@ const isShareTargetRequestAllowed = (request) => {
 // Reads the multipart share into plain ArrayBuffers (never Blob/File, which
 // WebKit and Chromium have historically failed to persist reliably) and writes
 // one record. Returns the record id, or null when nothing could be staged.
-async function stageShareTarget(formData) {
+async function stageShareTarget(formData, generations = undefined) {
+  // Read first, before any file is: an unreadable marker cache refuses the
+  // share (handleShareTarget answers it like a refused one).
+  const purgeGenerations =
+    generations === undefined ? await readSharePurgeGenerations() : generations
+  if (purgeGenerations === null)
+    throw new Error('Share purge marker unreadable')
   const shared = formData.getAll('files').filter(isSharedFile)
   const files = shared.slice(0, SHARE_TARGET_MAX_FILES)
   const staged = []
@@ -462,10 +471,9 @@ async function stageShareTarget(formData) {
   const db = await openShareTargetDb()
   try {
     // A failed sign-out's shares go before anything new is staged beside them.
-    const generations = await readSharePurgeGenerations()
     const purgeBefore =
-      generations.length > 0
-        ? Math.max(...generations.map(({ markedAt }) => markedAt))
+      purgeGenerations.length > 0
+        ? Math.max(...purgeGenerations.map(({ markedAt }) => markedAt))
         : null
     const pruned = await pruneExpiredShares(
       db,
@@ -477,7 +485,7 @@ async function stageShareTarget(formData) {
       // sign-out's entry, written meanwhile, stays for the next purge.
       try {
         const cache = await caches.open(SHARE_PURGE_CACHE)
-        for (const { request } of generations) await cache.delete(request)
+        for (const { request } of purgeGenerations) await cache.delete(request)
       } catch {
         // The pages purge again from their own copy; only older shares go.
       }
@@ -512,9 +520,13 @@ const shareRedirect = (location) =>
 async function handleShareTarget(request) {
   // Refused without reading or staging anything.
   if (!isShareTargetRequestAllowed(request)) return shareRedirect('/app')
+  // A marker cache that cannot be listed may hide a failed sign-out's purge:
+  // nothing is read or staged, as for a refused share.
+  const generations = await readSharePurgeGenerations()
+  if (generations === null) return shareRedirect('/app')
   try {
     const formData = await request.formData()
-    const id = await stageShareTarget(formData)
+    const id = await stageShareTarget(formData, generations)
     if (!id) return shareRedirect('/app?shareUnavailable=1')
     return shareRedirect(`/app?share=${encodeURIComponent(id)}`)
   } catch {

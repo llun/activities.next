@@ -23,11 +23,25 @@ const parse = (value: string | null | undefined): number | null => {
   return value && Number.isFinite(markedAt) ? markedAt : null
 }
 
-const readStored = (): number | null => {
+const UNREADABLE = 'unreadable' as const
+
+/**
+ * What the marker stores say. `none` only when every store that exists read
+ * cleanly with no marker; a store that exists but throws or rejects is
+ * `unreadable`, and a reader must then read no share (fail closed). A store the
+ * browser does not have at all (no `caches` in some contexts) counts as empty.
+ */
+export type SharePurgeState = 'none' | 'unreadable' | { markedAt: number }
+
+// The localStorage value: a time, null for none, or unreadable when access or
+// the read throws (a store that exists but is blocked).
+const readStored = (): number | null | typeof UNREADABLE => {
+  if (typeof window === 'undefined') return null
   try {
+    if (!('localStorage' in window) || !window.localStorage) return null
     return parse(window.localStorage.getItem(STORAGE_KEY))
   } catch {
-    return null
+    return UNREADABLE
   }
 }
 
@@ -45,20 +59,14 @@ const timeOfCacheKey = (request: Request): number | null => {
   }
 }
 
-const openPurgeCache = async (): Promise<Cache | null> => {
+// Every cached generation, as [key, time]: empty when the browser has no
+// Cache Storage, unreadable when it has one that throws or rejects.
+const readCachedGenerations = async (): Promise<
+  [Request, number][] | typeof UNREADABLE
+> => {
+  if (typeof caches === 'undefined') return []
   try {
-    if (typeof caches === 'undefined') return null
-    return await caches.open(SHARE_PURGE_CACHE)
-  } catch {
-    return null
-  }
-}
-
-// Every cached generation, as [key, time].
-const readCachedGenerations = async (
-  cache: Cache
-): Promise<[Request, number][]> => {
-  try {
+    const cache = await caches.open(SHARE_PURGE_CACHE)
     const generations: [Request, number][] = []
     for (const request of await cache.keys()) {
       const markedAt = timeOfCacheKey(request)
@@ -66,7 +74,7 @@ const readCachedGenerations = async (
     }
     return generations
   } catch {
-    return []
+    return UNREADABLE
   }
 }
 
@@ -84,8 +92,10 @@ export const markSharePurgePending = async (
     // Kept in Cache Storage below, or not at all: the clear is still tried.
   }
   try {
-    const cache = await openPurgeCache()
-    await cache?.put(cacheKeyFor(markedAt), new Response(String(markedAt)))
+    if (typeof caches !== 'undefined') {
+      const cache = await caches.open(SHARE_PURGE_CACHE)
+      await cache.put(cacheKeyFor(markedAt), new Response(String(markedAt)))
+    }
   } catch {
     // Cache Storage unavailable: the pages still have localStorage.
   }
@@ -94,20 +104,16 @@ export const markSharePurgePending = async (
 
 /**
  * The newest pending purge's sign-out time across localStorage and every
- * cached generation, or null when none is pending. Purging up to the newest
- * also covers any older one.
+ * cached generation (purging up to the newest also covers any older one),
+ * `none`, or `unreadable` when a store that exists could not be read.
  */
-export const readSharePurgePending = async (): Promise<number | null> => {
-  const times: number[] = []
+export const readSharePurgePending = async (): Promise<SharePurgeState> => {
   const stored = readStored()
+  const cached = await readCachedGenerations()
+  if (stored === UNREADABLE || cached === UNREADABLE) return UNREADABLE
+  const times = cached.map(([, markedAt]) => markedAt)
   if (stored !== null) times.push(stored)
-  const cache = await openPurgeCache()
-  if (cache) {
-    for (const [, markedAt] of await readCachedGenerations(cache)) {
-      times.push(markedAt)
-    }
-  }
-  return times.length > 0 ? Math.max(...times) : null
+  return times.length > 0 ? { markedAt: Math.max(...times) } : 'none'
 }
 
 /**
@@ -122,14 +128,15 @@ export const settleSharePurge = async (markedAt: number): Promise<void> => {
   } catch {
     // Nothing stored.
   }
-  const cache = await openPurgeCache()
-  if (!cache) return
-  for (const [request, time] of await readCachedGenerations(cache)) {
-    if (time > markedAt) continue
-    try {
-      await cache.delete(request)
-    } catch {
-      // Left for the next purge, which only deletes older shares again.
+  const generations = await readCachedGenerations()
+  // Unreadable: nothing can be retired, so the next read fails closed again.
+  if (generations === UNREADABLE || generations.length === 0) return
+  try {
+    const cache = await caches.open(SHARE_PURGE_CACHE)
+    for (const [request, time] of generations) {
+      if (time <= markedAt) await cache.delete(request)
     }
+  } catch {
+    // Left for the next purge, which only deletes older shares again.
   }
 }

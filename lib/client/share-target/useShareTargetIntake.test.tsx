@@ -203,7 +203,27 @@ describe('useShareTargetIntake', () => {
     await waitFor(() => expect(result.current.expired).toBe(true))
     expect(result.current.pending).toBeNull()
     expect(await peekStagedShare(id!)).toBeNull()
-    expect(await readSharePurgePending()).toBeNull()
+    expect(await readSharePurgePending()).toBe('none')
+  })
+
+  it('reads nothing when the purge marker cannot be read', async () => {
+    const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
+    setSearch(`?share=${id}`)
+    vi.stubGlobal('caches', {
+      open: async () => ({
+        keys: async () => {
+          throw new Error('keys rejected')
+        }
+      })
+    })
+
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+
+    await waitFor(() => expect(result.current.expired).toBe(true))
+    expect(result.current.pending).toBeNull()
+    expect(await peekStagedShare(id!)).not.toBeNull()
   })
 
   it('reads nothing while a pending purge cannot run', async () => {
@@ -226,7 +246,7 @@ describe('useShareTargetIntake', () => {
 
     await waitFor(() => expect(result.current.expired).toBe(true))
     expect(result.current.pending).toBeNull()
-    expect(await readSharePurgePending()).not.toBeNull()
+    expect(await readSharePurgePending()).not.toBe('none')
   })
 
   it('asks again after a reload until the reader decides', async () => {

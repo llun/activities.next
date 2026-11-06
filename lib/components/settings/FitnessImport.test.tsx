@@ -157,7 +157,7 @@ describe('FitnessImport share intake', () => {
     await waitFor(() => expect(window.location.search).toBe(''))
     expect(screen.getByText('No files chosen')).toBeInTheDocument()
     expect(await peekStagedShare(id!)).toBeNull()
-    expect(await readSharePurgePending()).toBeNull()
+    expect(await readSharePurgePending()).toBe('none')
   })
 
   it('does nothing without a share parameter', async () => {

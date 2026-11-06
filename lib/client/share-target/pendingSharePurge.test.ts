@@ -35,6 +35,7 @@ const brokenIndexedDB = {
 const fakeCacheStorage = () => {
   const stores = new Map<string, Map<string, Response>>()
   let beforeDelete: (() => Promise<unknown>) | null = null
+  let keysFail = false
   const keyOf = (request: RequestInfo | URL) =>
     typeof request === 'string'
       ? request
@@ -50,7 +51,10 @@ const fakeCacheStorage = () => {
       },
       match: async (request: RequestInfo | URL) =>
         store.get(keyOf(request))?.clone(),
-      keys: async () => Array.from(store.keys(), (key) => new Request(key)),
+      keys: async () => {
+        if (keysFail) throw new Error('keys rejected')
+        return Array.from(store.keys(), (key) => new Request(key))
+      },
       delete: async (request: RequestInfo | URL) => {
         const hook = beforeDelete
         beforeDelete = null
@@ -63,6 +67,9 @@ const fakeCacheStorage = () => {
     caches: { open, delete: async (name: string) => stores.delete(name) },
     onNextDelete: (hook: () => Promise<unknown>) => {
       beforeDelete = hook
+    },
+    failKeys: () => {
+      keysFail = true
     }
   }
 }
@@ -99,7 +106,7 @@ describe('pending share purge', () => {
 
     expect(await peekStagedShare(before!)).toBeNull()
     expect(await peekStagedShare(after!)).not.toBeNull()
-    expect(await readSharePurgePending()).toBeNull()
+    expect(await readSharePurgePending()).toBe('none')
   })
 
   it('keeps the marker, and allows no read, while the purge still fails', async () => {
@@ -107,7 +114,7 @@ describe('pending share purge', () => {
     vi.stubGlobal('indexedDB', brokenIndexedDB)
 
     expect(await honourPendingSharePurge()).toBe(false)
-    expect(await readSharePurgePending()).not.toBeNull()
+    expect(await readSharePurgePending()).not.toBe('none')
   })
 
   // localStorage writes failing (private mode) leave Cache Storage as the
@@ -132,11 +139,11 @@ describe('pending share purge', () => {
       expect(
         localStorage.getItem('activities-share-target-pending-purge')
       ).toBeNull()
-      expect(await readSharePurgePending()).toBe(1000)
+      expect(await readSharePurgePending()).toEqual({ markedAt: 1000 })
 
       await settleSharePurge(1000)
 
-      expect(await readSharePurgePending()).toBeNull()
+      expect(await readSharePurgePending()).toBe('none')
     })
 
     // The interleaving the race review reproduced: the reader retires T1
@@ -153,7 +160,21 @@ describe('pending share purge', () => {
       expect(await honourPendingSharePurge()).toBe(true)
 
       expect(await peekStagedShare(workout!)).toBeNull()
-      expect(await readSharePurgePending()).toBeNull()
+      expect(await readSharePurgePending()).toBe('none')
+    })
+
+    // The reproduction: sign-out wrote only the cache marker and its clear
+    // failed; IndexedDB recovers, but listing the marker cache rejects. An
+    // unreadable marker must not read as "none".
+    it('reads nothing when the marker cache cannot be listed', async () => {
+      const workout = await stageShareFiles([file('ride.fit')])
+      await markSharePurgePending(Date.now() + 1)
+      storage.failKeys()
+
+      expect(await readSharePurgePending()).toBe('unreadable')
+      expect(await honourPendingSharePurge()).toBe(false)
+      // Not purged (the marker could not be read) and, above all, not read.
+      expect(await peekStagedShare(workout!)).not.toBeNull()
     })
 
     it('settles only the generations at or before the purged time', async () => {
@@ -162,17 +183,36 @@ describe('pending share purge', () => {
 
       await settleSharePurge(1000)
 
-      expect(await readSharePurgePending()).toBe(2000)
+      expect(await readSharePurgePending()).toEqual({ markedAt: 2000 })
     })
+  })
+
+  it('reads as none when the browser has no Cache Storage at all', async () => {
+    expect(typeof caches).toBe('undefined')
+
+    expect(await readSharePurgePending()).toBe('none')
+    expect(await honourPendingSharePurge()).toBe(true)
+  })
+
+  it('fails closed when reading localStorage throws', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('SecurityError')
+    })
+    try {
+      expect(await readSharePurgePending()).toBe('unreadable')
+      expect(await honourPendingSharePurge()).toBe(false)
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 
   it('removes the marker once settled', async () => {
     await markSharePurgePending(1234)
-    expect(await readSharePurgePending()).toBe(1234)
+    expect(await readSharePurgePending()).toEqual({ markedAt: 1234 })
 
     await settleSharePurge(1234)
 
-    expect(await readSharePurgePending()).toBeNull()
+    expect(await readSharePurgePending()).toBe('none')
   })
 
   // A newer sign-out wrote its marker while an older purge was running: the
@@ -183,7 +223,7 @@ describe('pending share purge', () => {
 
     await settleSharePurge(1000)
 
-    expect(await readSharePurgePending()).toBe(2000)
+    expect(await readSharePurgePending()).toEqual({ markedAt: 2000 })
   })
 
   // The interleaving review reproduced: a reader starts purging marker T1 and
@@ -203,6 +243,6 @@ describe('pending share purge', () => {
 
     expect(await honoured).toBe(true)
     expect(await peekStagedShare(workout!)).toBeNull()
-    expect(await readSharePurgePending()).toBeNull()
+    expect(await readSharePurgePending()).toBe('none')
   })
 })
