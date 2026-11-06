@@ -152,4 +152,13 @@ describe('viewport', () => {
   it('covers the whole screen so the safe-area insets are real', () => {
     expect(viewport.viewportFit).toBe('cover')
   })
+
+  // The manifest's colours are static; these metas follow the OS scheme, and
+  // ThemeProvider rewrites them when the reader picks light or dark.
+  it('follows the colour scheme for the browser chrome', () => {
+    expect(viewport.themeColor).toEqual([
+      { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+      { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' }
+    ])
+  })
 })

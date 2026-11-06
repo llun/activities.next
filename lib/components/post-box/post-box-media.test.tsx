@@ -1358,18 +1358,29 @@ describe('PostBox media details', () => {
       </StrictMode>
     )
 
+    // The same actor in a new object (a refreshed bootstrap) is not a new
+    // target: the composer is left as it is, photos and their loaded details
+    // included, rather than re-seeded.
     it('keeps the photos when the profile changes identity', async () => {
       const { rerender } = render(withProfile(profile))
       await screen.findByRole('button', { name: 'Remove media A heron' })
+      // Let the photos' details load first, so only the rerender can change them.
+      await waitFor(() => expect(getMediaMock).toHaveBeenCalled())
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      const before = screen
+        .getAllByRole('button', { name: /^Remove media/ })
+        .map((button) => button.getAttribute('aria-label'))
 
       rerender(withProfile({ ...profile }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
 
       expect(
-        await screen.findByRole('button', { name: 'Remove media A heron' })
-      ).toBeInTheDocument()
-      expect(
-        screen.getByRole('button', { name: 'Remove media 2' })
-      ).toBeInTheDocument()
+        screen
+          .getAllByRole('button', { name: /^Remove media/ })
+          .map((button) => button.getAttribute('aria-label'))
+      ).toEqual(before)
+      expect(before).toHaveLength(2)
+      expect(vi.mocked(deleteUnpostedMedia)).not.toHaveBeenCalled()
     })
 
     it('does not bring back a photo the author removed when the profile changes', async () => {

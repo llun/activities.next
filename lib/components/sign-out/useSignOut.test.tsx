@@ -3,6 +3,11 @@
  */
 import { act, renderHook } from '@testing-library/react'
 
+import {
+  markSharePurgePending,
+  settleSharePurge
+} from '@/lib/client/share-target/pendingSharePurge'
+import { clearStagedShares } from '@/lib/client/share-target/shareTargetDb'
 import { authClient } from '@/lib/services/auth/auth-client'
 
 import { useSignOut } from './useSignOut'
@@ -13,6 +18,19 @@ vi.mock('@/lib/services/auth/auth-client', () => ({
 vi.mock('@/lib/client/offline', () => ({
   clearAllOfflineData: vi.fn().mockResolvedValue(undefined)
 }))
+vi.mock('@/lib/client/share-target/shareTargetDb', () => ({
+  clearStagedShares: vi.fn().mockResolvedValue(true)
+}))
+vi.mock('@/lib/client/share-target/pendingSharePurge', () => ({
+  markSharePurgePending: vi.fn().mockResolvedValue(1234),
+  settleSharePurge: vi.fn().mockResolvedValue(undefined)
+}))
+vi.mock('@/lib/client/drafts', () => ({
+  purgeAccountDrafts: vi.fn().mockResolvedValue(undefined)
+}))
+vi.mock('@/lib/client/drafts/pendingPurgeMarker', () => ({
+  markPurgePending: vi.fn()
+}))
 vi.mock('@/lib/client/drafts/draftsChannel', () => ({
   postDraftsMessage: vi.fn()
 }))
@@ -21,12 +39,83 @@ vi.mock('@/lib/components/drafts/DraftsProvider', () => ({
 }))
 
 type SignOutOptions = {
-  fetchOptions: { onSuccess: () => void; onError: () => void }
+  fetchOptions: { onSuccess: () => void | Promise<void>; onError: () => void }
 }
 
 describe('useSignOut', () => {
   beforeEach(() => {
     vi.mocked(authClient.signOut).mockReset()
+    vi.mocked(clearStagedShares).mockClear()
+    vi.mocked(markSharePurgePending).mockClear()
+    vi.mocked(settleSharePurge).mockClear()
+  })
+
+  // A shared device: the next account must not pick up the files the previous
+  // reader shared and never added or discarded.
+  it('clears the staged shares once the server has signed out', async () => {
+    vi.mocked(authClient.signOut).mockImplementation((async (
+      options: SignOutOptions
+    ) => {
+      await options.fetchOptions.onSuccess()
+    }) as never)
+    const { result } = renderHook(() => useSignOut())
+
+    await act(async () => {
+      await result.current.signOut()
+    })
+
+    expect(clearStagedShares).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks the purge first and settles it once the clear succeeds', async () => {
+    vi.mocked(authClient.signOut).mockImplementation((async (
+      options: SignOutOptions
+    ) => {
+      await options.fetchOptions.onSuccess()
+    }) as never)
+    const { result } = renderHook(() => useSignOut())
+
+    await act(async () => {
+      await result.current.signOut()
+    })
+
+    expect(markSharePurgePending).toHaveBeenCalledTimes(1)
+    // Only the generation this sign-out wrote is retired.
+    expect(settleSharePurge).toHaveBeenCalledWith(1234)
+  })
+
+  // The clear failed or timed out: the marker stays, so the next reader on
+  // this device purges the shares before reading any.
+  it('leaves the purge marked when the clear fails', async () => {
+    vi.mocked(clearStagedShares).mockResolvedValueOnce(false)
+    vi.mocked(authClient.signOut).mockImplementation((async (
+      options: SignOutOptions
+    ) => {
+      await options.fetchOptions.onSuccess()
+    }) as never)
+    const { result } = renderHook(() => useSignOut())
+
+    await act(async () => {
+      await result.current.signOut()
+    })
+
+    expect(markSharePurgePending).toHaveBeenCalledTimes(1)
+    expect(settleSharePurge).not.toHaveBeenCalled()
+  })
+
+  it('keeps the staged shares when the sign-out fails', async () => {
+    vi.mocked(authClient.signOut).mockImplementation((async (
+      options: SignOutOptions
+    ) => {
+      options.fetchOptions.onError()
+    }) as never)
+    const { result } = renderHook(() => useSignOut())
+
+    await act(async () => {
+      await result.current.signOut()
+    })
+
+    expect(clearStagedShares).not.toHaveBeenCalled()
   })
 
   it('ignores a second call while one is in flight', async () => {

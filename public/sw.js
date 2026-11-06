@@ -8,6 +8,27 @@ const MAX_MEDIA_ENTRIES = 150
 const SHELL_CACHE_PREFIX = 'activities-shell-'
 const OFFLINE_DB_NAME = 'activities_offline_v1'
 
+// Web Share Target staging. The worker answers the share POST itself, so the
+// files never reach the server: it writes them to a short-lived database of its
+// own and redirects to `/app?share=<id>`, where the reader confirms (or
+// discards) the files before anything is uploaded. It never opens
+// `activities_drafts_v1` (see docs/architecture.md), so the drafts isolation
+// holds. The name, version and store must match lib/client/share-target/types.ts
+// (sw.test.ts checks it).
+const SHARE_TARGET_PATH = '/_share-target'
+const SHARE_TARGET_DB_NAME = 'activities_share_target_v1'
+const SHARE_TARGET_DB_VERSION = 1
+const SHARE_TARGET_STORE = 'shares'
+const SHARE_TARGET_TTL_MS = 24 * 60 * 60 * 1000
+// Ceilings so a hostile or malformed share cannot fill the device's storage.
+// The client applies the real per-type limits on intake. 250 MiB in all is
+// above any one post the instance accepts (media and a 50 MiB workout).
+const SHARE_TARGET_MAX_FILES = 20
+const SHARE_TARGET_MAX_TOTAL_BYTES = 250 * 1024 * 1024
+const SHARE_TARGET_MAX_TEXT_LENGTH = 2048
+// Staged shares kept at once; the oldest is evicted to make room.
+const SHARE_TARGET_MAX_RECORDS = 5
+
 const SVG_PLACEHOLDER =
   '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" fill="#e2e8f0"/><path d="M35 45a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM25 70h50L60 50 48 65l-8-10-15 15Z" fill="#94a3b8"/></svg>'
 
@@ -93,7 +114,7 @@ function extractAppShellAssets(html) {
   }
 
   const iconMatches = html.match(
-    /(?:\/(?:icon-192|icon-512|apple-touch-icon)\.png|\/favicon\.ico)(?:\?[^"'\s<>]*)?/g
+    /(?:\/(?:icon-192|icon-512|icon-maskable-192|icon-maskable-512|apple-touch-icon)\.png|\/favicon\.ico)(?:\?[^"'\s<>]*)?/g
   )
   if (iconMatches) {
     for (const match of iconMatches) {
@@ -104,6 +125,8 @@ function extractAppShellAssets(html) {
   assets.add('/manifest.webmanifest')
   assets.add('/icon-192.png')
   assets.add('/icon-512.png')
+  assets.add('/icon-maskable-192.png')
+  assets.add('/icon-maskable-512.png')
   assets.add('/apple-touch-icon.png')
   assets.add('/favicon.ico')
 
@@ -257,6 +280,260 @@ async function hasActiveOfflineSession() {
   })
 }
 
+const openShareTargetDb = () =>
+  new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB is unavailable'))
+      return
+    }
+    const request = indexedDB.open(
+      SHARE_TARGET_DB_NAME,
+      SHARE_TARGET_DB_VERSION
+    )
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(SHARE_TARGET_STORE)) {
+        db.createObjectStore(SHARE_TARGET_STORE, { keyPath: 'id' })
+      }
+    }
+    request.onerror = () => reject(request.error)
+    request.onblocked = () => reject(new Error('Share target DB is blocked'))
+    request.onsuccess = () => resolve(request.result)
+  })
+
+// Deletes every staged share past its 24 h life, then the oldest beyond
+// `keep`. Runs on activate and before each new share (keeping room for it), so
+// an unclaimed share never lingers and shares cannot pile up.
+// `purgeBefore` (a sign-out time from the pending-purge marker) also deletes
+// every share staged up to then. Resolves true once the transaction completed.
+async function pruneExpiredShares(
+  db,
+  keep = SHARE_TARGET_MAX_RECORDS,
+  purgeBefore = null
+) {
+  const cutoff = Date.now() - SHARE_TARGET_TTL_MS
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(SHARE_TARGET_STORE, 'readwrite')
+      const store = tx.objectStore(SHARE_TARGET_STORE)
+      const cursorRequest = store.openCursor()
+      const kept = []
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result
+        if (!cursor) {
+          kept.sort((a, b) => b.createdAt - a.createdAt)
+          for (const { key } of kept.slice(Math.max(0, keep))) {
+            store.delete(key)
+          }
+          return
+        }
+        const value = cursor.value
+        if (
+          !value ||
+          typeof value.createdAt !== 'number' ||
+          value.createdAt < cutoff ||
+          (purgeBefore !== null && value.createdAt <= purgeBefore)
+        ) {
+          cursor.delete()
+        } else {
+          kept.push({ key: cursor.key, createdAt: value.createdAt })
+        }
+        cursor.continue()
+      }
+      tx.oncomplete = () => resolve(true)
+      tx.onabort = () => resolve(false)
+      tx.onerror = () => resolve(false)
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
+// The pending-purge marker a sign-out leaves when it could not clear the staged
+// shares (lib/client/share-target/pendingSharePurge.ts). The pages keep it in
+// localStorage, which a worker cannot read, so they copy it to this cache.
+const SHARE_PURGE_CACHE = 'activities-share-target-purge-v1'
+// Each sign-out writes its own entry, `<prefix><time>`, so retiring one
+// generation deletes only its own keys and never a newer sign-out's.
+const SHARE_PURGE_CACHE_KEY_PREFIX = '/__share-target-pending-purge/'
+
+// Every cached generation, as { request, markedAt }. Null when the marker
+// cache cannot be listed: it may hide a marker, so the caller must not stage
+// (nor purge on a guess). No Cache Storage at all counts as no marker.
+async function readSharePurgeGenerations() {
+  if (typeof caches === 'undefined') return []
+  try {
+    const cache = await caches.open(SHARE_PURGE_CACHE)
+    const generations = []
+    for (const request of await cache.keys()) {
+      const { pathname } = new URL(request.url)
+      if (!pathname.startsWith(SHARE_PURGE_CACHE_KEY_PREFIX)) continue
+      const markedAt = Number(
+        pathname.slice(SHARE_PURGE_CACHE_KEY_PREFIX.length)
+      )
+      if (Number.isFinite(markedAt)) generations.push({ request, markedAt })
+    }
+    return generations
+  } catch {
+    return null
+  }
+}
+
+const isSharedFile = (value) =>
+  Boolean(value) &&
+  typeof value === 'object' &&
+  typeof value.arrayBuffer === 'function' &&
+  typeof value.name === 'string'
+
+// The id is the only handle on a staged share, so it must be unguessable:
+// without a CSPRNG this throws and the share is refused (fail closed).
+const createShareId = () => {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID()
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+    ''
+  )
+}
+
+// Fetch Metadata. A share the OS launches is a top-level navigation; any other
+// site can also auto-submit a form here, so the request must be a navigation
+// for a document (not a frame), and, where the browser exposes
+// `Sec-Fetch-Site` to the worker, it must be
+// `none` (browser-initiated) or `same-origin`. The fetch algorithm adds Fetch
+// Metadata after the service worker step, so the worker usually sees no such
+// header; a missing one is allowed, and the confirmation on /app (nothing is
+// uploaded until the reader presses Add to post) is the guard that holds then.
+const isShareTargetRequestAllowed = (request) => {
+  if (request.mode !== 'navigate' || request.destination !== 'document') {
+    return false
+  }
+  const site = request.headers.get('Sec-Fetch-Site')
+  return !site || site === 'none' || site === 'same-origin'
+}
+
+// Reads the multipart share into plain ArrayBuffers (never Blob/File, which
+// WebKit and Chromium have historically failed to persist reliably) and writes
+// one record. Returns the record id, or null when nothing could be staged.
+async function stageShareTarget(formData, generations = undefined) {
+  // Read first, before any file is: an unreadable marker cache refuses the
+  // share (handleShareTarget answers it like a refused one).
+  const purgeGenerations =
+    generations === undefined ? await readSharePurgeGenerations() : generations
+  if (purgeGenerations === null)
+    throw new Error('Share purge marker unreadable')
+  const shared = formData.getAll('files').filter(isSharedFile)
+  const files = shared.slice(0, SHARE_TARGET_MAX_FILES)
+  const staged = []
+  // Files past the count cap are counted, so the confirmation can say so.
+  let skipped = shared.length - files.length
+  let budget = SHARE_TARGET_MAX_TOTAL_BYTES
+  for (const file of files) {
+    if (file.size > budget) {
+      skipped += 1
+      continue
+    }
+    budget -= file.size
+    try {
+      staged.push({
+        name: file.name,
+        type: file.type || '',
+        lastModified: file.lastModified || Date.now(),
+        size: file.size,
+        bytes: await file.arrayBuffer()
+      })
+    } catch {
+      skipped += 1
+    }
+  }
+
+  const text = (name) => {
+    const value = formData.get(name)
+    return typeof value === 'string' && value
+      ? value.slice(0, SHARE_TARGET_MAX_TEXT_LENGTH)
+      : undefined
+  }
+
+  const record = {
+    id: createShareId(),
+    createdAt: Date.now(),
+    title: text('title'),
+    text: text('text'),
+    url: text('url'),
+    files: staged,
+    skipped
+  }
+
+  const db = await openShareTargetDb()
+  try {
+    // A failed sign-out's shares go before anything new is staged beside them.
+    const purgeBefore =
+      purgeGenerations.length > 0
+        ? Math.max(...purgeGenerations.map(({ markedAt }) => markedAt))
+        : null
+    const pruned = await pruneExpiredShares(
+      db,
+      SHARE_TARGET_MAX_RECORDS - 1,
+      purgeBefore
+    )
+    if (purgeBefore !== null && pruned) {
+      // Retire only the generations purged, each by its own key: a newer
+      // sign-out's entry, written meanwhile, stays for the next purge.
+      try {
+        const cache = await caches.open(SHARE_PURGE_CACHE)
+        for (const { request } of purgeGenerations) await cache.delete(request)
+      } catch {
+        // The pages purge again from their own copy; only older shares go.
+      }
+    }
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SHARE_TARGET_STORE, 'readwrite')
+      tx.objectStore(SHARE_TARGET_STORE).put(record)
+      tx.oncomplete = () => resolve()
+      tx.onabort = () => reject(tx.error)
+      tx.onerror = () => reject(tx.error)
+    })
+  } finally {
+    try {
+      db.close()
+    } catch {
+      // ignore
+    }
+  }
+
+  return record.id
+}
+
+const shareRedirect = (location) =>
+  new Response(null, {
+    status: 303,
+    headers: {
+      Location: location,
+      'Cache-Control': 'no-store'
+    }
+  })
+
+async function handleShareTarget(request) {
+  // Refused without reading or staging anything.
+  if (!isShareTargetRequestAllowed(request)) return shareRedirect('/app')
+  // A marker cache that cannot be listed may hide a failed sign-out's purge:
+  // nothing is read or staged, as for a refused share.
+  const generations = await readSharePurgeGenerations()
+  if (generations === null) return shareRedirect('/app')
+  try {
+    const formData = await request.formData()
+    const id = await stageShareTarget(formData, generations)
+    if (!id) return shareRedirect('/app?shareUnavailable=1')
+    return shareRedirect(`/app?share=${encodeURIComponent(id)}`)
+  } catch {
+    return shareRedirect('/app?shareUnavailable=1')
+  }
+}
+
 async function trimLru(cache, maxEntries) {
   try {
     const keys = await cache.keys()
@@ -286,6 +563,21 @@ sw.addEventListener('activate', (event) => {
   if (preload && typeof preload.enable === 'function') {
     tasks.push(preload.enable())
   }
+  // Drop staged shares past their 24 h life on every activation.
+  tasks.push(
+    (async () => {
+      try {
+        const db = await openShareTargetDb()
+        try {
+          await pruneExpiredShares(db)
+        } finally {
+          db.close()
+        }
+      } catch {
+        // IndexedDB unavailable: nothing to prune.
+      }
+    })()
+  )
   event.waitUntil(Promise.all(tasks))
 })
 
@@ -300,6 +592,14 @@ sw.addEventListener('fetch', (event) => {
   // them would turn into the placeholder below. The page's `img-src` is what
   // allows them, and that only applies when the browser loads them itself.
   if (url.origin !== sw.location.origin) {
+    return
+  }
+
+  // 0. Web Share Target. The worker answers the share POST itself: it stages
+  // the files on this device and redirects to the composer. Only that exact
+  // path and method are handled; every other request is unchanged.
+  if (request.method === 'POST' && url.pathname === SHARE_TARGET_PATH) {
+    event.respondWith(handleShareTarget(request))
     return
   }
 
@@ -398,11 +698,15 @@ sw.addEventListener('fetch', (event) => {
     url.pathname === '/manifest.webmanifest' ||
     url.pathname === '/icon-192.png' ||
     url.pathname === '/icon-512.png' ||
+    url.pathname === '/icon-maskable-192.png' ||
+    url.pathname === '/icon-maskable-512.png' ||
     url.pathname === '/apple-touch-icon.png' ||
     url.pathname === '/favicon.ico' ||
     url.pathname.endsWith('/manifest.webmanifest') ||
     url.pathname.endsWith('/icon-192.png') ||
     url.pathname.endsWith('/icon-512.png') ||
+    url.pathname.endsWith('/icon-maskable-192.png') ||
+    url.pathname.endsWith('/icon-maskable-512.png') ||
     url.pathname.endsWith('/apple-touch-icon.png') ||
     url.pathname.endsWith('/favicon.ico')
 

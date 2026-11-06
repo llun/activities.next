@@ -2,9 +2,14 @@
  * @vitest-environment jsdom
  */
 import {
+  THEME_COLOR_DARK,
+  THEME_COLOR_DARK_MEDIA,
+  THEME_COLOR_LIGHT,
+  THEME_COLOR_LIGHT_MEDIA,
   THEME_INIT_SCRIPT,
   THEME_STORAGE_KEY,
   applyTheme,
+  applyThemeColor,
   getStoredTheme,
   isThemeMode,
   resolveIsDark,
@@ -98,6 +103,103 @@ describe('theme-core', () => {
       expect(document.documentElement.classList.contains('dark')).toBe(false)
       expect(document.documentElement.style.colorScheme).toBe('light')
     })
+
+    // ThemeProvider applies the reader's explicit choice through applyTheme,
+    // so the browser chrome follows it rather than the OS preference.
+    it('repaints the theme-color meta for the chosen mode', () => {
+      document.head.innerHTML =
+        '<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">' +
+        '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0a0a">'
+
+      applyTheme('dark')
+
+      expect(
+        Array.from(document.querySelectorAll('meta[name="theme-color"]')).map(
+          (meta) => meta.getAttribute('media')
+        )
+      ).toEqual(['not all', 'all'])
+      document.head.innerHTML = ''
+    })
+  })
+
+  describe('applyThemeColor', () => {
+    const metas = () =>
+      Array.from(document.querySelectorAll('meta[name="theme-color"]'))
+
+    const renderMetas = () => {
+      document.head.innerHTML = ''
+      for (const [media, color] of [
+        ['(prefers-color-scheme: light)', THEME_COLOR_LIGHT],
+        ['(prefers-color-scheme: dark)', THEME_COLOR_DARK]
+      ]) {
+        const meta = document.createElement('meta')
+        meta.setAttribute('name', 'theme-color')
+        meta.setAttribute('media', media)
+        meta.setAttribute('content', color)
+        document.head.appendChild(meta)
+      }
+    }
+
+    afterEach(() => {
+      document.head.innerHTML = ''
+    })
+
+    const state = () =>
+      metas().map((meta) => [
+        meta.getAttribute('media'),
+        meta.getAttribute('content')
+      ])
+
+    // The content is what React matches the server's node by on hydration,
+    // so only the media changes.
+    it('turns on only the dark meta for an explicit dark choice', () => {
+      renderMetas()
+
+      applyThemeColor('dark')
+
+      expect(state()).toEqual([
+        ['not all', THEME_COLOR_LIGHT],
+        ['all', THEME_COLOR_DARK]
+      ])
+    })
+
+    it('turns on only the light meta for an explicit light choice', () => {
+      renderMetas()
+
+      applyThemeColor('light')
+
+      expect(state()).toEqual([
+        ['all', THEME_COLOR_LIGHT],
+        ['not all', THEME_COLOR_DARK]
+      ])
+    })
+
+    it('restores the media-scoped pair for system', () => {
+      renderMetas()
+      applyThemeColor('dark')
+
+      applyThemeColor('system')
+
+      expect(state()).toEqual([
+        [THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_LIGHT],
+        [THEME_COLOR_DARK_MEDIA, THEME_COLOR_DARK]
+      ])
+    })
+
+    // Next renders the two media-scoped metas; a third one beside them would
+    // make the browser's pick depend on document order.
+    it.each(['light', 'dark', 'system'] as const)(
+      'never adds a meta (%s)',
+      (mode) => {
+        renderMetas()
+        applyThemeColor(mode)
+        expect(metas()).toHaveLength(2)
+
+        document.head.innerHTML = ''
+        applyThemeColor(mode)
+        expect(metas()).toHaveLength(0)
+      }
+    )
   })
 
   describe('THEME_INIT_SCRIPT', () => {
@@ -116,6 +218,56 @@ describe('theme-core', () => {
       new Function(THEME_INIT_SCRIPT)()
       expect(document.documentElement.classList.contains('dark')).toBe(false)
       expect(document.documentElement.style.colorScheme).toBe('light')
+    })
+
+    describe('theme-color metas', () => {
+      const renderServerMetas = () => {
+        document.head.innerHTML =
+          '<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">' +
+          '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0a0a">'
+      }
+      const contents = () =>
+        Array.from(document.querySelectorAll('meta[name="theme-color"]')).map(
+          (meta) => meta.getAttribute('content')
+        )
+
+      afterEach(() => {
+        document.head.innerHTML = ''
+      })
+
+      // System mode: the server's media-scoped pair is already right, so the
+      // script must not flatten it to the scheme it resolved at load.
+      it('leaves the media-scoped metas alone in system mode', () => {
+        renderServerMetas()
+        vi.stubGlobal('matchMedia', () => ({ matches: true }))
+
+        new Function(THEME_INIT_SCRIPT)()
+
+        vi.unstubAllGlobals()
+        expect(contents()).toEqual([THEME_COLOR_LIGHT, THEME_COLOR_DARK])
+      })
+
+      it('turns on only the chosen colour for an explicit choice', () => {
+        renderServerMetas()
+        localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+
+        new Function(THEME_INIT_SCRIPT)()
+
+        expect(contents()).toEqual([THEME_COLOR_LIGHT, THEME_COLOR_DARK])
+        expect(
+          Array.from(document.querySelectorAll('meta[name="theme-color"]')).map(
+            (meta) => meta.getAttribute('media')
+          )
+        ).toEqual(['not all', 'all'])
+      })
+
+      it('never adds a meta, even before the metas have arrived', () => {
+        localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+
+        new Function(THEME_INIT_SCRIPT)()
+
+        expect(contents()).toEqual([])
+      })
     })
   })
 })

@@ -35,7 +35,7 @@ import {
 // spelled-out character classes.
 export const config = {
   matcher: [
-    '/((?!(?:_next/static|_next/image)(?:/|$)|api/.|favicon\\.ico$|activities/_next(?:/|$)).*)',
+    '/((?!(?:_next/static|_next/image)(?:/|$)|api/.|_share-target$|favicon\\.ico$|activities/_next(?:/|$)).*)',
     {
       source: '/api/:path+',
       missing: [
@@ -47,7 +47,20 @@ export const config = {
         }
       ]
     },
-    { source: '/api/v1/files/:path*' }
+    { source: '/api/v1/files/:path*' },
+    // The Web Share Target fallback (app/%5Fshare-target/route.ts) never reads
+    // its multipart body, so the proxy must not buffer it either.
+    {
+      source: '/_share-target',
+      missing: [
+        {
+          type: 'header',
+          key: 'content-type',
+          value:
+            '\\s*[Mm][Uu][Ll][Tt][Ii][Pp][Aa][Rr][Tt]/[Ff][Oo][Rr][Mm]-[Dd][Aa][Tt][Aa].*'
+        }
+      ]
+    }
   ]
 }
 
@@ -164,6 +177,12 @@ const isRewrittenApiRoute = (pathname: string): boolean => {
   return pathname === '/inbox' || pathname.startsWith('/users/')
 }
 
+// The Web Share Target POST (app/manifest.ts). `public/sw.js` answers it on the
+// device; before the worker is installed it reaches app/%5Fshare-target. A
+// multipart one skips the proxy (see the matcher); any other POST passes the
+// allowlist below to that route, which answers both the same way.
+const SHARE_TARGET_PATH = '/_share-target'
+
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
@@ -209,6 +228,7 @@ export async function proxy(request: NextRequest) {
     !pathname.startsWith('/oauth/') &&
     pathname !== '/admin' &&
     !pathname.startsWith('/admin/') &&
+    pathname !== SHARE_TARGET_PATH &&
     !isRewrittenApiRoute(pathname) &&
     !request.headers.has('next-action')
   ) {

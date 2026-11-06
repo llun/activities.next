@@ -4,6 +4,7 @@ import { Home } from 'lucide-react'
 import Link from 'next/link'
 import {
   FC,
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -102,6 +103,17 @@ export interface MainPageTimelineProps {
   isMediaUploadEnabled: boolean
   /** Photos the top composer opens with (`/?media=`), already validated. */
   initialMedia?: PostBoxAttachment[]
+  /** Files a Web Share Target handed over, seeded into the top composer. */
+  initialFiles?: File[]
+  /** A workout file a Web Share Target handed over. */
+  initialFitnessFile?: File
+  /** Text or a link a Web Share Target handed over, for the composer text. */
+  initialText?: string
+  /**
+   * Drawn below the page header, right above the top composer: the Web Share
+   * Target confirmation and its notices (OfflineAppShell).
+   */
+  composerNotice?: ReactNode
   statuses: Status[]
   timelineContext?: CompatibleTimelineContext
   initialNextMaxStatusId?: string | null
@@ -212,6 +224,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   currentTime,
   isMediaUploadEnabled,
   initialMedia,
+  initialFiles,
+  initialFitnessFile,
+  initialText,
+  composerNotice,
   statuses,
   timelineContext,
   initialNextMaxStatusId = null,
@@ -1655,11 +1671,15 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           like every other surface. PostBox draws the card itself
           (`frameClassName`) so its failure Alert lands after the card, never
           inside it. */}
+      {composerNotice}
       <PostBox
         host={host}
         profile={profile}
         isMediaUploadEnabled={isMediaUploadEnabled}
         initialMedia={initialMedia}
+        initialFiles={initialFiles}
+        initialFitnessFile={initialFitnessFile}
+        initialText={initialText}
         frameClassName={cn(
           POST_LIST_FRAME_CLASS,
           'p-4',

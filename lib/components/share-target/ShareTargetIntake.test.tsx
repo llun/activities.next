@@ -1,0 +1,147 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor
+} from '@testing-library/react'
+import { IDBFactory } from 'fake-indexeddb'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  peekStagedShare,
+  stageShareFiles
+} from '@/lib/client/share-target/shareTargetDb'
+
+import { ShareTargetIntake } from './ShareTargetIntake'
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn() })
+}))
+
+const file = (name: string, type: string) =>
+  new File([new Uint8Array([1, 2, 3])], name, { type })
+
+const stage = async () => {
+  const id = await stageShareFiles([
+    file('summit.jpg', 'image/jpeg'),
+    file('ride.fit', '')
+  ])
+  window.history.replaceState(null, '', `/app?share=${id}`)
+  return id!
+}
+
+describe('ShareTargetIntake', () => {
+  beforeEach(() => {
+    vi.stubGlobal('indexedDB', new IDBFactory())
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+    window.history.replaceState(null, '', '/app')
+  })
+
+  // A share can come from any site (an auto-submitted form): its files reach
+  // the composer, and so upload, only after the reader presses Add to post.
+  it('lists the shared files and hands nothing to the composer until Add to post', async () => {
+    const onSeed = vi.fn()
+    const id = await stage()
+
+    render(<ShareTargetIntake isMediaUploadEnabled onSeed={onSeed} />)
+
+    expect(
+      await screen.findByText('1 photo and 1 workout were shared')
+    ).toBeInTheDocument()
+    // The house Alert's info tone is a polite live region.
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '1 photo and 1 workout were shared'
+    )
+    expect(screen.getByText('summit.jpg')).toBeInTheDocument()
+    expect(screen.getByText('ride.fit')).toBeInTheDocument()
+    // Still staged and unused after the intake has settled.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(await peekStagedShare(id)).not.toBeNull()
+    expect(onSeed).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to post' }))
+
+    await waitFor(() => expect(onSeed).toHaveBeenCalledTimes(1))
+    const [seed] = onSeed.mock.calls[0]
+    expect(seed.media.map((f: File) => f.name)).toEqual(['summit.jpg'])
+    expect(seed.fitnessFile.name).toBe('ride.fit')
+    expect(await peekStagedShare(id)).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Add to post' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('previews a shared link and hands it over only on Add to post', async () => {
+    const onSeed = vi.fn()
+    const id = await stageShareFiles([], {
+      url: `https://example.com/${'a'.repeat(200)}`
+    })
+    window.history.replaceState(null, '', `/app?share=${id}`)
+
+    render(<ShareTargetIntake isMediaUploadEnabled onSeed={onSeed} />)
+
+    expect(await screen.findByText('A link was shared')).toBeInTheDocument()
+    // Previewed, not shown whole: 140 characters and an ellipsis.
+    expect(
+      screen.getByText(/^https:\/\/example\.com\/a+…$/).textContent
+    ).toHaveLength(141)
+    expect(screen.queryByRole('list', { name: 'Shared files' })).toBeNull()
+    expect(onSeed).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to post' }))
+
+    await waitFor(() => expect(onSeed).toHaveBeenCalledTimes(1))
+    expect(onSeed.mock.calls[0][0].text).toBe(
+      `https://example.com/${'a'.repeat(200)}`
+    )
+  })
+
+  it('discards a share without handing it to the composer', async () => {
+    const onSeed = vi.fn()
+    const id = await stage()
+
+    render(<ShareTargetIntake isMediaUploadEnabled onSeed={onSeed} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard' }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Discard' })
+      ).not.toBeInTheDocument()
+    )
+    expect(onSeed).not.toHaveBeenCalled()
+    expect(await peekStagedShare(id)).toBeNull()
+    expect(window.location.search).toBe('')
+  })
+
+  it.each([
+    ['?share=gone', 'This share has expired'],
+    ['?shareUnavailable=1', "Shared files weren't attached"]
+  ])('says what happened for %s', async (search, title) => {
+    window.history.replaceState(null, '', `/app${search}`)
+
+    render(<ShareTargetIntake isMediaUploadEnabled onSeed={vi.fn()} />)
+
+    expect(await screen.findByText(title)).toBeInTheDocument()
+  })
+
+  it('skips shared media, with a notice, when media uploads are off', async () => {
+    await stage()
+
+    render(<ShareTargetIntake isMediaUploadEnabled={false} onSeed={vi.fn()} />)
+
+    expect(await screen.findByText('1 workout was shared')).toBeInTheDocument()
+    expect(
+      screen.getByText(/because this server takes no media uploads/)
+    ).toBeInTheDocument()
+    expect(screen.queryByText('summit.jpg')).not.toBeInTheDocument()
+  })
+})

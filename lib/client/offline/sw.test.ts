@@ -1,3 +1,4 @@
+import { IDBFactory } from 'fake-indexeddb'
 import fs from 'fs'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -103,18 +104,34 @@ describe('Service Worker (public/sw.js)', () => {
       'fetch',
       'Response',
       'Request',
+      'indexedDB',
       `${swCode}
 return {
   MEDIA_CACHE_NAME,
   MAX_MEDIA_ENTRIES,
   SHELL_CACHE_PREFIX,
+  SHARE_TARGET_PATH,
+  SHARE_TARGET_DB_NAME,
+  SHARE_TARGET_DB_VERSION,
+  SHARE_TARGET_STORE,
+  SHARE_TARGET_TTL_MS,
+  SHARE_TARGET_MAX_FILES,
+  SHARE_TARGET_MAX_TOTAL_BYTES,
+  SHARE_TARGET_MAX_TEXT_LENGTH,
+  SHARE_TARGET_MAX_RECORDS,
+  SHARE_PURGE_CACHE,
+  SHARE_PURGE_CACHE_KEY_PREFIX,
   extractBuildId,
   extractAppShellAssets,
   stageAppShell,
   getCachedAppShell,
   hasActiveOfflineSession,
   trimLru,
-  getSvgPlaceholderResponse
+  getSvgPlaceholderResponse,
+  openShareTargetDb,
+  pruneExpiredShares,
+  stageShareTarget,
+  handleShareTarget
 };`
     )
     swModule = runSw(
@@ -123,7 +140,16 @@ return {
       mockCaches,
       mockFetch,
       Response,
-      Request
+      Request,
+      // Read through to the global on every access: the tests below swap in a
+      // fresh fake-indexeddb factory per case, after the worker is loaded.
+      new Proxy(
+        {},
+        {
+          get: (_target, property) =>
+            (globalThis as any).indexedDB?.[property as any]
+        }
+      )
     )
   })
 
@@ -873,6 +899,458 @@ return {
       await swModule.trimLru(mediaCache, 150)
       const remaining = await mediaCache.keys()
       expect(remaining.length).toBe(150)
+    })
+  })
+
+  describe('Web Share Target', () => {
+    const readAllShares = async (): Promise<any[]> => {
+      const db = await swModule.openShareTargetDb()
+      try {
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(swModule.SHARE_TARGET_STORE, 'readonly')
+          const request = tx.objectStore(swModule.SHARE_TARGET_STORE).getAll()
+          request.onsuccess = () => resolve(request.result)
+          request.onerror = () => reject(request.error)
+        })
+      } finally {
+        db.close()
+      }
+    }
+
+    const writeShare = async (record: any) => {
+      const db = await swModule.openShareTargetDb()
+      try {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(swModule.SHARE_TARGET_STORE, 'readwrite')
+          tx.objectStore(swModule.SHARE_TARGET_STORE).put(record)
+          tx.oncomplete = () => resolve(undefined)
+          tx.onerror = () => reject(tx.error)
+        })
+      } finally {
+        db.close()
+      }
+    }
+
+    // An OS share launch: a top-level navigation. A constructed Request
+    // cannot have mode `navigate`, so it is defined on the instance.
+    const shareRequest = (
+      files: File[],
+      fields: Record<string, string> = {},
+      {
+        mode = 'navigate',
+        destination = 'document',
+        headers = {}
+      }: {
+        mode?: string
+        destination?: string
+        headers?: Record<string, string>
+      } = {}
+    ) => {
+      const form = new FormData()
+      for (const [key, value] of Object.entries(fields)) form.set(key, value)
+      for (const file of files) form.append('files', file)
+      const request = new Request('https://llun.social/_share-target', {
+        method: 'POST',
+        body: form,
+        headers
+      })
+      Object.defineProperty(request, 'mode', { value: mode })
+      Object.defineProperty(request, 'destination', { value: destination })
+      return request
+    }
+
+    const photoFile = () => new File(['x'], 'photo.jpg', { type: 'image/jpeg' })
+
+    const triggerFetch = async (req: Request): Promise<Response | null> => {
+      // Assigned inside the listener, which TypeScript's narrowing cannot see.
+      let respondedWith = null as Promise<Response> | null
+      const event = {
+        request: req,
+        respondWith: (promise: Promise<Response>) => {
+          respondedWith = promise
+        },
+        waitUntil: vi.fn()
+      }
+      for (const listener of eventListeners['fetch'] || []) {
+        listener(event)
+        if (respondedWith) break
+      }
+      return respondedWith ? await respondedWith : null
+    }
+
+    beforeEach(() => {
+      vi.stubGlobal('indexedDB', new IDBFactory())
+    })
+
+    it('stages the shared files and answers 303 to the composer', async () => {
+      const photo = new File([new Uint8Array([1, 2, 3])], 'photo.jpg', {
+        type: 'image/jpeg'
+      })
+      const workout = new File([new Uint8Array([4, 5])], 'run.fit', {
+        type: 'application/vnd.ant.fit'
+      })
+
+      const response = await triggerFetch(
+        shareRequest([photo, workout], { title: 'Morning run', text: 'hi' })
+      )
+
+      expect(response).not.toBeNull()
+      expect(response!.status).toBe(303)
+      const location = response!.headers.get('Location')!
+      expect(location).toMatch(/^\/app\?share=/)
+      const id = decodeURIComponent(location.split('share=')[1])
+
+      const shares = await readAllShares()
+      expect(shares).toHaveLength(1)
+      const [share] = shares
+      expect(share.id).toBe(id)
+      expect(typeof share.createdAt).toBe('number')
+      expect(share.title).toBe('Morning run')
+      expect(share.text).toBe('hi')
+      expect(share.files).toHaveLength(2)
+      expect(share.files[0]).toMatchObject({
+        name: 'photo.jpg',
+        type: 'image/jpeg',
+        size: 3
+      })
+      expect(share.files[0].bytes).toBeInstanceOf(ArrayBuffer)
+      expect(Array.from(new Uint8Array(share.files[0].bytes))).toEqual([
+        1, 2, 3
+      ])
+      expect(share.files[1].name).toBe('run.fit')
+    })
+
+    // The worker and the client open the same database: a drift in its name,
+    // version or store would leave every share unreadable.
+    it('names the staging database as the client does', async () => {
+      const client = await import('@/lib/client/share-target/types')
+
+      expect(swModule.SHARE_TARGET_DB_NAME).toBe(client.SHARE_TARGET_DB_NAME)
+      expect(swModule.SHARE_TARGET_DB_VERSION).toBe(
+        client.SHARE_TARGET_DB_VERSION
+      )
+      expect(swModule.SHARE_TARGET_STORE).toBe(client.SHARE_TARGET_STORE)
+      expect(swModule.SHARE_TARGET_TTL_MS).toBe(client.SHARE_TARGET_TTL_MS)
+      expect(swModule.SHARE_TARGET_MAX_TOTAL_BYTES).toBe(
+        client.SHARE_TARGET_MAX_TOTAL_BYTES
+      )
+      expect(swModule.SHARE_TARGET_MAX_FILES).toBe(
+        client.SHARE_TARGET_MAX_FILES
+      )
+      const purge = await import('@/lib/client/share-target/pendingSharePurge')
+      expect(swModule.SHARE_PURGE_CACHE).toBe(purge.SHARE_PURGE_CACHE)
+      expect(swModule.SHARE_PURGE_CACHE_KEY_PREFIX).toBe(
+        purge.SHARE_PURGE_CACHE_KEY_PREFIX
+      )
+    })
+
+    it.each(['cross-site', 'same-site'])(
+      'refuses a share whose Sec-Fetch-Site is %s, staging nothing',
+      async (site) => {
+        const response = await triggerFetch(
+          shareRequest(
+            [photoFile()],
+            {},
+            {
+              headers: { 'Sec-Fetch-Site': site }
+            }
+          )
+        )
+
+        expect(response!.status).toBe(303)
+        expect(response!.headers.get('Location')).toBe('/app')
+        expect(await readAllShares()).toEqual([])
+      }
+    )
+
+    // A navigation inside a frame another site embeds is not a share launch.
+    it('refuses a share navigation that is not for a document', async () => {
+      const response = await triggerFetch(
+        shareRequest([photoFile()], {}, { destination: 'iframe' })
+      )
+
+      expect(response!.headers.get('Location')).toBe('/app')
+      expect(await readAllShares()).toEqual([])
+    })
+
+    it('refuses a share that is not a navigation, staging nothing', async () => {
+      const response = await triggerFetch(
+        shareRequest([photoFile()], {}, { mode: 'cors' })
+      )
+
+      expect(response!.status).toBe(303)
+      expect(response!.headers.get('Location')).toBe('/app')
+      expect(await readAllShares()).toEqual([])
+    })
+
+    it.each([['none'], ['same-origin'], [undefined]])(
+      'stages a navigation share whose Sec-Fetch-Site is %s',
+      async (site) => {
+        const response = await triggerFetch(
+          shareRequest(
+            [photoFile()],
+            {},
+            {
+              headers: site ? { 'Sec-Fetch-Site': site } : {}
+            }
+          )
+        )
+
+        expect(response!.headers.get('Location')).toMatch(/^\/app\?share=/)
+        expect(await readAllShares()).toHaveLength(1)
+      }
+    )
+
+    // The intake shows these in its skip notice, so none is dropped silently.
+    // The pages copy a failed sign-out's purge marker to Cache Storage (a
+    // worker has no localStorage). The next stage deletes the shares staged
+    // up to the sign-out, keeps later ones, and drops the marker.
+    const purgeKey = (markedAt: number) =>
+      `https://llun.social/__share-target-pending-purge/${markedAt}`
+    const purgeKeys = () =>
+      Array.from(
+        cacheStore.get('activities-share-target-purge-v1')?.keys() ?? []
+      )
+
+    it("purges a failed sign-out's shares before staging a new one", async () => {
+      const markedAt = Date.now() - 1000
+      await writeShare({ id: 'old', createdAt: markedAt - 10, files: [] })
+      await writeShare({ id: 'later', createdAt: markedAt + 10, files: [] })
+      const cache = await (globalThis as any).caches.open(
+        'activities-share-target-purge-v1'
+      )
+      await cache.put(purgeKey(markedAt), new Response(String(markedAt)))
+
+      await triggerFetch(shareRequest([photoFile()]))
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).not.toContain('old')
+      expect(ids).toContain('later')
+      expect(ids).toHaveLength(2)
+      expect(purgeKeys()).toEqual([])
+    })
+
+    it('purges up to the newest of several generations, and retires them all', async () => {
+      const now = Date.now()
+      await writeShare({ id: 'a', createdAt: now - 3000, files: [] })
+      await writeShare({ id: 'b', createdAt: now - 1500, files: [] })
+      const cache = await (globalThis as any).caches.open(
+        'activities-share-target-purge-v1'
+      )
+      await cache.put(purgeKey(now - 2000), new Response(String(now - 2000)))
+      await cache.put(purgeKey(now - 1000), new Response(String(now - 1000)))
+
+      await triggerFetch(shareRequest([photoFile()]))
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).not.toContain('a')
+      expect(ids).not.toContain('b')
+      expect(purgeKeys()).toEqual([])
+    })
+
+    // An unreadable marker cache may hide a failed sign-out's purge: the
+    // share is refused like a cross-site one, with nothing read or purged.
+    it('refuses the share when the marker cache cannot be listed', async () => {
+      await writeShare({ id: 'old', createdAt: Date.now() - 10, files: [] })
+      const cache = await (globalThis as any).caches.open(
+        'activities-share-target-purge-v1'
+      )
+      cache.keys.mockRejectedValueOnce(new Error('keys rejected'))
+      const request = shareRequest([photoFile()])
+      const formData = vi.spyOn(request, 'formData')
+
+      const response = await triggerFetch(request)
+
+      expect(response!.status).toBe(303)
+      expect(response!.headers.get('Location')).toBe('/app')
+      expect(formData).not.toHaveBeenCalled()
+      expect((await readAllShares()).map((share) => share.id)).toEqual(['old'])
+    })
+
+    // The race review reproduced: a newer sign-out writes its marker just as
+    // the worker retires the older one. Each generation has its own key, so
+    // the newer one survives for the next reader.
+    it('keeps a newer purge marker written during the stage', async () => {
+      const older = Date.now() - 2000
+      const newer = Date.now() - 1000
+      const cache = await (globalThis as any).caches.open(
+        'activities-share-target-purge-v1'
+      )
+      await cache.put(purgeKey(older), new Response(String(older)))
+      const remove = cache.delete.getMockImplementation()
+      cache.delete.mockImplementationOnce(async (request: any) => {
+        // The newer sign-out lands as the delete runs.
+        await cache.put(purgeKey(newer), new Response(String(newer)))
+        return remove(request)
+      })
+
+      await triggerFetch(shareRequest([photoFile()]))
+
+      expect(purgeKeys()).toEqual([purgeKey(newer)])
+    })
+
+    it('counts the files past the 20-file cap as skipped', async () => {
+      const files = Array.from(
+        { length: 22 },
+        (_, index) => new File(['x'], `p${index}.jpg`, { type: 'image/jpeg' })
+      )
+
+      await triggerFetch(shareRequest(files))
+
+      const [share] = await readAllShares()
+      expect(share.files).toHaveLength(20)
+      expect(share.skipped).toBe(2)
+    })
+
+    it('stops staging files once the total budget is spent', async () => {
+      const bigFile = (name: string) => ({
+        name,
+        type: 'video/mp4',
+        size: 100 * 1024 * 1024,
+        lastModified: 1,
+        arrayBuffer: async () => new ArrayBuffer(1)
+      })
+      const files = [bigFile('a.mp4'), bigFile('b.mp4'), bigFile('c.mp4')]
+      const formData = {
+        getAll: () => files,
+        get: () => null
+      }
+
+      await swModule.stageShareTarget(formData)
+
+      const [share] = await readAllShares()
+      expect(swModule.SHARE_TARGET_MAX_TOTAL_BYTES).toBe(250 * 1024 * 1024)
+      expect(share.files.map((file: any) => file.name)).toEqual([
+        'a.mp4',
+        'b.mp4'
+      ])
+      expect(share.skipped).toBe(1)
+    })
+
+    it('caps the shared title, text and url', async () => {
+      const long = 'x'.repeat(swModule.SHARE_TARGET_MAX_TEXT_LENGTH + 10)
+
+      await triggerFetch(
+        shareRequest([photoFile()], { title: long, text: long, url: long })
+      )
+
+      const [share] = await readAllShares()
+      for (const field of [share.title, share.text, share.url]) {
+        expect(field).toHaveLength(swModule.SHARE_TARGET_MAX_TEXT_LENGTH)
+      }
+    })
+
+    it('keeps at most the newest staged shares, evicting the oldest', async () => {
+      const now = Date.now()
+      for (let index = 0; index < swModule.SHARE_TARGET_MAX_RECORDS; index++) {
+        await writeShare({
+          id: `old-${index}`,
+          createdAt: now - 1000 * (index + 1),
+          files: []
+        })
+      }
+
+      await triggerFetch(shareRequest([photoFile()]))
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).toHaveLength(swModule.SHARE_TARGET_MAX_RECORDS)
+      expect(ids).not.toContain(`old-${swModule.SHARE_TARGET_MAX_RECORDS - 1}`)
+    })
+
+    it('refuses a share when no secure random source exists', async () => {
+      vi.stubGlobal('crypto', {})
+
+      const response = await triggerFetch(shareRequest([photoFile()]))
+
+      vi.unstubAllGlobals()
+      expect(response!.headers.get('Location')).toBe('/app?shareUnavailable=1')
+    })
+
+    it('never opens the drafts database', async () => {
+      await triggerFetch(
+        shareRequest([new File(['x'], 'photo.jpg', { type: 'image/jpeg' })])
+      )
+
+      const names = (await (globalThis as any).indexedDB.databases()).map(
+        (db: any) => db.name
+      )
+      expect(names).toContain(swModule.SHARE_TARGET_DB_NAME)
+      expect(names).not.toContain('activities_drafts_v1')
+    })
+
+    it('prunes shares older than 24 hours and keeps fresh ones', async () => {
+      const now = Date.now()
+      await writeShare({
+        id: 'stale',
+        createdAt: now - swModule.SHARE_TARGET_TTL_MS - 1000,
+        files: []
+      })
+      await writeShare({ id: 'fresh', createdAt: now, files: [] })
+
+      const db = await swModule.openShareTargetDb()
+      try {
+        await swModule.pruneExpiredShares(db)
+      } finally {
+        db.close()
+      }
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).toEqual(['fresh'])
+    })
+
+    it('prunes expired shares before staging a new one', async () => {
+      await writeShare({
+        id: 'stale',
+        createdAt: Date.now() - swModule.SHARE_TARGET_TTL_MS - 1000,
+        files: []
+      })
+
+      await triggerFetch(
+        shareRequest([new File(['x'], 'photo.jpg', { type: 'image/jpeg' })])
+      )
+
+      const ids = (await readAllShares()).map((share) => share.id)
+      expect(ids).not.toContain('stale')
+      expect(ids).toHaveLength(1)
+    })
+
+    it('prunes expired shares on activate', async () => {
+      await writeShare({
+        id: 'stale',
+        createdAt: Date.now() - swModule.SHARE_TARGET_TTL_MS - 1000,
+        files: []
+      })
+
+      const event: any = { waitUntil: vi.fn((promise) => promise) }
+      for (const listener of eventListeners['activate'] || []) listener(event)
+      await Promise.all(event.waitUntil.mock.results.map((r: any) => r.value))
+
+      expect(await readAllShares()).toEqual([])
+    })
+
+    it('falls back to the unavailable redirect when staging fails', async () => {
+      vi.stubGlobal('indexedDB', undefined)
+      ;(globalThis as any).indexedDB = undefined
+
+      const response = await triggerFetch(
+        shareRequest([new File(['x'], 'photo.jpg', { type: 'image/jpeg' })])
+      )
+
+      expect(response!.status).toBe(303)
+      expect(response!.headers.get('Location')).toBe('/app?shareUnavailable=1')
+    })
+
+    it('leaves other POSTs and GETs to the browser', async () => {
+      const otherPost = new Request('https://llun.social/api/v1/statuses', {
+        method: 'POST',
+        body: 'x'
+      })
+      expect(await triggerFetch(otherPost)).toBeNull()
+
+      const shareGet = new Request('https://llun.social/_share-target')
+      expect(await triggerFetch(shareGet)).toBeNull()
+
+      expect(await readAllShares()).toEqual([])
     })
   })
 

@@ -152,9 +152,11 @@ describe('POST /api/v1/fitness-files', () => {
 
   it.each([
     ['an unsupported extension', 'notes.txt', 'text/plain'],
+    // `.gpx`/`.tcx` shared as octet-stream are accepted (by extension, as
+    // `.fit` is); a generic binary without a fitness extension is not.
     [
-      'a generic binary that is not a .fit',
-      'ride.gpx',
+      'a generic binary without a fitness extension',
+      'ride.bin',
       'application/octet-stream'
     ]
   ])('rejects %s without saving', async (_, name, type) => {
@@ -166,6 +168,22 @@ describe('POST /api/v1/fitness-files', () => {
     expect(response.status).toBe(400)
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
   })
+
+  it.each(['ride.gpx', 'ride.tcx'])(
+    'accepts %s shared as a generic binary',
+    async (name) => {
+      const form = new FormData()
+      form.set(
+        'file',
+        new File(['data'], name, { type: 'application/octet-stream' })
+      )
+
+      const response = await POST(uploadForm(form), context)
+
+      expect(response.status).toBe(200)
+      expect(mockSaveFitnessFile).toHaveBeenCalled()
+    }
+  )
 
   it('rejects a file larger than the configured limit', async () => {
     vi.mocked(getConfig).mockReturnValue({

@@ -94,7 +94,7 @@ vi.mock('@/lib/components/page-header', async () => ({
 }))
 
 vi.mock('@/lib/components/post-box/post-box', () => ({
-  PostBox: () => null
+  PostBox: () => <div data-testid="post-box" />
 }))
 
 vi.mock('@/lib/components/scroll-to-top-button', () => ({
@@ -190,6 +190,35 @@ describe('MainPageTimeline', () => {
     } finally {
       dateNowSpy.mockRestore()
     }
+  })
+
+  // The share confirmation belongs with the composer it fills: below the
+  // page header (never above it, flush with the viewport top) and right above
+  // the top composer, in the page's own stack and gutter.
+  it('draws the composer notice between the page header and the composer', () => {
+    render(
+      <MainPageTimeline
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        profile={profile}
+        isMediaUploadEnabled
+        statuses={[]}
+        composerNotice={<div data-testid="composer-notice" />}
+      />
+    )
+
+    const header = screen.getByTestId('page-header')
+    const notice = screen.getByTestId('composer-notice')
+    const composer = screen.getByTestId('post-box')
+    expect(
+      header.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      notice.compareDocumentPosition(composer) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(notice.nextElementSibling).toBe(composer)
+    expect(notice.parentElement).toBe(header.parentElement)
   })
 
   // Announcements never add a node to the header's layout: the icon is a

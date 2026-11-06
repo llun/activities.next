@@ -236,10 +236,12 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
     }
     case 'setAttachments': {
       const hasAttachments = action.attachments.length > 0
+      // A workout file and media may sit in one post: the create route accepts
+      // `fitness_file_id` alongside `MAX_STORED_MEDIA_ATTACHMENTS - 1` photos,
+      // because the route map the fitness job adds takes the last slot.
       return {
         ...state,
         attachments: action.attachments,
-        fitnessFile: hasAttachments ? undefined : state.fitnessFile,
         poll: hasAttachments
           ? {
               ...createDefaultState().poll
@@ -337,7 +339,6 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       return {
         ...state,
         attachments: [...state.attachments, action.attachment],
-        fitnessFile: undefined,
         poll: {
           ...createDefaultState().poll
         }

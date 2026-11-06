@@ -99,7 +99,9 @@ describe('client error credential paths', () => {
             'credential-value'
           )
         }
-        walk(new URL(entry.name + '/', directory), next)
+        // Encoded: a file URL decodes `%5F` (Next's escaped `_` folder, as in
+        // app/%5Fshare-target) back to `_`, a folder that does not exist.
+        walk(new URL(encodeURIComponent(entry.name) + '/', directory), next)
       }
     }
     walk(app)

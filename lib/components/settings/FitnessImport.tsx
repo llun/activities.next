@@ -9,6 +9,18 @@ import {
   retryFitnessImportBatch,
   startFitnessImport
 } from '@/lib/client'
+import {
+  describeNotStaged,
+  isFitnessShareFile,
+  isMediaShareFile
+} from '@/lib/client/share-target/classify'
+import {
+  deleteStagedShare,
+  honourPendingSharePurge,
+  peekStagedShare,
+  toShareFiles
+} from '@/lib/client/share-target/shareTargetDb'
+import { SHARE_PARAM } from '@/lib/client/share-target/useShareTargetIntake'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { ActorInfoBanner } from '@/lib/components/settings/ActorInfoBanner'
 import {
@@ -21,8 +33,12 @@ import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
-import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
+import {
+  ACCEPTED_FITNESS_FILE_EXTENSIONS,
+  DEFAULT_FITNESS_MAX_FILE_SIZE
+} from '@/lib/services/fitness-files/constants'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
+import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 interface FitnessImportProps {
@@ -49,6 +65,14 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
   const [isRetrying, setIsRetrying] = useState(false)
   const [isPolling, setIsPolling] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Photos a share carried alongside two or more workouts: the batch importer
+  // cannot take them, so it says so instead of dropping them silently.
+  const [skippedMedia, setSkippedMedia] = useState(0)
+  // Shared workouts over the upload limit, and files that are neither.
+  const [skippedOversize, setSkippedOversize] = useState(0)
+  const [skippedOther, setSkippedOther] = useState(0)
+  // Files the worker refused before staging (over 20, or the 250 MiB budget).
+  const [skippedNotStaged, setSkippedNotStaged] = useState(0)
 
   const failedCount = batchResult?.summary.failed ?? 0
   const selectedFileNames = useMemo(
@@ -95,6 +119,71 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
     fileInputRef.current?.click()
   }
 
+  // A share of two or more workouts (or the composer's "Batch import instead")
+  // lands here with `?share=<id>`. Its workouts are preselected, with the same
+  // extension and 50 MiB checks the composer's intake applies, and nothing is
+  // uploaded until Import is pressed. The record (and the parameter) stay until
+  // then, or until other files are chosen, so a reload shows them again.
+  const shareIdRef = useRef<string | null>(null)
+  // Deletes the staged share and strips `?share=` once it has been used or
+  // replaced, as the composer's intake does.
+  const releaseShare = (id = shareIdRef.current) => {
+    shareIdRef.current = null
+    if (id) void deleteStagedShare(id)
+    stripShareParam()
+  }
+
+  // Strips `?share=` without touching the record: when a purge could not run,
+  // nothing is read or deleted, as on /app.
+  const stripShareParam = () => {
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has(SHARE_PARAM)) return
+    params.delete(SHARE_PARAM)
+    const query = params.toString()
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+    )
+  }
+
+  const shareReadRef = useRef(false)
+  useEffect(() => {
+    if (shareReadRef.current) return
+    if (typeof window === 'undefined') return
+    const id = new URLSearchParams(window.location.search).get(SHARE_PARAM)
+    if (!id) return
+    shareReadRef.current = true
+
+    void (async () => {
+      // As on /app: a failed sign-out's shares go first, and if they cannot,
+      // nothing is read.
+      if (!(await honourPendingSharePurge())) {
+        stripShareParam()
+        return
+      }
+      const share = await peekStagedShare(id)
+      if (!share) {
+        releaseShare(id)
+        return
+      }
+      shareIdRef.current = id
+      const shared = toShareFiles(share)
+      const workouts = shared.filter(isFitnessShareFile)
+      const fitting = workouts.filter(
+        (file) => file.size <= DEFAULT_FITNESS_MAX_FILE_SIZE
+      )
+      const media = shared.filter(
+        (file) => !isFitnessShareFile(file) && isMediaShareFile(file)
+      ).length
+      setFiles(fitting)
+      setSkippedMedia(media)
+      setSkippedOversize(workouts.length - fitting.length)
+      setSkippedOther(shared.length - workouts.length - media)
+      setSkippedNotStaged(share.skipped ?? 0)
+    })()
+  }, [])
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files ?? [])
     if (selected.length === 0) return
@@ -115,6 +204,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
 
     setError(null)
     setFiles(selected)
+    releaseShare()
     event.currentTarget.value = ''
   }
 
@@ -124,8 +214,24 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
     setIsImporting(true)
     setError(null)
 
+    // Shared files were read when the page opened; a sign-out in another tab
+    // may have marked them for purging since. Check again before uploading.
+    const shareId = shareIdRef.current
+    if (
+      shareId &&
+      (!(await honourPendingSharePurge()) || !(await peekStagedShare(shareId)))
+    ) {
+      shareIdRef.current = null
+      stripShareParam()
+      setFiles([])
+      setError('This share has expired. Share the files again to import them.')
+      setIsImporting(false)
+      return
+    }
+
     try {
       const result = await startFitnessImport(files, visibility)
+      releaseShare()
       setBatchId(result.batchId)
       setBatchResult(null)
       setIsPolling(true)
@@ -172,6 +278,28 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
       }
     >
       {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
+      {skippedMedia > 0 ? (
+        <Alert tone="info" title="Photos weren't imported">
+          {skippedMedia} shared{' '}
+          {skippedMedia === 1 ? 'photo was' : 'photos were'} left out. Add them
+          to a post from the composer instead.
+        </Alert>
+      ) : null}
+      {skippedOversize + skippedOther + skippedNotStaged > 0 ? (
+        <Alert tone="info" title="Some shared files were skipped">
+          {[
+            skippedOversize > 0
+              ? `${skippedOversize} ${skippedOversize === 1 ? 'workout is' : 'workouts are'} over the ${formatFileSize(DEFAULT_FITNESS_MAX_FILE_SIZE)} limit`
+              : null,
+            skippedOther > 0
+              ? `${skippedOther} ${skippedOther === 1 ? 'file is not a' : 'files are not'} .fit, .gpx or .tcx ${skippedOther === 1 ? 'file' : 'files'}`
+              : null,
+            skippedNotStaged > 0 ? describeNotStaged(skippedNotStaged) : null
+          ]
+            .filter(Boolean)
+            .join('; ')}
+        </Alert>
+      ) : null}
       <Frame
         form
         footer={

@@ -6,7 +6,13 @@ import { InAppHistoryTracker } from '@/lib/components/navigation-history/InAppHi
 import { ChunkLoadErrorListener } from '@/lib/components/offline/ChunkLoadErrorListener'
 import { ServiceWorkerRegistration } from '@/lib/components/offline/ServiceWorkerRegistration'
 import { ThemeProvider } from '@/lib/components/theme'
-import { THEME_INIT_SCRIPT } from '@/lib/components/theme/theme-core'
+import {
+  THEME_COLOR_DARK,
+  THEME_COLOR_DARK_MEDIA,
+  THEME_COLOR_LIGHT,
+  THEME_COLOR_LIGHT_MEDIA,
+  THEME_INIT_SCRIPT
+} from '@/lib/components/theme/theme-core'
 import { WebVitals } from '@/lib/components/web-vitals/WebVitals'
 import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
 import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
@@ -24,7 +30,15 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 2,
-  viewportFit: 'cover'
+  viewportFit: 'cover',
+  // The browser chrome and an installed PWA's title bar follow the colour
+  // scheme. The manifest keeps a static `#ffffff` (it has no media queries);
+  // these metas override it live, and ThemeProvider rewrites them when the
+  // reader picks light or dark explicitly.
+  themeColor: [
+    { media: THEME_COLOR_LIGHT_MEDIA, color: THEME_COLOR_LIGHT },
+    { media: THEME_COLOR_DARK_MEDIA, color: THEME_COLOR_DARK }
+  ]
 }
 
 const icons: Metadata['icons'] = {

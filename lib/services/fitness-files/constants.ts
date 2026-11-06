@@ -11,3 +11,8 @@ export const ACCEPTED_FITNESS_FILE_TYPES = [
 
 // File extensions
 export const ACCEPTED_FITNESS_FILE_EXTENSIONS = ['.fit', '.gpx', '.tcx']
+
+// Maximum file size is 50 MB for fitness files. Kept here (not in
+// `lib/config/fitnessStorage`, which reads the filesystem) so client code can
+// size a picker without pulling server modules into the bundle.
+export const DEFAULT_FITNESS_MAX_FILE_SIZE = 52_428_800

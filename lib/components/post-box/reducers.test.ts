@@ -130,7 +130,7 @@ describe('post-box reducers', () => {
     expect(nextState.fitnessFile).toBe(stateWithFitnessFile.fitnessFile)
   })
 
-  it('clears poll and fitness state when entering attachment mode', () => {
+  it('clears the poll but keeps a fitness file when entering attachment mode', () => {
     const stateWithPoll = {
       ...createDefaultState(),
       poll: {
@@ -164,10 +164,12 @@ describe('post-box reducers', () => {
 
     expect(nextState.attachments).toHaveLength(1)
     expect(nextState.poll.showing).toBe(false)
-    expect(nextState.fitnessFile).toBeUndefined()
+    // A workout and media may share one post (the create route accepts
+    // `fitness_file_id` with `MAX_STORED_MEDIA_ATTACHMENTS - 1` photos).
+    expect(nextState.fitnessFile).toBe(stateWithPoll.fitnessFile)
   })
 
-  it('clears incompatible modes while managing an existing attachment list', () => {
+  it('clears the poll but keeps a fitness file while managing an existing attachment list', () => {
     const stateWithAttachments = {
       ...createDefaultState(),
       attachments: [
@@ -208,10 +210,10 @@ describe('post-box reducers', () => {
     expect(nextState.attachments).toHaveLength(1)
     expect(nextState.contentWarning).toBe('Spoilers')
     expect(nextState.contentWarningVisible).toBe(true)
-    expect(nextState.fitnessFile).toBeUndefined()
+    expect(nextState.fitnessFile).toBe(stateWithAttachments.fitnessFile)
   })
 
-  it('clears poll and fitness state when adding an attachment', () => {
+  it('clears the poll but keeps a fitness file when adding an attachment', () => {
     const stateWithPoll = {
       ...createDefaultState(),
       poll: {
@@ -245,7 +247,7 @@ describe('post-box reducers', () => {
 
     expect(nextState.attachments).toHaveLength(1)
     expect(nextState.poll.showing).toBe(false)
-    expect(nextState.fitnessFile).toBeUndefined()
+    expect(nextState.fitnessFile).toBe(stateWithPoll.fitnessFile)
   })
 
   // The poll editor's choice inputs are uncontrolled and write straight into

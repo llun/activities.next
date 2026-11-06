@@ -5,6 +5,11 @@ import { useCallback, useRef, useState } from 'react'
 import { postDraftsMessage } from '@/lib/client/drafts/draftsChannel'
 import { markPurgePending } from '@/lib/client/drafts/pendingPurgeMarker'
 import { clearAllOfflineData } from '@/lib/client/offline'
+import {
+  markSharePurgePending,
+  settleSharePurge
+} from '@/lib/client/share-target/pendingSharePurge'
+import { clearStagedShares } from '@/lib/client/share-target/shareTargetDb'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { authClient } from '@/lib/services/auth/auth-client'
 
@@ -65,6 +70,13 @@ export function useSignOut(): {
                 // Stays pending.
               }
             }
+            // Files shared to this device and not yet added or discarded
+            // must not reach the next account. Not in clearAllOfflineData,
+            // which a session expiry also runs: a share survives that.
+            // Marked first, as the drafts purge is: if the clear fails or
+            // times out, every reader purges them before reading anything.
+            const markedAt = await markSharePurgePending()
+            if (await clearStagedShares()) await settleSharePurge(markedAt)
             window.location.href = '/auth/signin'
           },
           onError: failed
