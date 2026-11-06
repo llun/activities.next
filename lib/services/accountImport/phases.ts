@@ -2530,8 +2530,9 @@ const BOOKMARK_FOLDER_RENEW_EVERY = 25
  * kept colliding, or a folder the owner deleted while the import ran) is
  * logged and counted in `progress.bookmarkFolderSkips` by reason; its
  * bookmarks stay unfiled. A skipped folder counts once however many entries
- * it was split into; an entry too large or unreadable has no name to match on,
- * so it counts as one entry and the report words it that way
+ * it was split into; an entry too large to read, or one that fails to parse or
+ * validate, is skipped before its name is read, so it counts as one entry and
+ * the report words it that way
  * (`BOOKMARK_FOLDER_ENTRY_SKIP_REASONS`). A deleted folder is not made again:
  * the owner's delete wins over the archive.
  *
