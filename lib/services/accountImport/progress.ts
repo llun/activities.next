@@ -25,9 +25,9 @@ export type BookmarkFolderSkipReason =
 /**
  * The bookmark-folders reasons counted per `bookmark_folders.json` entry, not
  * per folder. Both are skipped before the phase reads the entry's name (it is
- * too large to read, or fails to parse or validate): an export splits a large folder into
- * several same-name entries (`splitBookmarkFolder`), and each such entry
- * is its own skip. Every other reason is counted once per folder however many
+ * too large to read, or fails to parse or validate): an export splits a large
+ * folder into several same-name entries (`splitBookmarkFolder`), and each
+ * such entry is its own skip. Every other reason is counted once per folder however many
  * entries that folder became, so `bookmarkFolderSkips` mixes two units and
  * whoever reads it must pick the wording from the reason.
  */
@@ -76,9 +76,9 @@ export interface AccountImportProgress {
    * The `bookmark_folders.json` folders the bookmark folders pass could not
    * restore, by reason, counted once per folder however many entries a split
    * folder became — except `BOOKMARK_FOLDER_ENTRY_SKIP_REASONS`, which count
-   * entries because their unreadable entry never gave the phase a name. Like
-   * the profile phase it keeps no item rows, so these ride the progress the
-   * owner reads.
+   * entries because they are skipped before the phase reads the entry's
+   * name. Like the profile phase it keeps no item rows, so these ride the
+   * progress the owner reads.
    */
   bookmarkFolderSkips?: Partial<Record<BookmarkFolderSkipReason, number>>
   /** Selected by the owner at start; stored here because the row's initial
