@@ -1,0 +1,29 @@
+lib/client/share-target/useShareTargetIntake.test.tsx
+  s_2b1a50e2f9b981::t_8a1f65e3ede28d 209-228
+lib/components/settings/FitnessImport.tsx
+  s_2b1a50e2f9b981::t_f4f9827d9518e5 133-138,162,217-230
+  s_2b1a50e2f9b981::t_2f053ce43cb7a3 231
+lib/client/share-target/useShareTargetIntake.ts
+  s_2b1a50e2f9b981::t_f4f9827d9518e5 194-201
+docs/architecture.md
+  s_2b1a50e2f9b981::t_3c971e4ef61548 3590
+lib/components/settings/FitnessImport.test.tsx
+  s_2b1a50e2f9b981::t_8a1f65e3ede28d 163-178,182-208
+  s_2b1a50e2f9b981::t_3c971e4ef61548 179-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "14c0d10c1280097e443dad374bff94b83b689a59",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
