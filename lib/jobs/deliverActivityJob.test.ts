@@ -25,6 +25,12 @@ vi.mock('@/lib/activities/activityPubHeaders', () => ({
   })
 }))
 
+vi.mock('@/lib/utils/httpMessageSignature', () => ({
+  signHttpMessage: vi.fn().mockReturnValue({
+    headers: { 'signature-input': 'sig1=()', signature: 'sig1=:c2ln:' }
+  })
+}))
+
 describe('deliverActivityJob', () => {
   let harness: ReturnType<typeof setupRecordingTracer>
   const mockDatabase = {
@@ -73,6 +79,27 @@ describe('deliverActivityJob', () => {
       activity: 'not-an-object'
     }
     expect(DeliverActivityJobData.safeParse(invalid).success).toBe(false)
+  })
+
+  it('stores the scheme a delivery learns in the shared table', async () => {
+    vi.mocked(request)
+      .mockResolvedValueOnce({ statusCode: 401, body: '', headers: {} })
+      .mockResolvedValueOnce({ statusCode: 202, body: '', headers: {} })
+
+    await deliverActivityJob(mockDatabase, {
+      id: 'msg-learn',
+      name: 'DeliverActivityJob',
+      data: {
+        inbox: 'https://remote.example/inbox',
+        actorId: 'https://activities.local/users/alice',
+        activity: { type: 'Create', id: 'https://activities.local/status/1' }
+      }
+    })
+
+    expect(vi.mocked(request)).toHaveBeenCalledTimes(2)
+    expect(mockDatabase.upsertRemoteSignatureScheme).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'remote.example', scheme: 'rfc9421' })
+    )
   })
 
   it('throws SalvageableDeliveryError on HTTP 503', async () => {

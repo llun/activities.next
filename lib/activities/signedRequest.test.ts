@@ -130,6 +130,8 @@ const send = (
   signedActivityPubRequest({
     actor,
     method: 'POST',
+    // These model inbox deliveries, the one caller that opts in.
+    persistScheme: true,
     url: INBOX,
     body: BODY,
     ...overrides

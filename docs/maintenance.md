@@ -1483,6 +1483,8 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   and negative misses in front of the table, and
   `deleteExpiredRemoteSignatureSchemes`, run by `startActorDeletionSweep` in
   batches of 500 (up to 10 per tick), prunes expired rows. Rows come only from
-  requests the instance chose to make (deliveries and fetches), never from the
-  inbox guard's pre-verification key fetch (`persistScheme: false`), and a
-  `GET` counts only when it returned an ActivityPub document.
+  our own inbox deliveries (`persistScheme: true` in `deliverActivityJob` and
+  `postActivityToInbox`); fetches whose target remote content chose (the inbox
+  guard's pre-verification key fetch, forwarded objects, quotes, lookups) learn
+  into the process cache only, and a `GET` counts only when it returned an
+  ActivityPub document.

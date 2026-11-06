@@ -341,9 +341,11 @@ export interface SignedActivityPubRequestOptions {
   method: 'GET' | 'POST'
   /**
    * Whether a scheme this request learns is written to the shared table
-   * (default true). Requests a stranger can trigger before anything is
-   * verified (the inbox guard's key fetch, whose host the sender picks) pass
-   * false: they still read it, and learn into the short in-process cache only.
+   * (default false: learn into the short in-process cache only). Only our own
+   * inbox deliveries opt in. A fetch whose target remote content or a stranger
+   * chose (an inbox guard key fetch, a forwarded object, a quote, a lookup)
+   * still reads the table but must not write it, or forged input could fill it
+   * with one row per hostname.
    */
   persistScheme?: boolean
   /** Everything `request()` takes except the URL, method, headers and body. */
@@ -385,7 +387,7 @@ export const signedActivityPubRequest = async ({
   body,
   database,
   method,
-  persistScheme = true,
+  persistScheme = false,
   requestOptions,
   url
 }: SignedActivityPubRequestOptions): Promise<RequestResult> => {

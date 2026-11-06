@@ -122,6 +122,7 @@ describe('signedActivityPubRequest with SQL database', () => {
       actor,
       database,
       method: 'POST',
+      persistScheme: true,
       url,
       body: '{"type":"Follow"}'
     })
@@ -188,6 +189,7 @@ describe('signedActivityPubRequest with SQL database', () => {
       actor,
       database,
       method: 'GET',
+      persistScheme: true,
       url: 'https://html.example/about'
     })
 
@@ -206,6 +208,7 @@ describe('signedActivityPubRequest with SQL database', () => {
       actor,
       database,
       method: 'GET',
+      persistScheme: true,
       url: 'https://ap.example/users/bob'
     })
 
@@ -213,6 +216,22 @@ describe('signedActivityPubRequest with SQL database', () => {
       domain: 'ap.example'
     })
     expect(stored?.scheme).toBe('rfc9421')
+  })
+
+  it('does not write the table unless the caller opts in', async () => {
+    statuses = [401, 202]
+    await signedActivityPubRequest({
+      actor,
+      database,
+      method: 'POST',
+      url: 'https://default.example/inbox',
+      body: '{"type":"Follow"}'
+    })
+
+    expect(
+      await database.getRemoteSignatureScheme({ domain: 'default.example' })
+    ).toBeNull()
+    expect(getRememberedSignatureScheme('default.example')).toBe('rfc9421')
   })
 
   it('keeps a scheme learned with persistScheme false in process only', async () => {

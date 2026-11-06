@@ -222,7 +222,8 @@ const fetchSenderPublicKey = async (
     method: 'GET',
     // This fetch runs before the inbox signature is verified, against a host
     // the sender named: what it learns stays in process, never in the shared
-    // table, so forged inbox posts cannot fill it.
+    // table, so forged inbox posts cannot fill it. (False is the default;
+    // spelled out because this is the path that needs it most.)
     persistScheme: false,
     url: actorId,
     requestOptions: {
