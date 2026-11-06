@@ -1,0 +1,52 @@
+lib/client/share-target/useShareTargetIntake.ts
+  s_2b1a50e2f9b981::t_cf34aa89a00b04 16,134-140
+lib/client/share-target/pendingSharePurge.ts
+  s_2b1a50e2f9b981::t_ff5f7ff5bf6152 1-70
+public/sw.js
+  s_2b1a50e2f9b981::t_131edf923827d0 307-313,315,334-335,343-345,347,352-369,455-468
+lib/client/share-target/pendingSharePurge.test.ts
+  s_2b1a50e2f9b981::t_f83646e29b56ea 1-84
+lib/components/sign-out/useSignOut.ts
+  s_2b1a50e2f9b981::t_cf34aa89a00b04 8-11,76-79
+lib/client/offline/sw.test.ts
+  s_2b1a50e2f9b981::t_baa6b7b56bac16 121-122,1033-1035
+  s_2b1a50e2f9b981::t_65c93a930fb35a 1096-1098,1100-1119
+  s_2b1a50e2f9b981::t_124b445e55d1de 1099
+lib/client/share-target/shareTargetDb.ts
+  s_2b1a50e2f9b981::t_615ef51330092b 6,153-171,187-238
+  s_2b1a50e2f9b981::t_cf34aa89a00b04 185
+lib/client/share-target/classify.ts
+  s_2b1a50e2f9b981::t_3597004d4fa089 135-141,237
+lib/components/sign-out/useSignOut.test.tsx
+  s_2b1a50e2f9b981::t_65c93a930fb35a 6-9,22-26,49-50,70-103
+  s_2b1a50e2f9b981::t_cd3267fd0223ee 104
+lib/client/share-target/useShareTargetIntake.test.tsx
+  s_2b1a50e2f9b981::t_65c93a930fb35a 9-11,43,192-193,195-230
+  s_2b1a50e2f9b981::t_124b445e55d1de 194
+  s_2b1a50e2f9b981::t_9c27cbca179be5 8,231
+lib/components/settings/FitnessImport.tsx
+  s_2b1a50e2f9b981::t_cf34aa89a00b04 19,153-158
+  s_2b1a50e2f9b981::t_3597004d4fa089 13,74-75,177,267,275-276
+lib/components/settings/FitnessImport.test.tsx
+  s_2b1a50e2f9b981::t_65c93a930fb35a 17-19,48,126-146,148-161
+  s_2b1a50e2f9b981::t_124b445e55d1de 147
+  s_2b1a50e2f9b981::t_8a2500db610277 16,162
+docs/architecture.md
+  s_2b1a50e2f9b981::t_124b445e55d1de 3590,3596
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "560d462b48d40b6cf32f82bb787c3c8798c39293",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
