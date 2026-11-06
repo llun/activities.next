@@ -100,13 +100,14 @@ export type SubjectAnswer =
 export type SubjectLookupDecision =
   | {
       subjectLookupStatus: 'resolved'
+      subjectTaxonRank: string | null
       subjectTaxonKey?: string
       subjectTaxonPath: string[] | null
       // Null for a genus or family: a group is never assessed on its own,
       // so it does not clear its place.
       subjectIucnCategory: IucnCategory | null
     }
-  | { subjectLookupStatus: 'failed' }
+  | { subjectLookupStatus: 'failed'; subjectTaxonRank: null }
 
 /*
  * The allow-list: the only answers that may make a place public. A place is
@@ -146,7 +147,10 @@ export type SubjectLookupDecision =
  * this file does not know.
  */
 
-const FAILED: SubjectLookupDecision = { subjectLookupStatus: 'failed' }
+const FAILED: SubjectLookupDecision = {
+  subjectLookupStatus: 'failed',
+  subjectTaxonRank: null
+}
 
 // What an uncertain match may clear under: a species GBIF only guessed at
 // clears its place only when the Red List does not count it as threatened.
@@ -297,6 +301,8 @@ const resolvedTaxon = (
 ): SubjectLookupDecision => ({
   subjectLookupStatus: 'resolved',
   subjectTaxonKey: taxon.taxonKey,
+  subjectTaxonRank:
+    GROUP_RANKS.has(taxon.rank) || asSpecies ? taxon.rank : null,
   subjectTaxonPath: taxon.taxonPath,
   subjectIucnCategory:
     asSpecies && isSpeciesRank(taxon.rank) ? taxon.category : null
@@ -377,6 +383,7 @@ export const decideSubjectLookup = (
       }
       return {
         subjectLookupStatus: 'resolved',
+        subjectTaxonRank: null,
         subjectTaxonPath: null,
         subjectIucnCategory: species.category
       }

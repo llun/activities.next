@@ -161,7 +161,8 @@ export const POST = traceApiRoute(
             subjectScientificName: details.subjectScientificName,
             subjectTaxonKey: details.subjectTaxonKey
           },
-          patch: { subjectLookupStatus: 'pending' }
+          // A rank belongs to a resolved lookup only; pending carries none.
+          patch: { subjectLookupStatus: 'pending', subjectTaxonRank: null }
         })
         await publishSubjectLookup({
           mediaId: media.id,

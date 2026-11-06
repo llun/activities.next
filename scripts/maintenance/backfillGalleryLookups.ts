@@ -17,7 +17,7 @@
  *   - species-like subjects whose subject lookup is not final (the same, and
  *     `no-match`, which no longer clears a place).
  * A `resolved` result, and a place's `no-match`, is final and is never redone
- * here.
+ * here, except resolved null ranks under --missing-subject-ranks.
  *
  * A provider outage does not fail the rest of the run. When a provider's
  * circuit is open (after a timeout, a 5xx or a 429) the script waits for it to
@@ -42,7 +42,7 @@
  * Usage:
  *   NODE_ENV=production scripts/maintenance/backfillGalleryLookups.ts \
  *     [--dry-run] [--apply] [--actor <actorId>] [--limit <n>] \
- *     [--only subjects|places] [--prune-cache]
+ *     [--only subjects|places] [--prune-cache] [--missing-subject-ranks] [--after-id <id>]
  *
  * Options:
  *   --dry-run      Report what would be looked up and change nothing (default)
@@ -51,10 +51,13 @@
  *   --limit <n>    Stop after n media
  *   --only <kind>  Only `subjects` or only `places`
  *   --prune-cache  Also delete expired rows from gallery_lookup_cache
+ *   --missing-subject-ranks  Recheck null subject ranks (requires --only subjects)
+ *   --after-id <id> Resume after the reported last id examined
  */
 import { loadEnvConfig } from '@next/env'
 
 import { getDatabase, getKysely } from '@/lib/database'
+import { MAX_MEDIA_ROW_ID } from '@/lib/database/domains/media/rows'
 import type { Db } from '@/lib/database/kysely'
 import { Database } from '@/lib/database/types'
 import { resolveMediaPlaceJob } from '@/lib/jobs/resolveMediaPlaceJob'
@@ -86,6 +89,8 @@ export interface BackfillOptions {
   limit?: number
   only?: 'subjects' | 'places'
   pruneCache: boolean
+  missingSubjectRanks?: boolean
+  afterId?: number
 }
 
 export const parseArgs = (args: string[]): BackfillOptions => {
@@ -99,6 +104,20 @@ export const parseArgs = (args: string[]): BackfillOptions => {
       options.apply = true
     } else if (arg === '--prune-cache') {
       options.pruneCache = true
+    } else if (arg === '--missing-subject-ranks') {
+      options.missingSubjectRanks = true
+    } else if (arg === '--after-id') {
+      const value = args[++i] ?? ''
+      const parsed = Number(value)
+      if (
+        !/^\d+$/.test(value) ||
+        !Number.isSafeInteger(parsed) ||
+        parsed < 0 ||
+        parsed > MAX_MEDIA_ROW_ID
+      ) {
+        throw new Error('--after-id needs a non-negative media row id')
+      }
+      options.afterId = parsed
     } else if (arg === '--actor') {
       const value = args[++i]
       if (!value) throw new Error('--actor needs an actor id')
@@ -120,6 +139,9 @@ export const parseArgs = (args: string[]): BackfillOptions => {
     }
   }
 
+  if (options.missingSubjectRanks && options.only !== 'subjects') {
+    throw new Error('--missing-subject-ranks requires --only subjects')
+  }
   return options
 }
 
@@ -133,6 +155,7 @@ interface CandidateRow {
   subjectCategory: string | null
   subjectTaxonKey: string | null
   subjectLookupStatus: string | null
+  subjectTaxonRank?: string | null
 }
 
 const CANDIDATE_COLUMNS = [
@@ -144,7 +167,8 @@ const CANDIDATE_COLUMNS = [
   'subjectScientificName',
   'subjectCategory',
   'subjectTaxonKey',
-  'subjectLookupStatus'
+  'subjectLookupStatus',
+  'subjectTaxonRank'
 ] as const
 
 const isNonFinal = (status: string | null, nonFinal = NON_FINAL_STATUSES) =>
@@ -155,8 +179,13 @@ export const needsPlaceLookup = (row: CandidateRow): boolean =>
   row.placeLongitude !== null &&
   isNonFinal(row.placeLookupStatus)
 
-export const needsSubjectLookup = (row: CandidateRow): boolean =>
-  isNonFinal(row.subjectLookupStatus, SUBJECT_NON_FINAL_STATUSES) &&
+export const needsSubjectLookup = (
+  row: CandidateRow,
+  missingRanks = false
+): boolean =>
+  (missingRanks
+    ? row.subjectTaxonRank == null
+    : isNonFinal(row.subjectLookupStatus, SUBJECT_NON_FINAL_STATUSES)) &&
   isSpeciesLike({
     subjectName: row.subjectName,
     subjectScientificName: row.subjectScientificName,
@@ -208,10 +237,12 @@ export const selectCandidates = async ({
               eb('subjectScientificName', 'is not', null),
               eb('subjectTaxonKey', 'is not', null)
             ]),
-            eb.or([
-              eb('subjectLookupStatus', 'is', null),
-              eb('subjectLookupStatus', 'in', SUBJECT_NON_FINAL_STATUSES)
-            ])
+            options.missingSubjectRanks
+              ? eb('subjectTaxonRank', 'is', null)
+              : eb.or([
+                  eb('subjectLookupStatus', 'is', null),
+                  eb('subjectLookupStatus', 'in', SUBJECT_NON_FINAL_STATUSES)
+                ])
           ])
         )
       }
@@ -225,6 +256,12 @@ export interface BackfillSummary {
   placeLookups: number
   subjectLookups: number
   prunedCacheRows: number
+  lastIdExamined: number
+  attempted: number
+  rankFilled: number
+  stillUnresolved: number
+  disabled: number
+  failed: number
   // Providers the run stopped asking after a persistent outage.
   gaveUp: string[]
 }
@@ -271,6 +308,9 @@ export const runBackfill = async ({
   providers?: BackfillProviders
   sleep?: (ms: number) => Promise<void>
 }): Promise<BackfillSummary> => {
+  if (options.missingSubjectRanks && options.only !== 'subjects') {
+    throw new Error('--missing-subject-ranks requires --only subjects')
+  }
   // Per provider: lookups in a row that failed after the second attempt.
   const outages = new Map<string, number>()
   const hasGivenUp = (name: string) =>
@@ -311,6 +351,12 @@ export const runBackfill = async ({
     placeLookups: 0,
     subjectLookups: 0,
     prunedCacheRows: 0,
+    lastIdExamined: options.afterId ?? 0,
+    attempted: 0,
+    rankFilled: 0,
+    stillUnresolved: 0,
+    disabled: 0,
+    failed: 0,
     gaveUp: []
   }
   log(
@@ -319,29 +365,45 @@ export const runBackfill = async ({
     }${options.actorId ? `, actor ${options.actorId}` : ''})...`
   )
 
-  let afterId = 0
+  let afterId = options.afterId ?? 0
   let done = false
+  // The first row skipped because its provider was given up, if any.
+  let resumeBefore: number | undefined
   while (!done) {
     const rows = await selectCandidates({ db, options, afterId })
     if (rows.length === 0) break
 
     for (const row of rows) {
-      afterId = Number(row.id)
-      // A provider given up on (see runLookup) is not asked again this run.
-      const wantsPlace =
-        options.only !== 'subjects' &&
-        needsPlaceLookup(row) &&
-        !hasGivenUp('Nominatim')
-      const wantsSubject =
-        options.only !== 'places' &&
-        needsSubjectLookup(row) &&
-        !hasGivenUp('GBIF')
-      if (!wantsPlace && !wantsSubject) continue
-
+      // Stop before consuming a candidate the continuation must still visit.
       if (options.limit !== undefined && summary.mediaSeen >= options.limit) {
         done = true
         break
       }
+      // Every provider this run uses is given up: nothing after this row can
+      // be looked up either, so stop instead of scanning to the end.
+      if (
+        (options.only === 'subjects' || hasGivenUp('Nominatim')) &&
+        (options.only === 'places' || hasGivenUp('GBIF'))
+      ) {
+        done = true
+        break
+      }
+      const needsPlace = options.only !== 'subjects' && needsPlaceLookup(row)
+      const needsSubject =
+        options.only !== 'places' &&
+        needsSubjectLookup(row, options.missingSubjectRanks)
+      // A provider given up on (see runLookup) is not asked again this run.
+      const wantsPlace = needsPlace && !hasGivenUp('Nominatim')
+      const wantsSubject = needsSubject && !hasGivenUp('GBIF')
+      const skipsGivenUp =
+        (needsPlace && !wantsPlace) || (needsSubject && !wantsSubject)
+      afterId = Number(row.id)
+      // A row skipped for a given-up provider must be visited again, so the
+      // resume point stays before the first one.
+      if (skipsGivenUp) resumeBefore ??= afterId
+      if (resumeBefore === undefined) summary.lastIdExamined = afterId
+      if (!wantsPlace && !wantsSubject) continue
+
       summary.mediaSeen++
       const mediaId = String(row.id)
 
@@ -355,6 +417,7 @@ export const runBackfill = async ({
         summary.subjectLookups++
         log(`[${mediaId}] subject lookup`)
         if (options.apply) {
+          summary.attempted++
           await runLookup(providers.subjects, 'GBIF', () =>
             resolveMediaSubjectJob(database, {
               id: `backfill-subject-${mediaId}`,
@@ -362,6 +425,19 @@ export const runBackfill = async ({
               data: { mediaId, retry: true }
             })
           )
+          const result = await db
+            .selectFrom('medias')
+            .select(['subjectTaxonRank', 'subjectLookupStatus'])
+            .where('id', '=', Number(row.id))
+            .executeTakeFirst()
+          if (result?.subjectLookupStatus === 'disabled') summary.disabled++
+          else if (result?.subjectLookupStatus === 'failed') summary.failed++
+          else if (
+            result?.subjectLookupStatus === 'resolved' &&
+            result.subjectTaxonRank != null
+          )
+            summary.rankFilled++
+          else summary.stillUnresolved++
         }
       }
       if (wantsPlace) {
@@ -399,6 +475,10 @@ export const runBackfill = async ({
   log(`  Media with work:   ${summary.mediaSeen}`)
   log(`  Subject lookups:   ${summary.subjectLookups}`)
   log(`  Place lookups:     ${summary.placeLookups}`)
+  log(`  Last id examined: ${summary.lastIdExamined}`)
+  log(
+    `  Attempted: ${summary.attempted}; rank-filled: ${summary.rankFilled}; still-unresolved: ${summary.stillUnresolved}; disabled: ${summary.disabled}; failed: ${summary.failed}`
+  )
   if (options.pruneCache) {
     log(`  Cache rows pruned: ${summary.prunedCacheRows}`)
   }

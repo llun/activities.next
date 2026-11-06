@@ -71,6 +71,7 @@ describe('album facts and species chips', () => {
     subjectScientificName: null,
     subjectCategory: null,
     subjectTaxonKey: null,
+    subjectTaxonRank: null,
     subjectTaxonPath: null,
     subjectIucnCategory: null,
     subjectLookupStatus: null,

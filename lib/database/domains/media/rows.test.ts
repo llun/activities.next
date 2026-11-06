@@ -1,6 +1,6 @@
 import { MediaDetailsEntity } from '@/lib/services/medias/types'
 
-import { parseSubjectSuggestions } from './rows'
+import { parseMediaDetails, parseSubjectSuggestions } from './rows'
 
 // A row stored before the model was told the country and month.
 const OLD_ROW = {
@@ -68,5 +68,22 @@ describe('parseSubjectSuggestions', () => {
 
     expect(parsed).not.toHaveProperty('context')
     expect(parsed?.candidates[0].recordedInCountry).toBeNull()
+  })
+})
+
+describe('subject rank parsing', () => {
+  it('returns null for legacy rows and preserves stored ranks', () => {
+    const row = {
+      id: 1,
+      actorId: 'actor',
+      original: 'legacy.jpg',
+      originalBytes: 10,
+      originalMimeType: 'image/jpeg',
+      originalMetaData: '{}'
+    }
+    expect(parseMediaDetails(row).subjectTaxonRank).toBeNull()
+    expect(
+      parseMediaDetails({ ...row, subjectTaxonRank: 'GENUS' }).subjectTaxonRank
+    ).toBe('GENUS')
   })
 })

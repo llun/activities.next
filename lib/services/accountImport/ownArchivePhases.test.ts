@@ -256,6 +256,15 @@ describe('own archive import phases', () => {
       { state: 'done', reason: null },
       { state: 'skipped', reason: 'media_type_unsupported' }
     ])
+    const imported = items.find((item) => item.state === 'done')!
+    expect(imported.targetId).toBeTruthy()
+    expect(
+      (
+        await database.getMediaWithAttachedStatusIds({
+          mediaId: imported.targetId!
+        })
+      )?.media.details?.subjectTaxonRank
+    ).toBeNull()
     expect(mocks.publish).not.toHaveBeenCalled()
     saveSpy.mockRestore()
   })

@@ -214,6 +214,7 @@ describe('account archive round trip', () => {
       },
       patch: {
         subjectLookupStatus: 'resolved',
+        subjectTaxonRank: 'SPECIES',
         subjectTaxonPath: ['Animalia', 'Chordata', 'Aves'],
         subjectIucnCategory: 'LC'
       }
@@ -437,6 +438,7 @@ describe('account archive round trip', () => {
       placePrecision: 'area',
       placeNameSource: 'owner',
       subjectTaxonKey: '2492',
+      subjectTaxonRank: 'SPECIES',
       subjectTaxonPath: JSON.stringify(['Animalia', 'Chordata', 'Aves']),
       subjectIucnCategory: 'LC',
       subjectLookupStatus: 'resolved',

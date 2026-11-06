@@ -228,7 +228,7 @@ describe('runBackfill', () => {
   it('reports what it would do in a dry run and calls no job', async () => {
     const summary = await run()
 
-    expect(summary).toEqual({
+    expect(summary).toMatchObject({
       mediaSeen: 5,
       placeLookups: 4,
       subjectLookups: 2,
@@ -382,6 +382,17 @@ describe('runBackfill', () => {
     const sleep = vi.fn(async (ms: number) => {
       now += ms
     })
+    // 10: needs both lookups, after the give-up.
+    await testDb
+      .insertInto('medias')
+      .values({
+        actorId: 'c',
+        placeLatitude: 9,
+        placeLongitude: 10,
+        subjectName: 'Heron',
+        subjectCategory: 'bird'
+      })
+      .execute()
     // Every attempt fails and opens the circuit again: it never closes for
     // long enough to succeed.
     vi.mocked(resolveMediaPlaceJob).mockImplementation(async () => {
@@ -398,8 +409,11 @@ describe('runBackfill', () => {
       MAX_CONSECUTIVE_OUTAGES * 2
     )
     expect(summary.gaveUp).toEqual(['Nominatim'])
-    // The subject lookups still ran.
-    expect(resolveMediaSubjectJob).toHaveBeenCalledTimes(2)
+    // Photos 9 and 10 still need their places and were never asked, so the
+    // reported resume point stays before 9.
+    expect(summary.lastIdExamined).toBe(8)
+    // The subject lookups still ran, photo 10's after the give-up too.
+    expect(resolveMediaSubjectJob).toHaveBeenCalledTimes(3)
     expect(log).toHaveBeenCalledWith(
       expect.stringMatching(/^Gave up on Nominatim: 3 lookups in a row failed/)
     )
@@ -466,5 +480,179 @@ describe('runBackfill', () => {
       limit: 500
     })
     expect(summary.prunedCacheRows).toBe(620)
+  })
+})
+
+describe('missing subject ranks', () => {
+  const closedBreaker = () => ({
+    isOpen: () => false,
+    remainingMs: () => 0,
+    open: vi.fn(),
+    close: vi.fn()
+  })
+  it('requires subjects and validates continuation IDs strictly', () => {
+    expect(
+      parseArgs([
+        '--missing-subject-ranks',
+        '--only',
+        'subjects',
+        '--after-id',
+        '123'
+      ])
+    ).toMatchObject({
+      apply: false,
+      missingSubjectRanks: true,
+      only: 'subjects',
+      afterId: 123
+    })
+    for (const args of [
+      ['--missing-subject-ranks'],
+      ['--missing-subject-ranks', '--only', 'places'],
+      ['--after-id', '1x'],
+      ['--after-id', '-1'],
+      ['--after-id', '9007199254740992'],
+      ['--after-id', '2147483648'],
+      ['--after-id']
+    ])
+      expect(() => parseArgs(args)).toThrow()
+  })
+  it('includes resolved null ranks, skips ranked and landscape rows in JS', () => {
+    expect(
+      needsSubjectLookup(
+        row({
+          subjectName: 'Bird',
+          subjectCategory: 'bird',
+          subjectLookupStatus: 'resolved'
+        }),
+        true
+      )
+    ).toBe(true)
+    expect(
+      needsSubjectLookup(
+        row({
+          subjectName: 'Bird',
+          subjectCategory: 'bird',
+          subjectLookupStatus: 'resolved',
+          subjectTaxonRank: 'SPECIES'
+        }),
+        true
+      )
+    ).toBe(false)
+    expect(
+      needsSubjectLookup(
+        row({ subjectName: 'Mountain', subjectCategory: 'landscape' }),
+        true
+      )
+    ).toBe(false)
+  })
+  it('selects resolved null ranks in SQL, resumes without skipping and reports outcomes', async () => {
+    const test = createTestDatabase()
+    await test.prepare()
+    await test.database.migrate()
+    const db = test.db
+    try {
+      await db
+        .insertInto('medias')
+        .values([
+          {
+            subjectName: 'Legacy',
+            subjectCategory: 'bird',
+            subjectLookupStatus: 'resolved'
+          },
+          {
+            subjectName: 'Ranked',
+            subjectCategory: 'bird',
+            subjectLookupStatus: 'resolved',
+            subjectTaxonRank: 'SPECIES'
+          },
+          { subjectName: 'Disabled', subjectCategory: 'bird' },
+          { subjectName: 'Failed', subjectCategory: 'bird' },
+          { subjectName: 'Ambiguous', subjectCategory: 'bird' }
+        ])
+        .execute()
+      const options: BackfillOptions = {
+        apply: false,
+        pruneCache: false,
+        only: 'subjects',
+        missingSubjectRanks: true
+      }
+      const selected = await selectCandidates({ db, options, afterId: 0 })
+      expect(selected.map((r) => r.subjectName)).toEqual([
+        'Legacy',
+        'Disabled',
+        'Failed',
+        'Ambiguous'
+      ])
+      vi.mocked(resolveMediaSubjectJob).mockReset()
+      const base = {
+        database: test.database,
+        db,
+        log: vi.fn(),
+        providers: { subjects: closedBreaker(), places: closedBreaker() }
+      }
+      const dry = await runBackfill({ ...base, options })
+      expect(dry).toMatchObject({
+        attempted: 0,
+        subjectLookups: 4,
+        lastIdExamined: 5
+      })
+      expect(resolveMediaSubjectJob).not.toHaveBeenCalled()
+      expect(
+        (
+          await db
+            .selectFrom('medias')
+            .select('subjectTaxonRank')
+            .where('id', '=', 1)
+            .executeTakeFirst()
+        )?.subjectTaxonRank
+      ).toBeNull()
+      vi.mocked(resolveMediaSubjectJob).mockImplementation(
+        async (_database, message) => {
+          const id = Number((message.data as { mediaId: string }).mediaId)
+          await db
+            .updateTable('medias')
+            .set(
+              id === 1
+                ? {
+                    subjectLookupStatus: 'resolved',
+                    subjectTaxonRank: 'SPECIES'
+                  }
+                : id === 3
+                  ? { subjectLookupStatus: 'disabled' }
+                  : id === 4
+                    ? { subjectLookupStatus: 'failed' }
+                    : { subjectLookupStatus: 'resolved' }
+            )
+            .where('id', '=', id)
+            .execute()
+        }
+      )
+      const first = await runBackfill({
+        ...base,
+        options: { ...options, apply: true, limit: 1 }
+      })
+      expect(first).toMatchObject({
+        attempted: 1,
+        rankFilled: 1,
+        stillUnresolved: 0,
+        disabled: 0,
+        failed: 0,
+        lastIdExamined: 1
+      })
+      const rest = await runBackfill({
+        ...base,
+        options: { ...options, apply: true, afterId: first.lastIdExamined }
+      })
+      expect(rest).toMatchObject({
+        attempted: 3,
+        rankFilled: 0,
+        stillUnresolved: 1,
+        disabled: 1,
+        failed: 1,
+        lastIdExamined: 5
+      })
+    } finally {
+      await test.database.destroy()
+    }
   })
 })

@@ -23,7 +23,8 @@ export const MIGRATION_NAMES = [
   '20261105072156_add_auth_rate_limits',
   '20261105144958_add_delivery_inbox_failures',
   '20261105174143_add_fitness_settings_training_zones',
-  '20261105185059_add_fitness_best_efforts'
+  '20261105185059_add_fitness_best_efforts',
+  '20261105210627_add_media_subject_taxon_rank'
 ] as const
 
 export type MigrationName = (typeof MIGRATION_NAMES)[number]

@@ -54,6 +54,7 @@ describe('buildOwnerMediaDetails', () => {
         scientificName: 'Alcedo atthis',
         category: 'bird',
         taxonKey: null,
+        taxonRank: null,
         taxonPath: null,
         iucnCategory: null,
         threatStatus: 'unchecked',
@@ -104,6 +105,19 @@ describe('buildOwnerMediaDetails', () => {
       taxonKey: '5219416',
       lookupStatus: 'failed'
     })
+  })
+
+  it('gives the owner the stored taxon rank', async () => {
+    const details = await buildOwnerMediaDetails(
+      database(),
+      media({
+        subjectScientificName: 'Buceros bicornis',
+        subjectTaxonRank: 'SPECIES',
+        subjectLookupStatus: 'resolved'
+      })
+    )
+
+    expect(details.subject?.taxonRank).toBe('SPECIES')
   })
 
   it('does not query gear for a media that has none', async () => {
@@ -187,6 +201,7 @@ describe('buildOwnerMediaDetails', () => {
       scientificName: 'Buceros bicornis',
       category: 'bird',
       taxonKey: '2481839',
+      taxonRank: null,
       taxonPath: ['Animalia', 'Chordata', 'Aves'],
       iucnCategory: 'VU',
       threatStatus: 'threatened',

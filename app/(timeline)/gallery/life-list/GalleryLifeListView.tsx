@@ -16,12 +16,12 @@ export const GalleryLifeListView: FC<Props> = ({ data }) => (
   <div className="space-y-6">
     <PageHeader
       title="Life list"
-      description="Every species you have photographed, first sighting first"
+      description="Every identified subject, first sighting first"
     />
     {data.entries.length > 0 ? (
       <GalleryLifeListTable data={data} linkSubjects />
     ) : (
-      <EmptyState icon={ListChecks} title="No species yet">
+      <EmptyState icon={ListChecks} title="No subjects yet">
         Name the subject of a photo in its details and it joins your life list.
       </EmptyState>
     )}

@@ -763,6 +763,7 @@ describe('threatened species in the projection', () => {
       scientificName: 'Buceros bicornis',
       category: 'bird',
       taxonKey: '2481839',
+      taxonRank: null,
       taxonPath: ['Animalia', 'Chordata', 'Aves']
     })
     const json = JSON.stringify(publicItem)

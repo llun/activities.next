@@ -384,6 +384,7 @@ export const getGalleryMediaIndex = async (
       'medias.subjectScientificName',
       'medias.subjectCategory',
       'medias.subjectTaxonKey',
+      'medias.subjectTaxonRank',
       'medias.subjectTaxonPath',
       'medias.subjectIucnCategory',
       'medias.subjectLookupStatus',

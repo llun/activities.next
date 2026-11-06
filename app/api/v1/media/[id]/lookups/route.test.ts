@@ -179,6 +179,29 @@ describe('POST /api/v1/media/[id]/lookups', () => {
     })
   })
 
+  it('clears a stored rank when it marks the subject pending', async () => {
+    const id = await createMediaFor(ACTOR1_ID, {
+      subjectScientificName: 'Panthera',
+      subjectCategory: 'mammal'
+    })
+    await database.setMediaSubjectLookup({
+      mediaId: id,
+      expect: {
+        subjectName: null,
+        subjectScientificName: 'Panthera',
+        subjectTaxonKey: null
+      },
+      patch: { subjectLookupStatus: 'pending', subjectTaxonRank: 'GENUS' }
+    })
+
+    const body = await (await request(id)).json()
+
+    expect(body.details.subject).toMatchObject({
+      lookupStatus: 'pending',
+      taxonRank: null
+    })
+  })
+
   it('uses a fresh job id each time, so a retry is not collapsed', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {

@@ -2066,3 +2066,96 @@ describe('the gallery album lock', () => {
     }
   )
 })
+
+describe('lookup-owned subject rank', () => {
+  const subject = {
+    subjectName: 'Robin',
+    subjectScientificName: null,
+    subjectTaxonKey: '1',
+    subjectCategory: 'bird'
+  } as const
+  it.each([
+    { subjectName: 'Bird' },
+    { subjectScientificName: 'Erithacus rubecula' },
+    { subjectCategory: 'other' as const },
+    { subjectTaxonKey: '2' }
+  ])(
+    'clears rank atomically on an identity edit %j but keeps it on unchanged saves',
+    async (change) => {
+      const owner = await newOwner()
+      const id = await seedMedia(owner.actorId, {
+        ...subject,
+        subjectTaxonRank: 'SPECIES',
+        subjectLookupStatus: 'resolved'
+      })
+      await database.updateMedia({
+        mediaId: String(id),
+        accountId: owner.accountId,
+        details: subject
+      })
+      expect((await mediaRow(id))?.subjectTaxonRank).toBe('SPECIES')
+      await database.updateMedia({
+        mediaId: String(id),
+        accountId: owner.accountId,
+        details: change
+      })
+      expect(await mediaRow(id)).toMatchObject({
+        subjectTaxonRank: null,
+        subjectTaxonPath: null,
+        subjectIucnCategory: null,
+        subjectLookupStatus: 'pending'
+      })
+      expect(
+        await database.setMediaSubjectLookup({
+          mediaId: String(id),
+          expect: subject,
+          patch: {
+            subjectLookupStatus: 'resolved',
+            subjectTaxonRank: 'SPECIES'
+          }
+        })
+      ).toBe(false)
+      expect((await mediaRow(id))?.subjectTaxonRank).toBeNull()
+    }
+  )
+  it('writes rank with compare-and-set, preserves status-only retries and clears failed/disabled/replaced identities', async () => {
+    const owner = await newOwner()
+    const id = await seedMedia(owner.actorId, subject)
+    const write = (
+      patch: Parameters<typeof database.setMediaSubjectLookup>[0]['patch']
+    ) =>
+      database.setMediaSubjectLookup({
+        mediaId: String(id),
+        expect: subject,
+        patch
+      })
+    expect(
+      await write({
+        subjectLookupStatus: 'resolved',
+        subjectTaxonRank: 'subspecies'
+      })
+    ).toBe(true)
+    expect((await mediaRow(id))?.subjectTaxonRank).toBe('SUBSPECIES')
+    await write({
+      subjectLookupStatus: 'resolved',
+      subjectTaxonKey: subject.subjectTaxonKey
+    })
+    expect((await mediaRow(id))?.subjectTaxonRank).toBe('SUBSPECIES')
+    await write({ subjectLookupStatus: 'pending' })
+    expect((await mediaRow(id))?.subjectTaxonRank).toBe('SUBSPECIES')
+    for (const subjectLookupStatus of ['failed', 'disabled', null] as const) {
+      await write({
+        subjectLookupStatus: 'resolved',
+        subjectTaxonRank: 'SPECIES'
+      })
+      await write({ subjectLookupStatus })
+      expect((await mediaRow(id))?.subjectTaxonRank).toBeNull()
+    }
+    await write({
+      subjectLookupStatus: 'resolved',
+      subjectTaxonRank: 'SPECIES'
+    })
+    await write({ subjectLookupStatus: 'resolved', subjectTaxonKey: '2' })
+    expect((await mediaRow(id))?.subjectTaxonRank).toBeNull()
+  })
+})

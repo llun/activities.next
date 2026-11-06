@@ -15,6 +15,7 @@ import {
   type GalleryAudience,
   PUBLIC_GALLERY_AUDIENCE
 } from '@/lib/services/gallery/galleryAudience'
+import type { GalleryIdentificationCounts } from '@/lib/services/gallery/galleryEntities'
 import {
   GalleryDayKey,
   GalleryDayStats,
@@ -44,6 +45,7 @@ import {
   getPublicPlace,
   toCountryCode
 } from '@/lib/services/gallery/publicMediaDetails'
+import { identifyTaxonRank } from '@/lib/services/gallery/taxonRanks'
 import {
   GALLERY_FILTER_NONE,
   GalleryMediaSort,
@@ -762,6 +764,10 @@ interface SubjectAccumulator {
   category: MediaSubjectCategory | null
   taxonKey: string | null
   taxonPath: string[] | null
+  rank: string | null
+  evidenceKey: string | null
+  conflicting: boolean
+  resolvedRank: boolean
   // Rows per country code.
   countries: Map<string, number>
   count: number
@@ -785,6 +791,19 @@ const foldRow = (
   subject.category ??= row.subjectCategory
   subject.taxonKey ??= row.subjectTaxonKey
   subject.taxonPath ??= row.subjectTaxonPath
+  const rank = row.subjectTaxonRank ?? null
+  const key = row.subjectTaxonKey
+  if (rank !== null) {
+    if (subject.rank !== null && subject.rank !== rank)
+      subject.conflicting = true
+    subject.rank ??= rank
+    if (row.subjectLookupStatus === 'resolved') subject.resolvedRank = true
+  }
+  if (key !== null) {
+    if (subject.evidenceKey !== null && subject.evidenceKey !== key)
+      subject.conflicting = true
+    subject.evidenceKey ??= key
+  }
   subject.count += 1
   const code = place?.countryCode
   if (code) subject.countries.set(code, (subject.countries.get(code) ?? 0) + 1)
@@ -812,6 +831,10 @@ const toLifeListEntry = (
   category: subject.category,
   taxonKey: subject.taxonKey,
   taxonPath: subject.taxonPath,
+  taxonRank: subject.conflicting ? null : subject.rank,
+  identificationLevel: subject.conflicting
+    ? 'unknown'
+    : identifyTaxonRank(subject.rank, subject.resolvedRank ? 'resolved' : null),
   // Most rows first, then by code.
   countryCodes: [...subject.countries.entries()]
     .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
@@ -859,6 +882,10 @@ const summarizeSubjects = async (
         category: null,
         taxonKey: null,
         taxonPath: null,
+        rank: null,
+        evidenceKey: null,
+        conflicting: false,
+        resolvedRank: false,
         countries: new Map(),
         count: 0,
         first: null,
@@ -906,6 +933,8 @@ export const getGallerySubjects = async ({
   for (const {
     coverMediaId,
     firstPlaceName: _firstPlaceName,
+    taxonRank: _taxonRank,
+    identificationLevel: _identificationLevel,
     ...summary
   } of summaries) {
     const cover = covers.get(coverMediaId)
@@ -961,12 +990,40 @@ export const getGalleryLifeList = async ({
     })
 
   const byCategory: Partial<Record<MediaSubjectCategory, number>> = {}
+  const counts: GalleryIdentificationCounts = {
+    species: 0,
+    groups: 0,
+    unknown: 0
+  }
+  const countsByCategory: Partial<
+    Record<MediaSubjectCategory, GalleryIdentificationCounts>
+  > = {}
   for (const entry of entries) {
+    const bucket =
+      entry.identificationLevel === 'species'
+        ? 'species'
+        : entry.identificationLevel === 'group'
+          ? 'groups'
+          : 'unknown'
+    counts[bucket]++
     if (!entry.category) continue
+    const categoryCounts = (countsByCategory[entry.category] ??= {
+      species: 0,
+      groups: 0,
+      unknown: 0
+    })
+    categoryCounts[bucket]++
     byCategory[entry.category] = (byCategory[entry.category] ?? 0) + 1
   }
 
-  return { total: entries.length, byCategory, entries, truncated }
+  return {
+    total: entries.length,
+    byCategory,
+    entries,
+    truncated,
+    counts,
+    countsByCategory
+  }
 }
 
 export const getGalleryMapPoints = async ({

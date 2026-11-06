@@ -88,6 +88,7 @@ export const applySavedToItem = (
           scientificName: details.subject.scientificName,
           category: details.subject.category,
           taxonKey: details.subject.taxonKey,
+          taxonRank: details.subject.taxonRank ?? null,
           taxonPath: details.subject.taxonPath
         }
       : null,

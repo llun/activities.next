@@ -100,6 +100,18 @@ describe('GET /api/v1/accounts/:id/gallery/life-list', () => {
 
     expect(response.status).toBe(200)
     const data = await response.json()
+    expect(data.counts.species + data.counts.groups + data.counts.unknown).toBe(
+      data.total
+    )
+    expect(data.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Kingfisher',
+          taxonRank: 'SPECIES',
+          identificationLevel: 'species'
+        })
+      ])
+    )
     expect(data.entries.map((entry: { name: string }) => entry.name)).toEqual(
       expect.arrayContaining(['Kingfisher', 'Red Fox', 'Grey Heron'])
     )
