@@ -127,6 +127,9 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
     useState<boolean>(false)
   const isLoadingRef = useRef<boolean>(false)
   const lastBookmarkIdRef = useRef<string | null>(initialNextMaxBookmarkId)
+  // Bumped by every first-page load (`loadView`): a page that was in flight
+  // when the feed was reset belongs to the old feed, even for the same view.
+  const requestRef = useRef(0)
 
   const onPostDeleted = useCallback((status: Status) => {
     setCurrentStatuses((previousStatuses) =>
@@ -206,13 +209,15 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
       let emptyContinuations = 0
 
       const loadingView = viewRef.current
+      const request = requestRef.current
       while (nextBookmarkId) {
         const result = await getBookmarks({
           maxBookmarkId: nextBookmarkId,
           folderId: toFolderParam(loadingView)
         })
-        // The reader switched folders meanwhile; this page is not theirs.
-        if (viewRef.current !== loadingView) return
+        // The feed was reset meanwhile (a switch, or this view read again):
+        // this page and its cursor are not the feed's any more.
+        if (requestRef.current !== request) return
 
         lastBookmarkIdRef.current = result.nextMaxBookmarkId
 
@@ -248,7 +253,6 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
 
   // Every switch (and a reload of the view on screen) fetches its first page
   // afresh; only the latest request may fill the feed.
-  const requestRef = useRef(0)
   const loadView = useCallback(async (next: string) => {
     const request = ++requestRef.current
     viewRef.current = next

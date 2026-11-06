@@ -369,4 +369,55 @@ describe('BookmarksTimeline folders', () => {
 
     expect(window.location.search).toBe('')
   })
+
+  it('drops a page two that was in flight when the same view was read again', async () => {
+    ;(deleteBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    const unfiledOne = { ...filedStatus, bookmarkFolderId: null }
+    const stalePageTwo = {
+      ...filedStatus,
+      id: 'https://remote.example/users/author/statuses/stale',
+      url: 'https://remote.example/@author/stale',
+      text: 'Stale page two',
+      bookmarkFolderId: null
+    }
+    let finishPageTwo: (value: unknown) => void = () => {}
+    ;(getBookmarks as jest.Mock)
+      // The load-more for Unfiled, still in flight...
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishPageTwo = resolve
+          })
+      )
+      // ...when the delete reads Unfiled again.
+      .mockResolvedValueOnce({
+        statuses: [unfiledOne],
+        nextMaxBookmarkId: null,
+        prevMinBookmarkId: null
+      })
+    renderTimeline({
+      folders: FOLDERS,
+      initialFolder: 'none',
+      statuses: [unfiledOne],
+      initialNextMaxBookmarkId: 'bookmark-old-cursor'
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await deleteFolderInDialog('Recipes')
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: 'none' })
+    await act(async () => {
+      finishPageTwo({
+        statuses: [stalePageTwo],
+        nextMaxBookmarkId: 'bookmark-older-cursor',
+        prevMinBookmarkId: null
+      })
+    })
+
+    expect(screen.getAllByText('A filed recipe')).toHaveLength(1)
+    expect(screen.queryByText('Stale page two')).not.toBeInTheDocument()
+    // The fresh page had no cursor, and the stale one does not bring one back.
+    expect(
+      screen.queryByRole('button', { name: 'Load more', hidden: true })
+    ).toBeNull()
+  })
 })

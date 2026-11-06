@@ -10,11 +10,6 @@ import {
 export type StatusTarget = string | { id: string }
 
 /**
- * Apply an update patch to matching statuses by original status id, reaching
- * inside Announce wrappers to update the wrapped original status as well.
- * Untouched rows and untouched arrays preserve their exact references.
- */
-/**
  * A status after the viewer's `onBookmarkChanged`: unbookmarking drops its
  * folder, and a filing from the ⋯ menu (a `folderId`, null for unfiled) sets
  * it. A plain bookmark leaves the folder as it was.
@@ -33,6 +28,11 @@ export const withBookmarkChange = (
       : {})
 })
 
+/**
+ * Apply an update patch to matching statuses by original status id, reaching
+ * inside Announce wrappers to update the wrapped original status as well.
+ * Untouched rows and untouched arrays preserve their exact references.
+ */
 export const updateMatchingStatus = (
   statuses: Status[],
   targetId: string,
