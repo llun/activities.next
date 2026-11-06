@@ -383,12 +383,11 @@ const isShareTargetRequestAllowed = (request) => {
 // WebKit and Chromium have historically failed to persist reliably) and writes
 // one record. Returns the record id, or null when nothing could be staged.
 async function stageShareTarget(formData) {
-  const files = formData
-    .getAll('files')
-    .filter(isSharedFile)
-    .slice(0, SHARE_TARGET_MAX_FILES)
+  const shared = formData.getAll('files').filter(isSharedFile)
+  const files = shared.slice(0, SHARE_TARGET_MAX_FILES)
   const staged = []
-  let skipped = 0
+  // Files past the count cap are counted, so the confirmation can say so.
+  let skipped = shared.length - files.length
   let budget = SHARE_TARGET_MAX_TOTAL_BYTES
   for (const file of files) {
     if (file.size > budget) {

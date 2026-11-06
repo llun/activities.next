@@ -20,6 +20,8 @@ export const metadata: Metadata = {
 type PageSearchParams = {
   page?: string
   limit?: string
+  /** A staged Web Share Target handoff (FitnessImport reads it). */
+  share?: string
 }
 
 const Page = async ({
@@ -32,17 +34,24 @@ const Page = async ({
     throw new Error('Fail to load database')
   }
 
+  const params = await Promise.resolve(searchParams)
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   if (!actor || !actor.account) {
-    return redirect('/auth/signin')
+    // A share handed here survives signing in again, as on /app: the staged
+    // files stay on the device and `resolveSignInRedirect` honours this.
+    const share = typeof params.share === 'string' ? params.share : null
+    return redirect(
+      share
+        ? `/auth/signin?redirectBack=${encodeURIComponent(`/fitness/files?share=${encodeURIComponent(share)}`)}`
+        : '/auth/signin'
+    )
   }
 
   const actorHandle = actor
     ? getMention(getActorProfile(actor), true)
     : undefined
 
-  const params = await Promise.resolve(searchParams)
   const rawPage = Number.parseInt(params.page || '1', 10)
   const page = Number.isNaN(rawPage) ? 1 : Math.max(1, Math.min(10000, rawPage))
   const parsedLimit = parseInt(params.limit || '25', 10)

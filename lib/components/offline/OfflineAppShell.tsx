@@ -527,6 +527,7 @@ export function OfflineAppShell() {
                             }
                             initialFiles={shareSeed?.media}
                             initialFitnessFile={shareSeed?.fitnessFile}
+                            initialText={shareSeed?.text}
                             composerNotice={
                               sessionConfirmed ? (
                                 <ShareTargetIntake

@@ -106,6 +106,8 @@ export interface MainPageTimelineProps {
   initialFiles?: File[]
   /** A workout file a Web Share Target handed over. */
   initialFitnessFile?: File
+  /** Text or a link a Web Share Target handed over, for the composer text. */
+  initialText?: string
   /**
    * Drawn below the page header, right above the top composer: the Web Share
    * Target confirmation and its notices (OfflineAppShell).
@@ -223,6 +225,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   initialMedia,
   initialFiles,
   initialFitnessFile,
+  initialText,
   composerNotice,
   statuses,
   timelineContext,
@@ -1672,6 +1675,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         initialMedia={initialMedia}
         initialFiles={initialFiles}
         initialFitnessFile={initialFitnessFile}
+        initialText={initialText}
         frameClassName={cn(
           POST_LIST_FRAME_CLASS,
           'p-4',

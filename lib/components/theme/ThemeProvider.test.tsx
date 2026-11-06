@@ -10,6 +10,7 @@ import {
   screen,
   waitFor
 } from '@testing-library/react'
+import { StrictMode } from 'react'
 
 import { ThemeProvider, useTheme } from './ThemeProvider'
 import {
@@ -177,14 +178,102 @@ describe('ThemeProvider', () => {
           original.call(this, name, value)
         })
 
-      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
-      await waitFor(() => expect(medias()).toEqual(['not all', 'all']))
-      const writes = setAttribute.mock.calls.length
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      try {
+        renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+        await waitFor(() => expect(medias()).toEqual(['not all', 'all']))
+        const writes = setAttribute.mock.calls.length
+        await new Promise((resolve) => setTimeout(resolve, 20))
 
-      expect(setAttribute.mock.calls.length).toBe(writes)
-      expect(writes).toBe(2)
-      setAttribute.mockRestore()
+        expect(setAttribute.mock.calls.length).toBe(writes)
+        expect(writes).toBe(2)
+      } finally {
+        setAttribute.mockRestore()
+      }
+    })
+
+    // System mode is watched too: a writer that flattens the pair (as the
+    // old pre-paint script did) is put back to the media-scoped values.
+    it('restores the media-scoped pair in system mode after a rogue write', async () => {
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+      renderProvider()
+
+      for (const meta of Array.from(
+        document.querySelectorAll('meta[name="theme-color"]')
+      )) {
+        meta.setAttribute('media', 'all')
+      }
+
+      await waitFor(() =>
+        expect(medias()).toEqual([
+          THEME_COLOR_LIGHT_MEDIA,
+          THEME_COLOR_DARK_MEDIA
+        ])
+      )
+    })
+
+    // Where localStorage writes fail (private mode), the observer must keep
+    // the choice made this session, not revert to the stored one.
+    it('keeps an in-session choice when it could not be stored', async () => {
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+      renderProvider()
+      const setItem = vi
+        .spyOn(Storage.prototype, 'setItem')
+        .mockImplementation(() => {
+          throw new Error('QuotaExceededError')
+        })
+      try {
+        fireEvent.click(screen.getByRole('button', { name: 'dark' }))
+      } finally {
+        setItem.mockRestore()
+      }
+      expect(localStorage.getItem(THEME_STORAGE_KEY)).toBeNull()
+      expect(medias()).toEqual(['not all', 'all'])
+
+      // A navigation puts the system pair back.
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+
+      await waitFor(() => expect(medias()).toEqual(['not all', 'all']))
+    })
+
+    // Only theme-color metas matter: other head churn (styles, scripts) does
+    // not even make it look for them.
+    it('ignores head mutations that involve no theme-color meta', async () => {
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
+      renderProvider()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      const lookups = vi.spyOn(document, 'querySelectorAll')
+      try {
+        const style = document.createElement('style')
+        document.head.appendChild(style)
+        style.setAttribute('media', 'print')
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        expect(lookups).not.toHaveBeenCalledWith('meta[name="theme-color"]')
+      } finally {
+        lookups.mockRestore()
+      }
+    })
+
+    // React StrictMode mounts, unmounts and remounts effects in development:
+    // one observer must be left watching, not two.
+    it('leaves one observer under StrictMode', () => {
+      const observe = vi.spyOn(MutationObserver.prototype, 'observe')
+      const disconnect = vi.spyOn(MutationObserver.prototype, 'disconnect')
+      try {
+        render(
+          <StrictMode>
+            <ThemeProvider>
+              <Consumer />
+            </ThemeProvider>
+          </StrictMode>
+        )
+
+        expect(observe.mock.calls.length - disconnect.mock.calls.length).toBe(1)
+      } finally {
+        observe.mockRestore()
+        disconnect.mockRestore()
+      }
     })
 
     it('stops watching the head once unmounted', async () => {

@@ -26,6 +26,8 @@ export interface ShareTargetSkipSummary {
   overLimit: number
   /** Media, while this instance takes no media uploads. */
   uploadsOff: number
+  /** Refused by the worker: past 20 files or the 250 MiB share budget. */
+  notStaged: number
 }
 
 export type ShareTargetPlan =
@@ -47,7 +49,8 @@ const emptySkips = (): ShareTargetSkipSummary => ({
   unsupported: 0,
   tooLarge: 0,
   overLimit: 0,
-  uploadsOff: 0
+  uploadsOff: 0,
+  notStaged: 0
 })
 
 const hasFitnessExtension = (name: string) => {
@@ -72,9 +75,11 @@ export const getMediaAttachmentCap = (
 
 export const classifySharedFiles = (
   files: File[],
-  limits: ShareTargetLimits
+  limits: ShareTargetLimits,
+  /** `StagedShare.skipped`: files the worker never staged. */
+  notStaged = 0
 ): ShareTargetPlan => {
-  const skipped = emptySkips()
+  const skipped = { ...emptySkips(), notStaged }
   const fitnessFiles: File[] = []
   const mediaFiles: File[] = []
 
@@ -131,7 +136,8 @@ const totalSkipped = (skipped: ShareTargetSkipSummary) =>
   skipped.unsupported +
   skipped.tooLarge +
   skipped.overLimit +
-  skipped.uploadsOff
+  skipped.uploadsOff +
+  skipped.notStaged
 
 export const hasSkippedFiles = (skipped: ShareTargetSkipSummary): boolean =>
   totalSkipped(skipped) > 0
@@ -139,10 +145,44 @@ export const hasSkippedFiles = (skipped: ShareTargetSkipSummary): boolean =>
 const count = (n: number, one: string, many: string) =>
   `${n} ${n === 1 ? one : many}`
 
-/** "2 photos, 1 video and 1 workout were shared", for the confirmation. */
+/** Whether shared text is a bare link (the usual browser "Share" of a page). */
+export const isSharedLink = (text: string): boolean =>
+  /^https?:\/\/\S+$/i.test(text.trim())
+
+/**
+ * The text a share carries, as one composer string: the title, the text and
+ * the link on their own lines, leaving out a title or link the text already
+ * contains (browsers often send the page URL in both `text` and `url`).
+ */
+export const joinSharedText = ({
+  title,
+  text,
+  url
+}: {
+  title?: string
+  text?: string
+  url?: string
+}): string => {
+  const body = text?.trim() ?? ''
+  const heading = title?.trim() ?? ''
+  const link = url?.trim() ?? ''
+  return [
+    heading && !body.includes(heading) ? heading : '',
+    body,
+    link && !body.includes(link) ? link : ''
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+/**
+ * "2 photos, 1 video and 1 workout were shared", "A link was shared", for the
+ * confirmation.
+ */
 export const describeSharedFiles = (
   media: File[],
-  fitnessFile?: File
+  fitnessFile?: File,
+  text = ''
 ): string => {
   const videos = media.filter((file) => file.type.startsWith('video/')).length
   const photos = media.length - videos
@@ -150,12 +190,14 @@ export const describeSharedFiles = (
   if (photos > 0) parts.push(count(photos, 'photo', 'photos'))
   if (videos > 0) parts.push(count(videos, 'video', 'videos'))
   if (fitnessFile) parts.push('1 workout')
+  if (text) parts.push(isSharedLink(text) ? 'a link' : 'some text')
   const list =
     parts.length > 1
       ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`
-      : (parts[0] ?? 'Nothing')
-  const total = media.length + (fitnessFile ? 1 : 0)
-  return `${list} ${total === 1 ? 'was' : 'were'} shared`
+      : (parts[0] ?? 'nothing')
+  const total = media.length + (fitnessFile ? 1 : 0) + (text ? 1 : 0)
+  const sentence = `${list} ${total === 1 ? 'was' : 'were'} shared`
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1)
 }
 
 /** One sentence naming how many files were skipped and why. */
@@ -181,6 +223,11 @@ export const describeSkippedFiles = (
   if (skipped.uploadsOff > 0) {
     reasons.push(
       `${skipped.uploadsOff} ${skipped.uploadsOff === 1 ? 'photo or video' : 'photos or videos'} because this server takes no media uploads`
+    )
+  }
+  if (skipped.notStaged > 0) {
+    reasons.push(
+      `${skipped.notStaged} ${skipped.notStaged === 1 ? 'file was' : 'files were'} past the share limit of 20 files and 250 MB`
     )
   }
   if (reasons.length === 0) return null

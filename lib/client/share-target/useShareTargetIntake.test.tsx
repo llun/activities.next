@@ -90,6 +90,99 @@ describe('useShareTargetIntake', () => {
     expect(await peekStagedShare(id!)).toBeNull()
   })
 
+  // The manifest's title/text/url params let Android offer the app for a
+  // plain link share: it is confirmed like files, then seeds the text.
+  it('asks before using a shared link, then seeds it as text', async () => {
+    const id = await stageShareFiles([], {
+      title: 'A trail',
+      url: 'https://example.com/trail'
+    })
+    setSearch(`?share=${id}`)
+
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+    expect(result.current.pending!.summary).toBe('Some text was shared')
+    expect(result.current.pending!.text).toBe(
+      'A trail\nhttps://example.com/trail'
+    )
+    expect(result.current.seed).toBeNull()
+
+    await act(async () => {
+      await result.current.accept()
+    })
+
+    expect(result.current.seed).toEqual({
+      media: [],
+      fitnessFile: undefined,
+      text: 'A trail\nhttps://example.com/trail'
+    })
+  })
+
+  it('names a bare link share as a link', async () => {
+    const id = await stageShareFiles([], { url: 'https://example.com/a' })
+    setSearch(`?share=${id}`)
+
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+    expect(result.current.pending!.summary).toBe('A link was shared')
+  })
+
+  it('offers text only, for a text share', async () => {
+    const id = await stageShareFiles([], { text: 'Felt strong today' })
+    setSearch(`?share=${id}`)
+
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+    expect(result.current.pending!.text).toBe('Felt strong today')
+    expect(result.current.pending!.media).toEqual([])
+  })
+
+  it('carries text alongside shared files', async () => {
+    const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')], {
+      text: 'Summit',
+      url: 'https://example.com/s'
+    })
+    setSearch(`?share=${id}`)
+
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+    expect(result.current.pending!.summary).toBe(
+      '1 photo and some text were shared'
+    )
+    await act(async () => {
+      await result.current.accept()
+    })
+    expect(result.current.seed!.media.map((f) => f.name)).toEqual(['photo.jpg'])
+    expect(result.current.seed!.text).toBe('Summit\nhttps://example.com/s')
+  })
+
+  // StagedShare.skipped: files the worker refused (over 20, or the budget).
+  it('names the files the worker could not keep', async () => {
+    const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')], {
+      skipped: 3
+    })
+    setSearch(`?share=${id}`)
+
+    const { result } = renderHook(() =>
+      useShareTargetIntake({ enabled: true, limits })
+    )
+
+    await waitFor(() => expect(result.current.pending).not.toBeNull())
+    expect(result.current.notice).toContain('3 files were past the share limit')
+  })
+
   it('asks again after a reload until the reader decides', async () => {
     const id = await stageShareFiles([file('photo.jpg', 'image/jpeg')])
     setSearch(`?share=${id}`)

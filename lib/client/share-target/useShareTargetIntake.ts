@@ -7,7 +7,8 @@ import {
   type ShareTargetLimits,
   classifySharedFiles,
   describeSharedFiles,
-  describeSkippedFiles
+  describeSkippedFiles,
+  joinSharedText
 } from './classify'
 import {
   deleteStagedShare,
@@ -22,6 +23,8 @@ export const SHARE_UNAVAILABLE_PARAM = 'shareUnavailable'
 export interface ShareTargetSeed {
   media: File[]
   fitnessFile?: File
+  /** The shared title, text and link, joined (`joinSharedText`). */
+  text?: string
 }
 
 /** A share waiting for the reader to add it to the post or discard it. */
@@ -29,7 +32,9 @@ export interface ShareTargetPending {
   id: string
   media: File[]
   fitnessFile?: File
-  /** "2 photos and 1 workout were shared". */
+  /** The shared title, text and link, joined; empty when none was shared. */
+  text: string
+  /** "2 photos and 1 workout were shared", "A link was shared". */
   summary: string
 }
 
@@ -92,7 +97,9 @@ const IDLE: ShareTargetIntakeState = {
  * workout come back as `pending`, for the reader to confirm (`accept`, which
  * consumes the record and returns the composer seed) or `discard`. Until then
  * the record and the query parameter stay, so a reload asks again (within the
- * 24 h expiry). Two or more workouts hand the record to `/fitness/files`, which
+ * 24 h expiry). Shared text and links come too, and on accept they seed the
+ * composer's text with the files. Two or more workouts hand the record to
+ * `/fitness/files` (which has no text field), which
  * preselects them and uploads nothing until Import is pressed.
  */
 export function useShareTargetIntake({
@@ -129,7 +136,12 @@ export function useShareTargetIntake({
         return
       }
 
-      const plan = classifySharedFiles(toShareFiles(share), limits)
+      const plan = classifySharedFiles(
+        toShareFiles(share),
+        limits,
+        share.skipped ?? 0
+      )
+      const text = joinSharedText(share)
       if (plan.kind === 'import') {
         // The import page reads the record, so it is not deleted here.
         stripShareParams()
@@ -137,7 +149,7 @@ export function useShareTargetIntake({
         return
       }
 
-      if (plan.kind === 'empty') {
+      if (plan.kind === 'empty' && !text) {
         // Nothing to confirm: the record has no use left.
         await deleteStagedShare(id)
         stripShareParams()
@@ -149,9 +161,13 @@ export function useShareTargetIntake({
         ...IDLE,
         pending: {
           id,
-          media: plan.media,
-          fitnessFile: plan.fitnessFile,
-          summary: describeSharedFiles(plan.media, plan.fitnessFile)
+          media: plan.kind === 'composer' ? plan.media : [],
+          fitnessFile: plan.kind === 'composer' ? plan.fitnessFile : undefined,
+          text,
+          summary:
+            plan.kind === 'composer'
+              ? describeSharedFiles(plan.media, plan.fitnessFile, text)
+              : describeSharedFiles([], undefined, text)
         },
         notice: describeSkippedFiles(plan.skipped)
       })
@@ -169,7 +185,11 @@ export function useShareTargetIntake({
     }
     setState({
       ...IDLE,
-      seed: { media: pending.media, fitnessFile: pending.fitnessFile }
+      seed: {
+        media: pending.media,
+        fitnessFile: pending.fitnessFile,
+        text: pending.text || undefined
+      }
     })
   }
 

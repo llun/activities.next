@@ -61,21 +61,29 @@ const renderComposer = ({
   maxMediaAttachments = 4,
   initialFiles,
   initialFitnessFile,
-  isMediaUploadEnabled = true
+  initialText,
+  isMediaUploadEnabled = true,
+  maxStatusCharacters
 }: {
   maxMediaAttachments?: number
   initialFiles?: File[]
   initialFitnessFile?: File
+  initialText?: string
   isMediaUploadEnabled?: boolean
+  maxStatusCharacters?: number
 } = {}) => {
   const ui = (files?: File[], fitness?: File, actor = profile) => (
-    <InstanceLimitsProvider maxMediaAttachments={maxMediaAttachments}>
+    <InstanceLimitsProvider
+      maxMediaAttachments={maxMediaAttachments}
+      maxStatusCharacters={maxStatusCharacters}
+    >
       <PostBox
         host="activities.local"
         profile={actor}
         isMediaUploadEnabled={isMediaUploadEnabled}
         initialFiles={files}
         initialFitnessFile={fitness}
+        initialText={initialText}
         onDiscardReply={vi.fn()}
         onPostCreated={vi.fn()}
         onPostUpdated={vi.fn()}
@@ -240,6 +248,40 @@ describe('PostBox with a workout and media', () => {
     expect(
       await screen.findByRole('button', { name: 'Add media (0/4)' })
     ).toBeInTheDocument()
+  })
+
+  it('seeds shared text into the composer once', async () => {
+    const { rerenderWith } = renderComposer({
+      initialText: 'Summit\nhttps://example.com/s'
+    })
+
+    expect(
+      await screen.findByDisplayValue(/Summit\s+https:\/\/example.com\/s/)
+    ).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Post' })).toBeEnabled()
+
+    rerenderWith()
+    expect(
+      (
+        screen.getByPlaceholderText(
+          'What is on your mind?'
+        ) as HTMLTextAreaElement
+      ).value
+    ).toBe('Summit\nhttps://example.com/s')
+  })
+
+  it('cuts shared text to the instance character limit', async () => {
+    renderComposer({ initialText: 'x'.repeat(50), maxStatusCharacters: 20 })
+
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByPlaceholderText(
+            'What is on your mind?'
+          ) as HTMLTextAreaElement
+        ).value
+      ).toBe('x'.repeat(20))
+    )
   })
 
   it('never uploads shared media while media uploads are off', async () => {

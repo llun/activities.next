@@ -80,6 +80,31 @@ describe('ShareTargetIntake', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('previews a shared link and hands it over only on Add to post', async () => {
+    const onSeed = vi.fn()
+    const id = await stageShareFiles([], {
+      url: `https://example.com/${'a'.repeat(200)}`
+    })
+    window.history.replaceState(null, '', `/app?share=${id}`)
+
+    render(<ShareTargetIntake isMediaUploadEnabled onSeed={onSeed} />)
+
+    expect(await screen.findByText('A link was shared')).toBeInTheDocument()
+    // Previewed, not shown whole: 140 characters and an ellipsis.
+    expect(
+      screen.getByText(/^https:\/\/example\.com\/a+…$/).textContent
+    ).toHaveLength(141)
+    expect(screen.queryByRole('list', { name: 'Shared files' })).toBeNull()
+    expect(onSeed).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to post' }))
+
+    await waitFor(() => expect(onSeed).toHaveBeenCalledTimes(1))
+    expect(onSeed.mock.calls[0][0].text).toBe(
+      `https://example.com/${'a'.repeat(200)}`
+    )
+  })
+
   it('discards a share without handing it to the composer', async () => {
     const onSeed = vi.fn()
     const id = await stage()

@@ -1087,6 +1087,20 @@ return {
       }
     )
 
+    // The intake shows these in its skip notice, so none is dropped silently.
+    it('counts the files past the 20-file cap as skipped', async () => {
+      const files = Array.from(
+        { length: 22 },
+        (_, index) => new File(['x'], `p${index}.jpg`, { type: 'image/jpeg' })
+      )
+
+      await triggerFetch(shareRequest(files))
+
+      const [share] = await readAllShares()
+      expect(share.files).toHaveLength(20)
+      expect(share.skipped).toBe(2)
+    })
+
     it('stops staging files once the total budget is spent', async () => {
       const bigFile = (name: string) => ({
         name,

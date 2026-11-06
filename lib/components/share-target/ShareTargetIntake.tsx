@@ -15,6 +15,8 @@ import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/services/fitness-files/cons
 // composer. Below `md` the header is flush (`flushOnMobile`, no gap under the
 // bar, so the full-bleed composer meets it); the card needs its own gap there.
 const NOTICE_CLASS = 'max-md:mt-4'
+// The shared text or link is previewed, not shown whole: the composer has it.
+const TEXT_PREVIEW_LENGTH = 140
 
 interface Props {
   /** Whether this instance takes media uploads; off, shared media is skipped. */
@@ -120,11 +122,20 @@ export const ShareTargetIntake: FC<Props> = ({
           </div>
         }
       >
-        <ul aria-label="Shared files" className="break-all">
-          {names.map((name, index) => (
-            <li key={`${index}-${name}`}>{name}</li>
-          ))}
-        </ul>
+        {names.length > 0 ? (
+          <ul aria-label="Shared files" className="break-all">
+            {names.map((name, index) => (
+              <li key={`${index}-${name}`}>{name}</li>
+            ))}
+          </ul>
+        ) : null}
+        {pending.text ? (
+          <p className="line-clamp-3 break-all whitespace-pre-line">
+            {pending.text.length > TEXT_PREVIEW_LENGTH
+              ? `${pending.text.slice(0, TEXT_PREVIEW_LENGTH)}…`
+              : pending.text}
+          </p>
+        ) : null}
         {notice ? <p className="mt-1">{notice}</p> : null}
       </Alert>
     )

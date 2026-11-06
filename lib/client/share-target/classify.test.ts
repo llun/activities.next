@@ -8,7 +8,8 @@ import {
   getMediaAttachmentCap,
   hasSkippedFiles,
   isFitnessShareFile,
-  isMediaShareFile
+  isMediaShareFile,
+  joinSharedText
 } from './classify'
 
 const limits: ShareTargetLimits = {
@@ -206,16 +207,78 @@ describe('describeSharedFiles', () => {
       '1 workout was shared'
     )
   })
+
+  it('names a shared link or text, alone or with files', () => {
+    expect(describeSharedFiles([], undefined, 'https://example.com/a')).toBe(
+      'A link was shared'
+    )
+    expect(describeSharedFiles([], undefined, 'Great run today')).toBe(
+      'Some text was shared'
+    )
+    expect(
+      describeSharedFiles(
+        [file('a.jpg', 'image/jpeg')],
+        undefined,
+        'https://example.com/a'
+      )
+    ).toBe('1 photo and a link were shared')
+  })
+})
+
+describe('joinSharedText', () => {
+  it('puts the title, text and link on their own lines', () => {
+    expect(
+      joinSharedText({
+        title: 'Morning run',
+        text: 'Felt good',
+        url: 'https://example.com/r/1'
+      })
+    ).toBe('Morning run\nFelt good\nhttps://example.com/r/1')
+  })
+
+  // Browsers often send the page URL in both `text` and `url`.
+  it('does not repeat a link or title the text already holds', () => {
+    expect(
+      joinSharedText({
+        title: 'Example',
+        text: 'Example https://example.com/a',
+        url: 'https://example.com/a'
+      })
+    ).toBe('Example https://example.com/a')
+  })
+
+  it('keeps a bare link, and returns nothing for nothing', () => {
+    expect(joinSharedText({ url: ' https://example.com/a ' })).toBe(
+      'https://example.com/a'
+    )
+    expect(joinSharedText({})).toBe('')
+  })
 })
 
 describe('describeSkippedFiles', () => {
+  // The worker refused these before staging (StagedShare.skipped).
+  it('names the files the worker could not keep', () => {
+    expect(
+      describeSkippedFiles({
+        unsupported: 0,
+        tooLarge: 0,
+        overLimit: 0,
+        uploadsOff: 0,
+        notStaged: 2
+      })
+    ).toBe(
+      '2 shared files were skipped: 2 files were past the share limit of 20 files and 250 MB.'
+    )
+  })
+
   it('returns null when nothing was skipped', () => {
     expect(
       describeSkippedFiles({
         unsupported: 0,
         tooLarge: 0,
         overLimit: 0,
-        uploadsOff: 0
+        uploadsOff: 0,
+        notStaged: 0
       })
     ).toBeNull()
   })
@@ -226,7 +289,8 @@ describe('describeSkippedFiles', () => {
         unsupported: 1,
         tooLarge: 0,
         overLimit: 0,
-        uploadsOff: 0
+        uploadsOff: 0,
+        notStaged: 0
       })
     ).toBe(
       "1 shared file was skipped: 1 file has a type the composer can't attach."
@@ -237,7 +301,8 @@ describe('describeSkippedFiles', () => {
         unsupported: 0,
         tooLarge: 2,
         overLimit: 1,
-        uploadsOff: 0
+        uploadsOff: 0,
+        notStaged: 0
       })
     ).toBe(
       '3 shared files were skipped: 2 files are over the size limit; 1 file was over the attachment limit.'

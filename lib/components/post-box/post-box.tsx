@@ -186,6 +186,11 @@ interface Props {
   initialFiles?: File[]
   /** A workout file a Web Share Target handed over; seeded once. */
   initialFitnessFile?: File
+  /**
+   * Text or a link a Web Share Target handed over; seeded once, after what
+   * the author already typed, within the instance's character limit.
+   */
+  initialText?: string
   onDiscardReply: () => void
   onDiscardQuote?: () => void
   onPostCreated: (status: Status, attachments: Attachment[]) => void
@@ -219,6 +224,7 @@ export const PostBox: FC<Props> = ({
   initialMedia,
   initialFiles,
   initialFitnessFile,
+  initialText,
   onPostCreated,
   onPostUpdated,
   onDiscardReply,
@@ -2161,7 +2167,7 @@ export const PostBox: FC<Props> = ({
     // actor still re-targets.
   }, [profile.id, replyStatus, editStatus, quotedStatus, retargetAfterSend])
 
-  // Seeds the files a Web Share Target handed over, once. They arrive only
+  // Seeds the files and text a Web Share Target handed over, once. They arrive only
   // after the reader pressed "Add to post" (ShareTargetIntake), never on the
   // share's arrival. Runs after the composer's own reset above so the seed is
   // not wiped by it, and takes the same path as the picker: resize, limits,
@@ -2169,8 +2175,17 @@ export const PostBox: FC<Props> = ({
   const shareSeedTakenRef = useRef(false)
   useEffect(() => {
     if (shareSeedTakenRef.current) return
-    if (!initialFitnessFile && !initialFiles?.length) return
+    if (!initialFitnessFile && !initialFiles?.length && !initialText) return
     shareSeedTakenRef.current = true
+    if (initialText) {
+      const current = textRef.current
+      onTextChange(
+        (current ? `${current}\n${initialText}` : initialText).slice(
+          0,
+          maxStatusCharacters
+        )
+      )
+    }
     if (initialFitnessFile) onFitnessFileSelected(initialFitnessFile)
     // The intake already skips media (with a notice) when uploads are off;
     // this keeps the composer from ever uploading behind that setting.
@@ -2187,7 +2202,7 @@ export const PostBox: FC<Props> = ({
     })()
     // The seed is taken once; the handlers are recreated every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialFiles, initialFitnessFile])
+  }, [initialFiles, initialFitnessFile, initialText])
 
   const detailsDialogItems: MediaDetailsDialogItem[] = postExtension.attachments
     // Items still reading their details have nothing to edit yet.

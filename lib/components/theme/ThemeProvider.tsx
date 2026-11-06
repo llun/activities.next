@@ -7,6 +7,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState
 } from 'react'
 
@@ -35,6 +36,20 @@ interface ThemeProviderProps {
   children: ReactNode
 }
 
+const THEME_COLOR_META = 'meta[name="theme-color"]'
+
+// Whether a head mutation involves a theme-color meta: its own media or
+// content changed, or one was added (alone, or inside an added subtree).
+const touchesThemeColor = (record: MutationRecord): boolean =>
+  (record.target instanceof Element &&
+    record.target.matches(THEME_COLOR_META)) ||
+  Array.from(record.addedNodes).some(
+    (node) =>
+      node instanceof Element &&
+      (node.matches(THEME_COLOR_META) ||
+        node.querySelector(THEME_COLOR_META) !== null)
+  )
+
 export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
   // The server and first client render both use `system` so the hydrated markup
   // matches; the real persisted value is read in the mount effect below. The
@@ -42,10 +57,15 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
   // THEME_INIT_SCRIPT set the `.dark` class before React hydrated.
   const [theme, setThemeState] = useState<ThemeMode>('system')
   const [isDark, setIsDark] = useState(false)
+  // The mode in force for this visit. The head observer and the OS listener
+  // read it, not localStorage: where storage writes fail (private mode), a
+  // choice made this session must still hold.
+  const modeRef = useRef<ThemeMode>('system')
 
   // Reconcile React state with the DOM/localStorage after hydration.
   useEffect(() => {
     const stored = getStoredTheme()
+    modeRef.current = stored
     setThemeState(stored)
     setIsDark(document.documentElement.classList.contains('dark'))
     // The theme-color metas can arrive after THEME_INIT_SCRIPT ran (streamed
@@ -55,13 +75,14 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
 
   // Next re-renders the viewport metas on a client-side navigation and puts
   // their media-scoped `media` back, which would undo an explicit choice for
-  // the rest of the visit. Reapply whenever the head changes; applyThemeColor
-  // writes only what differs, so its own writes settle instead of looping.
+  // the rest of the visit. Reapply when a theme-color meta changes or is added;
+  // applyThemeColor writes only what differs, so its own writes settle instead
+  // of looping.
   useEffect(() => {
     if (typeof MutationObserver === 'undefined') return
-    const observer = new MutationObserver(() =>
-      applyThemeColor(getStoredTheme())
-    )
+    const observer = new MutationObserver((records) => {
+      if (records.some(touchesThemeColor)) applyThemeColor(modeRef.current)
+    })
     observer.observe(document.head, {
       childList: true,
       subtree: true,
@@ -72,6 +93,7 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
   }, [])
 
   const setTheme = useCallback((mode: ThemeMode) => {
+    modeRef.current = mode
     storeTheme(mode)
     setThemeState(mode)
     setIsDark(applyTheme(mode))
@@ -82,7 +104,7 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
     if (typeof window.matchMedia !== 'function') return
     const query = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = () => {
-      if (getStoredTheme() === 'system') setIsDark(applyTheme('system'))
+      if (modeRef.current === 'system') setIsDark(applyTheme('system'))
     }
     // Safari/iOS < 14 only implement the legacy addListener/removeListener API.
     if (typeof query.addEventListener === 'function') {
@@ -99,6 +121,7 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== THEME_STORAGE_KEY) return
       const stored = getStoredTheme()
+      modeRef.current = stored
       setThemeState(stored)
       setIsDark(applyTheme(stored))
     }
