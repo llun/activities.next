@@ -1,0 +1,31 @@
+app/(timeline)/account/import-export/importCopy.test.ts
+  s_054fdcad39b1a2::t_d644be755bc990 3-4,131-205
+app/(timeline)/account/import-export/importCopy.ts
+  s_054fdcad39b1a2::t_39feac347967d2 1,60,180-190,192
+docs/architecture.md
+  s_054fdcad39b1a2::t_f97af7e1525ede 788-791
+docs/mastodon-api-compatibility.md
+  s_054fdcad39b1a2::t_9c63ee5a30ba18 1258-1260
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_054fdcad39b1a2::t_1a67bf91405527 1349-1374,1446-1466
+lib/services/accountImport/phases.ts
+  s_054fdcad39b1a2::t_0fab433aa86648 2532-2536,2625-2626
+lib/services/accountImport/progress.ts
+  s_054fdcad39b1a2::t_e5047a56d72fd5 25-41,76-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a70f28ddd3fef893c7abc151e5c8aa14d0ce1e30",
+  "prompts": {},
+  "sessions": {
+    "s_054fdcad39b1a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06906c94-7ed3-4136-b615-a78194ec2828",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
