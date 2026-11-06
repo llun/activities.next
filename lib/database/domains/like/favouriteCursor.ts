@@ -3,6 +3,15 @@
 // statusId)` cursor. Mastodon treats `max_id`/`min_id` as opaque, so we encode
 // the pair into a single base64url token rather than exposing the raw values.
 
+// The largest millisecond value a Date can hold (ECMAScript's time range).
+// Past it `new Date()` is Invalid and the query binding throws, so a crafted
+// cursor would fail the request instead of returning an empty page.
+const MAX_DATE_MS = 8.64e15
+// Status ids are URLs: a control character (NUL above all, which PostgreSQL
+// refuses in a text parameter) can only come from a crafted cursor.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/
+
 export interface FavouriteCursor {
   createdAt: number
   statusId: string
@@ -31,7 +40,13 @@ export const decodeFavouriteCursor = (
 
   const createdAt = Number(decoded.slice(0, separatorIndex))
   const statusId = decoded.slice(separatorIndex + 1)
-  if (!Number.isSafeInteger(createdAt) || createdAt < 0 || !statusId) {
+  if (
+    !Number.isSafeInteger(createdAt) ||
+    createdAt < 0 ||
+    createdAt > MAX_DATE_MS ||
+    !statusId ||
+    CONTROL_CHARACTER.test(statusId)
+  ) {
     return null
   }
 
