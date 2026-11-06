@@ -278,9 +278,10 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
 
   const selectView = useCallback(
     async (next: string) => {
-      if (next !== viewRef.current) await loadView(next)
+      // Picking the view on screen again retries it after a failed load.
+      if (next !== viewRef.current || switchError) await loadView(next)
     },
-    [loadView]
+    [loadView, switchError]
   )
 
   // `?folder=` named a folder the server did not find (deleted, or not the
@@ -290,12 +291,19 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
   }, [initialFolder])
 
   const onFolderDeleted = useCallback(
-    (id: string) => {
+    (id: string, remaining: number) => {
       // Its bookmarks are unfiled now.
       setCurrentStatuses((previousStatuses) =>
         previousStatuses.map((item) => clearBookmarkFolder(item, id))
       )
-      if (viewRef.current === id) void loadView(ALL_BOOKMARKS)
+      // The folder on screen is gone, or the last one is and the folder
+      // select with it (Unfiled would be a view nothing can leave).
+      if (
+        viewRef.current === id ||
+        (remaining === 0 && viewRef.current !== ALL_BOOKMARKS)
+      ) {
+        void loadView(ALL_BOOKMARKS)
+      }
       // Unfiled gains the folder's bookmarks, so it is read again.
       else if (viewRef.current === UNFILED_BOOKMARK_FOLDER) {
         void loadView(UNFILED_BOOKMARK_FOLDER)
@@ -373,7 +381,10 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
       />
 
       {switchError ? (
-        <Alert title="Couldn't load these bookmarks. Please try again." />
+        <Alert
+          title="Couldn't load these bookmarks. Please try again."
+          onRetry={() => void loadView(viewRef.current)}
+        />
       ) : isSwitching ? (
         <div aria-busy="true">
           <span role="status" className="sr-only">

@@ -32,8 +32,11 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   folders: BookmarkFolderEntity[]
-  /** A folder was deleted; the page leaves it if it was showing it. */
-  onDeleted: (id: string) => void
+  /**
+   * A folder was deleted; `remaining` is how many are left. The page leaves
+   * the folder if it was showing it.
+   */
+  onDeleted: (id: string, remaining: number) => void
 }
 
 type RowMode = { id: string; mode: 'rename' | 'delete' } | null
@@ -122,7 +125,7 @@ export const BookmarkFoldersDialog: FC<Props> = ({
     }
     removeBookmarkFolder(id)
     setRowMode(null)
-    onDeleted(id)
+    onDeleted(id, folders.filter((folder) => folder.id !== id).length)
   }
 
   return (

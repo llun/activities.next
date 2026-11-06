@@ -2331,7 +2331,8 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   standalone menus of a combined post's parts and tucked-in replies have it
   too): a submenu of "No folder" and each of the viewer's folders as radio items,
   the current one checked, then "New folder…", which opens a small dialog that
-  creates a folder and files the post in it. Picking a folder on a post that is
+  creates a folder and files the post in it (if the filing fails, the dialog
+  stays open with the error and a retry files into the folder it created). Picking a folder on a post that is
   not bookmarked bookmarks and files it in one step
   (`PUT /api/v1/statuses/:id/bookmark_folder`), and the row's Bookmark button
   follows. The folders are fetched once, the first time any menu opens, into a

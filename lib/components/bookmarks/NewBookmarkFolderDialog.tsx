@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
-import { FC, FormEvent, useEffect, useId, useState } from 'react'
+import { FC, FormEvent, useEffect, useId, useRef, useState } from 'react'
 
 import { createBookmarkFolder } from '@/lib/client'
 import { putBookmarkFolder } from '@/lib/components/bookmarks/bookmarkFolderStore'
@@ -24,8 +24,11 @@ import { MAX_BOOKMARK_FOLDER_NAME_LENGTH } from '@/lib/types/domain/bookmark'
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** The folder exists now; the caller files the post into it. */
-  onCreated: (folder: BookmarkFolderEntity) => Promise<void> | void
+  /**
+   * The folder exists now; the caller files the post into it and says
+   * whether that worked. On false the dialog stays open to retry the filing.
+   */
+  onCreated: (folder: BookmarkFolderEntity) => Promise<boolean>
 }
 
 /** The ⋯ menu's "New folder…": names a folder, creates it and files the post. */
@@ -38,11 +41,15 @@ export const NewBookmarkFolderDialog: FC<Props> = ({
   const [name, setName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A folder this dialog created whose filing failed: a retry with the same
+  // name files into it instead of creating a duplicate.
+  const createdRef = useRef<BookmarkFolderEntity | null>(null)
 
   useEffect(() => {
     if (open) {
       setName('')
       setError(null)
+      createdRef.current = null
     }
   }, [open])
 
@@ -52,9 +59,18 @@ export const NewBookmarkFolderDialog: FC<Props> = ({
     setSubmitting(true)
     setError(null)
     try {
-      const folder = await createBookmarkFolder(name.trim())
-      putBookmarkFolder(folder)
-      await onCreated(folder)
+      let folder = createdRef.current
+      if (!folder || folder.name !== name.trim()) {
+        folder = await createBookmarkFolder(name.trim())
+        putBookmarkFolder(folder)
+        createdRef.current = folder
+      }
+      if (!(await onCreated(folder))) {
+        setError(
+          `“${folder.name}” was created, but the post couldn't be filed in it. Please try again.`
+        )
+        return
+      }
       onOpenChange(false)
     } catch (caught) {
       setError(errorMessage(caught, "Couldn't create the folder."))

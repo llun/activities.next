@@ -136,7 +136,9 @@ describe('BookmarksTimeline folders', () => {
     vi.clearAllMocks()
     resetBookmarkFolderStore()
     window.history.replaceState(null, '', '/bookmarks')
-    ;(getBookmarks as jest.Mock).mockResolvedValue({
+    // Reset, not only cleared: a test's unused `…Once` answers must not
+    // reach the next test.
+    ;(getBookmarks as jest.Mock).mockReset().mockResolvedValue({
       statuses: [],
       nextMaxBookmarkId: null,
       prevMinBookmarkId: null
@@ -419,5 +421,60 @@ describe('BookmarksTimeline folders', () => {
     expect(
       screen.queryByRole('button', { name: 'Load more', hidden: true })
     ).toBeNull()
+  })
+
+  it('retries a failed switch, from the Alert or by picking the view again', async () => {
+    ;(getBookmarks as jest.Mock)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockRejectedValueOnce(new Error('still offline'))
+      .mockResolvedValueOnce({
+        statuses: [],
+        nextMaxBookmarkId: null,
+        prevMinBookmarkId: null
+      })
+    renderTimeline({ folders: FOLDERS })
+
+    await pickView('Recipes')
+    expect(
+      await screen.findByText(
+        "Couldn't load these bookmarks. Please try again."
+      )
+    ).toBeInTheDocument()
+
+    await pickView('Recipes')
+    expect(getBookmarks).toHaveBeenCalledTimes(2)
+    expect(
+      await screen.findByText(
+        "Couldn't load these bookmarks. Please try again."
+      )
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    })
+    expect(getBookmarks).toHaveBeenCalledTimes(3)
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: 'f-recipes' })
+    expect(await screen.findByText('This folder is empty')).toBeInTheDocument()
+  })
+
+  it('goes to All bookmarks when the last folder is deleted from Unfiled', async () => {
+    ;(deleteBookmarkFolder as jest.Mock).mockResolvedValue(true)
+    window.history.replaceState(null, '', '/bookmarks?folder=none')
+    renderTimeline({
+      folders: [folder('f-recipes', 'Recipes')],
+      initialFolder: 'none'
+    })
+
+    await deleteFolderInDialog('Recipes')
+
+    expect(getBookmarks).toHaveBeenLastCalledWith({ folderId: undefined })
+    expect(window.location.search).toBe('')
+    expect(
+      screen.queryByRole('navigation', {
+        name: 'Bookmark folders',
+        hidden: true
+      })
+    ).not.toBeInTheDocument()
+    expect(await screen.findByText('No bookmarks yet')).toBeInTheDocument()
   })
 })

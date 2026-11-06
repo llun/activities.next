@@ -422,9 +422,14 @@ export const PostMenu: FC<Props> = ({
     }
   }
 
-  const handleBookmarkFolderChange = async (folderId: string | null) => {
-    if (bookmarkFolderSaving) return
-    if (isBookmarked && folderId === bookmarkFolderId) return
+  // Whether the post ended up in `folderId`. A failure shows the menu's own
+  // error unless the caller (the new-folder dialog) shows it instead.
+  const handleBookmarkFolderChange = async (
+    folderId: string | null,
+    { reportError = true }: { reportError?: boolean } = {}
+  ): Promise<boolean> => {
+    if (bookmarkFolderSaving) return false
+    if (isBookmarked && folderId === bookmarkFolderId) return true
     setBookmarkFolderSaving(true)
     setActionError(null)
     const saved = await setStatusBookmarkFolder({
@@ -433,12 +438,15 @@ export const PostMenu: FC<Props> = ({
     }).catch(() => false)
     setBookmarkFolderSaving(false)
     if (!saved) {
-      setActionError("Couldn't file the bookmark. Please try again.")
-      return
+      if (reportError) {
+        setActionError("Couldn't file the bookmark. Please try again.")
+      }
+      return false
     }
     setOwnBookmarked(true)
     setBookmarkFolderId(folderId)
     onBookmarkFolderChanged?.(status, folderId)
+    return true
   }
 
   const handleUnmute = async () => {
@@ -935,7 +943,9 @@ export const PostMenu: FC<Props> = ({
       <NewBookmarkFolderDialog
         open={dialog === 'new-bookmark-folder'}
         onOpenChange={(open) => setDialog(open ? 'new-bookmark-folder' : null)}
-        onCreated={(folder) => handleBookmarkFolderChange(folder.id)}
+        onCreated={(folder) =>
+          handleBookmarkFolderChange(folder.id, { reportError: false })
+        }
       />
       <DeleteDialog
         open={dialog === 'delete'}

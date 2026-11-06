@@ -2507,6 +2507,8 @@ export const runFitnessPhase = async (
   }
 }
 
+const BOOKMARK_FOLDER_RENEW_EVERY = 25
+
 /**
  * The bookmarks option, second half: this server's own export lists the
  * owner's private bookmark folders in `bookmark_folders.json`. Each folder is
@@ -2522,8 +2524,6 @@ export const runFitnessPhase = async (
  * (renewed every `BOOKMARK_FOLDER_RENEW_EVERY` items); give it a cursor if
  * large folders ever outlast an import slice.
  */
-const BOOKMARK_FOLDER_RENEW_EVERY = 25
-
 export const runBookmarkFoldersPhase = async (
   context: AccountImportPhaseContext,
   progress: AccountImportProgress

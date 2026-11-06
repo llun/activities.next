@@ -334,4 +334,48 @@ describe('PostMenu bookmark folder submenu', () => {
       within(reopened).getByRole('menuitemradio', { name: 'Read later' })
     ).toHaveAttribute('aria-checked', 'true')
   })
+
+  it('keeps New folder… open when the filing fails, and retries into the same folder', async () => {
+    ;(createBookmarkFolder as jest.Mock).mockResolvedValue(
+      folder('f-new', 'Read later')
+    )
+    ;(setStatusBookmarkFolder as jest.Mock).mockResolvedValueOnce(false)
+    render(<PostMenu status={status} isOwner={false} canEdit={false} />)
+
+    const submenu = await openFolderSubmenu()
+    await act(async () => {
+      fireEvent.click(
+        within(submenu).getByRole('menuitem', { name: 'New folder…' })
+      )
+    })
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Name'), {
+      target: { value: 'Read later' }
+    })
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    })
+
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      "“Read later” was created, but the post couldn't be filed in it."
+    )
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    })
+
+    expect(createBookmarkFolder).toHaveBeenCalledTimes(1)
+    expect(setStatusBookmarkFolder).toHaveBeenCalledTimes(2)
+    expect(setStatusBookmarkFolder).toHaveBeenLastCalledWith({
+      statusId: status.id,
+      folderId: 'f-new'
+    })
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+    const reopened = await openFolderSubmenu()
+    expect(
+      within(reopened).getByRole('menuitemradio', { name: 'Read later' })
+    ).toHaveAttribute('aria-checked', 'true')
+  })
 })

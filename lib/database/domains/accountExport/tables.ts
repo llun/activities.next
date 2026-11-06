@@ -77,7 +77,7 @@ export const ACCOUNT_EXPORT_TABLES: Record<
   },
   bookmarks: {
     table: 'bookmarks',
-    columns: ['id', 'statusId', 'folderId', 'createdAt'],
+    columns: ['id', 'statusId', 'createdAt'],
     key: ['id'],
     scope: byColumn('actorId')
   },
