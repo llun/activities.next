@@ -41,6 +41,16 @@ describe('bookmarkCursor', () => {
     expect(decodeBookmarkCursor(encoded('-1:2'))).toBeNull()
   })
 
+  it('returns null for a createdAt past the range a Date can hold', () => {
+    const encoded = (text: string) =>
+      Buffer.from(text, 'utf8').toString('base64url')
+    expect(decodeBookmarkCursor(encoded('8640000000000000:1'))).toEqual({
+      createdAt: 8.64e15,
+      id: 1
+    })
+    expect(decodeBookmarkCursor(encoded('9000000000000000:1'))).toBeNull()
+  })
+
   it('returns null for a numeric id past the safe integer range', () => {
     expect(decodeBookmarkCursor('99999999999999999999')).toBeNull()
   })

@@ -38,6 +38,10 @@ export const toBookmarkCursor = (bookmark: {
 
 const COMPOSITE_PATTERN = /^(\d+):(\d+)$/
 const LEGACY_ID_PATTERN = /^\d+$/
+// The largest millisecond value a Date can hold (ECMAScript's time range).
+// Past it `new Date()` is Invalid and the query binding throws, so a crafted
+// cursor would fail the request instead of returning an empty page.
+const MAX_DATE_MS = 8.64e15
 
 export const decodeBookmarkCursor = (
   cursor?: string | null
@@ -52,6 +56,7 @@ export const decodeBookmarkCursor = (
     const id = Number(composite[2])
     return Number.isSafeInteger(createdAt) &&
       createdAt >= 0 &&
+      createdAt <= MAX_DATE_MS &&
       Number.isSafeInteger(id) &&
       id > 0
       ? { createdAt, id }

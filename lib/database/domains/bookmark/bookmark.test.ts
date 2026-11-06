@@ -793,6 +793,17 @@ describe('BookmarkDatabase', () => {
         await database.deleteBookmark({ actorId, statusId: bookmark.statusId })
       }
 
+      it('returns an empty page, not an error, for a cursor past the Date range', async () => {
+        const actorId = actorOf('far-future')
+        await seed(actorId)
+        const cursor = Buffer.from('9000000000000000:1').toString('base64url')
+        for (const key of ['maxId', 'minId', 'sinceId'] as const) {
+          await expect(
+            database.getBookmarks({ actorId, limit: 10, [key]: cursor })
+          ).resolves.toEqual([])
+        }
+      })
+
       it('keeps the tie-break when the removed cursor shares its createdAt', async () => {
         const actorId = actorOf('tie')
         const statuses = await Promise.all(
