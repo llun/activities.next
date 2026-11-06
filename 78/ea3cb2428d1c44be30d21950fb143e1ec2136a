@@ -1,0 +1,30 @@
+lib/utils/httpMessageSignature.test.ts
+  s_62c762de66451b::t_71a51766aa3ebc 664-666,672-678,680-690,692
+lib/jobs/deliverActivityJob.test.ts
+  s_62c762de66451b::t_92698ffeb62131 17-21,375-387
+  s_62c762de66451b::t_3bf72975b2bc7f 388-389
+docs/architecture.md
+  s_62c762de66451b::t_3740ce6e3a0674 237,248,1374
+lib/activities/signedRequest.ts
+  s_62c762de66451b::t_efce6c2036b47b 6,112-115,134,137-139,146-147,151,171-174,177,182,184-189,192-208
+lib/activities/signedRequest.test.ts
+  s_62c762de66451b::t_92698ffeb62131 3,33-37,218-262,326-331,334-352,354-355
+  s_62c762de66451b::t_87c635746bc49d 353
+  s_62c762de66451b::t_871cc182efcaff 356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "78ea3cb2428d1c44be30d21950fb143e1ec2136a",
+  "prompts": {},
+  "sessions": {
+    "s_62c762de66451b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1aeaf-bd71-7c70-82ef-a30b927c8a30",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
