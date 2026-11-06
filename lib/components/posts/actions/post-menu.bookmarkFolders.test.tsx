@@ -359,7 +359,15 @@ describe('PostMenu bookmark folder submenu', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent(
       "“Read later” was created, but the post couldn't be filed in it."
     )
+    // The dialog shows the failure, so the menu does not show its own.
+    expect(
+      screen.queryByText("Couldn't file the bookmark. Please try again.")
+    ).not.toBeInTheDocument()
 
+    // A recased name is the same folder, as the server sees it.
+    fireEvent.change(within(dialog).getByLabelText('Name'), {
+      target: { value: 'read later' }
+    })
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
     })

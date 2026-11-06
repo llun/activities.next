@@ -60,7 +60,9 @@ export const NewBookmarkFolderDialog: FC<Props> = ({
     setError(null)
     try {
       let folder = createdRef.current
-      if (!folder || folder.name !== name.trim()) {
+      // Names match ignoring case, as the server's duplicate check does, so a
+      // retry with a recased name files into the folder already created.
+      if (!folder || folder.name.toLowerCase() !== name.trim().toLowerCase()) {
         folder = await createBookmarkFolder(name.trim())
         putBookmarkFolder(folder)
         createdRef.current = folder
