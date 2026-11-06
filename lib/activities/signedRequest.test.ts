@@ -7,6 +7,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { verify } from '@/lib/utils/signature'
 
 import {
+  REMEMBERED_SIGNATURE_SCHEME_MAX_HOSTS,
   REMOTE_SIGNATURE_SCHEME_REFRESH_INTERVAL_MS,
   REMOTE_SIGNATURE_SCHEME_TTL_MS,
   SIGNATURE_SCHEME_CACHE_TTL_MS,
@@ -71,7 +72,8 @@ type RequestOptionsLike = {
   url: string
 }
 
-type FakeResponse = { statusCode: number; url?: string } | Error
+type FakeResponse =
+  { headers?: Record<string, string>; statusCode: number; url?: string } | Error
 
 const calls: CapturedCall[] = []
 let responses: FakeResponse[] = []
@@ -591,6 +593,60 @@ describe('signedActivityPubRequest', () => {
       expect(calls).toHaveLength(1)
       expect(isCavage(calls[0].headers)).toBe(true)
       expect(getRememberedSignatureScheme('remote.test')).toBeNull()
+    })
+
+    it('never refreshes a stored scheme from a request that does not opt in or proves nothing', async () => {
+      let now = 1_000_000
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      const { db, upsertRemoteSignatureScheme } = createMemorySchemeDb()
+      mockGetDatabase.mockReturnValue(db)
+
+      responses = [respond(401, INBOX), respond(202, INBOX)]
+      await send()
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledTimes(1)
+
+      // Due for its refresh, but a lookup (no opt-in) must not write.
+      now += REMOTE_SIGNATURE_SCHEME_REFRESH_INTERVAL_MS + 1000
+      responses = [respond(202, INBOX)]
+      await send({ persistScheme: false })
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledTimes(1)
+
+      // Nor a GET whose 2xx is not an ActivityPub document.
+      now += SIGNATURE_SCHEME_CACHE_TTL_MS + 1000
+      responses = [
+        {
+          ...respond(200, 'https://remote.test/about'),
+          headers: { 'content-type': 'text/html' }
+        }
+      ]
+      await send({
+        method: 'GET',
+        url: 'https://remote.test/about',
+        body: undefined
+      })
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledTimes(1)
+
+      // A delivery does refresh it.
+      now += SIGNATURE_SCHEME_CACHE_TTL_MS + 1000
+      responses = [respond(202, INBOX)]
+      await send()
+      expect(upsertRemoteSignatureScheme).toHaveBeenCalledTimes(2)
+    })
+
+    it('evicts the least recently used host past the cache cap, keeping a recently read one', () => {
+      vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+      rememberSignatureScheme('first.example', 'rfc9421')
+      rememberSignatureScheme('second.example', 'rfc9421')
+      for (let i = 0; i < REMEMBERED_SIGNATURE_SCHEME_MAX_HOSTS - 2; i++) {
+        rememberSignatureScheme(`host-${i}.example`, 'rfc9421')
+      }
+      // Reading the first host makes it the most recent; the second is now oldest.
+      expect(getRememberedSignatureScheme('first.example')).toBe('rfc9421')
+      rememberSignatureScheme('one-more.example', 'rfc9421')
+
+      expect(getRememberedSignatureScheme('second.example')).toBeNull()
+      expect(getRememberedSignatureScheme('first.example')).toBe('rfc9421')
+      expect(getRememberedSignatureScheme('one-more.example')).toBe('rfc9421')
     })
 
     it('lazily refreshes a working stored scheme at most once per refresh interval', async () => {

@@ -138,7 +138,12 @@ export const clearRememberedSignatureSchemes = (): void => {
 const readPrimarySignatureScheme = async (
   hostKey: string | null,
   database: Database | null | undefined
-): Promise<{ dbExpiresAt: number | null; scheme: SignatureScheme }> => {
+): Promise<{
+  /** A scheme learned into this process only, never written to the table. */
+  cacheOnly?: boolean
+  dbExpiresAt: number | null
+  scheme: SignatureScheme
+}> => {
   if (!hostKey) return { scheme: 'cavage', dbExpiresAt: null }
 
   const now = Date.now()
@@ -170,7 +175,8 @@ const readPrimarySignatureScheme = async (
       rememberedSchemes.set(hostKey, cached)
       return {
         scheme: cached.scheme ?? 'cavage',
-        dbExpiresAt: cached.dbExpiresAt
+        dbExpiresAt: cached.dbExpiresAt,
+        cacheOnly: cached.scheme !== null && cached.dbExpiresAt === null
       }
     }
     if (cached.dbExpiresAt === null || cached.dbExpiresAt > now) {
@@ -395,7 +401,11 @@ export const signedActivityPubRequest = async ({
   const initialHost = normalizeComparableHost(rawUrlHost)
   const hostKey = normalizeHostKey(rawUrlHost)
   const hasSigningKey = Boolean(actor?.privateKey)
-  const { scheme: primary, dbExpiresAt } = hasSigningKey
+  const {
+    scheme: primary,
+    dbExpiresAt,
+    cacheOnly
+  } = hasSigningKey
     ? await readPrimarySignatureScheme(hostKey, database)
     : { scheme: 'cavage' as SignatureScheme, dbExpiresAt: null }
 
@@ -467,7 +477,18 @@ export const signedActivityPubRequest = async ({
 
   if (isSuccess(first.statusCode)) {
     if (!crossedHosts && persistScheme && provesScheme(first)) {
-      await maybeRefreshSignatureScheme(hostKey, primary, dbExpiresAt, database)
+      // A scheme an earlier lookup learned into this process (say, the actor
+      // fetch before a Follow) is written by the first delivery it works for;
+      // otherwise that delivery would skip the table and every other worker
+      // would knock again.
+      if (cacheOnly) await persistSignatureScheme(hostKey, primary, database)
+      else
+        await maybeRefreshSignatureScheme(
+          hostKey,
+          primary,
+          dbExpiresAt,
+          database
+        )
     }
     return first
   }

@@ -234,6 +234,40 @@ describe('signedActivityPubRequest with SQL database', () => {
     expect(getRememberedSignatureScheme('default.example')).toBe('rfc9421')
   })
 
+  it('writes a scheme a lookup learned once a delivery succeeds with it', async () => {
+    // The actor lookup learns RFC 9421 into this process only.
+    statuses = [401, 200]
+    contentTypes = ['text/html', 'application/activity+json']
+    await signedActivityPubRequest({
+      actor,
+      database,
+      method: 'GET',
+      url: 'https://follow.example/users/bob'
+    })
+    expect(
+      await database.getRemoteSignatureScheme({ domain: 'follow.example' })
+    ).toBeNull()
+
+    // The Follow delivery succeeds with it on its first knock.
+    headersSent.length = 0
+    statuses = [202]
+    await signedActivityPubRequest({
+      actor,
+      database,
+      method: 'POST',
+      persistScheme: true,
+      url: 'https://follow.example/inbox',
+      body: '{"type":"Follow"}'
+    })
+
+    expect(headersSent).toHaveLength(1)
+    expect(headersSent[0]['signature-input']).toEqual(expect.any(String))
+    const stored = await database.getRemoteSignatureScheme({
+      domain: 'follow.example'
+    })
+    expect(stored?.scheme).toBe('rfc9421')
+  })
+
   it('keeps a scheme learned with persistScheme false in process only', async () => {
     statuses = [401, 200]
     contentTypes = ['text/html', 'application/activity+json']

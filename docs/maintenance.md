@@ -1475,10 +1475,12 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   `deleteActorData` deletes all rows for an erased actor so no mapping outlives
   its owner.
 - **`remote_signature_schemes` holds a 7-day per-host outbound signature scheme (`REMOTE_SIGNATURE_SCHEME_TTL_MS`).**
-  `signedActivityPubRequest` writes a row only when Knock 2 learns or flips a
-  normalized host's scheme (`cavage` or `rfc9421`), and refreshes `expiresAt`
-  at most once every 24 hours (`REMOTE_SIGNATURE_SCHEME_REFRESH_INTERVAL_MS`)
-  when a stored scheme answers 2xx on a same-host Knock 1. A 5-minute
+  `signedActivityPubRequest` writes a row only for an inbox delivery: when its
+  Knock 2 learns or flips a normalized host's scheme (`cavage` or `rfc9421`),
+  or when its Knock 1 works with a scheme only the process cache knew. It
+  refreshes `expiresAt` at most once every 24 hours
+  (`REMOTE_SIGNATURE_SCHEME_REFRESH_INTERVAL_MS`) when a stored scheme answers
+  2xx on a same-host Knock 1 of an inbox delivery. A 5-minute
   in-process LRU (`SIGNATURE_SCHEME_CACHE_TTL_MS`, 2048 hosts) caches both hits
   and negative misses in front of the table, and
   `deleteExpiredRemoteSignatureSchemes`, run by `startActorDeletionSweep` in
@@ -1487,4 +1489,7 @@ Every query the app runs goes through Kysely, on a connection Kysely owns (`crea
   `postActivityToInbox`); fetches whose target remote content chose (the inbox
   guard's pre-verification key fetch, forwarded objects, quotes, lookups) learn
   into the process cache only, and a `GET` counts only when it returned an
-  ActivityPub document.
+  ActivityPub document. So the table grows by at most one row per host we
+  deliver to: a stranger cannot add rows by sending unverified input, though
+  a verified remote that gets deliveries sent to inboxes on many of its own
+  hosts still adds one row each (pruned after 7 days).

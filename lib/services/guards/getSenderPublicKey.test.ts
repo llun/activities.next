@@ -1,6 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import crypto from 'node:crypto'
 
+import { clearRememberedSignatureSchemes } from '@/lib/activities/signedRequest'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
   KEY_REFRESH_ATTEMPTS_MAX,
@@ -150,6 +151,8 @@ describe('getSenderPublicKey', () => {
   })
 
   beforeEach(() => {
+    // The learned-scheme cache is module state: start every test without it.
+    clearRememberedSignatureSchemes()
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     mockSpan.end.mockClear()
