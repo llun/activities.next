@@ -6,11 +6,14 @@
 
 export const THEME_STORAGE_KEY = 'anext-theme'
 
-// The live `<meta name="theme-color">` values. Next renders one per colour
+// The live `<meta name="theme-color">` pair. Next renders one per colour
 // scheme from `viewport.themeColor` in app/layout.tsx; an explicit light/dark
-// choice has to win over the OS preference, so `applyThemeColor` rewrites them.
+// choice has to win over the OS preference, so `applyThemeColor` switches
+// their `media` (never their `content`, see below).
 export const THEME_COLOR_LIGHT = '#ffffff'
 export const THEME_COLOR_DARK = '#0a0a0a'
+export const THEME_COLOR_LIGHT_MEDIA = '(prefers-color-scheme: light)'
+export const THEME_COLOR_DARK_MEDIA = '(prefers-color-scheme: dark)'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -68,39 +71,46 @@ export const applyTheme = (mode: ThemeMode): boolean => {
 }
 
 // Keeps the browser chrome (and an installed PWA's title bar) in step with the
-// resolved theme, on the two media-scoped metas Next renders from
-// `viewport.themeColor`. It never adds a meta, so there are never duplicates.
-// `system` restores each meta's own value (light `#ffffff`, dark `#0a0a0a`) and
-// the browser picks by `prefers-color-scheme`; an explicit choice writes its one
-// colour to both, so the OS preference cannot override it.
+// resolved theme, on the two metas Next renders from `viewport.themeColor`.
+// Only their `media` changes: React adopts a server <meta> on hydration by its
+// `content` (and name), so a meta whose content was rewritten is not found and
+// React appends a copy beside it (the third meta seen in production). `system`
+// restores the media-scoped pair; an explicit choice turns the chosen colour's
+// meta on for `all` and the other off (`not all`). The browser uses the first
+// theme-color meta, in document order, whose media matches, so exactly one
+// applies. It never adds or removes a meta.
 export const applyThemeColor = (mode: ThemeMode): void => {
   if (typeof document === 'undefined') return
-  const explicit =
-    mode === 'system'
-      ? null
-      : mode === 'dark'
-        ? THEME_COLOR_DARK
-        : THEME_COLOR_LIGHT
+  const chosen =
+    mode === 'dark'
+      ? THEME_COLOR_DARK
+      : mode === 'light'
+        ? THEME_COLOR_LIGHT
+        : null
   for (const meta of Array.from(
     document.querySelectorAll('meta[name="theme-color"]')
   )) {
-    const media = meta.getAttribute('media') ?? ''
-    const own = media.includes('dark')
-      ? THEME_COLOR_DARK
-      : media.includes('light')
-        ? THEME_COLOR_LIGHT
-        : null
-    const color = explicit ?? own
-    if (color) meta.setAttribute('content', color)
+    const content = meta.getAttribute('content')
+    const own =
+      content === THEME_COLOR_LIGHT
+        ? THEME_COLOR_LIGHT_MEDIA
+        : content === THEME_COLOR_DARK
+          ? THEME_COLOR_DARK_MEDIA
+          : null
+    if (!own) continue
+    meta.setAttribute(
+      'media',
+      chosen === null ? own : content === chosen ? 'all' : 'not all'
+    )
   }
 }
 
 // Inline script injected at the top of <body> so the theme is applied before the
 // first paint — otherwise a stored dark preference would flash a light page on
 // every load. Kept dependency-free and self-contained (it runs before any bundle
-// loads) and mirrors the logic above. For an explicit choice it also writes the
-// theme-color metas that exist yet; in `system` mode it leaves them alone (they
-// are already media-scoped), and it never adds one. ThemeProvider applies the
+// loads) and mirrors the logic above. For an explicit choice it also switches
+// the `media` of the theme-color metas that exist yet (never their content); in
+// `system` mode it leaves them alone, and it never adds one. ThemeProvider applies the
 // colour again on mount, for metas that arrive after this script. Allowed by the
 // `script-src 'unsafe-inline'` directive in the app CSP.
-export const THEME_INIT_SCRIPT = `(function(){try{var k='${THEME_STORAGE_KEY}';var m=localStorage.getItem(k);if(m!=='light'&&m!=='dark'&&m!=='system')m='system';var d=m==='dark'||(m==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light';if(m!=='system'){var c=m==='dark'?'${THEME_COLOR_DARK}':'${THEME_COLOR_LIGHT}';var ms=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<ms.length;i++){ms[i].setAttribute('content',c);}}}catch(e){}})();`
+export const THEME_INIT_SCRIPT = `(function(){try{var k='${THEME_STORAGE_KEY}';var m=localStorage.getItem(k);if(m!=='light'&&m!=='dark'&&m!=='system')m='system';var d=m==='dark'||(m==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light';if(m!=='system'){var c=m==='dark'?'${THEME_COLOR_DARK}':'${THEME_COLOR_LIGHT}';var ms=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<ms.length;i++){var v=ms[i].getAttribute('content');if(v==='${THEME_COLOR_LIGHT}'||v==='${THEME_COLOR_DARK}')ms[i].setAttribute('media',v===c?'all':'not all');}}}catch(e){}})();`

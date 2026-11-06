@@ -7,7 +7,9 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ThemeProvider, useTheme } from './ThemeProvider'
 import {
   THEME_COLOR_DARK,
+  THEME_COLOR_DARK_MEDIA,
   THEME_COLOR_LIGHT,
+  THEME_COLOR_LIGHT_MEDIA,
   THEME_STORAGE_KEY
 } from './theme-core'
 
@@ -88,38 +90,41 @@ describe('ThemeProvider', () => {
   })
 
   describe('theme-color metas on mount', () => {
-    // As the server renders them; `content` is what an earlier script or an
+    // As the server renders them; `media` is what an earlier script or an
     // older page left behind.
-    const renderMetas = (light: string, dark: string) => {
+    const renderMetas = (lightMedia: string, darkMedia: string) => {
       document.head.innerHTML =
-        `<meta name="theme-color" media="(prefers-color-scheme: light)" content="${light}">` +
-        `<meta name="theme-color" media="(prefers-color-scheme: dark)" content="${dark}">`
+        `<meta name="theme-color" media="${lightMedia}" content="${THEME_COLOR_LIGHT}">` +
+        `<meta name="theme-color" media="${darkMedia}" content="${THEME_COLOR_DARK}">`
     }
-    const contents = () =>
+    const medias = () =>
       Array.from(document.querySelectorAll('meta[name="theme-color"]')).map(
-        (meta) => meta.getAttribute('content')
+        (meta) => meta.getAttribute('media')
       )
 
     afterEach(() => {
       document.head.innerHTML = ''
     })
 
-    it('restores the media-scoped colours in system mode', () => {
-      renderMetas(THEME_COLOR_DARK, THEME_COLOR_DARK)
+    it('restores the media-scoped pair in system mode', () => {
+      renderMetas('not all', 'all')
 
       renderProvider()
 
-      expect(contents()).toEqual([THEME_COLOR_LIGHT, THEME_COLOR_DARK])
+      expect(medias()).toEqual([
+        THEME_COLOR_LIGHT_MEDIA,
+        THEME_COLOR_DARK_MEDIA
+      ])
     })
 
     // Streamed metadata can land after the pre-paint script ran.
     it('applies an explicit choice to metas that arrived after the script', () => {
       localStorage.setItem(THEME_STORAGE_KEY, 'dark')
-      renderMetas(THEME_COLOR_LIGHT, THEME_COLOR_DARK)
+      renderMetas(THEME_COLOR_LIGHT_MEDIA, THEME_COLOR_DARK_MEDIA)
 
       renderProvider()
 
-      expect(contents()).toEqual([THEME_COLOR_DARK, THEME_COLOR_DARK])
+      expect(medias()).toEqual(['not all', 'all'])
     })
   })
 

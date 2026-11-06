@@ -16,7 +16,8 @@ describe('POST /_share-target (first-visit fallback)', () => {
   it('sends a browser-launched share to the composer notice without reading the body', async () => {
     const request = shareRequest({
       'sec-fetch-site': 'none',
-      'sec-fetch-mode': 'navigate'
+      'sec-fetch-mode': 'navigate',
+      'sec-fetch-dest': 'document'
     })
     const formData = vi.spyOn(request, 'formData')
     const arrayBuffer = vi.spyOn(request, 'arrayBuffer')
@@ -42,10 +43,15 @@ describe('POST /_share-target (first-visit fallback)', () => {
     }
   )
 
-  it.each([
+  it.each<Record<string, string>>([
     { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' },
     { 'sec-fetch-site': 'same-site', 'sec-fetch-mode': 'navigate' },
-    { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'cors' }
+    { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'cors' },
+    {
+      'sec-fetch-site': 'none',
+      'sec-fetch-mode': 'navigate',
+      'sec-fetch-dest': 'iframe'
+    }
   ])('refuses %o with a plain redirect to /app', (headers) => {
     const response = POST(shareRequest(headers))
 

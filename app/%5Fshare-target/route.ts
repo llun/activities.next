@@ -18,7 +18,10 @@ export const dynamic = 'force-dynamic'
 const isAllowedShare = (request: NextRequest) => {
   const site = request.headers.get('sec-fetch-site')
   const mode = request.headers.get('sec-fetch-mode')
+  const dest = request.headers.get('sec-fetch-dest')
   if (mode && mode !== 'navigate') return false
+  // A frame another site embeds is a navigation too, but not a share launch.
+  if (dest && dest !== 'document') return false
   return !site || site === 'none' || site === 'same-origin'
 }
 
