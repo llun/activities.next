@@ -1,0 +1,71 @@
+public/sw.js
+  s_2b1a50e2f9b981::t_6860c8f8f28840 368-369,375-377
+lib/components/offline/OfflineAppShell.test.tsx
+  s_2b1a50e2f9b981::t_d36926850fbe5d 399,408
+  s_2b1a50e2f9b981::t_0f997834a4d37f 92
+lib/client/share-target/useShareTargetIntake.ts
+  s_2b1a50e2f9b981::t_d36926850fbe5d 43
+  s_2b1a50e2f9b981::t_50e36673417b1d 45-46,85-86,128,167
+lib/components/post-box/post-box.tsx
+  s_2b1a50e2f9b981::t_212bf62c17b4ff 2158-2162
+lib/components/theme/theme-core.test.ts
+  s_2b1a50e2f9b981::t_a86c0b3433d9e0 178-185,187-191,211-254
+  s_2b1a50e2f9b981::t_0591dbd8bd01f7 255
+lib/components/offline/OfflineAppShell.tsx
+  s_2b1a50e2f9b981::t_0c672306db8be9 530-539
+lib/components/theme/theme-core.ts
+  s_2b1a50e2f9b981::t_472b90669d3f11 71-75,78,84,86-94,101-106
+  s_2b1a50e2f9b981::t_53d70eb3c501c0 79-83
+lib/components/share-target/ShareTargetIntake.tsx
+  s_2b1a50e2f9b981::t_d36926850fbe5d 40,75-87
+  s_2b1a50e2f9b981::t_53d70eb3c501c0 67,72-74,97-129,135,140-141
+  s_2b1a50e2f9b981::t_19a361218877c3 14-18,27-28,68-71,136-139
+lib/components/theme/ThemeProvider.tsx
+  s_2b1a50e2f9b981::t_a86c0b3433d9e0 17
+  s_2b1a50e2f9b981::t_472b90669d3f11 48-49,51-53
+lib/client/share-target/shareTargetDb.test.ts
+  s_2b1a50e2f9b981::t_bc14ab53a7bf33 6,93-109
+  s_2b1a50e2f9b981::t_3529c2160e2ca0 110-111
+lib/components/post-box/post-box.share.test.tsx
+  s_2b1a50e2f9b981::t_890bace9979242 71,75,89-90,207-243
+  s_2b1a50e2f9b981::t_dc6118a7e8ad49 244
+lib/client/offline/sw.test.ts
+  s_2b1a50e2f9b981::t_6860c8f8f28840 938,940-944,955,1052-1060
+  s_2b1a50e2f9b981::t_3bf99e85259f82 1061
+app/(timeline)/MainPageTimeline.test.tsx
+  s_2b1a50e2f9b981::t_04a97382b7d692 97,195-221
+  s_2b1a50e2f9b981::t_6ce67f06f456ec 222-223
+app/(timeline)/MainPageTimeline.tsx
+  s_2b1a50e2f9b981::t_0c672306db8be9 7
+  s_2b1a50e2f9b981::t_002b33b52cb8b8 109-113,226,1667
+lib/client/share-target/useShareTargetIntake.test.tsx
+  s_2b1a50e2f9b981::t_d36926850fbe5d 8-12,57-58,176,183-203
+lib/client/share-target/shareTargetDb.ts
+  s_2b1a50e2f9b981::t_bc14ab53a7bf33 149-151,167-169,171-176,179-180
+docs/architecture.md
+  s_2b1a50e2f9b981::t_f31a8239b3b343 3588,3590,3592-3593,3598
+lib/components/post-box/post-box-media.test.tsx
+  s_2b1a50e2f9b981::t_ac2726a7fadf3b 1361-1363,1370-1372,1375,1378-1383
+  s_2b1a50e2f9b981::t_8b39acb262bdab 1367-1369
+lib/components/theme/ThemeProvider.test.tsx
+  s_2b1a50e2f9b981::t_88a721865ff1ff 8-12,90-123
+  s_2b1a50e2f9b981::t_2158163de45612 124-125
+lib/components/share-target/ShareTargetIntake.test.tsx
+  s_2b1a50e2f9b981::t_6860c8f8f28840 96-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f38083c518e39a00808fa21322bfdff15f45f907",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
