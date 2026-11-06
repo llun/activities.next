@@ -1,0 +1,115 @@
+app/layout.test.tsx
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 155-163
+lib/components/offline/OfflineAppShell.test.tsx
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 345-351,355-360,366-374
+  s_2b1a50e2f9b981::t_6195ad9d347df8 419-427,431-437
+  s_2b1a50e2f9b981::t_141000976e31c9 341-344,352-354,361-365
+  s_2b1a50e2f9b981::t_ce6b4e01198130 428-430
+lib/components/post-box/prepareComposerMediaFiles.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-111
+lib/components/post-box/reducers.test.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 133,167-169,172,213,216,250
+lib/services/fitness-files/constants.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 14-18
+lib/components/offline/OfflineAppShell.tsx
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 32-35,50,84-85,202-208,210-211,213-214,498-499,517-518
+  s_2b1a50e2f9b981::t_145309f0e3521f 209
+  s_2b1a50e2f9b981::t_fde5af285bec47 86-92,130-137,163,497
+  s_2b1a50e2f9b981::t_6195ad9d347df8 394-395
+scripts/maintenance/generateMaskableIcons.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-53
+test/proxy.test.ts
+  s_2b1a50e2f9b981::t_fe57a87e985571 694-708,712-727
+  s_2b1a50e2f9b981::t_fc7035266af2e1 709-711
+lib/client/share-target/classify.test.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-80,85-122,127-145,151-176,180-187
+  s_2b1a50e2f9b981::t_ce6b4e01198130 81-84,123-126,146-150,177-179
+lib/client/share-target/useShareTargetIntake.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-129
+lib/services/fitness-files/types.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 35-37,39
+lib/components/theme/theme-core.test.ts
+  s_2b1a50e2f9b981::t_2d25722539e934 104-119
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 5-6,10,120-185
+lib/components/share-target/ShareTargetIntake.tsx
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-61
+lib/components/theme/theme-core.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 9-14,66,70-75,77-99,105
+  s_2b1a50e2f9b981::t_ce6b4e01198130 76
+lib/components/post-box/post-box.share.test.tsx
+  s_2b1a50e2f9b981::t_81b66d8d477e64 1-4,12-234
+  s_2b1a50e2f9b981::t_ce6b4e01198130 5-11
+lib/services/fitness-files/types.test.ts
+  s_2b1a50e2f9b981::t_ce6b4e01198130 40-42
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-39,43-65
+lib/config/fitnessStorage.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 6,47-49
+lib/components/post-box/post-box.tsx
+  s_2b1a50e2f9b981::t_ce6b4e01198130 116,1801,1821
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 44-45,182-188,220-221,236-241,1717-1736,1738-1741,1758-1800,1802-1820,1822-1823,1825-1834,2172-2195,2367-2371,2526,2528,2531-2534
+  s_2b1a50e2f9b981::t_38f3c371c92b25 2527,2529-2530,2535
+  s_2b1a50e2f9b981::t_e8c8c78d48fb2c 1824,2536
+docs/architecture.md
+  s_2b1a50e2f9b981::t_2fa31c3a455f31 3586-3591,3596
+app/manifest.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 7-23,41-42,47-116
+lib/components/settings/FitnessImport.test.tsx
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-70,74-75
+  s_2b1a50e2f9b981::t_ce6b4e01198130 71-73
+lib/client/offline/sw.test.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1,107,113-116,123-127,136-145,898-926,931-939,943-992,996-1084
+  s_2b1a50e2f9b981::t_db391e491a7959 940-942
+  s_2b1a50e2f9b981::t_ce6b4e01198130 927-930,993-995
+  s_2b1a50e2f9b981::t_72271bd36acd94 1085-1086
+lib/client/share-target/useShareTargetIntake.test.tsx
+  s_2b1a50e2f9b981::t_ce6b4e01198130 77-79
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-76,80-160
+lib/components/post-box/reducers.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 239-241
+lib/client/share-target/classify.ts
+  s_2b1a50e2f9b981::t_ce6b4e01198130 148
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-147,149-150
+proxy.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 170-171
+  s_2b1a50e2f9b981::t_fe57a87e985571 167-169,202-206,212,214-217
+  s_2b1a50e2f9b981::t_fc7035266af2e1 207-211,213
+lib/components/post-box/upload-media-button.tsx
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 6,10,29-34,46-47,50,72-74,90-97,99,101,105-110,153,155-156
+app/layout.tsx
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 27-35
+lib/components/settings/FitnessImport.tsx
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 12-17,58-60,107-136,214-220
+lib/client/share-target/types.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-27
+app/api/v1/fitness-files/route.test.ts
+  s_2b1a50e2f9b981::t_bb5ca432fa7aac 155-156,158-159
+  s_2b1a50e2f9b981::t_9c5eff12f58870 172-187
+app/(timeline)/MainPageTimeline.tsx
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 104-107,218-219,1665-1666
+public/sw.js
+  s_2b1a50e2f9b981::t_ce6b4e01198130 307-311,333-336
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 11-24,110,121-122,276-306,312-332,337-428,458-472,490-497,593-594,600-601
+app/manifest.test.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 39-40,45-96,98-108,110-118
+lib/client/share-target/shareTargetDb.ts
+  s_2b1a50e2f9b981::t_bb5ca432fa7aac 37-39,82
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-36,40-81,83-153
+lib/client/share-target/shareTargetDb.test.ts
+  s_2b1a50e2f9b981::t_fada591ccd7e9d 1-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4b8425ccc71445637e9d95388514e6c67ec21886",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
