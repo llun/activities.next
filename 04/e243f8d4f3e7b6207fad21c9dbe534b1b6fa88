@@ -1,0 +1,39 @@
+lib/services/accountImport/phases.ts
+  s_2b1a50e2f9b981::t_bec1a71aea401a 2510-2511
+lib/components/bookmarks/NewBookmarkFolderDialog.tsx
+  s_2b1a50e2f9b981::t_dc33796af66c36 4,27-31,44-46,52,62-73
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_e5a5c8842f7c7f 2334-2335
+lib/database/domains/accountExport/tables.ts
+  s_2b1a50e2f9b981::t_bec1a71aea401a 80
+docs/architecture.md
+  s_2b1a50e2f9b981::t_e5a5c8842f7c7f 1453
+app/(timeline)/bookmarks/BookmarkFoldersDialog.tsx
+  s_2b1a50e2f9b981::t_e36fa210e45b0c 35-39,128
+lib/components/posts/actions/post-menu.tsx
+  s_2b1a50e2f9b981::t_dc33796af66c36 425-432,441-444,449,946-948
+app/(timeline)/bookmarks/BookmarksTimeline.folders.test.tsx
+  s_2b1a50e2f9b981::t_e5a5c8842f7c7f 439-441,447-449
+  s_2b1a50e2f9b981::t_3dff9d73cda5b4 139-141
+  s_2b1a50e2f9b981::t_75829987ff27c3 425-438,442-446,450-479
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_2b1a50e2f9b981::t_e36fa210e45b0c 281-282,284,294,299-306,384-387
+lib/components/posts/actions/post-menu.bookmarkFolders.test.tsx
+  s_2b1a50e2f9b981::t_75829987ff27c3 337-380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04e243f8d4f3e7b6207fad21c9dbe534b1b6fa88",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
