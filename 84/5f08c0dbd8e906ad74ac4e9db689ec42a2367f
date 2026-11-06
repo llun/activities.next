@@ -1,0 +1,39 @@
+lib/activities/signedRequest.ts
+  s_2b1a50e2f9b981::t_bdf99807027957 344-348,390
+lib/jobs/deliverActivityJob.test.ts
+  s_2b1a50e2f9b981::t_215000c07cdd07 28-33,84-103
+  s_2b1a50e2f9b981::t_17e36bc9737894 104
+docs/mastodon-api-compatibility.md
+  s_2b1a50e2f9b981::t_d1d562e92ddc88 1514
+docs/maintenance.md
+  s_2b1a50e2f9b981::t_4e0a8d64759a28 1486-1490
+lib/services/guards/getSenderPublicKey.ts
+  s_2b1a50e2f9b981::t_bdf99807027957 225-226
+lib/jobs/deliverActivityJob.ts
+  s_2b1a50e2f9b981::t_bdf99807027957 113-115
+lib/activities/signedRequest.test.ts
+  s_2b1a50e2f9b981::t_aa9b4550af85b2 133-134
+lib/activities/signedRequest.db.test.ts
+  s_2b1a50e2f9b981::t_aa9b4550af85b2 125,192,211,221-234
+  s_2b1a50e2f9b981::t_9a72d63b30543c 235-236
+docs/architecture.md
+  s_2b1a50e2f9b981::t_4e0a8d64759a28 247
+lib/activities/index.ts
+  s_2b1a50e2f9b981::t_bdf99807027957 100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "845f08c0dbd8e906ad74ac4e9db689ec42a2367f",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
