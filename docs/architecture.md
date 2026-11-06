@@ -771,10 +771,22 @@ already bookmarked are filed into it. An entry it cannot restore (too large,
 unreadable, a refused name, past the cap) is logged (import id, reason and
 entry index; never the folder's name, which is private) and counted by reason
 in `progress.bookmarkFolderSkips`, which the import report lists. A refused
-name is counted once however many entries the folder was split into, and a
-same-name folder the owner creates while the import runs is filed into (if
-it is deleted again before it is read, the import creates the folder once
-more, and reports `bookmark_folder_conflict` if that also collides). An archive without the file (a Mastodon one, or
+name is counted once however many entries the folder was split into. Two
+races with the owner, who can use the app while their import runs, are
+handled:
+
+- **Duplicate name at create.** When the import's create answers
+  duplicate-name, the owner made a folder of that name meanwhile: the import
+  re-reads the folders and files into theirs. If it is gone by the time it is
+  read, the import creates the folder once more, and reports
+  `bookmark_folder_conflict` if that also collides.
+- **Folder deleted mid-import.** When a folder the import already resolved
+  (found by name at the start, or created) answers not-found on a filing, the
+  owner deleted it. The import respects that and does not make it again: the
+  folder's remaining bookmarks and later entries stay unfiled, and it is
+  counted once as `bookmark_folder_conflict`.
+
+An archive without the file (a Mastodon one, or
 an older export) imports every bookmark unfiled.
 With `repliesToOthers: "keep"`, a foreign parent's URI is stored as data in the
 imported status's `statuses.reply` field, which is limited to 255 characters;

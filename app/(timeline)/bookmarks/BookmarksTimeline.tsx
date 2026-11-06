@@ -5,7 +5,7 @@ import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getBookmarks } from '@/lib/client'
 import {
-  setBookmarkFolders,
+  seedBookmarkFolders,
   useBookmarkFolders
 } from '@/lib/components/bookmarks/bookmarkFolderStore'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
@@ -118,7 +118,7 @@ export const BookmarksTimeline: FC<BookmarksTimelineProps> = ({
   const folders =
     folderStore.status === 'loaded' ? folderStore.folders : initialFolders
   useEffect(() => {
-    setBookmarkFolders(currentActor.id, initialFolders)
+    seedBookmarkFolders(currentActor.id, initialFolders)
   }, [currentActor.id, initialFolders])
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
     Boolean(initialNextMaxBookmarkId)

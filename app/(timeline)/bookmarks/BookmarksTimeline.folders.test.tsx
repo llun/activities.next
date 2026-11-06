@@ -15,6 +15,7 @@ import {
 import {
   createBookmarkFolder,
   deleteBookmarkFolder,
+  getBookmarkFolders,
   getBookmarks,
   setStatusBookmarkFolder
 } from '@/lib/client'
@@ -476,5 +477,36 @@ describe('BookmarksTimeline folders', () => {
       })
     ).not.toBeInTheDocument()
     expect(await screen.findByText('No bookmarks yet')).toBeInTheDocument()
+  })
+
+  it('keeps a folder made on the page when a back navigation brings the old list', async () => {
+    ;(createBookmarkFolder as jest.Mock).mockResolvedValue(
+      folder('f-new', 'Read later')
+    )
+    ;(getBookmarkFolders as jest.Mock).mockResolvedValue([
+      ...FOLDERS,
+      folder('f-new', 'Read later')
+    ])
+    renderTimeline({ folders: FOLDERS })
+    fireEvent.click(screen.getByRole('button', { name: 'Manage folders' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('New folder'), {
+      target: { value: 'Read later' }
+    })
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    })
+    cleanup()
+
+    // The router cache renders the page again with the list it first had.
+    renderTimeline({ folders: FOLDERS })
+    fireEvent.keyDown(within(folderNav()!).getByRole('button'), {
+      key: 'ArrowDown'
+    })
+    const menu = await screen.findByRole('menu')
+
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Read later' })
+    ).toBeInTheDocument()
   })
 })

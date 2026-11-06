@@ -31,6 +31,9 @@ let state = INITIAL_STATE
 // Bumped by every write and actor switch: a load that started before one
 // must not overwrite what it wrote.
 let generation = 0
+// Bumped by every load and refresh: only the newest one may read again or
+// report a failure, so two overtaken loads never keep restarting each other.
+let latestLoad = 0
 const listeners = new Set<() => void>()
 
 // Read through this after an await: `state` may have changed meanwhile, which
@@ -75,6 +78,8 @@ export const loadBookmarkFolders = async (actorId: string): Promise<void> => {
   if (state.status === 'loading' || state.status === 'loaded') return
   generation += 1
   const started = generation
+  latestLoad += 1
+  const token = latestLoad
   emit({ ...state, status: 'loading' })
   try {
     const folders = await getBookmarkFolders()
@@ -82,19 +87,72 @@ export const loadBookmarkFolders = async (actorId: string): Promise<void> => {
       emit({ actorId, folders: sortFolders(folders), status: 'loaded' })
       return
     }
-    // Overtaken. A write that made the list whole (the page's seed) has
+    // Overtaken. A newer load (after an actor switch and back) owns the
+    // store now; a write that made the list whole (the page's seed) has
     // already marked it loaded; otherwise read it again.
     const now = current()
-    if (now.actorId === actorId && now.status === 'loading') {
+    if (
+      token === latestLoad &&
+      now.actorId === actorId &&
+      now.status === 'loading'
+    ) {
       emit({ ...now, status: 'idle' })
       await loadBookmarkFolders(actorId)
     }
   } catch {
     const now = current()
-    if (now.actorId === actorId && now.status === 'loading') {
+    if (
+      token === latestLoad &&
+      now.actorId === actorId &&
+      now.status === 'loading'
+    ) {
       emit({ ...now, status: 'error' })
     }
   }
+}
+
+/**
+ * Re-reads a list that is already loaded, keeping it on screen meanwhile; a
+ * write or another load that lands first wins. Loads it when it is not.
+ */
+export const refreshBookmarkFolders = async (
+  actorId: string
+): Promise<void> => {
+  if (state.actorId !== actorId || state.status !== 'loaded') {
+    return loadBookmarkFolders(actorId)
+  }
+  const started = generation
+  latestLoad += 1
+  const token = latestLoad
+  try {
+    const folders = await getBookmarkFolders()
+    if (
+      token === latestLoad &&
+      generation === started &&
+      current().actorId === actorId
+    ) {
+      generation += 1
+      emit({ actorId, folders: sortFolders(folders), status: 'loaded' })
+    }
+  } catch {
+    // The list on screen stays; the next refresh tries again.
+  }
+}
+
+/**
+ * The Bookmarks page's server list. A store already loaded for the actor
+ * (a router-cache back navigation hands the page its old list) may hold
+ * newer writes, so it is kept and refreshed instead of overwritten.
+ */
+export const seedBookmarkFolders = (
+  actorId: string,
+  folders: BookmarkFolderEntity[]
+) => {
+  if (state.actorId === actorId && state.status === 'loaded') {
+    void refreshBookmarkFolders(actorId)
+    return
+  }
+  setBookmarkFolders(actorId, folders)
 }
 
 /** The whole list, from the server: the store is loaded. */

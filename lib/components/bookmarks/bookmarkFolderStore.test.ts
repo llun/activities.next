@@ -11,6 +11,7 @@ import {
   putBookmarkFolder,
   removeBookmarkFolder,
   resetBookmarkFolderStore,
+  seedBookmarkFolders,
   setBookmarkFolders,
   useBookmarkFolders
 } from './bookmarkFolderStore'
@@ -123,6 +124,72 @@ describe('bookmark folder store', () => {
 
     expect(getBookmarkFolders).toHaveBeenCalledTimes(1)
     expect(names(result.current)).toEqual(['Seed'])
+  })
+
+  it('settles a load left in flight across a switch to another actor and back', async () => {
+    const firstA = deferred<BookmarkFolderEntity[]>()
+    const forB = deferred<BookmarkFolderEntity[]>()
+    const secondA = deferred<BookmarkFolderEntity[]>()
+    vi.mocked(getBookmarkFolders)
+      .mockReturnValueOnce(firstA.promise)
+      .mockReturnValueOnce(forB.promise)
+      .mockReturnValueOnce(secondA.promise)
+      // A fourth request would be the loop: it never answers, so the test
+      // fails on the count instead of spinning.
+      .mockImplementation(() => new Promise(() => {}))
+    const a = renderHook(() => useBookmarkFolders(ACTOR_A))
+    const b = renderHook(() => useBookmarkFolders(ACTOR_B))
+
+    act(() => {
+      void loadBookmarkFolders(ACTOR_A)
+      void loadBookmarkFolders(ACTOR_B)
+      void loadBookmarkFolders(ACTOR_A)
+    })
+    await act(async () => {
+      firstA.resolve([folder('a-old', 'A old')])
+      secondA.resolve([folder('a', 'A folder')])
+      forB.resolve([folder('b', 'B folder')])
+      await new Promise((settle) => setTimeout(settle, 10))
+    })
+
+    // Three requests and no more: the overtaken ones did not restart.
+    expect(getBookmarkFolders).toHaveBeenCalledTimes(3)
+    expect(names(a.result.current)).toEqual(['A folder'])
+    expect(a.result.current.status).toBe('loaded')
+    expect(b.result.current).toEqual({ folders: [], status: 'idle' })
+  })
+
+  it('keeps a newer store over a stale page seed, and refreshes it', async () => {
+    vi.mocked(getBookmarkFolders).mockResolvedValue([
+      folder('old', 'Old'),
+      folder('new', 'New'),
+      folder('elsewhere', 'Made elsewhere')
+    ])
+    const { result } = renderHook(() => useBookmarkFolders(ACTOR_A))
+    act(() => setBookmarkFolders(ACTOR_A, [folder('old', 'Old')]))
+    act(() => putBookmarkFolder(ACTOR_A, folder('new', 'New')))
+
+    // A router-cache back navigation hands the page its first list again.
+    act(() => seedBookmarkFolders(ACTOR_A, [folder('old', 'Old')]))
+    expect(names(result.current)).toEqual(['New', 'Old'])
+
+    await act(async () => {
+      await vi.waitFor(() => expect(getBookmarkFolders).toHaveBeenCalled())
+    })
+    await vi.waitFor(() =>
+      expect(names(result.current)).toEqual(['Made elsewhere', 'New', 'Old'])
+    )
+    expect(result.current.status).toBe('loaded')
+  })
+
+  it('seeds a store that has not loaded for this actor', () => {
+    const { result } = renderHook(() => useBookmarkFolders(ACTOR_A))
+    act(() => setBookmarkFolders(ACTOR_B, [folder('b', 'B folder')]))
+
+    act(() => seedBookmarkFolders(ACTOR_A, [folder('a', 'A folder')]))
+
+    expect(getBookmarkFolders).not.toHaveBeenCalled()
+    expect(names(result.current)).toEqual(['A folder'])
   })
 
   it("never shows one actor's folders to another", async () => {

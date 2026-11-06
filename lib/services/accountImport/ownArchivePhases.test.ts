@@ -1182,25 +1182,24 @@ describe('own archive import phases', () => {
       })
     })
 
-    it('makes the folder again when it is deleted mid-import, and files the bookmark', async () => {
+    it('does not revive a folder deleted before its first filing, and counts it once', async () => {
       const first = await createStatus('vanish-first')
       const second = await createStatus('vanish-second')
       await database.createBookmark({ actorId: actor.id, statusId: first })
       await database.createBookmark({ actorId: actor.id, statusId: second })
       const name = 'Deleted mid-import ' + randomUUID()
       const realFile = database.fileBookmark.bind(database)
-      let deletedId: string | undefined
-      vi.spyOn(database, 'fileBookmark').mockImplementationOnce(
-        async (params) => {
+      const file = vi
+        .spyOn(database, 'fileBookmark')
+        .mockImplementationOnce(async (params) => {
           // The owner deletes the folder just before the first filing.
-          deletedId = params.folderId ?? undefined
           await database.deleteBookmarkFolder({
             id: params.folderId as string,
             actorId: actor.id
           })
           return realFile(params)
-        }
-      )
+        })
+      const create = vi.spyOn(database, 'createBookmarkFolder')
       const progress = progressWithBookmarks()
       const stagedImport = await folderArchive('folders-vanish', [
         entry(name, [first]),
@@ -1209,35 +1208,67 @@ describe('own archive import phases', () => {
 
       await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
 
-      const restored = (
-        await database.getBookmarkFolders({ actorId: actor.id })
-      ).find((folder) => folder.name === name)
-      expect(restored?.id).toBeTruthy()
-      expect(restored?.id).not.toBe(deletedId)
-      expect(await folderOf(first)).toBe(restored!.id)
-      expect(await folderOf(second)).toBe(restored!.id)
-      expect(progress.bookmarkFolderSkips).toBeUndefined()
+      expect(create).toHaveBeenCalledTimes(1)
+      expect(file).toHaveBeenCalledTimes(1)
+      expect(
+        (await database.getBookmarkFolders({ actorId: actor.id })).some(
+          (folder) => folder.name === name
+        )
+      ).toBe(false)
+      expect(await folderOf(first)).toBeNull()
+      expect(await folderOf(second)).toBeNull()
+      expect(progress.bookmarkFolderSkips).toEqual({
+        bookmark_folder_conflict: 1
+      })
     })
 
-    it('reports a folder that keeps vanishing as a conflict, once', async () => {
-      const first = await createStatus('gone-first')
-      const second = await createStatus('gone-second')
-      await database.createBookmark({ actorId: actor.id, statusId: first })
-      await database.createBookmark({ actorId: actor.id, statusId: second })
+    it('keeps the filings made before the owner deleted the folder, and revives nothing', async () => {
+      const statuses = [
+        await createStatus('k-1'),
+        await createStatus('k-2'),
+        await createStatus('k-3'),
+        await createStatus('k-4')
+      ]
+      for (const statusId of statuses) {
+        await database.createBookmark({ actorId: actor.id, statusId })
+      }
+      const name = 'Deleted after two ' + randomUUID()
+      const realFile = database.fileBookmark.bind(database)
+      let filings = 0
       const file = vi
         .spyOn(database, 'fileBookmark')
-        .mockResolvedValue('folder-not-found')
-      const name = 'Always gone ' + randomUUID()
+        .mockImplementation(async (params) => {
+          filings += 1
+          // After k = 2 filings the owner deletes the folder.
+          if (filings === 3) {
+            await database.deleteBookmarkFolder({
+              id: params.folderId as string,
+              actorId: actor.id
+            })
+          }
+          return realFile(params)
+        })
+      const create = vi.spyOn(database, 'createBookmarkFolder')
       const progress = progressWithBookmarks()
-      const stagedImport = await folderArchive('folders-gone', [
-        entry(name, [first, second]),
-        entry(name, [second])
+      const stagedImport = await folderArchive('folders-deleted-after-k', [
+        entry(name, statuses.slice(0, 3)),
+        entry(name, statuses.slice(3))
       ])
 
       await runBookmarkFoldersPhase(contextFor(stagedImport), progress)
 
-      // The first item and its one retry; nothing after it.
-      expect(file).toHaveBeenCalledTimes(2)
+      // The third filing found it gone; nothing after it was tried.
+      expect(file).toHaveBeenCalledTimes(3)
+      expect(create).toHaveBeenCalledTimes(1)
+      expect(
+        (await database.getBookmarkFolders({ actorId: actor.id })).some(
+          (folder) => folder.name === name
+        )
+      ).toBe(false)
+      // Deleting the folder unfiled the first two; none is filed anywhere.
+      for (const statusId of statuses) {
+        expect(await folderOf(statusId)).toBeNull()
+      }
       expect(progress.bookmarkFolderSkips).toEqual({
         bookmark_folder_conflict: 1
       })

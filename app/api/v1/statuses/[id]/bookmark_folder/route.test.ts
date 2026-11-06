@@ -109,6 +109,29 @@ describe('PUT /api/v1/statuses/[id]/bookmark_folder', () => {
     )
   })
 
+  it('refuses a session write without same-origin proof with a 403 that carries the CORS headers', async () => {
+    const statusId = await createStatus()
+    const response = await PUT(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(statusId)}/bookmark_folder`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folder_id: null })
+        }
+      ),
+      { params: Promise.resolve({ id: urlToId(statusId) }) }
+    )
+
+    expect(response.status).toBe(403)
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+      'PUT'
+    )
+    await expect(
+      database.isActorBookmarkedStatus({ actorId: ACTOR1_ID, statusId })
+    ).resolves.toBe(false)
+  })
+
   it('bookmarks and files an unbookmarked status, then null unfiles it', async () => {
     const statusId = await createStatus()
     const folder = await createFolder(ACTOR1_ID)

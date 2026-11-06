@@ -2523,9 +2523,11 @@ const BOOKMARK_FOLDER_RENEW_EVERY = 25
  * holds at most `BOOKMARK_FOLDER_ENTRY_MAX_ITEMS` URIs, so the export splits a
  * large folder into several entries of the same name (`splitBookmarkFolder`),
  * which land in one folder here. An entry that cannot be restored (too large,
- * unreadable, a refused name, past the folder cap, or a same-name folder that
- * kept changing while it ran) is logged and counted in
- * `progress.bookmarkFolderSkips` by reason; its bookmarks stay unfiled.
+ * unreadable, a refused name, past the folder cap, a same-name folder that
+ * kept colliding, or a folder the owner deleted while the import ran) is
+ * logged and counted in `progress.bookmarkFolderSkips` by reason; its
+ * bookmarks stay unfiled. A deleted folder is not made again: the owner's
+ * delete wins over the archive.
  *
  * shortcut: one pass with no cursor or time budget. A few queries run per
  * URI, so only the lease is kept alive (renewed every
@@ -2669,32 +2671,17 @@ export const runBookmarkFoldersPhase = async (
         ) {
           continue
         }
-        let filed = await database.fileBookmark({
+        const filed = await database.fileBookmark({
           actorId,
           statusId: status.id,
           folderId
         })
-        if (filed !== 'folder-not-found') continue
-        // The folder went away mid-import (the owner deleted it): find or
-        // make it again by name and retry this bookmark once.
-        folderByName.delete(nameKey)
-        const resolved = await resolveFolder(folderName)
-        if ('folderId' in resolved) {
-          folderId = resolved.folderId
-          folderByName.set(nameKey, folderId)
-          filed = await database.fileBookmark({
-            actorId,
-            statusId: status.id,
-            folderId
-          })
-        }
         if (filed === 'folder-not-found') {
-          // The rest of this folder, and its later entries, stay unfiled.
+          // The owner deleted the folder during their own import: respect
+          // that and do not make it again. The rest of this folder, and its
+          // later entries, stay unfiled.
           refusedNames.add(nameKey)
-          skip(
-            'reason' in resolved ? resolved.reason : 'bookmark_folder_conflict',
-            event.index
-          )
+          skip('bookmark_folder_conflict', event.index)
           break
         }
       }

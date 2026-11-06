@@ -14,6 +14,7 @@ import { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { likeStatus } from '@/lib/client'
+import { resetBookmarkFolderStore } from '@/lib/components/bookmarks/bookmarkFolderStore'
 import {
   BASE_TIME,
   createMockAnnounce,
@@ -171,6 +172,8 @@ describe('TimelineFeed', () => {
     mockPush.mockClear()
     mockLikeStatus.mockReset()
     mockGetStatusDetailPathClient.mockResolvedValue('/@alice/test')
+    // Each test loads the viewer's folders afresh.
+    resetBookmarkFolderStore()
   })
 
   it('gives every row the feed-row class that skips off-screen rendering', () => {
@@ -661,6 +664,42 @@ describe('TimelineFeed', () => {
       expect(
         screen.queryByRole('menuitem', { name: 'Edit post' })
       ).not.toBeInTheDocument()
+    })
+
+    it('files a later part from its own ⋯ menu', async () => {
+      const onBookmarkChanged = vi.fn()
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 200000}
+          statuses={selfThreadScenario.statuses}
+          currentActor={mockBob}
+          showActions
+          onBookmarkChanged={onBookmarkChanged}
+        />
+      )
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: 'More actions for part 2 of 3' }),
+        { key: 'ArrowDown' }
+      )
+      const menu = await screen.findByRole('menu')
+      fireEvent.keyDown(
+        within(menu).getByRole('menuitem', { name: 'Bookmark folder' }),
+        { key: 'ArrowRight' }
+      )
+      const folderItem = await screen.findByRole('menuitemradio', {
+        name: 'Saved'
+      })
+      await act(async () => {
+        fireEvent.click(folderItem)
+      })
+
+      expect(onBookmarkChanged).toHaveBeenCalledWith(
+        expect.objectContaining({ id: selfThreadScenario.reply1.id }),
+        true,
+        'f-1'
+      )
     })
 
     it('says in the group menu that post items act on the first post', async () => {
