@@ -22,6 +22,23 @@ export const BOOKMARK_FOLDER_SKIP_REASONS = [
 export type BookmarkFolderSkipReason =
   (typeof BOOKMARK_FOLDER_SKIP_REASONS)[number]
 
+/**
+ * The bookmark-folders reasons counted per `bookmark_folders.json` entry, not
+ * per folder. Both are skipped before the phase reads the entry's name (it is
+ * too large to read, or fails to parse or validate): an export splits a large
+ * folder into several same-name entries (`splitBookmarkFolder`), and each
+ * such entry is its own skip. Every other reason is counted once per folder however many
+ * entries that folder became, so `bookmarkFolderSkips` mixes two units and
+ * whoever reads it must pick the wording from the reason.
+ */
+export const BOOKMARK_FOLDER_ENTRY_SKIP_REASONS = [
+  'bookmark_folder_too_large',
+  'bookmark_folder_invalid'
+] as const satisfies readonly BookmarkFolderSkipReason[]
+
+export const isBookmarkFolderEntrySkip = (reason: string): boolean =>
+  (BOOKMARK_FOLDER_ENTRY_SKIP_REASONS as readonly string[]).includes(reason)
+
 export interface AccountImportProgress {
   version: 1
   sourceActorId: string | null
@@ -56,9 +73,12 @@ export interface AccountImportProgress {
    */
   profileImageSkips?: ProfileImageSkipReason[]
   /**
-   * The `bookmark_folders.json` entries the bookmark folders pass could not
-   * restore, by reason. Like the profile phase it keeps no item rows, so
-   * these ride the progress the owner reads.
+   * The `bookmark_folders.json` folders the bookmark folders pass could not
+   * restore, by reason, counted once per folder however many entries a split
+   * folder became — except `BOOKMARK_FOLDER_ENTRY_SKIP_REASONS`, which count
+   * entries because they are skipped before the phase reads the entry's
+   * name. Like the profile phase it keeps no item rows, so these ride the
+   * progress the owner reads.
    */
   bookmarkFolderSkips?: Partial<Record<BookmarkFolderSkipReason, number>>
   /** Selected by the owner at start; stored here because the row's initial

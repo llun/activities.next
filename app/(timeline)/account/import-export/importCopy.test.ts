@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { parseImportProgress } from '@/lib/services/accountImport/progress'
+
 import {
   IMPORTED_KIND_LABELS,
   IMPORT_ERROR_LABELS,
@@ -126,7 +128,81 @@ describe('importCopy', () => {
       })
     ).toEqual([
       '2 bookmark folders skipped: the account already has the maximum number of bookmark folders',
-      '1 bookmark folder skipped: the folder entry was too large to read'
+      '1 bookmark folder entry skipped: the folder entry was too large to read'
+    ])
+  })
+
+  it('reports a split folder skipped for a name, the cap or a conflict as 1 folder', () => {
+    // Each of these reasons is counted once per folder, however many entries
+    // the export split the folder into.
+    expect(
+      importReportRows({ done: {}, skipped: {}, failed: {} }, [], {
+        bookmark_folder_name_invalid: 1,
+        bookmark_folder_limit: 1,
+        bookmark_folder_conflict: 1
+      })
+    ).toEqual([
+      '1 bookmark folder skipped: the folder was changed or deleted while the import ran',
+      '1 bookmark folder skipped: the account already has the maximum number of bookmark folders',
+      '1 bookmark folder skipped: the folder name is not allowed'
+    ])
+  })
+
+  it('reports two different skipped folders as 2 folders', () => {
+    expect(
+      importReportRows({ done: {}, skipped: {}, failed: {} }, [], {
+        bookmark_folder_limit: 2
+      })
+    ).toEqual([
+      '2 bookmark folders skipped: the account already has the maximum number of bookmark folders'
+    ])
+  })
+
+  it('reports an unreadable entry as an entry, not a folder', () => {
+    // The phase cannot know the name of an entry it could not read, so it
+    // counts entries: a split folder contributes one per unreadable entry.
+    expect(
+      importReportRows({ done: {}, skipped: {}, failed: {} }, [], {
+        bookmark_folder_too_large: 2,
+        bookmark_folder_invalid: 1
+      })
+    ).toEqual([
+      '1 bookmark folder entry skipped: the folder entry could not be read',
+      '2 bookmark folder entries skipped: the folder entry was too large to read'
+    ])
+  })
+
+  it('renders the stored folder skips of an import from before the wording change', () => {
+    // A progress record written before this change has only the same shape:
+    // one count per reason. It still renders, and the reasons whose names were
+    // never known read as entries.
+    const stored = JSON.stringify({
+      version: 1,
+      sourceActorId: null,
+      sourceFollowersUrl: null,
+      statusOrder: 'newest-first',
+      catalogStage: 'done',
+      catalogIndex: 0,
+      totalItems: 0,
+      completedItems: 0,
+      skippedItems: 0,
+      continuationCount: 0,
+      bookmarkFolderSkips: {
+        bookmark_folder_too_large: 1,
+        bookmark_folder_limit: 1
+      }
+    })
+    const progress = parseImportProgress(stored)
+
+    expect(
+      importReportRows(
+        { done: {}, skipped: {}, failed: {} },
+        [],
+        progress.bookmarkFolderSkips
+      )
+    ).toEqual([
+      '1 bookmark folder skipped: the account already has the maximum number of bookmark folders',
+      '1 bookmark folder entry skipped: the folder entry was too large to read'
     ])
   })
 
