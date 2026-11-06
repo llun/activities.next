@@ -1,0 +1,37 @@
+app/(timeline)/account/import-export/importCopy.ts
+  s_2b1a50e2f9b981::t_597963c639806e 64
+app/(timeline)/bookmarks/BookmarksTimeline.folders.test.tsx
+  s_2b1a50e2f9b981::t_af5ad6f6aa9216 18,481-511
+app/(timeline)/bookmarks/BookmarksTimeline.tsx
+  s_2b1a50e2f9b981::t_e67ee8b45c1c4f 8,121
+app/api/v1/statuses/[id]/bookmark_folder/route.test.ts
+  s_2b1a50e2f9b981::t_3d0257669eaafe 112-134
+docs/architecture.md
+  s_2b1a50e2f9b981::t_5705000ba3a02e 774-789
+lib/components/bookmarks/bookmarkFolderStore.test.ts
+  s_2b1a50e2f9b981::t_adbcdb8a91afd4 14,129-194
+lib/components/bookmarks/bookmarkFolderStore.ts
+  s_2b1a50e2f9b981::t_710ee09a658e3a 34-36,81-82,90-91,94-98,104-108,114-157
+lib/components/posts/timeline-feed.test.tsx
+  s_2b1a50e2f9b981::t_b3b5ed5d76b38b 17,175-176,669-704
+lib/services/accountImport/ownArchivePhases.test.ts
+  s_2b1a50e2f9b981::t_a28048d4326fb0 1185,1192-1194,1201-1202,1211-1222,1225-1237,1240-1251,1253-1255,1260-1271
+lib/services/accountImport/phases.ts
+  s_2b1a50e2f9b981::t_ab36b48b22341d 2526-2530,2674,2680-2682,2684
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "55f7697ac676a7b5e50dc7a90a55129f06d8b738",
+  "prompts": {},
+  "sessions": {
+    "s_2b1a50e2f9b981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5b6f5d8b-21a0-4073-b076-d824b161ad07",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
