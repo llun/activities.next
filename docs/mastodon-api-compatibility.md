@@ -810,8 +810,15 @@ null }` files the status into one of the viewer's folders, or unfiles it with
   `POST /api/v1/statuses/:id/bookmark` never changes the folder.
 - `GET /api/v1/bookmarks` is unchanged for Mastodon clients and takes an
   optional `folder_id`: a folder id, or `none` for the unfiled bookmarks. The
-  filter is applied in the keyset query, the cursors stay `bookmarks.id`, and
-  the `Link` header carries `folder_id` into the next and previous pages.
+  filter is applied in the keyset query, and the `Link` header carries
+  `folder_id` into the next and previous pages. The cursors are opaque
+  base64url tokens carrying the bookmark's `(createdAt, id)` keyset, not bare
+  `bookmarks.id` values: `createdAt` does not follow id order (imports set it),
+  and a cursor that carries its own keyset needs no row to look up, so
+  unbookmarking the post a cursor names no longer ends the list. A bare numeric
+  id — the cursor older `Link` headers and clients still send — is still
+  accepted and resolved against the row it names; one whose row is gone returns
+  an empty page, as before.
 - The `Status` entity has a top-level `bookmark_folder_id` (beside `reactions`
   and `fitness`): the id of the viewer's own folder holding the status, and
   `null` when the viewer has not bookmarked it, left it unfiled, or is signed

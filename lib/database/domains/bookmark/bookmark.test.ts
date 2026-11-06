@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { toBookmarkCursor } from '@/lib/database/domains/bookmark/bookmarkCursor'
 import {
   bookmarkQueries,
   getOriginalStatusIdFromAnnounceContent
@@ -752,6 +753,200 @@ describe('BookmarkDatabase', () => {
           limit: 1
         })
         expect(limited).toHaveLength(1)
+      })
+    })
+
+    describe('paging from a cursor whose bookmark is gone', () => {
+      const actorOf = (name: string) =>
+        `${ACTOR3_ID}/bookmark-gone-${name}-${randomUUID()}`
+
+      // Five bookmarks, newest first, with the cursor on the middle one.
+      const seed = async (actorId: string, folderId?: string | null) => {
+        const statuses = await Promise.all(
+          [1, 2, 3, 4, 5].map((index) => createStatus(`gone-${index}`))
+        )
+        for (const status of statuses) {
+          if (folderId === undefined) {
+            await database.createBookmark({ actorId, statusId: status.id })
+          } else {
+            await database.fileBookmark({
+              actorId,
+              statusId: status.id,
+              folderId
+            })
+          }
+        }
+        const all = await database.getBookmarks({
+          actorId,
+          limit: 10,
+          folderId
+        })
+        expect(all).toHaveLength(5)
+        return all
+      }
+
+      // The owner unbookmarks the post the cursor sits on.
+      const removeCursorBookmark = async (
+        actorId: string,
+        bookmark: { statusId: string }
+      ) => {
+        await database.deleteBookmark({ actorId, statusId: bookmark.statusId })
+      }
+
+      it('returns an empty page, not an error, for a cursor past the Date range', async () => {
+        const actorId = actorOf('far-future')
+        await seed(actorId)
+        const cursor = Buffer.from('9000000000000000:1').toString('base64url')
+        for (const key of ['maxId', 'minId', 'sinceId'] as const) {
+          await expect(
+            database.getBookmarks({ actorId, limit: 10, [key]: cursor })
+          ).resolves.toEqual([])
+        }
+      })
+
+      it('keeps the tie-break when the removed cursor shares its createdAt', async () => {
+        const actorId = actorOf('tie')
+        const statuses = await Promise.all(
+          [1, 2, 3].map((index) => createStatus(`gone-tie-${index}`))
+        )
+        // Ids ascend 0..2; 0 and 1 share a timestamp, 2 is the oldest.
+        const createdAts = [2_000, 2_000, 1_000]
+        for (const [index, status] of statuses.entries()) {
+          await testDb.db
+            .insertInto('bookmarks')
+            .values({
+              actorId,
+              statusId: status.id,
+              createdAt: new Date(createdAts[index]),
+              updatedAt: new Date(createdAts[index])
+            })
+            .execute()
+        }
+        const all = await database.getBookmarks({ actorId, limit: 10 })
+        const order = (bookmarks: { statusId: string }[]) =>
+          bookmarks.map((bookmark) =>
+            statuses.findIndex((status) => status.id === bookmark.statusId)
+          )
+        expect(order(all)).toEqual([1, 0, 2])
+
+        const cursor = toBookmarkCursor(all[0])
+        await removeCursorBookmark(actorId, all[0])
+
+        // Its same-time sibling (a lower id) still comes next.
+        const page = await database.getBookmarks({
+          actorId,
+          limit: 10,
+          maxId: cursor
+        })
+        expect(order(page)).toEqual([0, 2])
+      })
+
+      it('continues older pages (max_id) after the cursor bookmark is removed', async () => {
+        const actorId = actorOf('max')
+        const all = await seed(actorId)
+        const cursor = toBookmarkCursor(all[1])
+        await removeCursorBookmark(actorId, all[1])
+
+        const page = await database.getBookmarks({
+          actorId,
+          limit: 2,
+          maxId: cursor
+        })
+        expect(page.map((bookmark) => bookmark.id)).toEqual([
+          all[2].id,
+          all[3].id
+        ])
+      })
+
+      it('continues newer pages (min_id) after the cursor bookmark is removed', async () => {
+        const actorId = actorOf('min')
+        const all = await seed(actorId)
+        const cursor = toBookmarkCursor(all[3])
+        await removeCursorBookmark(actorId, all[3])
+
+        const page = await database.getBookmarks({
+          actorId,
+          limit: 2,
+          minId: cursor
+        })
+        expect(page.map((bookmark) => bookmark.id)).toEqual([
+          all[1].id,
+          all[2].id
+        ])
+      })
+
+      it('continues newer pages (since_id) after the cursor bookmark is removed', async () => {
+        const actorId = actorOf('since')
+        const all = await seed(actorId)
+        const cursor = toBookmarkCursor(all[3])
+        await removeCursorBookmark(actorId, all[3])
+
+        // since_id keeps the newest rows past the cursor, newest first.
+        const page = await database.getBookmarks({
+          actorId,
+          limit: 2,
+          sinceId: cursor
+        })
+        expect(page.map((bookmark) => bookmark.id)).toEqual([
+          all[0].id,
+          all[1].id
+        ])
+      })
+
+      it('continues a folder-filtered page after the cursor bookmark is removed', async () => {
+        // Folders belong to a stored actor, so this one uses a seeded actor and
+        // isolates itself with its own folder.
+        const actorId = ACTOR2_ID
+        const created = await database.createBookmarkFolder({
+          actorId,
+          name: `Gone ${randomUUID()}`
+        })
+        if (created.status !== 'ok') throw new Error(created.status)
+        const folderId = created.folder.id
+        const all = await seed(actorId, folderId)
+        const cursor = toBookmarkCursor(all[1])
+        await removeCursorBookmark(actorId, all[1])
+
+        const page = await database.getBookmarks({
+          actorId,
+          limit: 2,
+          maxId: cursor,
+          folderId
+        })
+        expect(page.map((bookmark) => bookmark.id)).toEqual([
+          all[2].id,
+          all[3].id
+        ])
+        expect(page.every((bookmark) => bookmark.folderId === folderId)).toBe(
+          true
+        )
+      })
+
+      it('still pages from a legacy numeric cursor while its bookmark exists', async () => {
+        const actorId = actorOf('legacy')
+        const all = await seed(actorId)
+
+        const page = await database.getBookmarks({
+          actorId,
+          limit: 2,
+          maxId: all[1].id
+        })
+        expect(page.map((bookmark) => bookmark.id)).toEqual([
+          all[2].id,
+          all[3].id
+        ])
+      })
+
+      // A legacy cursor names a row but not its position, so a removed row
+      // leaves nothing to page from. Cursors minted since carry their keyset.
+      it('returns no page for a legacy numeric cursor whose bookmark is gone', async () => {
+        const actorId = actorOf('legacy-gone')
+        const all = await seed(actorId)
+        await removeCursorBookmark(actorId, all[1])
+
+        await expect(
+          database.getBookmarks({ actorId, limit: 2, maxId: all[1].id })
+        ).resolves.toEqual([])
       })
     })
   })

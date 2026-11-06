@@ -1,3 +1,7 @@
+import {
+  decodeBookmarkCursor,
+  toBookmarkCursor
+} from '@/lib/database/domains/bookmark/bookmarkCursor'
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import type { Bookmark } from '@/lib/types/domain/bookmark'
@@ -16,13 +20,18 @@ const currentActor = {
   id: readerActorId
 } as Actor
 
-const createBookmark = (name: string, statusId: string): Bookmark => ({
-  id: `bookmark-${name}`,
-  actorId: readerActorId,
-  statusId,
-  createdAt: 0,
-  updatedAt: 0
-})
+let nextBookmarkId = 1
+
+const createBookmark = (name: string, statusId: string): Bookmark => {
+  const id = nextBookmarkId++
+  return {
+    id: `${id}`,
+    actorId: readerActorId,
+    statusId,
+    createdAt: id,
+    updatedAt: id
+  }
+}
 
 const createStatus = (
   name: string,
@@ -82,6 +91,10 @@ const createDatabase = ({
 }
 
 describe('getBookmarkedStatusesPage', () => {
+  beforeEach(() => {
+    nextBookmarkId = 1
+  })
+
   it('omits the next cursor when a full raw page filters empty and the next batch is exhausted', async () => {
     const hiddenOne = createStatus('hidden-one', { publicReadable: false })
     const hiddenTwo = createStatus('hidden-two', { publicReadable: false })
@@ -91,7 +104,7 @@ describe('getBookmarkedStatusesPage', () => {
       statuses: [hiddenOne, hiddenTwo],
       batches: new Map([
         [null, [hiddenOneBookmark, hiddenTwoBookmark]],
-        [hiddenTwoBookmark.id, []]
+        [toBookmarkCursor(hiddenTwoBookmark), []]
       ])
     })
 
@@ -114,7 +127,7 @@ describe('getBookmarkedStatusesPage', () => {
     expect(getBookmarks).toHaveBeenNthCalledWith(2, {
       actorId: readerActorId,
       limit: 2,
-      maxId: hiddenTwoBookmark.id,
+      maxId: toBookmarkCursor(hiddenTwoBookmark),
       minId: undefined,
       sinceId: undefined
     })
@@ -131,7 +144,7 @@ describe('getBookmarkedStatusesPage', () => {
       statuses: [hiddenOne, hiddenTwo, visible],
       batches: new Map([
         [null, [hiddenOneBookmark, hiddenTwoBookmark]],
-        [hiddenTwoBookmark.id, [visibleBookmark]]
+        [toBookmarkCursor(hiddenTwoBookmark), [visibleBookmark]]
       ])
     })
 
@@ -144,11 +157,11 @@ describe('getBookmarkedStatusesPage', () => {
 
     expect(page.statuses.map((status) => status.id)).toEqual([visible.id])
     expect(page.nextMaxBookmarkId).toBeNull()
-    expect(page.prevMinBookmarkId).toBe(visibleBookmark.id)
+    expect(page.prevMinBookmarkId).toBe(toBookmarkCursor(visibleBookmark))
     expect(getBookmarks).toHaveBeenNthCalledWith(2, {
       actorId: readerActorId,
       limit: 2,
-      maxId: hiddenTwoBookmark.id,
+      maxId: toBookmarkCursor(hiddenTwoBookmark),
       minId: undefined,
       sinceId: undefined
     })
@@ -171,8 +184,37 @@ describe('getBookmarkedStatusesPage', () => {
       limit: 2
     })
 
-    expect(page.nextMaxBookmarkId).toBe(olderBookmark.id)
-    expect(page.prevMinBookmarkId).toBe(newerBookmark.id)
+    expect(page.nextMaxBookmarkId).toBe(toBookmarkCursor(olderBookmark))
+    expect(page.prevMinBookmarkId).toBe(toBookmarkCursor(newerBookmark))
+  })
+
+  it('returns a cursor that carries its own keyset, so a removed bookmark cannot end the page', async () => {
+    const newer = createStatus('keyset-newer')
+    const older = createStatus('keyset-older')
+    const newerBookmark = createBookmark('keyset-newer', newer.id)
+    const olderBookmark = createBookmark('keyset-older', older.id)
+    const { database } = createDatabase({
+      statuses: [newer, older],
+      batches: new Map([[null, [newerBookmark, olderBookmark]]])
+    })
+
+    const page = await getBookmarkedStatusesPage({
+      database,
+      actorId: readerActorId,
+      currentActor,
+      limit: 2
+    })
+
+    // The cursor is the last scanned bookmark's (createdAt, id), not its bare
+    // id: the next page needs no row to look up.
+    expect(decodeBookmarkCursor(page.nextMaxBookmarkId)).toEqual({
+      createdAt: olderBookmark.createdAt,
+      id: Number(olderBookmark.id)
+    })
+    expect(decodeBookmarkCursor(page.prevMinBookmarkId)).toEqual({
+      createdAt: newerBookmark.createdAt,
+      id: Number(newerBookmark.id)
+    })
   })
 
   it('uses the last scanned bookmark cursor when max backfill iterations are consumed before the visible page is full', async () => {
@@ -182,7 +224,7 @@ describe('getBookmarkedStatusesPage', () => {
     const batches = new Map<string | null, Bookmark[]>()
     const statuses = [visible]
     let previousCursor: string | null = null
-    let lastScannedBookmarkId: string | null = null
+    let lastScannedBookmarkCursor: string | null = null
 
     for (
       let batchIndex = 0;
@@ -206,8 +248,8 @@ describe('getBookmarkedStatusesPage', () => {
       })
 
       batches.set(previousCursor, bookmarks)
-      previousCursor = bookmarks[bookmarks.length - 1].id
-      lastScannedBookmarkId = previousCursor
+      previousCursor = toBookmarkCursor(bookmarks[bookmarks.length - 1])
+      lastScannedBookmarkCursor = previousCursor
     }
 
     batches.set(previousCursor, [
@@ -227,10 +269,10 @@ describe('getBookmarkedStatusesPage', () => {
     })
 
     expect(page.statuses.map((status) => status.id)).toEqual([visible.id])
-    expect(page.nextMaxBookmarkId).toBe(lastScannedBookmarkId)
+    expect(page.nextMaxBookmarkId).toBe(lastScannedBookmarkCursor)
     expect(page.nextMaxBookmarkId).not.toBeNull()
-    expect(page.nextMaxBookmarkId).not.toBe(visibleBookmark.id)
-    expect(page.prevMinBookmarkId).toBe(visibleBookmark.id)
+    expect(page.nextMaxBookmarkId).not.toBe(toBookmarkCursor(visibleBookmark))
+    expect(page.prevMinBookmarkId).toBe(toBookmarkCursor(visibleBookmark))
     expect(getBookmarks).toHaveBeenCalledTimes(MAX_BOOKMARK_BACKFILL_ITERATIONS)
   })
 })

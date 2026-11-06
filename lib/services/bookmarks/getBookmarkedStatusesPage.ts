@@ -1,3 +1,4 @@
+import { toBookmarkCursor } from '@/lib/database/domains/bookmark/bookmarkCursor'
 import type { Database } from '@/lib/database/types'
 import { filterReadableStatuses } from '@/lib/services/statusRouteAccess'
 import type { Actor } from '@/lib/types/domain/actor'
@@ -37,7 +38,7 @@ export const getBookmarkedStatusesPage = async ({
   const entries: Array<{ bookmark: Bookmark; status: Status }> = []
   let cursor = maxId ?? null
   let iterations = 0
-  let lastScannedBookmarkId: string | null = null
+  let lastScannedBookmarkCursor: string | null = null
   let exhausted = false
 
   while (
@@ -89,8 +90,8 @@ export const getBookmarkedStatusesPage = async ({
       )
     )
 
-    cursor = bookmarks[bookmarks.length - 1].id
-    lastScannedBookmarkId = cursor
+    cursor = toBookmarkCursor(bookmarks[bookmarks.length - 1])
+    lastScannedBookmarkCursor = cursor
 
     if (bookmarks.length < limit) {
       exhausted = true
@@ -100,9 +101,9 @@ export const getBookmarkedStatusesPage = async ({
 
   const visibleEntries = entries.slice(0, limit)
   const hasBufferedVisibleEntries = entries.length > limit
-  const lastVisibleBookmarkId =
+  const lastVisibleBookmarkCursor =
     visibleEntries.length > 0
-      ? visibleEntries[visibleEntries.length - 1].bookmark.id
+      ? toBookmarkCursor(visibleEntries[visibleEntries.length - 1].bookmark)
       : null
   let nextMaxBookmarkId: string | null = null
 
@@ -111,16 +112,18 @@ export const getBookmarkedStatusesPage = async ({
     (visibleEntries.length === limit && !exhausted)
   ) {
     nextMaxBookmarkId = hasBufferedVisibleEntries
-      ? lastVisibleBookmarkId
-      : (lastScannedBookmarkId ?? lastVisibleBookmarkId)
+      ? lastVisibleBookmarkCursor
+      : (lastScannedBookmarkCursor ?? lastVisibleBookmarkCursor)
   } else if (!exhausted) {
-    nextMaxBookmarkId = lastScannedBookmarkId
+    nextMaxBookmarkId = lastScannedBookmarkCursor
   }
 
   return {
     statuses: visibleEntries.map((entry) => entry.status),
     nextMaxBookmarkId,
     prevMinBookmarkId:
-      visibleEntries.length > 0 ? visibleEntries[0].bookmark.id : null
+      visibleEntries.length > 0
+        ? toBookmarkCursor(visibleEntries[0].bookmark)
+        : null
   }
 }
