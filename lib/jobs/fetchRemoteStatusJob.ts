@@ -2,11 +2,11 @@ import { z } from 'zod'
 
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
-import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { BaseNote, BaseNoteSchema, getUrl } from '@/lib/activities/note'
 import { toCollectionItems } from '@/lib/activities/orderedCollection'
+import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { Database } from '@/lib/database/types'
 import { isLocalDomain } from '@/lib/services/domains/localDomains'
@@ -28,7 +28,6 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { logger } from '@/lib/utils/logger'
-import { request } from '@/lib/utils/request'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
@@ -401,16 +400,14 @@ export const fetchRemoteStatusJob = createJobHandle(
       fetch: async (url: string) => {
         if (!(await canFederateWithDomain(database, url))) return null
         try {
-          const response = await request({
+          const response = await signedActivityPubRequest({
+            actor: signingActor,
+            method: 'GET',
             url,
+            accept: 'application/activity+json',
             // Every document is bound to the URL it was fetched from, so
             // another host must not answer for it.
-            allowCrossHostRedirects: false,
-            headers: activityPubRequestHeaders({
-              url,
-              signingActor,
-              accept: 'application/activity+json'
-            })
+            requestOptions: { allowCrossHostRedirects: false }
           })
           if (!isActivityPubDocumentResponse(response, url)) return null
           return JSON.parse(response.body)

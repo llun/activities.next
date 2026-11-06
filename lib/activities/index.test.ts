@@ -1209,7 +1209,7 @@ describe('activities', () => {
         }
       )
 
-      it.each([400, 401, 410, 500, 503])(
+      it.each([400, 410, 500, 503])(
         'reports non-delivery on a %i response',
         async (status) => {
           const errorSpy = vi.spyOn(logger, 'error')
@@ -1226,6 +1226,22 @@ describe('activities', () => {
           expect(senderErrors(errorSpy)).toEqual([])
         }
       )
+
+      it('reports non-delivery on a 401 response after the double-knock', async () => {
+        const errorSpy = vi.spyOn(logger, 'error')
+        fetchMock.resetMocks()
+        fetchMock.mockResponse('', { status: 401 })
+
+        await expect(
+          deleteActor({
+            currentActor: MockActor({}),
+            inbox: TEST_SHARED_INBOX
+          })
+        ).resolves.toBe(false)
+        // Knock 1 (cavage) and Knock 2 (rfc9421) both ran.
+        expect(fetchMock).toHaveBeenCalledTimes(2)
+        expect(senderErrors(errorSpy)).toEqual([])
+      })
 
       it.each([
         ['a network failure', new Error('connection reset')],

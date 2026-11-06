@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
 import { getNote } from '@/lib/activities'
-import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
+import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -12,7 +12,6 @@ import {
   isSameActivityPubOrigin,
   normalizeActorId
 } from '@/lib/utils/activitypub'
-import { request } from '@/lib/utils/request'
 import { withSpan } from '@/lib/utils/trace'
 
 import { createJobHandle } from './createJobHandle'
@@ -130,15 +129,16 @@ export const processForwardedActivityJob = createJobHandle(
           span.setAttribute('outcome', 'actor_delete_skipped')
           return
         }
-        let response: Awaited<ReturnType<typeof request>>
+        let response: Awaited<ReturnType<typeof signedActivityPubRequest>>
         try {
-          response = await request({
+          response = await signedActivityPubRequest({
+            actor: signingActor,
+            method: 'GET',
             url: objectId,
             // The answer is authoritative only because objectId's origin gave
             // it: a 404 or a Tombstone served after a hop onto another host
             // would be that host deleting the claimed author's status.
-            allowCrossHostRedirects: false,
-            headers: activityPubRequestHeaders({ url: objectId, signingActor })
+            requestOptions: { allowCrossHostRedirects: false }
           })
         } catch {
           // A network failure (or a refused cross-host redirect) is AMBIGUOUS

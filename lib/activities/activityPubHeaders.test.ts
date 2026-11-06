@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 import { MOCK_SECRET_PHASES } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
 import { generateKeyPair, verify } from '@/lib/utils/signature'
@@ -72,20 +74,25 @@ describe('activityPubRequestHeaders', () => {
     expect(verified).toBeTruthy()
   }, 15000)
 
-  it('adds digest headers for signed POST content', async () => {
-    const content = { type: 'Follow', object: 'https://remote.test/users/bob' }
+  it('adds digest headers for a signed POST body', async () => {
+    // Deliberately not the output of `JSON.stringify` on the parsed object:
+    // the digest must cover these exact bytes, not a re-serialization.
+    const body = '{"type":"Follow",  "object":"https://remote.test/users/bob"}'
     const headers = activityPubRequestHeaders({
       url: 'https://remote.test/inbox',
       method: 'POST',
       signingActor,
-      content
+      body
     })
 
     expect(headers).toMatchObject({
       accept:
         'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
       'content-type': 'application/activity+json',
-      digest: expect.stringMatching(/^SHA-256=/),
+      digest: `SHA-256=${crypto
+        .createHash('sha-256')
+        .update(body, 'utf8')
+        .digest('base64')}`,
       signature: expect.stringContaining(
         'headers="(request-target) host date digest content-type"'
       )

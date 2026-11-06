@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { clearRememberedSignatureSchemes } from '@/lib/activities/signedRequest'
 import { Database } from '@/lib/database/types'
 import { SalvageableDeliveryError } from '@/lib/services/federation/deliveryError'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
@@ -32,6 +33,7 @@ describe('deliverActivityJob', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    clearRememberedSignatureSchemes()
     harness = setupRecordingTracer()
     vi.mocked(mockDatabase.getActorFromId).mockResolvedValue({
       id: 'https://activities.local/users/alice',
@@ -329,6 +331,40 @@ describe('deliverActivityJob', () => {
       ).rejects.toBeInstanceOf(SalvageableDeliveryError)
       expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
       expect(mockDatabase.clearDeliveryFailures).not.toHaveBeenCalled()
+    })
+
+    it('classifies a 401 the same way after the double-knock also fails', async () => {
+      vi.mocked(request).mockResolvedValue({
+        statusCode: 401,
+        body: '',
+        headers: {}
+      })
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).rejects.toBeInstanceOf(SalvageableDeliveryError)
+
+      // Knock 1 (cavage) and Knock 2 (rfc9421) both ran, and the first
+      // response is the one that reached classification.
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
+      expect(mockDatabase.clearDeliveryFailures).not.toHaveBeenCalled()
+    })
+
+    it('delivers when the double-knock succeeds', async () => {
+      vi.mocked(request)
+        .mockResolvedValueOnce({ statusCode: 401, body: '', headers: {} })
+        .mockResolvedValueOnce({ statusCode: 202, body: '', headers: {} })
+
+      await expect(
+        deliverActivityJob(mockDatabase, baseMessage)
+      ).resolves.toBeUndefined()
+
+      expect(request).toHaveBeenCalledTimes(2)
+      expect(mockDatabase.clearDeliveryFailures).toHaveBeenCalledWith({
+        inbox: 'https://Remote.Example/inbox'
+      })
+      expect(mockDatabase.recordDeliveryFailure).not.toHaveBeenCalled()
     })
 
     it.each([400, 403, 404, 410, 501])(

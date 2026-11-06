@@ -1,7 +1,7 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { z } from 'zod'
 
-import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import {
   DeliveryDisposition,
   SalvageableDeliveryError,
@@ -10,7 +10,6 @@ import {
 import { getDomainFromUrl } from '@/lib/services/federation/domainPolicy'
 import { JobHandle } from '@/lib/services/queue/type'
 import { logger } from '@/lib/utils/logger'
-import { request } from '@/lib/utils/request'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
@@ -107,16 +106,12 @@ export const deliverActivityJob: JobHandle = createJobHandle(
 
     const method = 'POST'
     try {
-      const { statusCode } = await request({
-        url: inbox,
+      const { statusCode } = await signedActivityPubRequest({
+        actor,
         method,
-        headers: activityPubRequestHeaders({
-          url: inbox,
-          method,
-          signingActor: actor,
-          content: activity
-        }),
-        body: JSON.stringify(activity)
+        url: inbox,
+        body: JSON.stringify(activity),
+        database
       })
 
       if (statusCode !== undefined && statusCode >= 200 && statusCode < 300) {

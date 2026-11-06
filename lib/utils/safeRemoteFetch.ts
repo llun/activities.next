@@ -19,7 +19,8 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
   'cookie',
   'cookie2',
   'proxy-authorization',
-  'signature'
+  'signature',
+  'signature-input'
 ])
 const BODY_REDIRECT_HEADERS = new Set([
   'content-digest',
@@ -29,10 +30,15 @@ const BODY_REDIRECT_HEADERS = new Set([
   'content-location',
   'content-type',
   'digest',
-  'signature'
+  'signature',
+  'signature-input'
 ])
+// A dynamic header callback re-signs each hop, so its own `Signature` and
+// `Signature-Input` survive a 303 (the body headers they covered do not).
 const DYNAMIC_BODY_REDIRECT_HEADERS = new Set(
-  [...BODY_REDIRECT_HEADERS].filter((header) => header !== 'signature')
+  [...BODY_REDIRECT_HEADERS].filter(
+    (header) => header !== 'signature' && header !== 'signature-input'
+  )
 )
 const RETRY_DISABLED = { limit: 0 }
 

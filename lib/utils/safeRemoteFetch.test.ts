@@ -31,6 +31,7 @@ const expectSensitiveHeadersStripped = (
   expect(headers).not.toHaveProperty('authorization')
   expect(headers).not.toHaveProperty('cookie')
   expect(headers).not.toHaveProperty('signature')
+  expect(headers).not.toHaveProperty('signature-input')
 }
 
 describe('safeRemoteFetch', () => {
@@ -448,7 +449,8 @@ describe('safeRemoteFetch', () => {
       headers: {
         authorization: 'Bearer secret',
         cookie: 'session=secret',
-        signature: 'keyId="secret",signature="secret"'
+        signature: 'keyId="secret",signature="secret"',
+        'signature-input': 'sig1=("@method" "@target-uri")'
       }
     })
 
@@ -484,7 +486,8 @@ describe('safeRemoteFetch', () => {
       headers: ({ url }) => ({
         authorization: 'Bearer secret',
         cookie: 'session=secret',
-        signature: `keyId="${url.toString()}",signature="secret"`
+        signature: `keyId="${url.toString()}",signature="secret"`,
+        'signature-input': `sig1=("@target-uri");keyid="${url.toString()}"`
       })
     })
 
@@ -530,7 +533,8 @@ describe('safeRemoteFetch', () => {
       headers: ({ url }) => ({
         authorization: 'Bearer secret',
         cookie: 'session=secret',
-        signature: `keyId="${url.toString()}",signature="secret"`
+        signature: `keyId="${url.toString()}",signature="secret"`,
+        'signature-input': `sig1=("@target-uri");keyid="${url.toString()}"`
       })
     })
 
@@ -643,7 +647,8 @@ describe('safeRemoteFetch', () => {
         'content-location': '/payload',
         'content-type': 'text/plain',
         digest: 'sha-256=payload',
-        signature: 'keyId="secret",signature="secret"'
+        signature: 'keyId="secret",signature="secret"',
+        'signature-input': 'sig1=("@method" "@target-uri" "content-digest")'
       },
       method: 'POST',
       url: 'https://safe.example/from'
@@ -659,7 +664,8 @@ describe('safeRemoteFetch', () => {
           'content-type': 'text/plain',
           digest: 'sha-256=payload',
           host: 'safe.example',
-          signature: 'keyId="secret",signature="secret"'
+          signature: 'keyId="secret",signature="secret"',
+          'signature-input': 'sig1=("@method" "@target-uri" "content-digest")'
         }),
         method: 'POST'
       },
@@ -712,7 +718,8 @@ describe('safeRemoteFetch', () => {
         return {
           'content-type': 'text/plain',
           digest: 'sha-256=payload',
-          signature: `keyId="${url.toString()}",signature="${method}-${body ?? 'none'}"`
+          signature: `keyId="${url.toString()}",signature="${method}-${body ?? 'none'}"`,
+          'signature-input': `sig1=("@target-uri");keyid="${url.toString()}"`
         }
       },
       method: 'POST',
@@ -739,7 +746,9 @@ describe('safeRemoteFetch', () => {
           digest: 'sha-256=payload',
           host: 'safe.example',
           signature:
-            'keyId="https://safe.example/from",signature="POST-payload"'
+            'keyId="https://safe.example/from",signature="POST-payload"',
+          'signature-input':
+            'sig1=("@target-uri");keyid="https://safe.example/from"'
         }),
         method: 'POST'
       },
@@ -747,7 +756,9 @@ describe('safeRemoteFetch', () => {
         body: undefined,
         headers: {
           host: 'safe.example',
-          signature: 'keyId="https://safe.example/to",signature="GET-none"'
+          signature: 'keyId="https://safe.example/to",signature="GET-none"',
+          'signature-input':
+            'sig1=("@target-uri");keyid="https://safe.example/to"'
         },
         method: 'GET'
       }
