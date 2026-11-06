@@ -196,7 +196,7 @@ describe('GET /api/v1/bookmarks', () => {
     }
   })
 
-  it('paginates with Mastodon Link headers using bookmark ids', async () => {
+  it('paginates with Mastodon Link headers using opaque cursors', async () => {
     await createBookmarkedStatus('page-one')
     await createBookmarkedStatus('page-two')
 
@@ -224,6 +224,35 @@ describe('GET /api/v1/bookmarks', () => {
     const secondPage = await secondResponse.json()
     expect(secondPage).toHaveLength(1)
     expect(secondPage[0].id).not.toBe(firstPage[0].id)
+  })
+
+  it('keeps paging after the bookmark the cursor names is unbookmarked', async () => {
+    await createBookmarkedStatus('cursor-gone-one')
+    await createBookmarkedStatus('cursor-gone-two')
+
+    const firstResponse = await GET(
+      createRequest('?format=activities_next&limit=1'),
+      { params: Promise.resolve({}) }
+    )
+    expect(firstResponse.status).toBe(200)
+    const firstPage = await firstResponse.json()
+    const cursor = firstPage.nextMaxBookmarkId as string
+    expect(cursor).toBeTruthy()
+
+    // The owner unbookmarks the post the cursor sits on.
+    await database.deleteBookmark({
+      actorId: ACTOR1_ID,
+      statusId: firstPage.statuses[0].id
+    })
+
+    const secondResponse = await GET(
+      createRequest(`?format=activities_next&limit=1&max_id=${cursor}`),
+      { params: Promise.resolve({}) }
+    )
+    expect(secondResponse.status).toBe(200)
+    const secondPage = await secondResponse.json()
+    expect(secondPage.statuses).toHaveLength(1)
+    expect(secondPage.statuses[0].id).not.toBe(firstPage.statuses[0].id)
   })
 
   it('returns an empty list for invalid pagination cursors', async () => {

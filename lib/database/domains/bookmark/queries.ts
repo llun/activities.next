@@ -1,5 +1,9 @@
 import type { ExpressionBuilder } from 'kysely'
 
+import {
+  type BookmarkKeyset,
+  decodeBookmarkCursor
+} from '@/lib/database/domains/bookmark/bookmarkCursor'
 import type {
   BookmarkFolderWriteResult,
   CreateBookmarkFolderParams,
@@ -49,12 +53,6 @@ export const getOriginalStatusIdFromAnnounceContent = (content: unknown) => {
 }
 
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
-const BOOKMARK_CURSOR_ID_PATTERN = /^\d+$/
-
-// Bookmark ids are bigints read back as safe integers, so a longer digit string
-// names no bookmark (and PostgreSQL rejects one past the int8 range).
-const isBookmarkCursorId = (id: string) =>
-  BOOKMARK_CURSOR_ID_PATTERN.test(id) && Number.isSafeInteger(Number(id))
 
 const resolveBookmarkStatusId = async (
   db: Db,
@@ -244,46 +242,60 @@ export const isActorBookmarkedStatus = async (
   params: IsActorBookmarkedStatusParams
 ): Promise<boolean> => Boolean(await getActorBookmark(db, params))
 
+// A legacy numeric cursor names a row but not its position, so read the row's
+// createdAt. A row that is gone leaves nothing to page from: the dead end a
+// self-contained cursor avoids.
+const resolveLegacyBookmarkCursor = async (
+  db: Db,
+  actorId: string,
+  id: number
+): Promise<BookmarkKeyset | null> => {
+  const row = await db
+    .selectFrom('bookmarks')
+    .select(['id', 'createdAt'])
+    .where('actorId', '=', actorId)
+    .where('id', '=', id)
+    .limit(1)
+    .executeTakeFirst()
+  return row ? { createdAt: row.createdAt ?? 0, id: row.id } : null
+}
+
 export const getBookmarks = async (
   db: Db,
   { actorId, limit, maxId, minId, sinceId, folderId }: GetBookmarksParams
 ): Promise<Bookmark[]> => {
-  const olderCursorId = maxId
-  const newerCursorId = minId || sinceId
+  const olderCursor = decodeBookmarkCursor(maxId)
+  const newerCursorToken = minId || sinceId
+  const newerCursor = decodeBookmarkCursor(newerCursorToken)
 
-  if (
-    (olderCursorId && !isBookmarkCursorId(olderCursorId)) ||
-    (newerCursorId && !isBookmarkCursorId(newerCursorId))
-  )
-    return []
+  // Reject malformed cursors with an empty page instead of scanning from the
+  // top, matching the favourites pagination contract.
+  if ((maxId && !olderCursor) || (newerCursorToken && !newerCursor)) return []
 
   let query = db
     .selectFrom('bookmarks')
     .selectAll()
     .where('actorId', '=', actorId)
-  // The cursor below is looked up by id alone, so a cursor from another
-  // folder still pages this one from that point.
+  // A cursor carries its own keyset, so a cursor from another folder still
+  // pages this one from that point.
   if (folderId === null) query = query.where('folderId', 'is', null)
   else if (folderId !== undefined)
     query = query.where('folderId', '=', folderId)
 
-  for (const [cursorId, operator] of [
-    [olderCursorId, '<'],
-    [newerCursorId, '>']
+  for (const [cursor, operator] of [
+    [olderCursor, '<'],
+    [newerCursor, '>']
   ] as const) {
-    if (!cursorId) continue
-    const cursor = await db
-      .selectFrom('bookmarks')
-      .select(['id', 'createdAt'])
-      .where('actorId', '=', actorId)
-      .where('id', '=', Number(cursorId))
-      .limit(1)
-      .executeTakeFirst()
-    if (!cursor) return []
+    if (!cursor) continue
+    const keyset: BookmarkKeyset | null =
+      cursor.createdAt === null
+        ? await resolveLegacyBookmarkCursor(db, actorId, cursor.id)
+        : { createdAt: cursor.createdAt, id: cursor.id }
+    if (!keyset) return []
     query = query.where((eb) =>
       pastKeyset(
         eb,
-        { createdAt: cursor.createdAt ?? 0, tieBreaker: cursor.id },
+        { createdAt: keyset.createdAt, tieBreaker: keyset.id },
         operator,
         'id'
       )
