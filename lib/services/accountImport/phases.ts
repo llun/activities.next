@@ -2523,7 +2523,8 @@ const BOOKMARK_FOLDER_RENEW_EVERY = 25
  * holds at most `BOOKMARK_FOLDER_ENTRY_MAX_ITEMS` URIs, so the export splits a
  * large folder into several entries of the same name (`splitBookmarkFolder`),
  * which land in one folder here. An entry that cannot be restored (too large,
- * unreadable, a refused name, past the folder cap) is logged and counted in
+ * unreadable, a refused name, past the folder cap, or a same-name folder that
+ * kept changing while it ran) is logged and counted in
  * `progress.bookmarkFolderSkips` by reason; its bookmarks stay unfiled.
  *
  * shortcut: one pass with no cursor or time budget. A few queries run per
