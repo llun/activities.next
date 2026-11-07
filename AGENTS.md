@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-> **Always read `AGENTS.md` at the start of any task** and follow it for all project rules. If `AGENTS.override.md` is also present in the checkout, read it as well — it takes precedence over `AGENTS.md` wherever the two conflict. Treat `AGENTS.override.md` as a layer applied on top of `AGENTS.md`, not a full replacement.
+> **Always read `AGENTS.md` at the start of any task** and follow it for all project rules.
 
 ## Definition of Done (read this first)
 
@@ -12,41 +12,10 @@ Every change, however small, is done only when ALL of these hold:
 4. If a migration was added/edited/removed, BOTH schema dumps and the generated Kysely DB types (`lib/database/kysely/db.ts`) are regenerated (see [Database Backends & Local Setup](docs/setup.md#agents-database-backends-local-setup); CI fails on drift in any of them).
 5. The commit subject and PR title carry the correct conventional prefix, and `package.json` `version` is untouched (see [Commit & Pull Request Guidelines](CONTRIBUTING.md#agents-commit-pull-request-guidelines)).
 6. UI changes are verified in a real browser (see [Local Manual / Browser Testing](CONTRIBUTING.md#local-manual-browser-testing)); screenshots in the PR are not required.
-7. Changes that alter the design keep the Sketch design library in step: `Activities.next.sketch` is updated (and redesign screens regenerated when affected), the interactive prototype (`Activities.next/Interactive/`) is regenerated from the merged change, and both are committed, pushed and published (its `scripts/publish.sh`) in the separate `llun/sketch` repository (see [Design Library Sync](CONTRIBUTING.md#agents-design-library-sync)).
-8. Once its PR is merged or closed, or the work is dropped without one, the thread removes only what it made and no other thread uses: its own worktree and local branch, that worktree's git-ai log at `.git/ai/worktrees/<worktree folder name>` (`git worktree remove` leaves it behind), and the caches, logs and temp clones it created. The main checkout and what it holds (its `node_modules`, `.next`, `.git/ai/working_logs`) stay, as does anything whose PR is still open.
+7. Changes that alter the design keep the Sketch design library in step: `Activities.next.sketch` is updated (and redesign screens regenerated when affected), and the interactive prototype (`Activities.next/Interactive/`) is regenerated from the merged change, both committed in the separate `llun/sketch` repository, whose README explains how to publish them (see [Design Library Sync](CONTRIBUTING.md#agents-design-library-sync)).
+8. Once its PR is merged or closed, or the work is dropped without one, remove only what you made and nothing else uses: your own worktree and local branch, and the caches, logs and temp clones you created. The main checkout and what it holds (its `node_modules`, `.next`) stay, as does anything whose PR is still open.
 
 For the most common task shapes, follow the step-by-step [Task Recipes](CONTRIBUTING.md#agents-task-recipes) instead of improvising.
-
-## Working with Sub-Agents
-
-When to delegate, which model to use and how much effort to spend come from one
-guide, kept in the `llun/labs` repository and not repeated here:
-[`agents-bridge/config/routing/shared.md`](https://github.com/llun/labs/blob/main/agents-bridge/config/routing/shared.md)
-and, for Claude Code,
-[`claude.md`](https://github.com/llun/labs/blob/main/agents-bridge/config/routing/claude.md)
-beside it. On the owner's Mac it is already loaded through `~/.claude/CLAUDE.md`.
-
-Where the guide can't be read and the `delegate` tool is missing (cloud
-sessions), follow this summary of it:
-
-- Delegate work that runs in parallel, is bulk reading or editing, or needs a
-  fresh, independent context (review, verification). Do the rest in the main
-  thread.
-- Set `model` and `effort` on every Claude sub-agent: `haiku`/`low` (Fast),
-  `sonnet`/`medium` (Everyday), `opus`/`high` (Heavy), `fable`/`high`
-  (Frontier). Start at the tier that fits and go one up only after a wrong or
-  shallow answer. Use `xhigh` only for a bug that survived a fix, and never make
-  `max` a default.
-- Sub-agents see none of this conversation, so name the files, the goal and what
-  done looks like. Give parallel writers separate worktrees, and check their
-  diff and tests.
-
-In this repository, start at Frontier (`fable`/`high`) for the high-risk areas:
-ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes),
-auth/OAuth/better-auth, actor and status visibility, the migrator, baseline and
-schema dumps, and the storage-root and outbound-HTTP security rules. Code review
-always runs in fresh sub-agents, as the
-[review loop](CONTRIBUTING.md#agents-code-review-loop-sub-agents) describes.
 
 ## Project Structure & Module Organization
 
@@ -54,7 +23,7 @@ always runs in fresh sub-agents, as the
 - `migrations/` — the TypeScript migrations `yarn migrate` runs with Kysely's migrator, registered in `migrations/index.ts` (names in `migrations/names.ts`); the first, `20261014000000_baseline`, loads the frozen schema in `migrations/baseline/` into an empty database or records it on one the Knex migrations of v1.192.34 built (see [Upgrading past the Knex handover](docs/maintenance.md#upgrading-past-the-knex-handover)).
 - **`docs/` is for durable, general-purpose reference documentation only** (setup, architecture, environment variables, feature guides). Do NOT add implementation plans, design docs, task/PR-specific writeups, gap analyses, before/after screenshots, or any other artifact tied to a single change or pull request — those belong in the PR description or issue tracker. Do not create `docs/plans/`, `docs/specs/`, `docs/pr-screenshots/`, or similar scratch directories.
 - `scripts/` — organized as `mock/`, `maintenance/`, `fitness/`, `backup/`; every script runs through the `scripts/run.cjs` bootstrap (`node scripts/run.cjs <script>.ts`), wired into each shebang; `yarn search:reindex` is the packaged entry point for `scripts/maintenance/rebuildSearchIndex.ts`. `scripts/` has a dedicated storage-confinement lint pass and is not prettier-checked in CI — verify scripts by running them.
-- **`AGENTS.md` is canonical; `CLAUDE.md` is a symlink to `AGENTS.md`**, so tools looking for either file read the exact same instructions without duplication or drift. Per-tool variants (`.cursor/rules/agents.mdc`, `GEMINI.md`, `.github/copilot-instructions.md`) each existed and were removed — do not add another; point tools or symlinks at `AGENTS.md`.
+- **`AGENTS.md` is canonical; `CLAUDE.md` is a symlink to `AGENTS.md`**, so tools looking for either file read the exact same instructions without duplication or drift. Do not add per-tool instruction files (for example `.cursor/rules/`, `GEMINI.md` or `.github/copilot-instructions.md`); point tools or symlinks at `AGENTS.md`.
 - `proxy.ts` at the repo root is the Next.js middleware entrypoint (Next 16's rename of `middleware.ts`) — do **not** add a `middleware.ts`. It runs in the Edge runtime: import helpers via direct sub-paths (e.g. `@/lib/utils/http-headers/csp`), never barrels that transitively pull Node-only dependencies such as `@/lib/config`. It owns the ActivityPub content-negotiation rewrites and CSP header injection.
 - Configuration files live at the repo root only when their tool requires it (`.env.example`, `next.config.ts`, `postcss.config.mjs`, `vitest.config.ts`); Prettier's config is the `prettier` key in `package.json`, the scripts-only Oxlint config is `lint/oxlintrc.scripts.json`. Tests for root-level files (`next.config.ts`, `proxy.ts`, `instrumentation.ts`, `vitest.config.ts`) and the Vitest setup files live in `test/`, not beside those files — do not add `*.test.ts` files to the repo root.
 - `.gitignore` intentionally ignores files agents commonly create: `docker-compose.yml`, `scripts/*.js`, `plans/`, `PR_DESCRIPTION.md`, `VERIFICATION_SUMMARY.md`, `AGENTS.override.md`, all `*.sql` (except `!migrations/schema*.sql` and `!migrations/baseline/*.sql`), `*.sqlite3`/`*.sqlite`, `.env*` variants. If a file you added is missing from `git status`, check `git status --ignored` before assuming the add failed.
@@ -101,7 +70,11 @@ The CI build persists `.next/cache`, and the Docker packaging workflow reuses Gi
 
 For every change, read the [testing rules](CONTRIBUTING.md#agents-testing-guidelines), [commit and PR rules](CONTRIBUTING.md#agents-commit-pull-request-guidelines), [review loop](CONTRIBUTING.md#agents-code-review-loop-sub-agents), and [documentation rules](CONTRIBUTING.md#agents-documentation-maintenance). These apply even when the change does not touch those files.
 
-Open a feature-branch PR after all five local gates pass. Independently review the entire PR, post findings, address them, reply and resolve discussions, and repeat until clean or 20 rounds. Use the documented self-review exception only when sub-agents are unavailable. Never manually change the package version; use a conventional commit subject and PR title. A `major:` release requires a human maintainer to apply the `release:major` label; agents must never apply that label.
+Open a feature-branch PR after all five local gates pass. Have an independent reviewer with a fresh context review the entire PR against [REVIEW.md](REVIEW.md), post findings, address them, reply and resolve discussions, and repeat until clean or 20 rounds. Use the documented self-review exception only when no independent reviewer is available. Never manually change the package version; use a conventional commit subject and PR title. A `major:` release requires a human maintainer to apply the `release:major` label; agents must never apply that label.
+
+## High-risk areas
+
+Give these areas extra scrutiny when you write or review a change: ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes), auth/OAuth/better-auth, actor and status visibility, the migrator, baseline and schema dumps, and the storage-root and outbound-HTTP security rules. Check the matching [REVIEW.md](REVIEW.md) lens and the routing-table guide below before you call a change done.
 
 ## Routing table
 
@@ -156,7 +129,7 @@ Read the linked guide before changing the area; the links are the durable author
 | Tests, known failure classes                          | [Testing Guidelines](CONTRIBUTING.md#agents-testing-guidelines), [Known failure classes](CONTRIBUTING.md#agents-known-failure-classes)                   |
 | Task recipes                                          | [Task Recipes](CONTRIBUTING.md#agents-task-recipes)                                                                                                      |
 | Commits and PRs                                       | [Commit & Pull Request Guidelines](CONTRIBUTING.md#agents-commit-pull-request-guidelines)                                                                |
-| Code review loop                                      | [Code Review Loop (Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents)                                                                      |
+| Code review loop                                      | [Code Review Loop](CONTRIBUTING.md#agents-code-review-loop-sub-agents)                                                                                   |
 | Review checklist                                      | [REVIEW.md](REVIEW.md)                                                                                                                                   |
 
 Section pages always switch through the shared `SectionNavDropdown` (`lib/components/section-nav-dropdown.tsx`) — never a second navigation list, rail, tab strip or menu of a section's pages inside the content pane beside the app sidebar, at any width (the index pages `/settings`, `/account`, `/admin` are the only in-content lists, and they are the page, not a navigation); `lib/components/sectionNavPattern.test.ts` fails on a layout that reintroduces one. Details in [Page Header & Sub-Navigation](docs/architecture.md#agents-page-header-sub-navigation).
