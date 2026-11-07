@@ -87,10 +87,12 @@ export const parseAccountUrlHandle = (value: string) => {
 
 export const BLUESKY_BRIDGE_DOMAIN = 'bsky.brid.gy'
 
-// A Bluesky handle is a DNS hostname: dot-separated labels ending in an
-// alphabetic TLD.
+// A Bluesky handle is a DNS hostname: dot-separated labels whose last label
+// (the TLD) starts with a letter, so Punycode TLDs such as `xn--p1ai` pass.
+// One-letter TLDs (allowed by the spec, none exist) are rejected so a
+// half-typed `alice.b` does not reach the bridge.
 const BLUESKY_HANDLE_PATTERN =
-  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i
+  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])$/i
 const BLUESKY_DID_PATTERN = /^did:(?:plc:[a-z2-7]{24}|web:[a-z0-9.-]+)$/i
 
 /**

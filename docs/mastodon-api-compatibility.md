@@ -1168,9 +1168,11 @@ to the bridged actor (`parseBlueskyBridgeQuery` in
 `lib/utils/accountHandle.ts`):
 
 - a bare handle, with or without a leading `@` (`alice.bsky.social`,
-  `@alice.example.com`): any DNS hostname with an alphabetic TLD;
+  `@alice.example.com`): any DNS hostname whose last label starts with a
+  letter (Punycode TLDs such as `xn--p1ai` included);
 - a profile link, `https://bsky.app/profile/<handle>` or
-  `https://bsky.app/profile/<did:plc:…|did:web:…>`.
+  `https://bsky.app/profile/<did:plc:…|did:web:…>` (plain `http://` links are
+  accepted too).
 
 The resolved account is added before the indexed results; it never replaces
 them. A local account whose username looks like a handle still wins on

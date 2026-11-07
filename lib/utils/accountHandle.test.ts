@@ -254,6 +254,11 @@ describe('parseBlueskyBridgeQuery', () => {
       'fern.example.com@bsky.brid.gy'
     ],
     [
+      'a handle on a Punycode TLD',
+      'fern.xn--p1ai',
+      'fern.xn--p1ai@bsky.brid.gy'
+    ],
+    [
       'a bsky.app profile link',
       'https://bsky.app/profile/river.bsky.social',
       'river.bsky.social@bsky.brid.gy'
@@ -284,6 +289,8 @@ describe('parseBlueskyBridgeQuery', () => {
     ['a numeric TLD', 'river.bsky.123'],
     ['an IP address', '192.168.0.1'],
     ['a label starting with a hyphen', '-river.bsky.social'],
+    ['a TLD ending with a hyphen', 'river.bsky.social-'],
+    ['a one-letter TLD', 'river.b'],
     ['a space inside', 'river bsky.social'],
     ['another host', 'https://example.com/profile/river.bsky.social'],
     [
