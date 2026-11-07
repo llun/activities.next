@@ -105,6 +105,20 @@ describe('POST /api/v1/accounts/bluesky-sharing', () => {
     expect(getWebfingerSelf).not.toHaveBeenCalled()
   })
 
+  it('reports a Follow the bridge did not receive', async () => {
+    vi.mocked(followActor).mockResolvedValue({
+      type: 'ok',
+      targetActorId: BLUESKY_BRIDGE_ACTOR_ID,
+      delivered: false
+    })
+    const response = await POST(request({ enabled: true }), context)
+    expect(response.status).toBe(502)
+    expect(await response.json()).toEqual({
+      error:
+        'The Bluesky bridge did not receive the request. Turn sharing off and on again to retry.'
+    })
+  })
+
   it('unblocks before following', async () => {
     database.getBlock.mockResolvedValue({ id: 'block' })
     await POST(request({ enabled: true }), context)

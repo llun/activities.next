@@ -91,6 +91,13 @@ export const POST = traceApiRoute(
             502
           )
         }
+        // The pending follow stays; turning sharing off and on sends a new one.
+        if (result.delivered === false) {
+          return errorResponse(
+            'The Bluesky bridge did not receive the request. Turn sharing off and on again to retry.',
+            502
+          )
+        }
       } else {
         const result = await blockActor({
           database,

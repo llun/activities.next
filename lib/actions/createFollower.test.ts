@@ -389,7 +389,11 @@ describe('locked profile bridge follow-back', () => {
       ...bot,
       id: 'https://bsky.brid.gy/ap/another'
     })
-    database.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    // Sharing is on, so only the bot-id check keeps this follower pending.
+    database.getAcceptedOrRequestedFollow.mockImplementation(
+      async ({ actorId }) =>
+        actorId === target.id ? { status: 'Accepted' } : null
+    )
     await createFollower({
       database: database as unknown as Database,
       followRequest: MockFollowRequest({

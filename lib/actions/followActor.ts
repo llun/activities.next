@@ -10,7 +10,9 @@ export type FollowActorResult =
   | { type: 'forbidden' }
   | { type: 'not-found' }
   | { type: 'moved' }
-  | { type: 'ok'; targetActorId: string }
+  // delivered is false when a new Follow could not be sent; the Requested row
+  // stays, as for any follow.
+  | { type: 'ok'; targetActorId: string; delivered?: boolean }
 
 /**
  * The follow flow behind POST /api/v1/accounts/:id/follow, shared with the
@@ -99,7 +101,13 @@ export const followActor = async ({
       notify,
       languages
     })
-    await follow(followItem.id, currentActor, targetActorId, signingActor)
+    const delivered = await follow(
+      followItem.id,
+      currentActor,
+      targetActorId,
+      signingActor
+    )
+    return { type: 'ok', targetActorId, delivered }
   }
 
   return { type: 'ok', targetActorId }
