@@ -1001,7 +1001,7 @@ Everything else about the PR is unchanged: the Definition of Done, the pre-commi
 
 ### Done when
 
-A full review round yields no new actionable comments, or you have run 20 rounds. Every thread you touched should be replied-to and resolved before you stop. Where the exception above applies, you are done when the self-review is complete and the skipped loop is disclosed on the PR.
+A full review round yields no new actionable comments, or you have run 20 rounds. Every thread you touched should be replied-to and resolved before you stop. Where the exception above applies, you are done when the self-review is complete and the skipped review is disclosed on the PR.
 
 ## Resources
 
