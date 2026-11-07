@@ -199,6 +199,51 @@ describe('ListEditor', () => {
     expect(addButtons).toHaveLength(5)
   })
 
+  it.each(['@ben@llun.social', '@ben', '  @Ben@LLUN.social  '])(
+    'matches a handle typed with a leading @ (%s)',
+    (value) => {
+      render(
+        <ListEditor
+          mode="edit"
+          list={list}
+          initialMembers={[]}
+          followingSuggestions={[suggestion]}
+        />
+      )
+
+      fireEvent.change(screen.getByLabelText('Search accounts you follow'), {
+        target: { value }
+      })
+
+      expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
+      expect(
+        screen.queryByText('No accounts match your search.')
+      ).not.toBeInTheDocument()
+    }
+  )
+
+  it('keeps the dropdown closed while only an @ is typed', () => {
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Search accounts you follow'), {
+      target: { value: '@' }
+    })
+
+    expect(
+      screen.queryByText('No accounts match your search.')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Add' })
+    ).not.toBeInTheDocument()
+  })
+
   it('shows no accounts match message when query has no matches', () => {
     render(
       <ListEditor

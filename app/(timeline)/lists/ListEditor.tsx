@@ -110,8 +110,12 @@ export const ListEditor: FC<ListEditorProps> = ({
     [members]
   )
 
+  // Handles are shown as `@user@domain`, so people type them that way; the
+  // stored handle has no leading `@`, so drop one before matching.
+  const searchQuery = search.trim().replace(/^@/, '').toLowerCase()
+
   const suggestions = useMemo(() => {
-    const query = search.trim().toLowerCase()
+    const query = searchQuery
     if (query.length === 0) return []
     return followingSuggestions
       .filter((account) => !memberIds.has(account.id))
@@ -121,7 +125,7 @@ export const ListEditor: FC<ListEditorProps> = ({
           account.handle.toLowerCase().includes(query)
       )
       .slice(0, 5)
-  }, [followingSuggestions, memberIds, search])
+  }, [followingSuggestions, memberIds, searchQuery])
 
   const setMemberPending = (id: string, pending: boolean) =>
     setPendingMemberIds((previous) => {
@@ -418,7 +422,7 @@ export const ListEditor: FC<ListEditorProps> = ({
               }}
             />
 
-            {isDropdownOpen && search.trim().length > 0 && (
+            {isDropdownOpen && searchQuery.length > 0 && (
               <div className="absolute left-0 right-0 top-full z-40 mt-1.5 rounded-lg border bg-popover p-1 shadow-lg">
                 {suggestions.length > 0 ? (
                   <ul className="divide-y divide-border/50">
