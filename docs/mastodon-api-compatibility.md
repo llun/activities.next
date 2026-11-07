@@ -1183,6 +1183,24 @@ answers 404 and the search returns the indexed results alone. Nothing is contact
 instance does not federate with `bsky.brid.gy` (a suspending domain block, or
 allowlist mode without it).
 
+Settings → Other networks (`/settings/networks`) lets each profile share its
+public posts on Bluesky. Turning sharing on unblocks and follows
+`@bsky.brid.gy@bsky.brid.gy`; turning it off asks for confirmation, then blocks
+the bot and removes follows in both directions, asking Bridgy Fed to remove
+the Bluesky copy and its followers. Enabling requires a profile picture, a
+display name different from the username (case-insensitive), a username using
+only letters, numbers, `_`, `-` and `~`, starting and ending with a letter or
+number, and instance federation with `bsky.brid.gy`. Existing sharing can
+still be turned off if these requirements stop being met. Status comes from
+stored relationships: Off when blocked or not following, Setting up while
+the follow is requested, and On once accepted, with a link to
+`<username with _ and ~ replaced by ->.<actor domain>.ap.brid.gy`.
+Only fully public posts are copied; replies cross only to bridged posts, and
+long posts are shortened to 300 characters. Locked profiles automatically
+accept this specific bot’s follow-back while they follow it (requested or
+accepted); other follow requests keep the usual approval rules. See the
+[Bridgy Fed documentation](https://fed.brid.gy/docs) for requirements.
+
 ### Multi-actor & account management
 
 - **Multi-actor management** — `/api/v1/actors` and friends (`switch`, `default`,

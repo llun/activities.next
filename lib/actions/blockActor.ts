@@ -37,10 +37,14 @@ export const blockActor = async ({
   if (requestedActorId !== currentActor.id) {
     let targetActor
     try {
-      targetActor = await recordActorIfNeeded({
-        actorId: requestedActorId,
-        database
-      })
+      // Blocking a stored actor must remain possible when its server is
+      // unreachable or instance federation policy has since disabled it.
+      targetActor =
+        (await database.getActorFromId({ id: requestedActorId })) ??
+        (await recordActorIfNeeded({
+          actorId: requestedActorId,
+          database
+        }))
     } catch (error) {
       if (error instanceof BlockedFederationDomainError) {
         return { type: 'forbidden' }

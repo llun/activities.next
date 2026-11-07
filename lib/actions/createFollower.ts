@@ -5,6 +5,7 @@ import { Database } from '@/lib/database/types'
 import { notifyLocalFollow } from '@/lib/services/notifications/notifyLocalFollow'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { actorIdsMatch } from '@/lib/utils/activitypub'
+import { BLUESKY_BRIDGE_ACTOR_ID } from '@/lib/utils/blueskySharing'
 
 interface CreateFollowerParams {
   followRequest: FollowRequest
@@ -59,6 +60,14 @@ export const createFollower = async ({
     actorId: targetActor.id
   })
   const manuallyApprovesFollowers = settings?.manuallyApprovesFollowers ?? true
+  const bridgeSharingEnabled =
+    followerActor.id === BLUESKY_BRIDGE_ACTOR_ID &&
+    Boolean(
+      await database.getAcceptedOrRequestedFollow({
+        actorId: targetActor.id,
+        targetActorId: followerActor.id
+      })
+    )
 
   const existingFollow =
     (await database.getAcceptedOrRequestedFollow({
@@ -71,13 +80,32 @@ export const createFollower = async ({
     }))
 
   if (existingFollow) {
-    if (existingFollow.status === FollowStatus.enum.Accepted) {
+    if (
+      bridgeSharingEnabled &&
+      existingFollow.status === FollowStatus.enum.Requested
+    ) {
+      await database.updateFollowStatus({
+        followId: existingFollow.id,
+        status: FollowStatus.enum.Accepted
+      })
+      await notifyLocalFollow({
+        database,
+        targetActor,
+        followerActor,
+        followId: existingFollow.id,
+        type: 'follow'
+      })
+    }
+    if (
+      bridgeSharingEnabled ||
+      existingFollow.status === FollowStatus.enum.Accepted
+    ) {
       await acceptFollow(targetActor, followerActor.inboxUrl, followRequest)
     }
     return followRequest
   }
 
-  if (manuallyApprovesFollowers) {
+  if (manuallyApprovesFollowers && !bridgeSharingEnabled) {
     // Create follow with Requested status, don't auto-accept
     const follow = await database.createFollow({
       actorId: followerActor.id,
