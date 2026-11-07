@@ -115,18 +115,19 @@ export const GET = traceApiRoute(
         firstResolvePage && !directActor && !directHandle
           ? parseBlueskyBridgeQuery(query)
           : null
-      const federatesWithBridge =
-        bridgeQuery &&
-        (await canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN))
       const localNamesake =
-        federatesWithBridge && !/^https?:\/\//i.test(query)
+        bridgeQuery && !/^https?:\/\//i.test(query)
           ? await database.getActorFromUsername({
               username: query.replace(/^@/, ''),
               domain: accessDomain
             })
           : null
       const bridgedQuery =
-        federatesWithBridge && !localNamesake ? bridgeQuery : null
+        bridgeQuery &&
+        !localNamesake &&
+        (await canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN))
+          ? bridgeQuery
+          : null
       const bridgedActorId =
         bridgedQuery && /^https:\/\//.test(bridgedQuery) ? bridgedQuery : null
       const handle =

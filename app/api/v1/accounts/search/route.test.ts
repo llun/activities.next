@@ -736,9 +736,29 @@ describe('GET /api/v1/accounts/search', () => {
       expect(response.status).toBe(200)
       expect(mockGetDomainBlockForDomain).toHaveBeenCalledWith('bsky.brid.gy')
       expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
-      expect(mockGetActorFromUsername).not.toHaveBeenCalled()
+      expect(mockGetActorFromUsername).not.toHaveBeenCalledWith(
+        expect.objectContaining({ domain: 'bsky.brid.gy' })
+      )
       expect(mockSearchAccountIds).toHaveBeenCalledWith(
         expect.objectContaining({ exactActorIds: [] })
+      )
+    })
+
+    it('still prefers a local dotted username when the instance suspends bsky.brid.gy', async () => {
+      const localActor = { id: 'https://llun.test/users/trail.runner' }
+      mockGetDomainBlockForDomain.mockResolvedValue({
+        domain: 'bsky.brid.gy',
+        severity: 'suspend'
+      })
+      mockGetActorFromUsername.mockImplementation(async ({ domain }) =>
+        domain === 'llun.test' ? localActor : null
+      )
+
+      await search('@trail.runner')
+
+      expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+      expect(mockSearchAccountIds).toHaveBeenCalledWith(
+        expect.objectContaining({ exactActorIds: [localActor.id] })
       )
     })
 
