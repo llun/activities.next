@@ -3,6 +3,7 @@ import {
   Ban,
   Bell,
   Filter,
+  Globe,
   Image as ImageIcon,
   PanelLeft,
   ShieldCheck,
@@ -72,6 +73,12 @@ export const getSettingsGroups = (
         url: '/settings/media',
         icon: <ImageIcon />,
         description: 'Alt text, subject detection, AI enhance and storage'
+      },
+      {
+        name: 'Other networks',
+        url: '/settings/networks',
+        icon: <Globe />,
+        description: 'Bluesky and other networks'
       }
     ]
   },

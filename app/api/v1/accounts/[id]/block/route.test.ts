@@ -10,7 +10,7 @@ import { urlToId } from '@/lib/utils/urlToId'
 
 import { POST } from './route'
 
-const mockDatabase = {}
+const mockDatabase = { getActorFromId: vi.fn() }
 const mockCurrentActor = {
   id: 'https://local.test/users/me',
   domain: 'local.test'
@@ -89,9 +89,10 @@ describe('POST /api/v1/accounts/:id/block', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDatabase.getActorFromId.mockResolvedValue(null)
   })
 
-  it('returns forbidden when the target actor domain is blocked', async () => {
+  it('returns forbidden when an unknown target actor domain is blocked', async () => {
     const targetActorId = 'https://blocked.test/users/alice'
     recordActorIfNeededMock.mockRejectedValueOnce(
       new BlockedFederationDomainError(targetActorId)
@@ -110,6 +111,24 @@ describe('POST /api/v1/accounts/:id/block', () => {
     expect(applyBlockMock).not.toHaveBeenCalled()
     expect(getRelationshipMock).not.toHaveBeenCalled()
     expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  it('allows blocking a stored target without a remote or domain-policy lookup', async () => {
+    const targetActorId = 'https://blocked.test/users/known'
+    mockDatabase.getActorFromId.mockResolvedValueOnce({ id: targetActorId })
+    applyBlockMock.mockResolvedValueOnce({ uri: 'https://local.test/block' })
+    mockPublish.mockResolvedValueOnce(undefined)
+    getRelationshipMock.mockResolvedValueOnce({ id: 'relationship' })
+
+    const response = await POST(createRequest(targetActorId), {
+      params: Promise.resolve({ id: urlToId(targetActorId) })
+    })
+
+    expect(response.status).toBe(200)
+    expect(recordActorIfNeededMock).not.toHaveBeenCalled()
+    expect(applyBlockMock).toHaveBeenCalledWith(
+      expect.objectContaining({ targetActorId })
+    )
   })
 
   // recordActorIfNeeded keys a row on the id the actor's origin names, so an

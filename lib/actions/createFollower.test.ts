@@ -1,8 +1,11 @@
 import fetchMock from 'jest-fetch-mock'
 
 import { createFollower } from '@/lib/actions/createFollower'
+import * as actorUtils from '@/lib/actions/utils'
 import { acceptFollow, rejectFollow } from '@/lib/activities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import type { Database } from '@/lib/database/types'
+import * as followNotifications from '@/lib/services/notifications/notifyLocalFollow'
 import { mockRequests } from '@/lib/stub/activities'
 import { testUserId } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
@@ -10,6 +13,7 @@ import { MockFollowRequest } from '@/lib/stub/followRequest'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { BLUESKY_BRIDGE_ACTOR_ID } from '@/lib/utils/blueskySharing'
 
 vi.mock('@/lib/activities')
 vi.mock('@/lib/activities/getActorPerson')
@@ -261,5 +265,158 @@ describe('createFollower', () => {
     } finally {
       await database.updateActor({ actorId: actor.id, movedTo: null })
     }
+  })
+})
+
+describe('locked profile bridge follow-back', () => {
+  const target = {
+    id: 'https://personal.example/users/alice',
+    privateKey: 'key'
+  } as Actor
+  const bot = {
+    id: BLUESKY_BRIDGE_ACTOR_ID,
+    username: 'bsky.brid.gy',
+    domain: 'bsky.brid.gy',
+    inboxUrl: `${BLUESKY_BRIDGE_ACTOR_ID}/inbox`
+  } as Actor
+  const database = {
+    getActorFromId: vi.fn(),
+    isEitherBlocking: vi.fn(),
+    getActorSettings: vi.fn(),
+    getAcceptedOrRequestedFollow: vi.fn(),
+    createFollow: vi.fn(),
+    updateFollowStatus: vi.fn()
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    database.getActorFromId.mockResolvedValue(target)
+    database.isEitherBlocking.mockResolvedValue(false)
+    database.getActorSettings.mockResolvedValue({
+      manuallyApprovesFollowers: true
+    })
+    database.getAcceptedOrRequestedFollow.mockReset()
+    database.createFollow.mockImplementation(async (input) => ({
+      ...input,
+      id: 'bridge-follow'
+    }))
+    vi.spyOn(actorUtils, 'recordActorIfNeeded').mockResolvedValue(bot)
+    vi.spyOn(followNotifications, 'notifyLocalFollow').mockResolvedValue(null)
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it.each(['Requested', 'Accepted'] as const)(
+    'accepts a locked profile’s bridge follow-back while sharing is %s',
+    async (status) => {
+      database.getAcceptedOrRequestedFollow.mockImplementation(
+        async ({ actorId }) => (actorId === target.id ? { status } : null)
+      )
+      const followRequest = MockFollowRequest({
+        actorId: bot.id,
+        targetActorId: target.id
+      })
+      await createFollower({
+        database: database as unknown as Database,
+        followRequest
+      })
+      expect(database.createFollow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: bot.id,
+          targetActorId: target.id,
+          status: 'Accepted'
+        })
+      )
+      expect(acceptFollow).toHaveBeenCalledWith(
+        target,
+        bot.inboxUrl,
+        followRequest
+      )
+      expect(followNotifications.notifyLocalFollow).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'follow' })
+      )
+    }
+  )
+
+  it('keeps the bridge requested on a locked profile when sharing is off', async () => {
+    const followRequest = MockFollowRequest({
+      actorId: bot.id,
+      targetActorId: target.id
+    })
+    await createFollower({
+      database: database as unknown as Database,
+      followRequest
+    })
+    expect(database.createFollow).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'Requested' })
+    )
+    expect(acceptFollow).not.toHaveBeenCalled()
+    expect(followNotifications.notifyLocalFollow).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'follow_request' })
+    )
+  })
+
+  it('accepts a retried pending bridge follow-back after sharing turns on', async () => {
+    database.getAcceptedOrRequestedFollow.mockImplementation(
+      async ({ actorId }) =>
+        actorId === target.id
+          ? { status: 'Requested' }
+          : { id: 'pending', status: 'Requested' }
+    )
+    const followRequest = MockFollowRequest({
+      actorId: bot.id,
+      targetActorId: target.id
+    })
+    await createFollower({
+      database: database as unknown as Database,
+      followRequest
+    })
+    expect(database.updateFollowStatus).toHaveBeenCalledWith({
+      followId: 'pending',
+      status: 'Accepted'
+    })
+    expect(acceptFollow).toHaveBeenCalledWith(
+      target,
+      bot.inboxUrl,
+      followRequest
+    )
+    expect(database.createFollow).not.toHaveBeenCalled()
+  })
+
+  it('does not auto-accept another account on the bridge domain', async () => {
+    vi.mocked(actorUtils.recordActorIfNeeded).mockResolvedValue({
+      ...bot,
+      id: 'https://bsky.brid.gy/ap/another'
+    })
+    // Sharing is on, so only the bot-id check keeps this follower pending.
+    database.getAcceptedOrRequestedFollow.mockImplementation(
+      async ({ actorId }) =>
+        actorId === target.id ? { status: 'Accepted' } : null
+    )
+    await createFollower({
+      database: database as unknown as Database,
+      followRequest: MockFollowRequest({
+        actorId: 'https://bsky.brid.gy/ap/another',
+        targetActorId: target.id
+      })
+    })
+    expect(database.createFollow).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'Requested' })
+    )
+    expect(acceptFollow).not.toHaveBeenCalled()
+  })
+
+  it('rejects a blocked bridge before the auto-accept exception', async () => {
+    database.isEitherBlocking.mockResolvedValue(true)
+    await createFollower({
+      database: database as unknown as Database,
+      followRequest: MockFollowRequest({
+        actorId: bot.id,
+        targetActorId: target.id
+      })
+    })
+    expect(rejectFollow).toHaveBeenCalled()
+    expect(database.createFollow).not.toHaveBeenCalled()
   })
 })

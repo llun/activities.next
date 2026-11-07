@@ -80,7 +80,8 @@ describe('Settings Layout', () => {
       'Posting & reading',
       'Notifications',
       'Sidebar',
-      'Media & AI'
+      'Media & AI',
+      'Other networks'
     ])
     expect(names('Privacy & safety')).toEqual([
       'Privacy',
@@ -95,6 +96,9 @@ describe('Settings Layout', () => {
     expect(items[0]).toHaveAttribute('href', '/settings/profile')
     expect(items[0]).toHaveTextContent('Edit profile')
     expect(items[0]).not.toHaveTextContent('@anna@llun.test')
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Other networks' })
+    ).toHaveAttribute('href', '/settings/networks')
     expect(
       within(menu).getByRole('menuitem', { name: 'Delete this profile' })
     ).toHaveAttribute('href', '/settings/delete')
