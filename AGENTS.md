@@ -13,6 +13,7 @@ Every change, however small, is done only when ALL of these hold:
 5. The commit subject and PR title carry the correct conventional prefix, and `package.json` `version` is untouched (see [Commit & Pull Request Guidelines](CONTRIBUTING.md#agents-commit-pull-request-guidelines)).
 6. UI changes are verified in a real browser (see [Local Manual / Browser Testing](CONTRIBUTING.md#local-manual-browser-testing)); screenshots in the PR are not required.
 7. Changes that alter the design keep the Sketch design library in step: `Activities.next.sketch` is updated (and redesign screens regenerated when affected), the interactive prototype (`Activities.next/Interactive/`) is regenerated from the merged change, and both are committed, pushed and published (its `scripts/publish.sh`) in the separate `llun/sketch` repository (see [Design Library Sync](CONTRIBUTING.md#agents-design-library-sync)).
+8. Once the PR is merged or closed, the thread removes what it made on the machine: its worktree and local branch, the git-ai log at `.git/ai/worktrees/<worktree folder name>` (removing the worktree leaves it behind), and the caches and logs it wrote (`node_modules`, `.next`, temp clones). Anything whose PR is still open, or that another thread uses, stays.
 
 For the most common task shapes, follow the step-by-step [Task Recipes](CONTRIBUTING.md#agents-task-recipes) instead of improvising.
 
