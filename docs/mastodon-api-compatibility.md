@@ -1191,7 +1191,10 @@ the Bluesky copy and its followers. Enabling requires a profile picture, a
 display name different from the username (case-insensitive), a username using
 only letters, numbers, `_`, `-` and `~`, starting and ending with a letter or
 number, and instance federation with `bsky.brid.gy`. Existing sharing can
-still be turned off if these requirements stop being met. Status comes from
+still be turned off if these requirements stop being met; while the instance
+does not federate with `bsky.brid.gy`, turning off only blocks locally, because
+the Block cannot reach the bridge, so the Bluesky copy stays until federation
+resumes and sharing is turned on and off again. Status comes from
 stored relationships: Off when blocked or not following, Setting up while
 the follow is requested, and On once accepted, with a link to
 `<username with _ and ~ replaced by ->.<actor domain>.ap.brid.gy`.
