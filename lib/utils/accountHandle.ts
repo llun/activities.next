@@ -84,3 +84,40 @@ export const parseAccountUrlHandle = (value: string) => {
     parseActorUrlAccountHandle(value) ?? parseProfileUrlAccountHandle(value)
   )
 }
+
+export const BLUESKY_BRIDGE_DOMAIN = 'bsky.brid.gy'
+
+// A Bluesky handle is a DNS hostname: dot-separated labels ending in an
+// alphabetic TLD.
+const BLUESKY_HANDLE_PATTERN =
+  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i
+const BLUESKY_DID_PATTERN = /^did:(?:plc:[a-z2-7]{24}|web:[a-z0-9.-]+)$/i
+
+/**
+ * Maps a Bluesky handle (`alice.bsky.social`, `@alice.bsky.social`) or a
+ * `https://bsky.app/profile/<handle-or-did>` link to the query that resolves
+ * its Bridgy Fed bridged ActivityPub actor: the handle
+ * `alice.bsky.social@bsky.brid.gy`, or for a DID the actor id
+ * `https://bsky.brid.gy/ap/<did>`. Returns null for anything else. Only
+ * accounts that opted into the bridge resolve; others 404 at Bridgy Fed.
+ */
+export const parseBlueskyBridgeQuery = (value: string): string | null => {
+  const trimmed = value.trim()
+  let candidate = trimmed.replace(/^@/, '')
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    if (url.hostname.toLowerCase() !== 'bsky.app') return null
+    const match = /^\/profile\/([^/]+)\/?$/.exec(url.pathname)
+    if (!match) return null
+    candidate = decodeURIComponent(match[1])
+    if (BLUESKY_DID_PATTERN.test(candidate)) {
+      return `https://${BLUESKY_BRIDGE_DOMAIN}/ap/${candidate}`
+    }
+  } catch {
+    // Not a URL: a bare handle.
+  }
+  return BLUESKY_HANDLE_PATTERN.test(candidate)
+    ? `${candidate.toLowerCase()}@${BLUESKY_BRIDGE_DOMAIN}`
+    : null
+}

@@ -3,6 +3,7 @@ import {
   parseAccountHandle,
   parseAccountUrlHandle,
   parseActorUrlAccountHandle,
+  parseBlueskyBridgeQuery,
   parseProfileUrlAccountHandle,
   stripAcctPrefix
 } from './accountHandle'
@@ -236,5 +237,63 @@ describe('isCurrentHandle', () => {
         domain: 'example.test'
       })
     ).toBe(false)
+  })
+})
+
+describe('parseBlueskyBridgeQuery', () => {
+  it.each([
+    ['a bare handle', 'river.bsky.social', 'river.bsky.social@bsky.brid.gy'],
+    [
+      'an at-prefixed handle',
+      '@river.bsky.social',
+      'river.bsky.social@bsky.brid.gy'
+    ],
+    [
+      'a custom-domain handle, lowercased',
+      ' Fern.Example.COM ',
+      'fern.example.com@bsky.brid.gy'
+    ],
+    [
+      'a bsky.app profile link',
+      'https://bsky.app/profile/river.bsky.social',
+      'river.bsky.social@bsky.brid.gy'
+    ],
+    [
+      'a bsky.app profile link with a trailing slash',
+      'https://bsky.app/profile/river.bsky.social/',
+      'river.bsky.social@bsky.brid.gy'
+    ],
+    [
+      'a bsky.app profile link with a did:plc',
+      'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx',
+      'https://bsky.brid.gy/ap/did:plc:abcdefghijklmnopqrstuvwx'
+    ],
+    [
+      'a bsky.app profile link with a did:web',
+      'https://bsky.app/profile/did:web:fern.example.com',
+      'https://bsky.brid.gy/ap/did:web:fern.example.com'
+    ]
+  ])('maps %s', (_description, input, expected) => {
+    expect(parseBlueskyBridgeQuery(input)).toBe(expected)
+  })
+
+  it.each([
+    ['a plain word', 'river'],
+    ['a fediverse handle', 'river@example.com'],
+    ['a second at sign', '@river.bsky.social@evil.test'],
+    ['a numeric TLD', 'river.bsky.123'],
+    ['an IP address', '192.168.0.1'],
+    ['a label starting with a hyphen', '-river.bsky.social'],
+    ['a space inside', 'river bsky.social'],
+    ['another host', 'https://example.com/profile/river.bsky.social'],
+    [
+      'a bsky.app post link',
+      'https://bsky.app/profile/river.bsky.social/post/3k'
+    ],
+    ['a bsky.app non-profile path', 'https://bsky.app/search'],
+    ['a malformed did', 'https://bsky.app/profile/did:plc:short'],
+    ['a non-http scheme', 'ftp://bsky.app/profile/river.bsky.social']
+  ])('rejects %s', (_description, input) => {
+    expect(parseBlueskyBridgeQuery(input)).toBeNull()
   })
 })
