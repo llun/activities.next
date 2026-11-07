@@ -1,0 +1,25 @@
+lib/actions/followActor.ts
+  s_f99d26880b88bb::t_2043de2d1a3d98 13-15,104-110
+app/api/v1/accounts/bluesky-sharing/route.ts
+  s_f99d26880b88bb::t_2043de2d1a3d98 94-100
+lib/actions/createFollower.test.ts
+  s_f99d26880b88bb::t_60f7e09e335670 392-396
+app/api/v1/accounts/bluesky-sharing/route.test.ts
+  s_f99d26880b88bb::t_2043de2d1a3d98 108-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "697a9cd8fe8b25c58ae01f71720c84e37812a180",
+  "prompts": {},
+  "sessions": {
+    "s_f99d26880b88bb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ae2782c-69de-486c-985d-72b3b4a05e64",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
