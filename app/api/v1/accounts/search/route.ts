@@ -7,12 +7,15 @@ import {
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
 import { isLocalDomain } from '@/lib/services/domains/localDomains'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { Scope } from '@/lib/types/database/operations'
 import {
+  BLUESKY_BRIDGE_DOMAIN,
   parseAccountHandle,
-  parseAccountUrlHandle
+  parseAccountUrlHandle,
+  parseBlueskyBridgeQuery
 } from '@/lib/utils/accountHandle'
 import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -95,16 +98,49 @@ export const GET = traceApiRoute(
       // hand, so its refresh only has to finish before serialization and runs
       // alongside the index search. This route is always authenticated
       // (OAuthGuardAnyScope).
-      const actorFromId =
-        resolve && offset === 0 && /^https?:\/\//i.test(query)
+      const firstResolvePage = resolve && offset === 0
+      const directActor =
+        firstResolvePage && /^https?:\/\//i.test(query)
           ? await database.getActorFromId({ id: query })
           : null
-      const handle =
-        resolve && offset === 0 && !actorFromId
+      const directHandle =
+        firstResolvePage && !directActor
           ? (parseAccountHandle(query) ?? parseAccountUrlHandle(query))
           : null
+      // A Bluesky handle or bsky.app profile link resolves to its Bridgy Fed
+      // actor, unless the instance does not federate with the bridge. As on
+      // /api/v2/search, a bare handle is first tried as a local username, and
+      // a local account found that way is the exact match instead.
+      const bridgeQuery =
+        firstResolvePage && !directActor && !directHandle
+          ? parseBlueskyBridgeQuery(query)
+          : null
+      const localNamesake =
+        bridgeQuery && !/^https?:\/\//i.test(query)
+          ? await database.getActorFromUsername({
+              username: query.replace(/^@/, ''),
+              domain: accessDomain
+            })
+          : null
+      const bridgedQuery =
+        bridgeQuery &&
+        !localNamesake &&
+        (await canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN))
+          ? bridgeQuery
+          : null
+      const bridgedActorId =
+        bridgedQuery && /^https:\/\//.test(bridgedQuery) ? bridgedQuery : null
+      const handle =
+        directHandle ??
+        (bridgedQuery && !bridgedActorId
+          ? parseAccountHandle(bridgedQuery)
+          : null)
       const storedExactActor =
-        actorFromId ??
+        directActor ??
+        localNamesake ??
+        (bridgedActorId
+          ? await database.getActorFromId({ id: bridgedActorId })
+          : null) ??
         (handle
           ? await database.getActorFromUsername({
               username: handle.username,
@@ -113,13 +149,19 @@ export const GET = traceApiRoute(
           : null)
       let exactActorId = storedExactActor?.id ?? null
       let exactActorRefresh: Promise<unknown> = Promise.resolve()
-      if (handle) {
+      if (handle || bridgedActorId) {
         if (storedExactActor) {
           exactActorRefresh = refreshKnownRemoteActor({
             database,
             actor: storedExactActor
           })
-        } else if (!(await isLocalDomain(database, handle.domain))) {
+        } else if (bridgedActorId) {
+          const recordedActor = await recordRemoteActorBestEffort({
+            actorId: bridgedActorId,
+            database
+          })
+          exactActorId = recordedActor?.id ?? null
+        } else if (handle && !(await isLocalDomain(database, handle.domain))) {
           const actorId = await getWebfingerSelf({
             account: `${handle.username}@${handle.domain}`
           })

@@ -11,6 +11,7 @@ import {
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
 import { isLocalDomain } from '@/lib/services/domains/localDomains'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import {
   OptionalOAuthGuard,
@@ -30,7 +31,9 @@ import { Status } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import { Tag } from '@/lib/types/mastodon/tag'
 import {
+  BLUESKY_BRIDGE_DOMAIN,
   parseAccountHandle,
+  parseBlueskyBridgeQuery,
   parseProfileUrlAccountHandle
 } from '@/lib/utils/accountHandle'
 import { normalizeActorId } from '@/lib/utils/activitypub'
@@ -373,6 +376,36 @@ const resolveAccountId = async ({
   return null
 }
 
+// A Bluesky handle or bsky.app profile link resolves to its Bridgy Fed actor
+// when the query does not resolve as it is (a local dotted username wins), and
+// only while the instance federates with the bridge. A bsky.app link skips the
+// direct attempt: fetching that page as an actor can only fail.
+const resolveAccountIdOrBlueskyBridge = async (
+  params: Parameters<typeof resolveAccountId>[0]
+) => {
+  const bridgeQuery = params.resolve
+    ? parseBlueskyBridgeQuery(params.query)
+    : null
+  // The direct attempt drops a leading `@`, so `@alice.example.com` is tried
+  // as the local username `alice.example.com` before the bridge.
+  const directId = !bridgeQuery
+    ? await resolveAccountId(params)
+    : isUrl(params.query)
+      ? null
+      : await resolveAccountId({
+          ...params,
+          query: params.query.replace(/^@/, '')
+        })
+  if (
+    directId ||
+    !bridgeQuery ||
+    !(await canFederateWithDomain(params.database, BLUESKY_BRIDGE_DOMAIN))
+  ) {
+    return directId
+  }
+  return resolveAccountId({ ...params, query: bridgeQuery })
+}
+
 const getResolvedStatus = async ({
   database,
   currentActor,
@@ -478,7 +511,7 @@ const searchAccounts = async ({
 }) => {
   const [resolvedAccountId, indexedIds] = await Promise.all([
     offset === 0
-      ? resolveAccountId({
+      ? resolveAccountIdOrBlueskyBridge({
           database,
           currentActor,
           query,

@@ -1154,6 +1154,35 @@ null }` files the status into one of the viewer's folders, or unfiles it with
   serves the FEP-044f `QuoteAuthorization` object for an approved quote; it 404s
   once the quote is revoked (the edge is no longer `accepted`).
 
+### Bluesky accounts via Bridgy Fed
+
+Bluesky accounts that have opted into [Bridgy Fed](https://fed.brid.gy/)
+appear as ordinary ActivityPub actors on `bsky.brid.gy`, with the handle
+`<bluesky-handle>@bsky.brid.gy` and the actor id
+`https://bsky.brid.gy/ap/<did>`; following one and reading or replying to its
+posts work as for any remote account. Account search with `resolve=true` on the
+first page (`GET /api/v1/accounts/search` and the accounts part of
+`GET /api/v2/search`, which the search page and the new-message recipient
+search use) also accepts the forms people copy from Bluesky and resolves them
+to the bridged actor (`parseBlueskyBridgeQuery` in
+`lib/utils/accountHandle.ts`):
+
+- a bare handle, with or without a leading `@` (`alice.bsky.social`,
+  `@alice.example.com`): any DNS hostname whose last label starts with a
+  letter and has at least two characters (Punycode TLDs such as `xn--p1ai`
+  included);
+- a profile link, `https://bsky.app/profile/<handle>` or
+  `https://bsky.app/profile/<did:plc:…|did:web:…>` (plain `http://` links are
+  accepted too).
+
+The resolved account is added before the indexed results; it never replaces
+them. A bare handle is first tried as a local username, and a local account
+with that username wins: the bridge is not asked. A bsky.app link always goes
+to the bridge. Only opted-in accounts resolve: for anyone else Bridgy Fed
+answers 404 and the search returns the indexed results alone. Nothing is contacted when the
+instance does not federate with `bsky.brid.gy` (a suspending domain block, or
+allowlist mode without it).
+
 ### Multi-actor & account management
 
 - **Multi-actor management** — `/api/v1/actors` and friends (`switch`, `default`,
