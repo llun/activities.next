@@ -700,7 +700,10 @@ describe('GET /api/v1/accounts/search', () => {
       expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
       expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
       expect(mockSearchAccountIds).toHaveBeenCalledWith(
-        expect.objectContaining({ q: '@trail.runner', exactActorIds: [] })
+        expect.objectContaining({
+          q: '@trail.runner',
+          exactActorIds: [localActor.id]
+        })
       )
       expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
         ids: [localActor.id]

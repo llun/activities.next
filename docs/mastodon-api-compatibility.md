@@ -1169,16 +1169,17 @@ to the bridged actor (`parseBlueskyBridgeQuery` in
 
 - a bare handle, with or without a leading `@` (`alice.bsky.social`,
   `@alice.example.com`): any DNS hostname whose last label starts with a
-  letter (Punycode TLDs such as `xn--p1ai` included);
+  letter and has at least two characters (Punycode TLDs such as `xn--p1ai`
+  included);
 - a profile link, `https://bsky.app/profile/<handle>` or
   `https://bsky.app/profile/<did:plc:…|did:web:…>` (plain `http://` links are
   accepted too).
 
 The resolved account is added before the indexed results; it never replaces
-them. A local account whose username is the handle wins: the bridge is not
-asked. Only
-opted-in accounts resolve: for anyone else Bridgy Fed answers 404 and the
-search returns the indexed results alone. Nothing is contacted when the
+them. A bare handle is first tried as a local username, and a local account
+with that username wins: the bridge is not asked. A bsky.app link always goes
+to the bridge. Only opted-in accounts resolve: for anyone else Bridgy Fed
+answers 404 and the search returns the indexed results alone. Nothing is contacted when the
 instance does not federate with `bsky.brid.gy` (a suspending domain block, or
 allowlist mode without it).
 

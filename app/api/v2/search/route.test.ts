@@ -1879,23 +1879,30 @@ describe('GET /api/v2/search', () => {
       })
     })
 
-    it('prefers a local dotted username and never asks the bridge', async () => {
-      const localActor = {
-        id: 'https://llun.test/users/trail.runner',
-        account: { id: 'account-id' },
-        privateKey: 'private-key'
+    it.each(['trail.runner', '@trail.runner'])(
+      'prefers a local dotted username for %s and never asks the bridge',
+      async (q) => {
+        const localActor = {
+          id: 'https://llun.test/users/trail.runner',
+          account: { id: 'account-id' },
+          privateKey: 'private-key'
+        }
+        mockSearchAccountIds.mockResolvedValue([])
+        mockGetActorFromUsername.mockResolvedValue(localActor)
+
+        await searchAccounts(q)
+
+        expect(mockGetActorFromUsername).toHaveBeenCalledTimes(1)
+        expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+          username: 'trail.runner',
+          domain: 'llun.test'
+        })
+        expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+        expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+          ids: [localActor.id]
+        })
       }
-      mockSearchAccountIds.mockResolvedValue([])
-      mockGetActorFromUsername.mockResolvedValue(localActor)
-
-      await searchAccounts('trail.runner')
-
-      expect(mockGetActorFromUsername).toHaveBeenCalledTimes(1)
-      expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
-      expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
-        ids: [localActor.id]
-      })
-    })
+    )
 
     it('degrades to the indexed results when the account is not bridged', async () => {
       mockGetWebfingerSelf.mockResolvedValue(null)

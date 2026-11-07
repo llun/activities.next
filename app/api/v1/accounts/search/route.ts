@@ -108,22 +108,25 @@ export const GET = traceApiRoute(
           ? (parseAccountHandle(query) ?? parseAccountUrlHandle(query))
           : null
       // A Bluesky handle or bsky.app profile link resolves to its Bridgy Fed
-      // actor, unless the instance does not federate with the bridge or (as on
-      // /api/v2/search) a local account already has that dotted username.
+      // actor, unless the instance does not federate with the bridge. As on
+      // /api/v2/search, a bare handle is first tried as a local username, and
+      // a local account found that way is the exact match instead.
       const bridgeQuery =
         firstResolvePage && !directActor && !directHandle
           ? parseBlueskyBridgeQuery(query)
           : null
-      const bridgedQuery =
+      const federatesWithBridge =
         bridgeQuery &&
-        (await canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN)) &&
-        (/^https?:\/\//i.test(query) ||
-          !(await database.getActorFromUsername({
-            username: query.replace(/^@/, ''),
-            domain: accessDomain
-          })))
-          ? bridgeQuery
+        (await canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN))
+      const localNamesake =
+        federatesWithBridge && !/^https?:\/\//i.test(query)
+          ? await database.getActorFromUsername({
+              username: query.replace(/^@/, ''),
+              domain: accessDomain
+            })
           : null
+      const bridgedQuery =
+        federatesWithBridge && !localNamesake ? bridgeQuery : null
       const bridgedActorId =
         bridgedQuery && /^https:\/\//.test(bridgedQuery) ? bridgedQuery : null
       const handle =
@@ -133,6 +136,7 @@ export const GET = traceApiRoute(
           : null)
       const storedExactActor =
         directActor ??
+        localNamesake ??
         (bridgedActorId
           ? await database.getActorFromId({ id: bridgedActorId })
           : null) ??

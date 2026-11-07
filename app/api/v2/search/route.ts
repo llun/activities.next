@@ -386,8 +386,16 @@ const resolveAccountIdOrBlueskyBridge = async (
   const bridgeQuery = params.resolve
     ? parseBlueskyBridgeQuery(params.query)
     : null
-  const directId =
-    bridgeQuery && isUrl(params.query) ? null : await resolveAccountId(params)
+  // The direct attempt drops a leading `@`, so `@alice.example.com` is tried
+  // as the local username `alice.example.com` before the bridge.
+  const directId = !bridgeQuery
+    ? await resolveAccountId(params)
+    : isUrl(params.query)
+      ? null
+      : await resolveAccountId({
+          ...params,
+          query: params.query.replace(/^@/, '')
+        })
   if (
     directId ||
     !bridgeQuery ||
