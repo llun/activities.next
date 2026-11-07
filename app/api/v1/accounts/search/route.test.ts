@@ -683,24 +683,43 @@ describe('GET /api/v1/accounts/search', () => {
       )
     })
 
-    it('keeps a local dotted username in the results when the bridge has no such account', async () => {
+    it('prefers a local dotted username and never asks the bridge', async () => {
       const localActor = { id: 'https://llun.test/users/trail.runner' }
-      mockGetWebfingerSelf.mockResolvedValue(null)
+      mockGetActorFromUsername.mockImplementation(async ({ domain }) =>
+        domain === 'llun.test' ? localActor : null
+      )
       mockSearchAccountIds.mockResolvedValue([localActor.id])
 
-      const response = await search('trail.runner')
+      const response = await search('@trail.runner')
 
       expect(response.status).toBe(200)
-      expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
-        account: 'trail.runner@bsky.brid.gy'
+      expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+        username: 'trail.runner',
+        domain: 'llun.test'
       })
+      expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
       expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
       expect(mockSearchAccountIds).toHaveBeenCalledWith(
-        expect.objectContaining({ q: 'trail.runner', exactActorIds: [] })
+        expect.objectContaining({ q: '@trail.runner', exactActorIds: [] })
       )
       expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
         ids: [localActor.id]
       })
+    })
+
+    it('degrades to the indexed results when the account is not bridged', async () => {
+      mockGetWebfingerSelf.mockResolvedValue(null)
+
+      const response = await search('quiet.example.com')
+
+      expect(response.status).toBe(200)
+      expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+        account: 'quiet.example.com@bsky.brid.gy'
+      })
+      expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+      expect(mockSearchAccountIds).toHaveBeenCalledWith(
+        expect.objectContaining({ exactActorIds: [] })
+      )
     })
 
     it('does not contact the bridge when the instance suspends bsky.brid.gy', async () => {
@@ -721,10 +740,11 @@ describe('GET /api/v1/accounts/search', () => {
     })
 
     it('refreshes a stored bridged actor instead of webfingering it', async () => {
-      mockGetActorFromUsername.mockResolvedValue({
-        ...bridgedActor,
-        updatedAt: Date.now()
-      })
+      mockGetActorFromUsername.mockImplementation(async ({ domain }) =>
+        domain === 'bsky.brid.gy'
+          ? { ...bridgedActor, updatedAt: Date.now() }
+          : null
+      )
 
       await search('river.bsky.social')
 

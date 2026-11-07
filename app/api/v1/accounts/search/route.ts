@@ -108,14 +108,20 @@ export const GET = traceApiRoute(
           ? (parseAccountHandle(query) ?? parseAccountUrlHandle(query))
           : null
       // A Bluesky handle or bsky.app profile link resolves to its Bridgy Fed
-      // actor, unless the instance does not federate with the bridge.
+      // actor, unless the instance does not federate with the bridge or (as on
+      // /api/v2/search) a local account already has that dotted username.
       const bridgeQuery =
         firstResolvePage && !directActor && !directHandle
           ? parseBlueskyBridgeQuery(query)
           : null
       const bridgedQuery =
         bridgeQuery &&
-        (await canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN))
+        (await canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN)) &&
+        (/^https?:\/\//i.test(query) ||
+          !(await database.getActorFromUsername({
+            username: query.replace(/^@/, ''),
+            domain: accessDomain
+          })))
           ? bridgeQuery
           : null
       const bridgedActorId =

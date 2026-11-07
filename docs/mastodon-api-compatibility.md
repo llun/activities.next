@@ -1175,8 +1175,8 @@ to the bridged actor (`parseBlueskyBridgeQuery` in
   accepted too).
 
 The resolved account is added before the indexed results; it never replaces
-them. A local account whose username looks like a handle still wins on
-`GET /api/v2/search`, and on both routes it stays in the indexed results. Only
+them. A local account whose username is the handle wins: the bridge is not
+asked. Only
 opted-in accounts resolve: for anyone else Bridgy Fed answers 404 and the
 search returns the indexed results alone. Nothing is contacted when the
 instance does not federate with `bsky.brid.gy` (a suspending domain block, or
