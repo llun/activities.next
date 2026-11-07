@@ -14,7 +14,7 @@ Thank you for your interest in contributing to Activities.next! This document pr
 - [Design Library Sync](#design-library-sync)
 - [Documentation Maintenance](#documentation-maintenance)
 - [Commit & Pull Request Guidelines](#commit--pull-request-guidelines)
-- [Code Review Loop (Sub-Agents)](#code-review-loop-sub-agents)
+- [Code Review Loop](#code-review-loop)
 
 ## Documentation and rule map
 
@@ -759,7 +759,7 @@ docker stop test-postgres
 - **Probabilistic crypto chi-square tests (`lib/utils/crypto.test.ts`) flake at `alpha = 1e-4` by design and pass on re-run.** Do not "fix" a flake by shrinking the sample size — under the null hypothesis the test statistic stays `~chi-square(61)` regardless of sample size.
 - **Worker `SIGABRT` in production is heatmap fan-out × Cloud Run concurrency, not a single-job code fault.** Recover crash-orphaned fitness imports (`pending` with `statusId = NULL`) with `scripts/fitness/repairFailedFitnessImports.ts`.
 - **A red `All Tests` whose upstream job is `abandoned`/`queued` with no runner is GitHub runner allocation, not code.** `ci-rerun.yml` re-runs it once; if it happened on attempt 2, re-run by hand.
-- **`Process completed with exit code 129` after the last `✓` with no Vitest summary is the runner's SIGHUP** (one-day incident on 2026-10-16); it is not auto re-run because the step ran repository code. Re-run by hand after checking the log has no `FAIL`.
+- **`Process completed with exit code 129` after the last `✓` with no Vitest summary is the runner's SIGHUP**; it is not auto re-run because the step ran repository code. Re-run by hand after checking the log has no `FAIL`.
 - **`YN0028` on a Dependabot branch whose name contains `packages/` is a security-update job rooted in a workspace** (see `dependabot.yml`); close it — the `/` job's twin PR carries the lockfile.
 - **A PR run that fails but passes locally or in a `workflow_dispatch` run on the branch is merge-ref divergence first** (the PR branch's test against `main`'s changed contract, e.g. the 303/307 accounts redirect), not a flake.
 - **A zero-job `failure` run on `version-bump/main`** is the startup failure the version-bump close/reopen kick heals; ignore it.
@@ -900,7 +900,7 @@ each ends with the Definition of Done gate.
 
 ## Design Library Sync
 
-The Sketch design library is the visual source of truth for Activities.next. It lives in a separate repository, [`llun/sketch`](https://github.com/llun/sketch), checked out on the maintainer's Mac:
+The Sketch design library is the visual source of truth for Activities.next. It lives in a separate repository, [`llun/sketch`](https://github.com/llun/sketch):
 
 - `Activities.next/Activities.next.sketch` is the library: Brand, Colors, Type, Spacing, Emails, Symbols, the Components pages, Templates, and the Mobile and Fitness redesign System pages. It is registered in Sketch as the "Activities.next" library.
 - `Activities.next/Screens/` holds the redesign screens: `Activities.next Screens.sketch` is the editable source, `images/<page-slug>/<frameId>.png` are its exported frames, and `index.html` with `manifest.js` is a static viewer that lists every screen with its page, frame name and layer id in the Sketch file.
@@ -912,8 +912,8 @@ When a change alters what users see, update the design in the same task:
 2. **Always update `Activities.next.sketch`.** Edit the affected swatches, text styles, symbols, component pages or System notes so the library matches the shipped UI, then save the document (Sketch keeps unsaved edits in memory, so an unsaved file commits nothing).
 3. **Regenerate screens when needed.** If the change adds a screen or changes how an existing one looks, update its Light and Dark frames in `Activities.next/Screens/Activities.next Screens.sketch`, export the frames to `Activities.next/Screens/images/<page-slug>/<frameId>.png` (`@2x` for frames 800px wide or narrower), and add or update their entries in `manifest.js` so the viewer shows them.
 4. **Regenerate the interactive prototype.** The prototype records the app from `main`, so after a design change merges, regenerate `Activities.next/Interactive/` from the new `main` with the interactive generator in the sketch repository (`Activities.next/Tools/interactive/`, which runs on macOS or Linux; its README has the exact commands and checks) and replace the folder with its output. Each run re-records the whole app (about 28 MB), so several design PRs that merge together can share one regeneration. The per-area page screens (`Activities.next/Screens/Pages/<Area>.sketch`) come from `Activities.next/Tools/screens/run.sh` beside it. When a change adds a page, add it to `Activities.next/Tools/screens/routes.json`; when it adds an action that saves something, add a flow to `Activities.next/Tools/interactive/mutations.json`, so both tools cover it.
-5. **Commit and push the sketch repository.** Commit on `main` in the `llun/sketch` checkout with a message that names the design change and links the Activities.next PR, then `git push origin main`, and publish it with `scripts/publish.sh` from that checkout: it tests and builds the site and uploads it to the sketch repository's GitHub release `site` with the GitHub CLI (`gh auth login` once), and the VM deploys it to <https://sketch.llun.dev/> within 10 minutes. Pushing alone does not update the site. Design changes do not need a pull request in `llun/sketch`. The Activities.next code change itself still follows the normal PR flow.
-6. **Never skip it silently.** If the Mac or Sketch is unreachable, the prototype cannot be regenerated, or the push or publish fails, finish the code change and say exactly what is left (which file, which pages or screens) in the PR description and to the person you are working with.
+5. **Land the change in the sketch repository.** Commit the design change in `llun/sketch` with a message that names it and links the Activities.next PR, and publish the site as that repository's README describes: committing alone does not update <https://sketch.llun.dev/>. The Activities.next code change itself still follows the normal PR flow.
+6. **Never skip it silently.** If the prototype cannot be regenerated or the design change cannot be landed in the sketch repository, finish the code change and say exactly what is left (which file, which pages or screens) in the PR description.
 
 <a id="agents-documentation-maintenance"></a>
 
@@ -948,18 +948,18 @@ When a change alters what users see, update the design in the same task:
 - **Never put production or operational SQL in PR descriptions** (or anywhere committed in the repo). One-off database mutations for a deployment — hotfix `UPDATE`/`INSERT`/`DELETE` statements, data backfills, or any copy-pasteable production runbook — must not live in the PR body. Describe **what** operational change is needed and **why** in prose, and deliver the actual SQL through the deployment runbook or a private ops channel instead. This targets operational/runbook SQL — it does **not** restrict application query code: Kysely query-builder calls and its `sql` tag in `lib/` are normal application code and unaffected. The database files that legitimately live in the repo, all under `migrations/`, are the migrations (TypeScript that define schema changes — not raw `.sql`), the frozen baseline schema (`migrations/baseline/`) and the reference schema dumps (`migrations/schema.sql`, `migrations/schema.sqlite.sql`); illustrative SQL in the `docs/` setup and maintenance guides (e.g. `docs/postgresql-setup.md` and the schema-dump steps) is also fine. This keeps environment-specific identifiers, hostnames, and runbooks out of the public Git history.
 - A husky pre-commit hook (`.husky/pre-commit`) runs on every commit: first `lint-staged` (configured in `package.json`), which runs `prettier --write` on the staged files and re-stages the formatted result, then `yarn lint`, which blocks the commit on lint errors. It does **not** run build or tests — run those yourself per the [pre-submit gate](#before-submitting).
 - The `prettier` / `prettier:check` package scripts only cover `app migrations lib lint test`; the trailing `.` in `yarn run prettier --write .` is what extends formatting to the whole tree. Note that `yarn run prettier` always **writes** (`"prettier": "prettier --write ..."` in `package.json`, so even `yarn prettier --check` writes); use `yarn prettier:check` for a read-only check. CI's format gate (`yarn prettier:check`) does not check `scripts/`, `docs/`, or `.github/`. Always `git fetch` before pushing to a PR branch, because the maintainer sometimes rebases open PR branches.
-- **The sub-agent code-review loop below is the project's review process** — read [Code Review Loop (Sub-Agents)](#agents-code-review-loop-sub-agents) and `REVIEW.md` (the project's review checklist, which also documents recurring reviewer false-flags) before acting on review feedback.
+- **The code-review loop below is the project's review process** — read [Code Review Loop](#agents-code-review-loop-sub-agents) and `REVIEW.md` (the project's review checklist, which also documents recurring reviewer false-flags) before acting on review feedback.
 
 <a id="agents-code-review-loop-sub-agents"></a>
 
-## Code Review Loop (Sub-Agents)
+## Code Review Loop
 
-**Once a PR is ready, drive a sub-agent code-review loop before treating the work as done, and re-run it every time an agent makes further changes to that PR.** "Ready" means the branch is pushed, the PR is open, and the local pre-commit gate (prettier → lint → typecheck → build → test) is green. This is a required step for every PR an agent produces, not an optional polish pass — with one exception, **When sub-agents are unavailable** below.
+**Once a PR is ready, get an independent review of the whole change before treating the work as done, and repeat it every time further changes are pushed to that PR.** "Ready" means the branch is pushed, the PR is open, and the local pre-commit gate (prettier → lint → typecheck → build → test) is green. This is a required step for every PR, not an optional polish pass — with one exception, **When no independent reviewer is available** below.
 
-### Fan out sub-agents to review the whole change
+### Review the whole change independently
 
-- Spawn **sub-agents** (the Task/Agent tool; to use the `code-review` skill, run it inside a reviewer sub-agent rather than from the main thread) to review **all** of the PR's code — correctness bugs plus the project invariants in this file and `REVIEW.md`, security, tests, and style. Use `REVIEW.md` as the checklist. For a sizeable diff, fan several sub-agents out in parallel across different files/dimensions instead of a single pass, then consolidate their findings. Each reviewer must be a **separate sub-agent that did not write the change** (never the main thread, and never the implementer reviewing its own work). The main thread sets each reviewer's model and effort explicitly, per [Working with Sub-Agents](AGENTS.md#working-with-sub-agents) in AGENTS.md; fixes are made by the main thread or an implementer sub-agent, never by a reviewer.
-- **Post every finding as a comment on the PR** — an inline review comment anchored to the offending file and line wherever possible, not just a summary in chat. The `code-review` skill's `--comment` flag posts inline comments directly; otherwise open a pending review with `pull_request_review_write` (method `create`), attach comments with `add_comment_to_pending_review`, and submit with `pull_request_review_write` (method `submit_pending`). The PR threads are the source of truth for what still needs addressing.
+- Review **all** of the PR's code — correctness bugs plus the project invariants in this file and `REVIEW.md`, security, tests, and style — with `REVIEW.md` as the checklist. For a sizeable diff, split the review across files or dimensions and consolidate the findings. Each reviewer works from a fresh context and **did not write the change**: nobody reviews their own work. The author makes the fixes, never the reviewer.
+- **Post every finding as a comment on the PR** — an inline review comment anchored to the offending file and line wherever possible, not just a summary elsewhere. The PR threads are the source of truth for what still needs addressing.
 
 ### Where findings come from
 
@@ -975,34 +975,33 @@ In multi-round reviews, **review the previous round's fix range (`git diff <prev
 
 ### Address → reply → resolve, in rounds
 
-For every open review comment (from your sub-agents or from a bot):
+For every open review comment:
 
 1. **Address it** — make the fix on the branch, or, for a false positive / won't-fix, decide that explicitly and be ready to justify it. Commit and push.
-2. **Reply** on the comment thread with what changed (or why no change is warranted) via `add_reply_to_pull_request_comment`.
-3. **Mark it resolved** via `resolve_review_thread`.
+2. **Reply** on the comment thread with what changed (or why no change is warranted).
+3. **Mark it resolved.**
 
-After clearing a batch, **run the sub-agent review again** — fixes can introduce new problems. **Repeat until a full round surfaces no new issues that need addressing, or you reach a maximum of 20 rounds**, whichever comes first. Note the round number as you go so the cap stays visible, and stop early the moment a clean round produces nothing actionable.
+After clearing a batch, **run the review again** — fixes can introduce new problems. **Repeat until a full round surfaces no new issues that need addressing, or you reach a maximum of 20 rounds**, whichever comes first. Note the round number as you go so the cap stays visible, and stop early the moment a clean round produces nothing actionable.
 
 ### Review bots
 
-- **No external review bot currently runs on PRs.** The `gemini-code-assist` bot has been removed, so do **not** post `/gemini review` (or any other bot trigger) and do **not** wait on a bot review — the sub-agent rounds above are the whole review.
-- If an automated review bot is reintroduced later, loop it in the same way: after addressing a round, re-request its review, treat its comments exactly like your own findings (address → reply → resolve), and give it up to 20 minutes to respond before continuing — but until then, don't wait on a bot that isn't there.
+If an automated review bot runs on PRs, treat its comments exactly like any other finding (address → reply → resolve), re-request its review after each round, and give it up to 20 minutes to respond before continuing. If none runs, don't wait on one.
 
-### When sub-agents are unavailable
+### When no independent reviewer is available
 
-Some sessions cannot spawn sub-agents at all: the harness exposes no Task/Agent tool, the operator's session configuration forbids calling it ("do not call the Agent tool unless the user requested it" and similar), or the user has said not to. **In that case the loop is not required, and you must not stall the work waiting for it.** The exception is narrow and mechanical — it fires on _inability_, never on the change looking small, the diff looking obvious, or the gate being green. Those are the conditions under which a review is cheap, not the conditions under which it is unnecessary.
+Sometimes no independent reviewer can be had. **In that case the loop is not required, and you must not stall the work waiting for it.** The exception is narrow and mechanical — it fires on _inability_, never on the change looking small, the diff looking obvious, or the gate being green. Those are the conditions under which a review is cheap, not the conditions under which it is unnecessary.
 
 What still holds when the exception fires:
 
 - **Review the diff yourself, in one pass, against `REVIEW.md` and this file.** The exception is about _who_ reviews, not _whether_ the work is reviewed. A single careful self-review is worth far more than nothing, and it is the whole review in this mode.
-- **Say so explicitly**, in the PR body and in the handoff to the user: the loop did not run, and why. A skipped review that nobody can see is indistinguishable from a review that found nothing — which is precisely the failure this rule exists to prevent. Never describe the work as fully reviewed, and never imply rounds ran that did not.
-- **The loop is still owed.** Offer to run it the moment sub-agents are available — the user can lift the restriction for the session, or run `/code-review` themselves. If a later session on the same PR _can_ spawn sub-agents, run the loop there before the PR merges.
+- **Say so explicitly**, in the PR body: the independent review did not run, and why. A skipped review that nobody can see is indistinguishable from a review that found nothing — which is precisely the failure this rule exists to prevent. Never describe the work as fully reviewed, and never imply rounds ran that did not.
+- **The review is still owed.** Get an independent review before the PR merges as soon as a reviewer is available.
 
 Everything else about the PR is unchanged: the Definition of Done, the pre-commit gate, and the documentation and schema-dump rules all still apply in full.
 
 ### Done when
 
-A full sub-agent review round yields no new actionable comments, or you have run 20 rounds. Every thread you touched should be replied-to and resolved before you stop. Where the exception above applies, you are done when the self-review is complete and the skipped loop is disclosed on the PR.
+A full review round yields no new actionable comments, or you have run 20 rounds. Every thread you touched should be replied-to and resolved before you stop. Where the exception above applies, you are done when the self-review is complete and the skipped loop is disclosed on the PR.
 
 ## Resources
 

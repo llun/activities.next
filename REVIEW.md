@@ -90,4 +90,4 @@ guides that own them; this file is the fast review index.
 
 - [ ] The five commands in the Definition of Done pass in order: `yarn run prettier --write .`, `yarn lint`, `yarn typecheck`, `yarn build`, `yarn test`.
 - [ ] The change updates every stale durable guide and keeps package version, generated instruction blocks, and required symlinks intact.
-- [ ] The PR uses the contributor workflow and documents any unavailable review loop or deferred gate explicitly.
+- [ ] The PR uses the contributor workflow and documents any skipped review or deferred gate explicitly.
