@@ -1,0 +1,19 @@
+next.config.ts
+  s_4b0791bbc637b9::t_43453f700fae8c 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c62bdd3abbfc2c3c550b1c8ead7012b666383ef",
+  "prompts": {},
+  "sessions": {
+    "s_4b0791bbc637b9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22c7d4ae-9cac-4dcf-8b2f-035b16861e22",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
