@@ -74,6 +74,8 @@ One server can serve profiles on several domains (`social.example`, `run.example
 
 Domains can still be pinned in the environment with `ACTIVITIES_TRUSTED_HOSTS`; those show in Admin › Served domains as always on, and only their sign-up settings, identity and policies can be changed there. Existing users can always add a profile on them, except someone who joined through another domain's sign-ups: they need that domain's own sign-ups open to their address, or a profile there already (the same holds for the primary). A wildcard entry such as `*.vercel.app` stays environment-only: it lets forwarded preview hosts sign in, but never serves profiles or sign-ups.
 
+If a trusted domain's front door forwards only federation paths (`/users/*`, `/inbox`, `/.well-known/*`, `/api/*`, `/auth/*`, …) to this app and serves its website elsewhere, also add it to `ACTIVITIES_FEDERATION_ONLY_HOSTS`. Actors, handles and federation stay on that domain, while user-facing links in emails (and the email brand and From that follow the link domain) use `ACTIVITIES_HOST`.
+
 ### Authentication Methods
 
 Activity.next uses [better-auth](https://www.better-auth.com/) for authentication and supports local email/password accounts, passkeys, and two-factor authentication.

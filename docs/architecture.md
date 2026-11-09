@@ -1785,9 +1785,10 @@ legacy shape left to copy.
   `ACTIVITIES_TRUSTED_HOSTS` entry (wildcards included) or an active
   Admin › Served domains row, the same set
   better-auth's trusted origins and `selectHeaderHost` use — and null (the
-  primary host) otherwise, never for a `federation.allowActorDomains` entry
-  alone, which can name a remote server. A template never takes a domain
-  straight from a stored row.
+  primary host) otherwise, including for a domain in
+  `ACTIVITIES_FEDERATION_ONLY_HOSTS` (its website is served elsewhere), never
+  for a `federation.allowActorDomains` entry alone, which can name a remote
+  server. A template never takes a domain straight from a stored row.
 - **The plain-text alternative is derived from the same block list**, never
   hand-written beside the HTML.
 - **A local `vi.mock('@/lib/config', …)` in a test MUST include `getBaseURL`

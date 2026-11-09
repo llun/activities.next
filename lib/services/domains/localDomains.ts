@@ -72,7 +72,8 @@ export const isLocalDomain = async (
  * better-auth trusts as origins and `selectHeaderHost` accepts — so the link
  * opens where the account's actor is.
  * Null — meaning "use the primary host" — for the primary host itself, a
- * missing or malformed domain, one carrying a path or a wildcard, and any
+ * missing or malformed domain, one carrying a path or a wildcard, a domain in
+ * `ACTIVITIES_FEDERATION_ONLY_HOSTS` (its website is served elsewhere), and any
  * domain this server does not answer on, so a stored value can never point a
  * link at another server.
  */
@@ -84,6 +85,12 @@ export const getServedLinkDomain = (
   const config = getConfig()
   // The primary host keeps the `getBaseURL()` link it always had.
   if (getCanonicalAuthority(config.host) === authority) return null
+  const federationOnlyHosts = new Set(
+    (config.federationOnlyHosts ?? [])
+      .map((host) => normalizeServedDomainChoice(host))
+      .filter((host): host is string => Boolean(host))
+  )
+  if (federationOnlyHosts.has(authority)) return null
   return isOwnInstanceHost(authority, getServedHostConfig(config))
     ? authority
     : null

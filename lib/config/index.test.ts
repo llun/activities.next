@@ -220,6 +220,27 @@ describe('Config', () => {
     })
   })
 
+  describe('federationOnlyHosts', () => {
+    const loadConfig = async () => {
+      process.env.ACTIVITIES_HOST = 'example.com'
+      process.env.ACTIVITIES_SECRET_PHASE = 'env-secret'
+      process.env.ACTIVITIES_ALLOW_EMAILS = '[]'
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'better-sqlite3'
+      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
+      const { getConfig } = await import('./index')
+      return getConfig()
+    }
+
+    it('parses ACTIVITIES_FEDERATION_ONLY_HOSTS', async () => {
+      process.env.ACTIVITIES_FEDERATION_ONLY_HOSTS = JSON.stringify([
+        'llun.dev'
+      ])
+
+      const config = await loadConfig()
+      expect(config.federationOnlyHosts).toEqual(['llun.dev'])
+    })
+  })
+
   describe('instance legal documents', () => {
     const loadConfig = async () => {
       process.env.ACTIVITIES_HOST = 'example.com'

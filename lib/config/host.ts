@@ -7,6 +7,7 @@ export type HostConfig = {
 
 export type AppHostConfig = HostConfig & {
   allowActorDomains: string[]
+  federationOnlyHosts: string[]
 }
 
 let cachedProxyHostConfig: HostConfig | null = null
@@ -19,7 +20,11 @@ export const getHostConfigFromEnvironment = (
     'ACTIVITIES_ALLOW_ACTOR_DOMAINS',
     options
   ),
-  trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
+  trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options),
+  federationOnlyHosts: getEnvironmentList(
+    'ACTIVITIES_FEDERATION_ONLY_HOSTS',
+    options
+  )
 })
 
 export const getProxyHostConfig = (): HostConfig => {

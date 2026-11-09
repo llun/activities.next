@@ -60,6 +60,7 @@ const Config = z.object({
   allowMediaDomains: z.string().array().optional(),
   allowActorDomains: z.string().array().optional(),
   trustedHosts: z.string().array().optional(),
+  federationOnlyHosts: z.string().array().optional(),
   trustProxyIpHeaders: z.boolean().default(false),
   federationMode: FederationMode.default('open'),
   auth: AuthConfig.optional(),
@@ -144,6 +145,7 @@ const getConfigFromEnvironment = () => {
       ),
       allowActorDomains: hostConfig.allowActorDomains,
       trustedHosts: hostConfig.trustedHosts,
+      federationOnlyHosts: hostConfig.federationOnlyHosts,
       trustProxyIpHeaders:
         process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS === 'true',
       federationMode: process.env.ACTIVITIES_FEDERATION_MODE || 'open',

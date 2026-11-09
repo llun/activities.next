@@ -265,6 +265,48 @@ describe('sendNotificationAlerts', () => {
     }
   })
 
+  it('uses the primary host for an actor on a federation-only domain', async () => {
+    const { setServedDomainsForTests, resetServedDomainsForTests } =
+      await import('@/lib/services/domains/servedDomainSnapshot')
+    setServedDomainsForTests(['run.llun.test'])
+    getConfig.mockReturnValue({
+      ...emailConfig,
+      federationOnlyHosts: ['run.llun.test']
+    })
+    try {
+      const db = makeDb({
+        getActorFromId: vi.fn().mockResolvedValue({
+          ...sourceActor,
+          domain: 'run.llun.test'
+        })
+      })
+      sendNotificationAlerts({
+        database: db,
+        actorId: 'actor1',
+        sourceActorId: 'source1',
+        events: [
+          {
+            type: NotificationType.enum.reply,
+            emailContent: {
+              recipientEmail: 'user@example.com',
+              subject: 'You were replied to',
+              text: 'Hello text',
+              html: '<p>Hello html</p>'
+            }
+          }
+        ]
+      })
+      await flushPromises()
+
+      expect(sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ from: 'noreply@llun.test' })
+      )
+      expect(mockSendPush).toHaveBeenCalledTimes(1)
+    } finally {
+      resetServedDomainsForTests()
+    }
+  })
+
   it('still sends from the primary when the recipient lookup fails', async () => {
     const db = makeDb({
       getActorFromId: vi.fn().mockRejectedValue(new Error('db down'))

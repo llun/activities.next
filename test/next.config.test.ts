@@ -20,6 +20,8 @@ describe('next config runtime isolation', () => {
       process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS,
     ACTIVITIES_EMAIL: process.env.ACTIVITIES_EMAIL,
     ACTIVITIES_EMAIL_TYPE: process.env.ACTIVITIES_EMAIL_TYPE,
+    ACTIVITIES_FEDERATION_ONLY_HOSTS:
+      process.env.ACTIVITIES_FEDERATION_ONLY_HOSTS,
     ACTIVITIES_GALLERY_GBIF_ENDPOINT:
       process.env.ACTIVITIES_GALLERY_GBIF_ENDPOINT,
     ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT:
@@ -49,6 +51,10 @@ describe('next config runtime isolation', () => {
     process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = 'not-json'
     delete process.env.ACTIVITIES_EMAIL
     delete process.env.ACTIVITIES_EMAIL_TYPE
+    // User-facing links are built per request; an invalid value must not fail
+    // the build or reach the next config.
+    process.env.ACTIVITIES_FEDERATION_ONLY_HOSTS =
+      '["federation-only-should-not-be-used.example.com"'
     // Gallery lookups are server-side only: even invalid values must not reach
     // the next config, its CSP or its image patterns.
     process.env.ACTIVITIES_GALLERY_GBIF_ENDPOINT = 'not a url'
@@ -276,6 +282,18 @@ describe('next config runtime isolation', () => {
         [...required].map((name) => `./node_modules/${name}/**/*`)
       )
     )
+  })
+
+  it('does not consume the federation-only host list', async () => {
+    const { default: loadedNextConfig } = await loadNextConfig()
+    const serialized = JSON.stringify({
+      ...loadedNextConfig,
+      headers: await loadedNextConfig.headers?.(),
+      rewrites: await loadedNextConfig.rewrites?.(),
+      redirects: await loadedNextConfig.redirects?.()
+    })
+
+    expect(serialized).not.toContain('federation-only-should-not-be-used')
   })
 
   it('does not reference ACTIVITIES runtime variables in next config source', () => {

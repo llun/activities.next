@@ -19,9 +19,10 @@ const database = {} as Database
 
 const mockConfig = ({
   host = 'llun.test',
-  trustedHosts = ['alias.llun.test', '*.preview.example'] as string[]
+  trustedHosts = ['alias.llun.test', '*.preview.example'] as string[],
+  federationOnlyHosts = [] as string[]
 } = {}) => {
-  mockGetConfig.mockReturnValue({ host, trustedHosts })
+  mockGetConfig.mockReturnValue({ host, trustedHosts, federationOnlyHosts })
 }
 
 describe('isLocalDomain', () => {
@@ -81,7 +82,10 @@ describe('createLocalDomainMatcher', () => {
 describe('getServedLinkDomain', () => {
   beforeEach(() => {
     mockGetConfig.mockReset()
-    mockConfig()
+    mockConfig({
+      trustedHosts: ['alias.llun.test', '*.preview.example', 'llun.dev'],
+      federationOnlyHosts: ['llun.dev']
+    })
   })
 
   // Gated on the hosts better-auth trusts as origins (primary + trusted hosts,
@@ -89,7 +93,7 @@ describe('getServedLinkDomain', () => {
   // name remote servers.
   it.each([
     {
-      description: 'a concrete trusted host',
+      description: 'a concrete trusted host that is not federation-only',
       domain: 'alias.llun.test',
       expected: 'alias.llun.test'
     },
@@ -114,6 +118,16 @@ describe('getServedLinkDomain', () => {
       expected: null
     },
     {
+      description: 'a federation-only host',
+      domain: 'llun.dev',
+      expected: null
+    },
+    {
+      description: 'a federation-only host in another spelling',
+      domain: 'LLUN.dev.',
+      expected: null
+    },
+    {
       description: 'a domain carrying a path',
       domain: 'alias.llun.test/evil',
       expected: null
@@ -121,5 +135,17 @@ describe('getServedLinkDomain', () => {
     { description: 'a missing domain', domain: null, expected: null }
   ])('returns $expected for $description', ({ domain, expected }) => {
     expect(getServedLinkDomain(domain)).toBe(expected)
+  })
+
+  it('ignores a wildcard federation-only entry', () => {
+    mockGetConfig.mockReset()
+    mockConfig({
+      trustedHosts: ['*.preview.example'],
+      federationOnlyHosts: ['*.preview.example']
+    })
+
+    expect(getServedLinkDomain('pr-1.preview.example')).toBe(
+      'pr-1.preview.example'
+    )
   })
 })
