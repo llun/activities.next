@@ -86,14 +86,16 @@ export const attachStravaPhotosToStatus = async ({
     remainingAttachmentSlots,
     MAX_STRAVA_PHOTOS_TO_ATTACH - seenPhotoIds.size
   )
-  for (const [index, photo] of photos
+  // `index` stays the photo's place in Strava's list: an id-less photo is
+  // named by it, so filtering must not shift it.
+  for (const { photo, index } of photos
+    .map((photo, index) => ({ photo, index }))
     // A re-check cannot tell an id-less photo the owner removed from a new
     // one, so it only attaches photos Strava gave an id.
-    .filter((photo) =>
+    .filter(({ photo }) =>
       photo.id ? !seenPhotoIds.has(photo.id) : skipPhotoIds === undefined
     )
-    .slice(0, Math.max(0, remainingStravaSlots))
-    .entries()) {
+    .slice(0, Math.max(0, remainingStravaSlots))) {
     const attachmentName = getAttachmentName(photo.id, index)
     if (attachmentNames.has(attachmentName)) {
       continue

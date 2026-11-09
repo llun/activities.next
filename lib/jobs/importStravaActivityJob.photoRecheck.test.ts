@@ -124,6 +124,22 @@ describe('importStravaActivityJob photo re-check', () => {
     )
   })
 
+  it('keeps an id-less photo on a re-import once its id-named neighbour is seen', async () => {
+    // Named by its place in Strava's list on the first import.
+    database.getAttachments.mockResolvedValue([
+      { name: 'Strava photo p1' },
+      { name: 'Strava photo 2' }
+    ] as never)
+    mockGetStravaActivityPhotos.mockResolvedValueOnce([
+      photo('p1'),
+      { id: undefined, url: 'https://images.example.com/anonymous.jpg' }
+    ] as never)
+
+    await runImport({ publishSendNote: true })
+
+    expect(database.createAttachment).not.toHaveBeenCalled()
+  })
+
   it('does not re-check imports the webhook did not start', async () => {
     await runImport({})
 
