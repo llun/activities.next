@@ -101,14 +101,14 @@ export const recheckStravaActivityPhotosJob = createJobHandle(
       seenPhotoIds = result.seenPhotoIds
 
       // The import's own photo-Update gate, resolved into publishSendNote and
-      // re-checked for a move since then, plus proof the Create was queued:
-      // processFitnessFileJob queues it only when the primary file completes.
+      // re-checked for a move since then, plus a completed primary file:
+      // processFitnessFileJob queues the Create only when it completes.
       // sendUpdateNoteJob checks nothing itself, and an Update for a post that
       // never had a Create would publish it. If processing has not finished
       // yet, the Create it queues later carries these photos.
-      // shortcut: a primary that failed and was retried by hand completes
-      // without a Create, which this cannot tell; record the Create if that
-      // case ever matters.
+      // shortcut: nothing records that a Create was sent, so a completed
+      // primary whose Create publish failed, or one retried by hand after
+      // failing, still passes; record the Create if those cases ever matter.
       const primaryFile =
         data.publishSendNote && !isMovedActor(actor) && result.attachedCount > 0
           ? (await database.getFitnessFilesByStatus({ statusId })).find(
