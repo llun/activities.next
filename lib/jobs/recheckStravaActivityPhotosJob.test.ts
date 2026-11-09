@@ -201,7 +201,8 @@ describe('recheckStravaActivityPhotosJob', () => {
       data: {},
       setup: (): void => {
         database.getFitnessFilesByStatus.mockResolvedValue([
-          { id: 'new-file', isPrimary: true, processingStatus: 'failed' }
+          { id: 'new-file', isPrimary: true, processingStatus: 'failed' },
+          { id: 'other-file', isPrimary: false, processingStatus: 'completed' }
         ] as never)
       }
     }
