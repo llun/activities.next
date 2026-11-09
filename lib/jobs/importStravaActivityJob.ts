@@ -24,10 +24,6 @@ import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { toImportErrorMessage } from '@/lib/services/fitness-files/importError'
 import { withImportLock } from '@/lib/services/fitness-files/importLock'
 import { linkFitnessFileDeviceGear } from '@/lib/services/fitness-gears/resolveDeviceGear'
-import { getSavedMediaAttachmentMetadata } from '@/lib/services/medias/attachmentMediaMetadata'
-import { MAX_IMPORTED_ACTIVITY_ATTACHMENTS } from '@/lib/services/medias/constants'
-import { getStoredMediaExtension } from '@/lib/services/medias/fileName'
-import { saveMedia } from '@/lib/services/medias/index'
 import { getActivityImportGroupKey } from '@/lib/services/notifications/activityImportGroupKey'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
@@ -40,14 +36,13 @@ import {
   buildTcxFromStravaStreams,
   getStravaActivity,
   getStravaActivityDurationSeconds,
-  getStravaActivityPhotos,
   getStravaActivityStartTimeMs,
   getStravaActivityStreams,
   getStravaActivityUrl,
-  getValidStravaAccessToken,
-  isSupportedStravaPhotoMimeType
+  getValidStravaAccessToken
 } from '@/lib/services/strava/activity'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
+import { attachStravaPhotosToStatus } from '@/lib/services/strava/attachStravaPhotos'
 import { resolveStravaDefaultVisibility } from '@/lib/services/strava/defaultVisibility'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor, getMention } from '@/lib/types/domain/actor'
@@ -56,14 +51,10 @@ import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getManufacturerKeyFromDeviceName } from '@/lib/utils/fitnessDeviceBrands'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
-import { safeImageFetch } from '@/lib/utils/safeImageDownload'
-import {
-  SAFE_DOWNLOAD_MAX_BYTES,
-  readResponseArrayBufferWithLimit
-} from '@/lib/utils/streamLimit'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
+import { queueStravaPhotoRecheck } from './recheckStravaActivityPhotosJob'
 
 const JobData = z.object({
   actorId: z.string(),
@@ -114,8 +105,6 @@ const JobData = z.object({
   postAtImportTime: z.boolean().optional().default(false)
 })
 
-const MAX_STRAVA_PHOTOS_TO_ATTACH = 4
-
 const getStravaFallbackPostId = ({
   actorId,
   stravaActivityId
@@ -124,153 +113,6 @@ const getStravaFallbackPostId = ({
   stravaActivityId: string
 }) => {
   return getHashFromString(`${actorId}:strava-note:${stravaActivityId}`)
-}
-
-const getAttachmentName = (photoId: string | undefined, index: number) => {
-  return photoId ? `Strava photo ${photoId}` : `Strava photo ${index + 1}`
-}
-
-// The same content-type map the upload paths use, so a WebP/GIF/AVIF photo is
-// named for what it is instead of every non-PNG becoming `.jpg`.
-const getPhotoFileExtension = (mimeType: string) =>
-  getStoredMediaExtension(mimeType, '').replace(/^\./, '')
-
-const attachStravaPhotosToStatus = async ({
-  database,
-  actor,
-  actorId,
-  statusId,
-  stravaActivityId,
-  accessToken,
-  activity
-}: {
-  database: Database
-  actor: Actor
-  actorId: string
-  statusId: string
-  stravaActivityId: string
-  accessToken: string
-  activity: StravaActivity
-}): Promise<number> => {
-  let attachedCount = 0
-  const existingAttachments = await database.getAttachments({ statusId })
-  const attachmentNames = new Set(
-    existingAttachments
-      .map((attachment) => attachment.name ?? '')
-      .filter((name) => name.length > 0)
-  )
-  const remainingAttachmentSlots = Math.max(
-    0,
-    MAX_IMPORTED_ACTIVITY_ATTACHMENTS - existingAttachments.length
-  )
-
-  if (remainingAttachmentSlots <= 0) {
-    return attachedCount
-  }
-
-  const photos = await getStravaActivityPhotos({
-    activityId: stravaActivityId,
-    accessToken,
-    activity,
-    limit: MAX_STRAVA_PHOTOS_TO_ATTACH
-  })
-
-  for (const [index, photo] of photos
-    .slice(0, remainingAttachmentSlots)
-    .entries()) {
-    const attachmentName = getAttachmentName(photo.id, index)
-    if (attachmentNames.has(attachmentName)) {
-      continue
-    }
-
-    try {
-      // `safeImageFetch` re-runs the URL guard on every redirect hop. A bare
-      // `fetch` follows redirects by default, so guarding only `photo.url`
-      // left the request that actually went out unchecked.
-      const photoResponse = await safeImageFetch(photo.url)
-      if (!photoResponse) {
-        logger.warn({
-          message: 'Skipping Strava photo: download refused',
-          actorId,
-          stravaActivityId,
-          photoUrl: photo.url
-        })
-        continue
-      }
-
-      if (!photoResponse.ok) {
-        logger.warn({
-          message: 'Failed to download Strava photo',
-          actorId,
-          stravaActivityId,
-          status: photoResponse.status
-        })
-        continue
-      }
-
-      const contentType =
-        photoResponse.headers
-          .get('content-type')
-          ?.split(';')[0]
-          ?.trim()
-          ?.toLowerCase() ?? ''
-      if (!isSupportedStravaPhotoMimeType(contentType)) {
-        logger.warn({
-          message: 'Skipping Strava photo with unsupported content type',
-          actorId,
-          stravaActivityId,
-          contentType
-        })
-        continue
-      }
-
-      const buffer = await readResponseArrayBufferWithLimit(
-        photoResponse,
-        SAFE_DOWNLOAD_MAX_BYTES,
-        'Strava photo'
-      )
-      if (buffer.byteLength <= 0) {
-        continue
-      }
-
-      const photoFile = new File(
-        [new Uint8Array(buffer)],
-        `strava-${stravaActivityId}-${photo.id ?? index + 1}.${getPhotoFileExtension(contentType)}`,
-        { type: contentType }
-      )
-
-      const storedMedia = await saveMedia(database, actor, {
-        file: photoFile,
-        description: activity.name?.trim() || 'Strava activity photo'
-      })
-      if (!storedMedia) {
-        continue
-      }
-
-      await database.createAttachment({
-        actorId,
-        statusId,
-        mediaType: storedMedia.mime_type,
-        url: storedMedia.url,
-        width: storedMedia.meta.original.width,
-        height: storedMedia.meta.original.height,
-        name: attachmentName,
-        mediaId: storedMedia.id,
-        ...getSavedMediaAttachmentMetadata(storedMedia)
-      })
-      attachmentNames.add(attachmentName)
-      attachedCount += 1
-    } catch (error) {
-      logger.warn({
-        message: 'Failed to store Strava photo as attachment',
-        actorId,
-        stravaActivityId,
-        err: toLoggableError(error)
-      })
-    }
-  }
-
-  return attachedCount
 }
 
 const getOrCreateStravaFallbackNote = async ({
@@ -864,9 +706,9 @@ export const importStravaActivityJob = createJobHandle(
     // Separately contained from the caption: a photo failure must not skip the
     // caption, and neither may take down the import now that the file is past
     // the point where a retry could find it.
-    let attachedPhotoCount = 0
+    let photoResult = { attachedCount: 0, seenPhotoIds: [] as string[] }
     try {
-      attachedPhotoCount = await attachStravaPhotosToStatus({
+      photoResult = await attachStravaPhotosToStatus({
         database,
         actor,
         actorId,
@@ -912,7 +754,11 @@ export const importStravaActivityJob = createJobHandle(
     // Kept out of the photo try/catch above so a failure here is not reported
     // as a photo failure — the photos are on the status either way, and what
     // was lost is the Update.
-    if (publishSendNote && attachedPhotoCount > 0 && !processJobPublishFailed) {
+    if (
+      publishSendNote &&
+      photoResult.attachedCount > 0 &&
+      !processJobPublishFailed
+    ) {
       try {
         await getQueue().publish({
           id: getHashFromString(
@@ -924,6 +770,32 @@ export const importStravaActivityJob = createJobHandle(
       } catch (error) {
         logger.error({
           message: 'Failed to queue the update for late Strava photos',
+          actorId,
+          stravaActivityId,
+          statusId: importedFitnessFile.statusId,
+          err: toLoggableError(error)
+        })
+      }
+    }
+
+    // Photos an app adds to the Strava activity after uploading it (Rouvy does)
+    // are not there yet, and Strava sends no event when they arrive. Only the
+    // webhook opts in to publishSendNote, and only it runs right after a ride;
+    // the bulk callers import activities whose photos settled long ago. A
+    // moved account's post is hidden, so it is not re-checked either.
+    if (isNewImport && publishSendNote) {
+      try {
+        await queueStravaPhotoRecheck({
+          actorId,
+          statusId: importedFitnessFile.statusId,
+          stravaActivityId,
+          seenPhotoIds: photoResult.seenPhotoIds,
+          publishSendNote: !processJobPublishFailed,
+          attempt: 0
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to queue the Strava photo re-check',
           actorId,
           stravaActivityId,
           statusId: importedFitnessFile.statusId,

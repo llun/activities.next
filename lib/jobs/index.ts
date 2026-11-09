@@ -59,6 +59,7 @@ import {
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
   RECEIVE_FLAG_JOB_NAME,
+  RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   RELAY_ANNOUNCE_JOB_NAME,
   RENAME_STATUS_URLS_JOB_NAME,
@@ -89,6 +90,7 @@ import { processFitnessFileJob } from './processFitnessFileJob'
 import { processForwardedActivityJob } from './processForwardedActivityJob'
 import { publishScheduledStatusJob } from './publishScheduledStatusJob'
 import { receiveFlagJob } from './receiveFlagJob'
+import { recheckStravaActivityPhotosJob } from './recheckStravaActivityPhotosJob'
 import { regenerateFitnessMapsJob } from './regenerateFitnessMapsJob'
 import { renameStatusUrlsJob } from './renameStatusUrlsJob'
 import { resolveMediaPlaceJob } from './resolveMediaPlaceJob'
@@ -171,6 +173,9 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [IMPORT_STRAVA_ACTIVITY_JOB_NAME]() {
     return importStravaActivityJob
+  },
+  get [RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME]() {
+    return recheckStravaActivityPhotosJob
   },
   get [EXPORT_ACCOUNT_ARCHIVE_JOB_NAME]() {
     return exportAccountArchiveJob
