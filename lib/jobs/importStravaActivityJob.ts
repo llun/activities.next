@@ -13,6 +13,7 @@ import {
 import { importFitnessFiles } from '@/lib/jobs/importFitnessFilesJob'
 import {
   IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+  RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME,
   REGENERATE_FITNESS_MAPS_JOB_NAME,
   SEND_NOTE_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
@@ -135,14 +136,51 @@ const getAttachmentName = (photoId: string | undefined, index: number) => {
 const getPhotoFileExtension = (mimeType: string) =>
   getStoredMediaExtension(mimeType, '').replace(/^\./, '')
 
-const attachStravaPhotosToStatus = async ({
+// Strava sends no webhook when photos are added to an activity, and apps such
+// as Rouvy add theirs only after the activity upload, so the import usually
+// runs before they exist. A fresh webhook import therefore re-checks Strava
+// this long after it ran (10 minutes, then about an hour).
+export const STRAVA_PHOTO_RECHECK_DELAYS_SECONDS = [10 * 60, 50 * 60]
+
+export const StravaPhotoRecheckData = z.object({
+  actorId: z.string(),
+  statusId: z.string(),
+  stravaActivityId: z.string(),
+  // Strava photo ids already on the status at some check. A later check never
+  // attaches these again, so a photo the owner removed stays removed.
+  seenPhotoIds: z.array(z.string()),
+  // Whether a photo this check attaches may federate an Update: the import's
+  // own gate, already resolved (opt-in, not moved, process job queued).
+  publishSendNote: z.boolean(),
+  attempt: z.number().int().min(0)
+})
+export type StravaPhotoRecheckData = z.infer<typeof StravaPhotoRecheckData>
+
+export const queueStravaPhotoRecheck = async (data: StravaPhotoRecheckData) => {
+  const delaySeconds = STRAVA_PHOTO_RECHECK_DELAYS_SECONDS[data.attempt]
+  if (delaySeconds === undefined) return
+
+  await getQueue().publish({
+    id: getHashFromString(
+      `${data.statusId}:${data.stravaActivityId}:strava-photos-recheck:${data.attempt}`
+    ),
+    name: RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME,
+    data,
+    delaySeconds
+  })
+}
+
+// Returns how many photos it attached and the Strava ids of the photos now on
+// the status (with `skipPhotoIds`), for the next re-check to skip.
+export const attachStravaPhotosToStatus = async ({
   database,
   actor,
   actorId,
   statusId,
   stravaActivityId,
   accessToken,
-  activity
+  activity,
+  skipPhotoIds = []
 }: {
   database: Database
   actor: Actor
@@ -151,8 +189,10 @@ const attachStravaPhotosToStatus = async ({
   stravaActivityId: string
   accessToken: string
   activity: StravaActivity
-}): Promise<number> => {
+  skipPhotoIds?: string[]
+}): Promise<{ attachedCount: number; seenPhotoIds: string[] }> => {
   let attachedCount = 0
+  const seenPhotoIds = new Set(skipPhotoIds)
   const existingAttachments = await database.getAttachments({ statusId })
   const attachmentNames = new Set(
     existingAttachments
@@ -165,7 +205,7 @@ const attachStravaPhotosToStatus = async ({
   )
 
   if (remainingAttachmentSlots <= 0) {
-    return attachedCount
+    return { attachedCount, seenPhotoIds: [...seenPhotoIds] }
   }
 
   const photos = await getStravaActivityPhotos({
@@ -175,7 +215,14 @@ const attachStravaPhotosToStatus = async ({
     limit: MAX_STRAVA_PHOTOS_TO_ATTACH
   })
 
+  for (const photo of photos) {
+    if (photo.id && attachmentNames.has(getAttachmentName(photo.id, 0))) {
+      seenPhotoIds.add(photo.id)
+    }
+  }
+
   for (const [index, photo] of photos
+    .filter((photo) => !photo.id || !seenPhotoIds.has(photo.id))
     .slice(0, remainingAttachmentSlots)
     .entries()) {
     const attachmentName = getAttachmentName(photo.id, index)
@@ -259,6 +306,7 @@ const attachStravaPhotosToStatus = async ({
         ...getSavedMediaAttachmentMetadata(storedMedia)
       })
       attachmentNames.add(attachmentName)
+      if (photo.id) seenPhotoIds.add(photo.id)
       attachedCount += 1
     } catch (error) {
       logger.warn({
@@ -270,7 +318,7 @@ const attachStravaPhotosToStatus = async ({
     }
   }
 
-  return attachedCount
+  return { attachedCount, seenPhotoIds: [...seenPhotoIds] }
 }
 
 const getOrCreateStravaFallbackNote = async ({
@@ -864,9 +912,9 @@ export const importStravaActivityJob = createJobHandle(
     // Separately contained from the caption: a photo failure must not skip the
     // caption, and neither may take down the import now that the file is past
     // the point where a retry could find it.
-    let attachedPhotoCount = 0
+    let photoResult = { attachedCount: 0, seenPhotoIds: [] as string[] }
     try {
-      attachedPhotoCount = await attachStravaPhotosToStatus({
+      photoResult = await attachStravaPhotosToStatus({
         database,
         actor,
         actorId,
@@ -912,7 +960,11 @@ export const importStravaActivityJob = createJobHandle(
     // Kept out of the photo try/catch above so a failure here is not reported
     // as a photo failure — the photos are on the status either way, and what
     // was lost is the Update.
-    if (publishSendNote && attachedPhotoCount > 0 && !processJobPublishFailed) {
+    if (
+      publishSendNote &&
+      photoResult.attachedCount > 0 &&
+      !processJobPublishFailed
+    ) {
       try {
         await getQueue().publish({
           id: getHashFromString(
@@ -924,6 +976,36 @@ export const importStravaActivityJob = createJobHandle(
       } catch (error) {
         logger.error({
           message: 'Failed to queue the update for late Strava photos',
+          actorId,
+          stravaActivityId,
+          statusId: importedFitnessFile.statusId,
+          err: toLoggableError(error)
+        })
+      }
+    }
+
+    // Photos an app adds to the Strava activity after uploading it (Rouvy does)
+    // are not there yet, and Strava sends no event when they arrive. Only the
+    // webhook opts in to publishSendNote, and only it runs right after a ride;
+    // the bulk callers import activities whose photos settled long ago. A
+    // moved account's post is hidden, so it is not re-checked either.
+    if (
+      isNewImport &&
+      publishSendNote &&
+      photoResult.seenPhotoIds.length < MAX_STRAVA_PHOTOS_TO_ATTACH
+    ) {
+      try {
+        await queueStravaPhotoRecheck({
+          actorId,
+          statusId: importedFitnessFile.statusId,
+          stravaActivityId,
+          seenPhotoIds: photoResult.seenPhotoIds,
+          publishSendNote: !processJobPublishFailed,
+          attempt: 0
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to queue the Strava photo re-check',
           actorId,
           stravaActivityId,
           statusId: importedFitnessFile.statusId,
