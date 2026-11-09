@@ -1,8 +1,5 @@
 import { Database } from '@/lib/database/types'
-import { importStravaActivityJob } from '@/lib/jobs/importStravaActivityJob'
 import {
-  IMPORT_STRAVA_ACTIVITY_JOB_NAME,
-  PROCESS_FITNESS_FILE_JOB_NAME,
   RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
@@ -14,7 +11,7 @@ import {
   mockGetQueue,
   mockGetStravaActivity,
   mockGetStravaActivityPhotos,
-  mockImportFitnessFiles,
+  mockGetValidStravaAccessToken,
   resetStravaImportMocks
 } from './importStravaActivityJob.testUtils'
 
@@ -22,16 +19,21 @@ vi.mock('node:dns/promises', async () => ({
   lookup: vi.fn()
 }))
 
+// resetStravaImportMocks seeds these, so they are mocked here too.
 vi.mock('@/lib/services/fitness-files', async () => ({
   saveFitnessFile: vi.fn()
 }))
 
-vi.mock('@/lib/services/medias/index', async () => ({
-  saveMedia: vi.fn()
-}))
-
 vi.mock('@/lib/jobs/importFitnessFilesJob', async () => ({
   importFitnessFiles: vi.fn()
+}))
+
+vi.mock('@/lib/services/timelines', async () => ({
+  addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@/lib/services/medias/index', async () => ({
+  saveMedia: vi.fn()
 }))
 
 vi.mock('@/lib/services/strava/activity', async () => {
@@ -53,10 +55,6 @@ vi.mock('@/lib/services/queue', async () => ({
   })
 }))
 
-vi.mock('@/lib/services/timelines', async () => ({
-  addStatusToTimelines: vi.fn().mockResolvedValue(undefined)
-}))
-
 vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 }))
@@ -71,7 +69,7 @@ const publishedMessages = (name: string): JobMessage[] =>
     .map(([message]) => message as JobMessage)
     .filter((message) => message.name === name)
 
-describe('Strava photo re-check', () => {
+describe('recheckStravaActivityPhotosJob', () => {
   const database = createMockStravaDatabase()
   let fetchSpy: ReturnType<typeof vi.spyOn>
 
@@ -83,6 +81,9 @@ describe('Strava photo re-check', () => {
       type: 'Note',
       text: 'Ride'
     } as never)
+    database.getFitnessFilesByStatus.mockResolvedValue([
+      { id: 'new-file', isPrimary: true, processingStatus: 'completed' }
+    ] as never)
     fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(() =>
       Promise.resolve(
         new Response(Buffer.from('jpg'), {
@@ -96,166 +97,182 @@ describe('Strava photo re-check', () => {
     fetchSpy.mockRestore()
   })
 
-  describe('importStravaActivityJob', () => {
-    const runImport = (data: Record<string, unknown>) =>
-      importStravaActivityJob(database as unknown as Database, {
-        id: 'import-job',
-        name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
-        data: { actorId: 'actor-1', stravaActivityId: '123', ...data }
-      })
-
-    it('queues a delayed re-check after a fresh webhook import', async () => {
-      mockGetStravaActivityPhotos.mockResolvedValueOnce([photo('p1')] as never)
-
-      await runImport({ publishSendNote: true })
-
-      const rechecks = publishedMessages(
-        RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME
-      )
-      expect(rechecks).toHaveLength(1)
-      expect(rechecks[0].delaySeconds).toBe(600)
-      expect(rechecks[0].data).toEqual({
+  const runRecheck = (data: Record<string, unknown> = {}) =>
+    recheckStravaActivityPhotosJob(database as unknown as Database, {
+      id: 'recheck-job',
+      name: RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME,
+      data: {
         actorId: 'actor-1',
         statusId: 'status-1',
         stravaActivityId: '123',
-        seenPhotoIds: ['p1'],
+        seenPhotoIds: [],
         publishSendNote: true,
-        attempt: 0
-      })
+        attempt: 0,
+        ...data
+      }
     })
 
-    it('does not re-check imports the webhook did not start', async () => {
-      await runImport({})
+  it('attaches late photos, sends an Update and queues the next check', async () => {
+    mockGetStravaActivityPhotos.mockResolvedValueOnce([
+      photo('p1'),
+      photo('p2')
+    ] as never)
 
-      expect(
-        publishedMessages(RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME)
-      ).toHaveLength(0)
-    })
+    await runRecheck({ seenPhotoIds: ['p1'] })
 
-    it('withholds the Update from the re-check when the process job failed to queue', async () => {
-      mockImportFitnessFiles.mockResolvedValue([
-        {
-          statusId: 'status-1',
-          statusCreated: true,
-          primaryFitnessFileId: 'new-file',
-          processJob: {
-            id: 'process-job',
-            name: PROCESS_FITNESS_FILE_JOB_NAME,
-            data: {}
-          }
-        }
-      ] as never)
-      const publish = mockGetQueue().publish as jest.Mock
-      publish.mockImplementation(async (message: JobMessage) => {
-        if (message.name === PROCESS_FITNESS_FILE_JOB_NAME) {
-          throw new Error('queue down')
-        }
+    // p1 was on the status once and is gone now: the owner removed it.
+    expect(database.createAttachment).toHaveBeenCalledTimes(1)
+    expect(database.createAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusId: 'status-1',
+        name: 'Strava photo p2'
       })
-
-      await runImport({ publishSendNote: true })
-
-      const rechecks = publishedMessages(
-        RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME
-      )
-      expect(rechecks).toHaveLength(1)
-      expect(rechecks[0].data).toMatchObject({ publishSendNote: false })
+    )
+    expect(publishedMessages(SEND_UPDATE_NOTE_JOB_NAME)).toEqual([
+      expect.objectContaining({
+        data: { actorId: 'actor-1', statusId: 'status-1' }
+      })
+    ])
+    const next = publishedMessages(RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME)
+    expect(next).toHaveLength(1)
+    expect(next[0].delaySeconds).toBe(3000)
+    expect(next[0].data).toMatchObject({
+      attempt: 1,
+      seenPhotoIds: ['p1', 'p2']
     })
   })
 
-  describe('recheckStravaActivityPhotosJob', () => {
-    const runRecheck = (data: Record<string, unknown> = {}) =>
-      recheckStravaActivityPhotosJob(database as unknown as Database, {
-        id: 'recheck-job',
-        name: RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME,
-        data: {
-          actorId: 'actor-1',
-          statusId: 'status-1',
-          stravaActivityId: '123',
-          seenPhotoIds: [],
-          publishSendNote: true,
-          attempt: 0,
-          ...data
-        }
-      })
+  it('keeps the Strava photos on a post to four, counting removed ones', async () => {
+    mockGetStravaActivityPhotos.mockResolvedValueOnce(
+      ['p4', 'p5', 'p6'].map(photo) as never
+    )
 
-    it('attaches late photos, sends an Update and queues the next check', async () => {
-      mockGetStravaActivityPhotos.mockResolvedValueOnce([
-        photo('p1'),
-        photo('p2')
-      ] as never)
+    await runRecheck({ seenPhotoIds: ['p1', 'p2', 'p3'] })
 
-      await runRecheck({ seenPhotoIds: ['p1'] })
+    expect(database.createAttachment).toHaveBeenCalledTimes(1)
+    expect(database.createAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Strava photo p4' })
+    )
+    // The cap is spent, so there is nothing left to look for.
+    expect(
+      publishedMessages(RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME)
+    ).toHaveLength(0)
+  })
 
-      // p1 was on the status once and is gone now: the owner removed it.
-      expect(database.createAttachment).toHaveBeenCalledTimes(1)
-      expect(database.createAttachment).toHaveBeenCalledWith(
-        expect.objectContaining({
-          statusId: 'status-1',
-          name: 'Strava photo p2'
-        })
-      )
-      expect(publishedMessages(SEND_UPDATE_NOTE_JOB_NAME)).toEqual([
-        expect.objectContaining({
-          data: { actorId: 'actor-1', statusId: 'status-1' }
-        })
-      ])
-      const next = publishedMessages(RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME)
-      expect(next).toHaveLength(1)
-      expect(next[0].delaySeconds).toBe(3000)
-      expect(next[0].data).toMatchObject({
-        attempt: 1,
-        seenPhotoIds: ['p1', 'p2']
-      })
-    })
+  it('skips photos Strava gives no id', async () => {
+    mockGetStravaActivityPhotos.mockResolvedValueOnce([
+      { id: undefined, url: 'https://images.example.com/anonymous.jpg' }
+    ] as never)
 
-    it('sends no Update when nothing was attached or the import withheld it', async () => {
-      mockGetStravaActivityPhotos.mockResolvedValueOnce([])
-      await runRecheck()
+    await runRecheck()
 
-      mockGetStravaActivityPhotos.mockResolvedValueOnce([photo('p2')] as never)
-      await runRecheck({ publishSendNote: false })
+    expect(database.createAttachment).not.toHaveBeenCalled()
+  })
 
-      expect(database.createAttachment).toHaveBeenCalledTimes(1)
-      expect(publishedMessages(SEND_UPDATE_NOTE_JOB_NAME)).toHaveLength(0)
-    })
-
-    it('stops after the last scheduled check', async () => {
-      mockGetStravaActivityPhotos.mockResolvedValueOnce([])
-
-      await runRecheck({ attempt: 1 })
-
-      expect(
-        publishedMessages(RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME)
-      ).toHaveLength(0)
-    })
-
-    it('still queues the next check when Strava fails', async () => {
-      mockGetStravaActivity.mockRejectedValueOnce(new Error('Strava 500'))
-
-      await runRecheck()
-
-      expect(database.createAttachment).not.toHaveBeenCalled()
-      expect(
-        publishedMessages(RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME)
-      ).toHaveLength(1)
-    })
-
-    it.each([
-      {
-        description: 'the status was deleted',
-        setup: () => database.getStatus.mockResolvedValue(null)
-      },
-      {
-        description: 'Strava was disconnected',
-        setup: () => database.getFitnessSettings.mockResolvedValue(null)
+  it.each([
+    {
+      description: 'nothing was attached',
+      photos: [],
+      data: {},
+      setup: (): void => {}
+    },
+    {
+      description: 'the import withheld it',
+      photos: [photo('p2')],
+      data: { publishSendNote: false },
+      setup: (): void => {}
+    },
+    {
+      description: 'the account moved since the import',
+      photos: [photo('p2')],
+      data: {},
+      setup: (): void => {
+        database.getActorFromId.mockResolvedValue({
+          id: 'actor-1',
+          username: 'testuser',
+          domain: 'llun.test',
+          movedTo: 'https://other.test/users/testuser'
+        } as never)
       }
-    ])('skips quietly when $description', async ({ setup }) => {
-      setup()
+    },
+    {
+      description: 'the primary file has not finished processing',
+      photos: [photo('p2')],
+      data: {},
+      setup: (): void => {
+        database.getFitnessFilesByStatus.mockResolvedValue([
+          { id: 'new-file', isPrimary: true, processingStatus: 'failed' }
+        ] as never)
+      }
+    }
+  ])('sends no Update when $description', async ({ photos, data, setup }) => {
+    setup()
+    mockGetStravaActivityPhotos.mockResolvedValueOnce(photos as never)
 
-      await runRecheck()
+    await runRecheck(data)
 
-      expect(mockGetStravaActivity).not.toHaveBeenCalled()
-      expect(mockGetQueue().publish).not.toHaveBeenCalled()
-    })
+    expect(database.createAttachment).toHaveBeenCalledTimes(photos.length)
+    expect(publishedMessages(SEND_UPDATE_NOTE_JOB_NAME)).toHaveLength(0)
+  })
+
+  it('stops after the last scheduled check', async () => {
+    mockGetStravaActivityPhotos.mockResolvedValueOnce([])
+
+    await runRecheck({ attempt: 1 })
+
+    expect(
+      publishedMessages(RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME)
+    ).toHaveLength(0)
+  })
+
+  it('still queues the next check when Strava fails', async () => {
+    mockGetStravaActivity.mockRejectedValueOnce(new Error('Strava 500'))
+
+    await runRecheck()
+
+    expect(database.createAttachment).not.toHaveBeenCalled()
+    expect(
+      publishedMessages(RECHECK_STRAVA_ACTIVITY_PHOTOS_JOB_NAME)
+    ).toHaveLength(1)
+  })
+
+  it.each([
+    {
+      description: 'the status was deleted',
+      setup: (): void => {
+        database.getStatus.mockResolvedValue(null)
+      }
+    },
+    {
+      description: 'the status belongs to another actor',
+      setup: (): void => {
+        database.getStatus.mockResolvedValue({
+          id: 'status-1',
+          actorId: 'actor-2',
+          type: 'Note',
+          text: ''
+        } as never)
+      }
+    },
+    {
+      description: 'Strava was disconnected',
+      setup: (): void => {
+        database.getFitnessSettings.mockResolvedValue(null)
+      }
+    },
+    {
+      description: 'the Strava token is gone',
+      setup: (): void => {
+        mockGetValidStravaAccessToken.mockResolvedValue(null)
+      }
+    }
+  ])('skips quietly when $description', async ({ setup }) => {
+    setup()
+
+    await runRecheck()
+
+    expect(mockGetStravaActivity).not.toHaveBeenCalled()
+    expect(database.createAttachment).not.toHaveBeenCalled()
+    expect(mockGetQueue().publish).not.toHaveBeenCalled()
   })
 })

@@ -59,6 +59,7 @@ type MockDatabase = Pick<
   | 'getFitnessFilesByBatchId'
   | 'getFitnessFile'
   | 'getFitnessFilesByActor'
+  | 'getFitnessFilesByStatus'
   | 'updateFitnessFileActivityData'
   | 'getStatus'
   | 'updateNote'
@@ -83,6 +84,7 @@ export const createMockStravaDatabase = (): jest.Mocked<MockDatabase> => ({
   getFitnessFilesByBatchId: vi.fn(),
   getFitnessFile: vi.fn(),
   getFitnessFilesByActor: vi.fn(),
+  getFitnessFilesByStatus: vi.fn(),
   updateFitnessFileActivityData: vi.fn(),
   getStatus: vi.fn(),
   updateNote: vi.fn(),
