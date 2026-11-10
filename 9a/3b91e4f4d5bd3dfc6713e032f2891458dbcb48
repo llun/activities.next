@@ -1,0 +1,21 @@
+lib/components/load-more-button/load-more-button.tsx
+  s_49da6fa129b372::t_3b8ee167a2f964 13,63-66
+lib/components/load-more-button/load-more-button.test.tsx
+  s_49da6fa129b372::t_3b8ee167a2f964 164-166,168-169,171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a3b91e4f4d5bd3dfc6713e032f2891458dbcb48",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
