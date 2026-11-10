@@ -432,7 +432,11 @@ export function Sidebar({
                         'group flex items-center rounded-none text-sm font-medium transition-colors',
                         isListsSectionActive
                           ? 'text-primary-text'
-                          : 'text-muted-foreground'
+                          : 'text-muted-foreground',
+                        // The wash spans the whole row, under the row menu
+                        // and chevron too, like every other current row.
+                        isListsActive &&
+                          'bg-surface-accent shadow-[inset_2px_0_0_var(--primary)]'
                       )}
                     >
                       <Link
@@ -446,11 +450,8 @@ export function Sidebar({
                         className={cn(
                           'flex flex-1 items-center gap-3 rounded-none px-3 py-2 transition-colors',
                           isDrawer && 'min-h-[44px]',
-                          isListsActive
-                            ? 'bg-surface-accent text-primary-text shadow-[inset_2px_0_0_var(--primary)]'
-                            : isListsSectionActive
-                              ? ''
-                              : 'hover:bg-muted hover:text-foreground'
+                          !isListsSectionActive &&
+                            'hover:bg-muted hover:text-foreground'
                         )}
                       >
                         <item.icon

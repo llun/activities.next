@@ -108,6 +108,31 @@ describe('Sidebar', () => {
     ).toHaveAttribute('href', '/lists/b')
   })
 
+  // The Lists index row carries a row menu and a chevron beside its link, so
+  // the current-row wash sits on the whole row, not just the link.
+  it('washes the whole Lists row when the index is the current page', () => {
+    renderSidebar(<Sidebar lists={lists} />)
+
+    const nav = screen.getAllByRole('navigation')[0]
+    const link = within(nav).getByRole('link', { name: 'Lists' })
+    expect(link).toHaveAttribute('aria-current', 'page')
+    expect(link.parentElement).toHaveClass(
+      'bg-surface-accent',
+      'shadow-[inset_2px_0_0_var(--primary)]'
+    )
+    expect(link).not.toHaveClass('bg-surface-accent')
+  })
+
+  it('leaves the Lists row unwashed while one of its lists is current', () => {
+    mockPathname.mockReturnValue('/lists/a')
+    renderSidebar(<Sidebar lists={lists} />)
+
+    const nav = screen.getAllByRole('navigation')[0]
+    const link = within(nav).getByRole('link', { name: 'Lists' })
+    expect(link).not.toHaveAttribute('aria-current')
+    expect(link.parentElement).not.toHaveClass('bg-surface-accent')
+  })
+
   it('collapses and re-expands the Lists group on toggle', () => {
     renderSidebar(<Sidebar lists={lists} />)
 
