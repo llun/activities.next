@@ -24,7 +24,7 @@ const renderDialog = (className?: string) =>
   )
 
 describe('DialogContent', () => {
-  it('sits on the card surface in dark mode, with a 16 px radius and a 440 px default width', () => {
+  it('sits on the card surface in dark mode, square, with a 440 px default width', () => {
     renderDialog()
     const content = screen.getByRole('dialog')
     expect(content).toHaveClass(

@@ -336,6 +336,18 @@ describe('LinkPreviewCard', () => {
       expect(link).toHaveAttribute('rel', expect.stringContaining('noreferrer'))
     })
 
+    // The focus overlay and the link follow the wrapper's inner corner from the
+    // radius token, so a square card never gets rounded focus outlines.
+    it('derives the inner focus corners from the radius token', () => {
+      render(<LinkPreviewCard linkPreview={videoCard()} />)
+
+      const inner = 'max(0px,calc(var(--radius)-1px))'
+      expect(getPlayButton().lastElementChild).toHaveClass(
+        `rounded-t-[${inner}]`
+      )
+      expect(screen.getByRole('link')).toHaveClass(`rounded-b-[${inner}]`)
+    })
+
     // The poster loads before the reader has consented to anything, so it keeps
     // the same privacy posture as any other card thumbnail.
     it('loads the poster without leaking the reader to the referrer', () => {

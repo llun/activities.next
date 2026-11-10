@@ -234,13 +234,14 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
                 not a ring, because forced-colors mode (Windows High Contrast)
                 drops box-shadows entirely and would leave the card's only
                 control with no focus indicator at all. The radius is the
-                wrapper's inner corner — its `rounded-xl` (12px) less its 1px
-                border — so the top two corners are not nipped by the clip;
-                it is written out rather than derived, so it has to be revisited
-                if that radius or border ever changes. */}
+                wrapper's inner corner — its `rounded-xl` (`--radius`) less its
+                1px border, floored at 0 — so the top two corners are not
+                nipped by the clip; it reads `--radius` directly because the
+                theme's `--radius-xl` is inlined, not a runtime variable, so it
+                has to be revisited if that mapping or the border changes. */}
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 rounded-t-[11px] group-focus-visible:outline-2 group-focus-visible:-outline-offset-2 group-focus-visible:outline-ring/50"
+              className="pointer-events-none absolute inset-0 rounded-t-[max(0px,calc(var(--radius)-1px))] group-focus-visible:outline-2 group-focus-visible:-outline-offset-2 group-focus-visible:outline-ring/50"
             />
           </button>
         )}
@@ -257,10 +258,10 @@ const YouTubeLinkPreviewCard: FC<YouTubeLinkPreviewCardProps> = ({
         // left, right and bottom edges. The offset outline can sit on the
         // element itself here — unlike the play button, whose full-bleed poster
         // covers its box — because this anchor's children are in-flow text that
-        // never reaches its padding edge. It needs the matching bottom radius,
-        // since a square outline inside a `rounded-xl` clip gets its corners
-        // nipped.
-        className="block space-y-0.5 rounded-b-[11px] p-3 transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50"
+        // never reaches its padding edge. It needs the matching bottom radius
+        // (the same inner corner as the play button's overlay), since a square
+        // outline inside a rounded `rounded-xl` clip gets its corners nipped.
+        className="block space-y-0.5 rounded-b-[max(0px,calc(var(--radius)-1px))] p-3 transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/50"
       >
         {/* No publisher name beside it: on a YouTube card it only ever repeats
             the domain. The domain is the part the page cannot choose, so it is

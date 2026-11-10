@@ -63,13 +63,25 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  /* Two radii, not a ramp: controls (`rounded-sm`, `rounded-md`) take the
+     2 px --radius-ctl, and every panel step from `rounded-lg` up takes
+     --radius (0), so frames, cards, dialogs and sheets are square. `rounded-xs`
+     is Tailwind's own 2 px, bare `rounded` its own 4 px, and `rounded-full`
+     stays round for avatars and dots. */
+  --radius-sm: var(--radius-ctl);
+  --radius-md: var(--radius-ctl);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+  --radius-4xl: var(--radius);
+
+  /* The darker bottom edge of a keycap control, exposed as
+     `border-control-edge` / `border-primary-edge` / `border-destructive-edge`
+     and meant for `shadow-[inset_0_-2px_0_var(--…-edge)]`. */
+  --color-control-edge: var(--control-edge);
+  --color-primary-edge: var(--primary-edge);
+  --color-destructive-edge: var(--destructive-edge);
 
   /* Raised active segment for segmented controls (the theme switcher), exposed
      as the `bg-control-active` utility. It lifts above the --muted track; in
@@ -77,8 +89,8 @@
   --color-control-active: var(--control-active);
 
   /* Off state of a Switch track (the design's Control Off), exposed as the
-     `bg-control-off` utility. Darker than the --input hairline so an off switch
-     reads as a control rather than a pale pill. */
+     `bg-control-off` utility. Further from the page than the --input border so
+     an off switch reads as a control rather than a pale pill. */
   --color-control-off: var(--control-off);
 
   /* Backdrop behind the photo in the photo editor, exposed as the
@@ -114,7 +126,12 @@ html:has([data-gallery-wide]) {
 }
 
 :root {
-  --radius: 0.5rem;
+  /* Edged: panels are square (--radius) and controls carry a 2 px corner
+     (--radius-ctl). --control-h is the one control height (36 px, 40 px under a
+     coarse pointer below). */
+  --radius: 0rem;
+  --radius-ctl: 2px;
+  --control-h: 2.25rem;
   --background: hsl(0 0% 100%);
   --foreground: hsl(0 0% 3.9%);
   --card: hsl(0 0% 98%);
@@ -218,8 +235,15 @@ html:has([data-gallery-wide]) {
      (#FCEFE6) on white. Exposed as the `bg-surface-accent` utility. */
   --surface-accent: hsl(24 100% 97.06%);
   --border: hsl(0 0% 89.8%);
-  --input: hsl(0 0% 89.8%);
+  /* Control border (#D4D4D4): one step darker than the --border hairline so
+     an input, select or outline button reads as a control on the card. */
+  --input: hsl(0 0% 83.1%);
   --ring: hsl(24 95% 46%);
+  /* Keycap bottom edges: a translucent dark rule under neutral controls, and a
+     darker shade of the fill under primary and destructive buttons. */
+  --control-edge: hsl(240 6% 10% / 0.14);
+  --primary-edge: hsl(24 95% 33%);
+  --destructive-edge: hsl(0 72% 40%);
 
   /* Raised active segment for the theme switcher: white on the light-grey
      (--muted) track. */
@@ -336,6 +360,9 @@ html:has([data-gallery-wide]) {
   --border: hsl(0 0% 18%);
   --input: hsl(0 0% 24%);
   --ring: hsl(24 95% 46%);
+  --control-edge: hsl(0 0% 0% / 0.55);
+  --primary-edge: hsl(24 95% 28%);
+  --destructive-edge: hsl(0 63% 18%);
 
   /* The raised active segment sits ~13% above the --muted track (elevation via
      lightness, not shadow). */
@@ -369,6 +396,13 @@ html:has([data-gallery-wide]) {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* Controls grow to 40 px under a coarse pointer (touch). */
+@media (pointer: coarse) {
+  :root {
+    --control-h: 2.5rem;
+  }
 }
 
 /* Fitness overview calendar: heat colours and motion.

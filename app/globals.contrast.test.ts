@@ -474,8 +474,8 @@ describe('design palette tokens', () => {
   const hex = ([r, g, b]: Rgb) =>
     `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`
 
-  // Control Off is the Switch track when off. It sits well above the --input
-  // hairline (#E5E5E5 light) so an off switch reads as a control.
+  // Control Off is the Switch track when off. It sits above the --input
+  // border (#D4D4D4 light) so an off switch reads as a control.
   it.each([
     ['light', '#cccccc'],
     ['dark', '#545454']
@@ -513,6 +513,73 @@ describe('design palette tokens', () => {
     expect(css).toContain('html:has([data-mobile-compact-header])')
     expect(css).toContain('html:has([data-app-shell])')
     expect(css).toContain('html:has([data-heatmap-top-bar])')
+  })
+})
+
+describe('edged control tokens', () => {
+  const hex = ([r, g, b]: Rgb) =>
+    `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`
+
+  it.each([
+    ['light', '#d4d4d4'],
+    ['dark', '#3d3d3d']
+  ] as const)('--input is %s %s', (theme, expected) => {
+    expect(hex(rgbOf(themes[theme], '--input'))).toBe(expected)
+  })
+
+  // The control border is one step darker than the panel hairline (lighter in
+  // dark), and the Switch's off track one step past it.
+  it.each(['light', 'dark'] as const)(
+    '%s orders --border, --input and --control-off by contrast with the page',
+    (theme) => {
+      const page = rgbOf(themes[theme], '--background')
+      const [border, input, controlOff] = [
+        '--border',
+        '--input',
+        '--control-off'
+      ].map((name) => contrastRatio(rgbOf(themes[theme], name), page))
+      expect(input).toBeGreaterThan(border)
+      expect(controlOff).toBeGreaterThan(input)
+    }
+  )
+
+  // A keycap's bottom edge is a darker shade of its fill.
+  it.each(
+    (['light', 'dark'] as const).flatMap((theme) =>
+      (['primary', 'destructive'] as const).map((tone) => ({ theme, tone }))
+    )
+  )('$theme --$tone-edge is darker than --$tone', ({ theme, tone }) => {
+    const [fill, edge] = [`--${tone}`, `--${tone}-edge`].map((name) =>
+      relativeLuminance(rgbOf(themes[theme], name))
+    )
+    expect(edge).toBeLessThan(fill)
+  })
+
+  it.each([
+    ['light', 'hsl(240 6% 10% / 0.14)'],
+    ['dark', 'hsl(0 0% 0% / 0.55)']
+  ] as const)('--control-edge is %s %s', (theme, expected) => {
+    expect(themes[theme]['--control-edge']).toBe(expected)
+  })
+
+  it('squares panels and gives controls a 2 px corner', () => {
+    expect(themes.light['--radius']).toBe('0rem')
+    expect(themes.light['--radius-ctl']).toBe('2px')
+    for (const step of ['sm', 'md']) {
+      expect(css).toMatch(
+        new RegExp(`--radius-${step}:\\s*var\\(--radius-ctl\\)`)
+      )
+    }
+    for (const step of ['lg', 'xl', '2xl', '3xl', '4xl']) {
+      expect(css).toMatch(new RegExp(`--radius-${step}:\\s*var\\(--radius\\)`))
+    }
+  })
+
+  it('sets the control height to 36 px, 40 px under a coarse pointer', () => {
+    expect(themes.light['--control-h']).toBe('2.25rem')
+    expect(css).toMatch(
+      /@media \(pointer: coarse\)\s*\{\s*:root\s*\{\s*--control-h:\s*2\.5rem;/
+    )
   })
 })
 
@@ -617,7 +684,10 @@ describe('@theme utility mappings', () => {
     'repost-icon',
     'reply-icon',
     'surface-chrome',
-    'surface-accent'
+    'surface-accent',
+    'control-edge',
+    'primary-edge',
+    'destructive-edge'
   ])('maps --color-%s to its token', (name) => {
     expect(css).toMatch(new RegExp(`--color-${name}:\\s*var\\(--${name}\\)`))
   })
