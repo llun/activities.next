@@ -24,18 +24,21 @@ const renderDialog = (className?: string) =>
   )
 
 describe('DialogContent', () => {
-  it('sits on the card surface in dark mode, square, with a 440 px default width', () => {
+  it('sits on the card surface in dark mode, square, flat with border-input and 440 px default width', () => {
     renderDialog()
     const content = screen.getByRole('dialog')
     expect(content).toHaveClass(
       'bg-background',
       'dark:bg-card',
-      'rounded-2xl',
+      'rounded-none',
+      'border-input',
       'sm:max-w-[440px]'
     )
     // One call per class: `.not.toHaveClass(a, b)` passes when EITHER is
     // absent, so a stale default left beside the new one would go unnoticed.
+    expect(content).not.toHaveClass('rounded-2xl')
     expect(content).not.toHaveClass('rounded-lg')
+    expect(content).not.toHaveClass('shadow-lg')
     expect(content).not.toHaveClass('sm:max-w-lg')
   })
 

@@ -72,7 +72,7 @@ export const FormRow: FC<Props> = ({
     <div
       data-slot="form-row"
       className={cn(
-        'px-4 py-2.5',
+        'border-border [&+[data-slot=form-row]]:border-t px-4 py-2.5',
         inline
           ? 'flex items-center justify-between gap-4'
           : stacked

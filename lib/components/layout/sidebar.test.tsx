@@ -522,14 +522,23 @@ describe('Sidebar', () => {
     // `text-primary-text`, never `text-primary`: `--primary` is the icon orange
     // and is under the AA floor as a label (globals.contrast.test.ts guards the
     // token values, not their usage).
-    it('draws only the current row label in the AA-safe text token', () => {
+    it('draws only the current row label in the AA-safe text token and active keycap inset', () => {
       mockPathname.mockReturnValue('/search')
       renderSidebar(<Sidebar lists={[]} />)
 
       const nav = screen.getAllByRole('navigation')[0]
       const active = within(nav).getByRole('link', { name: 'Search' })
-      expect(active).toHaveClass('text-primary-text')
-      expect(active).not.toHaveClass('text-primary')
+      expect(active).toHaveClass(
+        'rounded-none',
+        'bg-surface-accent',
+        'text-primary-text',
+        'shadow-[inset_2px_0_0_var(--primary)]'
+      )
+      expect(active).not.toHaveClass(
+        'text-primary',
+        'bg-primary/10',
+        'rounded-lg'
+      )
       expect(
         within(nav).getByRole('link', { name: 'Timeline' })
       ).not.toHaveClass('text-primary-text')

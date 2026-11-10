@@ -28,7 +28,7 @@ function Select({ className, ...props }: React.ComponentProps<'select'>) {
     <select
       data-slot="select"
       className={cn(
-        'border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+        'border-input bg-background h-(--control-h) w-full rounded-md border px-3 py-1 text-base shadow-[inset_0_1px_0_hsl(0_0%_0%/0.04)] transition-[color,box-shadow] outline-none focus-visible:outline-none focus-visible:border-ring focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)] forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[CanvasText] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
         className,
         // Last, so a call site's `px-*` cannot drop the room the chevron needs.
         selectChevronClassName

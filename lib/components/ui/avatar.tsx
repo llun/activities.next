@@ -15,7 +15,7 @@ function Avatar({
       className={cn(
         // A size container, so the fallback initials can scale with the
         // diameter (`cqw`) instead of staying at the inherited 16 px.
-        '@container relative flex size-8 shrink-0 overflow-hidden rounded-full',
+        '@container relative flex size-8 shrink-0 overflow-hidden rounded-full after:pointer-events-none after:absolute after:inset-0 after:rounded-full after:shadow-[inset_0_0_0_1px_var(--border)]',
         className
       )}
       {...props}

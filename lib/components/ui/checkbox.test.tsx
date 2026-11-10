@@ -29,19 +29,31 @@ describe('Checkbox', () => {
     render(<Checkbox aria-label="Box" />)
     const box = screen.getByRole('checkbox')
     // Forced-colors mode drops the box-shadow focus ring (the box is
-    // `outline-none`), so keyboard focus gets the native outline back; and the
+    // `outline-none`), so keyboard focus gets the outline back; and the
     // system already dims a disabled box, so `disabled:opacity-50` is reset
     // there rather than halving that contrast a second time.
     expect(box).toHaveClass(
-      'forced-colors:focus-visible:[outline-style:auto]',
+      'forced-colors:focus-visible:outline-2',
+      'forced-colors:focus-visible:outline-[CanvasText]',
       'forced-colors:disabled:opacity-100'
     )
   })
 
-  it('draws the designed 16 px box with radius 4 and a thin border', () => {
+  it('renders two-tone focus ring', () => {
     render(<Checkbox aria-label="Box" />)
     const box = screen.getByRole('checkbox')
-    expect(box).toHaveClass('size-4', 'rounded', 'border', 'border-input')
+    expect(box).toHaveClass(
+      'focus-visible:outline-none',
+      'focus-visible:border-ring',
+      'focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)]'
+    )
+  })
+
+  it('draws the designed 16 px box with radius 2px (rounded-md) and a thin border', () => {
+    render(<Checkbox aria-label="Box" />)
+    const box = screen.getByRole('checkbox')
+    expect(box).toHaveClass('size-4', 'rounded-md', 'border', 'border-input')
+    expect(box).not.toHaveClass('rounded')
   })
 
   it('fills the checked box orange and paints a white tick', () => {

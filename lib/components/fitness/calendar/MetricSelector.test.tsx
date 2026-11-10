@@ -24,7 +24,16 @@ describe('MetricSelector', () => {
     render(<MetricSelector value="distance" onChange={() => {}} />)
 
     expect(radio('Distance')).toBeChecked()
+    expect(radio('Distance')).toHaveClass(
+      'rounded-md',
+      'shadow-[inset_0_-2px_0_var(--primary-edge)]'
+    )
+    expect(radio('Distance')).not.toHaveClass('rounded-sm')
     expect(radio('Activities')).not.toBeChecked()
+    expect(radio('Activities')).toHaveClass('rounded-md')
+    expect(radio('Activities')).not.toHaveClass(
+      'shadow-[inset_0_-2px_0_var(--primary-edge)]'
+    )
     expect(radio('Distance')).toHaveAttribute('tabindex', '0')
     expect(radio('Activities')).toHaveAttribute('tabindex', '-1')
     expect(radio('Duration')).toHaveAttribute('tabindex', '-1')

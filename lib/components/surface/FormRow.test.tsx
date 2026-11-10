@@ -7,15 +7,30 @@ import { render, screen } from '@testing-library/react'
 import { FormRow, formRowHintId, formRowLabelId } from './FormRow'
 
 describe('FormRow', () => {
-  it('pads its row px-4 py-2.5, so two rows sit apart with no rule', () => {
+  it('pads its row px-4 py-2.5 and draws a hairline between consecutive rows', () => {
     const { container } = render(
-      <FormRow label="Display name" htmlFor="name">
-        <input id="name" />
-      </FormRow>
+      <>
+        <FormRow label="First" htmlFor="first">
+          <input id="first" />
+        </FormRow>
+        <FormRow label="Second" htmlFor="second">
+          <input id="second" />
+        </FormRow>
+      </>
     )
-    const row = container.querySelector('[data-slot="form-row"]')
-    expect(row).toHaveClass('px-4', 'py-2.5')
-    expect(row).not.toHaveClass('py-4')
+    const rows = container.querySelectorAll('[data-slot="form-row"]')
+    expect(rows[0]).toHaveClass(
+      'px-4',
+      'py-2.5',
+      'border-border',
+      '[&+[data-slot=form-row]]:border-t'
+    )
+    expect(rows[1]).toHaveClass(
+      'px-4',
+      'py-2.5',
+      'border-border',
+      '[&+[data-slot=form-row]]:border-t'
+    )
   })
 
   it('ties the label to the control', () => {

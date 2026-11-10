@@ -37,9 +37,22 @@ describe('SegmentedControl (in-page state)', () => {
       'tabindex',
       '0'
     )
+    expect(screen.getByRole('radio', { name: 'Distance' })).toHaveClass(
+      'rounded-md',
+      'shadow-[inset_0_-2px_0_var(--primary-edge)]'
+    )
+    expect(screen.getByRole('radio', { name: 'Distance' })).not.toHaveClass(
+      'rounded-sm'
+    )
     expect(screen.getByRole('radio', { name: 'Activities' })).toHaveAttribute(
       'tabindex',
       '-1'
+    )
+    expect(screen.getByRole('radio', { name: 'Activities' })).toHaveClass(
+      'rounded-md'
+    )
+    expect(screen.getByRole('radio', { name: 'Activities' })).not.toHaveClass(
+      'shadow-[inset_0_-2px_0_var(--primary-edge)]'
     )
   })
 
@@ -201,6 +214,13 @@ describe('SegmentedControl (asLinks)', () => {
     expect(screen.getByRole('link', { name: 'Closed' })).toHaveAttribute(
       'aria-current',
       'page'
+    )
+    expect(screen.getByRole('link', { name: 'Closed' })).toHaveClass(
+      'rounded-md',
+      'shadow-[inset_0_-2px_0_var(--primary-edge)]'
+    )
+    expect(screen.getByRole('link', { name: 'Open' })).not.toHaveClass(
+      'shadow-[inset_0_-2px_0_var(--primary-edge)]'
     )
     expect(screen.getByRole('link', { name: 'Open' })).not.toHaveAttribute(
       'aria-current'

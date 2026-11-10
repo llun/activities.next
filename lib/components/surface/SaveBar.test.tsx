@@ -21,6 +21,12 @@ const renderBar = (props: Partial<Parameters<typeof SaveBar>[0]> = {}) => {
 }
 
 describe('SaveBar', () => {
+  it('renders with border-t, border-border, and bg-card', () => {
+    const { container } = render(<SaveBar dirty={false} />)
+    const bar = container.querySelector('[data-slot="save-bar"]')
+    expect(bar).toHaveClass('border-t', 'border-border', 'bg-card')
+  })
+
   it('shows the error as an alert, or without the role when errorLive is off', () => {
     const { rerender } = render(
       <SaveBar

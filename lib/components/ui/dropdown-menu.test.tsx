@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -40,6 +41,41 @@ const renderMenu = () =>
   )
 
 describe('DropdownMenu', () => {
+  it('draws content as flat overlay: rounded-none, border-input, and no shadow', () => {
+    renderMenu()
+    const content = screen.getByRole('menu')
+    expect(content).toHaveClass('rounded-none', 'border-input')
+    expect(content).not.toHaveClass('rounded-md', 'shadow-md')
+  })
+
+  it.each([
+    ['item', 'Profile'],
+    ['checkbox item', 'Show preview'],
+    ['radio item', 'Radio Option'],
+    ['sub trigger', 'Translate to']
+  ])('draws %s with rounded-none', (_, label) => {
+    renderMenu()
+    const row = screen.getByText(label).closest('[role^="menuitem"]')
+    expect(row).toHaveClass('rounded-none')
+    expect(row).not.toHaveClass('rounded-sm')
+  })
+
+  it('draws shortcut with font-mono and tabular-nums', () => {
+    render(
+      <DropdownMenu open modal={false}>
+        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>
+            Copy
+            <DropdownMenuShortcut>⌘C</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+    const shortcut = screen.getByText('⌘C')
+    expect(shortcut).toHaveClass('font-mono', 'tabular-nums')
+  })
+
   // The design's dark hover fill is Surface/Muted (#2B2B2B), a step lighter than
   // the --accent (#262626) the items used before; light stays --accent.
   it.each([

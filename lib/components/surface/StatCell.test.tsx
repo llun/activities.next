@@ -8,10 +8,18 @@ import { Activity } from 'lucide-react'
 import { StatCell } from './StatCell'
 
 describe('StatCell', () => {
-  it('shows the value over its label', () => {
+  it('shows the value over its label and formats label with font-mono uppercase', () => {
     render(<StatCell label="Distance" icon={Activity} value="12.3 km" />)
     expect(screen.getByText('12.3 km')).toBeInTheDocument()
-    expect(screen.getByText('Distance')).toBeInTheDocument()
+    const label = screen.getByText('Distance')
+    expect(label).toBeInTheDocument()
+    expect(label).toHaveClass(
+      'font-mono',
+      'text-xs',
+      'uppercase',
+      'tracking-[0.03em]',
+      'text-muted-foreground'
+    )
   })
 
   it('shows a dash, never a zero, for a missing value', () => {

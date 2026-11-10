@@ -31,7 +31,7 @@ export interface MetricSelectorProps {
  * first:after:-left-1 last:after:-right-1`) expands the interactive hit area
  * across the 4px track padding and 4px gaps, guaranteeing the full 44px touch
  * target and eliminating dead clicks in the padding and between segments.
- * The rounded-sm segments (2px, --radius-ctl) sit inside the track's square
+ * The rounded-md segments (2px, --radius-ctl) sit inside the track's square
  * rounded-lg border (--radius, 0). Orange marks the active one (orange = interaction; the green in the
  * cells is intensity only).
  *
@@ -94,16 +94,16 @@ export const MetricSelector = ({
             className={cn(
               // 36px tall (`min-h-9 py-1.5`); the track's 4px padding (`p-1`)
               // creates equal 4px empty space on top, bottom, left, and right.
-              // The rounded-sm segments (2px, --radius-ctl) sit inside the
+              // The rounded-md segments (2px, --radius-ctl) sit inside the
               // track's square rounded-lg border (--radius, 0). The `after` pseudo-element
               // (`after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1
               // last:after:-right-1`) expands the interactive hit area across
               // the 4px track padding and 4px gaps, guaranteeing the full 44px
               // touch target and eliminating dead clicks in the padding and
               // between segments.
-              'relative flex min-h-9 flex-[1_1_auto] cursor-pointer items-center justify-center rounded-sm py-1.5 px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default @min-[40rem]:flex-none after:absolute after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1 last:after:-right-1',
+              'relative flex min-h-9 flex-[1_1_auto] cursor-pointer items-center justify-center rounded-md py-1.5 px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default @min-[40rem]:flex-none after:absolute after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1 last:after:-right-1',
               active
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-primary text-primary-foreground shadow-[inset_0_-2px_0_var(--primary-edge)]'
                 : 'text-foreground hover:bg-accent'
             )}
           >

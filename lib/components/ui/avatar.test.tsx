@@ -8,14 +8,23 @@ import { describe, expect, it } from 'vitest'
 import { Avatar, AvatarFallback } from './avatar'
 
 describe('Avatar', () => {
-  it('is a size container so the initials can follow its diameter', () => {
+  it('is a size container so the initials can follow its diameter, and has an inner hairline over the image', () => {
     const { container } = render(
       <Avatar className="size-20">
         <AvatarFallback>T</AvatarFallback>
       </Avatar>
     )
     const root = container.querySelector('[data-slot="avatar"]')
-    expect(root).toHaveClass('@container', 'size-20')
+    expect(root).toHaveClass(
+      '@container',
+      'size-20',
+      'rounded-full',
+      'after:pointer-events-none',
+      'after:absolute',
+      'after:inset-0',
+      'after:rounded-full',
+      'after:shadow-[inset_0_0_0_1px_var(--border)]'
+    )
     expect(root).not.toHaveClass('size-8')
   })
 

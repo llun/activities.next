@@ -8,14 +8,32 @@ import { describe, expect, it } from 'vitest'
 import { Input } from './input'
 
 describe('Input', () => {
-  it('renders with data-slot="input", appearance-none, and w-full', () => {
+  it('renders with data-slot="input", appearance-none, control height, and keycap styling', () => {
     render(<Input placeholder="Enter text" />)
     const input = screen.getByPlaceholderText('Enter text')
     expect(input).toHaveAttribute('data-slot', 'input')
     expect(input).toHaveClass('appearance-none')
     expect(input).toHaveClass('w-full')
+    expect(input).toHaveClass(
+      'h-(--control-h)',
+      'rounded-md',
+      'border-input',
+      'shadow-[inset_0_1px_0_hsl(0_0%_0%/0.04)]'
+    )
     expect(input).toHaveClass('bg-background', 'dark:bg-input/30')
-    expect(input).not.toHaveClass('bg-transparent')
+    expect(input).not.toHaveClass('bg-transparent', 'shadow-xs', 'h-9')
+  })
+
+  it('renders two-tone focus ring and forced-colors fallback', () => {
+    render(<Input placeholder="Focus" />)
+    const input = screen.getByPlaceholderText('Focus')
+    expect(input).toHaveClass(
+      'focus-visible:outline-none',
+      'focus-visible:border-ring',
+      'focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)]',
+      'forced-colors:focus-visible:outline-2',
+      'forced-colors:focus-visible:outline-[CanvasText]'
+    )
   })
 
   it('preserves appearance-none for date inputs to avoid iOS Safari box-sizing overflow', () => {

@@ -53,6 +53,23 @@ describe('Select', () => {
     )
   })
 
+  it('renders control height, border-input, rounded-md, inset shadow, and two-tone focus ring', () => {
+    render(<Select aria-label="Visibility" />)
+    const select = screen.getByRole('combobox')
+    expect(select).toHaveClass(
+      'h-(--control-h)',
+      'border-input',
+      'rounded-md',
+      'shadow-[inset_0_1px_0_hsl(0_0%_0%/0.04)]',
+      'focus-visible:outline-none',
+      'focus-visible:border-ring',
+      'focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)]',
+      'forced-colors:focus-visible:outline-2',
+      'forced-colors:focus-visible:outline-[CanvasText]'
+    )
+    expect(select).not.toHaveClass('h-9', 'shadow-xs')
+  })
+
   it('keeps room for the chevron when a call site sets its own padding', () => {
     render(<Select aria-label="Duration" className="h-8 w-auto px-2" />)
     const select = screen.getByRole('combobox')
