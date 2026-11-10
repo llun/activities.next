@@ -33,6 +33,7 @@ describe('Checkbox', () => {
     // system already dims a disabled box, so `disabled:opacity-50` is reset
     // there rather than halving that contrast a second time.
     expect(box).toHaveClass(
+      'forced-colors:focus-visible:[outline-style:solid]',
       'forced-colors:focus-visible:outline-2',
       'forced-colors:focus-visible:outline-[CanvasText]',
       'forced-colors:disabled:opacity-100'

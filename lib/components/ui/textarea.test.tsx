@@ -19,6 +19,7 @@ describe('Textarea', () => {
       'focus-visible:outline-none',
       'focus-visible:border-ring',
       'focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)]',
+      'forced-colors:focus-visible:[outline-style:solid]',
       'forced-colors:focus-visible:outline-2',
       'forced-colors:focus-visible:outline-[CanvasText]'
     )

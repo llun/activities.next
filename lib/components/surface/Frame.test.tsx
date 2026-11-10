@@ -43,8 +43,13 @@ describe('Frame', () => {
       </Frame>
     )
     const rule = '[&_[data-slot=form-row]+[data-slot=form-row]]:border-t'
+    // A row followed by a wrapper (a native <form> around the next rows) whose
+    // first child is a row keeps the rule too.
+    const wrapped =
+      '[&_[data-slot=form-row]+*>[data-slot=form-row]:first-child]:border-t'
     expect(container.querySelector('[data-slot="frame-content"]')).toHaveClass(
-      rule
+      rule,
+      wrapped
     )
     rerender(
       <Frame divided>

@@ -48,7 +48,7 @@ guides that own them; this file is the fast review index.
 
 - [ ] **Page chrome, layout & accessibility** — Use shared page headers and navigation; verify responsive layout, contrast, and browser behavior ([page header & sub-navigation](docs/architecture.md#review-page-chrome-layout-accessibility), [accessibility](docs/architecture.md#accessibility)).
 
-- [ ] **Surfaces** — Build page UI from the shared surface kit (`lib/components/surface/`): square `rounded-lg` frames with no panel shadow, flat overlays (`rounded-none`, `border-input`, no shadow), keycap controls with 2px radius and two-tone focus ring, sentence case, theme tokens only, every list one framed `divide-y` list, one `Frame form` of `FormRow`s separated by hairlines with a `border-t bg-card` `SaveBar` footer, `Alert` for messages, skeletons instead of "Loading…". [Detailed checks](docs/architecture.md#review-surfaces).
+- [ ] **Surfaces** — Build page UI from the shared surface kit (`lib/components/surface/`): square `rounded-lg` frames with no panel shadow, flat overlays (`rounded-none`, `border-input`, no shadow), keycap controls with 2px radius and two-tone focus ring, sentence case, theme tokens only, every list one framed `divide-y` list, one `Frame form` of `FormRow`s (the frame draws the hairline between rows) with a `SaveBar` in its `bg-card` footer bar, `Alert` for messages, skeletons instead of "Loading…". [Detailed checks](docs/architecture.md#review-surfaces).
 
 - [ ] **Post media layout** — Preserve attachment layout, dimensions, unsupported media, and the intended fallback behavior. [Detailed checks](docs/architecture.md#review-post-media-layout).
 
