@@ -22,8 +22,9 @@ interface Props {
    */
   tallSections?: number[]
   /**
-   * Draw the numeric sections in the form look (a `Frame form`: no hairlines,
-   * rows spaced like `FormRow`, `py-2.5`) instead of as a divided list. Turn it
+   * Draw the numeric sections in the form look (a `Frame form` with rows
+   * spaced like `FormRow`, `py-2.5`; the placeholder rows are not form rows, so
+   * the form's hairlines are not drawn) instead of as a divided list. Turn it
    * on for a page of settings forms; leave it off for lists.
    */
   form?: boolean
