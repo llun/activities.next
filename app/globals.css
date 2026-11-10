@@ -78,7 +78,7 @@
 
   /* The darker bottom edge of a keycap control, exposed as
      `border-control-edge` / `border-primary-edge` / `border-destructive-edge`
-     and used in `shadow-[inset_0_-2px_0_var(--…-edge)]`. */
+     and meant for `shadow-[inset_0_-2px_0_var(--…-edge)]`. */
   --color-control-edge: var(--control-edge);
   --color-primary-edge: var(--primary-edge);
   --color-destructive-edge: var(--destructive-edge);
@@ -89,8 +89,8 @@
   --color-control-active: var(--control-active);
 
   /* Off state of a Switch track (the design's Control Off), exposed as the
-     `bg-control-off` utility. Darker than the --input border so an off switch
-     reads as a control rather than a pale pill. */
+     `bg-control-off` utility. Further from the page than the --input border so
+     an off switch reads as a control rather than a pale pill. */
   --color-control-off: var(--control-off);
 
   /* Backdrop behind the photo in the photo editor, exposed as the
