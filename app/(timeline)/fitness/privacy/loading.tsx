@@ -26,10 +26,10 @@ const Loading: FC = () => (
         <Frame className="space-y-4 p-4">
           <SkeletonBar className="h-[240px] w-full" />
           <div className="grid gap-4 sm:grid-cols-2">
-            <SkeletonBar className="h-9" />
-            <SkeletonBar className="h-9" />
+            <SkeletonBar className="h-(--control-h)" />
+            <SkeletonBar className="h-(--control-h)" />
           </div>
-          <SkeletonBar className="h-9" />
+          <SkeletonBar className="h-(--control-h)" />
         </Frame>
       </div>
       <div className="space-y-3">

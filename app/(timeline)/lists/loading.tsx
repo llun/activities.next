@@ -36,7 +36,7 @@ export const ListsLoading: FC = () => (
       title={<SkeletonBar className="h-7 w-52" />}
       description={<SkeletonBar className="h-4 w-80 max-w-full" />}
       stackActionsOnMobile
-      actions={<SkeletonBar className="h-9 w-28" />}
+      actions={<SkeletonBar className="h-(--control-h) w-28" />}
     />
     <GroupSkeleton rows={3} />
   </div>

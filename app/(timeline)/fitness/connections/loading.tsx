@@ -17,8 +17,8 @@ const Panel: FC<{ fields: number }> = ({ fields }) => (
       form
       footer={
         <div className="flex justify-end gap-2">
-          <SkeletonBar className="h-9 w-20" />
-          <SkeletonBar className="h-9 w-32" />
+          <SkeletonBar className="h-(--control-h) w-20" />
+          <SkeletonBar className="h-(--control-h) w-32" />
         </div>
       }
     >
@@ -31,7 +31,7 @@ const Panel: FC<{ fields: number }> = ({ fields }) => (
             <SkeletonBar className="h-4 w-28" />
             <SkeletonBar className="h-3 w-40" />
           </div>
-          <SkeletonBar className="h-9 w-full" />
+          <SkeletonBar className="h-(--control-h) w-full" />
         </div>
       ))}
     </Frame>

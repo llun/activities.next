@@ -16,7 +16,7 @@ const Loading: FC = () => (
   >
     <div aria-hidden="true" className="space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <SkeletonBar className="h-9 w-44" />
+        <SkeletonBar className="h-(--control-h) w-44" />
         <SkeletonBar className="h-5 w-40" />
       </div>
       <SkeletonBar className="h-[420px] rounded-lg" />
