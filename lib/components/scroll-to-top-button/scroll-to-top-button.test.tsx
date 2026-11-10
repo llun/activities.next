@@ -70,6 +70,15 @@ describe('ScrollToTopButton', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps its drop shadow while pressed', () => {
+    Object.defineProperty(window, 'scrollY', { value: 500 })
+    render(<ScrollToTopButton isLoadMoreVisible={false} />)
+    expect(screen.getByRole('button', { name: 'Scroll to top' })).toHaveClass(
+      'shadow-lg',
+      'active:not-disabled:shadow-lg'
+    )
+  })
+
   it('should call window.scrollTo with smooth behavior when clicked', () => {
     Object.defineProperty(window, 'scrollY', { value: 400 })
     render(<ScrollToTopButton />)

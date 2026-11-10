@@ -61,7 +61,7 @@ const Row: FC<{ form: boolean; tall?: boolean }> = ({ form, tall = false }) => (
     <SkeletonBar
       className={cn(
         'shrink-0',
-        tall ? 'h-[22rem] w-24 sm:w-48' : 'h-9 w-24 sm:w-48'
+        tall ? 'h-[22rem] w-24 sm:w-48' : 'h-(--control-h) w-24 sm:w-48'
       )}
     />
   </div>
@@ -99,7 +99,11 @@ export const SectionSkeleton: FC<Props> = ({
     {sections.map((rows, section) =>
       Array.isArray(rows) ? (
         // One box of `FormGroup`s with its Save footer: no section heading.
-        <Frame key={section} form footer={<SkeletonBar className="h-9 w-20" />}>
+        <Frame
+          key={section}
+          form
+          footer={<SkeletonBar className="h-(--control-h) w-20" />}
+        >
           {rows.map((groupRows, group) => (
             <div key={group}>
               {/* `FormGroup`'s heading block: `px-4 pt-5 pb-0.5`, `pt-2.5` first. */}

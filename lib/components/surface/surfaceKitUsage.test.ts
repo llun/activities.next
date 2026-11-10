@@ -232,7 +232,7 @@ describe('surface kit usage', () => {
     )
     expect(
       offenders,
-      'Form rows (`FormRow`, `SettingsField`, `ToggleRow`, ...) in a `Frame divided` get a hairline between every field, and in a plain `Frame` sit 10px from the edge. A form is one box without rules: use `<Frame form>` (with `FormGroup`s for several groups) and keep `divided` for lists. See "Forms." in docs/architecture.md.'
+      'Form rows (`FormRow`, `SettingsField`, `ToggleRow`, ...) in a `Frame divided` get a hairline between every field, and in a plain `Frame` sit 10px from the edge. A form is one box: use `<Frame form>`, which draws the hairline between its rows (with `FormGroup`s for several groups), and keep `divided` for lists. See "Forms." in docs/architecture.md.'
     ).toEqual([])
   })
 

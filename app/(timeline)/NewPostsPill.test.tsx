@@ -124,6 +124,23 @@ describe('NewPostsPill', () => {
     expect(onJump).toHaveBeenCalledTimes(1)
   })
 
+  // The pill floats over posts, so pressing it keeps its elevation instead of
+  // the keycap's 1 px pressed edge.
+  it('keeps its drop shadow while pressed', () => {
+    render(
+      <NewPostsPill
+        store={createUnseenAboveStore()}
+        polledCount={0}
+        isScrolledDown={true}
+        onJump={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Back to top' })).toHaveClass(
+      'shadow-lg',
+      'active:not-disabled:shadow-lg'
+    )
+  })
+
   it('sets aria-busy="true" on "Back to top" when isScrolledDown and isRefreshing are true', () => {
     const store = createUnseenAboveStore()
     render(
