@@ -48,7 +48,8 @@ export const formRowHintId = (htmlFor: string) => `${htmlFor}-hint`
 
 /**
  * One row of a settings form, to be set inside a `Frame form` (rows are
- * `px-4 py-2.5`, so two rows sit about 20px apart with no rule): the label
+ * `px-4 py-2.5`, and the `Frame form` draws a hairline between consecutive
+ * rows): the label
  * and its hint on the left and the control on the right from `sm` up, stacked
  * (label and hint above, control full width below) on a phone. From `sm` up the
  * label takes a third of the row and the control the other two thirds, so every
@@ -72,7 +73,7 @@ export const FormRow: FC<Props> = ({
     <div
       data-slot="form-row"
       className={cn(
-        'border-border [&+[data-slot=form-row]]:border-t px-4 py-2.5',
+        'px-4 py-2.5',
         inline
           ? 'flex items-center justify-between gap-4'
           : stacked

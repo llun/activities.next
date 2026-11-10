@@ -21,10 +21,13 @@ const renderBar = (props: Partial<Parameters<typeof SaveBar>[0]> = {}) => {
 }
 
 describe('SaveBar', () => {
-  it('renders with border-t, border-border, and bg-card', () => {
+  // The Frame footer it sits in draws the top rule and the card fill, edge to
+  // edge; a second rule or fill here would be inset by the footer's padding.
+  it('draws no rule or fill of its own', () => {
     const { container } = render(<SaveBar dirty={false} />)
     const bar = container.querySelector('[data-slot="save-bar"]')
-    expect(bar).toHaveClass('border-t', 'border-border', 'bg-card')
+    expect(bar).not.toHaveClass('border-t')
+    expect(bar).not.toHaveClass('bg-card')
   })
 
   it('shows the error as an alert, or without the role when errorLive is off', () => {

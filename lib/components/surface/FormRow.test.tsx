@@ -7,7 +7,9 @@ import { render, screen } from '@testing-library/react'
 import { FormRow, formRowHintId, formRowLabelId } from './FormRow'
 
 describe('FormRow', () => {
-  it('pads its row px-4 py-2.5 and draws a hairline between consecutive rows', () => {
+  // The hairline between rows belongs to the `Frame form` around them, so rows
+  // stacked anywhere else (an auth card, a dialog grid) draw no rule.
+  it('pads its row px-4 py-2.5 and draws no rule of its own', () => {
     const { container } = render(
       <>
         <FormRow label="First" htmlFor="first">
@@ -18,19 +20,10 @@ describe('FormRow', () => {
         </FormRow>
       </>
     )
-    const rows = container.querySelectorAll('[data-slot="form-row"]')
-    expect(rows[0]).toHaveClass(
-      'px-4',
-      'py-2.5',
-      'border-border',
-      '[&+[data-slot=form-row]]:border-t'
-    )
-    expect(rows[1]).toHaveClass(
-      'px-4',
-      'py-2.5',
-      'border-border',
-      '[&+[data-slot=form-row]]:border-t'
-    )
+    for (const row of container.querySelectorAll('[data-slot="form-row"]')) {
+      expect(row).toHaveClass('px-4', 'py-2.5')
+      expect(row.className).not.toMatch(/border-t/)
+    }
   })
 
   it('ties the label to the control', () => {

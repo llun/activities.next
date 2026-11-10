@@ -29,6 +29,7 @@ describe('Button', () => {
       'focus-visible:outline-none',
       'focus-visible:border-ring',
       'focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)]',
+      'forced-colors:focus-visible:[outline-style:solid]',
       'forced-colors:focus-visible:outline-2',
       'forced-colors:focus-visible:outline-[CanvasText]'
     )
@@ -91,19 +92,22 @@ describe('Button', () => {
   })
 
   it.each([
-    ['default'],
-    ['destructive'],
-    ['outline'],
-    ['secondary'],
-    ['pill']
-  ] as const)('adds pressed state classes on %s variant', (variant) => {
-    render(<Button variant={variant}>Action</Button>)
-    const button = screen.getByRole('button', { name: 'Action' })
-    expect(button).toHaveClass(
-      'active:not-disabled:translate-y-px',
-      'active:not-disabled:shadow-[inset_0_-1px_0_var(--control-edge)]'
-    )
-  })
+    ['default', 'primary-edge'],
+    ['destructive', 'destructive-edge'],
+    ['outline', 'control-edge'],
+    ['secondary', 'control-edge'],
+    ['pill', 'control-edge']
+  ] as const)(
+    'presses the %s variant down 1px on its own %s',
+    (variant, edge) => {
+      render(<Button variant={variant}>Action</Button>)
+      const button = screen.getByRole('button', { name: 'Action' })
+      expect(button).toHaveClass(
+        'active:not-disabled:translate-y-px',
+        `active:not-disabled:shadow-[inset_0_-1px_0_var(--${edge})]`
+      )
+    }
+  )
 
   it.each([['ghost'], ['link']] as const)(
     'does not add keycap pressed state on %s variant',

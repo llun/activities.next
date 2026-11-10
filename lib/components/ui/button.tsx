@@ -5,14 +5,14 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:outline-none focus-visible:border-ring focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)] forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[CanvasText] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all cursor-pointer disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:outline-none focus-visible:border-ring focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)] forced-colors:focus-visible:[outline-style:solid] forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[CanvasText] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground border border-primary-edge shadow-[inset_0_-2px_0_var(--primary-edge)] hover:bg-primary/90 active:not-disabled:translate-y-px active:not-disabled:shadow-[inset_0_-1px_0_var(--control-edge)]',
+          'bg-primary text-primary-foreground border border-primary-edge shadow-[inset_0_-2px_0_var(--primary-edge)] hover:bg-primary/90 active:not-disabled:translate-y-px active:not-disabled:shadow-[inset_0_-1px_0_var(--primary-edge)]',
         destructive:
-          'bg-destructive text-white border border-destructive-edge shadow-[inset_0_-2px_0_var(--destructive-edge)] hover:bg-destructive/90 dark:bg-destructive/60 active:not-disabled:translate-y-px active:not-disabled:shadow-[inset_0_-1px_0_var(--control-edge)]',
+          'bg-destructive text-white border border-destructive-edge shadow-[inset_0_-2px_0_var(--destructive-edge)] hover:bg-destructive/90 dark:bg-destructive/60 active:not-disabled:translate-y-px active:not-disabled:shadow-[inset_0_-1px_0_var(--destructive-edge)]',
         outline:
           'bg-card border border-input shadow-[inset_0_-2px_0_var(--control-edge)] hover:bg-accent hover:text-accent-foreground active:not-disabled:translate-y-px active:not-disabled:shadow-[inset_0_-1px_0_var(--control-edge)]',
         secondary:

@@ -387,7 +387,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
           Add photos
         </Button>
         <Button
-          variant={isEditing ? 'secondary' : 'outline'}
+          variant={isEditing ? 'default' : 'outline'}
           size="sm"
           className={TOUCH_SM_BUTTON}
           onClick={() => setIsEditing((current) => !current)}

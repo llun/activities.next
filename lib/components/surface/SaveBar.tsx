@@ -175,7 +175,7 @@ export const SaveBar: FC<SaveBarProps> = ({
     <div
       data-slot="save-bar"
       className={cn(
-        'border-t border-border bg-card flex w-full items-center justify-between gap-3',
+        'flex w-full items-center justify-between gap-3',
         className
       )}
     >

@@ -52,7 +52,10 @@ export const Frame: FC<Props> = ({
     {form ? (
       <div
         data-slot="frame-content"
-        className={cn('py-1.5', stickyFooter && '[&_*]:scroll-mb-24')}
+        className={cn(
+          'py-1.5 [&_[data-slot=form-row]+[data-slot=form-row]]:border-t',
+          stickyFooter && '[&_*]:scroll-mb-24'
+        )}
       >
         {children}
       </div>
@@ -69,9 +72,9 @@ export const Frame: FC<Props> = ({
       <div
         data-slot="frame-footer"
         className={cn(
-          'border-t px-4 py-3',
+          'border-t bg-card px-4 py-3',
           stickyFooter &&
-            'sticky bottom-0 z-10 rounded-b-lg bg-background pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+            'sticky bottom-0 z-10 rounded-b-lg pb-[max(0.75rem,env(safe-area-inset-bottom))]'
         )}
       >
         {footer}

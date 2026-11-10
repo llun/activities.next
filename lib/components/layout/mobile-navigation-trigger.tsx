@@ -11,7 +11,7 @@ export type MobileNavigationTriggerProps =
   React.ButtonHTMLAttributes<HTMLButtonElement> & {
     /**
      * `bar` sits at the start of the compact page bar. `floating` is the
-     * profile page's circular button, fixed over the cover at the top-left
+     * profile page's floating keycap button (2 px corner), fixed over the cover at the top-left
      * inset: it has no bar behind it, so it carries its own solid,
      * theme-aware surface, hairline border and shadow to stay legible over a
      * bright or dark cover and over the feed once the cover scrolls away.
