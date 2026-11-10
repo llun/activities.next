@@ -18,7 +18,7 @@ describe('Button', () => {
       'rounded-md',
       'h-(--control-h)',
       'border-primary-edge',
-      'shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--primary-edge)]'
+      'shadow-[shadow:inset_0_calc(var(--edge-w,2px)*-1)_0_var(--primary-edge)]'
     )
   })
 
@@ -43,7 +43,7 @@ describe('Button', () => {
       'rounded-md',
       'bg-card',
       'border-input',
-      'shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--control-edge)]'
+      'shadow-[shadow:inset_0_calc(var(--edge-w,2px)*-1)_0_var(--control-edge)]'
     )
     expect(button).not.toHaveClass('rounded-full')
   })
@@ -73,7 +73,7 @@ describe('Button', () => {
     expect(button).toHaveClass(
       'bg-card',
       'border-input',
-      'shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--control-edge)]'
+      'shadow-[shadow:inset_0_calc(var(--edge-w,2px)*-1)_0_var(--control-edge)]'
     )
     expect(button).not.toHaveClass('dark:bg-input/30')
     expect(button).not.toHaveClass('bg-background')
@@ -85,7 +85,7 @@ describe('Button', () => {
     const button = screen.getByRole('button', { name: 'Delete' })
     expect(button).toHaveClass(
       'border-destructive-edge',
-      'shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--destructive-edge)]'
+      'shadow-[shadow:inset_0_calc(var(--edge-w,2px)*-1)_0_var(--destructive-edge)]'
     )
   })
 
@@ -101,7 +101,7 @@ describe('Button', () => {
       render(<Button variant={variant}>Action</Button>)
       const button = screen.getByRole('button', { name: 'Action' })
       expect(button).toHaveClass(
-        `shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--${edge})]`,
+        `shadow-[shadow:inset_0_calc(var(--edge-w,2px)*-1)_0_var(--${edge})]`,
         'active:not-disabled:not-aria-disabled:translate-y-px',
         'active:not-disabled:not-aria-disabled:[--edge-w:1px]'
       )
@@ -110,6 +110,23 @@ describe('Button', () => {
 
   // Pressing changes --edge-w, not the shadow, so a call site's own shadow is
   // never swapped out while the button is held down.
+  it.each(['shadow-none', 'shadow-[0_2px_4px_black]'])(
+    'lets a call-site %s replace the keycap edge',
+    (shadow) => {
+      render(<Button className={shadow}>Action</Button>)
+      const button = screen.getByRole('button', { name: 'Action' })
+      expect(button).toHaveClass(shadow)
+      expect(button.className).not.toMatch(/edge-w,2px/)
+    }
+  )
+
+  it('keeps the keycap edge under a call-site shadow colour', () => {
+    render(<Button className="shadow-black/20">Action</Button>)
+    expect(screen.getByRole('button', { name: 'Action' }).className).toMatch(
+      /shadow-\[shadow:inset_0_calc\(var\(--edge-w,2px\)\*-1\)_0_var\(--primary-edge\)\]/
+    )
+  })
+
   it('keeps a call-site shadow while pressed', () => {
     render(
       <Button variant="pill" className="shadow-lg">

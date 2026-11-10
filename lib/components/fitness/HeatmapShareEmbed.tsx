@@ -71,7 +71,7 @@ interface CopyFieldProps {
  * iframe/img snippets and the public link.
  *
  * The field is the shared `Input` / `Textarea` — the design's "Copy field" is a
- * normal input (border, fill and focus ring from `--input`, `shadow-xs`) with a
+ * normal input (border, fill and focus ring from `--input`, the inset top shadow) with a
  * Primary/sm button — only re-sized to the 12px / 11px mono text and 10px inset
  * the kit draws it with. The button keeps a normal 36px height and sits at the
  * top of the row, level with the first line of the snippet, rather than
@@ -115,7 +115,7 @@ const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
       <Button
         type="button"
         size="sm"
-        className="h-9 shrink-0"
+        className="h-(--control-h) shrink-0"
         onClick={() => copy(value)}
         aria-label={copyLabel}
       >
