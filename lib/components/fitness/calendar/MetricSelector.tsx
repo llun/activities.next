@@ -31,8 +31,8 @@ export interface MetricSelectorProps {
  * first:after:-left-1 last:after:-right-1`) expands the interactive hit area
  * across the 4px track padding and 4px gaps, guaranteeing the full 44px touch
  * target and eliminating dead clicks in the padding and between segments.
- * Concentric rounded-sm corners (4px) nest inside the track's rounded-lg border
- * (8px). Orange marks the active one (orange = interaction; the green in the
+ * The rounded-sm segments (2px, --radius-ctl) sit inside the track's square
+ * rounded-lg border (--radius, 0). Orange marks the active one (orange = interaction; the green in the
  * cells is intensity only).
  *
  * It wraps instead of clipping: at 200% text three segments no longer fit one
@@ -94,8 +94,8 @@ export const MetricSelector = ({
             className={cn(
               // 36px tall (`min-h-9 py-1.5`); the track's 4px padding (`p-1`)
               // creates equal 4px empty space on top, bottom, left, and right.
-              // Concentric rounded-sm corners (4px) nest inside the track's
-              // rounded-lg border (8px). The `after` pseudo-element
+              // The rounded-sm segments (2px, --radius-ctl) sit inside the
+              // track's square rounded-lg border (--radius, 0). The `after` pseudo-element
               // (`after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1
               // last:after:-right-1`) expands the interactive hit area across
               // the 4px track padding and 4px gaps, guaranteeing the full 44px

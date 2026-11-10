@@ -54,8 +54,8 @@ const TRACK_CLASS =
   'bg-muted flex max-w-full p-1 gap-1 items-center sm:w-fit overflow-x-auto rounded-lg shadow-[inset_0_0_0_1px_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
 // The 4px track padding (`p-1`) creates equal 4px empty space around the
-// segment items on top, bottom, left, and right. Concentric rounded-sm corners
-// (4px) nest inside the track's rounded-lg border (8px). The `after`
+// segment items on top, bottom, left, and right. The rounded-sm segments (2px,
+// --radius-ctl) sit inside the track's square rounded-lg border (--radius, 0). The `after`
 // pseudo-element (`after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1
 // last:after:-right-1`) expands the interactive hit area across the 4px track
 // padding and 4px gaps, guaranteeing the full 44px (`md`) / 36px (`sm`) touch
