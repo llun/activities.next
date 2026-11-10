@@ -1,0 +1,60 @@
+docs/architecture.md
+  s_49da6fa129b372::t_0d3dc1e9e9768e 1649-1654,1656-1666
+  s_49da6fa129b372::t_863a80f9796ef9 1599,1655,1670,1680,1682
+lib/components/surface/Frame.test.tsx
+  s_49da6fa129b372::t_46b364f1c6e5e1 38-70
+  s_49da6fa129b372::t_a683835c5ffe03 132
+lib/components/ui/textarea.tsx
+  s_49da6fa129b372::t_18f4b2417a04fc 10
+lib/components/ui/input.test.tsx
+  s_49da6fa129b372::t_46b364f1c6e5e1 34
+  s_49da6fa129b372::t_0d3dc1e9e9768e 66-72
+lib/components/ui/button.tsx
+  s_49da6fa129b372::t_41bf8fb8b41df3 8
+  s_49da6fa129b372::t_18f4b2417a04fc 13,15
+lib/components/layout/mobile-navigation-trigger.tsx
+  s_49da6fa129b372::t_18f4b2417a04fc 14
+lib/components/ui/button.test.tsx
+  s_49da6fa129b372::t_46b364f1c6e5e1 32,95-110
+lib/components/surface/Frame.tsx
+  s_49da6fa129b372::t_18f4b2417a04fc 55-58,75,77
+app/(timeline)/gallery/albums/[id]/GalleryAlbumDetailView.tsx
+  s_49da6fa129b372::t_18f4b2417a04fc 390
+lib/components/ui/tabs.tsx
+  s_49da6fa129b372::t_41bf8fb8b41df3 45
+lib/components/surface/SaveBar.test.tsx
+  s_49da6fa129b372::t_46b364f1c6e5e1 24-26,29-30
+lib/components/ui/input.tsx
+  s_49da6fa129b372::t_41bf8fb8b41df3 12
+  s_49da6fa129b372::t_fd16acb8f77c5a 14-16
+lib/components/ui/select.tsx
+  s_49da6fa129b372::t_41bf8fb8b41df3 31
+lib/components/surface/FormRow.tsx
+  s_49da6fa129b372::t_18f4b2417a04fc 51-52,76
+lib/components/surface/SaveBar.tsx
+  s_49da6fa129b372::t_18f4b2417a04fc 178
+lib/components/surface/FormRow.test.tsx
+  s_49da6fa129b372::t_46b364f1c6e5e1 10-12,23-26
+lib/components/ui/textarea.test.tsx
+  s_49da6fa129b372::t_0d3dc1e9e9768e 37-43
+lib/components/ui/checkbox.tsx
+  s_49da6fa129b372::t_41bf8fb8b41df3 33
+lib/components/ui/switch.tsx
+  s_49da6fa129b372::t_41bf8fb8b41df3 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aa7e8c8f1dd85214c0c5823b804b141523995ed5",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
