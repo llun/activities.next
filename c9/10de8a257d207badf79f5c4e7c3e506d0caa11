@@ -1,0 +1,26 @@
+docs/architecture.md
+  s_49da6fa129b372::t_dceed591ac7344 1670,1682,3503-3505
+lib/components/ui/dialog.test.tsx
+  s_49da6fa129b372::t_5b3acef9904be0 27
+app/globals.css
+  s_49da6fa129b372::t_1015bf43fb21c5 66-72,74-84,92,129-134,238-240,242-246,363-365,401-405
+  s_49da6fa129b372::t_8e26484c320656 406-407
+app/globals.contrast.test.ts
+  s_49da6fa129b372::t_0e83c102750970 477-478,519-585,687-690
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c910de8a257d207badf79f5c4e7c3e506d0caa11",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
