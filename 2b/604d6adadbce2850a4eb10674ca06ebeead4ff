@@ -1,0 +1,115 @@
+docs/architecture.md
+  s_49da6fa129b372::t_750a0d7681b7dc 1493,1518,1649-1666,1670,1674,1680-1683,1707
+REVIEW.md
+  s_1fd5d24064d559::t_5e4b12b3d032e4 51
+lib/components/layout/sidebar.test.tsx
+  s_dc239db0cc1c9d::t_37009f07f166bb 525,531-541
+lib/components/surface/StatCell.tsx
+  s_dc239db0cc1c9d::t_b8606ac8c20b16 112-114,126-128,155-157
+lib/components/ui/button.test.tsx
+  s_dc239db0cc1c9d::t_2e5cf7120369e0 11,17-34,37,41-47,50,58-59,69,72-81,84-90,92-115
+lib/components/ui/dialog.tsx
+  s_dc239db0cc1c9d::t_9f5a97928d3866 63
+lib/components/ui/dropdown-menu.test.tsx
+  s_dc239db0cc1c9d::t_129ef3e852d95a 14,44-78
+lib/components/ui/popover.test.tsx
+  s_dc239db0cc1c9d::t_824fd8efea9ad8 45-52
+lib/components/fitness/calendar/MetricSelector.test.tsx
+  s_dc239db0cc1c9d::t_ee4962698e3085 27-31,33-36
+lib/components/fitness/calendar/MetricSelector.tsx
+  s_dc239db0cc1c9d::t_12f05ec46e21b8 34,97,104,106
+lib/components/layout/mobile-navigation-trigger.test.tsx
+  s_dc239db0cc1c9d::t_d7ef73f9fa2037 72-81
+lib/components/layout/mobile-navigation-trigger.tsx
+  s_dc239db0cc1c9d::t_569bd146791bb8 62
+lib/components/layout/sidebar.tsx
+  s_dc239db0cc1c9d::t_a36affd5f6181e 153,425-427,432,445,447,449-453,473,506,509,533,536,609,655,658,675,708,761,763,807,809,875
+lib/components/settings/FitnessPrivacyLocationSettings.test.tsx
+  s_dc239db0cc1c9d::t_1095037824b786 81-82
+lib/components/surface/FormRow.test.tsx
+  s_dc239db0cc1c9d::t_82486c756d85cd 10,12-32
+lib/components/surface/FormRow.tsx
+  s_dc239db0cc1c9d::t_4795bb56376343 75
+lib/components/surface/SaveBar.test.tsx
+  s_dc239db0cc1c9d::t_ce7d5905635b3e 24-29
+lib/components/surface/SaveBar.tsx
+  s_dc239db0cc1c9d::t_2483f43a90fa36 178
+lib/components/surface/SegmentedControl.test.tsx
+  s_dc239db0cc1c9d::t_3414db6ee61099 40-46,51-56,218-224
+lib/components/surface/SegmentedControl.tsx
+  s_dc239db0cc1c9d::t_60421c574ed66d 57,64,73
+lib/components/surface/StatCell.test.tsx
+  s_dc239db0cc1c9d::t_5fd3949b0ad81e 11,14-22
+lib/components/ui/avatar.test.tsx
+  s_dc239db0cc1c9d::t_c436e61fc2b099 11,18-27
+lib/components/ui/avatar.tsx
+  s_dc239db0cc1c9d::t_339e3c2fd338b7 18
+lib/components/ui/badge.test.tsx
+  s_dc239db0cc1c9d::t_54bb7ae7bd7ae1 17-18
+lib/components/ui/badge.tsx
+  s_dc239db0cc1c9d::t_b0e96a748e1ad4 7
+lib/components/ui/button.tsx
+  s_dc239db0cc1c9d::t_85dffd23636611 8,12-13,15,17,19,23,26
+lib/components/ui/checkbox.test.tsx
+  s_dc239db0cc1c9d::t_9cec631a0855ae 32,36-37,42,45-56
+lib/components/ui/checkbox.tsx
+  s_dc239db0cc1c9d::t_514838ea18c738 6,33
+lib/components/ui/dialog.test.tsx
+  s_dc239db0cc1c9d::t_14888856d20dba 27,33-34,39,41
+lib/components/ui/dropdown-menu.tsx
+  s_dc239db0cc1c9d::t_c11ed5f5605212 45,77,95,131,187,283,386
+lib/components/ui/input.test.tsx
+  s_dc239db0cc1c9d::t_6df482965f2740 11,17-22,24-36
+lib/components/ui/input.tsx
+  s_dc239db0cc1c9d::t_1ca383d6c95d12 11-12
+lib/components/ui/popover.tsx
+  s_dc239db0cc1c9d::t_e61e647a2d4730 43
+lib/components/ui/select.test.tsx
+  s_dc239db0cc1c9d::t_25b298ce2ba13a 56-72
+lib/components/ui/select.tsx
+  s_dc239db0cc1c9d::t_220970a383cf29 31
+lib/components/ui/switch.test.tsx
+  s_dc239db0cc1c9d::t_77c43139499529 17-38
+lib/components/ui/switch.tsx
+  s_dc239db0cc1c9d::t_175049a1ae568e 16,24
+lib/components/ui/tabs.test.tsx
+  s_dc239db0cc1c9d::t_2aeeddd3f37f45 1-61
+lib/components/ui/tabs.tsx
+  s_dc239db0cc1c9d::t_30bacdae4c13cc 29,45
+lib/components/ui/textarea.test.tsx
+  s_dc239db0cc1c9d::t_f1bdca6f8a2f1b 11-27
+lib/components/ui/textarea.tsx
+  s_dc239db0cc1c9d::t_1892f42b029939 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2b604d6adadbce2850a4eb10674ca06ebeead4ff",
+  "prompts": {},
+  "sessions": {
+    "s_1fd5d24064d559": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a2006b23-7c7f-4399-85d3-407abf660f20",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_dc239db0cc1c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "39fbbf59-c54b-41d1-b7f6-3bfb9de173ec",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
