@@ -135,10 +135,10 @@ describe('NewPostsPill', () => {
         onJump={vi.fn()}
       />
     )
-    expect(screen.getByRole('button', { name: 'Back to top' })).toHaveClass(
-      'shadow-lg',
-      'active:not-disabled:shadow-lg'
-    )
+    const button = screen.getByRole('button', { name: 'Back to top' })
+    expect(button).toHaveClass('shadow-lg')
+    // The keycap press only changes --edge-w, so nothing replaces shadow-lg.
+    expect(button.className).not.toMatch(/active:\S*shadow/)
   })
 
   it('sets aria-busy="true" on "Back to top" when isScrolledDown and isRefreshing are true', () => {

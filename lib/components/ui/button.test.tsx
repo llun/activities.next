@@ -18,7 +18,7 @@ describe('Button', () => {
       'rounded-md',
       'h-(--control-h)',
       'border-primary-edge',
-      'shadow-[inset_0_-2px_0_var(--primary-edge)]'
+      'shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--primary-edge)]'
     )
   })
 
@@ -43,7 +43,7 @@ describe('Button', () => {
       'rounded-md',
       'bg-card',
       'border-input',
-      'shadow-[inset_0_-2px_0_var(--control-edge)]'
+      'shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--control-edge)]'
     )
     expect(button).not.toHaveClass('rounded-full')
   })
@@ -73,7 +73,7 @@ describe('Button', () => {
     expect(button).toHaveClass(
       'bg-card',
       'border-input',
-      'shadow-[inset_0_-2px_0_var(--control-edge)]'
+      'shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--control-edge)]'
     )
     expect(button).not.toHaveClass('dark:bg-input/30')
     expect(button).not.toHaveClass('bg-background')
@@ -85,7 +85,7 @@ describe('Button', () => {
     const button = screen.getByRole('button', { name: 'Delete' })
     expect(button).toHaveClass(
       'border-destructive-edge',
-      'shadow-[inset_0_-2px_0_var(--destructive-edge)]'
+      'shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--destructive-edge)]'
     )
   })
 
@@ -96,23 +96,39 @@ describe('Button', () => {
     ['secondary', 'control-edge'],
     ['pill', 'control-edge']
   ] as const)(
-    'presses the %s variant down 1px on its own %s',
+    'presses the %s variant down 1px, its %s edge shrinking to 1px',
     (variant, edge) => {
       render(<Button variant={variant}>Action</Button>)
       const button = screen.getByRole('button', { name: 'Action' })
       expect(button).toHaveClass(
-        'active:not-disabled:translate-y-px',
-        `active:not-disabled:shadow-[inset_0_-1px_0_var(--${edge})]`
+        `shadow-[inset_0_calc(var(--edge-w,2px)*-1)_0_var(--${edge})]`,
+        'active:not-disabled:not-aria-disabled:translate-y-px',
+        'active:not-disabled:not-aria-disabled:[--edge-w:1px]'
       )
     }
   )
+
+  // Pressing changes --edge-w, not the shadow, so a call site's own shadow is
+  // never swapped out while the button is held down.
+  it('keeps a call-site shadow while pressed', () => {
+    render(
+      <Button variant="pill" className="shadow-lg">
+        Action
+      </Button>
+    )
+    const button = screen.getByRole('button', { name: 'Action' })
+    expect(button).toHaveClass('shadow-lg')
+    expect(button.className).not.toMatch(/active:\S*shadow/)
+  })
 
   it.each([['ghost'], ['link']] as const)(
     'does not add keycap pressed state on %s variant',
     (variant) => {
       render(<Button variant={variant}>Action</Button>)
       const button = screen.getByRole('button', { name: 'Action' })
-      expect(button).not.toHaveClass('active:not-disabled:translate-y-px')
+      expect(button).not.toHaveClass(
+        'active:not-disabled:not-aria-disabled:translate-y-px'
+      )
     }
   )
 })

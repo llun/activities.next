@@ -124,7 +124,7 @@ export const NewPostsPill: FC<NewPostsPillProps> = ({
         type="button"
         variant="pill"
         onClick={onJump}
-        className="pointer-events-auto h-9 gap-2 bg-popover pl-3 pr-4 text-popover-foreground shadow-lg active:not-disabled:shadow-lg dark:bg-popover dark:hover:bg-accent animate-in fade-in-0 slide-in-from-top-1 duration-200"
+        className="pointer-events-auto h-9 gap-2 bg-popover pl-3 pr-4 text-popover-foreground shadow-lg dark:bg-popover dark:hover:bg-accent animate-in fade-in-0 slide-in-from-top-1 duration-200"
       >
         <ArrowUp className="text-muted-foreground" aria-hidden="true" />
         {total}
@@ -139,7 +139,7 @@ export const NewPostsPill: FC<NewPostsPillProps> = ({
       variant="pill"
       onClick={onJump}
       aria-busy={isRefreshing || undefined}
-      className="pointer-events-auto h-9 gap-2 bg-popover pl-3 pr-4 text-popover-foreground shadow-lg active:not-disabled:shadow-lg dark:bg-popover dark:hover:bg-accent animate-in fade-in-0 slide-in-from-top-1 duration-200"
+      className="pointer-events-auto h-9 gap-2 bg-popover pl-3 pr-4 text-popover-foreground shadow-lg dark:bg-popover dark:hover:bg-accent animate-in fade-in-0 slide-in-from-top-1 duration-200"
     >
       {isRefreshing ? (
         <RefreshCw

@@ -58,7 +58,7 @@ export const LandingAuthPanel: FC<LandingAuthPanelProps> = ({
           </div>
 
           <div className="mt-6 flex flex-col gap-2.5">
-            <Button asChild className="h-11 w-full shadow-xs">
+            <Button asChild className="h-11 w-full">
               <Link href="/auth/signin">Sign in</Link>
             </Button>
             <Button asChild variant="outline" className="h-11 w-full">
@@ -87,7 +87,7 @@ export const LandingAuthPanel: FC<LandingAuthPanelProps> = ({
         </p>
 
         <div className="mt-7 flex flex-col gap-2.5">
-          <Button asChild className="h-11 w-full shadow-xs">
+          <Button asChild className="h-11 w-full">
             <Link href="/auth/signup">Create account</Link>
           </Button>
           <Button asChild variant="outline" className="h-11 w-full">
