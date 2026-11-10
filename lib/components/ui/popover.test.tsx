@@ -46,10 +46,8 @@ describe('Popover', () => {
       'rounded-none',
       'border-input'
     )
-    expect(screen.getByText('Panel body')).not.toHaveClass(
-      'rounded-md',
-      'shadow-md'
-    )
+    expect(screen.getByText('Panel body')).not.toHaveClass('rounded-md')
+    expect(screen.getByText('Panel body')).not.toHaveClass('shadow-md')
 
     fireEvent.keyDown(screen.getByText('Panel body'), { key: 'Escape' })
     expect(screen.queryByText('Panel body')).not.toBeInTheDocument()

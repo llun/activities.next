@@ -534,11 +534,9 @@ describe('Sidebar', () => {
         'text-primary-text',
         'shadow-[inset_2px_0_0_var(--primary)]'
       )
-      expect(active).not.toHaveClass(
-        'text-primary',
-        'bg-primary/10',
-        'rounded-lg'
-      )
+      expect(active).not.toHaveClass('text-primary')
+      expect(active).not.toHaveClass('bg-primary/10')
+      expect(active).not.toHaveClass('rounded-lg')
       expect(
         within(nav).getByRole('link', { name: 'Timeline' })
       ).not.toHaveClass('text-primary-text')

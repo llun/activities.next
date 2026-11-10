@@ -21,7 +21,9 @@ describe('Input', () => {
       'shadow-[inset_0_1px_0_hsl(0_0%_0%/0.04)]'
     )
     expect(input).toHaveClass('bg-background', 'dark:bg-input/30')
-    expect(input).not.toHaveClass('bg-transparent', 'shadow-xs', 'h-9')
+    expect(input).not.toHaveClass('bg-transparent')
+    expect(input).not.toHaveClass('shadow-xs')
+    expect(input).not.toHaveClass('h-9')
   })
 
   it('renders two-tone focus ring and forced-colors fallback', () => {

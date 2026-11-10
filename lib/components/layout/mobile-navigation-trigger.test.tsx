@@ -77,7 +77,8 @@ describe('MobileNavigationTrigger', () => {
         'border-input',
         'shadow-[inset_0_-2px_0_var(--control-edge)]'
       )
-      expect(button()).not.toHaveClass('rounded-full', 'shadow-md')
+      expect(button()).not.toHaveClass('rounded-full')
+      expect(button()).not.toHaveClass('shadow-md')
     })
 
     it('fades while scrolling and returns once scrolling has been idle', () => {

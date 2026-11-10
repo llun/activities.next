@@ -45,7 +45,8 @@ describe('DropdownMenu', () => {
     renderMenu()
     const content = screen.getByRole('menu')
     expect(content).toHaveClass('rounded-none', 'border-input')
-    expect(content).not.toHaveClass('rounded-md', 'shadow-md')
+    expect(content).not.toHaveClass('rounded-md')
+    expect(content).not.toHaveClass('shadow-md')
   })
 
   it.each([

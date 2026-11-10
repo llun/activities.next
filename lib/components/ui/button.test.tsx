@@ -75,11 +75,9 @@ describe('Button', () => {
       'border-input',
       'shadow-[inset_0_-2px_0_var(--control-edge)]'
     )
-    expect(button).not.toHaveClass(
-      'dark:bg-input/30',
-      'bg-background',
-      'shadow-xs'
-    )
+    expect(button).not.toHaveClass('dark:bg-input/30')
+    expect(button).not.toHaveClass('bg-background')
+    expect(button).not.toHaveClass('shadow-xs')
   })
 
   it('renders destructive variant with destructive keycap edges', () => {

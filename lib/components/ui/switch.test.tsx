@@ -28,7 +28,8 @@ describe('Switch', () => {
       'forced-colors:focus-visible:outline-2',
       'forced-colors:focus-visible:outline-[CanvasText]'
     )
-    expect(track).not.toHaveClass('rounded-full', 'shadow-xs')
+    expect(track).not.toHaveClass('rounded-full')
+    expect(track).not.toHaveClass('shadow-xs')
   })
 
   it('draws thumb with rounded-[1px]', () => {

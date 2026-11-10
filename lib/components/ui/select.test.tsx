@@ -68,7 +68,8 @@ describe('Select', () => {
       'forced-colors:focus-visible:outline-2',
       'forced-colors:focus-visible:outline-[CanvasText]'
     )
-    expect(select).not.toHaveClass('h-9', 'shadow-xs')
+    expect(select).not.toHaveClass('h-9')
+    expect(select).not.toHaveClass('shadow-xs')
   })
 
   it('keeps room for the chevron when a call site sets its own padding', () => {
