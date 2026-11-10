@@ -1,0 +1,27 @@
+lib/components/posts/link-preview-card.test.tsx
+  s_49da6fa129b372::t_765a87e8ab2135 339-350
+lib/components/posts/link-preview-card.tsx
+  s_49da6fa129b372::t_765a87e8ab2135 237-241,244,261-264
+lib/components/fitness/calendar/MetricSelector.tsx
+  s_49da6fa129b372::t_769173f763d177 34-35,97-98
+lib/components/surface/SegmentedControl.tsx
+  s_49da6fa129b372::t_769173f763d177 57-58
+docs/architecture.md
+  s_49da6fa129b372::t_769173f763d177 1670,1688,2162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04aa15136717d17a5d2194057552e1f55c9d34ef",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
