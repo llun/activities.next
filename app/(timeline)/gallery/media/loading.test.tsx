@@ -62,7 +62,7 @@ describe('gallery all media loading', () => {
     // right-aligned group like the sheet-mode filter bar. Type and Show cap
     // at 240px like the real selects in the sheet-mode host
     // (`w-full sm:max-w-[240px]`); the Filters, count and Sort bars match
-    // the real controls' widths (Filters 75px, count text 5.5rem, Sort
+    // the real controls' widths (Filters 75px, count text 6.5rem, Sort
     // 213px).
     const smRow = container.querySelector(
       '[data-slot="skeleton-bar"].w-\\[240px\\]'
@@ -78,7 +78,7 @@ describe('gallery all media loading', () => {
     const endGroup = smRow.querySelector('.ml-auto') as HTMLElement
     expect(endGroup).toHaveClass('flex', 'items-center', 'gap-2')
     expect(
-      endGroup.querySelector('[data-slot="skeleton-bar"].w-\\[5\\.5rem\\]')
+      endGroup.querySelector('[data-slot="skeleton-bar"].w-\\[6\\.5rem\\]')
     ).toBeInTheDocument()
     expect(
       endGroup.querySelector('[data-slot="skeleton-bar"].w-\\[213px\\]')
