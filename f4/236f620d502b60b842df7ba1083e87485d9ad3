@@ -1,0 +1,75 @@
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_49da6fa129b372::t_6fd0b072ea83a1 351
+app/(timeline)/(policies)/PolicyContents.tsx
+  s_49da6fa129b372::t_9df8f1e90370d7 16
+app/(timeline)/(policies)/PolicyDocumentPage.tsx
+  s_49da6fa129b372::t_a49f36d57183f4 93-96
+app/(timeline)/[actor]/(profile)/page.tsx
+  s_49da6fa129b372::t_2f5b1fa2a07fcd 428
+app/(timeline)/[actor]/ActorRedirectCard.tsx
+  s_49da6fa129b372::t_e34af8b70470ad 33,38
+app/(timeline)/account/import-export/ArchiveExportSection.tsx
+  s_49da6fa129b372::t_cd11ee4bd2db81 408
+app/(timeline)/admin/domains/page.tsx
+  s_49da6fa129b372::t_e578748eed7dc7 175
+app/(timeline)/admin/queues/AdminQueuesList.tsx
+  s_49da6fa129b372::t_cc7a781a5c5099 278
+app/(timeline)/admin/queues/page.tsx
+  s_49da6fa129b372::t_4d7d2592d40b23 123
+app/(timeline)/admin/tags/AdminHashtagsContent.tsx
+  s_49da6fa129b372::t_b4f49c7ce84b52 137
+app/(timeline)/lists/ListEditor.tsx
+  s_49da6fa129b372::t_da0302e6df2385 426
+app/(timeline)/notifications/NotificationItem.tsx
+  s_49da6fa129b372::t_38f89caf1dcae3 247
+app/(timeline)/settings/moving/MovingDate.tsx
+  s_49da6fa129b372::t_013a08a0b79546 18-21
+lib/components/admin-rules/RuleNumber.tsx
+  s_49da6fa129b372::t_e19fb76a9652f6 5
+lib/components/admin/domains/DomainReportsBox.tsx
+  s_49da6fa129b372::t_73eab4ce204669 30
+lib/components/admin/domains/DomainSettings.tsx
+  s_49da6fa129b372::t_702a0fb2a00770 395-398
+lib/components/admin/settings/LanguagesPicker.tsx
+  s_49da6fa129b372::t_b02e46dc7ee0a9 89
+lib/components/admin/settings/PolicyDate.tsx
+  s_49da6fa129b372::t_aa0e95595fa5c8 18-21
+lib/components/announcements/AnnouncementBanner.tsx
+  s_49da6fa129b372::t_74b1956c0f8111 63,89,146,252,255
+lib/components/connection/ConnectionStatus.tsx
+  s_49da6fa129b372::t_6a655dd4afb92f 114
+lib/components/error-page.tsx
+  s_49da6fa129b372::t_ec499931e3a3b5 159,164
+lib/components/filters/FilterRow.tsx
+  s_49da6fa129b372::t_fc20500e73f5c6 30
+lib/components/layout/sidebar.tsx
+  s_49da6fa129b372::t_e34e89cdd90a9b 219
+lib/components/settings/ActorsSection.tsx
+  s_49da6fa129b372::t_0ceaa69d888fd4 220
+lib/components/settings/FitnessFileManagement.tsx
+  s_49da6fa129b372::t_d5439986f23b4d 100-103,283,368
+lib/components/settings/FitnessTrainingZonesSettings.tsx
+  s_49da6fa129b372::t_e431311173f10d 58
+lib/components/settings/ImageUploadField.tsx
+  s_49da6fa129b372::t_0034ffbf26cb9e 122
+lib/components/settings/NavigationSettings.tsx
+  s_49da6fa129b372::t_7a4d84f4c33cc5 46
+lib/components/settings/profile/FeaturedTagsSection.tsx
+  s_49da6fa129b372::t_25c62bbf537e1e 299,336
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4236f620d502b60b842df7ba1083e87485d9ad3",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
