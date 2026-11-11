@@ -132,7 +132,7 @@ export const ReactionRow: FC<ReactionRowProps> = ({ state, fullBleed }) => {
         const body = (
           <>
             <ReactionGlyph reaction={reaction} />
-            <span className="text-xs font-medium tabular-nums">
+            <span className="font-mono text-xs font-medium tabular-nums">
               {formatReactionCount(reaction.count)}
             </span>
           </>

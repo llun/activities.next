@@ -187,7 +187,7 @@ const RecordingPicker: FC<{
         // `shrink` over the button's own `shrink-0`: next to the download
         // button the trigger is what gives, truncating its label, so the two
         // stay on one line on a phone.
-        className="h-[30px] min-w-0 max-w-[min(100%,18rem)] shrink gap-1.5 rounded-lg px-2.5 text-sm font-medium"
+        className="h-[30px] min-w-0 max-w-[min(100%,18rem)] shrink gap-1.5 px-2.5 text-sm font-medium"
       >
         <Watch className="size-3.5 text-primary" aria-hidden="true" />
         <span className="truncate">{getRecordingLabel(selected)}</span>

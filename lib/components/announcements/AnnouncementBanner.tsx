@@ -93,7 +93,7 @@ const ReactionChip: FC<ReactionChipProps> = ({ reaction, onToggle }) => (
     )}
   >
     <span aria-hidden="true">{reaction.name}</span>
-    <span className="text-xs font-medium tabular-nums">
+    <span className="font-mono text-xs font-medium tabular-nums">
       {formatCount(reaction.count)}
     </span>
   </button>

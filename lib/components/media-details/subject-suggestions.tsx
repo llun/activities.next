@@ -264,7 +264,7 @@ export const SubjectSuggestions: FC<Props> = ({
         <button
           type="button"
           onClick={onSearch}
-          className="flex h-[38px] w-full items-center gap-2 rounded-lg border bg-background px-3 text-left text-sm text-muted-foreground outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="flex h-[38px] w-full items-center gap-2 rounded-md border border-input bg-background px-3 shadow-[inset_0_1px_0_hsl(0_0%_0%/0.04)] text-left text-sm text-muted-foreground outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           <Search aria-hidden="true" className="size-4 shrink-0" />
           <span className="truncate">

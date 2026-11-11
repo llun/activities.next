@@ -966,7 +966,7 @@ export const StatusReplyBox: FC<Props> = ({
               <div className="flex items-center gap-2 ml-auto">
                 <span
                   className={cn(
-                    'text-xs tabular-nums',
+                    'font-mono text-xs tabular-nums',
                     !draftLocked && text.length > maxStatusCharacters
                       ? 'text-destructive'
                       : 'text-muted-foreground'

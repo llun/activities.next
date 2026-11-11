@@ -565,7 +565,7 @@ export const PostMenu: FC<Props> = ({
                 {subItem.label}
               </span>
               {subItem.trailing ? (
-                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
                   {subItem.trailing}
                 </span>
               ) : null}
