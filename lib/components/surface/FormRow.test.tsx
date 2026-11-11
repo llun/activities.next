@@ -20,7 +20,9 @@ describe('FormRow', () => {
         </FormRow>
       </>
     )
-    for (const row of container.querySelectorAll('[data-slot="form-row"]')) {
+    const rows = container.querySelectorAll('[data-slot="form-row"]')
+    expect(rows).toHaveLength(2)
+    for (const row of rows) {
       expect(row).toHaveClass('px-4', 'py-2.5')
       expect(row.className).not.toMatch(/border-t/)
     }
