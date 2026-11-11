@@ -264,7 +264,7 @@ export const SubjectSuggestions: FC<Props> = ({
         <button
           type="button"
           onClick={onSearch}
-          className="flex h-[38px] w-full items-center gap-2 rounded-md border border-input bg-background px-3 shadow-[inset_0_1px_0_hsl(0_0%_0%/0.04)] text-left text-sm text-muted-foreground outline-none hover:bg-accent/50 dark:bg-input/30 focus-visible:outline-none focus-visible:border-ring focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)] forced-colors:focus-visible:[outline-style:solid] forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[CanvasText]"
+          className="flex h-(--control-h) w-full items-center gap-2 rounded-md border border-input bg-background px-3 shadow-[inset_0_1px_0_hsl(0_0%_0%/0.04)] text-left text-sm text-muted-foreground outline-none hover:bg-accent/50 dark:bg-input/30 dark:hover:bg-accent/50 focus-visible:outline-none focus-visible:border-ring focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)] forced-colors:focus-visible:[outline-style:solid] forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[CanvasText]"
         >
           <Search aria-hidden="true" className="size-4 shrink-0" />
           <span className="truncate">
