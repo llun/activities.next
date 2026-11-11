@@ -70,7 +70,7 @@
   --cell-radius: 2px;
 }
 
-/* Month: a numbered square whose type and corners scale with the cell. */
+/* Month: a numbered square whose type scales with the cell; the corner stays 2px. */
 .month {
   --cell-radius: 2px;
 

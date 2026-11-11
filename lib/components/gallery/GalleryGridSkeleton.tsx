@@ -38,14 +38,14 @@ export const GalleryGridSkeleton: FC<Props> = ({
     {Array.from({ length: tiles }, (_, index) =>
       captions ? (
         <div key={index} aria-hidden="true" className="space-y-1.5">
-          <div className="skeleton aspect-square rounded-md" />
+          <div className="skeleton aspect-square rounded-none" />
           <div className="skeleton h-3.5 w-2/3 rounded-sm" />
         </div>
       ) : (
         <div
           key={index}
           aria-hidden="true"
-          className="skeleton aspect-square rounded-md"
+          className="skeleton aspect-square rounded-none"
         />
       )
     )}

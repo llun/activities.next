@@ -3482,27 +3482,13 @@ The full rules live in
 
 #### Corner rounding
 
-- **Media corner rounding follows attachment order:** A single attachment rounds
-  all four outer corners (`rounded-2xl`). For a horizontal media strip: the first item
-  rounds only its top-left and bottom-left corners (`rounded-l-2xl`), middle items
-  keep square corners (`rounded-none`), and the last item rounds only its top-right and
-  bottom-right corners (`rounded-r-2xl`). First and last refer to attachment order (index `0`
-  vs index `N-1`), not whichever items happen to be visible during scrolling. Square refers
-  to corners; natural sizing and aspect ratios are preserved without forcing 1:1 crops.
-  The media button — the clipping wrapper — carries the explicit per-position
-  corner. Where both `rounded-[inherit]` and an explicit corner class reach the
-  same `cn()`, what survives depends on the tailwind-merge radius groups:
-  base-vs-base keeps exactly one winner (lone `rounded-2xl`, middle
-  `rounded-none`), while side-specific corners (`rounded-l-2xl`,
-  `rounded-r-2xl`) are kept alongside the inherit — and then the side longhands
-  override the inherited corners by normal CSS cascade, so the nested `img` /
-  `video` still rounds exactly its two outer corners. Nodes that receive no
-  explicit class (e.g. the blurhash canvas) keep `rounded-[inherit]`, which
-  resolves through the wrapper's own explicit corner, transitively equal to the
-  button's radius — so media frames never bleed square pixels past rounded
-  parent edges. The `-2xl` steps resolve to `--radius`, which is 0 today, so
-  these corners currently render square; the order rules keep a non-zero
-  radius a one-token change.
+- **Media is square:** every attachment, lone or in a horizontal strip, is
+  `rounded-none` on the media button (the clipping wrapper), whatever its position
+  (`getStripItemCornerClass` returns `rounded-none` for every index). Natural sizing
+  and aspect ratios are preserved without forcing 1:1 crops. The nested `img` /
+  `video` take `rounded-none` too, and nodes that receive no explicit class (for
+  example the blurhash canvas) keep `rounded-[inherit]`, which resolves through the
+  wrapper to 0, so a media frame never shows a corner its parent doesn't have.
 
 #### Strip chrome: captions, arrows and the position counter
 
