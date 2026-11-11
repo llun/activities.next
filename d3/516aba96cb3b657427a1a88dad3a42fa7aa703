@@ -1,0 +1,75 @@
+lib/components/gallery/GalleryGridSkeleton.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 42
+app/(timeline)/[actor]/albums/[id]/loading.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 46-47,53-54
+app/(timeline)/fitness/gear/GearListView.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 407,417-418
+lib/components/admin/domains/DomainRulesBox.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 409
+lib/components/admin/settings/EnvLockBadge.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 36
+lib/components/layout/sidebar.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 715-716
+lib/components/photo-editor/masks/MaskThumb.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 66
+app/(timeline)/gallery/media/GalleryAllMediaView.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 797
+lib/components/posts/reply-toast.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 47
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 117
+lib/components/posts/boost-carousel.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 48,56
+lib/components/profile/ProfileFieldsBlock.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 86
+lib/components/fitness/RegionHeatmapDetail.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 458,462
+lib/components/admin-rules/RulesPanel.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 355
+app/(timeline)/[actor]/FollowListLoadingSkeleton.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 22,64,75,84
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 277
+lib/components/posts/retry-fitness-button.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 53
+lib/components/settings/profile/ProfileSavedToast.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 61
+app/(timeline)/fitness/ActorFitnessDashboard.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 152-153,166
+lib/components/drafts/NotSavedToDraftsNote.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 10,17
+app/(timeline)/fitness/ActivityTypeBreakdown.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 126,129,132,135
+app/(timeline)/fitness/gear/[id]/GearDetailView.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 104,109-110
+lib/components/admin/settings/EnvBlockBuilder.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 38
+app/(timeline)/(home)/loading.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 44
+lib/components/fitness/calendar/DayDetails.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 218-219
+lib/components/fitness/HeatmapRegionPicker.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 523,532
+lib/components/gallery/AlbumUndoToast.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 82,91
+lib/components/gallery/GalleryAddedToast.tsx
+  s_49da6fa129b372::t_b7a0f36cdba64f 71,86
+docs/architecture.md
+  s_49da6fa129b372::t_9dcc9e955b7445 1670
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d3516aba96cb3b657427a1a88dad3a42fa7aa703",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
