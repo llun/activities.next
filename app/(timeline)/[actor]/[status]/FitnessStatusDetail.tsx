@@ -197,7 +197,7 @@ const ActivityAnalysisLoadingState: FC<{
                 data-testid="analysis-series-chip-placeholder"
                 data-series={key}
                 data-series-label={label}
-                className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
+                className="flex items-center gap-2 rounded-sm border bg-background px-3 py-1"
               >
                 <span className="size-2 shrink-0 rounded-full bg-muted" />
                 <SkeletonBar className={`h-5 ${widthClass}`} />

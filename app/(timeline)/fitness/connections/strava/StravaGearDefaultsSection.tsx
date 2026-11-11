@@ -405,10 +405,7 @@ export const StravaGearDefaultsSection: FC = () => {
                           />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="start"
-                        className="rounded-xl shadow-lg"
-                      >
+                      <DropdownMenuContent align="start">
                         {options.map((option) => {
                           const isActive = option.id === gear.id
                           return (
@@ -447,7 +444,7 @@ export const StravaGearDefaultsSection: FC = () => {
                                 {getGearDisplayName(option)}
                                 {option.retiredAt ? ' (retired)' : ''}
                               </span>
-                              <span className="ml-auto pl-3 text-xs tabular-nums text-muted-foreground">
+                              <span className="ml-auto pl-3 text-xs font-mono tabular-nums text-muted-foreground">
                                 {formatGearDistanceKm(option.distanceMeters)}
                               </span>
                             </DropdownMenuItem>
@@ -494,10 +491,7 @@ export const StravaGearDefaultsSection: FC = () => {
                       />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    className="rounded-xl shadow-lg"
-                  >
+                  <DropdownMenuContent align="start">
                     {addableSportsByKind.map(({ kind, sports }, groupIndex) => (
                       <DropdownMenuGroup
                         key={kind}

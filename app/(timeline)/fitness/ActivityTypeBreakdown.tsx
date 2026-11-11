@@ -190,13 +190,13 @@ export const ActivityTypeBreakdown: FC<Props> = ({
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                      <td className="px-3 py-3 text-right whitespace-nowrap font-mono tabular-nums">
                         {item.count}
                       </td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                      <td className="px-3 py-3 text-right whitespace-nowrap font-mono tabular-nums">
                         {formatDuration(item.totalDurationSeconds)}
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">
+                      <td className="px-4 py-3 text-right whitespace-nowrap font-mono tabular-nums">
                         {formatDistance(item.totalDistanceMeters)}
                       </td>
                     </tr>

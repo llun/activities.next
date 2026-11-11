@@ -153,7 +153,7 @@ export function ActivityRow({
       </span>
       <span
         className={cn(
-          'shrink-0 text-right text-sm tabular-nums',
+          'shrink-0 text-right font-mono text-sm tabular-nums',
           !available && 'text-muted-foreground'
         )}
       >

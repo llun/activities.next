@@ -54,7 +54,7 @@ const RecordRow: FC<{
     <span className="text-muted-foreground">{label}</span>
     {entry.value !== null && entry.activity ? (
       <>
-        <span className="font-semibold tabular-nums">
+        <span className="font-semibold font-mono tabular-nums">
           {formatValue(entry.value)}
         </span>
         <span className="col-span-2 flex min-w-0 items-baseline gap-3 sm:col-span-1">
@@ -65,7 +65,7 @@ const RecordRow: FC<{
           >
             {entry.activity.title}
           </Link>
-          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+          <span className="shrink-0 text-xs text-muted-foreground font-mono tabular-nums">
             {dateFormatter.format(entry.activity.activityDate)}
           </span>
         </span>

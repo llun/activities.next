@@ -32,7 +32,7 @@ const MiniChart: FC<{
   <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-1.5 gap-y-2">
     <div
       aria-hidden="true"
-      className="flex h-[120px] flex-col justify-between text-right text-[11px] leading-none tabular-nums text-muted-foreground"
+      className="flex h-[120px] flex-col justify-between text-right text-[11px] leading-none font-mono tabular-nums text-muted-foreground"
     >
       {yLabels.map((text, index) => (
         <span key={index}>{text}</span>
@@ -48,7 +48,7 @@ const MiniChart: FC<{
       {children}
     </svg>
     <span aria-hidden="true" />
-    <div className="relative h-4 text-xs tabular-nums text-muted-foreground">
+    <div className="relative h-4 font-mono text-xs tabular-nums text-muted-foreground">
       {xAxis}
     </div>
   </div>

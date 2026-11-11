@@ -115,7 +115,7 @@ export const StatusLikes: FC<Props> = ({ statusId, totalLikes }) => {
                 key={account.id}
                 href={`/@${account.acct}`}
                 prefetch={false}
-                className="inline-flex items-center gap-2 rounded-full border bg-background px-2 py-1 text-xs hover:bg-muted"
+                className="inline-flex items-center gap-2 rounded-sm border bg-background px-2 py-1 text-xs hover:bg-muted"
               >
                 <Avatar className="size-5">
                   <AvatarImage

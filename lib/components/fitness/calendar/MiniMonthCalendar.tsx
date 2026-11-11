@@ -291,7 +291,7 @@ export function MiniMonthCalendar({
                     }}
                     onKeyDown={(event) => onDayKeyDown(event, day.date)}
                     className={cn(
-                      'focus-visible:ring-ring inline-flex items-center justify-center rounded-full text-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
+                      'focus-visible:ring-ring inline-flex items-center justify-center rounded-full font-mono text-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
                       targetSize(touch),
                       !enabled && 'text-muted-foreground/50 cursor-default',
                       enabled && !filled && !washed && 'hover:bg-accent',

@@ -256,7 +256,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
                     </td>
                     <td
                       className={cn(
-                        'px-3 py-3 text-right align-middle font-semibold whitespace-nowrap tabular-nums',
+                        'px-3 py-3 text-right align-middle font-semibold whitespace-nowrap font-mono tabular-nums',
                         gear.retiredAt && 'opacity-60'
                       )}
                     >
@@ -377,7 +377,7 @@ const DeviceSection: FC<{
                       onClick={(event) => event.stopPropagation()}
                     />
                   </td>
-                  <td className="px-3 py-3 text-right align-middle font-semibold tabular-nums">
+                  <td className="px-3 py-3 text-right align-middle font-semibold font-mono tabular-nums">
                     {gear.activityCount}
                   </td>
                   <GearActionsCell gear={gear} onEdit={onEdit} />

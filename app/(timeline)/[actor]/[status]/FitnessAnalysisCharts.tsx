@@ -55,7 +55,7 @@ export const ChartTimeLabels: FC<{
   return (
     <div
       className={cn(
-        '@container relative h-4 text-xs leading-4 tabular-nums text-muted-foreground',
+        '@container relative h-4 font-mono text-xs leading-4 tabular-nums text-muted-foreground',
         className
       )}
     >
@@ -128,7 +128,7 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
       <div
         role="group"
         aria-label="Graph display mode"
-        className="inline-flex rounded-lg border bg-muted p-0.5 text-xs font-medium"
+        className="inline-flex rounded-sm border bg-muted p-0.5 font-mono text-xs font-medium"
       >
         {GRAPH_DISPLAY_MODES.map((entry) => (
           <button
@@ -137,7 +137,7 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
             aria-pressed={mode === entry.id}
             onClick={() => onModeChange(entry.id)}
             className={cn(
-              'rounded-md px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+              'rounded-sm px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
               mode === entry.id
                 ? 'bg-background text-primary-text shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -158,7 +158,7 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
             aria-pressed={isSelected}
             onClick={() => onToggle(option.key)}
             className={cn(
-              'flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+              'flex items-center gap-2 rounded-sm border bg-background px-3 py-1 font-mono text-sm font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
               isSelected
                 ? cn(
                     ANALYSIS_GRAPH_STYLES[option.key].chipBorder,

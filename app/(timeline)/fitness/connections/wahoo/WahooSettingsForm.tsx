@@ -361,7 +361,10 @@ export const WahooSettingsForm = () => {
             <FormRow label="Last webhook">
               <p className="text-sm">
                 {lastWebhookAt ? (
-                  <time dateTime={lastWebhookAt.dateTime}>
+                  <time
+                    dateTime={lastWebhookAt.dateTime}
+                    className="font-mono tabular-nums"
+                  >
                     {lastWebhookAt.label}
                   </time>
                 ) : (
@@ -374,7 +377,10 @@ export const WahooSettingsForm = () => {
             <FormRow label="Last successful import">
               <p className="text-sm">
                 {lastImportAt ? (
-                  <time dateTime={lastImportAt.dateTime}>
+                  <time
+                    dateTime={lastImportAt.dateTime}
+                    className="font-mono tabular-nums"
+                  >
                     {lastImportAt.label}
                   </time>
                 ) : (

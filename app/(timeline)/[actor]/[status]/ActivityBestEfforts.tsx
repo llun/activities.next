@@ -77,7 +77,7 @@ export const ActivityBestEfforts: FC<{
         {efforts.map((effort) => (
           <div
             key={effort.durationSeconds}
-            className="flex items-center gap-2 px-3 py-2 text-sm tabular-nums"
+            className="flex items-center gap-2 px-3 py-2 text-sm font-mono tabular-nums"
           >
             <span className="w-14 shrink-0 text-muted-foreground">
               {formatEffortDuration(effort.durationSeconds)}

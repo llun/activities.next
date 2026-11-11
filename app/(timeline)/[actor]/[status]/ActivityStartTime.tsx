@@ -22,7 +22,10 @@ export const ActivityStartTime: FC<Props> = ({ timestamp }) => {
   const date = hasHydrated ? new Date(timestamp) : new UTCDate(timestamp)
 
   return (
-    <time dateTime={new Date(timestamp).toISOString()}>
+    <time
+      dateTime={new Date(timestamp).toISOString()}
+      className="font-mono tabular-nums"
+    >
       {format(date, ACTIVITY_START_PATTERN)}
     </time>
   )

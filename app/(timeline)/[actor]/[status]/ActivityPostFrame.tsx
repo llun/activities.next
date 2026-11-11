@@ -93,7 +93,7 @@ const ActivityTileCell: FC<{ tile: ActivityTile }> = ({ tile }) => {
       data-testid={`activity-tile-${tile.key}`}
       className="grid min-w-0 gap-0.5 bg-background px-4 py-3"
     >
-      <span className="flex items-center gap-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+      <span className="flex items-center gap-1 font-mono text-xs font-medium tracking-wide text-muted-foreground uppercase">
         <Icon className="size-3.5 shrink-0" aria-hidden="true" />
         <span className="truncate">{tile.label}</span>
       </span>
@@ -307,7 +307,7 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
                 </div>
               ) : null}
             </div>
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary-text">
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-primary/10 px-2.5 py-1 font-mono text-xs font-medium tabular-nums text-primary-text">
               <Activity className="size-3.5 text-primary" /> {activityLabel}
             </span>
           </div>

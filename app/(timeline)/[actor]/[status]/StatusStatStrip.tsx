@@ -54,7 +54,7 @@ export const StatusStatStrip: FC<Props> = ({ boosts, likes, replies }) => {
           title={`${count} ${noun}`}
         >
           <Icon className="size-4" aria-hidden="true" />
-          <span className="tabular-nums">{count}</span>
+          <span className="font-mono tabular-nums">{count}</span>
           <span className="sr-only">{noun}</span>
         </span>
       ))}

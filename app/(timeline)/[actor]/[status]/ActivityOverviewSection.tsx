@@ -58,7 +58,7 @@ const OverviewGroupFrame: FC<{
 }> = ({ group, reserve }) => (
   <div data-testid={`overview-group-${group.key}`}>
     <Frame className="h-full overflow-hidden">
-      <div className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
+      <div className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-2 font-mono text-xs font-medium tracking-wide text-muted-foreground uppercase">
         <span
           aria-hidden="true"
           className={cn(
@@ -75,7 +75,9 @@ const OverviewGroupFrame: FC<{
               key={row.label}
               className="flex justify-between gap-2 px-3 py-[7px] tabular-nums"
             >
-              <dt className="min-w-0 text-muted-foreground">{row.label}</dt>
+              <dt className="min-w-0 font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                {row.label}
+              </dt>
               <dd className="font-semibold whitespace-nowrap">{row.value}</dd>
             </div>
           ) : reserve && row.reserveWhenLoading ? (
@@ -87,7 +89,9 @@ const OverviewGroupFrame: FC<{
                 // leading-5: the same 34px as the placeholder row it replaces
                 className="flex justify-between gap-2 px-3 py-[7px] leading-5 tabular-nums"
               >
-                <dt className="min-w-0 text-muted-foreground">{row.label}</dt>
+                <dt className="min-w-0 font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                  {row.label}
+                </dt>
                 <dd className="font-semibold whitespace-nowrap text-muted-foreground">
                   <span aria-hidden="true">—</span>
                   <span className="sr-only">Not available</span>
