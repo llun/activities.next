@@ -348,7 +348,7 @@ export const AuthorizeCard: FC<Props> = ({
                       id="authorizeActorTrigger"
                       // The row's label and the actor shown.
                       aria-labelledby={`${labelledBy} authorizeActorValue`}
-                      className="border-input bg-background hover:bg-muted focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full items-center gap-2 rounded-md border px-3 py-1 text-left text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                      className="border-input bg-background hover:bg-muted focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full items-center gap-2 rounded-md border px-3 py-1 text-left text-base transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                       disabled={isSwitching}
                     >
                       <Avatar className="size-6">

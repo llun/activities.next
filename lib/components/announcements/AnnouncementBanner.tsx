@@ -60,7 +60,7 @@ export const AnnouncementBadge: FC<BadgeProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
+        'inline-flex items-center rounded-sm border px-2 py-0.5 font-mono text-xs font-medium font-mono tabular-nums',
         tones[tone],
         className
       )}
@@ -86,7 +86,7 @@ const ReactionChip: FC<ReactionChipProps> = ({ reaction, onToggle }) => (
         : `Add ${reaction.name} reaction`
     }
     className={cn(
-      'flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] transition-colors',
+      'flex h-7 items-center gap-1.5 rounded-sm border px-2.5 font-mono text-[13px] tabular-nums transition-colors',
       reaction.me
         ? 'border-primary/45 bg-primary/10 text-primary-text'
         : 'border-border bg-background text-foreground hover:bg-muted'
@@ -143,7 +143,7 @@ const ReactionPicker: FC<ReactionPickerProps> = ({
       data-announcement-picker
       role="dialog"
       aria-label="Choose a reaction"
-      className="bg-popover absolute bottom-9 left-0 z-40 flex gap-1 rounded-xl border p-1.5 shadow-lg"
+      className="bg-popover absolute bottom-9 left-0 z-40 flex gap-1 rounded-none border border-input p-1.5"
     >
       {QUICK_EMOJI.map((emoji) => (
         <button
@@ -249,10 +249,10 @@ const AnnouncementsPanel: FC<{
       aria-label="Announcements"
       data-announcements-panel
       onBlur={closeOnFocusOut(state.close)}
-      className="bg-popover text-popover-foreground pointer-events-auto absolute inset-x-0 top-full z-30 mx-auto mt-2 max-h-[60vh] w-[calc(100%-2rem)] max-w-[calc(var(--container-content)-2rem)] space-y-3 overflow-y-auto rounded-lg border p-4 text-left shadow-lg"
+      className="bg-popover text-popover-foreground pointer-events-auto absolute inset-x-0 top-full z-30 mx-auto mt-2 max-h-[60vh] w-[calc(100%-2rem)] max-w-[calc(var(--container-content)-2rem)] space-y-3 overflow-y-auto rounded-none border border-input p-4 text-left"
     >
       {hasMultiple && (
-        <div className="text-muted-foreground text-xs tabular-nums">
+        <div className="text-muted-foreground text-xs font-mono tabular-nums">
           {index + 1} / {announcements.length}
         </div>
       )}

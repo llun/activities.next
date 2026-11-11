@@ -216,7 +216,7 @@ function DraftsBadge({
       tone="gray"
       aria-hidden="true"
       className={cn(
-        'h-[18px] min-w-[18px] justify-center px-1 py-0 tabular-nums',
+        'h-[18px] min-w-[18px] justify-center px-1 py-0 font-mono tabular-nums',
         className
       )}
     >

@@ -296,7 +296,7 @@ export const FeaturedTagsSection: FC<{
 
   const countMeta = (
     <span
-      className={cn('tabular-nums', atLimit && 'text-primary-text font-medium')}
+      className={cn('font-mono tabular-nums', atLimit && 'text-primary-text font-medium')}
     >
       {tags.length} of {FEATURED_TAGS_LIMIT} featured
     </span>
@@ -333,7 +333,7 @@ export const FeaturedTagsSection: FC<{
         }}
         dropdown={
           open && !atLimit && visibleSuggestions.length > 0 ? (
-            <div className="absolute top-full right-0 left-0 z-40 mt-1 rounded-md border bg-popover p-1 shadow-lg">
+            <div className="absolute top-full right-0 left-0 z-40 mt-1 rounded-none border border-input bg-popover p-1">
               <div className="px-2.5 pb-1 pt-1.5 text-xs font-medium text-muted-foreground">
                 Your most-used hashtags
               </div>

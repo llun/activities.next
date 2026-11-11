@@ -425,7 +425,7 @@ const Page: FC<Props> = async ({ params }) => {
                   tags={getActorEmojiTags(person)}
                 />
                 {person.movedTo ? (
-                  <span className="text-info-text bg-info-surface ml-2 inline-flex items-center gap-1 rounded-full border border-info/30 px-2 py-0.5 align-middle text-xs font-medium">
+                  <span className="text-info-text bg-info-surface ml-2 inline-flex items-center gap-1 rounded-sm border border-info/30 px-2 py-0.5 align-middle text-xs font-medium font-mono tabular-nums">
                     <ArrowRightLeft className="size-3" aria-hidden="true" />
                     moved
                   </span>

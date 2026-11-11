@@ -275,7 +275,7 @@ export const AdminQueuesList: FC<Props> = ({ jobs }) => {
                     {statusBadge}
                   </td>
                   <td
-                    className={`px-3 py-3 tabular-nums ${SECONDARY_COLUMN_CLASS}`}
+                    className={`px-3 py-3 font-mono tabular-nums ${SECONDARY_COLUMN_CLASS}`}
                   >
                     {job.attempts}
                   </td>

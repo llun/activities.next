@@ -405,7 +405,7 @@ export const ArchiveExportSection = ({
                     <p className="font-medium">
                       activities-archive-{currentArchive.id.slice(0, 8)}.zip
                     </p>
-                    <span className="rounded-full bg-success-surface px-2 py-0.5 text-xs font-medium text-success-text">
+                    <span className="rounded-sm bg-success-surface px-2 py-0.5 text-xs font-medium text-success-text font-mono tabular-nums">
                       Ready
                     </span>
                   </div>

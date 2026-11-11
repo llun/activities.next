@@ -27,7 +27,7 @@ const ContextChips: FC<{ context: FilterContext[] }> = ({ context }) => {
       {labels.map((label) => (
         <span
           key={label}
-          className="bg-muted text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+          className="bg-muted text-muted-foreground inline-flex items-center rounded-sm px-2 py-0.5 font-mono text-xs font-medium tabular-nums"
         >
           {label}
         </span>

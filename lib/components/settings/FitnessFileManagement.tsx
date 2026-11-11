@@ -97,7 +97,10 @@ const FileUploadedAt: FC<{ createdAt: number; timeZone: string }> = ({
   timeZone
 }) => {
   return (
-    <time dateTime={new Date(createdAt).toISOString()}>
+    <time
+      dateTime={new Date(createdAt).toISOString()}
+      className="font-mono tabular-nums"
+    >
       {new Intl.DateTimeFormat('en-US', {
         dateStyle: 'medium',
         timeStyle: 'short',
@@ -277,7 +280,7 @@ export function FitnessFileManagement({
             value={percentUsed}
             aria-label="Storage quota used by fitness files"
           />
-          <p className="text-muted-foreground text-xs tabular-nums">
+          <p className="text-muted-foreground text-xs font-mono tabular-nums">
             {percentUsed.toFixed(1)}% of your quota used
           </p>
         </div>
@@ -362,7 +365,7 @@ export function FitnessFileManagement({
                       </div>
                       {/* One muted line of facts. The ID stays: it is what the
                           fitness maintenance scripts take. */}
-                      <div className="text-muted-foreground flex flex-wrap gap-x-2 text-xs tabular-nums">
+                      <div className="text-muted-foreground flex flex-wrap gap-x-2 text-xs font-mono tabular-nums">
                         <span>{formatFileSize(fitnessFile.bytes)}</span>
                         <span aria-hidden="true">·</span>
                         <FileUploadedAt

@@ -90,7 +90,10 @@ export const PolicyDocumentPage: FC<PolicyDocumentPageProps> = async ({
         {updatedAt ? (
           <p className="text-muted-foreground mt-1.5 text-sm md:mt-2">
             Last updated{' '}
-            <time dateTime={updatedAt.toISOString()}>
+            <time
+              dateTime={updatedAt.toISOString()}
+              className="font-mono tabular-nums"
+            >
               {format(updatedAt, 'd MMMM yyyy')}
             </time>
           </p>

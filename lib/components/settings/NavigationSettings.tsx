@@ -43,7 +43,7 @@ export interface NavigationSettingsProps {
 type Props = NavigationSettingsProps
 
 const Chip: FC<{ children: React.ReactNode }> = ({ children }) => (
-  <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+  <span className="whitespace-nowrap rounded-sm bg-muted px-2 py-0.5 font-mono text-[10px] font-medium tabular-nums text-muted-foreground">
     {children}
   </span>
 )

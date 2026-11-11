@@ -134,7 +134,7 @@ export const AdminHashtagsContent: FC<Props> = ({
                     </span>
                   </Link>
                 </td>
-                <td className={`${TABLE_CELL_CLASS} tabular-nums`}>
+                <td className={`${TABLE_CELL_CLASS} font-mono tabular-nums`}>
                   {hashtag.postCount}
                   <span className="sr-only">
                     {' '}

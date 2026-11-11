@@ -156,12 +156,12 @@ export const ErrorPage: FC<ErrorPageProps> = ({ code = '404', meta }) => {
       <div className="flex flex-1 items-center justify-center p-4 sm:p-6">
         <div
           className={cn(
-            'bg-card flex w-full flex-col items-center rounded-xl border px-[22px] py-7 text-center shadow-sm',
+            'bg-card flex w-full flex-col items-center rounded-xl border px-[22px] py-7 text-center',
             'sm:max-w-[480px] sm:px-10 sm:py-11'
           )}
         >
           {/* Reason eyebrow pill */}
-          <div className="bg-background text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs">
+          <div className="bg-background text-muted-foreground inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 font-mono text-xs tabular-nums">
             <ReasonIcon className="size-[13px]" aria-hidden="true" />
             <span>{content.reason}</span>
           </div>

@@ -244,7 +244,7 @@ export const NotificationItem = ({
             <div className="min-w-0 text-sm leading-snug">{line1}</div>
             <time
               dateTime={new Date(notification.createdAt).toISOString()}
-              className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground"
+              className="shrink-0 whitespace-nowrap text-xs font-mono tabular-nums text-muted-foreground"
             >
               {relativeCreatedAt}
             </time>

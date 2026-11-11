@@ -55,7 +55,7 @@ const ZonePreview: FC<{
   zones: TrainingZoneDefinition[]
   unit: string
 }> = ({ label, zones, unit }) => (
-  <ul aria-label={label} className="space-y-1.5 text-sm tabular-nums">
+  <ul aria-label={label} className="space-y-1.5 font-mono text-sm tabular-nums">
     {zones.map((zone) => (
       <li
         key={zone.name}

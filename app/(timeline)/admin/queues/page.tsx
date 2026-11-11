@@ -120,7 +120,7 @@ const Page = async ({ searchParams }: Props) => {
               label: (
                 <>
                   {tab.label}
-                  <span className="text-xs tabular-nums opacity-70">
+                  <span className="text-xs font-mono tabular-nums opacity-70">
                     {tab.count}
                   </span>
                 </>

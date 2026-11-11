@@ -13,7 +13,7 @@ export const PolicyContents = ({ headings }: { headings: PolicyHeading[] }) => {
   const items = headings.map(({ id, text }, index) => (
     <li key={id} className="break-inside-avoid">
       <a href={`#${id}`} className={linkClass}>
-        <span className="text-muted-foreground shrink-0 tabular-nums">
+        <span className="text-muted-foreground shrink-0 font-mono tabular-nums">
           {index + 1}.
         </span>
         <span className="min-w-0 [overflow-wrap:anywhere]">{text}</span>

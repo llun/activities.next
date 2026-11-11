@@ -15,7 +15,10 @@ const MOVING_DATE_PATTERN = 'd MMM yyyy'
 export const MovingDate: FC<{ at: string | number }> = ({ at }) => {
   const hasHydrated = useHasHydrated()
   return (
-    <time dateTime={new Date(at).toISOString()}>
+    <time
+      dateTime={new Date(at).toISOString()}
+      className="font-mono tabular-nums"
+    >
       {format(
         hasHydrated ? new Date(at) : new UTCDate(at),
         MOVING_DATE_PATTERN

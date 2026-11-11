@@ -217,7 +217,7 @@ export function ActorsSection({
                   // "Actor Alice @alice@…" rather than only the actor.
                   aria-labelledby={`${labelledBy} actorSectionTriggerValue`}
                   aria-describedby={describedBy}
-                  className="border-input bg-background hover:bg-muted focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full cursor-pointer items-center gap-2 rounded-md border px-3 py-1 text-left text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                  className="border-input bg-background hover:bg-muted focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full cursor-pointer items-center gap-2 rounded-md border px-3 py-1 text-left text-base transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                   disabled={isSwitching || isSavingDefault || isCancelling}
                 >
                   <Avatar className="size-6">
