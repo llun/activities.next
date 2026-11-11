@@ -1,0 +1,47 @@
+app/(timeline)/[actor]/[status]/ActivityMapPanel.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 812,860,879,889
+lib/components/fitness/RoutePrivacyHint.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 148
+lib/components/fitness/RouteHeatmapMapKit.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 469
+lib/components/gallery/GalleryMapKit.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 246
+lib/components/fitness/RegionMapKit.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 328,336,347,359
+app/u/heatmaps/[token]/SharedHeatmapPage.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 89
+lib/components/fitness/AppleMapsChip.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 15
+lib/components/fitness/ActivityRouteMapKit.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 510
+lib/components/fitness/RouteHeatmapMap.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 590
+lib/components/gallery/GalleryMap.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 386,408,437,516,660
+lib/components/fitness/PrivacyZoneMapKit.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 255
+lib/components/map/ResizableMapContainer.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 150
+app/embed/heatmap/[token]/PublicHeatmapEmbed.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 39
+lib/components/fitness/HeatmapShareEmbed.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 342
+lib/components/fitness/RegionMap.tsx
+  s_49da6fa129b372::t_f594d4c3a38a69 409,417,428,441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1223f14a01a80ffbf2b9ab5cddcb4893dde8b99a",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
