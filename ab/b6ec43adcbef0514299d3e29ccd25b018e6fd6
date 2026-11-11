@@ -1,0 +1,35 @@
+lib/components/posts/reaction-row.tsx
+  s_49da6fa129b372::t_e7fbf92bd0817a 135
+lib/components/announcements/AnnouncementBanner.tsx
+  s_49da6fa129b372::t_e7fbf92bd0817a 96
+lib/components/posts/status-reply-box.tsx
+  s_49da6fa129b372::t_e7fbf92bd0817a 969
+lib/components/media-details/subject-suggestions.tsx
+  s_49da6fa129b372::t_e7fbf92bd0817a 267
+app/(timeline)/[actor]/[status]/FitnessRecordingPicker.tsx
+  s_49da6fa129b372::t_e7fbf92bd0817a 190
+lib/components/post-box/post-box.tsx
+  s_49da6fa129b372::t_e7fbf92bd0817a 2426
+lib/components/posts/actions/post-menu.tsx
+  s_49da6fa129b372::t_e7fbf92bd0817a 568
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_49da6fa129b372::t_d88179232dd209 536,542,554,560,566
+docs/architecture.md
+  s_49da6fa129b372::t_880532266b0542 1670
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "abb6ec43adcbef0514299d3e29ccd25b018e6fd6",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
