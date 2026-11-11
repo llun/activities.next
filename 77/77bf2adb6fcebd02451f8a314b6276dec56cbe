@@ -1,0 +1,65 @@
+app/(timeline)/[actor]/ActorMediaGallery.tsx
+  s_83a109278191ce::t_ebdacb5ae222b1 140,148,159,180,190,200
+app/(timeline)/[actor]/ProfileGalleryTab.tsx
+  s_83a109278191ce::t_7693fecb62d6ec 127,149
+app/(timeline)/gallery/(subjects)/loading.tsx
+  s_83a109278191ce::t_ff8da3d9e92749 52
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.tsx
+  s_83a109278191ce::t_e37e2bfe5810a8 115,128,147,158
+app/(timeline)/gallery/albums/GalleryAlbumPicksStrip.tsx
+  s_83a109278191ce::t_fb5cb47e60a621 119,131
+app/(timeline)/gallery/albums/GalleryAlbumSpeciesFilter.tsx
+  s_83a109278191ce::t_8d7d4acecceef3 43,54
+app/(timeline)/gallery/albums/GalleryAlbumsView.tsx
+  s_83a109278191ce::t_5fc2ec781b0381 170,181,193
+app/(timeline)/gallery/albums/[id]/GalleryAlbumDetailView.tsx
+  s_83a109278191ce::t_e7e72912ec6bb1 551,570,594
+app/(timeline)/gallery/albums/loading.tsx
+  s_83a109278191ce::t_0d7ec74c65c752 29-31,36
+app/(timeline)/gallery/gear/GalleryGearListView.tsx
+  s_83a109278191ce::t_557003632384ba 229,270,280-281
+app/(timeline)/gallery/gear/[id]/GalleryGearDetailView.tsx
+  s_83a109278191ce::t_f1f329e0636133 243
+app/(timeline)/gallery/media/GalleryAllMediaView.tsx
+  s_83a109278191ce::t_c4faca5005ebe1 1033
+app/(timeline)/gallery/media/GallerySelectionBar.tsx
+  s_83a109278191ce::t_d7521cf38097e7 122
+lib/components/gallery/GalleryDayHeader.tsx
+  s_83a109278191ce::t_7f55727004ca93 326,335
+lib/components/gallery/GalleryGrid.tsx
+  s_83a109278191ce::t_e02628114fd4d4 236,349
+lib/components/gallery/GalleryLifeListTable.tsx
+  s_83a109278191ce::t_e614e4682582c8 140,193
+lib/components/gallery/GalleryPlacesList.tsx
+  s_83a109278191ce::t_d3ff3e02e6d37b 38,48
+lib/components/gallery/GallerySubjectCard.tsx
+  s_83a109278191ce::t_f3554793823fbb 32,38
+lib/components/gallery/GallerySubjectsOverview.tsx
+  s_83a109278191ce::t_c35a0ccf5b16be 38,171
+lib/components/gallery/MediaAlbumsControl.tsx
+  s_83a109278191ce::t_be7dc5778c894b 82,237,355
+lib/components/media-details/media-details-dialog.tsx
+  s_83a109278191ce::t_30945f996d34a3 1353,1355-1356,1422,1495,1513,1605,1690,1822
+lib/components/media-details/subject-suggestions.tsx
+  s_83a109278191ce::t_2c041e60b47ebf 85,187-189
+lib/components/medias-modal/media-details-panel.tsx
+  s_83a109278191ce::t_7e21c92c803bd1 163
+lib/components/medias-modal/medias-modal.tsx
+  s_83a109278191ce::t_4dbdb9876bca09 549,708
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7777bf2adb6fcebd02451f8a314b6276dec56cbe",
+  "prompts": {},
+  "sessions": {
+    "s_83a109278191ce": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_83a109278191ce",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
