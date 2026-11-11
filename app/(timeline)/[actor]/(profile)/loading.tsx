@@ -31,7 +31,7 @@ export const ProfileLoading: FC = () => {
               <SkeletonBar className="h-7 w-48 max-w-full" />
               <SkeletonBar className="h-4 w-32" />
             </div>
-            <SkeletonBar className="h-9 w-28 shrink-0" />
+            <SkeletonBar className="h-(--control-h) w-28 shrink-0" />
           </div>
 
           <div className="mt-4 space-y-2">

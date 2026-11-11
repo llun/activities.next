@@ -35,6 +35,46 @@ describe('Frame', () => {
     ).toBeTruthy()
   })
 
+  it('draws a hairline between consecutive form rows in a form box only', () => {
+    const { container, rerender } = render(
+      <Frame form>
+        <div data-slot="form-row">One</div>
+        <div data-slot="form-row">Two</div>
+      </Frame>
+    )
+    const rule = '[&_[data-slot=form-row]+[data-slot=form-row]]:border-t'
+    // A row followed by a wrapper (a native <form> around the next rows) whose
+    // first child is a row keeps the rule too.
+    const wrapped =
+      '[&_[data-slot=form-row]+*>[data-slot=form-row]:first-child]:border-t'
+    expect(container.querySelector('[data-slot="frame-content"]')).toHaveClass(
+      rule,
+      wrapped
+    )
+    rerender(
+      <Frame divided>
+        <div data-slot="form-row">One</div>
+      </Frame>
+    )
+    const elements = [...container.querySelectorAll('*')]
+    expect(elements.some((el) => el.classList.contains(rule))).toBe(false)
+    expect(elements.some((el) => el.classList.contains(wrapped))).toBe(false)
+  })
+
+  it.each([false, true])(
+    'puts the footer bar on the card colour under one top rule (stickyFooter %s)',
+    (stickyFooter) => {
+      const { container } = render(
+        <Frame form stickyFooter={stickyFooter} footer={<span>Footer</span>}>
+          <p>Body</p>
+        </Frame>
+      )
+      const footer = container.querySelector('[data-slot="frame-footer"]')
+      expect(footer).toHaveClass('border-t', 'bg-card')
+      expect(footer).not.toHaveClass('bg-background')
+    }
+  )
+
   it('renders no footer band without a footer', () => {
     const { container } = render(
       <Frame>
@@ -53,7 +93,7 @@ describe('Frame', () => {
     expect(container.querySelector('.divide-y')).not.toBeNull()
   })
 
-  it('spaces form rows with py-1.5 and no rules when form', () => {
+  it('pads a form box with py-1.5 instead of dividing it', () => {
     const { container } = render(
       <Frame form>
         <p>One</p>
@@ -96,7 +136,7 @@ describe('Frame', () => {
       'bottom-0',
       'z-10',
       'rounded-b-lg',
-      'bg-background',
+      'bg-card',
       'pb-[max(0.75rem,env(safe-area-inset-bottom))]'
     )
   })

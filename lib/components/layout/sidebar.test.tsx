@@ -108,6 +108,31 @@ describe('Sidebar', () => {
     ).toHaveAttribute('href', '/lists/b')
   })
 
+  // The Lists index row carries a row menu and a chevron beside its link, so
+  // the current-row wash sits on the whole row, not just the link.
+  it('washes the whole Lists row when the index is the current page', () => {
+    renderSidebar(<Sidebar lists={lists} />)
+
+    const nav = screen.getAllByRole('navigation')[0]
+    const link = within(nav).getByRole('link', { name: 'Lists' })
+    expect(link).toHaveAttribute('aria-current', 'page')
+    expect(link.parentElement).toHaveClass(
+      'bg-surface-accent',
+      'shadow-[inset_2px_0_0_var(--primary)]'
+    )
+    expect(link).not.toHaveClass('bg-surface-accent')
+  })
+
+  it('leaves the Lists row unwashed while one of its lists is current', () => {
+    mockPathname.mockReturnValue('/lists/a')
+    renderSidebar(<Sidebar lists={lists} />)
+
+    const nav = screen.getAllByRole('navigation')[0]
+    const link = within(nav).getByRole('link', { name: 'Lists' })
+    expect(link).not.toHaveAttribute('aria-current')
+    expect(link.parentElement).not.toHaveClass('bg-surface-accent')
+  })
+
   it('collapses and re-expands the Lists group on toggle', () => {
     renderSidebar(<Sidebar lists={lists} />)
 
@@ -496,9 +521,12 @@ describe('Sidebar', () => {
       renderSidebar(<Sidebar lists={lists} />)
 
       const nav = screen.getAllByRole('navigation')[0]
-      expect(
-        within(nav).getByRole('link', { name: 'Running club' })
-      ).toHaveAttribute('aria-current', 'page')
+      const listLink = within(nav).getByRole('link', { name: 'Running club' })
+      expect(listLink).toHaveAttribute('aria-current', 'page')
+      expect(listLink).toHaveClass(
+        'bg-surface-accent',
+        'shadow-[inset_2px_0_0_var(--primary)]'
+      )
       // Two links claiming the current page reads it out twice.
       expect(
         within(nav).getByRole('link', { name: 'Lists' })
@@ -522,17 +550,32 @@ describe('Sidebar', () => {
     // `text-primary-text`, never `text-primary`: `--primary` is the icon orange
     // and is under the AA floor as a label (globals.contrast.test.ts guards the
     // token values, not their usage).
-    it('draws only the current row label in the AA-safe text token', () => {
+    it('draws only the current row label in the AA-safe text token and the inset left rule', () => {
       mockPathname.mockReturnValue('/search')
       renderSidebar(<Sidebar lists={[]} />)
 
       const nav = screen.getAllByRole('navigation')[0]
       const active = within(nav).getByRole('link', { name: 'Search' })
-      expect(active).toHaveClass('text-primary-text')
+      expect(active).toHaveClass(
+        'rounded-none',
+        'bg-surface-accent',
+        'text-primary-text',
+        'shadow-[inset_2px_0_0_var(--primary)]'
+      )
       expect(active).not.toHaveClass('text-primary')
-      expect(
-        within(nav).getByRole('link', { name: 'Timeline' })
-      ).not.toHaveClass('text-primary-text')
+      expect(active).not.toHaveClass('bg-primary/10')
+      expect(active).not.toHaveClass('rounded-lg')
+      const inactive = within(nav).getByRole('link', { name: 'Timeline' })
+      expect(inactive).not.toHaveClass('text-primary-text')
+      expect(inactive).not.toHaveClass('bg-surface-accent')
+      expect(inactive).not.toHaveClass('shadow-[inset_2px_0_0_var(--primary)]')
+
+      const rail = screen.getAllByRole('navigation')[1]
+      const activeRail = within(rail).getByRole('link', { name: 'Search' })
+      expect(activeRail).toHaveClass(
+        'bg-surface-accent',
+        'shadow-[inset_2px_0_0_var(--primary)]'
+      )
     })
 
     it('shows the current page on the collapsed More row', () => {

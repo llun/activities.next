@@ -82,8 +82,9 @@ describe('SectionSkeleton', () => {
     const box = frames[1]
     expect(box.querySelector('.divide-y')).toBeNull()
     expect(box.querySelector('[data-slot="frame-footer"]')).not.toBeNull()
-    // Five rows' worth of control bars (w-24) plus the footer button.
-    expect(box.querySelectorAll('.h-9')).toHaveLength(6)
+    // Five rows' worth of control bars (w-24) plus the footer button, at the
+    // controls' own height so nothing shifts when they mount.
+    expect(box.querySelectorAll('[class~="h-(--control-h)"]')).toHaveLength(6)
   })
 
   it('draws a tall control in the rows of the sections named by tallSections', () => {

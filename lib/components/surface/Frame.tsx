@@ -10,9 +10,11 @@ interface Props {
   /** Hairline `divide-y` rules between the children (list rows). */
   divided?: boolean
   /**
-   * One form's box: the children are `FormRow`s (and `FormGroup`s) spaced by
-   * their padding, never divided, with `py-1.5` so the first and last rows sit
-   * 16px from the edge. Wins over `divided`.
+   * One form's box: the children are `FormRow`s (and `FormGroup`s) with a 1px
+   * `--border` hairline between consecutive rows (also across a wrapper, such
+   * as a native `<form>` around some of them, whose first child is a row) and
+   * `py-1.5` so the first and last rows sit 16px from the edge. Wins over
+   * `divided`.
    */
   form?: boolean
   /**
@@ -30,7 +32,8 @@ interface Props {
  * The one flat surface: `rounded-lg border bg-background`, no shadow. Content
  * that belongs together (a settings form's rows, a list's rows, a chart) sits
  * in one Frame: `divided` draws the hairlines between a list's rows, `form`
- * spaces a form's rows with no lines and leaves the one rule above the footer.
+ * draws a hairline between a form's rows and leaves the one rule above the
+ * footer.
  */
 export const Frame: FC<Props> = ({
   footer,
@@ -52,7 +55,10 @@ export const Frame: FC<Props> = ({
     {form ? (
       <div
         data-slot="frame-content"
-        className={cn('py-1.5', stickyFooter && '[&_*]:scroll-mb-24')}
+        className={cn(
+          'py-1.5 [&_[data-slot=form-row]+[data-slot=form-row]]:border-t [&_[data-slot=form-row]+*>[data-slot=form-row]:first-child]:border-t',
+          stickyFooter && '[&_*]:scroll-mb-24'
+        )}
       >
         {children}
       </div>
@@ -69,9 +75,9 @@ export const Frame: FC<Props> = ({
       <div
         data-slot="frame-footer"
         className={cn(
-          'border-t px-4 py-3',
+          'border-t bg-card px-4 py-3',
           stickyFooter &&
-            'sticky bottom-0 z-10 rounded-b-lg bg-background pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+            'sticky bottom-0 z-10 rounded-b-lg pb-[max(0.75rem,env(safe-area-inset-bottom))]'
         )}
       >
         {footer}

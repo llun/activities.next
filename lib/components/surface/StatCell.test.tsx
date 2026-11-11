@@ -8,10 +8,18 @@ import { Activity } from 'lucide-react'
 import { StatCell } from './StatCell'
 
 describe('StatCell', () => {
-  it('shows the value over its label', () => {
+  it('shows the value over its label and formats label with font-mono uppercase', () => {
     render(<StatCell label="Distance" icon={Activity} value="12.3 km" />)
     expect(screen.getByText('12.3 km')).toBeInTheDocument()
-    expect(screen.getByText('Distance')).toBeInTheDocument()
+    const label = screen.getByText('Distance')
+    expect(label).toBeInTheDocument()
+    expect(label).toHaveClass(
+      'font-mono',
+      'text-xs',
+      'uppercase',
+      'tracking-[0.03em]',
+      'text-muted-foreground'
+    )
   })
 
   it('shows a dash, never a zero, for a missing value', () => {
@@ -103,6 +111,45 @@ describe('StatCell', () => {
     expect(link).toHaveTextContent('30')
     expect(screen.queryByRole('button')).toBeNull()
   })
+
+  it.each([
+    {
+      description: 'href link',
+      ui: (
+        <StatCell
+          label="Followers"
+          icon={Activity}
+          value="30"
+          href="/@alice/followers"
+          prefetch={false}
+        />
+      ),
+      label: 'Followers'
+    },
+    {
+      description: 'onSelect button',
+      ui: (
+        <StatCell
+          label="Distance"
+          icon={Activity}
+          value="12.3 km"
+          onSelect={vi.fn()}
+        />
+      ),
+      label: 'Distance'
+    }
+  ])(
+    'formats label with font-mono uppercase for $description',
+    ({ ui, label }) => {
+      render(ui)
+      expect(screen.getByText(label)).toHaveClass(
+        'font-mono',
+        'text-xs',
+        'uppercase',
+        'tracking-[0.03em]'
+      )
+    }
+  )
 
   it('lets onSelect win over href', () => {
     render(

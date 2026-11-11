@@ -161,9 +161,14 @@ describe('LoadMoreButton', () => {
       const wrapper = container.firstElementChild
       expect(wrapper?.tagName).toBe('DIV')
       expect(wrapper?.classList.contains('max-md:h-0')).toBe(overlaid)
+      expect(wrapper?.classList.contains('max-md:-translate-y-12')).toBe(
+        overlaid
+      )
 
+      // The button itself carries no resting translate, so its pressed
+      // `translate-y-px` moves it 1px instead of undoing the lift.
       const button = screen.getByRole('button', { name: 'Load more' })
-      expect(button.classList.contains('max-md:-translate-y-12')).toBe(overlaid)
+      expect(button.className).not.toMatch(/translate-y-12/)
     }
   )
 })

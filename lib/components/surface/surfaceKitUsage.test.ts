@@ -145,8 +145,9 @@ const measure = () => {
 
 // The rows of a form (`FormRow` and every wrapper of it: `SettingsField`,
 // `ControlRow`, `ToggleRow`, `SelectRow`, `ImageUploadField`, `NumberField`)
-// belong in `Frame form`, which spaces them (and pads them to 16px from the
-// edge) instead of ruling them. `Frame divided` is for lists. This reads each
+// belong in `Frame form`, which pads them 16px from the edge and draws its own
+// hairline between consecutive rows (not `divide-y` under every child).
+// `Frame divided` is for lists. This reads each
 // `<Frame ...>` opening tag (balancing `{}` so a `footer={...}` with `>`
 // inside does not end it), finds its matching `</Frame>` and reports a frame
 // whose body holds a form row and that is not `form`: a `divided` one (a rule
@@ -232,7 +233,7 @@ describe('surface kit usage', () => {
     )
     expect(
       offenders,
-      'Form rows (`FormRow`, `SettingsField`, `ToggleRow`, ...) in a `Frame divided` get a hairline between every field, and in a plain `Frame` sit 10px from the edge. A form is one box without rules: use `<Frame form>` (with `FormGroup`s for several groups) and keep `divided` for lists. See "Forms." in docs/architecture.md.'
+      'Form rows (`FormRow`, `SettingsField`, `ToggleRow`, ...) in a `Frame divided` get a hairline between every field, and in a plain `Frame` sit 10px from the edge. A form is one box: use `<Frame form>`, which draws the hairline between its rows (with `FormGroup`s for several groups), and keep `divided` for lists. See "Forms." in docs/architecture.md.'
     ).toEqual([])
   })
 

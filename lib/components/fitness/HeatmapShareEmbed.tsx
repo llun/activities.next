@@ -71,12 +71,13 @@ interface CopyFieldProps {
  * iframe/img snippets and the public link.
  *
  * The field is the shared `Input` / `Textarea` — the design's "Copy field" is a
- * normal input (border, fill and focus ring from `--input`, `shadow-xs`) with a
- * Primary/sm button — only re-sized to the 12px / 11px mono text and 10px inset
- * the kit draws it with. The button keeps a normal 36px height and sits at the
- * top of the row, level with the first line of the snippet, rather than
- * stretching to a snippet that wraps to four or five lines; the single-line
- * field is 36px as well so the two still line up.
+ * normal input (the `--input` border, the inset top shadow and the kit's
+ * two-tone focus ring) with a Primary/sm button — only re-sized to the 12px /
+ * 11px mono text and 10px inset the kit draws it with. The button keeps the
+ * control height (`--control-h`: 36px, 40px on touch) and sits at the top of
+ * the row, level with the first line of the snippet, rather than stretching to
+ * a snippet that wraps to four or five lines; the single-line field is the same
+ * height, so the two still line up.
  */
 const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
   const { copied, copy } = useCopyToClipboard()
@@ -115,7 +116,7 @@ const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
       <Button
         type="button"
         size="sm"
-        className="h-9 shrink-0"
+        className="h-(--control-h) shrink-0"
         onClick={() => copy(value)}
         aria-label={copyLabel}
       >

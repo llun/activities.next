@@ -109,7 +109,9 @@ export const StatCell: FC<Props> = ({
       >
         {icon}
         <span className="flex min-w-0 flex-col-reverse">
-          <span className="text-muted-foreground text-sm">{label}</span>{' '}
+          <span className="font-mono text-xs uppercase tracking-[0.03em] text-muted-foreground">
+            {label}
+          </span>{' '}
           <span className={cn('block', valueClass)}>{valueContent}</span>
         </span>
       </Link>
@@ -121,7 +123,9 @@ export const StatCell: FC<Props> = ({
       <div className={cn(CELL_CLASS, IDLE_BACKGROUND)}>
         {icon}
         <dl className="flex min-w-0 flex-col-reverse">
-          <dt className="text-muted-foreground text-sm">{label}</dt>
+          <dt className="font-mono text-xs uppercase tracking-[0.03em] text-muted-foreground">
+            {label}
+          </dt>
           <dd className={valueClass}>{valueContent}</dd>
         </dl>
       </div>
@@ -148,7 +152,9 @@ export const StatCell: FC<Props> = ({
     >
       {icon}
       <span className="flex min-w-0 flex-col-reverse">
-        <span className="text-muted-foreground text-sm">{label}</span>{' '}
+        <span className="font-mono text-xs uppercase tracking-[0.03em] text-muted-foreground">
+          {label}
+        </span>{' '}
         <span className={cn('block', valueClass)}>{valueContent}</span>
       </span>
     </button>

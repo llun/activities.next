@@ -72,7 +72,7 @@ export const MessagesLoading: FC = () => {
             <div className="border-t p-4 md:p-5">
               <div className="flex items-end gap-2">
                 <SkeletonBar className="h-10 flex-1" />
-                <SkeletonBar className="h-9 w-20 shrink-0" />
+                <SkeletonBar className="h-(--control-h) w-20 shrink-0" />
               </div>
             </div>
           </div>

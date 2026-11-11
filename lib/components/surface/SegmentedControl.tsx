@@ -54,14 +54,14 @@ const TRACK_CLASS =
   'bg-muted flex max-w-full p-1 gap-1 items-center sm:w-fit overflow-x-auto rounded-lg shadow-[inset_0_0_0_1px_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
 // The 4px track padding (`p-1`) creates equal 4px empty space around the
-// segment items on top, bottom, left, and right. The rounded-sm segments (2px,
+// segment items on top, bottom, left, and right. The rounded-md segments (2px,
 // --radius-ctl) sit inside the track's square rounded-lg border (--radius, 0). The `after`
 // pseudo-element (`after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1
 // last:after:-right-1`) expands the interactive hit area across the 4px track
 // padding and 4px gaps, guaranteeing the full 44px (`md`) / 36px (`sm`) touch
 // target and eliminating dead clicks in the padding and between segments.
 const SEGMENT_CLASS =
-  'relative flex flex-[1_1_auto] cursor-pointer items-center justify-center gap-2 rounded-sm px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 aria-disabled:cursor-default aria-disabled:opacity-50 disabled:cursor-default disabled:opacity-50 sm:flex-none after:absolute after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1 last:after:-right-1'
+  'relative flex flex-[1_1_auto] cursor-pointer items-center justify-center gap-2 rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)] forced-colors:focus-visible:[outline-style:solid] forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[CanvasText] aria-disabled:cursor-default aria-disabled:opacity-50 disabled:cursor-default disabled:opacity-50 sm:flex-none after:absolute after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1 last:after:-right-1'
 
 const SIZE_CLASS = {
   md: 'min-h-9 py-1.5',
@@ -70,7 +70,7 @@ const SIZE_CLASS = {
 
 const stateClass = (active: boolean) =>
   active
-    ? 'bg-primary text-primary-foreground'
+    ? 'bg-primary text-primary-foreground shadow-[inset_0_-2px_0_var(--primary-edge)]'
     : 'text-foreground hover:bg-accent'
 
 /**

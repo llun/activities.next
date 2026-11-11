@@ -78,7 +78,8 @@ describe('FitnessPrivacyLocationSettings', () => {
     expect(radiusSelect).toHaveAttribute('data-slot', 'select')
     expect(radiusSelect).toHaveAttribute('id', 'privacyHideRadiusMeters')
     // Standard-height select: no per-field height override.
-    expect(radiusSelect).toHaveClass('h-9')
+    expect(radiusSelect).toHaveClass('h-(--control-h)')
+    expect(radiusSelect).not.toHaveClass('h-9')
     expect(radiusSelect).not.toHaveClass('h-10')
     expect(radiusSelect.parentElement?.querySelector('svg')).toBeNull()
     expect(screen.queryByRole('option', { name: '0m' })).not.toBeInTheDocument()

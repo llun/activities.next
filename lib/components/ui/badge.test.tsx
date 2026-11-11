@@ -14,6 +14,8 @@ describe('Badge', () => {
     expect(badge.tagName).toBe('SPAN')
     expect(badge).toHaveAttribute('data-slot', 'badge')
     expect(badge).toHaveAttribute('data-tone', 'gray')
+    expect(badge).toHaveClass('rounded-md', 'font-mono', 'tabular-nums')
+    expect(badge).not.toHaveClass('rounded-full')
   })
 
   it.each([

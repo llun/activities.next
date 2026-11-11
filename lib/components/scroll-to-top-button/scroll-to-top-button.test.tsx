@@ -70,6 +70,15 @@ describe('ScrollToTopButton', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps its drop shadow while pressed', () => {
+    Object.defineProperty(window, 'scrollY', { value: 500 })
+    render(<ScrollToTopButton isLoadMoreVisible={false} />)
+    const button = screen.getByRole('button', { name: 'Scroll to top' })
+    expect(button).toHaveClass('shadow-lg')
+    // The keycap press only changes --edge-w, so nothing replaces shadow-lg.
+    expect(button.className).not.toMatch(/active:\S*shadow/)
+  })
+
   it('should call window.scrollTo with smooth behavior when clicked', () => {
     Object.defineProperty(window, 'scrollY', { value: 400 })
     render(<ScrollToTopButton />)

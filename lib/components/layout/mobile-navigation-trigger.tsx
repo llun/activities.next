@@ -11,10 +11,11 @@ export type MobileNavigationTriggerProps =
   React.ButtonHTMLAttributes<HTMLButtonElement> & {
     /**
      * `bar` sits at the start of the compact page bar. `floating` is the
-     * profile page's circular button, fixed over the cover at the top-left
-     * inset: it has no bar behind it, so it carries its own solid,
-     * theme-aware surface, hairline border and shadow to stay legible over a
-     * bright or dark cover and over the feed once the cover scrolls away.
+     * profile page's floating keycap button (2 px corner), fixed over the
+     * cover at the top-left inset: it has no bar behind it, so it carries its
+     * own solid, theme-aware surface, `--input` border and keycap bottom edge
+     * to stay legible over a bright or dark cover and over the feed once the
+     * cover scrolls away.
      * It fades while the page is actively scrolling, so it does not sit over
      * the text being read, and returns once scrolling stops; it stays at full
      * opacity while it has keyboard focus or the drawer is open, and it is
@@ -59,7 +60,7 @@ const useIsScrolling = (enabled: boolean) => {
 const VARIANT_CLASS = {
   bar: 'relative flex h-11 w-11 items-center justify-center rounded-lg text-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
   floating:
-    'fixed top-[calc(env(safe-area-inset-top,0px)+16px)] left-[calc(env(safe-area-inset-left,0px)+16px)] z-30 flex size-11 items-center justify-center rounded-full border bg-popover text-popover-foreground shadow-md transition-opacity duration-200 hover:bg-muted focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-foreground motion-reduce:transition-none'
+    'fixed top-[calc(env(safe-area-inset-top,0px)+16px)] left-[calc(env(safe-area-inset-left,0px)+16px)] z-30 flex size-11 items-center justify-center rounded-md border border-input bg-popover text-popover-foreground shadow-[inset_0_-2px_0_var(--control-edge)] transition-opacity duration-200 hover:bg-muted focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-foreground motion-reduce:transition-none'
 } as const
 
 /**

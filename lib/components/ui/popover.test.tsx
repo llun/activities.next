@@ -38,13 +38,23 @@ describe('Popover', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open' }))
     expect(screen.getByText('Panel body')).toBeInTheDocument()
-    expect(screen.getByText('Panel body')).toHaveAttribute(
-      'data-slot',
-      'popover-content'
-    )
 
     fireEvent.keyDown(screen.getByText('Panel body'), { key: 'Escape' })
     expect(screen.queryByText('Panel body')).not.toBeInTheDocument()
+  })
+
+  it('draws the content as a flat overlay: rounded-none, border-input, and no shadow', () => {
+    render(
+      <Popover open>
+        <PopoverTrigger>Open</PopoverTrigger>
+        <PopoverContent>Panel body</PopoverContent>
+      </Popover>
+    )
+    const content = screen.getByText('Panel body')
+    expect(content).toHaveAttribute('data-slot', 'popover-content')
+    expect(content).toHaveClass('rounded-none', 'border-input')
+    expect(content).not.toHaveClass('rounded-md')
+    expect(content).not.toHaveClass('shadow-md')
   })
 
   it('renders content that is open on mount', () => {

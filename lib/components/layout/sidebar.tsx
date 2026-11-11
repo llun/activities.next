@@ -150,7 +150,7 @@ const NavRowMenu = ({
           type="button"
           aria-label={`Customize ${item.label} navigation`}
           className={cn(
-            'grid shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
+            'grid shrink-0 place-items-center rounded-none text-muted-foreground hover:bg-muted hover:text-foreground',
             isDrawer
               ? 'h-11 w-11 opacity-100'
               : cn('h-7 w-7', hoverControlClassName),
@@ -422,14 +422,21 @@ export function Sidebar({
               // The Lists entry expands into the user's lists when they have
               // any; otherwise it stays a plain link to the (empty) index.
               if (item.id === 'lists' && lists.length > 0) {
+                const isListsActive =
+                  isListsSectionActive &&
+                  !lists.some((list) => pathname === `/lists/${list.id}`)
                 return (
                   <li key={item.id}>
                     <div
                       className={cn(
-                        'group flex items-center rounded-lg text-sm font-medium transition-colors',
+                        'group flex items-center rounded-none text-sm font-medium transition-colors',
                         isListsSectionActive
                           ? 'text-primary-text'
-                          : 'text-muted-foreground'
+                          : 'text-muted-foreground',
+                        // The wash spans the whole row, under the row menu
+                        // and chevron too, like every other current row.
+                        isListsActive &&
+                          'bg-surface-accent shadow-[inset_2px_0_0_var(--primary)]'
                       )}
                     >
                       <Link
@@ -439,16 +446,9 @@ export function Sidebar({
                         // page: inside one of the lists below, that link is the
                         // claimant; anywhere else in the section — the index,
                         // the new-list form, a list's edit page — this row is.
-                        aria-current={
-                          isListsSectionActive &&
-                          !lists.some(
-                            (list) => pathname === `/lists/${list.id}`
-                          )
-                            ? 'page'
-                            : undefined
-                        }
+                        aria-current={isListsActive ? 'page' : undefined}
                         className={cn(
-                          'flex flex-1 items-center gap-3 rounded-lg px-3 py-2 transition-colors',
+                          'flex flex-1 items-center gap-3 rounded-none px-3 py-2 transition-colors',
                           isDrawer && 'min-h-[44px]',
                           !isListsSectionActive &&
                             'hover:bg-muted hover:text-foreground'
@@ -471,7 +471,7 @@ export function Sidebar({
                         aria-expanded={isListsOpen}
                         onClick={() => setListsOpen((open) => !open)}
                         className={cn(
-                          'mr-1 rounded-md p-1 hover:bg-muted hover:text-foreground',
+                          'mr-1 rounded-none p-1 hover:bg-muted hover:text-foreground',
                           isDrawer &&
                             'min-h-[44px] min-w-[44px] flex items-center justify-center'
                         )}
@@ -504,10 +504,10 @@ export function Sidebar({
                                 onClick={onNavigate}
                                 aria-current={isListActive ? 'page' : undefined}
                                 className={cn(
-                                  'block truncate rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                                  'block truncate rounded-none px-3 py-2 text-sm font-medium transition-colors',
                                   isDrawer && 'min-h-[44px] flex items-center',
                                   isListActive
-                                    ? 'bg-primary/10 text-primary-text'
+                                    ? 'bg-surface-accent text-primary-text shadow-[inset_2px_0_0_var(--primary)]'
                                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                 )}
                               >
@@ -531,10 +531,10 @@ export function Sidebar({
                     aria-current={isActive ? 'page' : undefined}
                     prefetch={item.id === 'profile' ? false : undefined}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative',
+                      'flex items-center gap-3 rounded-none px-3 py-2 text-sm font-medium transition-colors relative',
                       isDrawer ? 'min-h-[44px] pr-14' : 'pr-10',
                       isActive
-                        ? 'bg-primary/10 text-primary-text'
+                        ? 'bg-surface-accent text-primary-text shadow-[inset_2px_0_0_var(--primary)]'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     )}
                   >
@@ -607,7 +607,7 @@ export function Sidebar({
                   onClick={() => setMoreOpen((open) => !open)}
                   aria-expanded={isMoreOpen}
                   className={cn(
-                    'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground',
+                    'flex w-full items-center gap-3 rounded-none px-3 py-2 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground',
                     isDrawer && 'min-h-[44px]',
                     isMoreSectionActive && !isMoreOpen
                       ? 'text-primary-text'
@@ -653,10 +653,10 @@ export function Sidebar({
                             aria-current={isActive ? 'page' : undefined}
                             prefetch={item.id === 'profile' ? false : undefined}
                             className={cn(
-                              'flex items-center gap-3 rounded-lg py-1.5 pl-6 text-sm transition-colors',
+                              'flex items-center gap-3 rounded-none py-1.5 pl-6 text-sm transition-colors',
                               isDrawer ? 'min-h-[44px] pr-14' : 'pr-10',
                               isActive
-                                ? 'bg-primary/10 text-primary-text'
+                                ? 'bg-surface-accent text-primary-text shadow-[inset_2px_0_0_var(--primary)]'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                             )}
                           >
@@ -673,7 +673,7 @@ export function Sidebar({
                             aria-label={`Show ${item.label} in navigation`}
                             onClick={() => restoreRow(item.id)}
                             className={cn(
-                              'absolute right-1.5 top-1/2 grid -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground',
+                              'absolute right-1.5 top-1/2 grid -translate-y-1/2 place-items-center rounded-none text-muted-foreground hover:bg-muted hover:text-foreground',
                               isDrawer
                                 ? 'h-11 w-11 opacity-100'
                                 : cn('h-7 w-7', hoverControlClassName)
@@ -706,7 +706,7 @@ export function Sidebar({
           <div className={accountRowClassName} aria-hidden="true">
             <div
               className={cn(
-                'flex items-center gap-3 rounded-lg p-2',
+                'flex items-center gap-3 rounded-none p-2',
                 isDrawer && 'min-h-[44px]'
               )}
             >
@@ -759,9 +759,9 @@ export function Sidebar({
                           }
                           aria-current={isActive ? 'page' : undefined}
                           className={cn(
-                            'flex items-center justify-center rounded-lg p-3 transition-colors relative',
+                            'flex items-center justify-center rounded-none p-3 transition-colors relative',
                             isActive
-                              ? 'bg-primary/10 text-primary'
+                              ? 'bg-surface-accent text-primary shadow-[inset_2px_0_0_var(--primary)]'
                               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                           )}
                         >
@@ -805,9 +805,9 @@ export function Sidebar({
                         type="button"
                         aria-label="More navigation"
                         className={cn(
-                          'flex w-full items-center justify-center rounded-lg p-3 transition-colors',
+                          'flex w-full items-center justify-center rounded-none p-3 transition-colors',
                           isMoreSectionActive
-                            ? 'bg-primary/10 text-primary'
+                            ? 'bg-surface-accent text-primary shadow-[inset_2px_0_0_var(--primary)]'
                             : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                         )}
                       >
@@ -873,7 +873,7 @@ export function Sidebar({
                                 showItem(item.id)
                               }}
                               className={cn(
-                                'absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 justify-center rounded-md p-0',
+                                'absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 justify-center rounded-none p-0',
                                 // On touch the eye takes the row's whole height
                                 // and the link's right padding, so a near miss
                                 // restores instead of navigating away.

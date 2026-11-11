@@ -24,12 +24,12 @@ const Loading: FC = () => (
         <DescriptionSkeleton lines={[2, 1]} />
       </div>
       <Frame className="space-y-4 p-4">
-        <SkeletonBar className="h-9" />
-        <SkeletonBar className="h-9" />
+        <SkeletonBar className="h-(--control-h)" />
+        <SkeletonBar className="h-(--control-h)" />
         <SkeletonBar className="h-28" />
-        <SkeletonBar className="h-9" />
+        <SkeletonBar className="h-(--control-h)" />
         <SkeletonBar className="h-32" />
-        <SkeletonBar className="h-9" />
+        <SkeletonBar className="h-(--control-h)" />
       </Frame>
     </div>
   </ScreenSkeleton>

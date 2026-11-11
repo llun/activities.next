@@ -10,7 +10,7 @@ export const LOAD_MORE_CONTAINER_CLASS =
   'text-center py-4 max-md:pt-6 max-md:pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]'
 
 export const LOAD_MORE_OVERLAY_CONTAINER_CLASS =
-  'md:py-4 md:text-center md:mt-0 md:h-auto max-md:relative max-md:z-10 max-md:-mt-6 max-md:h-0 max-md:flex max-md:justify-center max-md:pointer-events-none'
+  'md:py-4 md:text-center md:mt-0 md:h-auto max-md:relative max-md:z-10 max-md:-mt-6 max-md:h-0 max-md:flex max-md:justify-center max-md:pointer-events-none max-md:-translate-y-12'
 
 export type LoadMorePresentation = 'in-flow' | 'overlay'
 
@@ -60,8 +60,10 @@ export const LoadMoreButton: FC<LoadMoreButtonProps> = ({
         // and unaffected, and so is a `size="sm"` pill, which the design does
         // not draw.
         (props.size ?? 'default') === 'default' && 'min-w-[110px]',
-        isOverlayWithItems &&
-          'max-md:pointer-events-auto max-md:-translate-y-12',
+        // The lift over the last post sits on the wrapper, not here: the
+        // keycap's pressed `translate-y-px` would replace a translate on the
+        // button and drop it 49px out from under the finger mid-tap.
+        isOverlayWithItems && 'max-md:pointer-events-auto',
         className
       )}
       {...props}
