@@ -20,7 +20,7 @@ export const SearchLoading: FC = () => {
         <SkeletonBar className="h-(--control-h) w-20 shrink-0" />
       </section>
 
-      <SkeletonBar className="h-11 w-full rounded-sm" />
+      <SkeletonBar className="h-11 w-full rounded-lg" />
 
       <Frame divided>
         {[0, 1, 2].map((index) => (
