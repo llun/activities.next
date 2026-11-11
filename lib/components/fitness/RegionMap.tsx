@@ -406,7 +406,7 @@ export const RegionMap: FC<RegionMapProps> = ({
 
       {isReady && (
         <>
-          <span className="pointer-events-none absolute left-2 top-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-sm">
+          <span className="pointer-events-none absolute left-2 top-2 rounded-sm bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-sm">
             {providerLabel}
           </span>
           <div className="absolute right-2 top-2 flex gap-1.5">
@@ -414,7 +414,7 @@ export const RegionMap: FC<RegionMapProps> = ({
               type="button"
               size="sm"
               variant={drawMode ? 'default' : 'outline'}
-              className="h-7 px-2 text-xs shadow-sm"
+              className="h-7 px-2 text-xs"
               aria-pressed={drawMode}
               onClick={() => setDrawMode((value) => !value)}
             >
@@ -425,7 +425,7 @@ export const RegionMap: FC<RegionMapProps> = ({
               type="button"
               size="sm"
               variant="outline"
-              className="h-7 px-2 text-xs shadow-sm"
+              className="h-7 px-2 text-xs"
               onClick={() => {
                 const map = mapRef.current
                 if (map) locateUser(map, false)
@@ -438,7 +438,7 @@ export const RegionMap: FC<RegionMapProps> = ({
           <div
             ref={hintRef}
             className={cn(
-              'pointer-events-none absolute inset-x-2 bottom-2 rounded bg-background/90 px-2 py-1 text-center text-[11px] shadow-sm',
+              'pointer-events-none absolute inset-x-2 bottom-2 rounded-sm bg-background/90 px-2 py-1 text-center text-[11px] shadow-sm',
               drawMode ? 'text-foreground' : 'text-muted-foreground'
             )}
           >

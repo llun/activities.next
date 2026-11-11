@@ -507,7 +507,7 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
         <MapLoadingOverlay />
       ) : (
         <>
-          <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border bg-background/95 shadow-sm">
+          <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-sm border border-input bg-background/95 shadow-[inset_0_-2px_0_var(--control-edge)]">
             <button
               type="button"
               onClick={() => zoomBy(ZOOM_IN_FACTOR)}

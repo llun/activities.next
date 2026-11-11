@@ -36,7 +36,7 @@ export const PublicHeatmapEmbed: FC<PublicHeatmapEmbedProps> = ({
         heightClassName="h-dvh"
       />
       {caption && (
-        <div className="pointer-events-none absolute left-3 top-3 max-w-[80%] truncate rounded-md bg-background/90 px-2.5 py-1 text-sm font-medium text-foreground shadow-sm">
+        <div className="pointer-events-none absolute left-3 top-3 max-w-[80%] truncate rounded-sm bg-background/90 px-2.5 py-1 text-sm font-medium text-foreground shadow-sm">
           {caption}
         </div>
       )}

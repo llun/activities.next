@@ -339,7 +339,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
                     {entry.label}
                   </button>
                 ))}
-                <span className="self-center px-2 text-[11px] text-muted-foreground/80 tabular-nums">
+                <span className="self-center px-2 font-mono text-[11px] text-muted-foreground/80 tabular-nums">
                   {size.width}×{size.height}
                 </span>
               </div>

@@ -243,7 +243,7 @@ export const GalleryMapKit: FC<GalleryMapKitProps> = ({
       {!isReady ? (
         <MapLoadingOverlay />
       ) : (
-        <span className="bg-background/90 text-muted-foreground pointer-events-none absolute top-2 left-2 rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm">
+        <span className="bg-background/90 text-muted-foreground pointer-events-none absolute top-2 left-2 rounded-sm px-1.5 py-0.5 text-[10px] font-medium shadow-sm">
           {APPLE_MAPS_LABEL}
         </span>
       )}

@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 export const AppleMapsChip: FC<{ className?: string }> = ({ className }) => (
   <div
     className={cn(
-      'pointer-events-none absolute rounded bg-background/90 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-sm',
+      'pointer-events-none absolute rounded-sm bg-background/90 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-sm',
       className
     )}
   >
