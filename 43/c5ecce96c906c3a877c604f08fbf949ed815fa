@@ -1,0 +1,46 @@
+lib/components/notification-badge/NotificationBadge.tsx
+  s_49da6fa129b372::t_dddbcb21e54a14 23
+lib/components/medias-modal/medias-modal.tsx
+  s_49da6fa129b372::t_dddbcb21e54a14 549
+app/(timeline)/[actor]/[status]/ActivityAnalysisChart.tsx
+  s_49da6fa129b372::t_dddbcb21e54a14 522
+app/(timeline)/gallery/albums/GalleryAlbumSuggestionReview.tsx
+  s_49da6fa129b372::t_110c2e6538bb34 295
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_49da6fa129b372::t_dddbcb21e54a14 142
+lib/components/posts/attachments.layout.test.tsx
+  s_49da6fa129b372::t_572de28f2dd6ef 58,63
+  s_49da6fa129b372::t_ddd78788741590 71,80
+app/(timeline)/gallery/albums/GalleryAlbumPicker.tsx
+  s_49da6fa129b372::t_110c2e6538bb34 583,646
+app/(timeline)/gallery/albums/galleryAlbumsUi.ts
+  s_49da6fa129b372::t_dddbcb21e54a14 122
+app/(timeline)/[actor]/[status]/ActivityMapPanel.tsx
+  s_49da6fa129b372::t_dddbcb21e54a14 860,879
+app/(timeline)/[actor]/[status]/FitnessRecordingPicker.tsx
+  s_49da6fa129b372::t_dddbcb21e54a14 70
+lib/components/announcements/AnnouncementBanner.tsx
+  s_49da6fa129b372::t_dddbcb21e54a14 63
+lib/components/posts/actions/actionButtonShared.tsx
+  s_49da6fa129b372::t_dddbcb21e54a14 73
+app/(timeline)/notifications/components/MarkAllReadButton.tsx
+  s_49da6fa129b372::t_dddbcb21e54a14 51
+app/(timeline)/gallery/media/GalleryAddToAlbumDialog.tsx
+  s_49da6fa129b372::t_110c2e6538bb34 271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "43c5ecce96c906c3a877c604f08fbf949ed815fa",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
