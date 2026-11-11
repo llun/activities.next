@@ -1,0 +1,27 @@
+lib/components/ui/checkbox.tsx
+  s_49da6fa129b372::t_6870e55306bea5 22-23
+lib/components/fitness/calendar/MetricSelector.test.tsx
+  s_49da6fa129b372::t_a772cd6560552d 71-79
+lib/components/surface/SegmentedControl.tsx
+  s_49da6fa129b372::t_6870e55306bea5 64
+lib/components/fitness/calendar/MetricSelector.tsx
+  s_49da6fa129b372::t_6870e55306bea5 104
+lib/components/surface/SegmentedControl.test.tsx
+  s_49da6fa129b372::t_a772cd6560552d 59-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64e7ba2277b2ad4926b4d227d8c2e6b55aad4f9a",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
