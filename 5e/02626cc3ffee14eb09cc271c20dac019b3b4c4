@@ -1,0 +1,19 @@
+lib/components/photo-editor/masks/MaskThumb.tsx
+  s_27af3c6c4ce8db::t_d12e39456c8b1f 66-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5e02626cc3ffee14eb09cc271c20dac019b3b4c4",
+  "prompts": {},
+  "sessions": {
+    "s_27af3c6c4ce8db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84e3da51-cf48-4e25-a20b-af16eb1bdfca",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
