@@ -26,7 +26,7 @@ const buttonVariants = cva(
         ghost:
           'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
         link: 'text-primary-text underline-offset-4 hover:underline',
-        pill: 'rounded-md bg-card border border-input shadow-[shadow:inset_0_calc(var(--edge-w,2px)*-1)_0_var(--control-edge)] hover:bg-accent hover:text-accent-foreground active:not-disabled:not-aria-disabled:translate-y-px active:not-disabled:not-aria-disabled:[--edge-w:1px]'
+        pill: 'bg-card border border-input shadow-[shadow:inset_0_calc(var(--edge-w,2px)*-1)_0_var(--control-edge)] hover:bg-accent hover:text-accent-foreground active:not-disabled:not-aria-disabled:translate-y-px active:not-disabled:not-aria-disabled:[--edge-w:1px]'
       },
       size: {
         default: 'h-(--control-h) px-4 py-2 has-[>svg]:px-3',

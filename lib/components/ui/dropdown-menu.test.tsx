@@ -40,7 +40,30 @@ const renderMenu = () =>
     </DropdownMenu>
   )
 
+const renderOpenSub = () =>
+  render(
+    <DropdownMenu open modal={false}>
+      <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuSub open>
+          <DropdownMenuSubTrigger>Translate to</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem>English</DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
 describe('DropdownMenu', () => {
+  it('draws the open sub menu as the same flat overlay', () => {
+    renderOpenSub()
+    const sub = screen.getByText('English').closest('[role="menu"]')
+    expect(sub).not.toBeNull()
+    expect(sub).toHaveClass('rounded-none', 'border-input')
+    expect(sub?.className).not.toMatch(/shadow-(md|lg)|rounded-md/)
+  })
+
   it('draws content as flat overlay: rounded-none, border-input, and no shadow', () => {
     renderMenu()
     const content = screen.getByRole('menu')

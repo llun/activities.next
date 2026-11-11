@@ -48,17 +48,21 @@ describe('Button', () => {
     expect(button).not.toHaveClass('rounded-full')
   })
 
-  it('preserves rounded-md when combined with lg size', () => {
-    render(
-      <Button variant="pill" size="lg">
-        Large pill
-      </Button>
-    )
-    const button = screen.getByRole('button', { name: 'Large pill' })
-    expect(button).toHaveAttribute('data-size', 'lg')
-    expect(button).toHaveClass('rounded-md', 'h-10')
-    expect(button).not.toHaveClass('rounded-full')
-  })
+  // The pill used to override the control radius with rounded-full; it now
+  // takes the base 2px corner like every other variant, at every size.
+  it.each(['default', 'sm', 'lg'] as const)(
+    'gives a %s pill the control radius, not a round one',
+    (size) => {
+      render(
+        <Button variant="pill" size={size}>
+          Pill
+        </Button>
+      )
+      const button = screen.getByRole('button', { name: 'Pill' })
+      expect(button).toHaveClass('rounded-md')
+      expect(button.className).not.toMatch(/rounded-(full|lg|xl)/)
+    }
+  )
 
   it('renders the link variant in the orange TEXT colour, not the icon orange', () => {
     render(<Button variant="link">Link</Button>)
