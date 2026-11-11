@@ -33,7 +33,7 @@ export const LockedFieldHelp: FC<{ envVar?: string }> = ({ envVar }) =>
   envVar ? (
     <>
       Pinned by{' '}
-      <code className="bg-muted rounded px-1 py-px font-mono text-[11px]">
+      <code className="bg-muted rounded-sm px-1 py-px font-mono text-[11px]">
         {envVar}
       </code>{' '}
       — unset it to manage this here.

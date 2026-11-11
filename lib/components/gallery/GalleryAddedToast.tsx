@@ -68,7 +68,7 @@ export const GalleryAddedToast: FC<Props> = ({
                 action.disabled && action.hint ? hintId : undefined
               }
               onClick={action.onSelect}
-              className="text-primary-text focus-visible:ring-ring/50 min-h-6 shrink-0 rounded px-1 font-semibold outline-none hover:underline focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50 pointer-coarse:min-h-10"
+              className="text-primary-text focus-visible:ring-ring/50 min-h-6 shrink-0 rounded-sm px-1 font-semibold outline-none hover:underline focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50 pointer-coarse:min-h-10"
             >
               {action.label}
             </button>
@@ -83,7 +83,7 @@ export const GalleryAddedToast: FC<Props> = ({
           type="button"
           aria-label="Dismiss"
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 -mr-1 flex size-6 shrink-0 items-center justify-center rounded outline-none focus-visible:ring-[3px] pointer-coarse:size-10"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 -mr-1 flex size-6 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] pointer-coarse:size-10"
         >
           <X className="size-4" aria-hidden="true" />
         </button>

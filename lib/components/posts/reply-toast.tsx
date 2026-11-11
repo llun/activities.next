@@ -44,7 +44,7 @@ export const ReplyToast: FC<ReplyToastProps> = ({
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss notification"
-        className="ml-1 rounded p-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        className="ml-1 rounded-sm p-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
       >
         <X className="size-4" />
       </button>

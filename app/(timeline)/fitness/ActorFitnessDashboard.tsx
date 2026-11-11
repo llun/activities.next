@@ -149,8 +149,8 @@ export function OverviewSkeleton() {
           so the strip below stays put when the overview replaces this. */}
       <div aria-hidden="true" className="space-y-3 @min-[600px]:hidden">
         <div className="h-12 space-y-1.5 pt-1">
-          <span className="block h-5 w-44 rounded skeleton" />
-          <span className="block h-4 w-32 rounded skeleton" />
+          <span className="block h-5 w-44 rounded-sm skeleton" />
+          <span className="block h-4 w-32 rounded-sm skeleton" />
         </div>
         <div className="flex justify-end gap-2">
           <span className="block h-11 w-56 rounded-md skeleton" />
@@ -163,7 +163,7 @@ export function OverviewSkeleton() {
         className="bg-border overflow-hidden rounded-lg border"
       />
       <div aria-hidden="true" className="space-y-4">
-        <span className="block h-5 w-36 rounded skeleton" />
+        <span className="block h-5 w-36 rounded-sm skeleton" />
         <span className="block h-11 w-full max-w-80 rounded-lg skeleton" />
         <span className="block h-40 w-full rounded-lg skeleton" />
       </div>

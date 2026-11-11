@@ -19,7 +19,7 @@ interface FollowListLoadingSkeletonProps {
 const MobileBackRowSkeleton: FC<{ className?: string }> = ({ className }) => (
   <div className={cn('flex items-center', MOBILE_BACK_ROW_CLASS, className)}>
     <div className="skeleton size-5 shrink-0 rounded-md max-md:size-4" />
-    <div className="skeleton h-4 w-28 rounded md:hidden" />
+    <div className="skeleton h-4 w-28 rounded-sm md:hidden" />
   </div>
 )
 
@@ -61,7 +61,7 @@ export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
             <span className="skeleton block h-7 w-28 rounded-md" />
           </span>
         }
-        description={<span className="skeleton block h-4 w-24 rounded" />}
+        description={<span className="skeleton block h-4 w-24 rounded-sm" />}
       />
 
       {/* Signed-in, below `md`: the loaded PageHeader box under the bar — a
@@ -72,7 +72,7 @@ export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
       >
         <div className="mx-auto max-w-content px-4 pb-4 pt-2">
           <MobileBackRowSkeleton />
-          <div className="skeleton h-5 w-24 rounded" />
+          <div className="skeleton h-5 w-24 rounded-sm" />
         </div>
       </div>
 
@@ -81,7 +81,7 @@ export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
         <div className="skeleton mt-0.5 size-5 shrink-0 rounded-md" />
         <div className="space-y-1">
           <div className="skeleton h-7 w-28 rounded-md" />
-          <div className="skeleton h-4 w-24 rounded" />
+          <div className="skeleton h-4 w-24 rounded-sm" />
         </div>
       </div>
 

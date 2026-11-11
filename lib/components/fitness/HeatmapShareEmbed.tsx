@@ -274,7 +274,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
           type="button"
           onClick={() => setOpen(false)}
           aria-label="Close share & embed"
-          className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="size-4" />
         </button>

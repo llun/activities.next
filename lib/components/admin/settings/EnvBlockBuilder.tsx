@@ -35,7 +35,7 @@ interface EnvBlockLine {
 }
 
 const EnvVarName: FC<{ name: string }> = ({ name }) => (
-  <code className="rounded bg-muted px-1 py-px font-mono text-[11px]">
+  <code className="rounded-sm bg-muted px-1 py-px font-mono text-[11px]">
     {name}
   </code>
 )

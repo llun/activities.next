@@ -520,7 +520,7 @@ const RegionRow: FC<RegionRowProps> = ({
           type="button"
           onClick={onEdit}
           aria-label="Edit area"
-          className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Pencil className="size-3.5" />
         </button>
@@ -529,7 +529,7 @@ const RegionRow: FC<RegionRowProps> = ({
         type="button"
         onClick={onRemove}
         aria-label={isWorld ? 'Remove region' : 'Remove area'}
-        className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Trash2 className="size-3.5" />
       </button>

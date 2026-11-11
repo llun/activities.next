@@ -455,11 +455,11 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
                 : formatRectRegion(region)}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5">
+              <span className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5">
                 <Activity className="size-3" />
                 {meta.activity}
               </span>
-              <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5">
+              <span className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5">
                 <Calendar className="size-3" />
                 {meta.period}
               </span>

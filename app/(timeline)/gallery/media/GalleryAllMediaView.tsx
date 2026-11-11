@@ -794,7 +794,7 @@ export const GalleryAllMediaView: FC<Props> = ({
               type="button"
               aria-label="Dismiss"
               onClick={() => setOutcome(null)}
-              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 flex size-6 shrink-0 items-center justify-center rounded outline-none focus-visible:ring-[3px] pointer-coarse:size-10"
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 flex size-6 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] pointer-coarse:size-10"
             >
               <X className="size-4" aria-hidden="true" />
             </button>

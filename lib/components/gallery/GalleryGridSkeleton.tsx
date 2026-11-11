@@ -39,7 +39,7 @@ export const GalleryGridSkeleton: FC<Props> = ({
       captions ? (
         <div key={index} aria-hidden="true" className="space-y-1.5">
           <div className="skeleton aspect-square rounded-md" />
-          <div className="skeleton h-3.5 w-2/3 rounded" />
+          <div className="skeleton h-3.5 w-2/3 rounded-sm" />
         </div>
       ) : (
         <div

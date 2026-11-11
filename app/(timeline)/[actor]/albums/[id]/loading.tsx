@@ -43,15 +43,15 @@ const Loading: FC = () => (
         className="skeleton relative aspect-[4/3] w-full overflow-hidden rounded-lg border sm:aspect-[16/7]"
       >
         <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-6">
-          <div className="skeleton h-8 w-2/3 rounded sm:h-9" />
-          <div className="skeleton mt-1 h-5 w-1/3 rounded" />
+          <div className="skeleton h-8 w-2/3 rounded-sm sm:h-9" />
+          <div className="skeleton mt-1 h-5 w-1/3 rounded-sm" />
         </div>
       </div>
       {/* The facts line (text-sm) and the byline (text-xs) in their
           `space-y-1` block. */}
       <div aria-hidden="true" className="space-y-1">
-        <div className="skeleton h-5 w-2/3 rounded" />
-        <div className="skeleton h-4 w-1/2 rounded" />
+        <div className="skeleton h-5 w-2/3 rounded-sm" />
+        <div className="skeleton h-4 w-1/2 rounded-sm" />
       </div>
       {/* The sort row and the grid in the loaded `space-y-4` section. The
           species chips are data-dependent; they are `h-8`, so the Select

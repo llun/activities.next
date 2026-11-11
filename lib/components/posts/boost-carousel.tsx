@@ -45,7 +45,7 @@ export function BoostCarousel({
             type="button"
             aria-label="Previous boosts"
             onClick={() => handleScroll(-300)}
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none"
+            className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none"
           >
             ←
           </button>
@@ -53,7 +53,7 @@ export function BoostCarousel({
             type="button"
             aria-label="Next boosts"
             onClick={() => handleScroll(300)}
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none"
+            className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none"
           >
             →
           </button>

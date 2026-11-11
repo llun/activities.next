@@ -41,7 +41,7 @@ export const TimelineLoading: FC = () => {
             <div className="skeleton size-8 rounded-md" />
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <div className="skeleton h-4 w-8 rounded" />
+            <div className="skeleton h-4 w-8 rounded-sm" />
             <div className="skeleton h-8 w-16 rounded-md" />
           </div>
         </div>
