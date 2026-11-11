@@ -13,7 +13,7 @@ import { RecordsSkeleton } from './PersonalRecordsView'
 const Loading: FC = () => (
   <ScreenSkeleton titleWidth="w-20" description={<DescriptionSkeleton />}>
     <div className="space-y-6">
-      <SkeletonBar className="h-11 w-72 max-w-full rounded-lg" />
+      <SkeletonBar className="h-11 w-72 max-w-full rounded-sm" />
       <RecordsSkeleton />
     </div>
   </ScreenSkeleton>

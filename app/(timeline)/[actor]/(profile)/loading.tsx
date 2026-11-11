@@ -51,7 +51,7 @@ export const ProfileLoading: FC = () => {
       </section>
 
       <div className="space-y-4">
-        <SkeletonBar className="h-11 w-full rounded-lg sm:w-80" />
+        <SkeletonBar className="h-11 w-full rounded-sm sm:w-80" />
         <PostListSkeleton />
       </div>
     </div>

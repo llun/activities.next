@@ -15,7 +15,7 @@ export const ExploreLoading: FC = () => (
       title={<SkeletonBar className="h-7 w-24" />}
       description={<SkeletonBar className="h-4 w-64 max-w-full" />}
     />
-    <SkeletonBar className="h-11 w-full rounded-lg sm:w-72" />
+    <SkeletonBar className="h-11 w-full rounded-sm sm:w-72" />
     <Frame divided>
       {[0, 1, 2, 3].map((index) => (
         <div

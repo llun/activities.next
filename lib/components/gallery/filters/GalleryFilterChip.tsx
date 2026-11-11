@@ -66,7 +66,7 @@ export const GalleryFilterChip: FC<GalleryFilterChipProps> = ({
           <span
             className={cn(
               'truncate',
-              active && 'max-w-[180px]',
+              active && 'max-w-[180px] font-mono tabular-nums',
               active && activeLabelClassName
             )}
           >

@@ -42,8 +42,8 @@ export const ANALYSIS_GRAPH_STYLES = ANALYSIS_SERIES_COLOURS
 //
 // Placing labels at their fractions costs the even gaps: the flush-right last
 // label sits half its width inside its own fraction, so with five or more
-// labels the one before it collides once the plot is under ~315px for
-// "H:MM:SS" labels. `dropPenultimateWhenNarrow` hides that one label below
+// labels the one before it collides once the plot is under ~360px for
+// mono "H:MM:SS" labels. `dropPenultimateWhenNarrow` hides that one label below
 // 400px, measured on the label row itself (a container query, never the
 // viewport: the plot can be narrow in a wide window).
 export const ChartTimeLabels: FC<{
