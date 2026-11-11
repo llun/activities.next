@@ -125,7 +125,7 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
         {isMember ? (
           <span
             aria-hidden="true"
-            className="absolute right-1 bottom-1 left-1 flex items-center justify-center gap-1 rounded-sm bg-black/70 px-1.5 py-0.5 font-mono text-xs font-medium tabular-nums text-white"
+            className="absolute right-1 bottom-1 left-1 flex items-center justify-center gap-1 rounded-sm bg-black/70 px-1.5 py-0.5 text-xs font-medium tabular-nums text-white"
           >
             <Check className="size-3 shrink-0" />
             <span className="truncate">In album</span>
@@ -144,7 +144,7 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
             {item.inGallery === false ? (
               <span
                 aria-hidden="true"
-                className="absolute right-1 bottom-1 left-1 flex items-center justify-center gap-1 rounded-sm bg-black/70 px-1.5 py-0.5 font-mono text-xs font-medium tabular-nums text-white"
+                className="absolute right-1 bottom-1 left-1 flex items-center justify-center gap-1 rounded-sm bg-black/70 px-1.5 py-0.5 text-xs font-medium tabular-nums text-white"
               >
                 <EyeOff className="size-3 shrink-0" />
                 <span className="truncate max-sm:hidden">Not in gallery</span>

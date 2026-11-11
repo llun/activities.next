@@ -361,7 +361,7 @@ export const MaskStageLayer = ({
       {hint || busy ? (
         <span
           data-testid="mask-hint"
-          className="pointer-events-none absolute top-2 left-2 inline-flex items-center gap-1.5 rounded-sm bg-black/60 px-2.5 py-1 font-mono text-xs font-medium tabular-nums text-white backdrop-blur"
+          className="pointer-events-none absolute top-2 left-2 inline-flex items-center gap-1.5 rounded-sm bg-black/60 px-2.5 py-1 text-xs font-medium tabular-nums text-white backdrop-blur"
         >
           {busy ? (
             <Loader2 className="size-3 animate-spin" aria-hidden="true" />

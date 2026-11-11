@@ -256,7 +256,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
                     </td>
                     <td
                       className={cn(
-                        'px-3 py-3 text-right align-middle font-semibold whitespace-nowrap font-mono tabular-nums',
+                        'px-3 py-3 text-right align-middle font-semibold whitespace-nowrap tabular-nums',
                         gear.retiredAt && 'opacity-60'
                       )}
                     >

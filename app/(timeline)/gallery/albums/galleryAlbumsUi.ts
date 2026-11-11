@@ -119,7 +119,7 @@ export const TOUCH_BUTTON_CLASS =
 /** A filter chip: a pill with a count, active when it is the current filter. */
 export const getAlbumChipClassName = (isActive: boolean): string =>
   cn(
-    'focus-visible:ring-ring/50 inline-flex h-8 min-w-0 cursor-pointer items-center gap-1.5 rounded-sm border px-3 font-mono text-sm font-medium tabular-nums outline-none focus-visible:ring-[3px]',
+    'focus-visible:ring-ring/50 inline-flex h-8 min-w-0 cursor-pointer items-center gap-1.5 rounded-sm border px-3 text-sm font-medium tabular-nums outline-none focus-visible:ring-[3px]',
     TOUCH_BAND_CLASS,
     isActive
       ? 'border-primary bg-primary/10 text-primary-text'

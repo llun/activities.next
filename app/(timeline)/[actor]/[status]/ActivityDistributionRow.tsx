@@ -48,7 +48,7 @@ const MiniChart: FC<{
       {children}
     </svg>
     <span aria-hidden="true" />
-    <div className="relative h-4 font-mono text-xs tabular-nums text-muted-foreground">
+    <div className="relative h-4 text-xs tabular-nums text-muted-foreground">
       {xAxis}
     </div>
   </div>
