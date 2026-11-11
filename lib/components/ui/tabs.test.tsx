@@ -51,6 +51,7 @@ describe('Tabs', () => {
     )
     const trigger = screen.getByRole('tab', { name: 'Tab 1' })
     expect(trigger).toHaveClass(
+      'outline-none',
       'focus-visible:outline-none',
       'focus-visible:border-ring',
       'focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)]',

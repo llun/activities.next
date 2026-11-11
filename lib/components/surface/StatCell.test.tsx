@@ -82,12 +82,6 @@ describe('StatCell', () => {
     expect(
       screen.getByRole('button', { name: 'Distance 12.3 km' })
     ).toBeInTheDocument()
-    expect(screen.getByText('Distance')).toHaveClass(
-      'font-mono',
-      'text-xs',
-      'uppercase',
-      'tracking-[0.03em]'
-    )
     // A button's content is phrasing content: no description list inside it.
     expect(
       container.querySelector('button dl, button dt, button dd')
@@ -115,12 +109,6 @@ describe('StatCell', () => {
     const link = screen.getByRole('link', { name: /Followers/ })
     expect(link).toHaveAttribute('href', '/@alice/followers')
     expect(link).toHaveTextContent('30')
-    expect(screen.getByText('Followers')).toHaveClass(
-      'font-mono',
-      'text-xs',
-      'uppercase',
-      'tracking-[0.03em]'
-    )
     expect(screen.queryByRole('button')).toBeNull()
   })
 

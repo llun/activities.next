@@ -102,7 +102,8 @@ describe('Button', () => {
       'bg-card',
       'border',
       'border-input',
-      'hover:bg-accent'
+      'hover:bg-accent',
+      'hover:text-accent-foreground'
     )
     expect(button).not.toHaveClass('bg-secondary')
   })
