@@ -104,7 +104,7 @@ export const PresetsPanel = ({
               <span>{ENHANCE_COPY.strength}</span>
               <span
                 className={cn(
-                  'tabular-nums',
+                  'font-mono tabular-nums',
                   ai.strength !== DEFAULT_ENHANCE_STRENGTH
                     ? 'font-semibold text-primary-text'
                     : 'text-muted-foreground'

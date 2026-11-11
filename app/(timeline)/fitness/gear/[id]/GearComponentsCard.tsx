@@ -566,7 +566,7 @@ export const GearComponentsCard: FC<Props> = ({
                       )}
                       style={dataColumnStyle(DISTANCE_COLUMN_WIDTH)}
                     >
-                      <span className="font-semibold tabular-nums">
+                      <span className="font-semibold font-mono tabular-nums">
                         {formatGearDistanceKm(component.distanceMeters)}
                       </span>
                       <WearBar component={component} />

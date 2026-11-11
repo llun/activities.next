@@ -78,10 +78,7 @@ export const GalleryShowSelect: FC<Props> = ({
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className="h-10 w-full justify-between rounded-lg"
-          >
+          <Button variant="outline" className="h-10 w-full justify-between">
             <span>
               <span className="text-muted-foreground font-normal">Show</span>{' '}
               {active.label}
@@ -92,7 +89,7 @@ export const GalleryShowSelect: FC<Props> = ({
         <DropdownMenuContent
           align="start"
           sideOffset={6}
-          className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-xl shadow-lg"
+          className="w-(--radix-dropdown-menu-trigger-width) min-w-64"
         >
           {GALLERY_SHOW_OPTIONS.map((option) => {
             const isActive = option.id === active.id

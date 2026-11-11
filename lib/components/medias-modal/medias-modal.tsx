@@ -546,7 +546,7 @@ export const MediasModal: FC<Props> = ({
               })
             }}
             className={cn(
-              'absolute bottom-3 z-20 mx-auto max-w-2xl divide-y divide-white/10 overflow-y-auto rounded-2xl bg-black/70 p-4 text-left text-white ring-1 ring-white/10 outline-none backdrop-blur-md empty:hidden focus-visible:ring-2 focus-visible:ring-white/60',
+              'absolute bottom-3 z-20 mx-auto max-w-2xl divide-y divide-white/10 overflow-y-auto rounded-none bg-black/70 p-4 text-left text-white ring-1 ring-white/10 outline-none backdrop-blur-md empty:hidden focus-visible:ring-2 focus-visible:ring-white/60',
               shouldShowNavigation
                 ? 'inset-x-3 max-h-[calc(50%-2.5rem)]'
                 : 'inset-x-3 max-h-[40%] md:max-h-[50%]'
@@ -705,7 +705,7 @@ export const MediasModal: FC<Props> = ({
                   : `Thumbnail ${index + 1}`
               }
               className={cn(
-                'relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded border-2 transition-colors md:h-20 md:w-20',
+                'relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-none border-2 transition-colors md:h-20 md:w-20',
                 index === currentIndex
                   ? 'border-primary'
                   : 'border-transparent opacity-60 hover:opacity-100'

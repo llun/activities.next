@@ -82,7 +82,7 @@ const contextCaption = (
 
 const chipClass = (selected: boolean, dashed = false) =>
   cn(
-    'inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-sm outline-none',
+    'inline-flex min-h-9 items-center gap-2 rounded-sm border px-3 font-mono text-sm tabular-nums outline-none',
     'focus-visible:ring-[3px] focus-visible:ring-ring/50',
     dashed && 'border-dashed',
     selected
@@ -184,9 +184,9 @@ export const SubjectSuggestions: FC<Props> = ({
       {suggesting ? (
         <div role="status" className="flex flex-wrap gap-2">
           <span className="sr-only">Reading details</span>
-          <SkeletonBar className="h-8 w-28 rounded-full" />
-          <SkeletonBar className="h-8 w-20 rounded-full" />
-          <SkeletonBar className="h-8 w-32 rounded-full" />
+          <SkeletonBar className="h-8 w-28 rounded-sm" />
+          <SkeletonBar className="h-8 w-20 rounded-sm" />
+          <SkeletonBar className="h-8 w-32 rounded-sm" />
         </div>
       ) : null}
 
@@ -264,7 +264,7 @@ export const SubjectSuggestions: FC<Props> = ({
         <button
           type="button"
           onClick={onSearch}
-          className="flex h-[38px] w-full items-center gap-2 rounded-lg border bg-background px-3 text-left text-sm text-muted-foreground outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="flex h-(--control-h) w-full items-center gap-2 rounded-md border border-input bg-background px-3 shadow-[inset_0_1px_0_hsl(0_0%_0%/0.04)] text-left text-sm text-muted-foreground outline-none hover:bg-accent/50 dark:bg-input/30 dark:hover:bg-accent/50 focus-visible:outline-none focus-visible:border-ring focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)] forced-colors:focus-visible:[outline-style:solid] forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[CanvasText]"
         >
           <Search aria-hidden="true" className="size-4 shrink-0" />
           <span className="truncate">

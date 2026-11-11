@@ -83,7 +83,7 @@ interface FieldView {
 }
 
 const MORE_CLASS =
-  'cursor-pointer rounded px-1 py-0.5 text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+  'cursor-pointer rounded-sm px-1 py-0.5 text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
 
 // The profile's metadata fields ("links") on one wrapping line under the bio:
 // a muted icon and the value per field, folded behind "+N more" past the first

@@ -62,12 +62,8 @@ export const SectionNavSelect = <Id extends string>({
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          {/* The design's trigger is taller and softer-cornered than the shared
-              Button default (h-10 / rounded-lg, not h-9 / rounded-md). */}
-          <Button
-            variant="outline"
-            className="h-10 w-full justify-between rounded-lg"
-          >
+          {/* The design's trigger is h-10 (40px) at every width; the shared Button default is 36px on fine pointers and 40px under a coarse one. */}
+          <Button variant="outline" className="h-10 w-full justify-between">
             <span className="flex items-center gap-2">
               <ActiveIcon className="size-4 text-primary" />
               {activeTab.label}
@@ -88,7 +84,7 @@ export const SectionNavSelect = <Id extends string>({
         <DropdownMenuContent
           align="start"
           sideOffset={6}
-          className="w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg"
+          className="w-(--radix-dropdown-menu-trigger-width)"
         >
           {tabs.map((tab) => {
             const Icon = tab.icon

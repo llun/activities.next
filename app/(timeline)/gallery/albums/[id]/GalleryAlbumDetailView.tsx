@@ -548,7 +548,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
                   const label = getAlbumTileLabel(item, index)
                   return (
                     <li key={item.mediaId} className="min-w-0">
-                      <div className="bg-muted/20 relative aspect-square overflow-hidden rounded-md">
+                      <div className="bg-muted/20 relative aspect-square overflow-hidden rounded-none">
                         <GalleryAlbumThumb item={item} />
                         <button
                           type="button"
@@ -567,7 +567,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
                         {isCover && isPinned ? (
                           <span
                             data-testid="album-cover-marker"
-                            className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-xs font-medium text-white"
+                            className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-sm bg-black/65 px-2 py-0.5 text-xs font-medium text-white"
                           >
                             <Star
                               className="size-3 fill-current"
@@ -591,7 +591,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
                             disabled={busyId !== null}
                             onClick={() => void handleSetCover(item, index)}
                             className={cn(
-                              'focus-visible:outline-primary absolute bottom-1.5 left-1.5 inline-flex h-7 cursor-pointer items-center gap-1 rounded-full bg-black/65 px-1.5 text-xs font-medium whitespace-nowrap text-white hover:bg-black/80 focus-visible:outline-2 disabled:opacity-50 max-[380px]:w-7 max-[380px]:justify-center max-[380px]:px-0',
+                              'focus-visible:outline-primary absolute bottom-1.5 left-1.5 inline-flex h-7 cursor-pointer items-center gap-1 rounded-sm bg-black/65 px-1.5 text-xs font-medium whitespace-nowrap text-white hover:bg-black/80 focus-visible:outline-2 disabled:opacity-50 max-[380px]:w-7 max-[380px]:justify-center max-[380px]:px-0',
                               TOUCH_BUTTON_CLASS
                             )}
                           >

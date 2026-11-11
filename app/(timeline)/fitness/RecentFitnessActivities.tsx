@@ -80,7 +80,7 @@ export const RecentFitnessActivities: FC<Props> = ({
                 prefetch={false}
                 scroll={false}
                 aria-label={`Clear ${label} filter`}
-                className="inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium break-words text-primary-text transition-colors hover:bg-muted"
+                className="inline-flex max-w-full items-center gap-1 rounded-sm border px-2.5 py-0.5 font-mono text-xs font-medium tabular-nums break-words text-primary-text transition-colors hover:bg-muted"
               >
                 {label}
                 <X className="size-3 shrink-0" aria-hidden="true" />

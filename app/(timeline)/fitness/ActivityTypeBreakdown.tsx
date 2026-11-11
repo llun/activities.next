@@ -123,16 +123,16 @@ export const ActivityTypeBreakdown: FC<Props> = ({
                     className="border-b last:border-b-0"
                   >
                     <td className="px-4 py-3.5">
-                      <span className="block h-3.5 w-3/4 max-w-28 rounded skeleton" />
+                      <span className="block h-3.5 w-3/4 max-w-28 rounded-sm skeleton" />
                     </td>
                     <td className="px-3 py-3.5">
-                      <span className="ml-auto block h-3.5 w-full max-w-6 rounded skeleton" />
+                      <span className="ml-auto block h-3.5 w-full max-w-6 rounded-sm skeleton" />
                     </td>
                     <td className="px-3 py-3.5">
-                      <span className="ml-auto block h-3.5 w-full max-w-14 rounded skeleton" />
+                      <span className="ml-auto block h-3.5 w-full max-w-14 rounded-sm skeleton" />
                     </td>
                     <td className="px-4 py-3.5">
-                      <span className="ml-auto block h-3.5 w-full max-w-16 rounded skeleton" />
+                      <span className="ml-auto block h-3.5 w-full max-w-16 rounded-sm skeleton" />
                     </td>
                   </tr>
                 ))
@@ -190,13 +190,13 @@ export const ActivityTypeBreakdown: FC<Props> = ({
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                      <td className="px-3 py-3 text-right whitespace-nowrap font-mono tabular-nums">
                         {item.count}
                       </td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                      <td className="px-3 py-3 text-right whitespace-nowrap font-mono tabular-nums">
                         {formatDuration(item.totalDurationSeconds)}
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">
+                      <td className="px-4 py-3 text-right whitespace-nowrap font-mono tabular-nums">
                         {formatDistance(item.totalDistanceMeters)}
                       </td>
                     </tr>

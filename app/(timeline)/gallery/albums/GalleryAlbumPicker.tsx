@@ -580,7 +580,7 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
             <div
               key={index}
               aria-hidden="true"
-              className="skeleton aspect-square rounded-md"
+              className="skeleton aspect-square rounded-none"
             />
           ))}
         </div>
@@ -643,7 +643,7 @@ export const GalleryAlbumPicker: FC<GalleryAlbumPickerProps> = ({
                       aria-hidden="true"
                       className={index >= 3 ? 'hidden sm:block' : undefined}
                     >
-                      <div className="skeleton aspect-square rounded-md" />
+                      <div className="skeleton aspect-square rounded-none" />
                     </li>
                   ))
                 : null}

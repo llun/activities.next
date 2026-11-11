@@ -642,7 +642,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                         type="button"
                         onClick={() => toggleThreadExpanded(row.entryIds)}
                         aria-expanded={false}
-                        className="rounded px-1 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                        className="rounded-sm px-1 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                       >
                         Show {threadStatuses.length - 2} earlier posts in thread
                       </button>

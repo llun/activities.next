@@ -167,7 +167,9 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
                       <Lock className="size-3" aria-hidden="true" />
                     ) : null}
                     {FILTER_LABELS[value]}
-                    <span className="tabular-nums">{counts[value]}</span>
+                    <span className="font-mono tabular-nums">
+                      {counts[value]}
+                    </span>
                   </button>
                 )
               })}
@@ -178,7 +180,7 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
                 type="button"
                 onClick={() => openCreate('suggestions')}
                 className={cn(
-                  'bg-primary/10 text-primary-text hover:bg-primary/15 focus-visible:ring-ring/50 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3 text-sm font-medium underline underline-offset-2 outline-none focus-visible:ring-[3px]',
+                  'bg-primary/10 text-primary-text hover:bg-primary/15 focus-visible:ring-ring/50 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-sm px-3 text-sm font-medium underline underline-offset-2 outline-none focus-visible:ring-[3px]',
                   TOUCH_BAND_CLASS
                 )}
               >
@@ -190,7 +192,7 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
               // arrives (at 320px it sits on a row of its own).
               <span
                 aria-hidden="true"
-                className="skeleton h-8 w-44 rounded-full"
+                className="skeleton h-8 w-44 rounded-sm"
               />
             ) : null}
           </div>

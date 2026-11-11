@@ -7,14 +7,14 @@ import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 export const NOTE_CLASS =
   'fixed right-5 bottom-5 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg'
 export const ACTION_CLASS =
-  'rounded font-semibold text-primary-text hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+  'rounded-sm font-semibold text-primary-text hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
 export const DismissButton = ({ onDismiss }: { onDismiss: () => void }) => (
   <button
     type="button"
     onClick={onDismiss}
     aria-label="Dismiss notification"
-    className="ml-1 rounded p-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    className="ml-1 rounded-sm p-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
   >
     <X className="size-4" />
   </button>

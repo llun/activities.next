@@ -37,7 +37,7 @@ const DOCUMENT_CLASS = [
   '[&>p.policy-label]:mt-7 [&>p.policy-label:first-child]:mt-0! [&>p.policy-label]:font-semibold [&>p.policy-label_strong]:font-semibold [&>h2+p.policy-label]:mt-4! [&>p.policy-label+ul]:mt-1.5! [&>p.policy-label+ol]:mt-1.5!',
   '[&_a]:text-(color:--link-color) [&_a:hover]:text-(color:--link-color-hover) [&_a]:underline [&_a:hover]:no-underline',
   '[&_blockquote]:mt-4 [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground',
-  '[&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:font-mono [&_code]:text-sm',
+  '[&_code]:bg-muted [&_code]:rounded-sm [&_code]:px-1 [&_code]:font-mono [&_code]:text-sm',
   '[&_pre]:bg-muted [&_pre]:mt-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:p-4 [&_pre_code]:bg-transparent [&_pre_code]:p-0',
   '[&_hr]:my-8 [&_hr]:border-t',
   '[&_table]:mt-4 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:text-sm [&_table]:[overflow-wrap:normal] [&_th]:border [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_td]:border [&_td]:px-3 [&_td]:py-1.5'
@@ -90,7 +90,10 @@ export const PolicyDocumentPage: FC<PolicyDocumentPageProps> = async ({
         {updatedAt ? (
           <p className="text-muted-foreground mt-1.5 text-sm md:mt-2">
             Last updated{' '}
-            <time dateTime={updatedAt.toISOString()}>
+            <time
+              dateTime={updatedAt.toISOString()}
+              className="font-mono tabular-nums"
+            >
               {format(updatedAt, 'd MMMM yyyy')}
             </time>
           </p>

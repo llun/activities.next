@@ -67,7 +67,7 @@ const getRecordingSummary = (file: StatusFitnessFileItem): string =>
     .join(' · ')
 
 const OUTLINE_SQUARE_BUTTON =
-  'inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg border bg-card text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50'
+  'inline-flex size-[30px] shrink-0 items-center justify-center rounded-sm border border-input bg-card text-muted-foreground shadow-[inset_0_-2px_0_var(--control-edge)] transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50'
 
 /**
  * The selected recording's download. `href` is set only for the owner:
@@ -104,7 +104,7 @@ const DownloadRecordingButton: FC<{
 }
 
 const PRIMARY_PILL =
-  'shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground'
+  'shrink-0 rounded-sm border px-1.5 py-px font-mono text-[10px] font-medium uppercase tracking-wide tabular-nums text-muted-foreground'
 
 /**
  * The selected recording's device page (the owner) or its manufacturer (a
@@ -187,7 +187,7 @@ const RecordingPicker: FC<{
         // `shrink` over the button's own `shrink-0`: next to the download
         // button the trigger is what gives, truncating its label, so the two
         // stay on one line on a phone.
-        className="h-[30px] min-w-0 max-w-[min(100%,18rem)] shrink gap-1.5 rounded-lg px-2.5 text-sm font-medium"
+        className="h-[30px] min-w-0 max-w-[min(100%,18rem)] shrink gap-1.5 px-2.5 text-sm font-medium"
       >
         <Watch className="size-3.5 text-primary" aria-hidden="true" />
         <span className="truncate">{getRecordingLabel(selected)}</span>
@@ -198,15 +198,15 @@ const RecordingPicker: FC<{
         />
       </Button>
     </DropdownMenuTrigger>
-    {/* Chrome shared with `SectionNavSelect` (rounded-xl menu, rounded-lg rows,
-        the orange wash on the current one) — the two menus sit within a screen
-        of each other on this page and a mismatch reads as a mistake. */}
+    {/* Chrome shared with `SectionNavSelect` (the orange wash on the
+        current one) — the two menus sit within a screen of each other on this
+        page and a mismatch reads as a mistake. */}
     <DropdownMenuContent
       align="start"
       sideOffset={6}
       // Keeps the menu off the screen edge on a phone instead of flush to it.
       collisionPadding={16}
-      className="w-80 max-w-[calc(100vw-2rem)] rounded-xl shadow-lg"
+      className="w-80 max-w-[calc(100vw-2rem)]"
     >
       <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         Recordings

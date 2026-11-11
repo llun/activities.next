@@ -86,7 +86,7 @@ export const LanguagesPicker: FC<LanguagesPickerProps> = ({
       {value.map((code) => (
         <span
           key={code}
-          className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 py-1 pl-3 pr-1.5 text-sm font-medium text-primary-text"
+          className="inline-flex items-center gap-1.5 rounded-sm border border-primary/40 bg-primary/10 py-1 pl-3 pr-1.5 font-mono text-sm font-medium tabular-nums text-primary-text"
         >
           {labelForCode(code)}
           {!disabled && (

@@ -249,7 +249,7 @@ export const ReactionPicker: FC<ReactionPickerProps> = ({
         ref={setPanel}
         role="dialog"
         aria-label="Choose a reaction"
-        className="bg-background fixed z-40 w-72 overflow-hidden rounded-xl border shadow-lg"
+        className="bg-background fixed z-40 w-72 overflow-hidden rounded-none border border-input"
         style={{
           top: position?.top ?? 0,
           left: position?.left ?? 0,

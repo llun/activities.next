@@ -252,7 +252,7 @@ export const PrivacyZoneMapKit: FC<PrivacyZoneMapKitProps> = ({
       {!isMapReady ? (
         <MapLoadingOverlay />
       ) : (
-        <span className="pointer-events-none absolute left-2 top-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-sm">
+        <span className="pointer-events-none absolute left-2 top-2 rounded-sm bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-sm">
           {APPLE_MAPS_LABEL}
         </span>
       )}

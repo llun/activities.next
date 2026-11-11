@@ -70,11 +70,11 @@ const SwitchIndicator: FC<{ checked: boolean }> = ({ checked }) => (
   <span
     aria-hidden="true"
     data-state={checked ? 'checked' : 'unchecked'}
-    className="ml-auto inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent bg-control-off transition-colors data-[state=checked]:bg-primary"
+    className="ml-auto inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-sm border border-input bg-control-off transition-colors data-[state=checked]:bg-primary"
   >
     <span
       className={cn(
-        'block size-4 rounded-full bg-background shadow-xs transition-transform dark:bg-foreground',
+        'block size-4 rounded-[1px] bg-background transition-transform dark:bg-foreground',
         checked
           ? 'translate-x-[calc(100%-2px)] dark:bg-primary-foreground'
           : 'translate-x-0'

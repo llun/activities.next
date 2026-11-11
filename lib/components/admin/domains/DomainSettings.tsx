@@ -392,7 +392,10 @@ const CheckBox: FC<{
         {checkedAt !== null ? (
           <>
             Last checked{' '}
-            <time dateTime={new Date(checkedAt).toISOString()}>
+            <time
+              dateTime={new Date(checkedAt).toISOString()}
+              className="font-mono tabular-nums"
+            >
               {checkedAtText}
             </time>
             .

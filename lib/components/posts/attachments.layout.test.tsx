@@ -55,29 +55,29 @@ describe('Attachments', () => {
   describe('corner treatment & nested elements', () => {
     it.each([
       {
-        description: 'rounds a lone picture on all four corners',
+        description: 'keeps a lone picture square',
         sizes: [{ width: 800, height: 600 }],
-        expectedCorners: ['rounded-2xl']
+        expectedCorners: ['rounded-none']
       },
       {
-        description: 'rounds only the outer edges of a two-item strip',
+        description: 'keeps every item of a two-item strip square',
         sizes: [
           { width: 800, height: 600 },
           { width: 800, height: 600 }
         ],
-        expectedCorners: ['rounded-l-2xl', 'rounded-r-2xl']
+        expectedCorners: ['rounded-none', 'rounded-none']
       },
       {
-        description: 'leaves the middle of a three-item strip square',
+        description: 'keeps every item of a three-item strip square',
         sizes: [
           { width: 800, height: 600 },
           { width: 600, height: 900 },
           { width: 1200, height: 500 }
         ],
-        expectedCorners: ['rounded-l-2xl', 'rounded-none', 'rounded-r-2xl']
+        expectedCorners: ['rounded-none', 'rounded-none', 'rounded-none']
       },
       {
-        description: 'leaves both middles of a four-item strip square',
+        description: 'keeps every item of a four-item strip square',
         sizes: [
           { width: 800, height: 600 },
           { width: 600, height: 900 },
@@ -85,10 +85,10 @@ describe('Attachments', () => {
           { width: 1200, height: 500 }
         ],
         expectedCorners: [
-          'rounded-l-2xl',
           'rounded-none',
           'rounded-none',
-          'rounded-r-2xl'
+          'rounded-none',
+          'rounded-none'
         ]
       }
     ])('$description', ({ sizes, expectedCorners }) => {
@@ -124,14 +124,14 @@ describe('Attachments', () => {
 
     it.each([
       {
-        description: 'rounds a lone video on all four corners',
+        description: 'keeps a lone video square',
         count: 1,
-        expectedCorners: ['rounded-2xl']
+        expectedCorners: ['rounded-none']
       },
       {
-        description: 'rounds only the outer edges of a three-video strip',
+        description: 'keeps every video of a three-video strip square',
         count: 3,
-        expectedCorners: ['rounded-l-2xl', 'rounded-none', 'rounded-r-2xl']
+        expectedCorners: ['rounded-none', 'rounded-none', 'rounded-none']
       }
     ])('$description', ({ count, expectedCorners }) => {
       const items = Array.from({ length: count }, () =>

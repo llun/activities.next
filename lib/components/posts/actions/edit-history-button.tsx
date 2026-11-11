@@ -65,7 +65,7 @@ export const EditHistoryButton: FC<Props> = ({
     <div className="inline-flex">
       <button
         ref={triggerRef}
-        className="flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted"
+        className="flex cursor-pointer items-center gap-1.5 rounded-sm px-2 py-1 font-mono text-sm tabular-nums transition-colors hover:bg-muted"
         onClick={(e) => {
           e.stopPropagation()
           onShowEdits?.(status)
@@ -102,7 +102,7 @@ export const EditHistoryButton: FC<Props> = ({
           // the horizontal fit here cannot lean on the ancestor either. Below
           // `md` the panel is viewport-fixed instead, so the post's own width
           // stops mattering.
-          className="absolute bottom-full right-0 z-20 mb-2 w-[25rem] rounded-lg border bg-background shadow-lg max-md:fixed max-md:inset-x-4 max-md:bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] max-md:max-h-[calc(100dvh-5rem)] max-md:w-auto"
+          className="absolute bottom-full right-0 z-20 mb-2 w-[25rem] rounded-none border border-input bg-background max-md:fixed max-md:inset-x-4 max-md:bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] max-md:max-h-[calc(100dvh-5rem)] max-md:w-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b px-3 py-2">
@@ -128,7 +128,7 @@ export const EditHistoryButton: FC<Props> = ({
                   key={`${edit.createdAt}-${index}`}
                   className="flex flex-col items-start p-3"
                 >
-                  <div className="self-end bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs">
+                  <div className="self-end bg-primary text-primary-foreground px-3 py-1 rounded-sm font-mono text-xs tabular-nums">
                     {formatDistance(
                       edit.editedAt ?? edit.createdAt,
                       currentTime
@@ -142,13 +142,13 @@ export const EditHistoryButton: FC<Props> = ({
                       edit.changes.map((change) => (
                         <span
                           key={change}
-                          className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground"
+                          className="rounded-sm bg-muted px-2 py-1 font-mono text-xs tabular-nums text-muted-foreground"
                         >
                           {changeLabels[change]}
                         </span>
                       ))
                     ) : (
-                      <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
+                      <span className="rounded-sm bg-muted px-2 py-1 font-mono text-xs tabular-nums text-muted-foreground">
                         Status updated
                       </span>
                     )}

@@ -197,7 +197,7 @@ const ActivityAnalysisLoadingState: FC<{
                 data-testid="analysis-series-chip-placeholder"
                 data-series={key}
                 data-series-label={label}
-                className="flex items-center gap-2 rounded-full border bg-background px-3 py-1"
+                className="flex items-center gap-2 rounded-sm border bg-background px-3 py-1"
               >
                 <span className="size-2 shrink-0 rounded-full bg-muted" />
                 <SkeletonBar className={`h-5 ${widthClass}`} />
@@ -533,13 +533,13 @@ export const FitnessStatusDetail: FC<Props> = ({
     {
       key: 'elevation',
       label: 'Elevation',
-      widthClass: 'w-16',
+      widthClass: 'w-20',
       available: hasSummaryElevation
     },
     {
       key: 'speed',
       label: 'Speed',
-      widthClass: 'w-10',
+      widthClass: 'w-11',
       available: distanceMeters > 0 && durationSeconds > 0
     },
     {
@@ -551,19 +551,19 @@ export const FitnessStatusDetail: FC<Props> = ({
     {
       key: 'heart-rate',
       label: 'Heart rate',
-      widthClass: 'w-16',
+      widthClass: 'w-22',
       available: hasSummaryHeartRate
     },
     {
       key: 'cadence',
       label: 'Cadence',
-      widthClass: 'w-14',
+      widthClass: 'w-15',
       available: likelyHasCadence
     },
     {
       key: 'grade',
       label: 'Grade',
-      widthClass: 'w-10',
+      widthClass: 'w-11',
       available: hasSummaryElevation && distanceMeters > 0
     }
   ].filter(({ available }) => available)

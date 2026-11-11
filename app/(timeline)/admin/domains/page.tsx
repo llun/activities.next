@@ -172,7 +172,7 @@ const Page = async () => {
                   )}
                 </td>
                 <td
-                  className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS} tabular-nums`}
+                  className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS} font-mono tabular-nums`}
                 >
                   {domain.profiles}
                 </td>

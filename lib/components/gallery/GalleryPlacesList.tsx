@@ -35,7 +35,7 @@ const PlaceRow: FC<PlaceRowProps> = ({ place, meta, onOpen }) => {
             key={thumbnail}
             src={thumbnail}
             alt=""
-            className="border-background size-10 rounded-md border-2 object-cover"
+            className="border-background size-10 rounded-none border-2 object-cover"
           />
         ))}
       </div>
@@ -45,7 +45,7 @@ const PlaceRow: FC<PlaceRowProps> = ({ place, meta, onOpen }) => {
           <p className="text-muted-foreground truncate text-xs">{meta}</p>
         ) : null}
       </div>
-      <span className="text-sm font-semibold tabular-nums">
+      <span className="font-mono text-sm font-semibold tabular-nums">
         {place.count}
         <span className="sr-only">
           {place.count === 1 ? ' photo or video' : ' photos and videos'}

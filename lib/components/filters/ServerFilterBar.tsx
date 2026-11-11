@@ -67,7 +67,7 @@ export const ServerFilterBar: FC<ServerFilterBarProps> = ({
           onClick={() => {
             setSheetOpen(true)
           }}
-          className="h-10 rounded-lg font-normal"
+          className="h-10 font-normal"
         >
           <SlidersHorizontal className="size-4" aria-hidden="true" />
           {activeCount > 0 ? `Filters · ${activeCount}` : 'Filters'}

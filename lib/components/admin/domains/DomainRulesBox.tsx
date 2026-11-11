@@ -406,7 +406,7 @@ export const DomainRulesBox: FC<Props> = ({
                         focusGripAfterMove.current = draft.key
                       }
                     }}
-                    className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 mt-2 cursor-grab rounded transition-colors focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 mt-2 cursor-grab rounded-sm transition-colors focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <GripVertical className="size-4" />
                   </button>

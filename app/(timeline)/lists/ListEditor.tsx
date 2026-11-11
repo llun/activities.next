@@ -423,7 +423,7 @@ export const ListEditor: FC<ListEditorProps> = ({
             />
 
             {isDropdownOpen && searchQuery.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-40 mt-1.5 rounded-lg border bg-popover p-1 shadow-lg">
+              <div className="absolute left-0 right-0 top-full z-40 mt-1.5 rounded-none border border-input bg-popover p-1">
                 {suggestions.length > 0 ? (
                   <ul className="divide-y divide-border/50">
                     {suggestions.map((account) => (

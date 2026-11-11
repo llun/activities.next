@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 // Base styling shared by every post action button (like/bookmark/repost).
 // Callers append a colour variant via cn(ACTION_BUTTON_CLASS, ...).
 export const ACTION_BUTTON_CLASS =
-  'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
+  'flex cursor-pointer items-center gap-1.5 rounded-sm px-2 py-1 font-mono text-sm tabular-nums transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
 
 export const OFFLINE_MESSAGE = "You're offline"
 
@@ -70,7 +70,7 @@ export const useDismissingError = () => {
 }
 
 const ACTION_ERROR_CLASS =
-  'pointer-events-none w-max max-w-[min(12rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm'
+  'pointer-events-none w-max max-w-[min(12rem,calc(100vw-2rem))] break-words rounded-md border border-input bg-background px-2 py-1 text-left text-xs text-destructive'
 
 interface ActionErrorProps {
   message: string

@@ -383,7 +383,7 @@ const GalleryGlMapSurface: FC<GalleryGlMapProps> = ({
       <div ref={containerRef} className="h-full w-full" />
       {!isLoaded && <MapLoadingOverlay />}
       {isLoaded && (
-        <div className="bg-background/90 text-muted-foreground pointer-events-none absolute top-3 left-3 rounded px-2 py-1 text-xs shadow-sm">
+        <div className="bg-background/90 text-muted-foreground pointer-events-none absolute top-3 left-3 rounded-sm px-2 py-1 text-xs shadow-sm">
           {provider.label}
         </div>
       )}
@@ -405,7 +405,7 @@ const describePoint = (point: GalleryMapPoint) =>
 // `bottom-9` keeps the card above the map's attribution line (Mapbox, OSM,
 // MapLibre, Apple legal), which must stay visible.
 const CARD_CLASS =
-  'bg-background absolute right-3 bottom-9 left-3 rounded-lg border shadow-md sm:right-auto sm:max-w-sm'
+  'bg-background absolute right-3 bottom-9 left-3 rounded-lg border border-input sm:right-auto sm:max-w-sm'
 
 const CloseButton: FC<{ label: string; onClose: () => void }> = ({
   label,
@@ -434,7 +434,7 @@ const SelectionCard: FC<SelectionCardProps> = ({ point, onClose, onOpen }) => {
         <img
           src={point.thumbnailUrl}
           alt=""
-          className="size-14 shrink-0 rounded-md object-cover"
+          className="size-14 shrink-0 rounded-none object-cover"
         />
       ) : null}
       <div className="min-w-0 flex-1 text-sm">
@@ -513,7 +513,7 @@ const SelectionListCard: FC<SelectionListCardProps> = ({
                 <img
                   src={point.thumbnailUrl}
                   alt=""
-                  className="size-10 shrink-0 rounded-md object-cover"
+                  className="size-10 shrink-0 rounded-none object-cover"
                 />
               ) : null}
               <span className="min-w-0">
@@ -657,7 +657,7 @@ export const GalleryMap: FC<GalleryMapProps> = ({
             />
           ) : null}
           {hasAreaPoints ? (
-            <span className="bg-background/90 text-muted-foreground pointer-events-none absolute top-3 right-3 rounded px-2 py-1 text-xs shadow-sm max-sm:hidden">
+            <span className="bg-background/90 text-muted-foreground pointer-events-none absolute top-3 right-3 rounded-sm px-2 py-1 text-xs shadow-sm max-sm:hidden">
               Markers show the area, not the exact spot
             </span>
           ) : null}

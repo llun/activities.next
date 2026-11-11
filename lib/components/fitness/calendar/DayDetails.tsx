@@ -153,7 +153,7 @@ export function ActivityRow({
       </span>
       <span
         className={cn(
-          'shrink-0 text-right text-sm tabular-nums',
+          'shrink-0 text-right font-mono text-sm tabular-nums',
           !available && 'text-muted-foreground'
         )}
       >
@@ -215,8 +215,8 @@ function LoadingRows() {
         <div key={index} className="flex items-center gap-3" aria-hidden="true">
           <span className="size-10 shrink-0 rounded-lg skeleton" />
           <span className="flex flex-1 flex-col gap-1.5">
-            <span className="block h-4 w-40 rounded skeleton" />
-            <span className="block h-3 w-24 rounded skeleton" />
+            <span className="block h-4 w-40 rounded-sm skeleton" />
+            <span className="block h-3 w-24 rounded-sm skeleton" />
           </span>
         </div>
       ))}

@@ -2423,7 +2423,7 @@ export const PostBox: FC<Props> = ({
           <div className="ml-auto flex items-center gap-2">
             <span
               className={cn(
-                'text-xs tabular-nums',
+                'font-mono text-xs tabular-nums',
                 !draftLocked && text.length > maxStatusCharacters
                   ? 'text-destructive'
                   : 'text-muted-foreground'

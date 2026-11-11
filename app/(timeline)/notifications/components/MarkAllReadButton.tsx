@@ -48,7 +48,7 @@ export const MarkAllReadButton: FC<Props> = ({ unreadIds, unreadCount }) => {
         </span>
       )}
       {unreadCount > 0 && (
-        <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+        <span className="rounded-full bg-primary px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-primary-foreground">
           {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}

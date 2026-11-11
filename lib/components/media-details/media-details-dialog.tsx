@@ -1350,10 +1350,10 @@ export const MediaDetailsDialog: FC<Props> = ({
       <DialogContent
         showCloseButton={false}
         className={cn(
-          'flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0',
+          'flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 rounded-none border-input',
           // Below md: a bottom sheet. From md: a centred two-column dialog.
-          'top-auto bottom-0 left-0 max-w-full translate-x-0 translate-y-0 rounded-b-none rounded-t-2xl sm:max-w-full',
-          'md:top-[50%] md:bottom-auto md:left-[50%] md:max-w-[1040px] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-2xl md:max-h-[88dvh] md:sm:max-w-[1040px]'
+          'top-auto bottom-0 left-0 max-w-full translate-x-0 translate-y-0 sm:max-w-full',
+          'md:top-[50%] md:bottom-auto md:left-[50%] md:max-w-[1040px] md:translate-x-[-50%] md:translate-y-[-50%] md:max-h-[88dvh] md:sm:max-w-[1040px]'
         )}
       >
         <DialogDescription className="sr-only">
@@ -1419,7 +1419,7 @@ export const MediaDetailsDialog: FC<Props> = ({
 
         <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:overflow-hidden">
           <div className="min-w-0 space-y-3 bg-muted/40 p-5 md:overflow-y-auto">
-            <div className="relative flex items-center justify-center overflow-hidden rounded-lg bg-muted">
+            <div className="relative flex items-center justify-center overflow-hidden rounded-none bg-muted">
               {item.upload ? (
                 <div
                   data-testid="upload-overlay"
@@ -1492,7 +1492,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                       aria-current={thumbIndex === index ? 'true' : undefined}
                       onClick={() => goTo(thumbIndex)}
                       className={cn(
-                        'relative block size-14 rounded-md bg-muted bg-cover bg-center',
+                        'relative block size-14 rounded-none bg-muted bg-cover bg-center',
                         thumbIndex === index
                           ? 'outline-2 outline-offset-2 outline-primary'
                           : 'opacity-80 hover:opacity-100'
@@ -1510,7 +1510,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                         <span
                           data-testid={`upload-${thumb.upload.state}`}
                           aria-hidden="true"
-                          className="absolute inset-0 flex items-center justify-center rounded-md bg-black/50 text-white"
+                          className="absolute inset-0 flex items-center justify-center rounded-none bg-black/50 text-white"
                         >
                           {thumb.upload.state === 'uploading' ? (
                             <Loader2 className="size-5 animate-spin" />
@@ -1602,7 +1602,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                           key={key}
                           variant="outline"
                           size="sm"
-                          className="rounded-full px-3 text-xs data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary-text pointer-coarse:h-10"
+                          className="rounded-sm px-3 font-mono text-xs tabular-nums data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary-text pointer-coarse:h-10"
                           pressed={Boolean(shared[key])}
                           onPressedChange={(pressed) =>
                             setShared((current) => ({
@@ -1687,7 +1687,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                 {video ? (
                   <Section title="Cover and description frame">
                     <div
-                      className="h-20 w-32 rounded-md bg-muted bg-cover bg-center"
+                      className="h-20 w-32 rounded-none bg-muted bg-cover bg-center"
                       role="img"
                       aria-label="Cover frame"
                       style={{
@@ -1819,7 +1819,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                   />
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className="text-xs tabular-nums text-muted-foreground"
+                      className="font-mono text-xs tabular-nums text-muted-foreground"
                       aria-live="off"
                     >
                       {descriptionLength}/{MAX_MEDIA_DESCRIPTION_LENGTH}

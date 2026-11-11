@@ -79,7 +79,7 @@ export const AlbumUndoToast: FC<Props> = ({
             setUndone(true)
             toast.undo?.()
           }}
-          className="focus-visible:ring-ring/50 relative min-h-6 rounded px-1 font-semibold text-primary-text outline-none hover:underline focus-visible:ring-[3px] aria-disabled:opacity-50 pointer-coarse:min-h-10 pointer-coarse:min-w-10"
+          className="focus-visible:ring-ring/50 relative min-h-6 rounded-sm px-1 font-semibold text-primary-text outline-none hover:underline focus-visible:ring-[3px] aria-disabled:opacity-50 pointer-coarse:min-h-10 pointer-coarse:min-w-10"
         >
           Undo
         </button>
@@ -88,7 +88,7 @@ export const AlbumUndoToast: FC<Props> = ({
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="focus-visible:ring-ring/50 -mr-1 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] pointer-coarse:size-10"
+        className="focus-visible:ring-ring/50 -mr-1 flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] pointer-coarse:size-10"
       >
         <X className="size-4" aria-hidden="true" />
       </button>

@@ -88,7 +88,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
       variant="outline"
       disabled={menusDisabled}
       onClick={() => setSheetOpen(true)}
-      className="h-10 rounded-lg font-normal"
+      className="h-10 font-normal"
     >
       {activeFilterCount > 0 ? `Filters · ${activeFilterCount}` : 'Filters'}
     </Button>
@@ -107,7 +107,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
             return (
               <div
                 key={key}
-                className="border-primary bg-primary/10 text-primary-text inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium"
+                className="border-primary bg-primary/10 text-primary-text inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-sm border px-3 py-1 font-mono text-sm font-medium tabular-nums"
               >
                 <span className="min-w-0 truncate">{label}</span>
                 <button
@@ -192,13 +192,13 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
           >
             <span className="sr-only">Loading filters</span>
             {filtersInSheet ? (
-              <SkeletonBar className="h-10 w-[75px] rounded-lg" />
+              <SkeletonBar className="h-10 w-[75px] rounded-sm" />
             ) : (
               <>
-                <SkeletonBar className="h-10 w-28 rounded-lg" />
-                <SkeletonBar className="h-10 w-28 rounded-lg" />
-                <SkeletonBar className="h-10 w-28 rounded-lg" />
-                <SkeletonBar className="h-10 w-28 rounded-lg" />
+                <SkeletonBar className="h-10 w-28 rounded-sm" />
+                <SkeletonBar className="h-10 w-28 rounded-sm" />
+                <SkeletonBar className="h-10 w-28 rounded-sm" />
+                <SkeletonBar className="h-10 w-28 rounded-sm" />
               </>
             )}
           </div>
@@ -418,7 +418,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               )
             }
             className={cn(
-              'h-10 rounded-lg font-normal',
+              'h-10 font-normal',
               filters.notInAlbum &&
                 'border-primary bg-primary/10 text-primary-text hover:bg-primary/15 font-medium'
             )}
@@ -479,7 +479,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               variant="outline"
               disabled={menusDisabled}
               onClick={() => setSheetOpen(true)}
-              className="h-10 rounded-lg font-normal"
+              className="h-10 font-normal"
             >
               {activeFilterCount > 0
                 ? `Filters · ${activeFilterCount}`

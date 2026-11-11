@@ -587,7 +587,7 @@ const RouteHeatmapGlMap: FC<RouteHeatmapGlMapProps> = ({
       />
       {!isMapLoaded && <MapLoadingOverlay />}
       {isMapLoaded && (
-        <div className="pointer-events-none absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
+        <div className="pointer-events-none absolute left-3 top-3 rounded-sm bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
           {provider.label}
         </div>
       )}

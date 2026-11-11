@@ -145,7 +145,7 @@ export const RoutePrivacyHint: FC<Props> = ({ point, containerSize }) => {
       aria-hidden="true"
       data-testid="route-privacy-hint"
       className={cn(
-        'pointer-events-none absolute z-20 whitespace-nowrap rounded-md border px-2 py-1 text-xs font-medium shadow-sm',
+        'pointer-events-none absolute z-20 whitespace-nowrap rounded-sm border px-2 py-1 text-xs font-medium shadow-sm',
         'border-success/40 bg-background/95 text-success-text'
       )}
       style={

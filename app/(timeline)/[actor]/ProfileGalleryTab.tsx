@@ -124,7 +124,7 @@ const PanelSkeleton: FC = () => (
       className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3"
     >
       {Array.from({ length: 12 }, (_, index) => (
-        <div key={index} className="skeleton aspect-square rounded-lg" />
+        <div key={index} className="skeleton aspect-square rounded-none" />
       ))}
     </div>
   </div>
@@ -146,7 +146,7 @@ const FilterChip: FC<{
   onClear: () => void
 }> = ({ label, clearLabel, onClear }) => (
   <div className="flex items-center gap-2">
-    <span className="bg-muted inline-flex items-center gap-1 rounded-full py-1 pr-1 pl-3 text-sm font-medium">
+    <span className="bg-muted inline-flex items-center gap-1 rounded-sm py-1 pr-1 pl-3 font-mono text-sm font-medium tabular-nums">
       {label}
       <button
         type="button"

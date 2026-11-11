@@ -29,13 +29,13 @@ const CardBody: FC<{ subject: GallerySubjectEntry }> = ({ subject }) => {
     : cover.attachment
   return (
     <>
-      <span className="bg-muted/20 relative block aspect-square overflow-hidden rounded-lg">
+      <span className="bg-muted/20 relative block aspect-square overflow-hidden rounded-none">
         <Media
           attachment={attachment}
           loading="lazy"
           className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
         />
-        <span className="absolute right-1.5 bottom-1.5 rounded-full bg-black/60 px-2 py-0.5 text-xs font-semibold text-white tabular-nums">
+        <span className="absolute right-1.5 bottom-1.5 rounded-sm bg-black/60 px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-white">
           <span aria-hidden="true">{subject.count}</span>
           <span className="sr-only">
             {subject.count} {subject.count === 1 ? 'photo' : 'photos'}

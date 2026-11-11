@@ -35,7 +35,7 @@ interface Props {
 const numberFormat = new Intl.NumberFormat('en-US')
 
 const CHIP_CLASS =
-  'rounded-full border px-3 py-1 text-sm font-medium transition-colors'
+  'rounded-sm border px-3 py-1 font-mono text-sm font-medium tabular-nums transition-colors'
 
 /**
  * The subjects overview shared by `/gallery` and the profile Gallery tab: a
@@ -168,7 +168,7 @@ export const GallerySubjectsOverview: FC<Props> = ({
               onClick={() => setFilter(group.category)}
             >
               {GALLERY_CATEGORY_LABELS[group.category]}{' '}
-              <span className="tabular-nums">
+              <span className="font-mono tabular-nums">
                 {group.category === 'landscape'
                   ? group.subjects.reduce((n, s) => n + s.count, 0)
                   : group.subjects.length}

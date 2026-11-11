@@ -62,7 +62,7 @@ export const ServerFilterSheet: FC<ServerFilterSheetProps> = ({
         <DialogOverlay />
         <DialogPrimitive.Content
           aria-describedby={undefined}
-          className="bg-background dark:bg-card data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4 motion-reduce:data-[state=open]:slide-in-from-bottom-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-x-0 bottom-0 z-50 flex max-h-[calc(100dvh-48px)] w-full flex-col rounded-t-2xl border-t shadow-lg duration-200 ease-out outline-none sm:hidden"
+          className="bg-background dark:bg-card data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4 motion-reduce:data-[state=open]:slide-in-from-bottom-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-x-0 bottom-0 z-50 flex max-h-[calc(100dvh-48px)] w-full flex-col rounded-none border-t border-input duration-200 ease-out outline-none sm:hidden"
         >
           <div className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col">
             <div
@@ -91,7 +91,7 @@ export const ServerFilterSheet: FC<ServerFilterSheetProps> = ({
                   onApply(draft)
                   onOpenChange(false)
                 }}
-                className="rounded-lg text-sm font-medium"
+                className="text-sm font-medium"
               >
                 Apply
               </Button>

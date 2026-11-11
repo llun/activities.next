@@ -377,7 +377,7 @@ const DeviceSection: FC<{
                       onClick={(event) => event.stopPropagation()}
                     />
                   </td>
-                  <td className="px-3 py-3 text-right align-middle font-semibold tabular-nums">
+                  <td className="px-3 py-3 text-right align-middle font-semibold font-mono tabular-nums">
                     {gear.activityCount}
                   </td>
                   <GearActionsCell gear={gear} onEdit={onEdit} />
@@ -404,7 +404,7 @@ export const GearListSkeleton: FC = () => (
     {[0, 1].map((section) => (
       <div key={section} aria-hidden="true" className="space-y-3">
         <div className="flex items-center gap-3">
-          <span className="block h-5 w-16 rounded skeleton" />
+          <span className="block h-5 w-16 rounded-sm skeleton" />
           <span className="ml-auto block h-8 w-24 rounded-md skeleton" />
         </div>
         <div className="rounded-lg border">
@@ -414,8 +414,8 @@ export const GearListSkeleton: FC = () => (
               key={row}
               className="flex items-center gap-6 border-b px-4 py-4 last:border-b-0"
             >
-              <span className="block h-3.5 w-1/3 max-w-40 rounded skeleton" />
-              <span className="ml-auto block h-3.5 w-16 rounded skeleton" />
+              <span className="block h-3.5 w-1/3 max-w-40 rounded-sm skeleton" />
+              <span className="ml-auto block h-3.5 w-16 rounded-sm skeleton" />
             </div>
           ))}
         </div>

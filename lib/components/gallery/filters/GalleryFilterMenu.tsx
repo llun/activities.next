@@ -72,7 +72,7 @@ export const GalleryFilterMenu: FC<GalleryFilterMenuProps> = ({
         collisionBoundary={portalContainer ?? undefined}
         collisionPadding={8}
         aria-label={label}
-        className="max-h-[min(24rem,var(--radix-popover-content-available-height))] w-72 max-w-(--radix-popover-content-available-width) overflow-y-auto rounded-xl p-2 shadow-lg sm:max-h-[min(calc(100vh-200px),var(--radix-popover-content-available-height))] sm:w-80"
+        className="max-h-[min(24rem,var(--radix-popover-content-available-height))] w-72 max-w-(--radix-popover-content-available-width) overflow-y-auto p-2 sm:max-h-[min(calc(100vh-200px),var(--radix-popover-content-available-height))] sm:w-80"
       >
         {children({ close: () => setOpen(false) })}
       </PopoverContent>

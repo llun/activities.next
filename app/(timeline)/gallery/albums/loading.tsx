@@ -26,14 +26,14 @@ const Loading: FC = () => (
         ]}
       />
       <div className="flex gap-2">
-        <SkeletonBar className="h-8 w-16 rounded-full" />
-        <SkeletonBar className="h-8 w-20 rounded-full" />
-        <SkeletonBar className="h-8 w-20 rounded-full" />
+        <SkeletonBar className="h-8 w-16 rounded-sm" />
+        <SkeletonBar className="h-8 w-20 rounded-sm" />
+        <SkeletonBar className="h-8 w-20 rounded-sm" />
       </div>
       <ul className="grid grid-cols-2 gap-x-3 gap-y-5 md:grid-cols-3 md:gap-x-4">
         {Array.from({ length: 6 }, (_, index) => (
           <li key={index} className="min-w-0 space-y-2">
-            <SkeletonBar className="aspect-[3/2] h-auto rounded-lg" />
+            <SkeletonBar className="aspect-[3/2] h-auto rounded-none" />
             <SkeletonBar className="h-4 w-3/5" />
             <SkeletonBar className="h-3.5 w-4/5" />
           </li>

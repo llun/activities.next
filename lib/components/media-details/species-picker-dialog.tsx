@@ -84,7 +84,7 @@ const OptionRow: FC<{
 }> = ({ name, value, checked, dashed, onSelect, children, aside }) => (
   <label
     className={cn(
-      'flex cursor-pointer items-center gap-3 rounded-[10px] border p-3',
+      'flex cursor-pointer items-center gap-3 rounded-none border p-3',
       dashed && 'border-dashed',
       checked ? 'border-primary bg-primary/5' : 'border-border',
       'focus-within:ring-[3px] focus-within:ring-ring/50'
@@ -291,7 +291,7 @@ export const SpeciesPickerDialog: FC<Props> = ({
             <img
               src={photo.url}
               alt={photo.alt}
-              className="h-[99px] w-[132px] shrink-0 rounded-lg bg-muted object-cover"
+              className="h-[99px] w-[132px] shrink-0 rounded-none bg-muted object-cover"
             />
             <div className="flex min-w-0 flex-col gap-1.5">
               <p className="text-[13px] text-muted-foreground">
@@ -364,7 +364,7 @@ export const SpeciesPickerDialog: FC<Props> = ({
                   {[0, 1, 2].map((row) => (
                     <div
                       key={row}
-                      className="skeleton mb-2 h-[62px] rounded-[10px]"
+                      className="skeleton mb-2 h-[62px] rounded-none"
                     />
                   ))}
                 </div>

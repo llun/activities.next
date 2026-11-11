@@ -102,7 +102,7 @@ export const GalleryAlbumSuggestionList: FC<
           >
             <span
               aria-hidden="true"
-              className="bg-muted/40 text-muted-foreground flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border"
+              className="bg-muted/40 text-muted-foreground flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-none border"
             >
               {suggestion.preview ? (
                 <GalleryAlbumThumb item={suggestion.preview} />

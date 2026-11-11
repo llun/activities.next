@@ -119,7 +119,7 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   const previewClassName =
     previewType === 'thumbnail'
       ? 'w-20 h-20 rounded-full'
-      : 'w-full h-32 rounded-md'
+      : 'w-full h-32 rounded-none'
 
   const errorId = `${fieldName}-error`
 

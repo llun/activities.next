@@ -352,7 +352,7 @@ export const RulesPanel: FC = () => {
                       moveRule(index, index + 1)
                     }
                   }}
-                  className="mt-1.5 cursor-grab rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-1.5 cursor-grab rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <GripVertical className="size-4" />
                 </button>

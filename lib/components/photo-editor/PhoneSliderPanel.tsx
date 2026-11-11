@@ -136,7 +136,7 @@ export const PhoneSliderPanel = ({
           <span>{current.label}</span>
           <span
             className={cn(
-              'tabular-nums',
+              'font-mono tabular-nums',
               value !== neutralOf(current.key)
                 ? 'font-semibold text-primary-text'
                 : 'text-muted-foreground'

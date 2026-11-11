@@ -137,7 +137,7 @@ export const GalleryLifeListTable: FC<Props> = ({
               const name = entry.name ?? entry.scientificName ?? 'Unnamed'
               return (
                 <tr key={entry.key}>
-                  <td className="text-muted-foreground px-2 py-2 tabular-nums sm:px-3">
+                  <td className="text-muted-foreground px-2 py-2 font-mono tabular-nums sm:px-3">
                     {ordinal ?? (
                       <>
                         <span aria-hidden="true">–</span>
@@ -190,7 +190,7 @@ export const GalleryLifeListTable: FC<Props> = ({
                       </>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-right font-mono tabular-nums">
                     {entry.count}
                   </td>
                 </tr>

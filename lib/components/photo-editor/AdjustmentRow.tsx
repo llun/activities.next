@@ -32,7 +32,7 @@ export const AdjustmentRow = ({
       <span
         data-changed={value !== 0}
         className={cn(
-          'tabular-nums',
+          'font-mono tabular-nums',
           value !== 0
             ? 'font-semibold text-primary-text'
             : 'text-muted-foreground'

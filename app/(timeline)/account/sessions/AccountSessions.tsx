@@ -114,7 +114,7 @@ const ActorAvatar: FC<{ actor: SessionActor | null; className: string }> = ({
 )
 
 const ScopePill: FC<{ children: string }> = ({ children }) => (
-  <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+  <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">
     {children}
   </span>
 )

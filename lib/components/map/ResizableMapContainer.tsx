@@ -147,7 +147,7 @@ export const ResizableMapContainer: FC<ResizableMapContainerProps> = ({
           <button
             type="button"
             onClick={toggleExpand}
-            className="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-md border bg-background/95 text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-sm border border-input bg-background/95 text-foreground shadow-[inset_0_-2px_0_var(--control-edge)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={isExpanded ? 'Minimize map' : 'Expand map'}
             title={isExpanded ? 'Minimize map' : 'Expand map'}
           >

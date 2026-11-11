@@ -66,7 +66,7 @@ export const GalleryAlbumPicksSheet: FC<GalleryAlbumPicksSheetProps> = ({
       <DialogOverlay />
       <DialogPrimitive.Content
         aria-describedby={undefined}
-        className="bg-background dark:bg-card data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4 motion-reduce:data-[state=open]:slide-in-from-bottom-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-x-0 bottom-0 z-50 flex max-h-[calc(100dvh-48px)] w-full flex-col rounded-t-2xl border-t shadow-lg duration-200 ease-out outline-none"
+        className="bg-background dark:bg-card data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4 motion-reduce:data-[state=open]:slide-in-from-bottom-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-x-0 bottom-0 z-50 flex max-h-[calc(100dvh-48px)] w-full flex-col rounded-none border-t border-input duration-200 ease-out outline-none"
       >
         <div className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col">
           <div
@@ -93,7 +93,7 @@ export const GalleryAlbumPicksSheet: FC<GalleryAlbumPicksSheetProps> = ({
               variant="default"
               size="sm"
               onClick={() => onOpenChange(false)}
-              className="rounded-lg text-sm font-medium pointer-coarse:h-11"
+              className="text-sm font-medium pointer-coarse:h-11"
             >
               Done
             </Button>
@@ -108,7 +108,7 @@ export const GalleryAlbumPicksSheet: FC<GalleryAlbumPicksSheetProps> = ({
                 return (
                   <div
                     key={id}
-                    className="relative aspect-square overflow-hidden rounded-md"
+                    className="relative aspect-square overflow-hidden rounded-none"
                   >
                     {item ? (
                       <GalleryAlbumThumb item={item} />
@@ -124,7 +124,7 @@ export const GalleryAlbumPicksSheet: FC<GalleryAlbumPicksSheetProps> = ({
                       type="button"
                       aria-label={`Remove ${name} from selection`}
                       onClick={() => onRemove(id)}
-                      className="bg-black/60 text-white absolute top-1 right-1 flex size-6 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
+                      className="bg-black/60 text-white absolute top-1 right-1 flex size-6 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
                     >
                       <X className="size-4" aria-hidden="true" />
                     </button>
@@ -144,7 +144,7 @@ export const GalleryAlbumPicksSheet: FC<GalleryAlbumPicksSheetProps> = ({
                         // one star.
                         else if (intent === 'add') onSetCover(null)
                       }}
-                      className="bg-black/60 text-white absolute bottom-1 left-1 flex size-6 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
+                      className="bg-black/60 text-white absolute bottom-1 left-1 flex size-6 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
                     >
                       <Star
                         className={cn('size-4', isStar && 'fill-current')}

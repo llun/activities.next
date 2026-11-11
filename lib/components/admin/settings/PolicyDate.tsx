@@ -15,7 +15,10 @@ const POLICY_DATE_PATTERN = 'd MMM yyyy'
 export const PolicyDate: FC<{ at: number }> = ({ at }) => {
   const hasHydrated = useHasHydrated()
   return (
-    <time dateTime={new Date(at).toISOString()}>
+    <time
+      dateTime={new Date(at).toISOString()}
+      className="font-mono tabular-nums"
+    >
       {format(
         hasHydrated ? new Date(at) : new UTCDate(at),
         POLICY_DATE_PATTERN

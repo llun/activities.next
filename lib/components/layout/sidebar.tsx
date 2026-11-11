@@ -216,7 +216,7 @@ function DraftsBadge({
       tone="gray"
       aria-hidden="true"
       className={cn(
-        'h-[18px] min-w-[18px] justify-center px-1 py-0 tabular-nums',
+        'h-[18px] min-w-[18px] justify-center px-1 py-0 font-mono tabular-nums',
         className
       )}
     >
@@ -712,8 +712,8 @@ export function Sidebar({
             >
               <div className="skeleton h-10 w-10 shrink-0 rounded-full" />
               <div className="flex-1 space-y-1.5 overflow-hidden">
-                <div className="skeleton h-4 w-24 rounded" />
-                <div className="skeleton h-3 w-32 rounded" />
+                <div className="skeleton h-4 w-24 rounded-sm" />
+                <div className="skeleton h-3 w-32 rounded-sm" />
               </div>
             </div>
           </div>

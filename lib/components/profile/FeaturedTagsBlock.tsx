@@ -10,7 +10,7 @@ interface Props {
 }
 
 const CHIP_CLASS =
-  'inline-flex h-8 items-center gap-2 rounded-full border bg-background px-3 text-sm'
+  'inline-flex h-8 items-center gap-2 rounded-sm border bg-background px-3 font-mono text-sm tabular-nums'
 
 // Surface 2 — the compact "Featured hashtags" block shown inside a profile.
 // A wrap of pill chips (#name + statuses_count) linking to each hashtag's
@@ -29,7 +29,7 @@ export const FeaturedTagsBlock: FC<Props> = ({ tags }) => {
           const label = (
             <>
               <span className="font-medium text-primary-text">#{tag.name}</span>
-              <span className="text-xs tabular-nums text-muted-foreground">
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {tag.statuses_count}
               </span>
             </>

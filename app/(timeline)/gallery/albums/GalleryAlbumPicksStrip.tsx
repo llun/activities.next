@@ -116,7 +116,7 @@ export const GalleryAlbumPicksStrip: FC<Props> = ({
               aria-label={`Show all ${formatCount(count)} picks`}
               onClick={openSheet}
               disabled={disabled}
-              className="cursor-pointer rounded-full border px-2 py-0.5 text-xs focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+              className="cursor-pointer rounded-sm border px-2 py-0.5 font-mono text-xs tabular-nums focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
             >
               +{formatCount(overflow)}
             </button>
@@ -128,7 +128,7 @@ export const GalleryAlbumPicksStrip: FC<Props> = ({
             return (
               <div
                 key={id}
-                className="relative size-[46px] overflow-hidden rounded-md pointer-coarse:size-24"
+                className="relative size-[46px] overflow-hidden rounded-none pointer-coarse:size-24"
               >
                 {item ? (
                   <GalleryAlbumThumb item={item} />
@@ -145,7 +145,7 @@ export const GalleryAlbumPicksStrip: FC<Props> = ({
                   aria-label={`Remove ${name} from selection`}
                   onClick={() => onRemove(id)}
                   disabled={disabled}
-                  className="bg-black/60 text-white absolute top-0.5 right-0.5 flex size-5 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
+                  className="bg-black/60 text-white absolute top-0.5 right-0.5 flex size-5 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
                 >
                   <X className="size-3.5" aria-hidden="true" />
                 </button>
@@ -165,7 +165,7 @@ export const GalleryAlbumPicksStrip: FC<Props> = ({
                     else if (intent === 'add') onSetCover(null)
                   }}
                   disabled={disabled}
-                  className="bg-black/60 text-white absolute bottom-0.5 left-0.5 flex size-5 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
+                  className="bg-black/60 text-white absolute bottom-0.5 left-0.5 flex size-5 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
                 >
                   <Star
                     className={cn('size-3.5', isStar && 'fill-current')}

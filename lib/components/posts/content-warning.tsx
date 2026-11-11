@@ -49,7 +49,7 @@ export const ContentWarning: FC<Props> = ({
           </span>
         </div>
         <span
-          className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-input bg-secondary px-3 text-sm font-medium text-secondary-foreground shadow-xs"
+          className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-input bg-secondary px-3 text-sm font-medium text-secondary-foreground shadow-[inset_0_-2px_0_var(--control-edge)]"
           aria-hidden="true"
         >
           {isExpanded ? 'Hide' : 'Show'}

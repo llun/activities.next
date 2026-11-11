@@ -150,13 +150,13 @@ const LapsBand: FC<{
                 // Every lap box is the same width: they share the band equally
                 // and scroll once they reach the minimum.
                 ANALYSIS_LAP_BOX_WIDTH_CLASS,
-                'snap-start overflow-hidden whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug tabular-nums text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                'snap-start overflow-hidden text-ellipsis whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug font-mono tabular-nums text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 isSelected
                   ? 'border-primary bg-primary/10'
                   : 'bg-background hover:bg-muted'
               )}
             >
-              <span className="block text-xs font-semibold text-foreground">
+              <span className="block truncate text-xs font-semibold text-foreground">
                 {lap.label} · {formatDuration(lap.durationSeconds)}
               </span>
               {details.join(' · ')}
@@ -519,7 +519,7 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
                 ref={readoutRef}
                 aria-hidden="true"
                 data-testid="analysis-readout"
-                className="pointer-events-none absolute top-1 z-10 grid min-w-[140px] gap-px whitespace-nowrap rounded-md border bg-background px-2 py-1 text-xs tabular-nums shadow-sm"
+                className="pointer-events-none absolute top-1 z-10 grid min-w-[140px] gap-px whitespace-nowrap rounded-none border border-input bg-background px-2 py-1 font-mono text-xs tabular-nums"
                 style={
                   readoutSize
                     ? {
@@ -580,7 +580,7 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
                 <span
                   aria-hidden="true"
                   data-testid="analysis-separate-instant"
-                  className="text-xs font-medium text-muted-foreground tabular-nums"
+                  className="text-xs font-medium text-muted-foreground font-mono tabular-nums"
                 >
                   {[timeLabel, position].filter(Boolean).join(' · ')}
                 </span>
@@ -609,14 +609,16 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
                     ANALYSIS_GRAPH_STYLES[entry.key].dot
                   )}
                 />
-                <h4 className="font-semibold">{entry.label}</h4>
-                <span className="text-xs text-muted-foreground tabular-nums @max-[520px]:order-3 @max-[520px]:basis-full">
+                <h4 className="font-mono text-xs font-semibold tracking-wide uppercase">
+                  {entry.label}
+                </h4>
+                <span className="text-xs text-muted-foreground font-mono tabular-nums @max-[520px]:order-3 @max-[520px]:basis-full">
                   Scale{' '}
                   {formatChartValue(entry.scale.min, entry.fractionDigits)} –{' '}
                   {formatChartValue(entry.scale.max, entry.fractionDigits)}{' '}
                   {entry.unit}
                 </span>
-                <span className="ml-auto font-semibold tabular-nums">
+                <span className="ml-auto font-semibold font-mono tabular-nums">
                   {ratio !== null
                     ? formatSeriesValue(entry, valueAt(entry, ratio))
                     : null}

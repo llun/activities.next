@@ -451,7 +451,7 @@ export function ActorSwitcher({
                         handleCancelDeletion(actor.id, e)
                       }}
                       disabled={isCancelling}
-                      className="text-xs text-primary-text hover:text-primary-text px-2 py-1 rounded hover:bg-muted cursor-pointer shrink-0"
+                      className="text-xs text-primary-text hover:text-primary-text px-2 py-1 rounded-sm hover:bg-muted cursor-pointer shrink-0"
                       title="Cancel deletion"
                     >
                       Cancel

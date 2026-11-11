@@ -111,7 +111,7 @@ const Detail = ({ message }: { message: SlotMessage }) => (
         ? true
         : undefined
     }
-    className="tabular-nums"
+    className="font-mono tabular-nums"
   >
     {message.detail}
   </span>

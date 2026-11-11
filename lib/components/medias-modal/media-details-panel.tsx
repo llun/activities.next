@@ -160,7 +160,7 @@ export const MediaDetailsPanel: FC<Props> = ({
             <span className="italic text-white/60">{scientificName}</span>
           )}
           {category && !ownerName && (
-            <span className="rounded-full bg-white/15 px-2 py-0.5 text-[0.7rem] capitalize">
+            <span className="rounded-sm bg-white/15 px-2 py-0.5 font-mono text-[0.7rem] capitalize tabular-nums">
               {category}
             </span>
           )}

@@ -109,7 +109,7 @@ export const PollChoices: FC<Props> = ({
       <div className="flex flex-col gap-2">
         {choices.map((choice, index) => (
           <div key={choice.key} className="flex flex-row items-center gap-2">
-            <span className="w-5 text-center text-xs tabular-nums text-muted-foreground">
+            <span className="w-5 text-center font-mono text-xs tabular-nums text-muted-foreground">
               {index + 1}
             </span>
             <Input

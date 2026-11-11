@@ -104,7 +104,7 @@ export function MobileNavigationDrawer({
         // `safe-area-pb`. A dvh height can end above iOS 26's floating
         // address bar and leave a band of page under it.
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex flex-col bg-background shadow-xl outline-none duration-200',
+          'fixed inset-y-0 left-0 z-50 flex flex-col bg-background outline-none duration-200',
           'w-[min(320px,calc(100vw-48px))] safe-area-pt safe-area-pb safe-area-pl',
           'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left'
         )}
@@ -115,7 +115,7 @@ export function MobileNavigationDrawer({
         </DialogDescription>
         <DialogClose
           aria-label="Close navigation"
-          className="absolute top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-lg text-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-sm text-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="h-5 w-5" />
         </DialogClose>

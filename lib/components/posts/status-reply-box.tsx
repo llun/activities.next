@@ -746,7 +746,7 @@ export const StatusReplyBox: FC<Props> = ({
               />
             </div>
             {targetPreview.isPoll ? (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary-text font-semibold">
+              <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-primary-text">
                 Poll
               </span>
             ) : null}
@@ -772,7 +772,7 @@ export const StatusReplyBox: FC<Props> = ({
             onClick={() => handleMentionModeChange('all')}
             disabled={draftLocked}
             className={cn(
-              'rounded-full px-2.5 py-0.5 text-xs transition-colors',
+              'rounded-sm px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'all'
                 ? 'bg-primary text-primary-foreground font-medium'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
@@ -785,7 +785,7 @@ export const StatusReplyBox: FC<Props> = ({
             onClick={() => handleMentionModeChange('author-first')}
             disabled={draftLocked}
             className={cn(
-              'rounded-full px-2.5 py-0.5 text-xs transition-colors',
+              'rounded-sm px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'author-first'
                 ? 'bg-primary text-primary-foreground font-medium'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
@@ -798,7 +798,7 @@ export const StatusReplyBox: FC<Props> = ({
             onClick={() => handleMentionModeChange('author-only')}
             disabled={draftLocked}
             className={cn(
-              'rounded-full px-2.5 py-0.5 text-xs transition-colors',
+              'rounded-sm px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'author-only'
                 ? 'bg-primary text-primary-foreground font-medium'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
@@ -854,7 +854,7 @@ export const StatusReplyBox: FC<Props> = ({
                 {postExtension.attachments.map((item, index) => (
                   <div
                     className={cn(
-                      'w-full aspect-square bg-border bg-center bg-cover relative rounded',
+                      'w-full aspect-square bg-border bg-center bg-cover relative rounded-none',
                       draftLocked ? 'cursor-default' : 'cursor-pointer'
                     )}
                     inert={draftLocked}
@@ -867,7 +867,7 @@ export const StatusReplyBox: FC<Props> = ({
                     {item.isLoading ? (
                       <div
                         aria-hidden="true"
-                        className="absolute inset-0 overflow-hidden rounded opacity-70"
+                        className="absolute inset-0 overflow-hidden rounded-none opacity-70"
                       >
                         <SkeletonBar className="h-full rounded-none" />
                       </div>
@@ -966,7 +966,7 @@ export const StatusReplyBox: FC<Props> = ({
               <div className="flex items-center gap-2 ml-auto">
                 <span
                   className={cn(
-                    'text-xs tabular-nums',
+                    'font-mono text-xs tabular-nums',
                     !draftLocked && text.length > maxStatusCharacters
                       ? 'text-destructive'
                       : 'text-muted-foreground'

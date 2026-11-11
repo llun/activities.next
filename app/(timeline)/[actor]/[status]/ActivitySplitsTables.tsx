@@ -159,7 +159,7 @@ const SplitsTable: FC<SplitsTableProps> = ({
                 className={cn(
                   STICKY_CLICKABLE_COLUMN,
                   STICKY_HEAD_CELL,
-                  'px-4 py-2.5 font-medium'
+                  'px-4 py-2.5 font-mono text-xs font-medium tracking-wide uppercase'
                 )}
               >
                 {firstHeader}
@@ -167,7 +167,7 @@ const SplitsTable: FC<SplitsTableProps> = ({
               {columns.map((column) => (
                 <th
                   key={column}
-                  className="px-3 py-2.5 text-right font-medium whitespace-nowrap"
+                  className="px-3 py-2.5 text-right font-mono text-xs font-medium tracking-wide whitespace-nowrap uppercase"
                 >
                   {headers[column]}
                 </th>

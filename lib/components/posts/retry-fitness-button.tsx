@@ -50,7 +50,7 @@ export const RetryFitnessButton: FC<Props> = ({
   const retryButton = (
     <button
       className={cn(
-        'inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium',
+        'inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium',
         'text-muted-foreground hover:bg-muted hover:text-foreground transition-colors',
         isRetrying && 'pointer-events-none opacity-50'
       )}

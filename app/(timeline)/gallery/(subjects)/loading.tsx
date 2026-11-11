@@ -18,7 +18,7 @@ const CategorySkeleton: FC<{ cards: number }> = ({ cards }) => (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3">
       {Array.from({ length: cards }, (_, index) => (
         <div key={index} className="space-y-1.5">
-          <SkeletonBar className="aspect-square h-auto" />
+          <SkeletonBar className="aspect-square h-auto rounded-none" />
           <SkeletonBar className="h-4 w-4/5" />
           <SkeletonBar className="h-3.5 w-3/5" />
         </div>
@@ -47,10 +47,7 @@ const Loading: FC = () => (
       <div className="flex flex-wrap gap-2">
         {['w-14', 'w-20', 'w-24', 'w-28', 'w-24'].map((width, index) => (
           // Chip widths vary with their labels.
-          <SkeletonBar
-            key={index}
-            className={`h-[30px] rounded-full ${width}`}
-          />
+          <SkeletonBar key={index} className={`h-[30px] rounded-sm ${width}`} />
         ))}
       </div>
       <CategorySkeleton cards={4} />

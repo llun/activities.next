@@ -809,7 +809,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
         <>
           {/* The Apple branch draws its own +/− inside ActivityRouteMapKit. */}
           {glProvider ? (
-            <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border bg-background/95 shadow-sm">
+            <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-sm border border-input bg-background/95">
               <button
                 type="button"
                 onClick={() => {
@@ -826,7 +826,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
                 onClick={() => {
                   mapRef.current?.zoomOut({ duration: 250 })
                 }}
-                className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
+                className="flex size-8 items-center justify-center text-foreground hover:bg-muted shadow-[inset_0_-2px_0_var(--control-edge)]"
                 aria-label="Zoom out map"
               >
                 <span className="text-base leading-none">-</span>
@@ -857,7 +857,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
           type="button"
           onClick={onRequestInteractive}
           disabled={isRouteDataLoading}
-          className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
+          className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-sm border border-primary-edge bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-[inset_0_-2px_0_var(--primary-edge)] transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
           aria-label="Load interactive route map"
         >
           {isRouteDataLoading ? (
@@ -876,7 +876,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
         <button
           type="button"
           onClick={onOpenMap}
-          className="absolute bottom-3 right-3 inline-flex size-11 items-center justify-center rounded-md bg-primary text-primary-foreground shadow"
+          className="absolute bottom-3 right-3 inline-flex size-11 items-center justify-center rounded-sm border border-primary-edge bg-primary text-primary-foreground shadow-[inset_0_-2px_0_var(--primary-edge)]"
           aria-label="Open route map image"
         >
           <Play className="size-5" />
@@ -886,7 +886,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
       {interactive && !shouldRenderInteractiveMap && isRouteDataLoading ? (
         <div
           role={announceLoading ? 'status' : undefined}
-          className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md border bg-background/95 px-3 py-2 shadow-sm"
+          className="absolute left-1/2 top-3 -translate-x-1/2 rounded-sm border bg-background/95 px-3 py-2 shadow-sm"
         >
           {announceLoading ? (
             <span className="sr-only">Loading interactive route</span>

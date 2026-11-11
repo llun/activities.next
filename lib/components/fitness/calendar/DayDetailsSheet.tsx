@@ -93,9 +93,9 @@ export function DayDetailsSheet({
       style={{
         maxHeight: cssLength(expanded ? expandedMaxHeight : collapsedMaxHeight)
       }}
-      className="bg-background dark:bg-card animate-in fade-in-0 slide-in-from-bottom-4 motion-reduce:slide-in-from-bottom-0 fixed inset-x-0 bottom-0 z-40 flex flex-col overflow-y-auto overscroll-contain rounded-t-2xl border-t pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-4px_16px_rgb(0_0_0/0.12)] duration-200 ease-out"
+      className="bg-background dark:bg-card animate-in fade-in-0 slide-in-from-bottom-4 motion-reduce:slide-in-from-bottom-0 fixed inset-x-0 bottom-0 z-40 flex flex-col overflow-y-auto overscroll-contain rounded-none border-t border-input pb-[env(safe-area-inset-bottom,0px)] duration-200 ease-out"
     >
-      <header className="bg-background dark:bg-card sticky top-0 z-10 shrink-0 rounded-t-2xl px-4 pt-2">
+      <header className="bg-background dark:bg-card sticky top-0 z-10 shrink-0 rounded-none px-4 pt-2">
         <div
           aria-hidden="true"
           className="bg-muted-foreground/30 mx-auto mb-1 h-1 w-9 rounded-full"
