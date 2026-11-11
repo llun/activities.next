@@ -167,7 +167,9 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
                       <Lock className="size-3" aria-hidden="true" />
                     ) : null}
                     {FILTER_LABELS[value]}
-                    <span className="font-mono tabular-nums">{counts[value]}</span>
+                    <span className="font-mono tabular-nums">
+                      {counts[value]}
+                    </span>
                   </button>
                 )
               })}

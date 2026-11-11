@@ -296,7 +296,10 @@ export const FeaturedTagsSection: FC<{
 
   const countMeta = (
     <span
-      className={cn('font-mono tabular-nums', atLimit && 'text-primary-text font-medium')}
+      className={cn(
+        'font-mono tabular-nums',
+        atLimit && 'text-primary-text font-medium'
+      )}
     >
       {tags.length} of {FEATURED_TAGS_LIMIT} featured
     </span>

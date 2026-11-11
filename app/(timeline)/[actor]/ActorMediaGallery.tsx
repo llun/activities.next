@@ -177,7 +177,9 @@ export const ActorMediaGallery: FC<Props> = ({
                         className="size-4 sm:size-5 fill-white text-white"
                         aria-hidden="true"
                       />
-                      <span className="font-mono tabular-nums">{formatCount(totalLikes)}</span>
+                      <span className="font-mono tabular-nums">
+                        {formatCount(totalLikes)}
+                      </span>
                     </span>
                     <span
                       className="flex items-center gap-1.5"
@@ -187,7 +189,9 @@ export const ActorMediaGallery: FC<Props> = ({
                         className="size-4 sm:size-5 fill-white text-white"
                         aria-hidden="true"
                       />
-                      <span className="font-mono tabular-nums">{formatCount(totalReplies)}</span>
+                      <span className="font-mono tabular-nums">
+                        {formatCount(totalReplies)}
+                      </span>
                     </span>
                     <span
                       className="flex items-center gap-1.5"
@@ -197,7 +201,9 @@ export const ActorMediaGallery: FC<Props> = ({
                         className="size-4 sm:size-5 text-white"
                         aria-hidden="true"
                       />
-                      <span className="font-mono tabular-nums">{formatCount(totalShares)}</span>
+                      <span className="font-mono tabular-nums">
+                        {formatCount(totalShares)}
+                      </span>
                     </span>
                   </div>
                 </div>

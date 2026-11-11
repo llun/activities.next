@@ -294,10 +294,7 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
   const trigger = (
     <DropdownMenuTrigger asChild>
       {/* The design's trigger is taller than the shared Button default (h-10). */}
-      <Button
-        variant="outline"
-        className="h-10 w-full justify-between sm:w-64"
-      >
+      <Button variant="outline" className="h-10 w-full justify-between sm:w-64">
         <span className="flex min-w-0 items-center gap-2">
           {activeItem && (
             <span className={cn(SECTION_NAV_ICON_CLASS, 'text-primary')}>

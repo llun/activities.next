@@ -47,10 +47,7 @@ const Loading: FC = () => (
       <div className="flex flex-wrap gap-2">
         {['w-14', 'w-20', 'w-24', 'w-28', 'w-24'].map((width, index) => (
           // Chip widths vary with their labels.
-          <SkeletonBar
-            key={index}
-            className={`h-[30px] rounded-sm ${width}`}
-          />
+          <SkeletonBar key={index} className={`h-[30px] rounded-sm ${width}`} />
         ))}
       </div>
       <CategorySkeleton cards={4} />

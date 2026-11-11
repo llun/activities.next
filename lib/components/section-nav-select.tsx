@@ -63,10 +63,7 @@ export const SectionNavSelect = <Id extends string>({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           {/* The design's trigger is taller than the shared Button default (h-10). */}
-          <Button
-            variant="outline"
-            className="h-10 w-full justify-between"
-          >
+          <Button variant="outline" className="h-10 w-full justify-between">
             <span className="flex items-center gap-2">
               <ActiveIcon className="size-4 text-primary" />
               {activeTab.label}

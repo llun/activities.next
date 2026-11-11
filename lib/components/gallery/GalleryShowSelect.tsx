@@ -78,10 +78,7 @@ export const GalleryShowSelect: FC<Props> = ({
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className="h-10 w-full justify-between"
-          >
+          <Button variant="outline" className="h-10 w-full justify-between">
             <span>
               <span className="text-muted-foreground font-normal">Show</span>{' '}
               {active.label}

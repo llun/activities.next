@@ -234,7 +234,9 @@ export const MediaAlbumsControl: FC<Props> = ({
       >
         <Folder className="size-4" aria-hidden="true" />
         <span className="max-sm:hidden">{getAlbumsPillLabel(n)}</span>
-        <span className="sm:hidden font-mono tabular-nums">{n > 0 ? n : ''}</span>
+        <span className="sm:hidden font-mono tabular-nums">
+          {n > 0 ? n : ''}
+        </span>
         <ChevronDown className="max-sm:hidden size-3.5" aria-hidden="true" />
       </button>
     ) : (
