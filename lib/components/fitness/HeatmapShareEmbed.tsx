@@ -322,7 +322,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
               <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Size
               </span>
-              <div className="inline-flex items-center rounded-md border p-0.5">
+              <div className="inline-flex items-center rounded-lg border p-0.5">
                 {EMBED_SIZES.map((entry) => (
                   <button
                     key={entry.id}

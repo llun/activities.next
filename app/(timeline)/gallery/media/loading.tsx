@@ -32,13 +32,13 @@ const Loading: FC = () => (
           and Show cap at 240px like the real selects in the sheet-mode
           host (`w-full sm:max-w-[240px]`); the Filters, count and Sort
           bars match the real controls' widths (Filters 75px, count text
-          6.5rem, Sort menu 213px). */}
+          7.25rem, Sort menu 213px). */}
       <div className="hidden sm:flex flex-wrap items-center gap-2">
         <SkeletonBar className="h-10 w-[240px] rounded-sm" />
         <SkeletonBar className="h-10 w-[240px] rounded-sm" />
         <SkeletonBar className="h-10 w-[75px] rounded-sm" />
         <div className="ml-auto flex items-center gap-2">
-          <SkeletonBar className="h-4 w-[6.5rem]" />
+          <SkeletonBar className="h-4 w-[7.25rem]" />
           <SkeletonBar className="h-10 w-[213px] rounded-sm" />
         </div>
       </div>
