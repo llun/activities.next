@@ -192,13 +192,13 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
           >
             <span className="sr-only">Loading filters</span>
             {filtersInSheet ? (
-              <SkeletonBar className="h-10 w-[75px] rounded-lg" />
+              <SkeletonBar className="h-10 w-[75px] rounded-sm" />
             ) : (
               <>
-                <SkeletonBar className="h-10 w-28 rounded-lg" />
-                <SkeletonBar className="h-10 w-28 rounded-lg" />
-                <SkeletonBar className="h-10 w-28 rounded-lg" />
-                <SkeletonBar className="h-10 w-28 rounded-lg" />
+                <SkeletonBar className="h-10 w-28 rounded-sm" />
+                <SkeletonBar className="h-10 w-28 rounded-sm" />
+                <SkeletonBar className="h-10 w-28 rounded-sm" />
+                <SkeletonBar className="h-10 w-28 rounded-sm" />
               </>
             )}
           </div>

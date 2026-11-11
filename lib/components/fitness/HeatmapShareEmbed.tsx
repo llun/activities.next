@@ -305,7 +305,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
                     active
-                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      ? 'bg-primary text-primary-foreground shadow-[inset_0_-2px_0_var(--primary-edge)]'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
@@ -330,7 +330,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
                     aria-pressed={sizeId === entry.id}
                     onClick={() => setSizeId(entry.id)}
                     className={cn(
-                      'rounded px-2.5 py-1 text-[11px] font-medium transition-colors',
+                      'rounded-sm px-2.5 py-1 text-[11px] font-medium transition-colors',
                       sizeId === entry.id
                         ? 'bg-primary/10 text-primary-text'
                         : 'text-muted-foreground hover:text-foreground'

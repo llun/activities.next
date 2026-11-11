@@ -809,7 +809,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
         <>
           {/* The Apple branch draws its own +/− inside ActivityRouteMapKit. */}
           {glProvider ? (
-            <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-sm border border-input bg-background/95 shadow-[inset_0_-2px_0_var(--control-edge)]">
+            <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-sm border border-input bg-background/95">
               <button
                 type="button"
                 onClick={() => {
@@ -826,7 +826,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
                 onClick={() => {
                   mapRef.current?.zoomOut({ duration: 250 })
                 }}
-                className="flex size-8 items-center justify-center text-foreground hover:bg-muted"
+                className="flex size-8 items-center justify-center text-foreground hover:bg-muted shadow-[inset_0_-2px_0_var(--control-edge)]"
                 aria-label="Zoom out map"
               >
                 <span className="text-base leading-none">-</span>

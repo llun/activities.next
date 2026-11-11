@@ -150,13 +150,13 @@ const LapsBand: FC<{
                 // Every lap box is the same width: they share the band equally
                 // and scroll once they reach the minimum.
                 ANALYSIS_LAP_BOX_WIDTH_CLASS,
-                'snap-start overflow-hidden whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug font-mono tabular-nums text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                'snap-start overflow-hidden text-ellipsis whitespace-nowrap rounded-md border px-2 py-1 text-left text-[11px] leading-snug font-mono tabular-nums text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 isSelected
                   ? 'border-primary bg-primary/10'
                   : 'bg-background hover:bg-muted'
               )}
             >
-              <span className="block text-xs font-semibold text-foreground">
+              <span className="block truncate text-xs font-semibold text-foreground">
                 {lap.label} · {formatDuration(lap.durationSeconds)}
               </span>
               {details.join(' · ')}
