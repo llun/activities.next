@@ -86,7 +86,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
 
       <main className="mx-auto max-w-[840px] px-4 py-6 sm:px-6 sm:py-8">
         {/* public, read-only context pill */}
-        <div className="mb-4 inline-flex items-center gap-1.5 rounded-sm border bg-background/70 px-2.5 py-1 font-mono text-xs font-medium tabular-nums text-muted-foreground">
+        <div className="mb-4 inline-flex items-center gap-1.5 rounded-sm border bg-background/70 px-2.5 py-1 text-xs font-medium text-muted-foreground">
           <Eye className="size-3" /> Public heatmap · anyone with the link can
           view
         </div>
