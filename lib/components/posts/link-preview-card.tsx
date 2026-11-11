@@ -351,7 +351,7 @@ const StandardLinkPreviewCard: FC<LinkPreviewCardProps> = ({
             }
           }}
           onError={() => setFailedImageUrl(linkPreview.imageUrl ?? null)}
-          className="size-[88px] shrink-0 rounded-lg object-cover"
+          className="size-[88px] shrink-0 rounded-none object-cover"
         />
       ) : null}
       <div className="min-w-0 space-y-0.5">

@@ -69,7 +69,7 @@ export function BoostCarousel({
         {statuses.map((status) => (
           <div
             key={status.id}
-            className="snap-start shrink-0 w-[280px] sm:w-[320px] rounded-lg border border-border bg-card p-3 shadow-xs"
+            className="snap-start shrink-0 w-[280px] sm:w-[320px] rounded-lg border border-border bg-card p-3"
           >
             <Post
               status={status}

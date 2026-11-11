@@ -184,7 +184,7 @@ export const PhotoEditPreview: FC<Props> = ({ item, children, onEdited }) => {
               <TooltipTrigger asChild>
                 <span
                   tabIndex={0}
-                  className="absolute right-3 bottom-3 rounded-full"
+                  className="absolute right-3 bottom-3 rounded-sm"
                 >
                   {pill}
                 </span>

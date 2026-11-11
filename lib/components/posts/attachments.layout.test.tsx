@@ -57,7 +57,7 @@ describe('Attachments', () => {
       {
         description: 'rounds a lone picture on all four corners',
         sizes: [{ width: 800, height: 600 }],
-        expectedCorners: ['rounded-2xl']
+        expectedCorners: ['rounded-none']
       },
       {
         description: 'rounds only the outer edges of a two-item strip',
@@ -65,7 +65,7 @@ describe('Attachments', () => {
           { width: 800, height: 600 },
           { width: 800, height: 600 }
         ],
-        expectedCorners: ['rounded-l-2xl', 'rounded-r-2xl']
+        expectedCorners: ['rounded-none', 'rounded-none']
       },
       {
         description: 'leaves the middle of a three-item strip square',
@@ -74,7 +74,7 @@ describe('Attachments', () => {
           { width: 600, height: 900 },
           { width: 1200, height: 500 }
         ],
-        expectedCorners: ['rounded-l-2xl', 'rounded-none', 'rounded-r-2xl']
+        expectedCorners: ['rounded-none', 'rounded-none', 'rounded-none']
       },
       {
         description: 'leaves both middles of a four-item strip square',
@@ -85,10 +85,10 @@ describe('Attachments', () => {
           { width: 1200, height: 500 }
         ],
         expectedCorners: [
-          'rounded-l-2xl',
           'rounded-none',
           'rounded-none',
-          'rounded-r-2xl'
+          'rounded-none',
+          'rounded-none'
         ]
       }
     ])('$description', ({ sizes, expectedCorners }) => {
@@ -126,12 +126,12 @@ describe('Attachments', () => {
       {
         description: 'rounds a lone video on all four corners',
         count: 1,
-        expectedCorners: ['rounded-2xl']
+        expectedCorners: ['rounded-none']
       },
       {
         description: 'rounds only the outer edges of a three-video strip',
         count: 3,
-        expectedCorners: ['rounded-l-2xl', 'rounded-none', 'rounded-r-2xl']
+        expectedCorners: ['rounded-none', 'rounded-none', 'rounded-none']
       }
     ])('$description', ({ count, expectedCorners }) => {
       const items = Array.from({ length: count }, () =>

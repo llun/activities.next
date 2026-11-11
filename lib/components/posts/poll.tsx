@@ -184,7 +184,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
                   aria-hidden
                   className={cn(
                     'flex size-4 shrink-0 items-center justify-center border-2 transition-colors',
-                    isMultiple ? 'rounded-[4px]' : 'rounded-full',
+                    isMultiple ? 'rounded-sm' : 'rounded-full',
                     checked
                       ? 'border-primary bg-primary'
                       : 'border-muted-foreground/60 bg-transparent'
@@ -231,7 +231,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
                   <CustomEmojiText text={titleFor(index)} tags={status.tags} />
                   {mine && <span className="text-primary-text"> ✓</span>}
                 </span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
+                <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
                   {percentage}%
                 </span>
               </div>

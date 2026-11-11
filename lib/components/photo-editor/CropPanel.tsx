@@ -134,8 +134,8 @@ export const CropPanel = ({
         <span
           className={
             geometry.straighten !== 0
-              ? 'font-semibold text-primary-text tabular-nums'
-              : 'text-muted-foreground tabular-nums'
+              ? 'font-mono font-semibold text-primary-text tabular-nums'
+              : 'font-mono text-muted-foreground tabular-nums'
           }
         >
           {formatStraighten(geometry.straighten)}

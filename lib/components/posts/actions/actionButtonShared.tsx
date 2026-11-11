@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 // Base styling shared by every post action button (like/bookmark/repost).
 // Callers append a colour variant via cn(ACTION_BUTTON_CLASS, ...).
 export const ACTION_BUTTON_CLASS =
-  'flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
+  'flex cursor-pointer items-center gap-1.5 rounded-sm px-2 py-1 font-mono text-sm tabular-nums transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50'
 
 export const OFFLINE_MESSAGE = "You're offline"
 

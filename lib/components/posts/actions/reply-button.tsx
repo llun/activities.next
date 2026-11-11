@@ -26,7 +26,7 @@ export const ReplyButton: FC<Props> = ({ status, targetLabel, onReply }) => {
 
   return (
     <button
-      className="flex cursor-pointer items-center gap-1.5 rounded-full px-2 py-1 text-sm transition-colors hover:bg-muted hover:text-reply-icon"
+      className="flex cursor-pointer items-center gap-1.5 rounded-sm px-2 py-1 font-mono text-sm tabular-nums transition-colors hover:bg-muted hover:text-reply-icon"
       title={replyLabel}
       aria-label={replyLabel}
       onClick={() => onReply?.(status)}

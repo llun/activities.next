@@ -59,7 +59,7 @@ const canJoinReaction = (reaction: StatusReaction): boolean => {
 
 const chipClass = (mine: boolean, interactive = true, busy = false) =>
   cn(
-    'flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] transition-colors',
+    'flex h-7 items-center gap-1.5 rounded-sm border px-2.5 font-mono text-[13px] tabular-nums transition-colors',
     // Busy rather than `disabled`: a disabled control is blurred by the browser
     // and drops out of the tab order, which would throw a keyboard user back to
     // <body> mid-interaction. aria-disabled conveys the same state to assistive
@@ -182,7 +182,7 @@ export const ReactionRow: FC<ReactionRowProps> = ({ state, fullBleed }) => {
         )
       })}
       {hiddenCount > 0 && (
-        <span className="text-muted-foreground text-xs tabular-nums">
+        <span className="text-muted-foreground font-mono text-xs tabular-nums">
           +{hiddenCount}
         </span>
       )}

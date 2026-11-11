@@ -190,7 +190,7 @@ export const MaskRefineControls = ({
           <div className="space-y-1">
             <div className="flex items-baseline justify-between text-sm">
               <span>{MASK_COPY.brushSize}</span>
-              <span className="text-muted-foreground tabular-nums">
+              <span className="font-mono text-muted-foreground tabular-nums">
                 {tools.brushSize} px
               </span>
             </div>

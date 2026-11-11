@@ -88,12 +88,8 @@ const getActivePosition = (strip: HTMLElement) => {
 const MEDIA_BOX_CLASS =
   'relative block cursor-zoom-in overflow-hidden border border-border/60 bg-muted/20'
 
-const getStripItemCornerClass = (index: number, total: number) => {
-  if (total <= 1) return 'rounded-2xl'
-  if (index === 0) return 'rounded-l-2xl'
-  if (index === total - 1) return 'rounded-r-2xl'
-  return 'rounded-none'
-}
+const getStripItemCornerClass = (_index: number, _total: number) =>
+  'rounded-none'
 // One indicator for both shapes. The strip has always needed the inset outline
 // (an outset ring is clipped by its own `overflow-x-auto`); the media box can
 // also reach the frame's inner edge — the viewport edge below `md` — where a
@@ -433,27 +429,27 @@ export const Attachments: FC<Props> = ({
               attachment={attachment}
               onOpen={openMedia(0)}
               label={mediaLabel(attachment, 0)}
-              className="rounded-2xl"
+              className="rounded-none"
               style={{ aspectRatio, width: `min(100%, ${width}px)` }}
-              mediaClassName="h-full w-full object-cover rounded-2xl"
+              mediaClassName="h-full w-full object-cover rounded-none"
             />
           ) : isVideoAttachment(attachment) ? (
             <VideoCard
               attachment={attachment}
-              className="rounded-2xl"
+              className="rounded-none"
               style={{ aspectRatio, width: `min(100%, ${width}px)` }}
-              mediaClassName="h-full w-full object-contain rounded-2xl"
+              mediaClassName="h-full w-full object-contain rounded-none"
             />
           ) : (
             <button
               type="button"
               onClick={openMedia(0)}
               aria-label={mediaLabel(attachment, 0)}
-              className={cn(MEDIA_BOX_CLASS, MEDIA_FOCUS_CLASS, 'rounded-2xl')}
+              className={cn(MEDIA_BOX_CLASS, MEDIA_FOCUS_CLASS, 'rounded-none')}
               style={{ aspectRatio, width: `min(100%, ${width}px)` }}
             >
               <Media
-                className="h-full w-full object-cover rounded-2xl"
+                className="h-full w-full object-cover rounded-none"
                 attachment={attachment}
                 revealImmediately={attachment.id === prioritizedId}
               />
@@ -580,7 +576,7 @@ export const Attachments: FC<Props> = ({
             {showChrome ? (
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-xs font-medium text-white tabular-nums"
+                className="pointer-events-none absolute right-2 top-2 rounded-sm bg-black/55 px-2 py-0.5 font-mono text-xs font-medium tabular-nums text-white"
               >
                 {`${activeIndex + 1} / ${items.length}`}
               </span>

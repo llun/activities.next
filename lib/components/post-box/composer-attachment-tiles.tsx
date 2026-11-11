@@ -125,7 +125,7 @@ const TileStatus: FC<{
   return (
     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
       {attachment.name && !decorative ? (
-        <span className="rounded bg-muted px-1 text-[10px] font-semibold">
+        <span className="rounded-sm bg-muted px-1 font-mono text-[10px] font-semibold tabular-nums">
           ALT
         </span>
       ) : null}
@@ -313,7 +313,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                   )}
                 >
                   <span
-                    className="relative block aspect-square w-full overflow-hidden rounded-md bg-border bg-cover bg-center"
+                    className="relative block aspect-square w-full overflow-hidden rounded-none bg-border bg-cover bg-center"
                     style={{
                       backgroundImage: `url("${item.posterUrl || item.url}")`
                     }}
@@ -359,7 +359,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                       aria-describedby={`${errorId}-${item.id}`}
                       disabled={disabled}
                       onClick={() => handleRetry(item.id)}
-                      className="flex items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-xs font-medium shadow-xs"
+                      className="flex items-center gap-1 rounded-sm border border-input bg-background px-1.5 py-0.5 text-xs font-medium shadow-[inset_0_-2px_0_var(--control-edge)]"
                     >
                       <RotateCw className="size-3" />
                       Retry

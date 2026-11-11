@@ -245,7 +245,7 @@ export const PostBody: FC<PostBodyProps> = ({
                 {fitnessFile.fileName}
               </span>
             )}
-            <span className="ml-auto shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="ml-auto shrink-0 rounded-sm bg-muted px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-muted-foreground">
               {fitnessFile.fileType}
             </span>
           </div>

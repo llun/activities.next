@@ -16,5 +16,9 @@ export const EditedTime = ({ date }: { date: Date }) => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(timer)
   }, [])
-  return <time dateTime={date.toISOString()}>{formatEditedAgo(date, now)}</time>
+  return (
+    <time dateTime={date.toISOString()} className="font-mono tabular-nums">
+      {formatEditedAgo(date, now)}
+    </time>
+  )
 }

@@ -183,7 +183,7 @@ export const MasksPanel = ({
                 <span>{MASK_COPY.feather}</span>
                 <span
                   className={cn(
-                    'tabular-nums',
+                    'font-mono tabular-nums',
                     selected.feather !== DEFAULT_FEATHER
                       ? 'font-semibold text-primary-text'
                       : 'text-muted-foreground'

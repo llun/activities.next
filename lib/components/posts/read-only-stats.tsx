@@ -42,7 +42,7 @@ export const ReadOnlyStats: FC<ReadOnlyStatsProps> = ({ status }) => {
         title={`${totalShares} ${boostsNoun}`}
       >
         <Repeat2 className="size-4" aria-hidden="true" />
-        <span className="tabular-nums">{totalShares}</span>
+        <span className="font-mono tabular-nums">{totalShares}</span>
         <span className="sr-only">{boostsNoun}</span>
       </span>
       <span
@@ -50,7 +50,7 @@ export const ReadOnlyStats: FC<ReadOnlyStatsProps> = ({ status }) => {
         title={`${totalLikes} ${likesNoun}`}
       >
         <Heart className="size-4" aria-hidden="true" />
-        <span className="tabular-nums">{totalLikes}</span>
+        <span className="font-mono tabular-nums">{totalLikes}</span>
         <span className="sr-only">{likesNoun}</span>
       </span>
     </div>
