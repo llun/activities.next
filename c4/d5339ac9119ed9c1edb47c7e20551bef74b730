@@ -1,0 +1,39 @@
+app/(timeline)/gallery/(subjects)/loading.tsx
+  s_49da6fa129b372::t_92fce169db9f8b 21
+app/(timeline)/gallery/map/loading.tsx
+  s_49da6fa129b372::t_92fce169db9f8b 30
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_49da6fa129b372::t_92fce169db9f8b 45-46
+app/(timeline)/gallery/albums/GalleryAlbumSuggestionList.tsx
+  s_49da6fa129b372::t_92fce169db9f8b 105
+app/(timeline)/gallery/media/loading.tsx
+  s_49da6fa129b372::t_92fce169db9f8b 37-39,42,53,55
+lib/components/gallery/filters/GalleryFilterChip.tsx
+  s_49da6fa129b372::t_92fce169db9f8b 69
+app/(timeline)/gallery/albums/GalleryAlbumFormDialog.tsx
+  s_49da6fa129b372::t_92fce169db9f8b 801
+app/(timeline)/[actor]/(profile)/loading.tsx
+  s_49da6fa129b372::t_19957d66272e0b 54
+app/(timeline)/explore/loading.tsx
+  s_49da6fa129b372::t_d9e0c9adc85f85 18
+app/(timeline)/fitness/records/loading.tsx
+  s_49da6fa129b372::t_639bc88478331c 16
+app/(timeline)/search/loading.tsx
+  s_49da6fa129b372::t_dc381d956143d2 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4d5339ac9119ed9c1edb47c7e20551bef74b730",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
