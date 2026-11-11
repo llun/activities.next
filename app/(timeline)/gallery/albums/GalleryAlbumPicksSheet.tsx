@@ -124,7 +124,7 @@ export const GalleryAlbumPicksSheet: FC<GalleryAlbumPicksSheetProps> = ({
                       type="button"
                       aria-label={`Remove ${name} from selection`}
                       onClick={() => onRemove(id)}
-                      className="bg-black/60 text-white absolute top-1 right-1 flex size-6 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
+                      className="bg-black/60 text-white absolute top-1 right-1 flex size-6 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
                     >
                       <X className="size-4" aria-hidden="true" />
                     </button>
@@ -144,7 +144,7 @@ export const GalleryAlbumPicksSheet: FC<GalleryAlbumPicksSheetProps> = ({
                         // one star.
                         else if (intent === 'add') onSetCover(null)
                       }}
-                      className="bg-black/60 text-white absolute bottom-1 left-1 flex size-6 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
+                      className="bg-black/60 text-white absolute bottom-1 left-1 flex size-6 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
                     >
                       <Star
                         className={cn('size-4', isStar && 'fill-current')}

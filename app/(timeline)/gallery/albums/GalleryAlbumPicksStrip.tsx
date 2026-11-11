@@ -145,7 +145,7 @@ export const GalleryAlbumPicksStrip: FC<Props> = ({
                   aria-label={`Remove ${name} from selection`}
                   onClick={() => onRemove(id)}
                   disabled={disabled}
-                  className="bg-black/60 text-white absolute top-0.5 right-0.5 flex size-5 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
+                  className="bg-black/60 text-white absolute top-0.5 right-0.5 flex size-5 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
                 >
                   <X className="size-3.5" aria-hidden="true" />
                 </button>
@@ -165,7 +165,7 @@ export const GalleryAlbumPicksStrip: FC<Props> = ({
                     else if (intent === 'add') onSetCover(null)
                   }}
                   disabled={disabled}
-                  className="bg-black/60 text-white absolute bottom-0.5 left-0.5 flex size-5 cursor-pointer items-center justify-center rounded-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
+                  className="bg-black/60 text-white absolute bottom-0.5 left-0.5 flex size-5 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 pointer-coarse:size-11"
                 >
                   <Star
                     className={cn('size-3.5', isStar && 'fill-current')}
