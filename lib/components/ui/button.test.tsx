@@ -17,6 +17,7 @@ describe('Button', () => {
     expect(button).toHaveClass(
       'rounded-md',
       'h-(--control-h)',
+      'border',
       'border-primary-edge',
       'shadow-[shadow:inset_0_calc(var(--edge-w,2px)*-1)_0_var(--primary-edge)]'
     )
@@ -88,9 +89,22 @@ describe('Button', () => {
     render(<Button variant="destructive">Delete</Button>)
     const button = screen.getByRole('button', { name: 'Delete' })
     expect(button).toHaveClass(
+      'border',
       'border-destructive-edge',
       'shadow-[shadow:inset_0_calc(var(--edge-w,2px)*-1)_0_var(--destructive-edge)]'
     )
+  })
+
+  it('renders secondary variant with card surface and border', () => {
+    render(<Button variant="secondary">Secondary</Button>)
+    const button = screen.getByRole('button', { name: 'Secondary' })
+    expect(button).toHaveClass(
+      'bg-card',
+      'border',
+      'border-input',
+      'hover:bg-accent'
+    )
+    expect(button).not.toHaveClass('bg-secondary')
   })
 
   it.each([

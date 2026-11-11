@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { Input } from './input'
 
 describe('Input', () => {
-  it('renders with data-slot="input", appearance-none, control height, and keycap styling', () => {
+  it('renders with data-slot="input", appearance-none, control height, and inset top shadow', () => {
     render(<Input placeholder="Enter text" />)
     const input = screen.getByPlaceholderText('Enter text')
     expect(input).toHaveAttribute('data-slot', 'input')

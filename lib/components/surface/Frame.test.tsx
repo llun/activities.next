@@ -56,7 +56,9 @@ describe('Frame', () => {
         <div data-slot="form-row">One</div>
       </Frame>
     )
-    expect(container.innerHTML).not.toContain(rule)
+    const elements = [...container.querySelectorAll('*')]
+    expect(elements.some((el) => el.classList.contains(rule))).toBe(false)
+    expect(elements.some((el) => el.classList.contains(wrapped))).toBe(false)
   })
 
   it.each([false, true])(

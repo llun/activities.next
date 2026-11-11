@@ -71,9 +71,11 @@ describe('MetricSelector', () => {
   it('draws the two-tone focus ring with a forced-colors outline', () => {
     render(<MetricSelector value="distance" onChange={() => {}} />)
     expect(radio('Distance')).toHaveClass(
+      'focus-visible:outline-none',
       'focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)]',
       'forced-colors:focus-visible:[outline-style:solid]',
-      'forced-colors:focus-visible:outline-2'
+      'forced-colors:focus-visible:outline-2',
+      'forced-colors:focus-visible:outline-[CanvasText]'
     )
   })
 

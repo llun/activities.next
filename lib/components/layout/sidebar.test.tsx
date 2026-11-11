@@ -521,9 +521,12 @@ describe('Sidebar', () => {
       renderSidebar(<Sidebar lists={lists} />)
 
       const nav = screen.getAllByRole('navigation')[0]
-      expect(
-        within(nav).getByRole('link', { name: 'Running club' })
-      ).toHaveAttribute('aria-current', 'page')
+      const listLink = within(nav).getByRole('link', { name: 'Running club' })
+      expect(listLink).toHaveAttribute('aria-current', 'page')
+      expect(listLink).toHaveClass(
+        'bg-surface-accent',
+        'shadow-[inset_2px_0_0_var(--primary)]'
+      )
       // Two links claiming the current page reads it out twice.
       expect(
         within(nav).getByRole('link', { name: 'Lists' })
@@ -547,7 +550,7 @@ describe('Sidebar', () => {
     // `text-primary-text`, never `text-primary`: `--primary` is the icon orange
     // and is under the AA floor as a label (globals.contrast.test.ts guards the
     // token values, not their usage).
-    it('draws only the current row label in the AA-safe text token and active keycap inset', () => {
+    it('draws only the current row label in the AA-safe text token and the inset left rule', () => {
       mockPathname.mockReturnValue('/search')
       renderSidebar(<Sidebar lists={[]} />)
 
@@ -566,6 +569,13 @@ describe('Sidebar', () => {
       expect(inactive).not.toHaveClass('text-primary-text')
       expect(inactive).not.toHaveClass('bg-surface-accent')
       expect(inactive).not.toHaveClass('shadow-[inset_2px_0_0_var(--primary)]')
+
+      const rail = screen.getAllByRole('navigation')[1]
+      const activeRail = within(rail).getByRole('link', { name: 'Search' })
+      expect(activeRail).toHaveClass(
+        'bg-surface-accent',
+        'shadow-[inset_2px_0_0_var(--primary)]'
+      )
     })
 
     it('shows the current page on the collapsed More row', () => {

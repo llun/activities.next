@@ -62,9 +62,11 @@ describe('SegmentedControl (in-page state)', () => {
   it('draws the two-tone focus ring with a forced-colors outline', () => {
     render(<Harness initial="distance" />)
     expect(screen.getByRole('radio', { name: 'Distance' })).toHaveClass(
+      'focus-visible:outline-none',
       'focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)]',
       'forced-colors:focus-visible:[outline-style:solid]',
-      'forced-colors:focus-visible:outline-2'
+      'forced-colors:focus-visible:outline-2',
+      'forced-colors:focus-visible:outline-[CanvasText]'
     )
   })
 
