@@ -34,12 +34,12 @@ const Loading: FC = () => (
           bars match the real controls' widths (Filters 75px, count text
           5.5rem, Sort menu 213px). */}
       <div className="hidden sm:flex flex-wrap items-center gap-2">
-        <SkeletonBar className="h-10 w-[240px] rounded-lg" />
-        <SkeletonBar className="h-10 w-[240px] rounded-lg" />
-        <SkeletonBar className="h-10 w-[75px] rounded-lg" />
+        <SkeletonBar className="h-10 w-[240px] rounded-sm" />
+        <SkeletonBar className="h-10 w-[240px] rounded-sm" />
+        <SkeletonBar className="h-10 w-[75px] rounded-sm" />
         <div className="ml-auto flex items-center gap-2">
           <SkeletonBar className="h-4 w-[5.5rem]" />
-          <SkeletonBar className="h-10 w-[213px] rounded-lg" />
+          <SkeletonBar className="h-10 w-[213px] rounded-sm" />
         </div>
       </div>
       {/* Phones: Type, Show and the Filters button stacked full width in
@@ -50,9 +50,9 @@ const Loading: FC = () => (
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <SkeletonBar className="h-10 w-full" />
             <SkeletonBar className="h-10 w-full" />
-            <SkeletonBar className="h-10 w-[75px] rounded-lg" />
+            <SkeletonBar className="h-10 w-[75px] rounded-sm" />
           </div>
-          <SkeletonBar className="h-10 w-[100px] rounded-lg" />
+          <SkeletonBar className="h-10 w-[100px] rounded-sm" />
         </div>
       </div>
       {/* The count line a sheet host keeps on phones below the row. */}
