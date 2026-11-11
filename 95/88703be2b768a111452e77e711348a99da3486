@@ -1,0 +1,29 @@
+app/(timeline)/gallery/albums/GalleryAlbumPickerTile.tsx
+  s_49da6fa129b372::t_bd3fd01e532ddc 128,147
+lib/components/photo-editor/masks/MaskStageLayer.tsx
+  s_49da6fa129b372::t_bd3fd01e532ddc 364
+app/(timeline)/fitness/gear/GearListView.tsx
+  s_49da6fa129b372::t_bd3fd01e532ddc 259
+docs/architecture.md
+  s_49da6fa129b372::t_bd3fd01e532ddc 1670
+app/(timeline)/gallery/albums/galleryAlbumsUi.ts
+  s_49da6fa129b372::t_bd3fd01e532ddc 122
+app/(timeline)/[actor]/[status]/ActivityDistributionRow.tsx
+  s_49da6fa129b372::t_bd3fd01e532ddc 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9588703be2b768a111452e77e711348a99da3486",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
