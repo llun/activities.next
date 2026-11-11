@@ -293,7 +293,7 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
 
   const trigger = (
     <DropdownMenuTrigger asChild>
-      {/* The design's trigger is taller than the shared Button default (h-10). */}
+      {/* The design's trigger is h-10 (40px) at every width; the shared Button default is 36px on fine pointers and 40px under a coarse one. */}
       <Button variant="outline" className="h-10 w-full justify-between sm:w-64">
         <span className="flex min-w-0 items-center gap-2">
           {activeItem && (

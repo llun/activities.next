@@ -128,7 +128,7 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
       <div
         role="group"
         aria-label="Graph display mode"
-        className="inline-flex rounded-sm border bg-muted p-0.5 font-mono text-xs font-medium"
+        className="inline-flex rounded-lg border bg-muted p-0.5 font-mono text-xs font-medium"
       >
         {GRAPH_DISPLAY_MODES.map((entry) => (
           <button
