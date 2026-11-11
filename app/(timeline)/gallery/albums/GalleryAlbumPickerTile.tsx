@@ -155,7 +155,7 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
         {albumCount > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute top-1.5 right-1.5 rounded-sm bg-black/70 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-white"
+            className="absolute top-1.5 right-1.5 rounded-sm bg-black/70 px-1.5 py-0.5 text-[11px] tabular-nums text-white"
           >
             <span className="max-sm:hidden">In </span>
             {albumCount}

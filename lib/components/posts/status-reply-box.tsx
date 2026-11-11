@@ -772,7 +772,7 @@ export const StatusReplyBox: FC<Props> = ({
             onClick={() => handleMentionModeChange('all')}
             disabled={draftLocked}
             className={cn(
-              'rounded-sm px-2.5 py-0.5 font-mono text-xs tabular-nums transition-colors',
+              'rounded-sm px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'all'
                 ? 'bg-primary text-primary-foreground font-medium'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
@@ -785,7 +785,7 @@ export const StatusReplyBox: FC<Props> = ({
             onClick={() => handleMentionModeChange('author-first')}
             disabled={draftLocked}
             className={cn(
-              'rounded-sm px-2.5 py-0.5 font-mono text-xs tabular-nums transition-colors',
+              'rounded-sm px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'author-first'
                 ? 'bg-primary text-primary-foreground font-medium'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
@@ -798,7 +798,7 @@ export const StatusReplyBox: FC<Props> = ({
             onClick={() => handleMentionModeChange('author-only')}
             disabled={draftLocked}
             className={cn(
-              'rounded-sm px-2.5 py-0.5 font-mono text-xs tabular-nums transition-colors',
+              'rounded-sm px-2.5 py-0.5 text-xs transition-colors',
               mentionMode === 'author-only'
                 ? 'bg-primary text-primary-foreground font-medium'
                 : 'bg-muted hover:bg-muted/80 text-foreground'
