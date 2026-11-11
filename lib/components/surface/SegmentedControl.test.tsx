@@ -56,6 +56,18 @@ describe('SegmentedControl (in-page state)', () => {
     )
   })
 
+  // Focus always lands on the checked segment, so the ring sits on the orange
+  // fill: the two-tone ring keeps a background gap around it, and forced-colors
+  // mode gets an outline because it drops box-shadows.
+  it('draws the two-tone focus ring with a forced-colors outline', () => {
+    render(<Harness initial="distance" />)
+    expect(screen.getByRole('radio', { name: 'Distance' })).toHaveClass(
+      'focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)]',
+      'forced-colors:focus-visible:[outline-style:solid]',
+      'forced-colors:focus-visible:outline-2'
+    )
+  })
+
   it('chooses on click', () => {
     render(<Harness />)
     fireEvent.click(screen.getByRole('radio', { name: 'Duration' }))

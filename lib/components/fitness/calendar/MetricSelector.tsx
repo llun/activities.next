@@ -101,7 +101,7 @@ export const MetricSelector = ({
               // the 4px track padding and 4px gaps, guaranteeing the full 44px
               // touch target and eliminating dead clicks in the padding and
               // between segments.
-              'relative flex min-h-9 flex-[1_1_auto] cursor-pointer items-center justify-center rounded-md py-1.5 px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default @min-[40rem]:flex-none after:absolute after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1 last:after:-right-1',
+              'relative flex min-h-9 flex-[1_1_auto] cursor-pointer items-center justify-center rounded-md py-1.5 px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--ring)] forced-colors:focus-visible:[outline-style:solid] forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[CanvasText] disabled:cursor-default @min-[40rem]:flex-none after:absolute after:-inset-y-1 after:-inset-x-0.5 first:after:-left-1 last:after:-right-1',
               active
                 ? 'bg-primary text-primary-foreground shadow-[inset_0_-2px_0_var(--primary-edge)]'
                 : 'text-foreground hover:bg-accent'

@@ -19,7 +19,8 @@ import { cn } from '@/lib/utils'
 // unchecked (on the OAuth consent card, every scope is pre-checked). There
 // `forced-colors:appearance-auto` brings the native checkbox back, which the
 // system draws in its own contrasting colours. That mode also drops the
-// box-shadow focus ring, so keyboard focus gets the native outline back, and
+// box-shadow focus ring, so keyboard focus gets a solid 2px CanvasText outline
+// instead, and
 // the system already dims a disabled box, so the 50% opacity is reset there.
 function Checkbox({
   className,
