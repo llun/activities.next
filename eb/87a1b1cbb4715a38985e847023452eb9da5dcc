@@ -1,0 +1,57 @@
+app/(timeline)/[actor]/[status]/ActivityAnalysisChart.tsx
+  s_49da6fa129b372::t_85cb92256984ca 153,583,612-615,621
+app/(timeline)/[actor]/[status]/ActivityBestEfforts.tsx
+  s_49da6fa129b372::t_16c20c77b64f18 80
+app/(timeline)/[actor]/[status]/ActivityDistributionRow.tsx
+  s_49da6fa129b372::t_c9ddd271d9a7cc 35,51
+app/(timeline)/[actor]/[status]/ActivityOverviewSection.tsx
+  s_49da6fa129b372::t_8922f45a209285 61,78-80,92-94
+app/(timeline)/[actor]/[status]/ActivityPostFrame.tsx
+  s_49da6fa129b372::t_89062b4c45fae8 96,310
+app/(timeline)/[actor]/[status]/ActivitySplitsTables.tsx
+  s_49da6fa129b372::t_ad1c9fcde4952a 162,170
+app/(timeline)/[actor]/[status]/ActivityStartTime.tsx
+  s_49da6fa129b372::t_798a7a63869adf 25-28
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.tsx
+  s_49da6fa129b372::t_7a56fdd76a8567 58,131,140,161
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_49da6fa129b372::t_e5ab89410a10e7 200
+app/(timeline)/[actor]/[status]/StatusLikes.tsx
+  s_49da6fa129b372::t_b04cb57178fefc 118
+app/(timeline)/[actor]/[status]/StatusStatStrip.tsx
+  s_49da6fa129b372::t_27d1a2fffa2ccf 57
+app/(timeline)/fitness/ActivityTypeBreakdown.tsx
+  s_49da6fa129b372::t_fbba42aca78c32 193,196,199
+app/(timeline)/fitness/RecentFitnessActivities.tsx
+  s_49da6fa129b372::t_db87ffabc0b2d2 83
+app/(timeline)/fitness/connections/strava/StravaGearDefaultsSection.tsx
+  s_49da6fa129b372::t_3952489a32d171 408,447,494
+app/(timeline)/fitness/connections/wahoo/WahooSettingsForm.tsx
+  s_49da6fa129b372::t_1ce39b9a9106db 364-367,380-383
+app/(timeline)/fitness/gear/GearListView.tsx
+  s_49da6fa129b372::t_b84165bb3d277c 259,380
+app/(timeline)/fitness/gear/[id]/GearComponentsCard.tsx
+  s_49da6fa129b372::t_e26e45a7172889 569
+app/(timeline)/fitness/records/PersonalRecordsView.tsx
+  s_49da6fa129b372::t_d379a97a8770c8 57,68
+lib/components/fitness/calendar/DayDetails.tsx
+  s_49da6fa129b372::t_ec89340e4d855b 156
+lib/components/fitness/calendar/MiniMonthCalendar.tsx
+  s_49da6fa129b372::t_3d4adb8eef2c3f 294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb87a1b1cbb4715a38985e847023452eb9da5dcc",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
