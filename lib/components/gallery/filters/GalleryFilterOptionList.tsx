@@ -109,7 +109,7 @@ export const GalleryFilterOptionList: FC<GalleryFilterOptionListProps> = ({
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={searchPlaceholder}
           aria-label={searchAriaLabel}
-          className="h-9 pr-8 pl-8"
+          className="pr-8 pl-8"
         />
         {searchQuery ? (
           <button
@@ -152,7 +152,7 @@ export const GalleryFilterOptionList: FC<GalleryFilterOptionListProps> = ({
             {typeof anyOption.count === 'number' ? (
               <span
                 className={cn(
-                  'ml-2 shrink-0 text-xs tabular-nums',
+                  'ml-2 shrink-0 font-mono text-xs tabular-nums',
                   anyOption.active
                     ? 'text-primary-text/80'
                     : 'text-muted-foreground'
@@ -203,7 +203,7 @@ export const GalleryFilterOptionList: FC<GalleryFilterOptionListProps> = ({
             {typeof item.count === 'number' ? (
               <span
                 className={cn(
-                  'ml-2 shrink-0 text-xs tabular-nums',
+                  'ml-2 shrink-0 font-mono text-xs tabular-nums',
                   item.active ? 'text-primary-text/80' : 'text-muted-foreground'
                 )}
               >
@@ -241,7 +241,7 @@ export const GalleryFilterOptionList: FC<GalleryFilterOptionListProps> = ({
               {typeof noneOption.count === 'number' ? (
                 <span
                   className={cn(
-                    'ml-2 shrink-0 text-xs tabular-nums',
+                    'ml-2 shrink-0 font-mono text-xs tabular-nums',
                     noneOption.active
                       ? 'text-primary-text/80'
                       : 'text-muted-foreground'

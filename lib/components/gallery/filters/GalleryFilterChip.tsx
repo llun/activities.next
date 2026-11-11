@@ -44,7 +44,7 @@ export const GalleryFilterChip: FC<GalleryFilterChipProps> = ({
       className={cn(
         'inline-flex h-10 items-stretch rounded-lg',
         active &&
-          'border-primary bg-primary/10 text-primary-text border text-sm font-medium shadow-xs transition-colors',
+          'border-primary bg-primary/10 text-primary-text border text-sm font-medium transition-colors',
         active && disabled && 'pointer-events-none opacity-50',
         className
       )}

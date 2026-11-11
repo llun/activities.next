@@ -72,7 +72,7 @@
 
 /* Month: a numbered square whose type and corners scale with the cell. */
 .month {
-  --cell-radius: clamp(6px, calc(var(--cell) * 0.13), 12px);
+  --cell-radius: 2px;
 
   display: grid;
   place-items: center;

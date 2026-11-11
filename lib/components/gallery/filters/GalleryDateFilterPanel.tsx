@@ -184,7 +184,7 @@ export const GalleryDateFilterPanel: FC<GalleryDateFilterPanelProps> = ({
               </div>
               <span
                 className={cn(
-                  'ml-2 shrink-0 text-xs tabular-nums',
+                  'ml-2 shrink-0 font-mono text-xs tabular-nums',
                   isActive ? 'text-primary-text/80' : 'text-muted-foreground'
                 )}
               >
@@ -235,7 +235,7 @@ export const GalleryDateFilterPanel: FC<GalleryDateFilterPanelProps> = ({
                     </div>
                     <span
                       className={cn(
-                        'ml-2 shrink-0 text-xs tabular-nums',
+                        'ml-2 shrink-0 font-mono text-xs tabular-nums',
                         isActive
                           ? 'text-primary-text/80'
                           : 'text-muted-foreground'

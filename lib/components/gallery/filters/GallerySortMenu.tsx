@@ -46,7 +46,7 @@ export const GallerySortMenu: FC<GallerySortMenuProps> = ({
           <Button
             variant="outline"
             disabled={disabled}
-            className="h-10 justify-between gap-2 rounded-lg font-normal"
+            className="h-10 justify-between gap-2 font-normal"
           >
             {!compact ? (
               <span>
@@ -62,7 +62,7 @@ export const GallerySortMenu: FC<GallerySortMenuProps> = ({
         <DropdownMenuContent
           align="end"
           sideOffset={6}
-          className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-xl shadow-lg"
+          className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
         >
           <DropdownMenuRadioGroup
             value={activeOption.id}

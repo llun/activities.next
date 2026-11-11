@@ -293,11 +293,10 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
 
   const trigger = (
     <DropdownMenuTrigger asChild>
-      {/* The design's trigger is taller and softer-cornered than the shared
-          Button default (h-10 / rounded-lg, not h-9 / rounded-md). */}
+      {/* The design's trigger is taller than the shared Button default (h-10). */}
       <Button
         variant="outline"
-        className="h-10 w-full justify-between rounded-lg sm:w-64"
+        className="h-10 w-full justify-between sm:w-64"
       >
         <span className="flex min-w-0 items-center gap-2">
           {activeItem && (
@@ -322,17 +321,16 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
       }}
     >
       {trigger}
-      {/* Rounder and lifted higher off the page than the shared menu default
-          (rounded-xl / shadow-lg, not rounded-md / shadow-md). The width class
-          MUST use Tailwind v4's parenthesis syntax for a bare CSS variable
-          (lib/components/tailwindCssVariableSyntax.test.ts). The primitive
-          caps the height to --radix-dropdown-menu-content-available-height and
-          scrolls inside. `sideOffset={6}`: the Settings navigation board
-          opens the menu 6 pt under the trigger. */}
+      {/* The width class MUST use Tailwind v4's parenthesis syntax for a bare
+          CSS variable (lib/components/tailwindCssVariableSyntax.test.ts). The
+          primitive caps the height to
+          --radix-dropdown-menu-content-available-height and scrolls inside.
+          `sideOffset={6}`: the Settings navigation board opens the menu 6 pt
+          under the trigger. */}
       <DropdownMenuContent
         align="start"
         sideOffset={6}
-        className="w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg"
+        className="w-(--radix-dropdown-menu-trigger-width)"
         {...focusCurrentRowOnOpen}
       >
         {before.map((group, index) => block(group, index, index > 0))}

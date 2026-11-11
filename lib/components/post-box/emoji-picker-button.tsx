@@ -171,7 +171,7 @@ export const EmojiPickerButton: FC<Props> = ({
             role="dialog"
             data-row-overlay
             aria-label="Emoji and sticker picker"
-            className="absolute left-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border bg-background shadow-lg"
+            className="absolute left-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-none border border-input bg-background"
           >
             <div className="border-b p-2.5">
               <div className="relative">

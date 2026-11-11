@@ -416,7 +416,7 @@ export function RangePicker({
             style={sheetStyle}
             onOpenAutoFocus={focusInitial}
             onCloseAutoFocus={onCloseAutoFocus}
-            className="bg-background dark:bg-card data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4 motion-reduce:data-[state=open]:slide-in-from-bottom-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-x-0 z-50 flex w-full flex-col rounded-t-2xl border-t shadow-lg duration-200 ease-out outline-none"
+            className="bg-background dark:bg-card data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4 motion-reduce:data-[state=open]:slide-in-from-bottom-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-x-0 z-50 flex w-full flex-col rounded-none border-t border-input duration-200 ease-out outline-none"
           >
             <div className="mx-auto flex min-h-0 w-full max-w-[710px] flex-1 flex-col">
               <div

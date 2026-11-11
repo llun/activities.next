@@ -104,7 +104,7 @@ const DownloadRecordingButton: FC<{
 }
 
 const PRIMARY_PILL =
-  'shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground'
+  'shrink-0 rounded-sm border px-1.5 py-px font-mono text-[10px] font-medium uppercase tracking-wide tabular-nums text-muted-foreground'
 
 /**
  * The selected recording's device page (the owner) or its manufacturer (a
@@ -198,15 +198,15 @@ const RecordingPicker: FC<{
         />
       </Button>
     </DropdownMenuTrigger>
-    {/* Chrome shared with `SectionNavSelect` (rounded-xl menu, rounded-lg rows,
-        the orange wash on the current one) — the two menus sit within a screen
-        of each other on this page and a mismatch reads as a mistake. */}
+    {/* Chrome shared with `SectionNavSelect` (the orange wash on the
+        current one) — the two menus sit within a screen of each other on this
+        page and a mismatch reads as a mistake. */}
     <DropdownMenuContent
       align="start"
       sideOffset={6}
       // Keeps the menu off the screen edge on a phone instead of flush to it.
       collisionPadding={16}
-      className="w-80 max-w-[calc(100vw-2rem)] rounded-xl shadow-lg"
+      className="w-80 max-w-[calc(100vw-2rem)]"
     >
       <DropdownMenuLabel className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         Recordings
