@@ -519,7 +519,7 @@ export const ActivityAnalysisChart: FC<ActivityAnalysisChartProps> = ({
                 ref={readoutRef}
                 aria-hidden="true"
                 data-testid="analysis-readout"
-                className="pointer-events-none absolute top-1 z-10 grid min-w-[140px] gap-px whitespace-nowrap rounded-md border bg-background px-2 py-1 text-xs tabular-nums shadow-sm"
+                className="pointer-events-none absolute top-1 z-10 grid min-w-[140px] gap-px whitespace-nowrap rounded-none border border-input bg-background px-2 py-1 font-mono text-xs tabular-nums"
                 style={
                   readoutSize
                     ? {

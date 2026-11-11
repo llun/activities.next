@@ -268,7 +268,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
                       <span className="min-w-0 flex-1 truncate">
                         {album.title}
                       </span>
-                      <span className="text-muted-foreground shrink-0 text-xs font-normal tabular-nums">
+                      <span className="text-muted-foreground shrink-0 font-mono text-xs font-normal tabular-nums">
                         {alreadyIn ? (
                           <>
                             <span>{alreadyIn}</span>

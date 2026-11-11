@@ -60,7 +60,7 @@ export const AnnouncementBadge: FC<BadgeProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-sm border px-2 py-0.5 font-mono text-xs font-medium font-mono tabular-nums',
+        'inline-flex items-center rounded-sm border px-2 py-0.5 font-mono text-xs font-medium tabular-nums',
         tones[tone],
         className
       )}

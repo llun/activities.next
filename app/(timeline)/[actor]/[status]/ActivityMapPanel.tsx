@@ -857,7 +857,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
           type="button"
           onClick={onRequestInteractive}
           disabled={isRouteDataLoading}
-          className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-sm border border-input bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-[inset_0_-2px_0_var(--control-edge)] transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
+          className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-sm border border-primary-edge bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-[inset_0_-2px_0_var(--primary-edge)] transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
           aria-label="Load interactive route map"
         >
           {isRouteDataLoading ? (
@@ -876,7 +876,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
         <button
           type="button"
           onClick={onOpenMap}
-          className="absolute bottom-3 right-3 inline-flex size-11 items-center justify-center rounded-sm border border-input bg-primary text-primary-foreground shadow-[inset_0_-2px_0_var(--control-edge)]"
+          className="absolute bottom-3 right-3 inline-flex size-11 items-center justify-center rounded-sm border border-primary-edge bg-primary text-primary-foreground shadow-[inset_0_-2px_0_var(--primary-edge)]"
           aria-label="Open route map image"
         >
           <Play className="size-5" />

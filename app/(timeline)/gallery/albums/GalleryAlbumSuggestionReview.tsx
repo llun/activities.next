@@ -292,7 +292,7 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
             <div
               key={index}
               aria-hidden="true"
-              className="skeleton aspect-square rounded-md"
+              className="skeleton aspect-square rounded-none"
             />
           ))}
         </div>

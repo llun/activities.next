@@ -70,7 +70,7 @@ export const useDismissingError = () => {
 }
 
 const ACTION_ERROR_CLASS =
-  'pointer-events-none w-max max-w-[min(12rem,calc(100vw-2rem))] break-words rounded-md border bg-background px-2 py-1 text-left text-xs text-destructive shadow-sm'
+  'pointer-events-none w-max max-w-[min(12rem,calc(100vw-2rem))] break-words rounded-md border border-input bg-background px-2 py-1 text-left text-xs text-destructive'
 
 interface ActionErrorProps {
   message: string

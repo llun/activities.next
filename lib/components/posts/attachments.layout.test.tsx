@@ -55,12 +55,12 @@ describe('Attachments', () => {
   describe('corner treatment & nested elements', () => {
     it.each([
       {
-        description: 'rounds a lone picture on all four corners',
+        description: 'keeps a lone picture square',
         sizes: [{ width: 800, height: 600 }],
         expectedCorners: ['rounded-none']
       },
       {
-        description: 'rounds only the outer edges of a two-item strip',
+        description: 'keeps every item of a two-item strip square',
         sizes: [
           { width: 800, height: 600 },
           { width: 800, height: 600 }
@@ -68,7 +68,7 @@ describe('Attachments', () => {
         expectedCorners: ['rounded-none', 'rounded-none']
       },
       {
-        description: 'leaves the middle of a three-item strip square',
+        description: 'keeps every item of a three-item strip square',
         sizes: [
           { width: 800, height: 600 },
           { width: 600, height: 900 },
@@ -77,7 +77,7 @@ describe('Attachments', () => {
         expectedCorners: ['rounded-none', 'rounded-none', 'rounded-none']
       },
       {
-        description: 'leaves both middles of a four-item strip square',
+        description: 'keeps every item of a four-item strip square',
         sizes: [
           { width: 800, height: 600 },
           { width: 600, height: 900 },

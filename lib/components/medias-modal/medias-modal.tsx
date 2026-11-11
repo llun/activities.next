@@ -546,7 +546,7 @@ export const MediasModal: FC<Props> = ({
               })
             }}
             className={cn(
-              'absolute bottom-3 z-20 mx-auto max-w-2xl divide-y divide-white/10 overflow-y-auto rounded-none border border-input bg-black/70 p-4 text-left text-white outline-none backdrop-blur-md empty:hidden focus-visible:ring-2 focus-visible:ring-white/60',
+              'absolute bottom-3 z-20 mx-auto max-w-2xl divide-y divide-white/10 overflow-y-auto rounded-none bg-black/70 p-4 text-left text-white ring-1 ring-white/10 outline-none backdrop-blur-md empty:hidden focus-visible:ring-2 focus-visible:ring-white/60',
               shouldShowNavigation
                 ? 'inset-x-3 max-h-[calc(50%-2.5rem)]'
                 : 'inset-x-3 max-h-[40%] md:max-h-[50%]'

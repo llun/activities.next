@@ -139,7 +139,7 @@ export const GraphDisplayCard: FC<GraphDisplayCardProps> = ({
             className={cn(
               'rounded-sm px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
               mode === entry.id
-                ? 'bg-background text-primary-text shadow-sm'
+                ? 'bg-background text-primary-text shadow-[inset_0_-2px_0_var(--control-edge)]'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >

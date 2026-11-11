@@ -67,7 +67,7 @@ const getRecordingSummary = (file: StatusFitnessFileItem): string =>
     .join(' · ')
 
 const OUTLINE_SQUARE_BUTTON =
-  'inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg border bg-card text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50'
+  'inline-flex size-[30px] shrink-0 items-center justify-center rounded-sm border border-input bg-card text-muted-foreground shadow-[inset_0_-2px_0_var(--control-edge)] transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50'
 
 /**
  * The selected recording's download. `href` is set only for the owner:
