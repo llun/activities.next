@@ -124,12 +124,12 @@ describe('Attachments', () => {
 
     it.each([
       {
-        description: 'rounds a lone video on all four corners',
+        description: 'keeps a lone video square',
         count: 1,
         expectedCorners: ['rounded-none']
       },
       {
-        description: 'rounds only the outer edges of a three-video strip',
+        description: 'keeps every video of a three-video strip square',
         count: 3,
         expectedCorners: ['rounded-none', 'rounded-none', 'rounded-none']
       }
