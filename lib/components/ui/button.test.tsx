@@ -127,6 +127,20 @@ describe('Button', () => {
     )
   })
 
+  // `dark:` has the same specificity as `focus-visible:` and is emitted later,
+  // so a call site's dark border would replace the ring border on focus.
+  it('keeps the ring border over a call-site dark border on focus', () => {
+    render(
+      <Button variant="outline" className="dark:border-border">
+        Action
+      </Button>
+    )
+    expect(screen.getByRole('button', { name: 'Action' })).toHaveClass(
+      'dark:border-border',
+      'dark:focus-visible:border-ring'
+    )
+  })
+
   it('keeps a call-site shadow while pressed', () => {
     render(
       <Button variant="pill" className="shadow-lg">

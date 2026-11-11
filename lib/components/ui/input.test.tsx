@@ -68,7 +68,8 @@ describe('Input', () => {
   it('turns the focus ring destructive on an invalid field', () => {
     render(<Input aria-label="Name" aria-invalid="true" />)
     expect(screen.getByLabelText('Name')).toHaveClass(
-      'aria-invalid:focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--destructive)]'
+      'aria-invalid:focus-visible:ring-0',
+      'aria-invalid:focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--destructive-text)]'
     )
   })
 

@@ -39,7 +39,8 @@ describe('Textarea', () => {
   it('turns the focus ring destructive on an invalid field', () => {
     render(<Textarea aria-label="Summary" aria-invalid="true" />)
     expect(screen.getByLabelText('Summary')).toHaveClass(
-      'aria-invalid:focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--destructive)]'
+      'aria-invalid:focus-visible:ring-0',
+      'aria-invalid:focus-visible:shadow-[0_0_0_2px_var(--background),0_0_0_4px_var(--destructive-text)]'
     )
   })
 })
