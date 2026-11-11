@@ -63,7 +63,10 @@ export const MaskThumb = ({
       width={WIDTH}
       height={HEIGHT}
       aria-hidden="true"
-      className={cn('h-[26px] w-[34px] shrink-0 rounded-sm bg-muted', className)}
+      className={cn(
+        'h-[26px] w-[34px] shrink-0 rounded-sm bg-muted',
+        className
+      )}
     />
   )
 }
