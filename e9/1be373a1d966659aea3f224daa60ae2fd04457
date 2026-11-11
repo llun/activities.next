@@ -1,0 +1,71 @@
+lib/components/photo-editor/AdjustmentRow.tsx
+  s_49da6fa129b372::t_81dd11da9dae87 35
+lib/components/photo-editor/CropPanel.tsx
+  s_49da6fa129b372::t_ea26ae55c3dd33 137-138
+lib/components/photo-editor/EditedTime.tsx
+  s_49da6fa129b372::t_8f5dc35e2945d6 19-23
+lib/components/photo-editor/PhoneSliderPanel.tsx
+  s_49da6fa129b372::t_eb146aeac34e15 139
+lib/components/photo-editor/PhotoEditPreview.tsx
+  s_49da6fa129b372::t_843dece76714c8 187
+lib/components/photo-editor/PresetsPanel.tsx
+  s_49da6fa129b372::t_ab14da485ad48b 107
+lib/components/photo-editor/masks/MaskParts.tsx
+  s_49da6fa129b372::t_d8131980194449 193
+lib/components/photo-editor/masks/MaskStageLayer.tsx
+  s_49da6fa129b372::t_ddba8fb960aeb8 364
+lib/components/photo-editor/masks/MasksPanel.tsx
+  s_49da6fa129b372::t_6373b0a4b27396 186
+lib/components/post-box/composer-attachment-tiles.tsx
+  s_49da6fa129b372::t_e5998219e8a3ea 128,316,362
+lib/components/post-box/poll-choices.tsx
+  s_49da6fa129b372::t_9add617805a013 112
+lib/components/posts/actions/actionButtonShared.tsx
+  s_49da6fa129b372::t_a513b57aa5811c 14
+lib/components/posts/actions/reply-button.tsx
+  s_49da6fa129b372::t_d04b407ec31461 29
+lib/components/posts/actions/visibility-button.tsx
+  s_49da6fa129b372::t_b4d38e24f5697e 87
+lib/components/posts/attachments.layout.test.tsx
+  s_49da6fa129b372::t_93e0d2508379c0 60,68,77,90-91,129,134
+lib/components/posts/attachments.tsx
+  s_49da6fa129b372::t_8d177f4ade93c3 91-92,432,434,439,441,448,452,579
+lib/components/posts/boost-carousel.tsx
+  s_49da6fa129b372::t_8f7502d3181721 72
+lib/components/posts/content-warning.tsx
+  s_49da6fa129b372::t_3fb1e2c0511656 52
+lib/components/posts/link-preview-card.tsx
+  s_49da6fa129b372::t_52b11143f995fc 354
+lib/components/posts/poll.tsx
+  s_49da6fa129b372::t_f5d8c4e3c9854b 187,234
+lib/components/posts/post-body.tsx
+  s_49da6fa129b372::t_c0455a1c416bd0 248
+lib/components/posts/reaction-row.tsx
+  s_49da6fa129b372::t_5e8f2f5a62ea65 62,185
+lib/components/posts/read-only-stats.tsx
+  s_49da6fa129b372::t_e7f5a1d1b1c139 45,53
+lib/components/posts/status-context.tsx
+  s_49da6fa129b372::t_6d1a2501aa3a08 75
+lib/components/posts/status-reply-box.tsx
+  s_49da6fa129b372::t_98a8ba51f3d3ab 749,775,788,801,857,870
+lib/components/posts/timeline-feed.tsx
+  s_49da6fa129b372::t_811368bab406b0 645
+lib/components/profile/FeaturedTagsBlock.tsx
+  s_49da6fa129b372::t_3e3f6208462c24 13,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e91be373a1d966659aea3f224daa60ae2fd04457",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
