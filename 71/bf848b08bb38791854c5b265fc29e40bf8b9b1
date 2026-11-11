@@ -1,0 +1,29 @@
+lib/components/settings/ActorsSection.tsx
+  s_49da6fa129b372::t_c28c1e1402de7f 220
+lib/components/gallery/GalleryGridSkeleton.tsx
+  s_49da6fa129b372::t_c28c1e1402de7f 41,48
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_49da6fa129b372::t_c28c1e1402de7f 351
+docs/architecture.md
+  s_49da6fa129b372::t_c28c1e1402de7f 3485-3491
+app/(timeline)/[actor]/[status]/ActivityBestEfforts.tsx
+  s_49da6fa129b372::t_c28c1e1402de7f 80,82
+lib/components/fitness/calendar/calendar.module.css
+  s_49da6fa129b372::t_c28c1e1402de7f 73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "71bf848b08bb38791854c5b265fc29e40bf8b9b1",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
