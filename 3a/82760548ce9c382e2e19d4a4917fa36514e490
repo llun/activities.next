@@ -1,0 +1,33 @@
+lib/components/fitness/calendar/MetricSelector.test.tsx
+  s_49da6fa129b372::t_e3b768fef7fdc9 74,77-78
+lib/components/layout/sidebar.test.tsx
+  s_49da6fa129b372::t_8b4bf1b574a61d 524-529,553,572-578
+lib/components/surface/Frame.test.tsx
+  s_49da6fa129b372::t_7f7cee67214e8b 59-61
+lib/components/surface/SegmentedControl.test.tsx
+  s_49da6fa129b372::t_d50217d38d158d 65,68-69
+lib/components/surface/StatCell.test.tsx
+  s_49da6fa129b372::t_e750f0682c5ecc 85-90,118-123,127-165
+lib/components/ui/button.test.tsx
+  s_49da6fa129b372::t_e20de90172b239 20,92,98-109
+lib/components/ui/input.test.tsx
+  s_49da6fa129b372::t_774f3c7fd031c6 11
+lib/components/ui/popover.test.tsx
+  s_49da6fa129b372::t_e2a13c3f68465b 46-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3a82760548ce9c382e2e19d4a4917fa36514e490",
+  "prompts": {},
+  "sessions": {
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
