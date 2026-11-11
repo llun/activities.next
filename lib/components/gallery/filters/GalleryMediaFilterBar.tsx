@@ -438,7 +438,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               data-testid={`${idPrefix}-count`}
               role="status"
               aria-live="polite"
-              className="text-muted-foreground min-w-[7.25rem] text-right font-mono text-sm tabular-nums"
+              className="text-muted-foreground min-w-[5.5rem] text-right tabular-nums text-sm"
             >
               {total !== null
                 ? `${pluralize(total, 'photo')}${

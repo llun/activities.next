@@ -909,7 +909,7 @@ describe('GalleryMediaFilterBar', () => {
       // A stable minimum width, right-aligned tabular figures, so the
       // group's width does not change as the count loads and changes and
       // the row does not re-wrap.
-      expect(count).toHaveClass('min-w-[7.25rem]', 'text-right', 'tabular-nums')
+      expect(count).toHaveClass('min-w-[5.5rem]', 'text-right', 'tabular-nums')
       // The count and Sort share one right-aligned group, so they wrap
       // together when the row is tight.
       const group = count.parentElement as HTMLElement
