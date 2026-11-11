@@ -91,7 +91,7 @@ describe('Frame', () => {
     expect(container.querySelector('.divide-y')).not.toBeNull()
   })
 
-  it('spaces form rows with py-1.5 and no rules when form', () => {
+  it('pads a form box with py-1.5 instead of dividing it', () => {
     const { container } = render(
       <Frame form>
         <p>One</p>
