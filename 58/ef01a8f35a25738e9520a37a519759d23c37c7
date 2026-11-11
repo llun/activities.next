@@ -1,0 +1,83 @@
+app/(timeline)/[actor]/[status]/FitnessRecordingPicker.tsx
+  s_dc239db0cc1c9d::t_6d42bb4e611ca2 107,201-203,209
+lib/components/filters/ServerFilterSheet.tsx
+  s_397ccbed29ba1f::t_7c88ab7a5178a0 65,94
+lib/components/fitness/calendar/DayDetailsSheet.tsx
+  s_397ccbed29ba1f::t_86044cc20249ec 96,98
+lib/components/fitness/calendar/calendar.module.css
+  s_dc239db0cc1c9d::t_b4edc285a59e41 75
+lib/components/gallery/filters/GalleryDateFilterPanel.tsx
+  s_49da6fa129b372::t_0d1a51906c0ae5 187,238
+lib/components/gallery/filters/GalleryFilterChip.tsx
+  s_dc239db0cc1c9d::t_e3209b5bd0be4a 47
+lib/components/gallery/filters/GalleryFilterOptionList.tsx
+  s_dc239db0cc1c9d::t_281980fb22f6e7 112,155,206,244
+lib/components/gallery/filters/GalleryMediaFilterBar.tsx
+  s_dc239db0cc1c9d::t_c3f5cd32a3b755 91,110,421,441,482
+lib/components/gallery/filters/GalleryMediaFilterSheet.tsx
+  s_dc239db0cc1c9d::t_c373fbf6858ef6 145,187
+lib/components/gallery/filters/GallerySortMenu.tsx
+  s_dc239db0cc1c9d::t_e528bce10069ee 49,65
+lib/components/layout/mobile-navigation-drawer.tsx
+  s_dc239db0cc1c9d::t_d7633beb2136dd 107,118
+app/(timeline)/gallery/albums/GalleryAlbumPicksSheet.tsx
+  s_dc239db0cc1c9d::t_3d5ed8fdeb04d3 69,96,111
+lib/components/actor-switcher/ActorSwitcher.tsx
+  s_dc239db0cc1c9d::t_a6721aff88ab4e 454
+lib/components/fitness/calendar/RangePicker.tsx
+  s_dc239db0cc1c9d::t_1f2e0c1c997be1 419
+lib/components/gallery/GalleryShowSelect.tsx
+  s_dc239db0cc1c9d::t_8bdfbd2696ca2f 83,95
+lib/components/gallery/filters/GalleryFilterMenu.tsx
+  s_dc239db0cc1c9d::t_8f3dd82a093bfc 75
+lib/components/media-details/species-picker-dialog.tsx
+  s_dc239db0cc1c9d::t_8987ff878ef1bc 87,294,367
+lib/components/post-box/emoji-picker-button.tsx
+  s_dc239db0cc1c9d::t_b511ba4ed818d6 174
+lib/components/post-box/post-options-menu.tsx
+  s_dc239db0cc1c9d::t_8d494b45087455 73,77
+lib/components/posts/actions/edit-history-button.tsx
+  s_dc239db0cc1c9d::t_4a9bdaa2f248df 68,105,131,145,151
+lib/components/posts/actions/post-menu.tsx
+  s_dc239db0cc1c9d::t_7764f4bd78a8c4 603
+lib/components/posts/reaction-picker.tsx
+  s_dc239db0cc1c9d::t_2bd5dd7b00015e 252
+lib/components/section-nav-dropdown.tsx
+  s_dc239db0cc1c9d::t_9088a551ffa2aa 296,299,324-329,333
+lib/components/section-nav-select.tsx
+  s_dc239db0cc1c9d::t_615433aafb33f2 65,68,90
+lib/components/theme/ThemeControl.tsx
+  s_dc239db0cc1c9d::t_99eefb670fc39e 47-48,72-73,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58ef01a8f35a25738e9520a37a519759d23c37c7",
+  "prompts": {},
+  "sessions": {
+    "s_397ccbed29ba1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "17a4cfc3-b50c-4845-8280-379aa4c73761",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_49da6fa129b372": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38d4c463-5b41-408e-8e7e-f49336f09411",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_dc239db0cc1c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "39fbbf59-c54b-41d1-b7f6-3bfb9de173ec",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
