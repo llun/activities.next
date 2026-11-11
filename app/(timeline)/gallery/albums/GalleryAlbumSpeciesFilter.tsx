@@ -40,7 +40,7 @@ export const GalleryAlbumSpeciesFilter: FC<Props> = ({
         className={getAlbumChipClassName(subject === null)}
       >
         All
-        <span className="tabular-nums">{total}</span>
+        <span className="font-mono tabular-nums">{total}</span>
       </button>
       {(showAll ? species : species.slice(0, MAX_VISIBLE_CHIPS)).map((chip) => (
         <button
@@ -51,7 +51,7 @@ export const GalleryAlbumSpeciesFilter: FC<Props> = ({
           className={getAlbumChipClassName(subject === chip.key)}
         >
           <span className="max-w-40 truncate">{chip.name}</span>
-          <span className="tabular-nums">{chip.count}</span>
+          <span className="font-mono tabular-nums">{chip.count}</span>
         </button>
       ))}
       {species.length > MAX_VISIBLE_CHIPS ? (

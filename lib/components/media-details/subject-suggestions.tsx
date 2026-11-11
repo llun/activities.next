@@ -82,7 +82,7 @@ const contextCaption = (
 
 const chipClass = (selected: boolean, dashed = false) =>
   cn(
-    'inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-sm outline-none',
+    'inline-flex min-h-9 items-center gap-2 rounded-sm border px-3 font-mono text-sm tabular-nums outline-none',
     'focus-visible:ring-[3px] focus-visible:ring-ring/50',
     dashed && 'border-dashed',
     selected
@@ -184,9 +184,9 @@ export const SubjectSuggestions: FC<Props> = ({
       {suggesting ? (
         <div role="status" className="flex flex-wrap gap-2">
           <span className="sr-only">Reading details</span>
-          <SkeletonBar className="h-8 w-28 rounded-full" />
-          <SkeletonBar className="h-8 w-20 rounded-full" />
-          <SkeletonBar className="h-8 w-32 rounded-full" />
+          <SkeletonBar className="h-8 w-28 rounded-sm" />
+          <SkeletonBar className="h-8 w-20 rounded-sm" />
+          <SkeletonBar className="h-8 w-32 rounded-sm" />
         </div>
       ) : null}
 

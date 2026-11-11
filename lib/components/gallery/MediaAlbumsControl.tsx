@@ -79,7 +79,7 @@ const AlbumChip: FC<{ album: MediaAlbumOptionEntity }> = ({ album }) => (
       target="_blank"
       rel="noopener"
       prefetch={false}
-      className="bg-primary/10 text-primary-text focus-visible:ring-ring/50 relative inline-flex h-7 max-w-full items-center gap-1.5 rounded-full px-3 text-xs font-medium outline-none hover:underline focus-visible:ring-[3px] before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-['']"
+      className="bg-primary/10 text-primary-text focus-visible:ring-ring/50 relative inline-flex h-7 max-w-full items-center gap-1.5 rounded-sm px-3 font-mono text-xs font-medium tabular-nums outline-none hover:underline focus-visible:ring-[3px] before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-['']"
     >
       <Folder className="size-3 shrink-0" aria-hidden="true" />
       <span className="truncate">{album.title}</span>
@@ -234,7 +234,7 @@ export const MediaAlbumsControl: FC<Props> = ({
       >
         <Folder className="size-4" aria-hidden="true" />
         <span className="max-sm:hidden">{getAlbumsPillLabel(n)}</span>
-        <span className="sm:hidden tabular-nums">{n > 0 ? n : ''}</span>
+        <span className="sm:hidden font-mono tabular-nums">{n > 0 ? n : ''}</span>
         <ChevronDown className="max-sm:hidden size-3.5" aria-hidden="true" />
       </button>
     ) : (
@@ -352,7 +352,7 @@ export const MediaAlbumsControl: FC<Props> = ({
                       {album.title}
                     </span>
                     <span
-                      className="shrink-0 text-xs tabular-nums text-muted-foreground"
+                      className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground"
                       aria-hidden="true"
                     >
                       {album.itemCount.toLocaleString('en-US')}

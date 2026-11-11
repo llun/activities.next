@@ -116,7 +116,7 @@ export const GalleryAlbumPicksStrip: FC<Props> = ({
               aria-label={`Show all ${formatCount(count)} picks`}
               onClick={openSheet}
               disabled={disabled}
-              className="cursor-pointer rounded-full border px-2 py-0.5 text-xs focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+              className="cursor-pointer rounded-sm border px-2 py-0.5 font-mono text-xs tabular-nums focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
             >
               +{formatCount(overflow)}
             </button>
@@ -128,7 +128,7 @@ export const GalleryAlbumPicksStrip: FC<Props> = ({
             return (
               <div
                 key={id}
-                className="relative size-[46px] overflow-hidden rounded-md pointer-coarse:size-24"
+                className="relative size-[46px] overflow-hidden rounded-none pointer-coarse:size-24"
               >
                 {item ? (
                   <GalleryAlbumThumb item={item} />

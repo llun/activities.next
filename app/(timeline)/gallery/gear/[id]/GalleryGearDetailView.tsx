@@ -240,7 +240,7 @@ export const GalleryGearDetailView: FC<Props> = ({
                 <Link
                   href={getGearHref(paired.id)}
                   prefetch={false}
-                  className="inline-flex items-center rounded-full border bg-muted/40 px-3 py-1 text-xs font-medium hover:bg-muted"
+                  className="inline-flex items-center rounded-sm border bg-muted/40 px-3 py-1 font-mono text-xs font-medium tabular-nums hover:bg-muted"
                 >
                   {paired.name} · {formatInteger(count)}
                 </Link>

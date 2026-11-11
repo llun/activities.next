@@ -112,7 +112,7 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
           // further out, so the two never look alike; a focused tile is
           // raised so the next tile can't paint over its outline. Phones
           // clear the taller two-row selecting day header.
-          'focus-visible:outline-foreground bg-muted/20 relative block aspect-square w-full cursor-pointer scroll-mt-12 max-sm:scroll-mt-20 overflow-hidden rounded-md focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:z-1 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed',
+          'focus-visible:outline-foreground bg-muted/20 relative block aspect-square w-full cursor-pointer scroll-mt-12 max-sm:scroll-mt-20 overflow-hidden rounded-none focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:z-1 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed',
           isMember
             ? 'disabled:opacity-60 aria-disabled:opacity-60'
             : 'disabled:opacity-40 aria-disabled:opacity-40',
@@ -125,7 +125,7 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
         {isMember ? (
           <span
             aria-hidden="true"
-            className="absolute right-1 bottom-1 left-1 flex items-center justify-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white"
+            className="absolute right-1 bottom-1 left-1 flex items-center justify-center gap-1 rounded-sm bg-black/70 px-1.5 py-0.5 font-mono text-xs font-medium tabular-nums text-white"
           >
             <Check className="size-3 shrink-0" />
             <span className="truncate">In album</span>
@@ -144,7 +144,7 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
             {item.inGallery === false ? (
               <span
                 aria-hidden="true"
-                className="absolute right-1 bottom-1 left-1 flex items-center justify-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white"
+                className="absolute right-1 bottom-1 left-1 flex items-center justify-center gap-1 rounded-sm bg-black/70 px-1.5 py-0.5 font-mono text-xs font-medium tabular-nums text-white"
               >
                 <EyeOff className="size-3 shrink-0" />
                 <span className="truncate max-sm:hidden">Not in gallery</span>
@@ -155,7 +155,7 @@ export const GalleryAlbumPickerTile: FC<Props> = ({
         {albumCount > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute top-1.5 right-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[11px] text-white"
+            className="absolute top-1.5 right-1.5 rounded-sm bg-black/70 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-white"
           >
             <span className="max-sm:hidden">In </span>
             {albumCount}

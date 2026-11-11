@@ -233,7 +233,7 @@ export const GalleryGrid: FC<Props> = ({
         <button
           type="button"
           className={cn(
-            'group bg-muted/20 relative block aspect-square w-full cursor-pointer overflow-hidden rounded-md',
+            'group bg-muted/20 relative block aspect-square w-full cursor-pointer overflow-hidden rounded-none',
             // Select mode draws a dashed focus outline outside the tile in
             // the foreground colour, further out than the anchor's solid
             // offset ring, so focus never looks like the anchor. Viewer
@@ -346,7 +346,7 @@ export const GalleryGrid: FC<Props> = ({
           {isVideo(item) ? (
             <span
               data-testid="video-marker"
-              className="pointer-events-none absolute right-1.5 bottom-1.5 flex items-center rounded bg-black/60 p-1 text-white"
+              className="pointer-events-none absolute right-1.5 bottom-1.5 flex items-center rounded-sm bg-black/60 p-1 text-white"
               aria-hidden="true"
             >
               <Video className="size-3.5" aria-hidden="true" />

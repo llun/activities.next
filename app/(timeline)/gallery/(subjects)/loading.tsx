@@ -49,7 +49,7 @@ const Loading: FC = () => (
           // Chip widths vary with their labels.
           <SkeletonBar
             key={index}
-            className={`h-[30px] rounded-full ${width}`}
+            className={`h-[30px] rounded-sm ${width}`}
           />
         ))}
       </div>

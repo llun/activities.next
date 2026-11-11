@@ -137,7 +137,7 @@ export const ActorMediaGallery: FC<Props> = ({
                 {/* Multiple attachments badge */}
                 {attachmentCount > 1 ? (
                   <span
-                    className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center rounded bg-black/60 p-1 text-white shadow-sm backdrop-blur-xs"
+                    className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center rounded-sm bg-black/60 p-1 text-white backdrop-blur-xs"
                     aria-label="Multiple items"
                     data-testid="album-indicator"
                   >
@@ -145,7 +145,7 @@ export const ActorMediaGallery: FC<Props> = ({
                   </span>
                 ) : isVideo ? (
                   <span
-                    className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center rounded bg-black/60 p-1 text-white shadow-sm backdrop-blur-xs"
+                    className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center rounded-sm bg-black/60 p-1 text-white backdrop-blur-xs"
                     aria-label="Video"
                     data-testid="video-indicator"
                   >
@@ -156,7 +156,7 @@ export const ActorMediaGallery: FC<Props> = ({
                 {/* Alt text badge */}
                 {attachment.name?.trim() ? (
                   <span
-                    className="pointer-events-none absolute bottom-1.5 left-1.5 z-10 flex items-center rounded bg-black/60 px-1 py-0.5 text-[10px] font-semibold text-white shadow-sm backdrop-blur-xs"
+                    className="pointer-events-none absolute bottom-1.5 left-1.5 z-10 flex items-center rounded-sm bg-black/60 px-1 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-white backdrop-blur-xs"
                     aria-hidden="true"
                   >
                     ALT
@@ -177,7 +177,7 @@ export const ActorMediaGallery: FC<Props> = ({
                         className="size-4 sm:size-5 fill-white text-white"
                         aria-hidden="true"
                       />
-                      <span>{formatCount(totalLikes)}</span>
+                      <span className="font-mono tabular-nums">{formatCount(totalLikes)}</span>
                     </span>
                     <span
                       className="flex items-center gap-1.5"
@@ -187,7 +187,7 @@ export const ActorMediaGallery: FC<Props> = ({
                         className="size-4 sm:size-5 fill-white text-white"
                         aria-hidden="true"
                       />
-                      <span>{formatCount(totalReplies)}</span>
+                      <span className="font-mono tabular-nums">{formatCount(totalReplies)}</span>
                     </span>
                     <span
                       className="flex items-center gap-1.5"
@@ -197,7 +197,7 @@ export const ActorMediaGallery: FC<Props> = ({
                         className="size-4 sm:size-5 text-white"
                         aria-hidden="true"
                       />
-                      <span>{formatCount(totalShares)}</span>
+                      <span className="font-mono tabular-nums">{formatCount(totalShares)}</span>
                     </span>
                   </div>
                 </div>

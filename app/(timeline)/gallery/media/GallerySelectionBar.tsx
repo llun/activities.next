@@ -119,7 +119,7 @@ export const GallerySelectionBar: FC<Props> = ({
       <p
         role="status"
         aria-live="polite"
-        className="min-w-0 flex-1 text-sm font-medium tabular-nums"
+        className="min-w-0 flex-1 font-mono text-sm font-medium tabular-nums"
       >
         {count.toLocaleString('en-US')} selected
         {hydrationMessage ? (

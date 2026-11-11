@@ -323,7 +323,7 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
         </p>
         {activity && activityTitle ? (
           <>
-            <span className="hidden items-center rounded-full border px-2 py-0.5 text-xs whitespace-nowrap sm:inline-flex">
+            <span className="hidden items-center rounded-sm border px-2 py-0.5 font-mono text-xs tabular-nums whitespace-nowrap sm:inline-flex">
               {activityEmoji ? (
                 <span aria-hidden="true">{activityEmoji} </span>
               ) : null}
@@ -332,7 +332,7 @@ export const GalleryDayHeader: FC<GalleryDayHeaderProps> = ({
             {/* Phones show the emoji and the title (activity name and
               distance) like the wider chip, truncating via min-w-0
               when the row cannot fit them. */}
-            <span className="inline-block min-w-0 truncate rounded-full border px-2 py-0.5 text-xs sm:hidden">
+            <span className="inline-block min-w-0 truncate rounded-sm border px-2 py-0.5 font-mono text-xs tabular-nums sm:hidden">
               {activityEmoji ? (
                 <>
                   <span aria-hidden="true">{activityEmoji} </span>

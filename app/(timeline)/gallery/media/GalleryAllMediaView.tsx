@@ -1030,7 +1030,7 @@ export const GalleryAllMediaView: FC<Props> = ({
           aria-hidden="true"
           className="bg-background/80 pointer-events-none fixed inset-0 z-50 hidden items-center justify-center p-8 backdrop-blur-xs md:flex"
         >
-          <div className="border-primary bg-card flex max-w-md flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-10 py-12 text-center shadow-lg">
+          <div className="border-primary bg-card flex max-w-md flex-col items-center gap-2 rounded-none border-2 border-dashed px-10 py-12 text-center">
             <ImagePlus className="text-primary size-8" aria-hidden="true" />
             <p className="text-lg font-semibold">
               Drop photos and videos to add them to your gallery
