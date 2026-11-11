@@ -3483,12 +3483,14 @@ The full rules live in
 #### Corner rounding
 
 - **Media is square:** every attachment, lone or in a horizontal strip, is
-  `rounded-none` on the media button (the clipping wrapper), whatever its position
-  (`getStripItemCornerClass` returns `rounded-none` for every index). Natural sizing
-  and aspect ratios are preserved without forcing 1:1 crops. The nested `img` /
-  `video` take `rounded-none` too, and nodes that receive no explicit class (for
-  example the blurhash canvas) keep `rounded-[inherit]`, which resolves through the
-  wrapper to 0, so a media frame never shows a corner its parent doesn't have.
+  `rounded-none` on its outer frame (the media button, or the `div` of a video or
+  animation card), whatever its position (`getStripItemCornerClass` returns
+  `rounded-none` for every index). Natural sizing and aspect ratios are preserved
+  without forcing 1:1 crops. Inside, `Media` (`media.tsx`) puts that class on its own
+  wrapper where it has one, and the `img`, the blurhash canvas and the animation
+  card's overlay button use `rounded-[inherit]`. Where there is no wrapper (an image
+  without a blurhash, a video) the element carries `rounded-none` itself. Every
+  nested corner therefore resolves to 0.
 
 #### Strip chrome: captions, arrows and the position counter
 
