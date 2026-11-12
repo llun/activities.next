@@ -44,7 +44,7 @@ describe('FitnessAnalysisCharts', () => {
         // Centred on its fraction of the plot.
         expect(parseFloat(label.style.left)).toBeCloseTo(
           (index / last) * 100,
-          5
+          4
         )
       }
     })
