@@ -45,7 +45,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Enable corepack
-        run: corepack enable
+        run: |
+          command -v corepack >/dev/null || npm install -g corepack@0.36.0
+          corepack enable
       - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -69,7 +71,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Enable corepack
-        run: corepack enable
+        run: |
+          command -v corepack >/dev/null || npm install -g corepack@0.36.0
+          corepack enable
       - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -88,7 +92,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Enable corepack
-        run: corepack enable
+        run: |
+          command -v corepack >/dev/null || npm install -g corepack@0.36.0
+          corepack enable
       - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -137,7 +143,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Enable corepack
-        run: corepack enable
+        run: |
+          command -v corepack >/dev/null || npm install -g corepack@0.36.0
+          corepack enable
       - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -214,7 +222,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Enable corepack
-        run: corepack enable
+        run: |
+          command -v corepack >/dev/null || npm install -g corepack@0.36.0
+          corepack enable
       - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -407,7 +417,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Enable corepack
-        run: corepack enable
+        run: |
+          command -v corepack >/dev/null || npm install -g corepack@0.36.0
+          corepack enable
       - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -435,7 +447,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Enable corepack
-        run: corepack enable
+        run: |
+          command -v corepack >/dev/null || npm install -g corepack@0.36.0
+          corepack enable
       - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:

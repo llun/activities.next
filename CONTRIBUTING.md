@@ -50,9 +50,10 @@ This project follows the standard open source code of conduct. Be respectful, in
    cd activities.next
    ```
 
-2. **Enable Corepack** (for Yarn 4 support):
+2. **Enable Corepack** (for Yarn 4 support; Node.js 26 no longer bundles `corepack`):
 
    ```bash
+   npm install -g corepack
    corepack enable
    ```
 

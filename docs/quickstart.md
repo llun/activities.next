@@ -19,6 +19,7 @@ option, see the [Setup Guide](setup.md) and the
 ```bash
 git clone https://github.com/llun/activities.next.git
 cd activities.next
+npm install -g corepack
 corepack enable
 yarn install
 ```

@@ -10,7 +10,7 @@ This guide provides an overview of how to set up Activity.next for development o
 ## Prerequisites
 
 - **Node.js 26** (the repo pins `engines.node` to `26.x`)
-- **Yarn 4** package manager via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
+- **Yarn 4** package manager via Corepack (`npm install -g corepack && corepack enable`; the exact Yarn version is pinned by the `packageManager` field in `package.json`)
 - **Git** (to clone the repository)
 - A **domain name** (required for federation with other servers)
 

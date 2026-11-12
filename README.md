@@ -66,9 +66,10 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
    cd activities.next
    ```
 
-2. **Enable Corepack** (for Yarn 4 support):
+2. **Enable Corepack** (for Yarn 4 support; Node.js 26 no longer bundles `corepack`):
 
    ```bash
+   npm install -g corepack
    corepack enable
    ```
 
