@@ -315,7 +315,7 @@ describe('Attachments', () => {
       const strip = screen.getByRole('group', { name: '3 media attachments' })
       expect(strip).toHaveClass('no-scrollbar', 'overflow-x-auto')
       expect(strip.style.minHeight).toBe('240px')
-      expect(strip.style.scrollSnapType).toBe('x proximity')
+      expect(strip.style.scrollSnapType).toBe('x')
     })
 
     it.each([

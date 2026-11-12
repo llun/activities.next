@@ -273,33 +273,24 @@ describe('SearchPageClient', () => {
   })
 
   it('renders hashtag counts without Array.prototype.at support', async () => {
-    const arrayAt = Array.prototype.at
-    Object.defineProperty(Array.prototype, 'at', {
-      configurable: true,
-      value: undefined
-    })
+    // Only the history loses `at`: jsdom's own CSS engine calls it.
+    const history = [{ day: '0', uses: '4', accounts: '1' }]
+    Object.defineProperty(history, 'at', { value: undefined })
     mockSearch.mockResolvedValueOnce({
       ...emptySearchResult(),
       hashtags: [
         {
           name: 'legacy',
           url: 'https://local.example/tags/legacy',
-          history: [{ day: '0', uses: '4', accounts: '1' }]
+          history
         }
       ]
     })
 
-    try {
-      renderSearchPage('q=legacy&type=hashtags')
+    renderSearchPage('q=legacy&type=hashtags')
 
-      expect(await screen.findByText('#legacy')).toBeInTheDocument()
-      expect(screen.getByText('4 posts')).toBeInTheDocument()
-    } finally {
-      Object.defineProperty(Array.prototype, 'at', {
-        configurable: true,
-        value: arrayAt
-      })
-    }
+    expect(await screen.findByText('#legacy')).toBeInTheDocument()
+    expect(screen.getByText('4 posts')).toBeInTheDocument()
   })
 
   it('renders malformed profile payloads with fallbacks', async () => {
