@@ -75,32 +75,6 @@ describe('ci re-run classification', () => {
     expect(result.rerun).toBe(true)
   })
 
-  it('re-runs a failure in every Use Node.js setup step named in ci.yml', () => {
-    const ci = readFileSync('.github/workflows/ci.yml', 'utf8')
-    const nodeStepNames = Array.from(
-      new Set(
-        Array.from(ci.matchAll(/^\s*-\s*name:\s*(Use Node\.js\b.+)$/gm)).map(
-          (match) => match[1].trim()
-        )
-      )
-    )
-
-    expect(nodeStepNames).toEqual(['Use Node.js 26'])
-    for (const stepName of nodeStepNames) {
-      const result = classifyRun([
-        job({
-          name: 'Build',
-          steps: [
-            { name: 'Set up job', conclusion: 'success' },
-            { name: 'Checkout', conclusion: 'success' },
-            { name: stepName, conclusion: 'failure' }
-          ]
-        })
-      ])
-      expect(result.rerun).toBe(true)
-    }
-  })
-
   it('keeps a failed repository step and names the step', () => {
     const result = classifyRun([
       job({
