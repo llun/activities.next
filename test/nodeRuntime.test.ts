@@ -2,6 +2,9 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
+const STALE_NODE_24_PATTERN =
+  /\bnode(?:\.js)?(?:\s+version)?[\s:-]+24\b|\b24\.x\b/i
+
 const parseSemver = (version: string): [number, number, number] => {
   const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version.trim())
   if (!match) {
@@ -29,24 +32,35 @@ describe('Node.js 26 runtime and security baseline', () => {
     )
 
     expect(rasterizer).toContain('`node:26-alpine`')
-    expect(rasterizer).not.toContain('node:24')
+    expect(rasterizer).not.toMatch(STALE_NODE_24_PATTERN)
   })
 
-  it('pins engines.node to 26.x and resolves undici (^8.12.1 / ^8.4.1) to >= 8.12.4', () => {
+  it('pins engines.node to 26.x and resolves every undici 8.x entry in yarn.lock to >= 8.12.4', () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
       engines?: { node?: string }
     }
     const lockfile = readFileSync('yarn.lock', 'utf8')
-    const undiciMatch =
-      /"undici@npm:\^8\.12\.1, undici@npm:\^8\.4\.1":\n\s+version:\s+([^\n]+)/.exec(
-        lockfile
+    const undiciStanzas = Array.from(
+      lockfile.matchAll(
+        /^"?((?:undici@npm:[^",\n]+(?:,\s*)?)+)"?:\n\s+version:\s+([^\n]+)/gm
       )
+    ).map((match) => ({
+      descriptor: match[1],
+      semver: parseSemver(match[2])
+    }))
+    const undici8Stanzas = undiciStanzas.filter(
+      ({ descriptor, semver }) =>
+        semver[0] === 8 || /\bundici@npm:[\^~]?8\./.test(descriptor)
+    )
 
     expect(pkg.engines?.node).toBe('26.x')
-    expect(undiciMatch).not.toBeNull()
-    expect(
-      isAtLeast(parseSemver(undiciMatch?.[1] ?? '0.0.0'), [8, 12, 4])
-    ).toBe(true)
+    expect(undici8Stanzas.length).toBeGreaterThan(0)
+    for (const stanza of undici8Stanzas) {
+      expect(
+        isAtLeast(stanza.semver, [8, 12, 4]),
+        `Expected ${stanza.descriptor} to resolve >= 8.12.4, got ${stanza.semver.join('.')}`
+      ).toBe(true)
+    }
   })
 
   it.each([
@@ -73,9 +87,7 @@ describe('Node.js 26 runtime and security baseline', () => {
       const doc = readFileSync(path, 'utf8')
 
       expect(doc).toContain(expected)
-      expect(doc).not.toContain('Node.js 24')
-      expect(doc).not.toContain('Node.js-24.x')
-      expect(doc).not.toContain('`24.x`')
+      expect(doc).not.toMatch(STALE_NODE_24_PATTERN)
     }
   )
 })

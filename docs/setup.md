@@ -373,7 +373,7 @@ Read the applicable rules and review checks below before changing this subsystem
 
 ### Build, Test, and Development Commands
 
-- **Agents:** MUST use Node.js version 24 for running any node commands in this project.
+- **Agents:** MUST use Node.js version 26 for running any node commands in this project.
 - **Always use `yarn` for all package management.** Never use `npm install`, `npm ci`, or any other `npm` commands to install or manage packages.
 - **Optional dependencies are modularized into Yarn workspaces (`packages/*`).** External database drivers, queue SDKs, and email providers (`pg`, `@google-cloud/tasks`, `@upstash/qstash`, `nodemailer`, `resend`, `@aws-sdk/client-ses`) live in isolated packages (`@activities/pg`, `@activities/cloudtasks`, `@activities/qstash`, `@activities/nodemailer`, `@activities/resend`, `@activities/ses`). `yarn install` at the repo root installs all workspaces by default for development and test execution. The Dockerfile builds minimal images using `yarn workspaces focus ${WORKSPACES}` (defaulting to `activities.next @activities/nodemailer`), and core code imports optional modules dynamically (`dynamicImport` / dynamic `import()`) with type stubs in `lib/types/optional-modules.d.ts` so the application runs without optional packages installed when those features are unconfigured.
 - `yarn dev` runs the local Next.js development server. The package script binds Next.js to `0.0.0.0`, so the dev server is reachable from the local network — only run it on trusted networks.
