@@ -1,0 +1,24 @@
+.github/workflows/ci.yml
+  h_580a04e334fef4 48-50,74-76,95-97,146-148,225-227,420-422,450-452
+CONTRIBUTING.md
+  h_580a04e334fef4 53,56
+Dockerfile
+  h_580a04e334fef4 13,15,22-36
+README.md
+  h_580a04e334fef4 69,72
+docs/quickstart.md
+  h_580a04e334fef4 22
+docs/setup.md
+  h_580a04e334fef4 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90817ef3b802a1f084a6a1a5e7832163fdec1981",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
