@@ -1,0 +1,18 @@
+.github/workflows/node-runtime.test.ts
+  h_580a04e334fef4 5-7,13,31-33,40,46,54
+docs/setup.md
+  h_580a04e334fef4 376
+test/nodeRuntime.test.ts
+  h_580a04e334fef4 5-7,35,38,43-45,47-54,57-63,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5f4300e1f56129d04baf98d3c60d89ce64e6fe6",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
