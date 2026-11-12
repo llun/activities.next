@@ -1,0 +1,44 @@
+.github/scripts/classify-ci-rerun.mjs
+  h_580a04e334fef4 15
+.github/workflows/ci-rerun.test.ts
+  h_580a04e334fef4 78-103
+.github/workflows/ci.yml
+  h_580a04e334fef4 49,52,73,76,92,95,141,144,218,221,411,414,439,442
+.github/workflows/node-runtime.test.ts
+  h_580a04e334fef4 1-49
+.github/workflows/version-bump.yml
+  h_580a04e334fef4 109,113
+AGENTS.md
+  h_580a04e334fef4 65
+CONTRIBUTING.md
+  h_580a04e334fef4 39,812
+Dockerfile
+  h_580a04e334fef4 2
+README.md
+  h_580a04e334fef4 4,52
+docs/architecture.md
+  h_580a04e334fef4 1287
+docs/quickstart.md
+  h_580a04e334fef4 14
+docs/setup.md
+  h_580a04e334fef4 12
+lib/services/fitness-files/rasterizeHeatmapSvg.ts
+  h_580a04e334fef4 13
+package.json
+  h_580a04e334fef4 160
+test/nodeRuntime.test.ts
+  h_580a04e334fef4 1-81
+yarn.lock
+  h_580a04e334fef4 7650-7652
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fe1531cb663d6c196b534d68bfc733be42ca7e06",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
