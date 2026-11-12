@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 ARG UID="1001"
 ARG GID="1001"
 ARG ACTIVITIES_HOST="localhost"
@@ -8,27 +8,32 @@ ARG ACTIVITIES_DATABASE_SQLITE_FILENAME="/opt/activities.next/data.sqlite"
 ENV ACTIVITIES_HOST=${ACTIVITIES_HOST}
 ENV ACTIVITIES_DATABASE_CLIENT=${ACTIVITIES_DATABASE_CLIENT}
 ENV ACTIVITIES_DATABASE_SQLITE_FILENAME=${ACTIVITIES_DATABASE_SQLITE_FILENAME}
-# Keep Corepack's download cache outside the project tree. The app user's HOME is
-# /opt/activities.next (the project root), so the default COREPACK_HOME of
-# $HOME/.cache/node/corepack would place the downloaded yarn.js inside a package
-# whose package.json has "type": "module". Node would then load Corepack's
-# CommonJS yarn bundle as ESM and fail with `Dynamic require of "util" is not
-# supported`. Pointing COREPACK_HOME at a directory with no "type": "module"
-# ancestor lets Node load yarn as CommonJS.
-ENV COREPACK_HOME="/opt/corepack"
 RUN apk add ffmpeg
 RUN \
-  mkdir -p /opt/activities.next /opt/corepack; \
+  mkdir -p /opt/activities.next; \
   addgroup --system --gid "${GID}" app; \
-  adduser --system --uid "${UID}" --home /opt/activities.next app; \
-  chown app:app /opt/corepack
-RUN corepack enable
+  adduser --system --uid "${UID}" --home /opt/activities.next app
 WORKDIR /opt/activities.next
 USER app
 
 FROM base AS build
 ARG TARGETPLATFORM
 ARG WORKSPACES="activities.next @activities/nodemailer"
+# Keep Corepack's download cache outside the project tree. The app user's HOME is
+# /opt/activities.next (the project root), so the default COREPACK_HOME of
+# $HOME/.cache/node/corepack would place the downloaded yarn.js inside a package
+# whose package.json has "type": "module". Node would then load Corepack's
+# CommonJS yarn bundle as ESM and fail with `Dynamic require of "util" is not
+# supported`. Pointing COREPACK_HOME at a directory with no "type": "module"
+# ancestor lets Node load yarn as CommonJS. Node 25+ no longer bundles corepack,
+# so install it in the build stage only (leaving the runtime output image clean).
+ENV COREPACK_HOME="/opt/corepack"
+USER root
+RUN \
+  mkdir -p /opt/corepack; \
+  chown app:app /opt/corepack; \
+  npm install -g corepack@0.36.0 && corepack enable
+USER app
 # Cache dependency installation separately from application source changes.
 # Keep every workspace manifest at its original path for Yarn's discovery.
 COPY --chown=app:app package.json yarn.lock .yarnrc.yml ./

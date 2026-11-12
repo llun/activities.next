@@ -62,7 +62,7 @@ For the most common task shapes, follow the step-by-step [Task Recipes](CONTRIBU
 
 ## Build, Test, and Development Commands
 
-Use Node.js 24 and Yarn for all repository commands. The canonical local gate is `yarn run prettier --write .` → `yarn lint` → `yarn typecheck` → `yarn build` → `yarn test`, in that order; the detailed command behavior, local-database guard, and workspace guidance live in the [setup guide](docs/setup.md#agents-build-test-and-development-commands). Never run development servers, migrations, or tests against a remote or shared database.
+Use Node.js 26 and Yarn for all repository commands. The canonical local gate is `yarn run prettier --write .` → `yarn lint` → `yarn typecheck` → `yarn build` → `yarn test`, in that order; the detailed command behavior, local-database guard, and workspace guidance live in the [setup guide](docs/setup.md#agents-build-test-and-development-commands). Never run development servers, migrations, or tests against a remote or shared database.
 
 The CI build persists `.next/cache`, and the Docker packaging workflow reuses GitHub Actions BuildKit caches per architecture for its minimal images; see [CI Status Checks](CONTRIBUTING.md#ci-status-checks) for cache ownership and publication behavior.
 

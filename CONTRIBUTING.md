@@ -36,7 +36,7 @@ This project follows the standard open source code of conduct. Be respectful, in
 
 ### Prerequisites
 
-- **Node.js 24** (the `engines` field in `package.json` pins `24.x`)
+- **Node.js 26** (the `engines` field in `package.json` pins `26.x`)
 - **Yarn 4** via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
 - **Git**
 - A code editor (VS Code recommended)
@@ -50,9 +50,10 @@ This project follows the standard open source code of conduct. Be respectful, in
    cd activities.next
    ```
 
-2. **Enable Corepack** (for Yarn 4 support):
+2. **Enable Corepack** (for Yarn 4 support; Node.js 26 no longer bundles `corepack`):
 
    ```bash
+   npm install -g corepack
    corepack enable
    ```
 
@@ -809,7 +810,7 @@ These exact steps are verified to work; the gotchas below are load-bearing.
 2. Install deps, migrate, and seed mock data:
 
    ```bash
-   yarn install          # Node.js 24
+   yarn install          # Node.js 26
    yarn migrate          # dotenv-flow → auto-loads .env.local; prints the database first
 
    # The mock scripts do NOT auto-load .env.local.

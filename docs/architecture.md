@@ -1284,7 +1284,7 @@ types may remain; every notification read or count in
 
 | Layer                | Technology                                                                                                                            |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **Runtime**          | Node.js 24                                                                                                                            |
+| **Runtime**          | Node.js 26                                                                                                                            |
 | **Framework**        | Next.js 16 (App Router)                                                                                                               |
 | **Language**         | TypeScript (strict mode)                                                                                                              |
 | **UI Library**       | React 19                                                                                                                              |
