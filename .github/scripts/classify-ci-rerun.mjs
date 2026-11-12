@@ -12,7 +12,7 @@ export const INFRASTRUCTURE_STEPS = new Set([
   'Set up job',
   'Initialize containers',
   'Checkout',
-  'Use Node.js 24'
+  'Use Node.js 26'
 ])
 
 // The aggregate jobs only mirror their shards' outcomes through their own

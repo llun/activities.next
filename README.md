@@ -1,7 +1,7 @@
 # Activity.next
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
-[![Node.js](https://img.shields.io/badge/Node.js-24.x-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-26.x-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7.x-blue.svg)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
@@ -49,7 +49,7 @@ For a more detailed architecture overview, see [docs/architecture.md](docs/archi
 
 ### Prerequisites
 
-- **Node.js 24** (the repo pins `engines.node` to `24.x`; newer majors are rejected by Yarn)
+- **Node.js 26** (the repo pins `engines.node` to `26.x`)
 - **Yarn 4** via Corepack (the exact version is pinned by the `packageManager` field in `package.json`)
 - A **domain name** (required for federation)
 

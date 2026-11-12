@@ -46,10 +46,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Enable corepack
         run: corepack enable
-      - name: Use Node.js 24
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: yarn
       - name: Install dependencies
         uses: ./.github/actions/install
@@ -70,10 +70,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Enable corepack
         run: corepack enable
-      - name: Use Node.js 24
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: yarn
       - name: Install dependencies
         uses: ./.github/actions/install
@@ -89,10 +89,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Enable corepack
         run: corepack enable
-      - name: Use Node.js 24
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: yarn
       - name: Install dependencies
         uses: ./.github/actions/install
@@ -138,10 +138,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Enable corepack
         run: corepack enable
-      - name: Use Node.js 24
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: yarn
       - name: Install dependencies
         uses: ./.github/actions/install
@@ -215,10 +215,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Enable corepack
         run: corepack enable
-      - name: Use Node.js 24
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: yarn
       - name: Install dependencies
         uses: ./.github/actions/install
@@ -408,10 +408,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Enable corepack
         run: corepack enable
-      - name: Use Node.js 24
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: yarn
       - name: Install dependencies
         uses: ./.github/actions/install
@@ -436,10 +436,10 @@ jobs:
         uses: actions/checkout@v7
       - name: Enable corepack
         run: corepack enable
-      - name: Use Node.js 24
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: yarn
       - name: Install dependencies
         uses: ./.github/actions/install

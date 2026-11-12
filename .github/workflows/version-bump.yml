@@ -106,11 +106,11 @@ jobs:
           git fetch --force origin main '+refs/tags/*:refs/tags/*'
           node .github/scripts/determine-version-bump.mjs
 
-      - name: Use Node.js 24
+      - name: Use Node.js 26
         if: steps.bump.outputs.new_version != ''
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Update package.json version
         if: steps.bump.outputs.new_version != ''

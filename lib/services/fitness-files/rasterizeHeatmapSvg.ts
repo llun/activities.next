@@ -10,7 +10,7 @@ import sharp from 'sharp'
  *
  * `buildHeatmapSvg` emits nothing but numbers and plain hex colours: no text
  * nodes, no external references, no embedded assets. That matters because the
- * production image is bare `node:24-alpine` with no fonts installed and no
+ * production image is bare `node:26-alpine` with no fonts installed and no
  * outbound access from the rasterizer — an SVG carrying either would render
  * blank there while looking correct in development.
  */

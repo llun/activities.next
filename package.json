@@ -157,7 +157,7 @@
     "vitest": "^5.0.5"
   },
   "engines": {
-    "node": "24.x"
+    "node": "26.x"
   },
   "dependenciesMeta": {
     "better-sqlite3": {
