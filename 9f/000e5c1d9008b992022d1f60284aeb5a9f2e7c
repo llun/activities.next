@@ -1,0 +1,20 @@
+app/(timeline)/[actor]/[status]/FitnessAnalysisCharts.test.tsx
+  h_580a04e334fef4 47
+app/(timeline)/fitness/ActorFitnessDashboard.test.tsx
+  h_580a04e334fef4 646
+app/(timeline)/search/SearchPageClient.test.tsx
+  h_580a04e334fef4 276-278,285,290,292-293
+lib/components/posts/attachments.images.test.tsx
+  h_580a04e334fef4 318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f000e5c1d9008b992022d1f60284aeb5a9f2e7c",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
