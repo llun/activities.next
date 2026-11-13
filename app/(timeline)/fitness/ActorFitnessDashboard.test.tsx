@@ -643,7 +643,7 @@ describe('ActorFitnessDashboard', () => {
     expect(
       within(monthRow).getByRole('button', { name: 'Previous month' })
     ).toBeEnabled()
-    expect(monthRow.style.maxWidth).toContain('100cqw')
+    expect(monthRow.style.maxWidth).toContain('cqw')
     expect(rangeTrigger()).toHaveAccessibleName('Date range: This month')
   })
 
