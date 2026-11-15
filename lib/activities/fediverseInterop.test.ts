@@ -63,6 +63,21 @@ describe('fediverse interop: remote fetch', () => {
   describe('objects', () => {
     it.each([
       {
+        description: 'mastodon Note',
+        object: FEDIVERSE_OBJECTS.mastodonNote,
+        text: 'Hello from Mastodon'
+      },
+      {
+        description: 'mastodon Question',
+        object: FEDIVERSE_OBJECTS.mastodonQuestion,
+        text: 'Which fediverse protocol?'
+      },
+      {
+        description: 'mastodon Quote',
+        object: FEDIVERSE_OBJECTS.mastodonQuote,
+        text: 'Quoting my earlier note!'
+      },
+      {
         description: 'misskey Note',
         object: FEDIVERSE_OBJECTS.misskeyNote,
         text: 'Hello from Misskey'

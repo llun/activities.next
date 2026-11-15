@@ -1,0 +1,18 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://friendica.test/activities/1",
+  "type": "Create",
+  "actor": "https://friendica.test/profile/alice",
+  "published": "2026-10-01T12:30:00Z",
+  "to": ["https://friendica.test/followers/alice"],
+  "cc": [],
+  "object": {
+    "id": "https://friendica.test/objects/1",
+    "type": "Note",
+    "attributedTo": "https://friendica.test/profile/alice",
+    "published": "2026-10-01T12:30:00Z",
+    "to": ["https://friendica.test/followers/alice"],
+    "cc": [],
+    "content": "<p>Followers-only from Friendica</p>"
+  }
+}

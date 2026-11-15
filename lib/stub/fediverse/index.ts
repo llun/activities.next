@@ -1,5 +1,7 @@
 import { FetchMock } from 'jest-fetch-mock'
 
+import friendicaCreateNote from './friendica/create-note.json'
+import friendicaPerson from './friendica/person.json'
 import funkwhaleAudio from './funkwhale/audio.json'
 import funkwhaleCreateAudio from './funkwhale/create-audio.json'
 import funkwhalePerson from './funkwhale/person.json'
@@ -22,9 +24,21 @@ import lemmyGroup from './lemmy/group.json'
 import lemmyLike from './lemmy/like.json'
 import lemmyPage from './lemmy/page.json'
 import lemmyPerson from './lemmy/person.json'
+import mastodonCreateNote from './mastodon/create-note.json'
+import mastodonCreateQuestion from './mastodon/create-question.json'
+import mastodonCreateQuote from './mastodon/create-quote.json'
+import mastodonDeleteNote from './mastodon/delete-note.json'
 import mastodonFlag from './mastodon/flag.json'
 import mastodonInstanceActor from './mastodon/instance-actor.json'
+import mastodonLike from './mastodon/like.json'
 import mastodonMove from './mastodon/move.json'
+import mastodonNote from './mastodon/note.json'
+import mastodonPerson from './mastodon/person.json'
+import mastodonQuestion from './mastodon/question.json'
+import mastodonQuote from './mastodon/quote.json'
+import mastodonUndoLike from './mastodon/undo-like.json'
+import mastodonUpdateNote from './mastodon/update-note.json'
+import mastodonVote from './mastodon/vote.json'
 import misskeyCreateNote from './misskey/create-note.json'
 import misskeyFlag from './misskey/flag.json'
 import misskeyFollow from './misskey/follow.json'
@@ -65,10 +79,10 @@ import pleromaPerson from './pleroma/person.json'
 import pleromaReply from './pleroma/reply.json'
 import pleromaUndoEmojiReact from './pleroma/undo-emoji-react.json'
 
-// Payloads in the shapes Misskey, Lemmy, PeerTube, Pixelfed, Pleroma/Akkoma,
-// GoToSocial, Funkwhale and Mobilizon put on the wire, kept here so the inbox
-// and remote-fetch paths are exercised against every dialect rather than only
-// Mastodon's. Hosts are rewritten to `<software>.test` (`gts.test` for
+// Payloads in the shapes Mastodon, Misskey, Lemmy, PeerTube, Pixelfed,
+// Pleroma/Akkoma, GoToSocial, Funkwhale, Mobilizon and Friendica put on the
+// wire, kept here so the inbox and remote-fetch paths are exercised against
+// every dialect. Hosts are rewritten to `<software>.test` (`gts.test` for
 // GoToSocial); interaction targets point at the seeded local status
 // `https://llun.test/users/test1/statuses/post-1`.
 
@@ -82,10 +96,12 @@ export type FediverseSoftware =
   | 'gotosocial'
   | 'funkwhale'
   | 'mobilizon'
+  | 'friendica'
 
 type Document = { id: string } & Record<string, unknown>
 
 export const FEDIVERSE_ACTORS = {
+  mastodon: mastodonPerson,
   // Mastodon's headless instance actor, which signs the Flags it forwards.
   mastodonInstance: mastodonInstanceActor,
   misskey: misskeyPerson,
@@ -98,10 +114,14 @@ export const FEDIVERSE_ACTORS = {
   gotosocial: gotosocialPerson,
   gotosocialTurtle: gotosocialPersonTurtle,
   funkwhale: funkwhalePerson,
-  mobilizon: mobilizonPerson
+  mobilizon: mobilizonPerson,
+  friendica: friendicaPerson
 }
 
 export const FEDIVERSE_OBJECTS = {
+  mastodonNote,
+  mastodonQuestion,
+  mastodonQuote,
   misskeyNote,
   lemmyPage,
   lemmyComment,
@@ -129,7 +149,16 @@ export const FEDIVERSE_COLLECTIONS = {
 
 // Inbound activities, as each server delivers them to an inbox.
 export const FEDIVERSE_ACTIVITIES = {
+  mastodonCreateNote,
+  mastodonUpdateNote,
+  mastodonDeleteNote,
+  mastodonLike,
+  mastodonUndoLike,
+  mastodonCreateQuestion,
+  mastodonVote,
+  mastodonCreateQuote,
   mastodonFlag,
+  friendicaCreateNote,
   misskeyFlag,
   misskeyCreateNote,
   misskeyRenote,
@@ -223,7 +252,7 @@ export const mockFediverseRequests = (fetchMock: FetchMock) => {
       }
     }
 
-    const document = DOCUMENTS_BY_ID.get(req.url)
+    const document = DOCUMENTS_BY_ID.get(req.url.split('#')[0])
     if (!document) return { status: 404, body: '' }
     return {
       status: 200,

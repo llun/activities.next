@@ -1,0 +1,22 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1"
+  ],
+  "id": "https://friendica.test/profile/alice",
+  "type": "Person",
+  "preferredUsername": "alice",
+  "name": "Alice (Friendica)",
+  "inbox": "https://friendica.test/inbox/alice",
+  "outbox": "https://friendica.test/outbox/alice",
+  "followers": "https://friendica.test/followers/alice",
+  "following": "https://friendica.test/following/alice",
+  "endpoints": {
+    "sharedInbox": "https://friendica.test/inbox"
+  },
+  "publicKey": {
+    "id": "https://friendica.test/profile/alice#main-key",
+    "owner": "https://friendica.test/profile/alice",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAsD9PxUbPPAv4Zp9GIqCo\n/Bi+1x2D0SH/9IoctZ0gkfoass5aezik0VwKPezC0FaNdNUOceerZBbDLEXDmkPW\nciW98s29usdEUVEobstg83XLYLHKIQUflJVkdtpSl9C1PtyT1ZYKf6TxpciDmcOq\nybHbQX3fzyZ3WZheMq7Bu1G7Vbc3IJjG8YB/7XBRwyZHFsQJ3my1s61ZdOuVDNhU\nt5i+alZRxsdraMHDwDBCvUjvpDM4HMSvaw7BFn02EBGWv0lm4ojEzy5TWeIICymt\neyW/DX1JRAEP9wjC+xucUwkfPwOpB5BeFDLFAZ0Hj91IdW93ZHLrRK46ON63yGTL\nFml8BCTogKRTKKvHzBROfSD+6uzbXP/7L2bOiUepcyySMktHiwe39JdPBA/P/CiR\nfIlmPmaO/X99+D3Kn/eAU7gZY2wKbn4DCFbgsPEgzSo4d54IYZSmv7iz8UP8t7Mk\nMU8hfCmsiChYLlFHkbfyxM9KSXX/UmiRvlW2DJ88MA99pAJ3mIne8Jc6JDaaL/3q\n8E915sH9yFjgr3OPfIXH2NGaYLQU8UyKRHqwff3pCigmFlAAY7xgx4gNePzeQY/l\ngQVUYuk17HhvP5yw9zWVoREHnoLS0Kl5UUyjB5X3sQw71Q8FFgJMzajikWg/fwtB\n+tVAzB4DzKR6owTxHpXubtsCAwEAAQ==\n-----END PUBLIC KEY-----\n"
+  }
+}

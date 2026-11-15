@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.test/users/alice#likes/1/undo",
+  "type": "Undo",
+  "actor": "https://mastodon.test/users/alice",
+  "object": {
+    "id": "https://mastodon.test/users/alice#likes/1",
+    "type": "Like",
+    "actor": "https://mastodon.test/users/alice",
+    "object": "https://llun.test/users/test1/statuses/post-1"
+  }
+}

@@ -1,25 +1,34 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { NextRequest } from 'next/server'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { JOBS } from '@/lib/jobs'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
+  CREATE_POLL_JOB_NAME,
+  CREATE_POLL_VOTE_JOB_NAME,
+  DELETE_OBJECT_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
   LIKE_JOB_NAME,
   MOVE_ACTOR_JOB_NAME,
-  RECEIVE_FLAG_JOB_NAME
+  RECEIVE_FLAG_JOB_NAME,
+  UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import type { JobMessage } from '@/lib/services/queue/type'
-import { seedDatabase } from '@/lib/stub/database'
+import { Timeline } from '@/lib/services/timelines/types'
+import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import {
   FEDIVERSE_ACTIVITIES,
+  FEDIVERSE_ACTORS,
   FEDIVERSE_OBJECTS,
   mockFediverseRequests
 } from '@/lib/stub/fediverse'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
 
 import { POST } from './route'
@@ -115,6 +124,12 @@ describe('fediverse interop: shared inbox', () => {
   describe('posts', () => {
     it.each([
       {
+        description: 'mastodon Create(Note)',
+        activity: FEDIVERSE_ACTIVITIES.mastodonCreateNote,
+        text: 'Hello from Mastodon',
+        attachments: 0
+      },
+      {
         description: 'misskey Create(Note)',
         activity: FEDIVERSE_ACTIVITIES.misskeyCreateNote,
         text: 'Hello from Misskey',
@@ -184,6 +199,77 @@ describe('fediverse interop: shared inbox', () => {
       const { to, cc } = activity.object as { to?: unknown; cc?: unknown }
       expect(status.to).toEqual(asArray(to))
       expect(status.cc).toEqual(asArray(cc))
+    })
+
+    it('mastodon Update(Note) updates the stored status', async () => {
+      await deliverAndRun(database, FEDIVERSE_ACTIVITIES.mastodonCreateNote)
+      const message = await deliverAndRun(
+        database,
+        FEDIVERSE_ACTIVITIES.mastodonUpdateNote
+      )
+      expect(message?.name).toBe(UPDATE_NOTE_JOB_NAME)
+
+      const status = await database.getStatus({
+        statusId: FEDIVERSE_OBJECTS.mastodonNote.id
+      })
+      if (status?.type !== StatusType.enum.Note) throw new Error('not a note')
+      expect(status.text).toContain('Edited from Mastodon')
+    })
+
+    it('mastodon Delete(Tombstone) deletes the stored status', async () => {
+      await deliverAndRun(database, FEDIVERSE_ACTIVITIES.mastodonCreateNote)
+      const message = await deliverAndRun(
+        database,
+        FEDIVERSE_ACTIVITIES.mastodonDeleteNote
+      )
+      expect(message?.name).toBe(DELETE_OBJECT_JOB_NAME)
+
+      expect(
+        await database.getStatus({
+          statusId: FEDIVERSE_OBJECTS.mastodonNote.id
+        })
+      ).toBeNull()
+    })
+
+    it('friendica followers-only Create(Note) lands on follower timeline without a direct conversation', async () => {
+      await recordActorIfNeeded({
+        actorId: FEDIVERSE_ACTORS.friendica.id,
+        database
+      })
+      await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId: FEDIVERSE_ACTORS.friendica.id,
+        inbox: `${ACTOR1_ID}/inbox`,
+        sharedInbox: TEST_SHARED_INBOX,
+        status: FollowStatus.enum.Accepted
+      })
+
+      const activity = FEDIVERSE_ACTIVITIES.friendicaCreateNote
+      const message = await deliverAndRun(database, activity)
+      expect(message?.name).toBe(CREATE_NOTE_JOB_NAME)
+
+      const mainTimeline = await database.getTimeline({
+        timeline: Timeline.MAIN,
+        actorId: ACTOR1_ID
+      })
+      expect(mainTimeline.some((s) => s.id === activity.object.id)).toBe(true)
+
+      const directTimeline = await database.getTimeline({
+        timeline: Timeline.DIRECT,
+        actorId: ACTOR1_ID
+      })
+      expect(directTimeline.some((s) => s.id === activity.object.id)).toBe(
+        false
+      )
+
+      const conversations = await database.getDirectConversations({
+        actorId: ACTOR1_ID
+      })
+      expect(
+        conversations.some(
+          (conversation) => conversation.lastStatus.id === activity.object.id
+        )
+      ).toBe(false)
     })
   })
 
@@ -349,6 +435,10 @@ describe('fediverse interop: shared inbox', () => {
   describe('favourites', () => {
     it.each([
       {
+        description: 'mastodon Like',
+        activity: FEDIVERSE_ACTIVITIES.mastodonLike
+      },
+      {
         description: 'lemmy vote Like',
         activity: FEDIVERSE_ACTIVITIES.lemmyLike
       },
@@ -400,6 +490,19 @@ describe('fediverse interop: shared inbox', () => {
       expect(await database.getLikeCount({ statusId: LOCAL_POST_ID })).toBe(0)
     })
 
+    it('removes the favourite on mastodon Undo(Like)', async () => {
+      await deliverAndRun(database, FEDIVERSE_ACTIVITIES.mastodonLike)
+      await deliverAndRun(database, FEDIVERSE_ACTIVITIES.mastodonUndoLike)
+
+      expect(
+        await database.isActorLikedStatus({
+          actorId: FEDIVERSE_ACTIVITIES.mastodonLike.actor,
+          statusId: LOCAL_POST_ID
+        })
+      ).toBe(false)
+      expect(await database.getLikeCount({ statusId: LOCAL_POST_ID })).toBe(0)
+    })
+
     it('ignores a Like of a remote object', async () => {
       const remoteObject = 'https://lemmy.test/post/123'
       const activity = {
@@ -415,6 +518,62 @@ describe('fediverse interop: shared inbox', () => {
           statusId: remoteObject
         })
       ).toBe(false)
+    })
+  })
+
+  describe('polls and quotes', () => {
+    it('mastodon Create(Question) stores the poll and its options', async () => {
+      const activity = FEDIVERSE_ACTIVITIES.mastodonCreateQuestion
+      const message = await deliverAndRun(database, activity)
+      expect(message?.name).toBe(CREATE_POLL_JOB_NAME)
+
+      const status = await database.getStatus({ statusId: activity.object.id })
+      expect(status).toMatchObject({
+        id: activity.object.id,
+        type: StatusType.enum.Poll,
+        actorId: activity.actor,
+        pollType: 'oneOf'
+      })
+      if (status?.type !== StatusType.enum.Poll) return
+      expect(status.text).toContain('Which fediverse protocol?')
+      expect(status.choices.map((c) => c.title)).toEqual([
+        'ActivityPub',
+        'OStatus'
+      ])
+    })
+
+    it('mastodon Create(Note) poll vote counts on the local poll', async () => {
+      const localPollId = `${ACTOR3_ID}/statuses/poll-1`
+      const message = await deliverAndRun(
+        database,
+        FEDIVERSE_ACTIVITIES.mastodonVote
+      )
+      expect(message?.name).toBe(CREATE_POLL_VOTE_JOB_NAME)
+
+      const poll = await database.getStatus({ statusId: localPollId })
+      if (poll?.type !== StatusType.enum.Poll) throw new Error('not a poll')
+      expect(poll.choices[0]).toMatchObject({
+        title: 'Yes',
+        totalVotes: 1
+      })
+    })
+
+    it('mastodon Create(Note) FEP-044f quote stores the quote link', async () => {
+      await deliverAndRun(database, FEDIVERSE_ACTIVITIES.mastodonCreateNote)
+      const activity = FEDIVERSE_ACTIVITIES.mastodonCreateQuote
+      const message = await deliverAndRun(database, activity)
+      expect(message?.name).toBe(CREATE_NOTE_JOB_NAME)
+
+      const status = await database.getStatus({ statusId: activity.object.id })
+      expect(status?.type).toBe(StatusType.enum.Note)
+
+      const quoteEdge = await database.getStatusQuote({
+        statusId: activity.object.id
+      })
+      expect(quoteEdge).toMatchObject({
+        quotedStatusId: FEDIVERSE_OBJECTS.mastodonNote.id,
+        state: 'accepted'
+      })
     })
   })
 

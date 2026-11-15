@@ -1,0 +1,16 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.test/users/alice#votes/1",
+  "type": "Create",
+  "actor": "https://mastodon.test/users/alice",
+  "to": ["https://llun.test/users/test3"],
+  "object": {
+    "id": "https://mastodon.test/users/alice#votes/1/note",
+    "type": "Note",
+    "attributedTo": "https://mastodon.test/users/alice",
+    "published": "2026-10-01T12:15:00Z",
+    "to": ["https://llun.test/users/test3"],
+    "inReplyTo": "https://llun.test/users/test3/statuses/poll-1",
+    "name": "Yes"
+  }
+}
