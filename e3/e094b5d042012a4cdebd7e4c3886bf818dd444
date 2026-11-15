@@ -1,0 +1,22 @@
+lib/services/federation/statusDelivery.ts
+  s_dd277f8ec5b352::t_0806ca32feb7d2 3,57-58,62,66-68,89-95,102-103
+lib/services/federation/statusDelivery.test.ts
+  s_dd277f8ec5b352::t_e4afaf62b295b6 70,215-261
+  s_dd277f8ec5b352::t_028fe0d0c70e7b 262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e3e094b5d042012a4cdebd7e4c3886bf818dd444",
+  "prompts": {},
+  "sessions": {
+    "s_dd277f8ec5b352": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57718715-60c3-4227-b388-3ec0dca5dff9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
