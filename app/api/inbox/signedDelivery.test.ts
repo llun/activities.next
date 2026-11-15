@@ -137,8 +137,7 @@ describe('shared inbox signed delivery', () => {
 
     const response = await postSigned({ body: tamperedBody, headers })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(401)
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
@@ -152,8 +151,7 @@ describe('shared inbox signed delivery', () => {
 
     const response = await postSigned({ body, headers })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(401)
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
@@ -164,8 +162,7 @@ describe('shared inbox signed delivery', () => {
 
     const response = await postSigned({ body, headers })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(401)
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
@@ -180,23 +177,23 @@ describe('shared inbox signed delivery', () => {
       }
     })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(401)
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
   it('rejects a draft-cavage request with a stale Date outside the 12h+1h window', async () => {
     const now = Date.now()
-    vi.useFakeTimers()
+    // Fake only Date, and only while signing: the delivery below does real
+    // database I/O, which frozen timers stall on PostgreSQL.
+    vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(now - 14 * 60 * 60 * 1000)
     const body = JSON.stringify(FEDIVERSE_ACTIVITIES.mastodonCreateNote)
     const headers = signedHeaders(mastodonSender, 'POST', getInboxUrl(), body)
-    vi.setSystemTime(now)
+    vi.useRealTimers()
 
     const response = await postSigned({ body, headers })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(401)
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
@@ -222,8 +219,7 @@ describe('shared inbox signed delivery', () => {
       }
     })
 
-    expect(response.status).toBeGreaterThanOrEqual(400)
-    expect(response.status).toBeLessThan(500)
+    expect(response.status).toBe(401)
     expect(mockPublish).not.toHaveBeenCalled()
   })
 })
