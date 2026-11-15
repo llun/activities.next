@@ -1,0 +1,86 @@
+lib/services/federation/statusDelivery.ts
+  s_dd277f8ec5b352::t_f966d6b36631f5 88-93
+docs/mastodon-api-compatibility.md
+  s_dd277f8ec5b352::t_843217900e1535 1800
+lib/utils/getVisibility.ts
+  s_dd277f8ec5b352::t_f966d6b36631f5 1
+  s_dd277f8ec5b352::t_6bde77e3fe3a56 18-41,74-75,88-89,92,97-101
+lib/services/federation/replyCommunity.ts
+  s_dd277f8ec5b352::t_f92d18eb313e95 11-13,17-18,22,114-117,142-145
+lib/jobs/sendDeleteNoteJob.ts
+  s_dd277f8ec5b352::t_58ab9ecd7b2167 57
+lib/utils/activitypubActor.ts
+  s_dd277f8ec5b352::t_f966d6b36631f5 6,140-142
+lib/database/domains/status/writes.ts
+  s_dd277f8ec5b352::t_f92d18eb313e95 41-44,196-197,209-213
+lib/database/domains/conversation/sync.ts
+  s_dd277f8ec5b352::t_f92d18eb313e95 22,126-127,129,162-165
+next.config.ts
+  s_dd277f8ec5b352::t_58ab9ecd7b2167 3
+lib/utils/directStatus.ts
+  s_dd277f8ec5b352::t_07067a566b6ff0 11-15,26-27,36-39
+lib/actions/utils.ts
+  s_dd277f8ec5b352::t_f966d6b36631f5 18,143-144
+lib/activities/getWebfingerDocument.ts
+  s_dd277f8ec5b352::t_58ab9ecd7b2167 1,18
+lib/utils/getPersonFromActor.ts
+  s_dd277f8ec5b352::t_58ab9ecd7b2167 31-37
+lib/database/domains/conversation/ordering.ts
+  s_dd277f8ec5b352::t_f92d18eb313e95 9-12,43-44,96-99
+lib/database/domains/status/lookups.ts
+  s_dd277f8ec5b352::t_f92d18eb313e95 25,129-132
+lib/actions/createNote.ts
+  s_dd277f8ec5b352::t_f92d18eb313e95 60-62,483,487,506-512
+  s_dd277f8ec5b352::t_afc39149a7c24b 711-712
+lib/services/statusAccess.ts
+  s_dd277f8ec5b352::t_32aea7625879ee 10,12
+  s_dd277f8ec5b352::t_bb3b31b7682342 5
+app/api/v1/fitness-files/[id]/route-data/route.test.ts
+  s_dd277f8ec5b352::t_e2c745f8e12560 12,423-464
+app/api/v1/fitness-files/[id]/route-data/route.ts
+  s_dd277f8ec5b352::t_8ab9db791aac47 180-181
+app/api/v1/fitness-files/by-status/route.ts
+  s_dd277f8ec5b352::t_2839964e4aef75 73-74
+lib/actions/utils.test.ts
+  s_dd277f8ec5b352::t_af57cdb1b0409d 388-426
+lib/activities/getWebfingerSelf.test.ts
+  s_dd277f8ec5b352::t_505e4109af5317 131-142
+lib/database/domains/conversation/conversationQueries.test.ts
+  s_dd277f8ec5b352::t_c450f10a2ae32e 1108-1110,1115,1129-1208
+lib/database/domains/status/deletion.ts
+  s_dd277f8ec5b352::t_b2abe7ad51ad43 314-315
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_dd277f8ec5b352::t_4e825f4a441211 869-871,3792-3809,3811-3818,3867,3869-3877
+lib/database/domains/status/types.ts
+  s_dd277f8ec5b352::t_871e81188fb1e8 61-62
+lib/services/federation/replyCommunity.test.ts
+  s_dd277f8ec5b352::t_bb10d7e7db5907 131-151,354-378
+lib/services/federation/statusDelivery.test.ts
+  s_dd277f8ec5b352::t_7444011333f95c 245-280
+lib/services/mastodon/getMastodonStatus.fields.test.ts
+  s_dd277f8ec5b352::t_73aa413c44f9e9 497-525
+lib/services/quotes/quotePolicy.test.ts
+  s_dd277f8ec5b352::t_41a19566a80861 10-13
+lib/services/quotes/quotePolicy.ts
+  s_dd277f8ec5b352::t_8ef631f0017f11 5,9
+lib/utils/directStatus.test.ts
+  s_dd277f8ec5b352::t_9752286772429b 93-110
+lib/utils/getVisibility.test.ts
+  s_dd277f8ec5b352::t_d0be3616682e42 6-11,113-181,185-186,188-189,191,213,220-222,225-226,228,230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "39ab2614d63b984ffe2f157c8e22d5ea9d026c98",
+  "prompts": {},
+  "sessions": {
+    "s_dd277f8ec5b352": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57718715-60c3-4227-b388-3ec0dca5dff9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
