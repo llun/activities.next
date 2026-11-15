@@ -1,0 +1,19 @@
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_dd277f8ec5b352::t_a2ad613cc595ee 916-921
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a5b435ebe2aab14f8d2283206c81cc9312d2d42c",
+  "prompts": {},
+  "sessions": {
+    "s_dd277f8ec5b352": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57718715-60c3-4227-b388-3ec0dca5dff9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
