@@ -10,6 +10,7 @@ import {
   normalizeActorId
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
+import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
 import { withSpan } from '@/lib/utils/trace'
 
 export type GetActorPersonFunction = (params: {
@@ -34,7 +35,7 @@ const fetchActorDocument = async ({
   url: string
   withNetworkRetry: boolean
   signingActor?: DomainActor
-  allowCrossHostRedirects?: boolean
+  allowCrossHostRedirects: CrossHostRedirectPolicy
 }): Promise<FetchedActorDocument | null> => {
   const response = await signedActivityPubRequest({
     actor: signingActor,
@@ -59,6 +60,14 @@ const fetchActorDocument = async ({
     person: actorResult.data,
     servedFrom: response.url ?? url
   }
+}
+
+// The caller vetted only the URL it asked for, so a redirect onto another host
+// is followed only when federation policy allows that host: a blocked or
+// non-allowlisted host must not be contacted, nor answer for the actor.
+const isFederatedRedirect = async (url: URL) => {
+  const database = getDatabase()
+  return database ? canFederateWithDomain(database, url.href) : false
 }
 
 // An actor document's own `id` is a claim by whoever answered the request (see
@@ -86,7 +95,8 @@ export const getActorPerson: GetActorPersonFunction = ({
       const fetched = await fetchActorDocument({
         url: actorId,
         withNetworkRetry,
-        signingActor
+        signingActor,
+        allowCrossHostRedirects: isFederatedRedirect
       })
       if (!fetched) return null
       if (isSameActivityPubOrigin(fetched.person.id, fetched.servedFrom)) {

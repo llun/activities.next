@@ -81,16 +81,22 @@ export type SafeRemoteFetchTransport = (
   request: SafeRemoteFetchTransportRequest
 ) => Promise<SafeRemoteFetchTransportResponse>
 
+/** Whether a redirect onto a different host is followed; see below. */
+export type CrossHostRedirectPolicy =
+  boolean | ((url: URL) => boolean | Promise<boolean>)
+
 export type SafeRemoteFetchOptions = {
   /**
    * Follow a redirect to a DIFFERENT host (default `true`). Pass `false` when
    * the response is trusted because of WHERE it came from — an ActivityPub
    * object fetched to authenticate it. The caller compares the document's
    * claims against the URL it asked for, so a redirect hop onto another host
-   * would let that host answer for the requested one. Refused before the
-   * redirect is followed, so the other host is never contacted.
+   * would let that host answer for the requested one. Pass a function to
+   * decide per hop (federation policy on the target, say); it gets the hop's
+   * URL. Refused before the redirect is followed, so the other host is never
+   * contacted.
    */
-  allowCrossHostRedirects?: boolean
+  allowCrossHostRedirects?: CrossHostRedirectPolicy
   body?: string
   connectTimeoutInMilliseconds?: number
   headers?: SafeRemoteFetchHeaderSource
@@ -565,7 +571,12 @@ export const createSafeRemoteFetch = ({
       }
 
       const isCrossHostRedirect = currentUrl.host !== redirectUrl.host
-      if (isCrossHostRedirect && !allowCrossHostRedirects) {
+      if (
+        isCrossHostRedirect &&
+        !(typeof allowCrossHostRedirects === 'function'
+          ? await allowCrossHostRedirects(redirectUrl)
+          : allowCrossHostRedirects)
+      ) {
         throw createCrossHostRedirectError()
       }
       previousUrl = currentUrl

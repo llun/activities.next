@@ -161,6 +161,47 @@ describe('getActorPerson', () => {
       expect(
         fetchMock.mock.calls.filter(([url]) => url === victimId)
       ).toHaveLength(1)
+      expect(canFederateWithDomain).toHaveBeenCalledWith(mockDatabase, victimId)
+    })
+
+    it('does not follow a redirect onto a host federation policy refuses', async () => {
+      const blockedId = 'https://blocked.test/users/alice'
+      serve({
+        [attackerUrl]: { status: 302, headers: { location: blockedId } },
+        [blockedId]: { body: actorDocument(blockedId, 'BLOCKED KEY') }
+      })
+      vi.mocked(canFederateWithDomain).mockImplementation(
+        async (_database, value) => !value.startsWith('https://blocked.test/')
+      )
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === blockedId)
+      ).toHaveLength(0)
+    })
+
+    it('does not follow a cross-host redirect when no database can supply the policy', async () => {
+      currentDatabase = null
+      serve({
+        [attackerUrl]: { status: 302, headers: { location: victimId } },
+        [victimId]: { body: actorDocument(victimId, 'VICTIM KEY') }
+      })
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === victimId)
+      ).toHaveLength(0)
+    })
+
+    it('follows a same-host redirect without consulting policy', async () => {
+      const aliasUrl = 'https://victim.test/@alice'
+      serve({
+        [aliasUrl]: { status: 301, headers: { location: victimId } },
+        [victimId]: { body: actorDocument(victimId, 'VICTIM KEY') }
+      })
+
+      expect((await getActorPerson({ actorId: aliasUrl }))?.id).toBe(victimId)
+      expect(canFederateWithDomain).not.toHaveBeenCalled()
     })
 
     it('does not re-fetch a canonical id on a domain federation policy refuses', async () => {

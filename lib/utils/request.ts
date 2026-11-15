@@ -2,6 +2,7 @@ import { getConfig } from '@/lib/config'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
 import {
+  CrossHostRedirectPolicy,
   SafeRemoteFetchHeaderBuilderRequest,
   SafeRemoteFetchHeaderSource,
   SafeRemoteFetchMethod,
@@ -48,7 +49,7 @@ const SHARED_HEADERS = {
 export interface RequestOptions {
   url: string
   /** See `SafeRemoteFetchOptions.allowCrossHostRedirects`. */
-  allowCrossHostRedirects?: boolean
+  allowCrossHostRedirects?: CrossHostRedirectPolicy
   method?: SafeRemoteFetchMethod
   headers?: SafeRemoteFetchHeaderSource
   body?: string

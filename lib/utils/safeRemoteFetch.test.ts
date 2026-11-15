@@ -256,6 +256,40 @@ describe('safeRemoteFetch', () => {
 
       expect(result.url).toBe('https://other.example/elsewhere')
     })
+
+    it('asks a policy function about each cross-host hop only', async () => {
+      const seenUrls: string[] = []
+      const safeRemoteFetch = createRedirectingFetch(
+        'https://other.example/forged',
+        seenUrls
+      )
+      const policy = vi.fn(async () => false)
+
+      await expect(
+        safeRemoteFetch({
+          url: 'https://safe.example/start',
+          allowCrossHostRedirects: policy
+        })
+      ).rejects.toMatchObject({ code: 'ERR_CROSS_HOST_REDIRECT' })
+      expect(seenUrls).toEqual(['https://safe.example/start'])
+      expect(policy).toHaveBeenCalledWith(
+        new URL('https://other.example/forged')
+      )
+
+      policy.mockResolvedValue(true)
+      const result = await safeRemoteFetch({
+        url: 'https://safe.example/start',
+        allowCrossHostRedirects: policy
+      })
+      expect(result.url).toBe('https://other.example/forged')
+
+      policy.mockClear()
+      await createRedirectingFetch('https://safe.example/canonical')({
+        url: 'https://safe.example/start',
+        allowCrossHostRedirects: policy
+      })
+      expect(policy).not.toHaveBeenCalled()
+    })
   })
 
   it('rejects redirects beyond the configured cap', async () => {
