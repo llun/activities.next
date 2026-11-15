@@ -1,0 +1,23 @@
+lib/utils/host.ts
+  s_002c9665ab6369::t_691873a8bff3f1 339-342
+lib/utils/host.test.ts
+  s_002c9665ab6369::t_399602a43f7845 352-390
+docs/maintenance.md
+  s_002c9665ab6369::t_887d454c72b6fb 1234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "40417c8ed2701168e0571e4800aa4e3c8f715f15",
+  "prompts": {},
+  "sessions": {
+    "s_002c9665ab6369": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fe34918-b928-4f62-8e7f-8b5c526ec6d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
