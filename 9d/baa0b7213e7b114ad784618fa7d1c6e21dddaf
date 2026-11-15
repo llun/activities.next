@@ -1,0 +1,27 @@
+lib/activities/confirmActorHandle.test.ts
+  s_dd277f8ec5b352::t_e88d703cef6939 202-232
+lib/activities/confirmActorHandle.ts
+  s_dd277f8ec5b352::t_2f0d992ae1ff74 1-4,79
+lib/activities/getWebfingerSelf.test.ts
+  s_dd277f8ec5b352::t_e88d703cef6939 106-158
+lib/activities/getWebfingerSelf.ts
+  s_dd277f8ec5b352::t_2f0d992ae1ff74 1,35
+lib/activities/getWebfingerDocument.ts
+  s_dd277f8ec5b352::t_2f0d992ae1ff74 9-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9dbaa0b7213e7b114ad784618fa7d1c6e21dddaf",
+  "prompts": {},
+  "sessions": {
+    "s_dd277f8ec5b352": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57718715-60c3-4227-b388-3ec0dca5dff9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
