@@ -1,6 +1,8 @@
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
+import { getDatabase } from '@/lib/database'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import {
@@ -68,7 +70,9 @@ const fetchActorDocument = async ({
 // WebFinger `self` link points at an alias) is re-fetched ONCE from the id it
 // claims, Mastodon-style, and accepted only when that origin serves a document
 // with the very same id. Either way the returned actor was published by the
-// origin its id belongs to.
+// origin its id belongs to. The claimed origin is checked against federation
+// policy first: the caller vetted only the URL it asked for, and a blocked or
+// non-allowlisted host must not get a (possibly instance-signed) request.
 export const getActorPerson: GetActorPersonFunction = ({
   actorId,
   withNetworkRetry = true,
@@ -87,6 +91,18 @@ export const getActorPerson: GetActorPersonFunction = ({
       }
 
       const claimedId = fetched.person.id
+      // No database (a unit context before initialisation) has no policy to
+      // apply; every server path initialises it before fetching actors.
+      const database = getDatabase()
+      if (database && !(await canFederateWithDomain(database, claimedId))) {
+        logger.warn({
+          message:
+            'Skipped re-fetching an actor id claimed on a non-federated domain',
+          requestedActorId: actorId,
+          claimedActorId: claimedId
+        })
+        return null
+      }
       const canonical = await fetchActorDocument({
         url: claimedId,
         withNetworkRetry,
