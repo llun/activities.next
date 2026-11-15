@@ -349,6 +349,45 @@ describe('isOwnInstanceHost', () => {
   })
 })
 
+describe('a comma in a host', () => {
+  afterEach(() => {
+    resetHostCachesForTests()
+  })
+
+  const sources = {
+    host: 'llun.test',
+    trustedHosts: ['alias.example', '*.edge.llun.test']
+  }
+
+  // A URL parser keeps `,` in a hostname, so an id on
+  // `llun.test,x.evil.example` names that host, not ours.
+  it.each([
+    'https://llun.test,x.evil.example/users/a',
+    'https://alias.example,x.evil.example/users/a',
+    'https://a.edge.llun.test,x.evil.example/users/a'
+  ])('never makes %s one of ours', (value) => {
+    expect(
+      createServedDomainMatcher(getServedDomainRules(sources))(value)
+    ).toBeFalse()
+    expect(isOwnInstanceHost(new URL(value).host, sources)).toBeFalse()
+    expect(
+      createHostRulesMatcher(['*.edge.llun.test'])(new URL(value).host)
+    ).toBeFalse()
+  })
+
+  it('still reads the first entry of a forwarded host list', () => {
+    expect(
+      isHostTrustedByRules('alias.example, proxy.internal', ['alias.example'])
+    ).toBeTrue()
+    expect(
+      selectHeaderHost(
+        new Headers({ 'x-forwarded-host': 'alias.example, proxy.internal' }),
+        sources
+      )
+    ).toBe('alias.example')
+  })
+})
+
 describe('served domain matching', () => {
   const matchServed = (
     value: string | null | undefined,

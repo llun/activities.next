@@ -336,7 +336,10 @@ export const createHostRulesMatcher = (
 
   return (host) => {
     const authority = getCanonicalAuthority(host)
-    if (!authority) return false
+    // One authority is asked about here, never a header list, and a URL
+    // parser keeps `,` in a hostname: `normalizeHost` would read
+    // `our.host,x.evil.example` as its first entry, `our.host`.
+    if (!authority || authority.includes(',')) return false
     if (literalAuthorities.has(authority)) return true
 
     const normalizedHost = normalizeHost(host, { allowWildcard: false })
