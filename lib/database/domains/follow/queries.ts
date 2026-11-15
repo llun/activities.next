@@ -308,7 +308,6 @@ export const getLocalActorsFromFollowerUrl = async (
     .selectFrom('actors')
     .select('id')
     .where(jsonText(db, 'actors.settings', 'followersUrl'), '=', followerUrl)
-    .limit(5)
     .execute()
   const actor = candidates.find(
     (candidate) =>
