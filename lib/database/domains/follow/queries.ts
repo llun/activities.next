@@ -42,6 +42,7 @@ import { listTimelineKey } from '@/lib/services/timelines/types'
 import type { SQLAccount } from '@/lib/types/database/rows'
 import type { Actor } from '@/lib/types/domain/actor'
 import { type Follow, FollowStatus } from '@/lib/types/domain/follow'
+import { getTrustedFollowersUrl } from '@/lib/utils/getVisibility'
 
 // languages is persisted as a JSON-encoded text column for cross-backend
 // portability, so it comes back as a string (or null) and must be parsed.
@@ -300,12 +301,20 @@ export const getLocalActorsFromFollowerUrl = async (
   db: Db,
   { followerUrl }: GetLocalActorsFromFollowerUrlParams
 ): Promise<Actor[]> => {
-  const actor = await db
+  // Only an actor that could own the collection counts: a row stored before
+  // followers URLs were validated may name another account's id (a local
+  // user's, to receive everything addressed to them).
+  const candidates = await db
     .selectFrom('actors')
     .select('id')
     .where(jsonText(db, 'actors.settings', 'followersUrl'), '=', followerUrl)
-    .limit(1)
-    .executeTakeFirst()
+    .limit(5)
+    .execute()
+  const actor = candidates.find(
+    (candidate) =>
+      candidate.id !== null &&
+      getTrustedFollowersUrl(candidate.id, followerUrl) !== null
+  )
   if (!actor?.id) return []
 
   return inTransaction(db, async (trx) => {

@@ -393,7 +393,7 @@ describe('recordActorIfNeeded', () => {
 
     const actor = await recordActorIfNeeded({ actorId, database })
 
-    expect(actor?.followersUrl).toBe('')
+    expect(actor?.followersUrl).toBe(`${actorId}/followers`)
   })
 
   it('does not store a followers URL equal to the actor id', async () => {
@@ -404,13 +404,18 @@ describe('recordActorIfNeeded', () => {
 
     const actor = await recordActorIfNeeded({ actorId, database })
 
-    expect(actor?.followersUrl).toBe('')
+    expect(actor?.followersUrl).toBe(`${actorId}/followers`)
   })
 
-  it('keeps the stored followers URL when a refresh names another origin', async () => {
+  it('repairs a stored followers URL naming another account on refresh', async () => {
     const actorId = 'https://remote-followers-refresh.test/users/alice'
     mockGetActorPerson.mockResolvedValue(mockPerson(actorId))
     await recordActorIfNeeded({ actorId, database })
+    // A row stored before followers URLs were validated.
+    await database.updateActor({
+      actorId,
+      followersUrl: 'https://local.test/users/victim'
+    })
 
     mockGetActorPerson.mockResolvedValue(
       mockPerson(actorId, { followers: 'https://local.test/users/victim' })

@@ -140,8 +140,12 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
     // ActivityStreams treats an absent flag as "does not require approval".
     manuallyApprovesFollowers: person.manuallyApprovesFollowers ?? false,
     fields: getActorProfileFields(person),
-    // An off-origin `followers` (another account's id, say) is not stored.
-    followersUrl: getTrustedFollowersUrl(person.id, person.followers) ?? '',
+    // An off-origin `followers` (another account's id, say) is replaced by the
+    // conventional path, so a refresh also repairs a row stored before this
+    // check (updateActor ignores an empty value).
+    followersUrl:
+      getTrustedFollowersUrl(person.id, person.followers) ??
+      `${person.id}/followers`,
     inboxUrl: person.inbox,
     sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
     publicKey: person.publicKey?.publicKeyPem || '',
