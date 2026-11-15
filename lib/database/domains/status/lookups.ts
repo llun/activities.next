@@ -13,6 +13,7 @@ import type {
   StatusThreadStep
 } from '@/lib/database/domains/status/types'
 import type { Db } from '@/lib/database/kysely'
+import { jsonText } from '@/lib/database/kysely/dialect'
 import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import {
   resolveIdsByPublicIds,
@@ -103,7 +104,8 @@ export const getStatusThreadStep = async (
       'statuses.id as id',
       'statuses.reply as reply',
       'statuses.actorId as actorId',
-      'actors.accountId as accountId'
+      'actors.accountId as accountId',
+      jsonText(db, 'actors.settings', 'followersUrl').as('followersUrl')
     ])
     .where('statuses.id', '=', statusId)
     .limit(1)
@@ -122,7 +124,8 @@ export const getStatusThreadStep = async (
     actorId: row.actorId as string,
     isLocalActor: Boolean(row.accountId),
     to: recipientsOfType(recipients, 'to'),
-    cc: recipientsOfType(recipients, 'cc')
+    cc: recipientsOfType(recipients, 'cc'),
+    followersUrl: row.followersUrl ?? null
   }
 }
 

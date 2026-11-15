@@ -26,7 +26,7 @@ import {
   getFitnessSourceLabel,
   normalizeFitnessSourceUrl
 } from '@/lib/utils/fitness'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
@@ -192,8 +192,7 @@ export const ActivityPostFrame: FC<ActivityPostFrameProps> = ({
   const activityLabel = getActivityLabel(fitness?.activityType ?? undefined)
   const activityStartTime = fitness?.activityStartTime ?? status.createdAt
   const visibilityMeta =
-    VISIBILITY_META[getVisibility(status.to, status.cc)] ??
-    VISIBILITY_META.public
+    VISIBILITY_META[getStatusVisibility(status)] ?? VISIBILITY_META.public
   const VisibilityIcon = visibilityMeta.icon
   const fitnessSourceUrl = normalizeFitnessSourceUrl(fitness?.sourceUrl)
   // The caption goes through the same pipeline `Post` uses, so it looks

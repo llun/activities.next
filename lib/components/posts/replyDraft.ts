@@ -8,7 +8,10 @@ import {
   StatusType,
   getOriginalStatus
 } from '@/lib/types/domain/status'
-import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
+import {
+  MastodonVisibility,
+  getStatusVisibility
+} from '@/lib/utils/getVisibility'
 
 export type ReplyMentionMode = 'all' | 'author-first' | 'author-only'
 
@@ -280,7 +283,7 @@ export const prepareReplyDraft = ({
   const isSpoilerVisible = Boolean(spoilerText)
 
   // Inherit visibility: direct stays direct, private stays private, unlisted stays unlisted, public stays public
-  const parentVisibility = getVisibility(actualStatus.to, actualStatus.cc)
+  const parentVisibility = getStatusVisibility(actualStatus)
   const visibility = parentVisibility
 
   // Inherit declared language; do NOT substitute detectedLanguage

@@ -16,7 +16,11 @@ import {
   decreaseCounterValue,
   deleteCounterValues
 } from '@/lib/database/kysely/counter'
-import { forUpdate, timestampValue } from '@/lib/database/kysely/dialect'
+import {
+  forUpdate,
+  jsonText,
+  timestampValue
+} from '@/lib/database/kysely/dialect'
 import {
   chunkArray,
   getWhereInBatchSize,
@@ -308,7 +312,10 @@ const recomputeActorsLastStatusAt = async ({
         // here either — deleting the newest public post would otherwise reveal
         // the date of a later direct message. "Not direct" is
         // `getVisibility`'s rule: addressed to the public collection or to a
-        // followers collection.
+        // followers collection, which is the author's stored followers URL
+        // (servers do not agree on its path; Friendica's is
+        // `/followers/<nick>`) or, for an actor whose settings lack one,
+        // anything ending in `/followers`.
         lastStatusAt: eb
           .selectFrom('statuses')
           .select((max) => max.fn.max('createdAt').as('lastStatusAt'))
@@ -326,7 +333,12 @@ const recomputeActorsLastStatusAt = async ({
                       'in',
                       PUBLIC_ACTIVITY_RECIPIENTS
                     ),
-                    audience('recipients.actorId', 'like', '%/followers')
+                    audience('recipients.actorId', 'like', '%/followers'),
+                    audience(
+                      'recipients.actorId',
+                      '=',
+                      jsonText(trx, 'actors.settings', 'followersUrl')
+                    )
                   ])
                 )
             )

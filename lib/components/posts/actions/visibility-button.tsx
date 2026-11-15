@@ -11,7 +11,10 @@ import {
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
 import { Status, StatusType } from '@/lib/types/domain/status'
-import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
+import {
+  MastodonVisibility,
+  getStatusVisibility
+} from '@/lib/utils/getVisibility'
 
 const VISIBILITY_OPTIONS: {
   value: MastodonVisibility
@@ -52,7 +55,7 @@ interface Props {
 export const VisibilityButton: FC<Props> = ({ status }) => {
   const initialVisibility =
     status.type !== StatusType.enum.Announce
-      ? getVisibility(status.to, status.cc)
+      ? getStatusVisibility(status)
       : 'public'
 
   const [visibility, setVisibility] =

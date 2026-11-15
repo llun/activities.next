@@ -61,3 +61,15 @@ export const getVisibility = (
   // Direct: specific users only
   return 'direct'
 }
+
+/**
+ * `getVisibility` for a status-shaped object, so every caller that has the
+ * author's profile passes its followers URL instead of relying on the
+ * `/followers` suffix alone.
+ */
+export const getStatusVisibility = (status: {
+  to: string[]
+  cc: string[]
+  actor?: { followersUrl?: string | null } | null
+}): MastodonVisibility =>
+  getVisibility(status.to, status.cc, status.actor?.followersUrl)

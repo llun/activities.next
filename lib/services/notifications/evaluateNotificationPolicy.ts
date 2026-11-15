@@ -3,7 +3,7 @@ import {
   NotificationPolicyValue,
   NotificationType
 } from '@/lib/types/database/operations'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 
 export const isAcceptedSender = async (
   database: Database,
@@ -141,7 +141,7 @@ export const evaluateNotificationPolicy = async (
     const status = await database.getStatus({ statusId, withReplies: false })
     if (
       status &&
-      getVisibility(status.to, status.cc) === 'direct' &&
+      getStatusVisibility(status) === 'direct' &&
       !recipientFollowsSource
     ) {
       // Exempt replies to threads the recipient initiated: if the replied-to

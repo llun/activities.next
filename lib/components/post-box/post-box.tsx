@@ -79,7 +79,7 @@ import { Tag } from '@/lib/types/domain/tag'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import { cn } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
@@ -2121,7 +2121,7 @@ export const PostBox: FC<Props> = ({
       dispatch(setVisibility('public'))
     } else {
       // Initialize visibility from reply status to inherit parent visibility
-      const replyVisibility = getVisibility(replyStatus.to, replyStatus.cc)
+      const replyVisibility = getStatusVisibility(replyStatus)
       dispatch(setVisibility(replyVisibility))
     }
 

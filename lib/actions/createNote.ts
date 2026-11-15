@@ -55,7 +55,10 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
+import {
+  MastodonVisibility,
+  getStatusVisibility
+} from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import {
   getPostingLanguage,
@@ -702,11 +705,7 @@ export const getVisibilityFromReplyStatus = (
   // The parent author's own followers URL counts as a followers collection
   // even off the `/followers` suffix (Friendica's `/followers/<nick>`), so a
   // followers-only parent is not mistaken for a direct one.
-  return getVisibility(
-    replyStatus.to,
-    replyStatus.cc,
-    replyStatus.actor?.followersUrl
-  )
+  return getStatusVisibility(replyStatus)
 }
 
 /**

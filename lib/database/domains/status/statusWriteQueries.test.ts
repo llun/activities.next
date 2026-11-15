@@ -101,8 +101,14 @@ const seedActor = async (
   name: string,
   {
     local = false,
-    lastStatusAt = null
-  }: { local?: boolean; lastStatusAt?: number | null } = {}
+    lastStatusAt = null,
+    followersUrl
+  }: {
+    local?: boolean
+    lastStatusAt?: number | null
+    // The stored followers collection URL; defaults to `<id>/followers`.
+    followersUrl?: string
+  } = {}
 ) => {
   const id = actorIn(name)
   let accountId: string | null = null
@@ -129,7 +135,7 @@ const seedActor = async (
       privateKey: local ? 'private-key' : null,
       publicKey: 'public-key',
       settings: JSON.stringify({
-        followersUrl: `${id}/followers`,
+        followersUrl: followersUrl ?? `${id}/followers`,
         inboxUrl: `${id}/inbox`,
         sharedInboxUrl: `https://${DOMAIN}/inbox`
       }),
@@ -460,7 +466,7 @@ const STATEMENTS: [RegExp, (bindings: unknown[]) => string][] = [
   [/^insert into "counters" .* on conflict/, (b) => `count ${b[0]}`],
   [/^update "counters" set "bucketHour" /, (b) => `bucket hour ${b.at(-1)}`],
   [/^update "actors" set "lastStatusAt" /, (b) => `lastStatusAt ${b[1]}`],
-  [/^select "accountId" from "actors" /, (b) => `read account ${b[0]}`],
+  [/^select "accountId", .* from "actors" /, (b) => `read account ${b[0]}`],
   [/^select "id" from "statuses" where "id" = /, (b) => `parent by id ${b[0]}`],
   [
     /^select "id" from "statuses" where "urlHash" = \S+ and "url" = /,
@@ -857,6 +863,23 @@ describe('createNote', () => {
     expect(await lastStatusAtOf(local)).toBe(now)
   })
 
+  it('advances lastStatusAt for a Friendica followers-only status', async () => {
+    const { p } = await setup()
+    // Friendica names the collection `/followers/<nick>`, so the `/followers`
+    // suffix rule alone would read this as a direct message and skip it.
+    const followersUrl = `https://friendica.test/followers/${p}-alice`
+    const author = await seedActor(`${p}-friendica`, { followersUrl })
+    await createNote(db, hydration, {
+      id: `${author}/statuses/1`,
+      url: `${author}/statuses/1`,
+      actorId: author,
+      text: 'followers only',
+      to: [followersUrl],
+      cc: []
+    })
+    expect(await lastStatusAtOf(author)).toBe(now)
+  })
+
   it('counts a public reply on its parent, found by id, else by url hash and url', async () => {
     const { local, remote } = await setup()
     const parentUrl = `https://${DOMAIN}/@remote/${local.length}`
@@ -991,8 +1014,8 @@ describe('createNote', () => {
       `count ${CounterKey.serviceTotalStatuses()}`,
       `count ${bucketOf('statuses')}`,
       `bucket hour ${bucketOf('statuses')}`,
-      `lastStatusAt ${local}`,
       `read account ${local}`,
+      `lastStatusAt ${local}`,
       `count ${CounterKey.nodeinfoLocalPosts()}`,
       `count ${bucketOf('local-statuses')}`,
       `bucket hour ${bucketOf('local-statuses')}`,
@@ -1256,8 +1279,8 @@ describe('createPoll', () => {
       `count ${CounterKey.serviceTotalStatuses()}`,
       `count ${bucketOf('statuses')}`,
       `bucket hour ${bucketOf('statuses')}`,
-      `lastStatusAt ${remote}`,
       `read account ${remote}`,
+      `lastStatusAt ${remote}`,
       `stored replies to ${id}`,
       'insert choice b',
       'insert choice a',
@@ -1474,8 +1497,8 @@ describe('createAnnounce', () => {
       `count ${CounterKey.serviceTotalStatuses()}`,
       `count ${bucketOf('statuses')}`,
       `bucket hour ${bucketOf('statuses')}`,
-      `lastStatusAt ${remote}`,
       `read account ${remote}`,
+      `lastStatusAt ${remote}`,
       `count ${CounterKey.totalReblog(original)}`,
       `recipient to ${ACTIVITY_STREAM_PUBLIC}`,
       `recipient cc ${remote}/followers`,
@@ -3807,7 +3830,7 @@ describe('single-row reads', () => {
     const reads = statements
       .filter(({ sql: text }) =>
         [
-          /^select "accountId" from "actors" /,
+          /^select "accountId", .* from "actors" /,
           /^select "id" from "statuses" where /,
           /^select \* from "statuses" where "id" = /,
           /^select "id" from "poll_voters" /,
@@ -3816,21 +3839,24 @@ describe('single-row reads', () => {
       )
       .map(({ sql: text }) =>
         text.replace(/\$\d+/g, '?').replace(
-          // A PostgreSQL row lock ends in ` for update`, after its limit.
-          /^(select \S+ from "\w+") .*?( limit \? offset \?| limit \?)?( for update)?$/,
-          '$1$2'
+          // The select list is backend-specific (json_extract on SQLite,
+          // `::jsonb ->>` on PostgreSQL), so only the table and the limit are
+          // compared. A PostgreSQL row lock ends in ` for update`, after its
+          // limit.
+          /^select .*? from ("\w+") .*?( limit \? offset \?| limit \?)?( for update)?$/,
+          'select $1$2'
         )
       )
     expect(reads).toEqual([
-      'select "accountId" from "actors" limit ?',
-      'select "id" from "statuses" limit ?',
-      'select "id" from "statuses" limit ?',
-      'select * from "statuses" limit ?',
-      'select * from "statuses" limit ?',
-      'select * from "statuses" limit ?',
-      'select * from "statuses" limit ?',
-      'select "id" from "poll_voters" limit ?',
-      'select "choiceId" from "poll_choices" limit ? offset ?'
+      'select "actors" limit ?',
+      'select "statuses" limit ?',
+      'select "statuses" limit ?',
+      'select "statuses" limit ?',
+      'select "statuses" limit ?',
+      'select "statuses" limit ?',
+      'select "statuses" limit ?',
+      'select "poll_voters" limit ?',
+      'select "poll_choices" limit ? offset ?'
     ])
   })
 })

@@ -94,7 +94,16 @@ const PUBLIC = [ACTIVITY_STREAM_PUBLIC]
 
 const seedActor = async (
   name: string,
-  { local = false, lastStatusAt = null as number | null } = {}
+  {
+    local = false,
+    lastStatusAt = null as number | null,
+    followersUrl
+  }: {
+    local?: boolean
+    lastStatusAt?: number | null
+    // The stored followers collection URL; defaults to `<id>/followers`.
+    followersUrl?: string
+  } = {}
 ) => {
   const id = actorIn(`${prefix}-${name}`)
   let accountId: string | null = null
@@ -121,7 +130,7 @@ const seedActor = async (
       privateKey: local ? 'private-key' : null,
       publicKey: 'public-key',
       settings: JSON.stringify({
-        followersUrl: `${id}/followers`,
+        followersUrl: followersUrl ?? `${id}/followers`,
         inboxUrl: `${id}/inbox`,
         sharedInboxUrl: `https://${DOMAIN}/inbox`
       }),
@@ -1140,6 +1149,46 @@ describe('deleteStatus', () => {
     expect(await lastStatusAtOf(author)).toBe(BASE + 1_000)
     await deleteStatus(db(), { statusId: statusIn(author, 'public-old') })
     // Only the direct and the list-addressed statuses are left.
+    expect(await lastStatusAtOf(author)).toBeNull()
+  })
+
+  it('keeps a Friendica followers-only status in the lastStatusAt recompute', async () => {
+    // Friendica names the collection `/followers/<nick>`, so the `/followers`
+    // suffix rule alone would read this as a direct message and drop it.
+    const followersUrl = `https://friendica.test/followers/${prefix}-alice`
+    const author = await seedActor('friendica-author', {
+      lastStatusAt: BASE + 9_000,
+      followersUrl
+    })
+    const other = await seedActor('friendica-other', {
+      lastStatusAt: BASE + 9_999
+    })
+    const followersOnly = await seedStatus({
+      id: statusIn(author, 'followers'),
+      actorId: author,
+      createdAt: BASE + 3_000,
+      to: [followersUrl]
+    })
+    // Newer, but direct: it never advanced lastStatusAt and must not now.
+    await seedStatus({
+      id: statusIn(author, 'direct'),
+      actorId: author,
+      createdAt: BASE + 8_000,
+      to: [other]
+    })
+    const newest = await seedStatus({
+      id: statusIn(author, 'newest'),
+      actorId: author,
+      createdAt: BASE + 9_000
+    })
+    refreshSpy()
+
+    await deleteStatus(db(), { statusId: newest })
+    expect(await lastStatusAtOf(author)).toBe(BASE + 3_000)
+    expect(await lastStatusAtOf(other)).toBe(BASE + 9_999)
+
+    await deleteStatus(db(), { statusId: followersOnly })
+    // Only the direct status is left.
     expect(await lastStatusAtOf(author)).toBeNull()
   })
 

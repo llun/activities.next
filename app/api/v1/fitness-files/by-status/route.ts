@@ -5,7 +5,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -61,7 +61,7 @@ export const GET = traceApiRoute(
         })
       }
 
-      const visibility = getVisibility(status.to, status.cc)
+      const visibility = getStatusVisibility(status)
       const isPubliclyAccessible =
         visibility === 'public' || visibility === 'unlisted'
       let hasAccess = isPubliclyAccessible
@@ -70,11 +70,10 @@ export const GET = traceApiRoute(
         if (currentActor.id === status.actorId) {
           hasAccess = true
         } else {
-          const hasFollowersUrl = [...status.to, ...status.cc].some((item) =>
-            item.endsWith('/followers')
-          )
-
-          if (hasFollowersUrl) {
+          // Followers-only: the author's stored followers URL counts even when
+          // it does not end in `/followers` (Friendica's is
+          // `/followers/<nick>`), which is what `getStatusVisibility` decides.
+          if (visibility === 'private') {
             const follow = await database.getAcceptedOrRequestedFollow({
               actorId: currentActor.id,
               targetActorId: status.actorId

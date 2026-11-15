@@ -2,7 +2,7 @@ import type { StatusEditRevision } from '@/lib/types/database/operations'
 import { getDocumentFromAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 
 import { buildStatusHistoryEntry } from './actorArchive'
 
@@ -30,11 +30,7 @@ export const buildStatusRecord = ({
     publicId: status.publicId ?? null,
     type: status.type,
     actorId: status.actorId,
-    visibility: getVisibility(
-      status.to,
-      status.cc,
-      status.actor?.followersUrl ?? null
-    ),
+    visibility: getStatusVisibility(status),
     to: status.to,
     cc: status.cc,
     createdAt: getISOTimeUTC(status.createdAt),

@@ -21,7 +21,10 @@ import {
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
+import {
+  MastodonVisibility,
+  getStatusVisibility
+} from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -96,7 +99,7 @@ const getBoostVisibility = async ({
   if (
     originalStatus.type !== StatusType.enum.Announce &&
     originalStatus.actorId === currentActor.id &&
-    getVisibility(originalStatus.to, originalStatus.cc) === 'private'
+    getStatusVisibility(originalStatus) === 'private'
   ) {
     return { visibility: 'private' }
   }

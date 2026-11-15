@@ -37,6 +37,10 @@ export type DirectConversationStatusLookup = {
   to: string[]
   cc: string[]
   reply: string
+  // The author's stored followers collection URL, when the actors row has one.
+  // Servers do not agree on its path (Friendica's is `/followers/<nick>`), so
+  // the `/followers` suffix alone would read a followers-only post as direct.
+  followersUrl: string | null
 }
 
 // One row per recipient of the looked-up status (or one row with null
@@ -47,6 +51,7 @@ export type DirectConversationStatusLookupRow = {
   actorId: string | null
   type: string | null
   reply: string | null
+  followersUrl: string | null
   recipientActorId: string | null
   recipientType: string | null
 }
@@ -58,7 +63,7 @@ export const getConversationIdForRootStatusId = (rootStatusId: string) =>
 
 export const isDirectStatusLookup = (status: DirectConversationStatusLookup) =>
   status.type !== StatusType.enum.Announce &&
-  getVisibility(status.to, status.cc) === 'direct'
+  getVisibility(status.to, status.cc, status.followersUrl) === 'direct'
 
 export const buildDirectConversationStatusLookup = (
   rows: DirectConversationStatusLookupRow[]
@@ -85,7 +90,8 @@ export const buildDirectConversationStatusLookup = (
       type: status.type as StatusType,
       to: [],
       cc: [],
-      reply: status.reply ?? ''
+      reply: status.reply ?? '',
+      followersUrl: status.followersUrl ?? null
     }
   )
 }

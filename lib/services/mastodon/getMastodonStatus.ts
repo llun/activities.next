@@ -24,7 +24,7 @@ import {
 } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import { getClientActorId, getClientStatusId } from '@/lib/utils/publicId'
 import { toEmojiShortcodeToken } from '@/lib/utils/text/getEmojiTags'
@@ -292,7 +292,7 @@ const isStatusPinnableByActor = (status: Status, currentActorId?: string) => {
   if (!currentActorId) return false
   if (status.type === StatusType.enum.Announce) return false
   if (status.actorId !== currentActorId) return false
-  return getVisibility(status.to, status.cc) !== 'direct'
+  return getStatusVisibility(status) !== 'direct'
 }
 
 const addStatusPinnedLookupIds = (
@@ -560,12 +560,8 @@ export const getMastodonStatus = async (
 
   const visibility =
     status.type === StatusType.enum.Announce && status.originalStatus
-      ? getVisibility(
-          status.originalStatus.to,
-          status.originalStatus.cc,
-          status.originalStatus.actor?.followersUrl
-        )
-      : getVisibility(status.to, status.cc, status.actor?.followersUrl)
+      ? getStatusVisibility(status.originalStatus)
+      : getStatusVisibility(status)
 
   const reblogsCount =
     status.type !== StatusType.enum.Announce
@@ -647,11 +643,7 @@ export const getMastodonStatus = async (
       options
     )
 
-    const originalVisibility = getVisibility(
-      status.originalStatus.to,
-      status.originalStatus.cc,
-      status.originalStatus.actor?.followersUrl
-    )
+    const originalVisibility = getStatusVisibility(status.originalStatus)
 
     return Mastodon.Status.parse({
       ...baseData,

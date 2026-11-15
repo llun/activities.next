@@ -86,6 +86,33 @@ describe('VisibilityButton', () => {
     ).toBeInTheDocument()
   })
 
+  // Friendica names the followers collection `/followers/<nick>`, so the
+  // `/followers` suffix rule alone would label this post Direct.
+  it('labels a Friendica followers-only status as followers only, not direct', () => {
+    const followersUrl = 'https://friendica.test/followers/alice'
+    render(
+      <VisibilityButton
+        status={{
+          ...publicStatus,
+          actorId: 'https://friendica.test/profile/alice',
+          actor: {
+            ...actor,
+            id: 'https://friendica.test/profile/alice',
+            username: 'alice',
+            domain: 'friendica.test',
+            followersUrl
+          },
+          to: [followersUrl],
+          cc: []
+        }}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Visibility: Followers only' })
+    ).toBeInTheDocument()
+  })
+
   it('persists a newly picked visibility and shows it as current', async () => {
     ;(updateStatusVisibility as jest.Mock).mockResolvedValue(true)
     render(<VisibilityButton status={publicStatus} />)
