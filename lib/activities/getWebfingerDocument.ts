@@ -7,6 +7,8 @@ import { withSpan } from '@/lib/utils/trace'
 
 // Standard OStatus rel carrying the URL template a server wants remote-follow
 // visitors sent to. Mirrors REMOTE_FOLLOW_SUBSCRIBE_REL on the serving side.
+export const SUBSCRIBE_REL = 'http://ostatus.org/schema/1.0/subscribe'
+
 // The `self` hrefs that point at an ActivityPub actor. A JRD may list several
 // self links (an HTML profile, an Atom feed) and only the ActivityPub-typed
 // ones name the actor; untyped self links count only when no self link carries
@@ -21,8 +23,6 @@ export const getActivityPubSelfHrefs = (links: WebFinger['links']) => {
     ? selfLinks.map((link) => link.href)
     : []
 }
-
-export const SUBSCRIBE_REL = 'http://ostatus.org/schema/1.0/subscribe'
 
 /**
  * Fetches a remote WebFinger document whole, unlike `getWebfingerSelf` which
