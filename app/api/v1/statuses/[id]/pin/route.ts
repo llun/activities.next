@@ -7,7 +7,7 @@ import { publishStatusPin } from '@/lib/services/statuses/publishStatusPin'
 import { AddAction } from '@/lib/types/activitypub/activities'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_403,
@@ -57,7 +57,7 @@ export const POST = traceApiRoute(
 
       if (
         status.type === StatusType.enum.Announce ||
-        getVisibility(status.to, status.cc) === 'direct'
+        getStatusVisibility(status) === 'direct'
       ) {
         return apiResponse({
           req,

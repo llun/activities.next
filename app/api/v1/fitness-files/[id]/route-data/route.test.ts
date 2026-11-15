@@ -9,6 +9,7 @@ import {
   seedActor1
 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -417,6 +418,48 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Cache-Control')).toBe('private, no-cache')
     expect(mockParseFitnessFile).toHaveBeenCalled()
+  })
+
+  it('hides direct route data from an accepted follower', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+
+    await database.createFollow({
+      actorId: ACTOR2_ID,
+      targetActorId: ACTOR1_ID,
+      inbox: `${ACTOR2_ID}/inbox`,
+      sharedInbox: 'https://llun.test/inbox',
+      status: FollowStatus.enum.Accepted
+    })
+
+    // Only the followers-only branch grants followers; a direct post names its
+    // recipients, and ACTOR2 is not one of them.
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/direct-route-data`,
+      url: `${ACTOR1_ID}/statuses/direct-route-data`,
+      actorId: ACTOR1_ID,
+      text: 'Direct route data',
+      to: [ACTOR3_ID],
+      cc: []
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/direct-route-data.fit',
+      fileName: 'direct-route-data.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ id: fitnessFile!.id })
+    })
+
+    expect(response.status).toBe(404)
+    expect(mockParseFitnessFile).not.toHaveBeenCalled()
   })
 
   it('hides home-radius points for non-owner viewers', async () => {

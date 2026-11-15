@@ -199,6 +199,37 @@ describe('confirmActorHandle', () => {
     ).resolves.toBeNull()
   })
 
+  it('ignores a non-ActivityPub self link naming the actor', async () => {
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async () => ({
+      status: 200,
+      headers: JRD_JSON_HEADERS,
+      body: JSON.stringify({
+        subject: 'acct:alice@remote.test',
+        links: [
+          {
+            rel: 'self',
+            type: 'text/html',
+            href: 'https://remote.test/users/alice'
+          },
+          {
+            rel: 'self',
+            type: 'application/activity+json',
+            href: 'https://remote.test/users/mallory'
+          }
+        ]
+      })
+    }))
+
+    await expect(
+      confirmActorHandle({
+        database,
+        actorId: 'https://remote.test/users/alice',
+        username: 'alice'
+      })
+    ).resolves.toBeNull()
+  })
+
   it.each(['not a url', 'urn:uuid:1234', ''])(
     'refuses an actor id with no host (%s) without fetching',
     async (actorId) => {

@@ -67,6 +67,7 @@ const makeDatabase = (overrides: Partial<Database>): Database =>
     getAcceptedRelays: vi.fn().mockResolvedValue([]),
     getDomainBlocksForDomains: vi.fn().mockResolvedValue({}),
     getDomainAllowsForDomains: vi.fn().mockResolvedValue({}),
+    getFederationSigningActor: vi.fn().mockResolvedValue(null),
     ...overrides
   }) as Database
 
@@ -209,6 +210,90 @@ describe('getFederatedStatusDeliveryInboxes', () => {
     expect(database.getActorsFromIds).toHaveBeenCalledTimes(1)
     expect(database.getActorsFromIds).toHaveBeenCalledWith({ ids: actorIds })
     expect(getActorPerson).not.toHaveBeenCalled()
+  })
+
+  it('signs the profile lookup of a never-seen recipient with the federation signer', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const signer = makeActor('https://local.test/actor', {
+      privateKey: 'signer-key'
+    })
+    const unknownId = 'https://gts.test/users/bob'
+    const database = makeDatabase({
+      getFederationSigningActor: vi.fn().mockResolvedValue(signer)
+    })
+    vi.mocked(getActorPerson).mockResolvedValue({
+      id: unknownId,
+      type: 'Person',
+      inbox: `${unknownId}/inbox`
+    } as never)
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({ to: [unknownId] })
+    })
+
+    expect(getActorPerson).toHaveBeenCalledWith({
+      actorId: unknownId,
+      signingActor: signer
+    })
+    expect(inboxes).toEqual([`${unknownId}/inbox`])
+  })
+
+  it('does not look up a never-seen recipient on a suspended domain', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const blockedId = 'https://blocked.test/users/mallory'
+    const database = makeDatabase({
+      getDomainBlocksForDomains: vi.fn().mockResolvedValue({
+        'blocked.test': {
+          id: 'block-1',
+          domain: 'blocked.test',
+          type: 'block',
+          severity: 'suspend',
+          rejectMedia: false,
+          rejectReports: false,
+          privateComment: null,
+          publicComment: null,
+          obfuscate: false,
+          source: null,
+          createdAt: 0,
+          updatedAt: 0
+        }
+      })
+    })
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({ to: [blockedId] })
+    })
+
+    // Policy runs before the signed fetch, so the blocked host never sees an
+    // instance-signed request.
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect(inboxes).toEqual([])
+  })
+
+  it('does not resolve the federation signer when every recipient is cached', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const remoteActor = makeActor('https://remote.test/users/bob')
+    const database = makeDatabase({
+      getActorsFromIds: vi.fn().mockResolvedValue([remoteActor])
+    })
+
+    await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({ to: [remoteActor.id] })
+    })
+
+    expect(database.getFederationSigningActor).not.toHaveBeenCalled()
   })
 
   it('bounds explicit recipient remote profile lookups', async () => {

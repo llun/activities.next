@@ -13,6 +13,7 @@ import type {
   StatusThreadStep
 } from '@/lib/database/domains/status/types'
 import type { Db } from '@/lib/database/kysely'
+import { jsonText } from '@/lib/database/kysely/dialect'
 import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import {
   resolveIdsByPublicIds,
@@ -21,6 +22,7 @@ import {
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getTrustedFollowersUrl } from '@/lib/utils/getVisibility'
 import { isPublicId, toPublicIdLookupKey } from '@/lib/utils/publicId'
 
 // The status lookups by url, url hash, publicId and path segment, and the
@@ -103,7 +105,8 @@ export const getStatusThreadStep = async (
       'statuses.id as id',
       'statuses.reply as reply',
       'statuses.actorId as actorId',
-      'actors.accountId as accountId'
+      'actors.accountId as accountId',
+      jsonText(db, 'actors.settings', 'followersUrl').as('followersUrl')
     ])
     .where('statuses.id', '=', statusId)
     .limit(1)
@@ -122,7 +125,11 @@ export const getStatusThreadStep = async (
     actorId: row.actorId as string,
     isLocalActor: Boolean(row.accountId),
     to: recipientsOfType(recipients, 'to'),
-    cc: recipientsOfType(recipients, 'cc')
+    cc: recipientsOfType(recipients, 'cc'),
+    followersUrl: getTrustedFollowersUrl(
+      row.actorId as string,
+      row.followersUrl
+    )
   }
 }
 

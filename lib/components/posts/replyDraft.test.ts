@@ -312,6 +312,40 @@ describe('replyDraft', () => {
       expect(draft.targetPreview.visibility).toBe('private')
     })
 
+    it('inherits private from a Friendica followers-only parent', () => {
+      const friendicaAuthor = createMockActorProfile({
+        ...author,
+        followersUrl: 'https://remote.social/followers/alice'
+      })
+      const friendicaNote: StatusNote = {
+        ...baseNote,
+        actor: friendicaAuthor,
+        to: ['https://remote.social/followers/alice'],
+        cc: ['https://social.example/users/viewer']
+      }
+      const draft = prepareReplyDraft({
+        targetStatus: friendicaNote,
+        currentViewer: viewer
+      })
+      expect(draft.visibility).toBe('private')
+    })
+
+    it('stays direct when the author names the viewer as its followers', () => {
+      const draft = prepareReplyDraft({
+        targetStatus: {
+          ...baseNote,
+          actor: createMockActorProfile({
+            ...author,
+            followersUrl: viewer.id
+          }),
+          to: [viewer.id],
+          cc: []
+        },
+        currentViewer: viewer
+      })
+      expect(draft.visibility).toBe('direct')
+    })
+
     it('inherits parent unlisted visibility', () => {
       const unlistedNote: StatusNote = {
         ...baseNote,

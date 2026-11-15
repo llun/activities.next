@@ -385,6 +385,50 @@ describe('recordActorIfNeeded', () => {
     expect(actor).toMatchObject({ id: actorId, name: 'Kept Name' })
   })
 
+  it('does not store a followers URL from another origin', async () => {
+    const actorId = 'https://remote-followers.test/users/alice'
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, { followers: 'https://local.test/users/victim' })
+    )
+
+    const actor = await recordActorIfNeeded({ actorId, database })
+
+    expect(actor?.followersUrl).toBe(`${actorId}/followers`)
+  })
+
+  it('does not store a followers URL equal to the actor id', async () => {
+    const actorId = 'https://remote-self-followers.test/users/alice'
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, { followers: actorId })
+    )
+
+    const actor = await recordActorIfNeeded({ actorId, database })
+
+    expect(actor?.followersUrl).toBe(`${actorId}/followers`)
+  })
+
+  it('repairs a stored followers URL naming another account on refresh', async () => {
+    const actorId = 'https://remote-followers-refresh.test/users/alice'
+    mockGetActorPerson.mockResolvedValue(mockPerson(actorId))
+    await recordActorIfNeeded({ actorId, database })
+    // A row stored before followers URLs were validated.
+    await database.updateActor({
+      actorId,
+      followersUrl: 'https://local.test/users/victim'
+    })
+
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, { followers: 'https://local.test/users/victim' })
+    )
+    const actor = await recordActorIfNeeded({
+      actorId,
+      database,
+      forceRefresh: true
+    })
+
+    expect(actor?.followersUrl).toBe(`${actorId}/followers`)
+  })
+
   describe('remote rename on refresh (same id, new handle)', () => {
     // Answers WebFinger for each `account` on the host its domain names, and
     // 404s everything else, so a lookup on the wrong host or handle fails.

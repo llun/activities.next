@@ -30,8 +30,9 @@ import { StatusType } from '@/lib/types/domain/status'
 // accepts only the author's own `/followers` URL; narrowing this term to match
 // would drop such posts). The widening is the author's STORED followers URL,
 // because not every server names the collection that way (Friendica's is
-// `/followers/<nick>`). LIKE folds ASCII case on SQLite, not on PostgreSQL, so
-// on SQLite an upper-case `/FOLLOWERS` suffix counts too.
+// `/followers/<nick>`); getVisibility and isDirectStatus read that same URL
+// from the author's profile. LIKE folds ASCII case on SQLite, not on
+// PostgreSQL, so on SQLite an upper-case `/FOLLOWERS` suffix counts too.
 //
 // Pure EXISTS on `statuses`, so it composes with the list timeline's other
 // filters and runs before LIMIT; the recipients lookup is served by

@@ -5,12 +5,21 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
-import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
+import {
+  MastodonVisibility,
+  getStatusVisibility,
+  getTrustedFollowersUrl,
+  getVisibility,
+  isFollowersCollection
+} from '@/lib/utils/getVisibility'
 
-const isActorAddress = (id: string) =>
+// A recipient that names a person or a group, not a collection. The author's
+// stored followers URL counts as a collection too (see getVisibility), so a
+// followers-only post's audience is not read as an actor address.
+const isActorAddress = (id: string, followersUrl?: string | null) =>
   id !== ACTIVITY_STREAM_PUBLIC &&
   id !== ACTIVITY_STREAM_PUBLIC_COMPACT &&
-  !id.endsWith('/followers')
+  !isFollowersCollection(id, followersUrl)
 
 const MAX_THREAD_DEPTH = 20
 
@@ -36,14 +45,19 @@ export const findCommunityActorId = async ({
   database,
   authorId,
   recipientIds,
-  mentionedIds = []
+  mentionedIds = [],
+  followersUrl
 }: {
   database: Database
   authorId: string
   recipientIds: string[]
   mentionedIds?: string[]
+  // The author's stored followers collection URL, when known.
+  followersUrl?: string | null
 }): Promise<string | null> => {
-  const recipients = [...new Set(recipientIds.filter(isActorAddress))]
+  const recipients = [
+    ...new Set(recipientIds.filter((id) => isActorAddress(id, followersUrl)))
+  ]
   const ids = [...new Set([authorId, ...recipients])]
   if (ids.length === 0) return null
 
@@ -90,20 +104,24 @@ export const getReplyCommunityActorId = async ({
   const seen = new Set<string>()
   let step: Pick<
     StatusThreadStep,
-    'id' | 'reply' | 'isLocalActor' | 'to' | 'cc'
+    'id' | 'reply' | 'isLocalActor' | 'to' | 'cc' | 'followersUrl'
   > = {
     id: first.id,
     reply: first.reply || null,
     isLocalActor: first.isLocalActor,
     to: first.to,
-    cc: first.cc
+    cc: first.cc,
+    followersUrl: getTrustedFollowersUrl(
+      first.actorId,
+      first.actor?.followersUrl
+    )
   }
 
   while (true) {
     if (seen.has(step.id) || seen.size >= MAX_THREAD_DEPTH) return null
     seen.add(step.id)
 
-    if (!isOpen(getVisibility(step.to, step.cc))) return null
+    if (!isOpen(getVisibility(step.to, step.cc, step.followersUrl))) return null
 
     if (!step.isLocalActor) {
       // `first` is already hydrated; any other remote post is read once.
@@ -120,7 +138,11 @@ export const getReplyCommunityActorId = async ({
         recipientIds: [...remote.to, ...remote.cc],
         mentionedIds: remote.tags
           .filter((tag) => tag.type === 'mention')
-          .map((tag) => tag.value)
+          .map((tag) => tag.value),
+        followersUrl: getTrustedFollowersUrl(
+          remote.actorId,
+          remote.actor?.followersUrl
+        )
       })
     }
 
@@ -150,7 +172,7 @@ export const getCommunityForNewReply = async ({
 }): Promise<string | null> => {
   if (!replyStatus) return null
   const parent = getOriginalStatus(replyStatus)
-  if (!isOpen(visibility) || !isOpen(getVisibility(parent.to, parent.cc))) {
+  if (!isOpen(visibility) || !isOpen(getStatusVisibility(parent))) {
     return null
   }
   return getReplyCommunityActorId({ database, replyStatus })
@@ -171,7 +193,7 @@ export const getStatusCommunityActorId = async ({
 }): Promise<string | null> => {
   const original = getOriginalStatus(status)
   if (!original.reply) return null
-  if (!isOpen(getVisibility(original.to, original.cc))) return null
+  if (!isOpen(getStatusVisibility(original))) return null
 
   const parent = await database.getStatus({
     statusId: original.reply,
@@ -179,7 +201,7 @@ export const getStatusCommunityActorId = async ({
   })
   if (!parent) return null
   const parentOriginal = getOriginalStatus(parent)
-  if (!isOpen(getVisibility(parentOriginal.to, parentOriginal.cc))) return null
+  if (!isOpen(getStatusVisibility(parentOriginal))) return null
 
   const communityActorId = await getReplyCommunityActorId({
     database,

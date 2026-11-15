@@ -10,6 +10,7 @@ import {
 } from '@/lib/database/domains/conversation/ordering'
 import type { SyncDirectConversationForStatusParams } from '@/lib/database/domains/conversation/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
+import { jsonText } from '@/lib/database/kysely/dialect'
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 import { StatusNote, StatusPoll, StatusType } from '@/lib/types/domain/status'
 import {
@@ -18,6 +19,7 @@ import {
   isDirectStatus
 } from '@/lib/utils/directStatus'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getTrustedFollowersUrl } from '@/lib/utils/getVisibility'
 
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
 
@@ -56,13 +58,14 @@ const getSyncedConversationParticipantActorIds = async (
 }
 
 // The Note or Poll whose id, or else whose url, is `statusReference`, with its
-// recipients; no full status hydration.
+// recipients and its author's stored followers URL; no full status hydration.
 const getStatusByIdOrUrl = async (db: Db, statusReference: string) => {
   const urlHash = getHashFromString(statusReference)
   // Limit before joining recipients so id matches keep precedence without
   // dropping recipient rows from the chosen status.
   const matchingStatusQuery = db
     .selectFrom('statuses')
+    .leftJoin('actors as status_actors', 'status_actors.id', 'statuses.actorId')
     .where('statuses.type', 'in', [StatusType.enum.Note, StatusType.enum.Poll])
     .where((eb) =>
       eb.or([
@@ -82,7 +85,8 @@ const getStatusByIdOrUrl = async (db: Db, statusReference: string) => {
       'statuses.url',
       'statuses.actorId',
       'statuses.type',
-      'statuses.reply'
+      'statuses.reply',
+      jsonText(db, 'status_actors.settings', 'followersUrl').as('followersUrl')
     ])
     .as('status_lookup')
 
@@ -95,6 +99,7 @@ const getStatusByIdOrUrl = async (db: Db, statusReference: string) => {
       'status_lookup.actorId',
       'status_lookup.type',
       'status_lookup.reply',
+      'status_lookup.followersUrl',
       'recipients.actorId as recipientActorId',
       'recipients.type as recipientType'
     ])
@@ -118,8 +123,10 @@ const getDirectConversationParticipantActorIds = async (
   status: StatusNote | StatusPoll
 ) => {
   const participantActorIds = getDirectStatusParticipantActorIds(status)
+  // Only reached for a direct status, so no recipient is the author's
+  // followers collection.
   const hasExplicitDirectAudience = [...status.to, ...status.cc].some(
-    isDirectAudienceActorId
+    (actorId) => isDirectAudienceActorId(actorId)
   )
   if (hasExplicitDirectAudience || !status.reply) {
     return participantActorIds
@@ -141,11 +148,28 @@ const getDirectConversationParticipantActorIds = async (
   return [...new Set([...participantActorIds, parentStatus.actorId])]
 }
 
+// The lookup shape `isDirectStatusLookup` reads, from a hydrated status.
+const statusLookupOf = (
+  status: StatusNote | StatusPoll
+): DirectConversationStatusLookup => ({
+  id: status.id,
+  url: status.url,
+  actorId: status.actorId,
+  type: status.type,
+  to: status.to,
+  cc: status.cc,
+  reply: status.reply,
+  followersUrl: getTrustedFollowersUrl(
+    status.actorId,
+    status.actor?.followersUrl
+  )
+})
+
 const resolveConversationRootStatusId = async (
   db: Db,
   status: StatusNote | StatusPoll
 ) => {
-  let root: DirectConversationStatusLookup = status
+  let root: DirectConversationStatusLookup = statusLookupOf(status)
   const seen = new Set([status.id])
 
   for (

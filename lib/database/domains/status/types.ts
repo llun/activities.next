@@ -58,6 +58,9 @@ export interface StatusThreadStep {
   isLocalActor: boolean
   to: string[]
   cc: string[]
+  // The author's stored followers collection URL, when the actors row has one
+  // (see getVisibility).
+  followersUrl: string | null
 }
 export interface GetStatusIdsByPublicIdsParams {
   publicIds: string[]

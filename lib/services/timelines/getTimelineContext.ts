@@ -8,7 +8,7 @@ import {
   TimelineContext,
   TimelineParentPreview
 } from '@/lib/types/domain/timeline'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 
 interface ParentRef {
   parentId?: string
@@ -285,11 +285,7 @@ export async function getTimelineContext({
     const parentRef = getParentRef(status)
 
     const visibility =
-      (s.visibility as Status['visibility']) ??
-      getVisibility(
-        (status.to as string[]) ?? [],
-        (status.cc as string[]) ?? []
-      )
+      (s.visibility as Status['visibility']) ?? getStatusVisibility(status)
 
     const preview: TimelineParentPreview = {
       id: status.id,

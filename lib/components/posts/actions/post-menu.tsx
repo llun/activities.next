@@ -77,7 +77,10 @@ import {
 } from '@/lib/types/domain/status'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { cn } from '@/lib/utils'
-import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
+import {
+  MastodonVisibility,
+  getStatusVisibility
+} from '@/lib/utils/getVisibility'
 
 import {
   BlockDialog,
@@ -296,7 +299,7 @@ export const PostMenu: FC<Props> = ({
   const showOpenOriginal = !status.isLocalActor && Boolean(statusUrl)
 
   const [visibility, setVisibility] = useState<MastodonVisibility>(
-    getVisibility(status.to, status.cc)
+    getStatusVisibility(status)
   )
   const [visibilitySaving, setVisibilitySaving] = useState(false)
   const [quotePolicy, setQuotePolicy] = useState<QuoteApprovalPolicy>(

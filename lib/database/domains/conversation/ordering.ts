@@ -6,7 +6,10 @@ import { createHash } from 'crypto'
 
 import type { DirectConversation } from '@/lib/database/domains/conversation/types'
 import { Status, StatusType } from '@/lib/types/domain/status'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import {
+  getTrustedFollowersUrl,
+  getVisibility
+} from '@/lib/utils/getVisibility'
 
 // A direct_conversation_memberships row joined with its conversation's root.
 export type DirectConversationMembershipRow = {
@@ -37,6 +40,9 @@ export type DirectConversationStatusLookup = {
   to: string[]
   cc: string[]
   reply: string
+  // The author's stored followers collection URL, when the actors row has one
+  // (see getVisibility).
+  followersUrl: string | null
 }
 
 // One row per recipient of the looked-up status (or one row with null
@@ -47,6 +53,7 @@ export type DirectConversationStatusLookupRow = {
   actorId: string | null
   type: string | null
   reply: string | null
+  followersUrl: string | null
   recipientActorId: string | null
   recipientType: string | null
 }
@@ -58,7 +65,7 @@ export const getConversationIdForRootStatusId = (rootStatusId: string) =>
 
 export const isDirectStatusLookup = (status: DirectConversationStatusLookup) =>
   status.type !== StatusType.enum.Announce &&
-  getVisibility(status.to, status.cc) === 'direct'
+  getVisibility(status.to, status.cc, status.followersUrl) === 'direct'
 
 export const buildDirectConversationStatusLookup = (
   rows: DirectConversationStatusLookupRow[]
@@ -85,7 +92,11 @@ export const buildDirectConversationStatusLookup = (
       type: status.type as StatusType,
       to: [],
       cc: [],
-      reply: status.reply ?? ''
+      reply: status.reply ?? '',
+      followersUrl: getTrustedFollowersUrl(
+        status.actorId ?? '',
+        status.followersUrl
+      )
     }
   )
 }

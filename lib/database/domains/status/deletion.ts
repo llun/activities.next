@@ -16,7 +16,11 @@ import {
   decreaseCounterValue,
   deleteCounterValues
 } from '@/lib/database/kysely/counter'
-import { forUpdate, timestampValue } from '@/lib/database/kysely/dialect'
+import {
+  forUpdate,
+  jsonText,
+  timestampValue
+} from '@/lib/database/kysely/dialect'
 import {
   chunkArray,
   getWhereInBatchSize,
@@ -307,8 +311,8 @@ const recomputeActorsLastStatusAt = async ({
         // `updateStatusCounters` in `./writes.ts`), so they must not set it
         // here either — deleting the newest public post would otherwise reveal
         // the date of a later direct message. "Not direct" is
-        // `getVisibility`'s rule: addressed to the public collection or to a
-        // followers collection.
+        // `getVisibility`'s rule: the public collection or a followers
+        // collection (see getVisibility).
         lastStatusAt: eb
           .selectFrom('statuses')
           .select((max) => max.fn.max('createdAt').as('lastStatusAt'))
@@ -326,7 +330,12 @@ const recomputeActorsLastStatusAt = async ({
                       'in',
                       PUBLIC_ACTIVITY_RECIPIENTS
                     ),
-                    audience('recipients.actorId', 'like', '%/followers')
+                    audience('recipients.actorId', 'like', '%/followers'),
+                    audience(
+                      'recipients.actorId',
+                      '=',
+                      jsonText(trx, 'actors.settings', 'followersUrl')
+                    )
                   ])
                 )
             )

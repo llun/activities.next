@@ -4,7 +4,7 @@ import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { Status, StatusAnnounce, StatusType } from '@/lib/types/domain/status'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 
 interface GetRemoteActorStatusesParams {
@@ -87,7 +87,7 @@ export const getRemoteActorStatuses = async ({
         // The outbox should only expose public/unlisted posts; enforce that
         // here so a misbehaving remote can't slip restricted posts into the
         // response.
-        const visibility = getVisibility(status.to, status.cc)
+        const visibility = getStatusVisibility(status)
         if (visibility !== 'public' && visibility !== 'unlisted') return false
 
         if (status.type === StatusType.enum.Announce) {

@@ -26,7 +26,7 @@ import {
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { TimelineGapRow } from './TimelineGapRow'
@@ -135,7 +135,7 @@ const previewFromStatus = (
     spoilerText,
     isSensitive,
     createdAt: new Date(actual.createdAt).toISOString(),
-    visibility: getVisibility(actual.to, actual.cc)
+    visibility: getStatusVisibility(actual)
   }
 }
 

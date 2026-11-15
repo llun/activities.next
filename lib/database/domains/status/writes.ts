@@ -27,7 +27,7 @@ import type {
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { increaseCounterValue } from '@/lib/database/kysely/counter'
 import { incrementBucket } from '@/lib/database/kysely/counterBucket'
-import { timestampValue } from '@/lib/database/kysely/dialect'
+import { jsonText, timestampValue } from '@/lib/database/kysely/dialect'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { CounterKey } from '@/lib/database/utils/counter'
 import {
@@ -38,7 +38,10 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import {
+  getTrustedFollowersUrl,
+  getVisibility
+} from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 // The status creates: notes, polls and boosts. Each writes the status row,
@@ -188,7 +191,27 @@ const updateStatusCounters = async (
     currentTime
   )
   await incrementBucket(trx, 'statuses', 1, currentTime)
-  if (getVisibility(audience.to, audience.cc) !== 'direct') {
+
+  // The author's row carries both the account link the local-post counters
+  // need and the stored followers URL the visibility check needs (see
+  // getVisibility).
+  const actor = await trx
+    .selectFrom('actors')
+    .select([
+      'accountId',
+      jsonText(trx, 'actors.settings', 'followersUrl').as('followersUrl')
+    ])
+    .where('id', '=', actorId)
+    .limit(1)
+    .executeTakeFirst()
+
+  if (
+    getVisibility(
+      audience.to,
+      audience.cc,
+      getTrustedFollowersUrl(actorId, actor?.followersUrl)
+    ) !== 'direct'
+  ) {
     // Advance the actor's persisted last-status timestamp. Guarded set-if-newer
     // (keyed on the status createdAt, not currentTime) so a backdated or
     // out-of-order insert never lowers a more recent value. Direct statuses
@@ -208,12 +231,6 @@ const updateStatusCounters = async (
       .execute()
   }
 
-  const actor = await trx
-    .selectFrom('actors')
-    .select('accountId')
-    .where('id', '=', actorId)
-    .limit(1)
-    .executeTakeFirst()
   if (actor?.accountId) {
     await increaseCounterValue(
       trx,

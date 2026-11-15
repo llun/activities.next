@@ -413,7 +413,8 @@ describe('StatusDatabase lookups', () => {
           actorId: remoteActorId,
           isLocalActor: false,
           to: [],
-          cc: [ACTIVITY_STREAM_PUBLIC]
+          cc: [ACTIVITY_STREAM_PUBLIC],
+          followersUrl: `${remoteActorId}/followers`
         })
       })
 

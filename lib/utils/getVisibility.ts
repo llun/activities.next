@@ -1,3 +1,4 @@
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT,
@@ -13,6 +14,30 @@ const isPublic = (item: string) =>
   item === ACTIVITY_STREAM_PUBLIC ||
   item === ACTIVITY_STREAM_PUBLIC_COMPACT ||
   item === ACTIVITY_STREAM_PUBLIC_TERM
+
+// A followers collection: the author's known followers URL, or any recipient
+// ending in `/followers` (whoever's collection it is).
+export const isFollowersCollection = (
+  recipient: string,
+  followersUrl?: string | null
+) =>
+  (Boolean(followersUrl) && recipient === followersUrl) ||
+  recipient.endsWith('/followers')
+
+// The author's stored followers URL, only when the author could own it: on the
+// author's own origin and not the author's own id. It comes from the remote
+// actor document, so a `followers` naming another account (a DM recipient)
+// must not turn that account's direct messages into followers-only ones.
+// Mastodon's `valid_collection_uri` applies the same same-host rule.
+export const getTrustedFollowersUrl = (
+  actorId: string,
+  followersUrl: string | null | undefined
+) =>
+  followersUrl &&
+  followersUrl !== actorId &&
+  isSameActivityPubOrigin(followersUrl, actorId)
+    ? followersUrl
+    : null
 
 /**
  * Derives the Mastodon visibility from ActivityPub to and cc recipients.
@@ -46,11 +71,8 @@ export const getVisibility = (
     return 'unlisted'
   }
 
-  // Check if any recipient is a followers URL (typically ends with /followers)
-  const hasFollowers = [...to, ...cc].some(
-    (item) =>
-      (followersUrl ? item === followersUrl : false) ||
-      item.endsWith('/followers')
+  const hasFollowers = [...to, ...cc].some((item) =>
+    isFollowersCollection(item, followersUrl)
   )
 
   // Private (followers only): has followers URL but no Public
@@ -61,3 +83,19 @@ export const getVisibility = (
   // Direct: specific users only
   return 'direct'
 }
+
+/**
+ * `getVisibility` for a status, with its author's followers URL when the
+ * author is known and could own it (see `getTrustedFollowersUrl`).
+ */
+export const getStatusVisibility = (status: {
+  actorId: string
+  to: string[]
+  cc: string[]
+  actor?: { followersUrl?: string | null } | null
+}): MastodonVisibility =>
+  getVisibility(
+    status.to,
+    status.cc,
+    getTrustedFollowersUrl(status.actorId, status.actor?.followersUrl)
+  )

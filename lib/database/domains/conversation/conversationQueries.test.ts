@@ -17,6 +17,7 @@ import {
   type TestDatabase,
   createTestDatabase
 } from '@/lib/database/testing/createTestDatabase'
+import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -46,6 +47,7 @@ const statusObject = ({
   id,
   url = id,
   actorId,
+  actor = null,
   to = [],
   cc = [],
   reply = '',
@@ -55,6 +57,7 @@ const statusObject = ({
   id: string
   url?: string
   actorId: string
+  actor?: ActorProfile | null
   to?: string[]
   cc?: string[]
   reply?: string
@@ -65,7 +68,7 @@ const statusObject = ({
     id,
     url,
     actorId,
-    actor: null,
+    actor,
     type,
     text: id,
     summary: '',
@@ -82,6 +85,22 @@ const statusObject = ({
     liked: false,
     bookmarked: false
   }) as unknown as Status
+
+// The author profile a hydrated status carries, with the followers collection
+// URL the sync reads.
+const actorProfile = (id: string, followersUrl: string): ActorProfile => ({
+  id,
+  username: id.split('/').pop() ?? id,
+  domain: 'friendica.test',
+  followersUrl,
+  inboxUrl: `${id}/inbox`,
+  sharedInboxUrl: 'https://friendica.test/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 0
+})
 
 // A status row with its recipients (what reply resolution reads), returned as
 // the domain object syncDirectConversationForStatus takes.
@@ -122,14 +141,20 @@ const seedStatus = async (params: Parameters<typeof statusObject>[0]) => {
 
 // A local actor holds a private key; a remote one stores none (or, on rows
 // written by older code, an empty string).
-const seedActor = async (id: string, local: boolean, privateKey = '') => {
+const seedActor = async (
+  id: string,
+  local: boolean,
+  privateKey = '',
+  settings?: Record<string, unknown>
+) => {
   await db
     .insertInto('actors')
     .values({
       id,
       username: id.split('/').pop() ?? id,
       domain: 'cq.test',
-      privateKey: local ? 'private-key' : privateKey || null
+      privateKey: local ? 'private-key' : privateKey || null,
+      ...(settings ? { settings: JSON.stringify(settings) } : {})
     })
     .execute()
   return id
@@ -1071,6 +1096,116 @@ describe('syncDirectConversationForStatus', () => {
       .where('actorId', '=', bystander)
       .execute()
     expect(bystanderMemberships).toEqual([])
+  })
+
+  it('creates no direct conversation for a Friendica followers-only status', async () => {
+    const p = nextPrefix()
+    const authorId = `https://friendica.test/profile/${p}-alice`
+    const followersUrl = `https://friendica.test/followers/${p}-alice`
+    const author = await seedActor(authorId, false, '', { followersUrl })
+    const local = await seedActor(actorIdOf(`${p}-local`), true)
+    // Friendica names the collection `/followers/<nick>`, so the `/followers`
+    // suffix rule alone would read this as a direct message. The local actor
+    // is addressed too, so a status read as direct would create a conversation
+    // for it: the test fails if the followers URL is ignored.
+    const status = await seedStatus({
+      id: `${author}/statuses/followers-only`,
+      actorId: author,
+      actor: actorProfile(author, followersUrl),
+      to: [followersUrl, local],
+      createdAt: 1000
+    })
+
+    await sync(status)
+
+    expect(await conversationIdOfStatus(status.id)).toEqual([])
+    expect(
+      await db
+        .selectFrom('direct_conversation_participants')
+        .select('actorId')
+        .where('actorId', '=', local)
+        .execute()
+    ).toEqual([])
+    expect(
+      await db
+        .selectFrom('direct_conversation_memberships')
+        .select('actorId')
+        .where('actorId', '=', local)
+        .execute()
+    ).toEqual([])
+  })
+
+  it('reads the stored followers URL of a reply-chain root', async () => {
+    const p = nextPrefix()
+    const authorId = `https://friendica.test/profile/${p}-alice`
+    const followersUrl = `https://friendica.test/followers/${p}-alice`
+    const author = await seedActor(authorId, false, '', { followersUrl })
+    const local = await seedActor(actorIdOf(`${p}-local`), true)
+    // The parent is a Friendica followers-only post, stored without a hydrated
+    // actor: the root walk has to read the followers URL from the actors row.
+    const parent = await seedStatus({
+      id: `${author}/statuses/followers-only`,
+      actorId: author,
+      to: [followersUrl],
+      createdAt: 1000
+    })
+    const reply = await seedStatus({
+      id: `${local}/statuses/reply`,
+      actorId: local,
+      to: [author],
+      reply: parent.id,
+      createdAt: 2000
+    })
+
+    await sync(reply)
+
+    // The parent is not direct, so the reply is its own conversation root.
+    const conversationId = getConversationIdForRootStatusId(reply.id)
+    expect(await conversationIdOfStatus(reply.id)).toEqual([conversationId])
+    expect(await conversationIdOfStatus(parent.id)).toEqual([])
+    expect(
+      await db
+        .selectFrom('direct_conversations')
+        .select('rootStatusId')
+        .where('id', '=', conversationId)
+        .executeTakeFirstOrThrow()
+    ).toEqual({ rootStatusId: reply.id })
+  })
+
+  it('creates the conversation for a DM whose author claims a local followers URL', async () => {
+    const p = nextPrefix()
+    const victim = await seedActor(actorIdOf(`${p}-victim`), true)
+    // A remote actor whose stored followers URL is the local user's own id:
+    // off-origin, so it must not turn the DM into a followers-only post.
+    const malloryId = `https://evil.test/users/${p}-mallory`
+    const mallory = await seedActor(malloryId, false, '', {
+      followersUrl: victim
+    })
+    const status = await seedStatus({
+      id: `${mallory}/statuses/dm`,
+      actorId: mallory,
+      actor: actorProfile(mallory, victim),
+      to: [victim],
+      createdAt: 1000
+    })
+
+    await sync(status)
+
+    const conversationId = getConversationIdForRootStatusId(status.id)
+    expect(await conversationIdOfStatus(status.id)).toEqual([conversationId])
+    expect(await participantsOf(conversationId)).toEqual(
+      [mallory, victim].sort()
+    )
+    expect(await membershipsOf(conversationId)).toEqual([
+      {
+        actorId: victim,
+        lastStatusId: status.id,
+        lastStatusCreatedAt: 1000,
+        unread: true,
+        readAt: null,
+        hiddenAt: null
+      }
+    ])
   })
 
   it("moves only this conversation's memberships forward and leaves excluded actors alone", async () => {

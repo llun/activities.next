@@ -751,6 +751,26 @@ describe('getLocalActorsFromFollowerUrl', () => {
     expect(mapper).toHaveBeenCalledTimes(1)
   })
 
+  it('ignores an actor whose stored followers URL names another account', async () => {
+    const prefix = nextPrefix()
+    const victim = actorIn('local.test', `${prefix}-victim`)
+    await seedActor({ id: victim, privateKey: 'key' })
+    // A remote row stored before followers URLs were validated.
+    const attacker = actorIn('evil.test', `${prefix}-attacker`)
+    await seedActor({ id: attacker, followersUrl: victim })
+    const accomplice = actorIn('local.test', `${prefix}-accomplice`)
+    await seedActor({ id: accomplice, privateKey: 'key' })
+    await seedFollow({
+      actorId: accomplice,
+      targetActorId: attacker,
+      status: Accepted
+    })
+
+    expect(
+      await getLocalActorsFromFollowerUrl(db, { followerUrl: victim })
+    ).toEqual([])
+  })
+
   it('maps rows through the real actor mapper', async () => {
     const prefix = nextPrefix()
     const target = actorIn('remote.test', `${prefix}-target`)

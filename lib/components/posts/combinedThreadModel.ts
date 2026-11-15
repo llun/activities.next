@@ -1,5 +1,5 @@
 import { Status, StatusType } from '@/lib/types/domain/status'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import {
@@ -51,7 +51,7 @@ interface RunDraft {
  * direct posts each keep their own and never join a public run.
  */
 const runVisibilityOf = (actual: Status): string => {
-  const visibility = getVisibility(actual.to, actual.cc)
+  const visibility = getStatusVisibility(actual)
   return visibility === 'unlisted' ? 'public' : visibility
 }
 

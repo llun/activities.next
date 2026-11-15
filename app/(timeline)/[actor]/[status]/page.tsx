@@ -48,7 +48,7 @@ import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getActorMentionPathSegment } from '@/lib/utils/getActorMentionPathSegment'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { getCanonicalAuthority, isOwnInstanceHost } from '@/lib/utils/host'
 import { logger } from '@/lib/utils/logger'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
@@ -69,12 +69,11 @@ interface Props {
 const isStatusStrictlyPublic = (status: Status): boolean => {
   if (status.type === StatusType.enum.Announce) {
     return (
-      getVisibility(status.to, status.cc) === 'public' &&
-      getVisibility(status.originalStatus.to, status.originalStatus.cc) ===
-        'public'
+      getStatusVisibility(status) === 'public' &&
+      getStatusVisibility(status.originalStatus) === 'public'
     )
   }
-  return getVisibility(status.to, status.cc) === 'public'
+  return getStatusVisibility(status) === 'public'
 }
 
 const isLocalActorHandleDomain = (

@@ -28,6 +28,24 @@ const isValidAttributionDomain = (value: string) => {
   )
 }
 
+const IMAGE_TYPE_BY_EXTENSION = new Map([
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.png', 'image/png'],
+  ['.webp', 'image/webp'],
+  ['.gif', 'image/gif'],
+  ['.avif', 'image/avif']
+])
+
+// The type the stored file's extension names; omitted when the URL does not
+// tell, rather than claiming a type the bytes may not be.
+const getImageMediaType = (url: string) => {
+  const pathname = URL.canParse(url) ? new URL(url).pathname : url
+  const extension = pathname.match(/\.[a-z0-9]+$/i)?.[0].toLowerCase()
+  const mediaType = extension && IMAGE_TYPE_BY_EXTENSION.get(extension)
+  return mediaType ? { mediaType } : null
+}
+
 export const getPersonFromActor = (
   actor: Actor
 ): ActivityPubActor & { '@context': (string | Record<string, unknown>)[] } => {
@@ -37,7 +55,7 @@ export const getPersonFromActor = (
     ? {
         icon: {
           type: 'Image',
-          mediaType: 'image/jpeg',
+          ...getImageMediaType(actor.iconUrl),
           url: actor.iconUrl
         }
       }
@@ -46,7 +64,7 @@ export const getPersonFromActor = (
     ? {
         image: {
           type: 'Image',
-          mediaType: 'image/png',
+          ...getImageMediaType(actor.headerImageUrl),
           url: actor.headerImageUrl
         }
       }
