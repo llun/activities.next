@@ -1,3 +1,4 @@
+import { isActivityPubContentType } from '@/lib/activities/activityPubResponse'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
@@ -6,11 +7,6 @@ import { withSpan } from '@/lib/utils/trace'
 
 // Standard OStatus rel carrying the URL template a server wants remote-follow
 // visitors sent to. Mirrors REMOTE_FOLLOW_SUBSCRIBE_REL on the serving side.
-const ACTIVITYPUB_LINK_TYPES = new Set([
-  'application/activity+json',
-  'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-])
-
 // The `self` hrefs that point at an ActivityPub actor. A JRD may list several
 // self links (an HTML profile, an Atom feed) and only the ActivityPub-typed
 // ones name the actor; untyped self links count only when no self link carries
@@ -19,11 +15,7 @@ export const getActivityPubSelfHrefs = (links: WebFinger['links']) => {
   const selfLinks = links.flatMap((link) =>
     link.rel === 'self' && 'href' in link ? [link] : []
   )
-  const typed = selfLinks.filter((link) =>
-    ACTIVITYPUB_LINK_TYPES.has(
-      (link.type ?? '').replace(/;\s*/g, '; ').trim().toLowerCase()
-    )
-  )
+  const typed = selfLinks.filter((link) => isActivityPubContentType(link.type))
   if (typed.length > 0) return typed.map((link) => link.href)
   return selfLinks.every((link) => !link.type)
     ? selfLinks.map((link) => link.href)

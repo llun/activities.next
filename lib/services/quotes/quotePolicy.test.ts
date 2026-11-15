@@ -7,10 +7,10 @@ const FOLLOWERS = `${AUTHOR}/followers`
 const RECIPIENT = 'https://remote.test/users/bob'
 
 const audiences = {
-  public: { to: [ACTIVITY_STREAM_PUBLIC], cc: [FOLLOWERS] },
-  unlisted: { to: [FOLLOWERS], cc: [ACTIVITY_STREAM_PUBLIC] },
-  private: { to: [FOLLOWERS], cc: [] },
-  direct: { to: [RECIPIENT], cc: [] }
+  public: { actorId: AUTHOR, to: [ACTIVITY_STREAM_PUBLIC], cc: [FOLLOWERS] },
+  unlisted: { actorId: AUTHOR, to: [FOLLOWERS], cc: [ACTIVITY_STREAM_PUBLIC] },
+  private: { actorId: AUTHOR, to: [FOLLOWERS], cc: [] },
+  direct: { actorId: AUTHOR, to: [RECIPIENT], cc: [] }
 }
 
 describe('getEffectiveQuoteApprovalPolicy', () => {

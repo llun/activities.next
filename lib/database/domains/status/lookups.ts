@@ -22,6 +22,7 @@ import {
 import { type Status, StatusType } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getTrustedFollowersUrl } from '@/lib/utils/getVisibility'
 import { isPublicId, toPublicIdLookupKey } from '@/lib/utils/publicId'
 
 // The status lookups by url, url hash, publicId and path segment, and the
@@ -125,7 +126,10 @@ export const getStatusThreadStep = async (
     isLocalActor: Boolean(row.accountId),
     to: recipientsOfType(recipients, 'to'),
     cc: recipientsOfType(recipients, 'cc'),
-    followersUrl: row.followersUrl ?? null
+    followersUrl: getTrustedFollowersUrl(
+      row.actorId as string,
+      row.followersUrl
+    )
   }
 }
 

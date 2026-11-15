@@ -494,6 +494,35 @@ describe('getMastodonStatus', () => {
       const mastodonStatus = await getMastodonStatus(database, directStatus)
       expect(mastodonStatus?.visibility).toBe('direct')
     })
+
+    it('returns private visibility for a Friendica followers-only status', async () => {
+      const authorId = 'https://friendica.test/profile/alice'
+      const followersUrl = 'https://friendica.test/followers/alice'
+      await database.createActor({
+        actorId: authorId,
+        type: 'Person',
+        username: 'alice',
+        domain: 'friendica.test',
+        followersUrl,
+        inboxUrl: `${authorId}/inbox`,
+        sharedInboxUrl: 'https://friendica.test/inbox',
+        publicKey: 'friendica-public-key',
+        createdAt: Date.now()
+      })
+      // Friendica names the collection `/followers/<nick>`, so the suffix rule
+      // alone would serve this as direct.
+      const status = await database.createNote({
+        id: `${authorId}/statuses/followers-only`,
+        url: `${authorId}/statuses/followers-only`,
+        actorId: authorId,
+        text: 'Friendica followers only',
+        to: [followersUrl],
+        cc: []
+      })
+
+      const mastodonStatus = await getMastodonStatus(database, status)
+      expect(mastodonStatus?.visibility).toBe('private')
+    })
   })
 
   describe('mentions extraction', () => {

@@ -70,9 +70,8 @@ export const GET = traceApiRoute(
         if (currentActor.id === status.actorId) {
           hasAccess = true
         } else {
-          // Followers-only: the author's stored followers URL counts even when
-          // it does not end in `/followers` (Friendica's is
-          // `/followers/<nick>`), which is what `getStatusVisibility` decides.
+          // Followers-only: `getStatusVisibility` counts the author's stored
+          // followers URL, whatever its path.
           if (visibility === 'private') {
             const follow = await database.getAcceptedOrRequestedFollow({
               actorId: currentActor.id,

@@ -58,9 +58,8 @@ export interface StatusThreadStep {
   isLocalActor: boolean
   to: string[]
   cc: string[]
-  // The author's stored followers collection URL, when the actors row has one.
-  // Servers do not agree on its path (Friendica's is `/followers/<nick>`), so
-  // the `/followers` suffix alone would read a followers-only post as direct.
+  // The author's stored followers collection URL, when the actors row has one
+  // (see getVisibility).
   followersUrl: string | null
 }
 export interface GetStatusIdsByPublicIdsParams {

@@ -311,11 +311,8 @@ const recomputeActorsLastStatusAt = async ({
         // `updateStatusCounters` in `./writes.ts`), so they must not set it
         // here either — deleting the newest public post would otherwise reveal
         // the date of a later direct message. "Not direct" is
-        // `getVisibility`'s rule: addressed to the public collection or to a
-        // followers collection, which is the author's stored followers URL
-        // (servers do not agree on its path; Friendica's is
-        // `/followers/<nick>`) or, for an actor whose settings lack one,
-        // anything ending in `/followers`.
+        // `getVisibility`'s rule: the public collection or a followers
+        // collection (see getVisibility).
         lastStatusAt: eb
           .selectFrom('statuses')
           .select((max) => max.fn.max('createdAt').as('lastStatusAt'))

@@ -54,7 +54,7 @@ export const sendDeleteNoteJob: JobHandle = createJobHandle(
 
       // Direct statuses keep their original recipients so the Delete reaches
       // exactly who saw the status; everything else defaults to Public.
-      const isDirect = getVisibility(to, cc) === 'direct'
+      const isDirect = getVisibility(to, cc, actor.followersUrl) === 'direct'
       const activity = buildDeleteStatusActivity({
         actorId: actor.id,
         statusId,

@@ -3,6 +3,7 @@ import {
   PropertyValue
 } from '@/lib/types/activitypub'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import { getTrustedFollowersUrl } from '@/lib/utils/getVisibility'
 
 const UUID_USERNAME_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -136,7 +137,9 @@ export const getActorProfileFromPerson = (
     iconUrl: getActorImageUrl(person.icon),
     headerImageUrl: getActorImageUrl(person.image),
     manuallyApprovesFollowers: person.manuallyApprovesFollowers,
-    followersUrl: person.followers || `${person.id}/followers`,
+    followersUrl:
+      getTrustedFollowersUrl(person.id, person.followers) ??
+      `${person.id}/followers`,
     inboxUrl: person.inbox,
     sharedInboxUrl: person.endpoints?.sharedInbox || '',
     followingCount: 0,

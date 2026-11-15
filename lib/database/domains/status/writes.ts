@@ -38,7 +38,10 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import {
+  getTrustedFollowersUrl,
+  getVisibility
+} from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 // The status creates: notes, polls and boosts. Each writes the status row,
@@ -190,10 +193,8 @@ const updateStatusCounters = async (
   await incrementBucket(trx, 'statuses', 1, currentTime)
 
   // The author's row carries both the account link the local-post counters
-  // need and the stored followers URL the visibility check needs: servers do
-  // not agree on the collection's path (Friendica's is `/followers/<nick>`),
-  // so the `/followers` suffix alone would read a followers-only post as
-  // direct.
+  // need and the stored followers URL the visibility check needs (see
+  // getVisibility).
   const actor = await trx
     .selectFrom('actors')
     .select([
@@ -205,7 +206,11 @@ const updateStatusCounters = async (
     .executeTakeFirst()
 
   if (
-    getVisibility(audience.to, audience.cc, actor?.followersUrl) !== 'direct'
+    getVisibility(
+      audience.to,
+      audience.cc,
+      getTrustedFollowersUrl(actorId, actor?.followersUrl)
+    ) !== 'direct'
   ) {
     // Advance the actor's persisted last-status timestamp. Guarded set-if-newer
     // (keyed on the status createdAt, not currentTime) so a backdated or

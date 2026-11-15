@@ -129,6 +129,18 @@ describe('getWebfingerSelf', () => {
       expected: 'https://example.com/users/bob'
     },
     {
+      name: 'accepts an ld+json profile naming the ActivityStreams context among others',
+      links: [
+        { rel: 'self', type: 'text/html', href: 'https://example.com/@bob' },
+        {
+          rel: 'self',
+          type: 'application/ld+json; profile="https://www.w3.org/ns/activitystreams https://example.com/x"',
+          href: 'https://example.com/users/bob'
+        }
+      ],
+      expected: 'https://example.com/users/bob'
+    },
+    {
       name: 'falls back to the first self link when no self link has a type',
       links: [
         { rel: 'self', href: 'https://example.com/users/bob' },

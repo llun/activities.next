@@ -128,6 +128,27 @@ describe('findCommunityActorId', () => {
       })
     ).resolves.toBeNull()
   })
+
+  it('does not pick a Friendica followers collection as the community', async () => {
+    const authorId = 'https://friendica.test/profile/alice'
+    const followersUrl = 'https://friendica.test/followers/alice'
+    // A Friendica forum's collection is `/followers/<nick>`, so the suffix
+    // rule alone would read it as an actor address; stored as a Group it would
+    // then be picked as the community.
+    const { database, getActorsFromIds } = databaseWith([
+      { id: followersUrl, type: 'Group' }
+    ])
+
+    await expect(
+      findCommunityActorId({
+        database,
+        authorId,
+        recipientIds: [ACTIVITY_STREAM_PUBLIC, followersUrl],
+        followersUrl
+      })
+    ).resolves.toBeNull()
+    expect(getActorsFromIds).toHaveBeenCalledWith({ ids: [authorId] })
+  })
 })
 
 describe('community lookup from statuses', () => {
@@ -328,6 +349,31 @@ describe('community lookup from statuses', () => {
         replyStatus: localStatus(localStep(1, parent.id))
       })
     ).resolves.toBeNull()
+  })
+
+  it('does not treat a Friendica followers-only parent as an open thread', async () => {
+    const authorId = 'https://friendica.test/profile/alice'
+    const followersUrl = 'https://friendica.test/followers/alice'
+    const { database } = databaseWith([{ id: followersUrl, type: 'Group' }])
+    const getStatus = vi.fn()
+    Object.assign(database, { getStatus })
+
+    await expect(
+      getReplyCommunityActorId({
+        database,
+        replyStatus: {
+          id: 'https://friendica.test/objects/1',
+          actorId: authorId,
+          actor: { followersUrl },
+          isLocalActor: false,
+          tags: [],
+          to: [followersUrl],
+          cc: []
+        } as unknown as Status
+      })
+    ).resolves.toBeNull()
+    // The parent is not open, so its recipients are never ranked.
+    expect(getStatus).not.toHaveBeenCalled()
   })
 
   it('returns null for a local thread that loops or has no community', async () => {

@@ -90,6 +90,24 @@ describe('isDirectStatus', () => {
       } as Status)
     ).toBe(false)
   })
+
+  it('is true when the stored followers URL names the recipient', () => {
+    // A remote actor whose document claims a local user's id as its followers
+    // collection must not turn a DM to that user into a followers-only post.
+    const victimId = 'https://local.test/users/victim'
+    const malloryId = 'https://evil.test/users/mallory'
+    const status = {
+      ...friendicaFollowersOnly({ to: [victimId] }),
+      actorId: malloryId,
+      actor: { ...actor, id: malloryId, followersUrl: victimId }
+    } as Status
+
+    expect(isDirectStatus(status)).toBe(true)
+    expect(getDirectStatusParticipantActorIds(status)).toEqual([
+      malloryId,
+      victimId
+    ])
+  })
 })
 
 describe('getDirectStatusParticipantActorIds', () => {

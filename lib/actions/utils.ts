@@ -15,6 +15,7 @@ import {
   getActorImageUrl,
   getActorProfileFields
 } from '@/lib/utils/activitypubActor'
+import { getTrustedFollowersUrl } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 
 interface RecordActorIfNeededParams {
@@ -139,7 +140,8 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
     // ActivityStreams treats an absent flag as "does not require approval".
     manuallyApprovesFollowers: person.manuallyApprovesFollowers ?? false,
     fields: getActorProfileFields(person),
-    followersUrl: person.followers ?? '',
+    // An off-origin `followers` (another account's id, say) is not stored.
+    followersUrl: getTrustedFollowersUrl(person.id, person.followers) ?? '',
     inboxUrl: person.inbox,
     sharedInboxUrl: person.endpoints?.sharedInbox ?? person.inbox,
     publicKey: person.publicKey?.publicKeyPem || '',

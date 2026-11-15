@@ -2,16 +2,14 @@ import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
-import { getStatusVisibility } from '@/lib/utils/getVisibility'
+import { getVisibility } from '@/lib/utils/getVisibility'
 
 import { getViewerFollow } from './getViewerFollow'
 
 export const isPublicOrUnlisted = (
-  status: Pick<Status, 'to' | 'cc'> & {
-    actor?: { followersUrl?: string | null } | null
-  }
+  status: Pick<Status, 'to' | 'cc'>
 ): boolean => {
-  const visibility = getStatusVisibility(status)
+  const visibility = getVisibility(status.to, status.cc)
   return visibility === 'public' || visibility === 'unlisted'
 }
 

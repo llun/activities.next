@@ -57,7 +57,9 @@ import {
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import {
   MastodonVisibility,
-  getStatusVisibility
+  getStatusVisibility,
+  getTrustedFollowersUrl,
+  isFollowersCollection
 } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -478,14 +480,11 @@ export const getExplicitMentions = (
 }
 
 // An addressee that is an account rather than a collection. `followersUrl` is
-// the collection's author's own followers URL when known: servers do not agree
-// on its path (Friendica uses `/followers/<nick>`), so the suffix alone misses
-// it, as in `getVisibility`.
+// the author's own followers URL when known (see getVisibility).
 const isActorRecipient = (recipient: string, followersUrl?: string | null) =>
   recipient !== ACTIVITY_STREAM_PUBLIC &&
   recipient !== ACTIVITY_STREAM_PUBLIC_COMPACT &&
-  !recipient.endsWith('/followers') &&
-  (!followersUrl || recipient !== followersUrl)
+  !isFollowersCollection(recipient, followersUrl)
 
 // Who a direct reply in a direct thread goes to besides the accounts its text
 // mentions: the parent's author, as Mastodon addresses the in-reply-to account.
@@ -504,7 +503,13 @@ const getDirectThreadRecipients = (
   return [...new Set([...replyStatus.to, ...replyStatus.cc])].filter(
     (recipient) =>
       recipient !== actor.id &&
-      isActorRecipient(recipient, replyStatus.actor?.followersUrl)
+      isActorRecipient(
+        recipient,
+        getTrustedFollowersUrl(
+          replyStatus.actorId,
+          replyStatus.actor?.followersUrl
+        )
+      )
   )
 }
 
@@ -703,8 +708,8 @@ export const getVisibilityFromReplyStatus = (
 ): MastodonVisibility | null => {
   if (!replyStatus) return null
   // The parent author's own followers URL counts as a followers collection
-  // even off the `/followers` suffix (Friendica's `/followers/<nick>`), so a
-  // followers-only parent is not mistaken for a direct one.
+  // (see getVisibility), so a followers-only parent is not mistaken for a
+  // direct one.
   return getStatusVisibility(replyStatus)
 }
 

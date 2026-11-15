@@ -866,8 +866,9 @@ describe('createNote', () => {
   it('advances lastStatusAt for a Friendica followers-only status', async () => {
     const { p } = await setup()
     // Friendica names the collection `/followers/<nick>`, so the `/followers`
-    // suffix rule alone would read this as a direct message and skip it.
-    const followersUrl = `https://friendica.test/followers/${p}-alice`
+    // suffix rule alone would read this as a direct message and skip it. The
+    // URL is on the author's own origin, as a stored one must be.
+    const followersUrl = `https://${DOMAIN}/followers/${p}-alice`
     const author = await seedActor(`${p}-friendica`, { followersUrl })
     await createNote(db, hydration, {
       id: `${author}/statuses/1`,
@@ -3788,7 +3789,33 @@ describe('poll votes', () => {
   })
 })
 
+// The select list differs between backends only in the followers URL
+// expression (json_extract on SQLite, `::jsonb ->>` on PostgreSQL). Drop that
+// expression and the WHERE clause so the plain columns, the table and the
+// limit are what the expectation compares — `select *`, `select "id"` and
+// `select "accountId"` stay distinguishable. A PostgreSQL row lock ends in
+// ` for update`, after its limit.
+const normalizeSingleRowRead = (text: string) =>
+  text
+    .replace(/\$\d+/g, '?')
+    .replace(
+      /, (?:json_extract\([^)]*\)|"[^"]+"\."[^"]+"::jsonb(?: -> '[^']*')* ->> '[^']*')(?: as "[^"]+")?/,
+      ''
+    )
+    .replace(
+      /^select (.*?) from ("\w+") .*?( limit \? offset \?| limit \?)?( for update)?$/,
+      'select $1 from $2$3'
+    )
+
 describe('single-row reads', () => {
+  it('normalises the PostgreSQL followers URL expression', () => {
+    expect(
+      normalizeSingleRowRead(
+        `select "accountId", "actors"."settings"::jsonb ->> 'followersUrl' as "followersUrl" from "actors" where "id" = $1 limit $2`
+      )
+    ).toBe('select "accountId" from "actors" limit ?')
+  })
+
   it('limit every read of one row to one row', async () => {
     const p = nextPrefix()
     const author = await seedActor(`${p}-author`, { local: true })
@@ -3837,26 +3864,17 @@ describe('single-row reads', () => {
           /^select "choiceId" from "poll_choices" .* offset /
         ].some((pattern) => pattern.test(text))
       )
-      .map(({ sql: text }) =>
-        text.replace(/\$\d+/g, '?').replace(
-          // The select list is backend-specific (json_extract on SQLite,
-          // `::jsonb ->>` on PostgreSQL), so only the table and the limit are
-          // compared. A PostgreSQL row lock ends in ` for update`, after its
-          // limit.
-          /^select .*? from ("\w+") .*?( limit \? offset \?| limit \?)?( for update)?$/,
-          'select $1$2'
-        )
-      )
+      .map(({ sql: text }) => normalizeSingleRowRead(text))
     expect(reads).toEqual([
-      'select "actors" limit ?',
-      'select "statuses" limit ?',
-      'select "statuses" limit ?',
-      'select "statuses" limit ?',
-      'select "statuses" limit ?',
-      'select "statuses" limit ?',
-      'select "statuses" limit ?',
-      'select "poll_voters" limit ?',
-      'select "poll_choices" limit ? offset ?'
+      'select "accountId" from "actors" limit ?',
+      'select "id" from "statuses" limit ?',
+      'select "id" from "statuses" limit ?',
+      'select * from "statuses" limit ?',
+      'select * from "statuses" limit ?',
+      'select * from "statuses" limit ?',
+      'select * from "statuses" limit ?',
+      'select "id" from "poll_voters" limit ?',
+      'select "choiceId" from "poll_choices" limit ? offset ?'
     ])
   })
 })

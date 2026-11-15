@@ -85,7 +85,12 @@ const getRemoteActorInboxes = async ({
   const cachedInboxes = actors
     .filter((actor) => !actor.privateKey)
     .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
-  const missingActorIds = actorIds.filter((actorId) => !actorById.has(actorId))
+  // Policy before the fetch: a blocked or non-allowlisted host must not get
+  // an instance-signed request, not only be dropped from the inbox list.
+  const missingActorIds = await filterFederatedUrls(
+    database,
+    actorIds.filter((actorId) => !actorById.has(actorId))
+  )
   const signingActor =
     missingActorIds.length > 0
       ? await getFederationSigningActorSafe(

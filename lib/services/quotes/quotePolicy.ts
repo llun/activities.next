@@ -2,11 +2,11 @@ import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { getStatusVisibility } from '@/lib/utils/getVisibility'
 
 type PolicyStatus = {
+  actorId: string
   to: string[]
   cc: string[]
   // The author's profile, when the caller has it: its followers URL is what
-  // tells a followers-only post from a direct one on servers that do not name
-  // the collection `/followers` (Friendica's is `/followers/<nick>`).
+  // tells a followers-only post from a direct one (see getVisibility).
   actor?: { followersUrl?: string | null } | null
   quoteApprovalPolicy?: QuoteApprovalPolicy
 }

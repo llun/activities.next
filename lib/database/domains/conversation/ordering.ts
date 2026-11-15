@@ -6,7 +6,10 @@ import { createHash } from 'crypto'
 
 import type { DirectConversation } from '@/lib/database/domains/conversation/types'
 import { Status, StatusType } from '@/lib/types/domain/status'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import {
+  getTrustedFollowersUrl,
+  getVisibility
+} from '@/lib/utils/getVisibility'
 
 // A direct_conversation_memberships row joined with its conversation's root.
 export type DirectConversationMembershipRow = {
@@ -37,9 +40,8 @@ export type DirectConversationStatusLookup = {
   to: string[]
   cc: string[]
   reply: string
-  // The author's stored followers collection URL, when the actors row has one.
-  // Servers do not agree on its path (Friendica's is `/followers/<nick>`), so
-  // the `/followers` suffix alone would read a followers-only post as direct.
+  // The author's stored followers collection URL, when the actors row has one
+  // (see getVisibility).
   followersUrl: string | null
 }
 
@@ -91,7 +93,10 @@ export const buildDirectConversationStatusLookup = (
       to: [],
       cc: [],
       reply: status.reply ?? '',
-      followersUrl: status.followersUrl ?? null
+      followersUrl: getTrustedFollowersUrl(
+        status.actorId ?? '',
+        status.followersUrl
+      )
     }
   )
 }

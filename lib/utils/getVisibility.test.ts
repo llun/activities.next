@@ -3,7 +3,12 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 
-import { getStatusVisibility, getVisibility } from './getVisibility'
+import {
+  getStatusVisibility,
+  getTrustedFollowersUrl,
+  getVisibility,
+  isFollowersCollection
+} from './getVisibility'
 
 describe('getVisibility', () => {
   it('returns public when to contains ACTIVITY_STREAM_PUBLIC', () => {
@@ -105,15 +110,85 @@ describe('getVisibility', () => {
   })
 })
 
+describe('isFollowersCollection', () => {
+  it('matches the known followers URL exactly', () => {
+    expect(
+      isFollowersCollection(
+        'https://friendica.example/followers/alice',
+        'https://friendica.example/followers/alice'
+      )
+    ).toBe(true)
+  })
+
+  it('matches any recipient ending in /followers', () => {
+    expect(
+      isFollowersCollection('https://misskey.example/users/x/followers')
+    ).toBe(true)
+    expect(
+      isFollowersCollection(
+        'https://misskey.example/users/x/followers',
+        'https://misskey.example/different'
+      )
+    ).toBe(true)
+  })
+
+  it('does not match a plain actor or a different collection', () => {
+    expect(isFollowersCollection('https://example.com/users/someone')).toBe(
+      false
+    )
+    expect(
+      isFollowersCollection(
+        'https://friendica.example/followers/alice',
+        'https://friendica.example/followers/bob'
+      )
+    ).toBe(false)
+  })
+
+  it('does not match when the known followers URL is absent', () => {
+    expect(
+      isFollowersCollection('https://friendica.example/followers/alice', null)
+    ).toBe(false)
+    expect(
+      isFollowersCollection('https://friendica.example/followers/alice')
+    ).toBe(false)
+  })
+})
+
+describe('getTrustedFollowersUrl', () => {
+  const actorId = 'https://friendica.test/profile/alice'
+
+  it('keeps a followers URL on the author origin', () => {
+    expect(
+      getTrustedFollowersUrl(actorId, 'https://friendica.test/followers/alice')
+    ).toEqual('https://friendica.test/followers/alice')
+  })
+
+  it('drops a followers URL on another origin', () => {
+    expect(
+      getTrustedFollowersUrl(actorId, 'https://local.test/users/victim')
+    ).toBeNull()
+  })
+
+  it('drops a followers URL equal to the author id', () => {
+    expect(getTrustedFollowersUrl(actorId, actorId)).toBeNull()
+  })
+
+  it('drops a missing followers URL', () => {
+    expect(getTrustedFollowersUrl(actorId, null)).toBeNull()
+    expect(getTrustedFollowersUrl(actorId, undefined)).toBeNull()
+  })
+})
+
 describe('getStatusVisibility', () => {
   // Friendica names the collection `/followers/<nick>`, so the suffix rule
   // alone reads a followers-only post as direct.
+  const actorId = 'https://friendica.test/profile/alice'
+  const followersUrl = 'https://friendica.test/followers/alice'
   const friendicaFollowersOnly = {
-    to: ['https://friendica.test/followers/alice'],
+    actorId,
+    to: [followersUrl],
     cc: [],
-    actor: {
-      followersUrl: 'https://friendica.test/followers/alice'
-    }
+    actor: { followersUrl }
   }
 
   it('reads a Friendica followers-only status as private', () => {
@@ -135,25 +210,23 @@ describe('getStatusVisibility', () => {
     ).toEqual('direct')
     expect(
       getStatusVisibility({
+        actorId,
         to: friendicaFollowersOnly.to,
         cc: friendicaFollowersOnly.cc
       })
     ).toEqual('direct')
   })
 
-  it('passes the author followers URL through to getVisibility', () => {
+  it('ignores a followers URL that names another account', () => {
+    // A remote actor whose document claims a local user's id as its followers
+    // collection must not turn a DM to that user into a followers-only post.
     expect(
       getStatusVisibility({
-        to: ['https://friendica.test/followers/alice'],
+        actorId: 'https://evil.test/users/mallory',
+        to: ['https://local.test/users/victim'],
         cc: [],
-        actor: { followersUrl: 'https://friendica.test/followers/alice' }
+        actor: { followersUrl: 'https://local.test/users/victim' }
       })
-    ).toEqual(
-      getVisibility(
-        ['https://friendica.test/followers/alice'],
-        [],
-        'https://friendica.test/followers/alice'
-      )
-    )
+    ).toEqual('direct')
   })
 })

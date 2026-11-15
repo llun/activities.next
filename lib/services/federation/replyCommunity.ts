@@ -8,18 +8,18 @@ import {
 import {
   MastodonVisibility,
   getStatusVisibility,
-  getVisibility
+  getTrustedFollowersUrl,
+  getVisibility,
+  isFollowersCollection
 } from '@/lib/utils/getVisibility'
 
 // A recipient that names a person or a group, not a collection. The author's
-// stored followers URL counts as a collection too: servers do not agree on its
-// path (Friendica's is `/followers/<nick>`), so the suffix alone would read a
-// followers-only post's audience as an actor address.
+// stored followers URL counts as a collection too (see getVisibility), so a
+// followers-only post's audience is not read as an actor address.
 const isActorAddress = (id: string, followersUrl?: string | null) =>
   id !== ACTIVITY_STREAM_PUBLIC &&
   id !== ACTIVITY_STREAM_PUBLIC_COMPACT &&
-  (followersUrl ? id !== followersUrl : true) &&
-  !id.endsWith('/followers')
+  !isFollowersCollection(id, followersUrl)
 
 const MAX_THREAD_DEPTH = 20
 
@@ -111,7 +111,10 @@ export const getReplyCommunityActorId = async ({
     isLocalActor: first.isLocalActor,
     to: first.to,
     cc: first.cc,
-    followersUrl: first.actor?.followersUrl ?? null
+    followersUrl: getTrustedFollowersUrl(
+      first.actorId,
+      first.actor?.followersUrl
+    )
   }
 
   while (true) {
@@ -136,7 +139,10 @@ export const getReplyCommunityActorId = async ({
         mentionedIds: remote.tags
           .filter((tag) => tag.type === 'mention')
           .map((tag) => tag.value),
-        followersUrl: remote.actor?.followersUrl
+        followersUrl: getTrustedFollowersUrl(
+          remote.actorId,
+          remote.actor?.followersUrl
+        )
       })
     }
 

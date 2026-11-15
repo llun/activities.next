@@ -19,6 +19,7 @@ import {
   isDirectStatus
 } from '@/lib/utils/directStatus'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getTrustedFollowersUrl } from '@/lib/utils/getVisibility'
 
 const MAX_DIRECT_CONVERSATION_ROOT_DEPTH = 50
 
@@ -122,9 +123,10 @@ const getDirectConversationParticipantActorIds = async (
   status: StatusNote | StatusPoll
 ) => {
   const participantActorIds = getDirectStatusParticipantActorIds(status)
-  const followersUrl = status.actor?.followersUrl
+  // Only reached for a direct status, so no recipient is the author's
+  // followers collection.
   const hasExplicitDirectAudience = [...status.to, ...status.cc].some(
-    (actorId) => isDirectAudienceActorId(actorId, followersUrl)
+    (actorId) => isDirectAudienceActorId(actorId)
   )
   if (hasExplicitDirectAudience || !status.reply) {
     return participantActorIds
@@ -157,7 +159,10 @@ const statusLookupOf = (
   to: status.to,
   cc: status.cc,
   reply: status.reply,
-  followersUrl: status.actor?.followersUrl ?? null
+  followersUrl: getTrustedFollowersUrl(
+    status.actorId,
+    status.actor?.followersUrl
+  )
 })
 
 const resolveConversationRootStatusId = async (

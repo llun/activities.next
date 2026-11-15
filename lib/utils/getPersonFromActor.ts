@@ -1,4 +1,3 @@
-import { EXTENSION_BY_CONTENT_TYPE } from '@/lib/services/medias/fileName'
 import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import {
@@ -29,14 +28,13 @@ const isValidAttributionDomain = (value: string) => {
   )
 }
 
-const IMAGE_TYPE_BY_EXTENSION = new Map<string, string>([
-  ...Object.entries(EXTENSION_BY_CONTENT_TYPE)
-    .filter(([contentType]) => contentType.startsWith('image/'))
-    .map(([contentType, extension]): [string, string] => [
-      extension,
-      contentType
-    ]),
-  ['.jpeg', 'image/jpeg']
+const IMAGE_TYPE_BY_EXTENSION = new Map([
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.png', 'image/png'],
+  ['.webp', 'image/webp'],
+  ['.gif', 'image/gif'],
+  ['.avif', 'image/avif']
 ])
 
 // The type the stored file's extension names; omitted when the URL does not

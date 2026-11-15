@@ -1,10 +1,10 @@
 import type { NextConfig } from 'next'
 
+import packageJson from '@/package.json'
 import { getImageRemotePatterns } from '@/lib/config/nextImageRemotePatterns'
 // Direct sub-path import required: the barrel loads csp.ts which reads
 // deployment env vars at call time, violating build-time isolation rules.
 import { getStaticSecurityHeaders } from '@/lib/utils/http-headers/static'
-import packageJson from '@/package.json'
 
 const nextConfig: NextConfig = {
   env: {
