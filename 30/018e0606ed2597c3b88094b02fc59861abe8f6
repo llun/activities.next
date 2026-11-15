@@ -1,0 +1,23 @@
+docs/mastodon-api-compatibility.md
+  s_dd277f8ec5b352::t_8e11b84283af12 1800
+lib/services/statusAccess.test.ts
+  s_dd277f8ec5b352::t_8e11b84283af12 234-258
+lib/services/statusAccess.ts
+  s_dd277f8ec5b352::t_8e11b84283af12 5-8,20-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "30018e0606ed2597c3b88094b02fc59861abe8f6",
+  "prompts": {},
+  "sessions": {
+    "s_dd277f8ec5b352": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57718715-60c3-4227-b388-3ec0dca5dff9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
