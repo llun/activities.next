@@ -74,6 +74,46 @@ describe('getPersonFromActor', () => {
     }
   )
 
+  it.each([
+    {
+      iconUrl: 'https://chat.llun.dev/api/v1/files/medias/avatar.webp',
+      headerImageUrl: 'https://chat.llun.dev/api/v1/files/medias/header.JPEG',
+      icon: 'image/webp',
+      image: 'image/jpeg'
+    },
+    {
+      iconUrl: 'https://cdn.test/avatar.png?v=2',
+      headerImageUrl: 'https://cdn.test/header.gif',
+      icon: 'image/png',
+      image: 'image/gif'
+    },
+    {
+      iconUrl: 'https://cdn.test/avatar',
+      headerImageUrl: 'https://cdn.test/header.bin',
+      icon: undefined,
+      image: undefined
+    }
+  ])(
+    'sends the icon and header type their file names, $iconUrl',
+    ({ iconUrl, headerImageUrl, icon, image }) => {
+      const person = getPersonFromActor({
+        ...MockActor({}),
+        iconUrl,
+        headerImageUrl
+      })
+      expect(person.icon).toEqual({
+        type: 'Image',
+        url: iconUrl,
+        ...(icon ? { mediaType: icon } : null)
+      })
+      expect(person.image).toEqual({
+        type: 'Image',
+        url: headerImageUrl,
+        ...(image ? { mediaType: image } : null)
+      })
+    }
+  )
+
   it('counts username and domain renames as federated profile changes', () => {
     const before = {
       ...MockActor({}),
