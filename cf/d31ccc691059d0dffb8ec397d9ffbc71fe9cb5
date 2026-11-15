@@ -1,0 +1,55 @@
+app/api/inbox/fediverseInterop.test.ts
+  s_dd277f8ec5b352::t_e50474bd221874 4,11-13,17-18,21-22,25,30-31,126-131,203-273,437-440,493-505,524-579
+app/api/inbox/signedDelivery.test.ts
+  s_dd277f8ec5b352::t_57410e055bb696 1-229
+app/api/users/[username]/inbox/fediverseInterop.test.ts
+  s_dd277f8ec5b352::t_0565f26fcea464 120-123
+lib/activities/fediverseInterop.test.ts
+  s_dd277f8ec5b352::t_4c12e53590709a 65-79
+lib/stub/fediverse/friendica/create-note.json
+  s_dd277f8ec5b352::t_f064b016fe3845 1-18
+lib/stub/fediverse/friendica/person.json
+  s_dd277f8ec5b352::t_0c4aee706e9bd7 1-22
+lib/stub/fediverse/index.ts
+  s_dd277f8ec5b352::t_d6529d82f96759 3-4,27-30,33,35-41,82-85,99,104,117-118,122-124,152-159,161,255
+lib/stub/fediverse/mastodon/create-note.json
+  s_dd277f8ec5b352::t_87d2be05fc10c5 1-69
+lib/stub/fediverse/mastodon/create-question.json
+  s_dd277f8ec5b352::t_30406ef5e02fa0 1-71
+lib/stub/fediverse/mastodon/create-quote.json
+  s_dd277f8ec5b352::t_55b37a303a1bbf 1-75
+lib/stub/fediverse/mastodon/delete-note.json
+  s_dd277f8ec5b352::t_4ee34218b7262c 1-18
+lib/stub/fediverse/mastodon/like.json
+  s_dd277f8ec5b352::t_9d8e770e2f5e02 1-7
+lib/stub/fediverse/mastodon/note.json
+  s_dd277f8ec5b352::t_b5b9e622d49989 1-58
+lib/stub/fediverse/mastodon/person.json
+  s_dd277f8ec5b352::t_246981c264553e 1-59
+lib/stub/fediverse/mastodon/question.json
+  s_dd277f8ec5b352::t_37bc4101679012 1-63
+lib/stub/fediverse/mastodon/quote.json
+  s_dd277f8ec5b352::t_f1ed1ab22952bd 1-67
+lib/stub/fediverse/mastodon/undo-like.json
+  s_dd277f8ec5b352::t_c02190072e0292 1-12
+lib/stub/fediverse/mastodon/update-note.json
+  s_dd277f8ec5b352::t_78aba8632c1a65 1-69
+lib/stub/fediverse/mastodon/vote.json
+  s_dd277f8ec5b352::t_d57cd7b7ff4dcc 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cfd31ccc691059d0dffb8ec397d9ffbc71fe9cb5",
+  "prompts": {},
+  "sessions": {
+    "s_dd277f8ec5b352": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57718715-60c3-4227-b388-3ec0dca5dff9",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
