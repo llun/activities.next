@@ -41,6 +41,11 @@ describe('same-origin proof', () => {
       false
     ],
     ['an unparseable Origin', { Origin: 'not a url' }, false],
+    [
+      'an Origin whose host only starts with the base host and a comma',
+      { Origin: `https://${TEST_DOMAIN},x.evil.example` },
+      false
+    ],
     ['neither header', {}, false]
   ])('judges a POST with %s', (_, headers, expected) => {
     expect(hasSameOriginProof(post(headers))).toBe(expected)

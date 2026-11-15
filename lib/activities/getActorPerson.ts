@@ -11,6 +11,7 @@ import {
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 export type GetActorPersonFunction = (params: {
@@ -66,8 +67,19 @@ const fetchActorDocument = async ({
 // is followed only when federation policy allows that host: a blocked or
 // non-allowlisted host must not be contacted, nor answer for the actor.
 const isFederatedRedirect = async (url: URL) => {
-  const database = getDatabase()
-  return database ? canFederateWithDomain(database, url.href) : false
+  try {
+    const database = getDatabase()
+    return database ? await canFederateWithDomain(database, url.href) : false
+  } catch (error) {
+    // Refuse rather than throw: a thrown database error can carry a network
+    // code that `request()` retries, re-contacting the redirecting host.
+    logger.warn({
+      message: 'Refused a redirect whose federation policy could not be read',
+      redirectHost: url.host,
+      err: toLoggableError(error)
+    })
+    return false
+  }
 }
 
 // An actor document's own `id` is a claim by whoever answered the request (see
@@ -147,6 +159,14 @@ export const getActorPerson: GetActorPersonFunction = ({
       return null
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code === 'ERR_CROSS_HOST_REDIRECT') {
+        span.setAttribute('crossHostRedirect', true)
+        logger.warn({
+          message: 'Refused an actor fetch that redirects to another host',
+          actorId
+        })
+        return null
+      }
       span.recordException(nodeError)
       logger.error(`[getActorProfile] ${nodeError.message}`)
       return null

@@ -193,6 +193,26 @@ describe('getActorPerson', () => {
       ).toHaveLength(0)
     })
 
+    it('refuses a redirect whose policy lookup throws, without retrying', async () => {
+      serve({
+        [attackerUrl]: { status: 302, headers: { location: victimId } },
+        [victimId]: { body: actorDocument(victimId, 'VICTIM KEY') }
+      })
+      vi.mocked(canFederateWithDomain).mockRejectedValue(
+        Object.assign(new Error('connect ECONNREFUSED'), {
+          code: 'ECONNREFUSED'
+        })
+      )
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === victimId)
+      ).toHaveLength(0)
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === attackerUrl)
+      ).toHaveLength(1)
+    })
+
     it('follows a same-host redirect without consulting policy', async () => {
       const aliasUrl = 'https://victim.test/@alice'
       serve({

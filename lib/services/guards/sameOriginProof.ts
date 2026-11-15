@@ -15,7 +15,13 @@ const isAllowedOrigin = (value: string, baseUrl: URL): boolean => {
     return false
   }
   if (url.origin === baseUrl.origin) return true
-  return url.protocol === baseUrl.protocol && isTrustedHeaderHost(url.host)
+  // One host, not a forwarded-host list: a URL parser keeps `,` in a hostname,
+  // and `isTrustedHeaderHost` would read `ours,x.evil.example` as `ours`.
+  return (
+    url.protocol === baseUrl.protocol &&
+    !url.host.includes(',') &&
+    isTrustedHeaderHost(url.host)
+  )
 }
 
 const evaluateSameOriginProof = (req: NextRequest) => {
