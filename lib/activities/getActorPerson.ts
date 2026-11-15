@@ -28,11 +28,13 @@ type FetchedActorDocument = {
 const fetchActorDocument = async ({
   url,
   withNetworkRetry,
-  signingActor
+  signingActor,
+  allowCrossHostRedirects
 }: {
   url: string
   withNetworkRetry: boolean
   signingActor?: DomainActor
+  allowCrossHostRedirects?: boolean
 }): Promise<FetchedActorDocument | null> => {
   const response = await signedActivityPubRequest({
     actor: signingActor,
@@ -40,7 +42,8 @@ const fetchActorDocument = async ({
     url,
     requestOptions: {
       // Use default retry by set it to undefined, otherwise 0 retry
-      numberOfRetry: withNetworkRetry ? undefined : 0
+      numberOfRetry: withNetworkRetry ? undefined : 0,
+      allowCrossHostRedirects
     }
   })
   if (!isActivityPubDocumentResponse(response, url)) {
@@ -91,22 +94,30 @@ export const getActorPerson: GetActorPersonFunction = ({
       }
 
       const claimedId = fetched.person.id
-      // No database (a unit context before initialisation) has no policy to
-      // apply; every server path initialises it before fetching actors.
+      // Parsed once and used for both the policy check and the fetch: the
+      // policy helpers read a scheme only before a literal `://`, so a raw
+      // `https:/blocked.example/...` would be judged as host `https` while the
+      // request layer's URL parser sends it to blocked.example.
+      const claimedUrl = new URL(claimedId).href
       const database = getDatabase()
-      if (database && !(await canFederateWithDomain(database, claimedId))) {
+      if (!database || !(await canFederateWithDomain(database, claimedUrl))) {
         logger.warn({
           message:
             'Skipped re-fetching an actor id claimed on a non-federated domain',
           requestedActorId: actorId,
-          claimedActorId: claimedId
+          // The remote chooses this string; a prefix is enough to diagnose.
+          claimedActorId: claimedId.slice(0, 512)
         })
         return null
       }
       const canonical = await fetchActorDocument({
-        url: claimedId,
+        url: claimedUrl,
         withNetworkRetry,
-        signingActor
+        signingActor,
+        // Only the claimed origin can confirm the id, so a hop to another
+        // host could never be accepted; refuse it before that host is sent
+        // the request.
+        allowCrossHostRedirects: false
       })
       if (
         canonical &&
@@ -121,7 +132,7 @@ export const getActorPerson: GetActorPersonFunction = ({
           'Rejected actor document whose id is not served by its own origin',
         requestedActorId: actorId,
         servedFrom: fetched.servedFrom,
-        claimedActorId: claimedId
+        claimedActorId: claimedId.slice(0, 512)
       })
       return null
     } catch (error) {
