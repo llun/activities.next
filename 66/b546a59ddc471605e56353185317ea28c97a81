@@ -1,0 +1,21 @@
+app/api/inbox/signedDelivery.test.ts
+  s_dd277f8ec5b352::t_c08c86b621787f 140,154,165,180,186-188,192,196,222
+lib/stub/fediverse/mastodon/vote.json
+  s_dd277f8ec5b352::t_c93595fc3e5112 3,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66b546a59ddc471605e56353185317ea28c97a81",
+  "prompts": {},
+  "sessions": {
+    "s_dd277f8ec5b352": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57718715-60c3-4227-b388-3ec0dca5dff9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
