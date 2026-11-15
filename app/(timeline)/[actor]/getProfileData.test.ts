@@ -913,8 +913,12 @@ describe('getProfileData', () => {
         const followersOnlyPinnedNote = {
           id: 'https://example.com/users/localuser/statuses/pinned-followers',
           type: StatusType.enum.Note,
-          actorId: mockLocalActor.id,
-          actor: localActorWithFollowers,
+          // A URL id: the followers URL is trusted only on the author's host.
+          actorId: 'https://example.com/users/localuser',
+          actor: {
+            ...localActorWithFollowers,
+            id: 'https://example.com/users/localuser'
+          },
           to: [followersUrl],
           cc: [],
           text: 'followers only pinned post'
