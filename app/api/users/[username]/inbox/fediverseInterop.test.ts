@@ -117,6 +117,10 @@ describe('fediverse interop: personal inbox', () => {
   })
 
   it.each([
+    {
+      description: 'mastodon Like',
+      activity: FEDIVERSE_ACTIVITIES.mastodonLike
+    },
     { description: 'lemmy vote', activity: FEDIVERSE_ACTIVITIES.lemmyLike },
     {
       description: 'pixelfed Like',
