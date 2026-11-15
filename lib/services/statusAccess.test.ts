@@ -231,6 +231,31 @@ describe('status access helpers', () => {
     ).resolves.toBe(true)
   })
 
+  it('does not treat a followers URL naming another account as followers audience', async () => {
+    const database = {
+      getAcceptedOrRequestedFollow: vi.fn().mockResolvedValue({
+        status: FollowStatus.enum.Accepted
+      })
+    }
+    const victimId = 'https://local.test/users/victim'
+    const status = {
+      ...note({
+        id: `${ACTOR_ID}/statuses/direct-to-victim`,
+        to: [victimId],
+        cc: []
+      }),
+      actor: { id: ACTOR_ID, followersUrl: victimId }
+    } as Status
+
+    await expect(
+      canActorReadStatus({
+        database: database as never,
+        status,
+        currentActor: actor
+      })
+    ).resolves.toBe(false)
+  })
+
   it('uses pre-fetched follower state when provided', async () => {
     const database = {
       getAcceptedOrRequestedFollow: vi.fn()

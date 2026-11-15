@@ -2,7 +2,10 @@ import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
-import { getVisibility } from '@/lib/utils/getVisibility'
+import {
+  getTrustedFollowersUrl,
+  getVisibility
+} from '@/lib/utils/getVisibility'
 
 import { getViewerFollow } from './getViewerFollow'
 
@@ -14,7 +17,10 @@ export const isPublicOrUnlisted = (
 }
 
 const hasFollowersAudience = (status: Status): boolean => {
-  const followersUrl = status.actor?.followersUrl
+  const followersUrl = getTrustedFollowersUrl(
+    status.actorId,
+    status.actor?.followersUrl
+  )
   const fallbackFollowersUrl = `${status.actorId}/followers`
   const isFollowersAudience = (recipient: string) =>
     recipient === followersUrl || recipient === fallbackFollowersUrl
