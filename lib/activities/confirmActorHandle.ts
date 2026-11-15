@@ -1,4 +1,7 @@
-import { getWebfingerDocument } from '@/lib/activities/getWebfingerDocument'
+import {
+  getActivityPubSelfHrefs,
+  getWebfingerDocument
+} from '@/lib/activities/getWebfingerDocument'
 import { Database } from '@/lib/database/types'
 import {
   canFederateWithDomain,
@@ -73,9 +76,7 @@ const sameHandle = (left: ConfirmedActorHandle, right: ConfirmedActorHandle) =>
   left.domain === right.domain
 
 const getSelfHrefs = (document: WebFinger | null) =>
-  document?.links.flatMap((link) =>
-    link.rel === 'self' && 'href' in link ? [link.href] : []
-  ) ?? []
+  document ? getActivityPubSelfHrefs(document.links) : []
 
 // An actor document names its own handle: `preferredUsername` plus the host of
 // its `id`. Serving it from that host proves only that the host served SOME

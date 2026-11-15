@@ -103,6 +103,59 @@ describe('getWebfingerSelf', () => {
     expect(result).toBeNull()
   })
 
+  it.each([
+    {
+      name: 'prefers the ActivityPub self link over an earlier HTML one',
+      links: [
+        { rel: 'self', type: 'text/html', href: 'https://example.com/@bob' },
+        {
+          rel: 'self',
+          type: 'application/activity+json',
+          href: 'https://example.com/users/bob'
+        }
+      ],
+      expected: 'https://example.com/users/bob'
+    },
+    {
+      name: 'accepts the ld+json ActivityStreams profile type',
+      links: [
+        { rel: 'self', type: 'text/html', href: 'https://example.com/@bob' },
+        {
+          rel: 'self',
+          type: 'application/ld+json;profile="https://www.w3.org/ns/activitystreams"',
+          href: 'https://example.com/users/bob'
+        }
+      ],
+      expected: 'https://example.com/users/bob'
+    },
+    {
+      name: 'falls back to the first self link when no self link has a type',
+      links: [
+        { rel: 'self', href: 'https://example.com/users/bob' },
+        { rel: 'self', href: 'https://example.com/other' }
+      ],
+      expected: 'https://example.com/users/bob'
+    },
+    {
+      name: 'returns null when typed self links are none of ActivityPub',
+      links: [
+        { rel: 'self', type: 'text/html', href: 'https://example.com/@bob' },
+        { rel: 'self', href: 'https://example.com/users/bob' }
+      ],
+      expected: null
+    }
+  ])('$name', async ({ links, expected }) => {
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: {},
+      body: JSON.stringify({ subject: 'acct:bob@example.com', links })
+    })
+
+    await expect(
+      getWebfingerSelf({ account: 'bob@example.com' })
+    ).resolves.toBe(expected)
+  })
+
   it('returns null and handles network error gracefully', async () => {
     mockRequest.mockRejectedValueOnce(new Error('Connection timed out'))
 

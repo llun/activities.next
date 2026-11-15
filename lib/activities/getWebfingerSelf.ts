@@ -1,3 +1,4 @@
+import { getActivityPubSelfHrefs } from '@/lib/activities/getWebfingerDocument'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
@@ -31,11 +32,7 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       }
 
       const data = WebFinger.parse(JSON.parse(body))
-      const item = data.links.find((item) => item.rel === 'self')
-      if (!item || !('href' in item)) {
-        return null
-      }
-      return item.href
+      return getActivityPubSelfHrefs(data.links)[0] ?? null
     } catch (error) {
       const loggable = toLoggableError(error)
       span.recordException(loggable)
