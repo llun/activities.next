@@ -1,6 +1,7 @@
 /** @vitest-size medium */
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
@@ -8,12 +9,21 @@ import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 
 import { getActorPerson } from './getActorPerson'
 
+const mockDatabase = {}
+let currentDatabase: object | null = mockDatabase
+vi.mock('@/lib/database', () => ({ getDatabase: () => currentDatabase }))
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
+  canFederateWithDomain: vi.fn()
+}))
+
 enableFetchMocks()
 
 describe('getActorPerson', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    vi.mocked(canFederateWithDomain).mockReset().mockResolvedValue(true)
+    currentDatabase = mockDatabase
   })
 
   it('returns person from user id', async () => {
@@ -131,6 +141,10 @@ describe('getActorPerson', () => {
       const person = await getActorPerson({ actorId: aliasUrl })
 
       expect(person?.id).toBe(canonicalId)
+      expect(canFederateWithDomain).toHaveBeenCalledWith(
+        mockDatabase,
+        canonicalId
+      )
     })
 
     it('binds to the redirect-resolved URL rather than the requested one', async () => {
@@ -147,6 +161,84 @@ describe('getActorPerson', () => {
       expect(
         fetchMock.mock.calls.filter(([url]) => url === victimId)
       ).toHaveLength(1)
+    })
+
+    it('does not re-fetch a canonical id on a domain federation policy refuses', async () => {
+      const blockedId = 'https://blocked.test/users/alice'
+      serve({
+        [attackerUrl]: { body: actorDocument(blockedId, 'ATTACKER KEY') },
+        [blockedId]: { body: actorDocument(blockedId, 'BLOCKED KEY') }
+      })
+      vi.mocked(canFederateWithDomain).mockImplementation(
+        async (_database, value) => !value.startsWith('https://blocked.test/')
+      )
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(canFederateWithDomain).toHaveBeenCalledWith(
+        mockDatabase,
+        blockedId
+      )
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === blockedId)
+      ).toHaveLength(0)
+    })
+
+    it('judges the claimed id as the URL the request would go to', async () => {
+      // WHATWG parsing turns `https:/host/...` into `https://host/...`; the
+      // policy must see that host, not a string with no `://` in it.
+      const claimedId = 'https:/blocked.test/users/alice'
+      const requestUrl = 'https://blocked.test/users/alice'
+      serve({
+        [attackerUrl]: { body: actorDocument(claimedId, 'ATTACKER KEY') },
+        [requestUrl]: { body: actorDocument(requestUrl, 'BLOCKED KEY') }
+      })
+      vi.mocked(canFederateWithDomain).mockImplementation(
+        async (_database, value) => !value.startsWith('https://blocked.test/')
+      )
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(canFederateWithDomain).toHaveBeenCalledWith(
+        mockDatabase,
+        requestUrl
+      )
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === requestUrl)
+      ).toHaveLength(0)
+    })
+
+    it('does not follow the canonical re-fetch onto another host', async () => {
+      const claimedId = 'https://allowed.test/users/alice'
+      const redirectTarget = 'https://blocked.test/users/alice'
+      serve({
+        [attackerUrl]: { body: actorDocument(claimedId, 'ATTACKER KEY') },
+        [claimedId]: { status: 302, headers: { location: redirectTarget } },
+        [redirectTarget]: { body: actorDocument(claimedId, 'BLOCKED KEY') }
+      })
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === redirectTarget)
+      ).toHaveLength(0)
+    })
+
+    it('does not re-fetch when no database can supply the policy', async () => {
+      currentDatabase = null
+      serve({
+        [attackerUrl]: { body: actorDocument(victimId, 'ATTACKER KEY') },
+        [victimId]: { body: actorDocument(victimId, 'VICTIM KEY') }
+      })
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === victimId)
+      ).toHaveLength(0)
+    })
+
+    it('does not consult policy when the document is served by its own origin', async () => {
+      serve({ [victimId]: { body: actorDocument(victimId, 'VICTIM KEY') } })
+
+      expect((await getActorPerson({ actorId: victimId }))?.id).toBe(victimId)
+      expect(canFederateWithDomain).not.toHaveBeenCalled()
     })
   })
 })

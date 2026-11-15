@@ -23,6 +23,14 @@ vi.mock('@/lib/activities/getActorCollectionCounts', () => ({
   })
 }))
 
+// `getActorPerson` reads federation policy from the global database; point it
+// at this test's migrated one so the cross-origin re-fetch is really made.
+let currentDatabase: Database | null = null
+vi.mock('@/lib/database', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/database')>()),
+  getDatabase: () => currentDatabase
+}))
+
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
   getFederationSigningActor: vi.fn(async () => undefined)
 }))
@@ -57,9 +65,11 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
     db = testDb.db
     database = testDb.database
     await database.migrate()
+    currentDatabase = database
   })
 
   afterEach(async () => {
+    currentDatabase = null
     await database.destroy()
   })
 
@@ -399,9 +409,11 @@ describe('recordActorIfNeeded refuses a handle its host does not vouch for', () 
     db = testDb.db
     database = testDb.database
     await database.migrate()
+    currentDatabase = database
   })
 
   afterEach(async () => {
+    currentDatabase = null
     await database.destroy()
   })
 
