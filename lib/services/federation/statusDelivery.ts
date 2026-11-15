@@ -1,5 +1,6 @@
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { Database } from '@/lib/database/types'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import {
@@ -53,14 +54,18 @@ const isSameOriginActorId = (actorId: string, currentActor: Actor) => {
 
 const getRemoteActorInboxForMissingActor = async ({
   actorId,
-  currentActor
+  currentActor,
+  signingActor
 }: {
   actorId: string
   currentActor: Actor
+  signingActor?: Actor
 }) => {
   if (isSameOriginActorId(actorId, currentActor)) return null
 
-  const person = await getActorPerson({ actorId })
+  // Signed so authorized-fetch servers (GoToSocial, Mastodon secure mode)
+  // answer the lookup of an account we have never stored.
+  const person = await getActorPerson({ actorId, signingActor })
   return person ? person.endpoints?.sharedInbox || person.inbox : null
 }
 
@@ -81,13 +86,21 @@ const getRemoteActorInboxes = async ({
     .filter((actor) => !actor.privateKey)
     .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
   const missingActorIds = actorIds.filter((actorId) => !actorById.has(actorId))
+  const signingActor =
+    missingActorIds.length > 0
+      ? await getFederationSigningActorSafe(
+          database,
+          'for an explicit recipient lookup'
+        )
+      : undefined
   const fetchedInboxes = await mapWithConcurrency(
     missingActorIds,
     EXPLICIT_RECIPIENT_LOOKUP_CONCURRENCY,
     (actorId) =>
       getRemoteActorInboxForMissingActor({
         actorId,
-        currentActor
+        currentActor,
+        signingActor
       })
   )
 

@@ -67,6 +67,7 @@ const makeDatabase = (overrides: Partial<Database>): Database =>
     getAcceptedRelays: vi.fn().mockResolvedValue([]),
     getDomainBlocksForDomains: vi.fn().mockResolvedValue({}),
     getDomainAllowsForDomains: vi.fn().mockResolvedValue({}),
+    getFederationSigningActor: vi.fn().mockResolvedValue(null),
     ...overrides
   }) as Database
 
@@ -209,6 +210,54 @@ describe('getFederatedStatusDeliveryInboxes', () => {
     expect(database.getActorsFromIds).toHaveBeenCalledTimes(1)
     expect(database.getActorsFromIds).toHaveBeenCalledWith({ ids: actorIds })
     expect(getActorPerson).not.toHaveBeenCalled()
+  })
+
+  it('signs the profile lookup of a never-seen recipient with the federation signer', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const signer = makeActor('https://local.test/actor', {
+      privateKey: 'signer-key'
+    })
+    const unknownId = 'https://gts.test/users/bob'
+    const database = makeDatabase({
+      getFederationSigningActor: vi.fn().mockResolvedValue(signer)
+    })
+    vi.mocked(getActorPerson).mockResolvedValue({
+      id: unknownId,
+      type: 'Person',
+      inbox: `${unknownId}/inbox`
+    } as never)
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({ to: [unknownId] })
+    })
+
+    expect(getActorPerson).toHaveBeenCalledWith({
+      actorId: unknownId,
+      signingActor: signer
+    })
+    expect(inboxes).toEqual([`${unknownId}/inbox`])
+  })
+
+  it('does not resolve the federation signer when every recipient is cached', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const remoteActor = makeActor('https://remote.test/users/bob')
+    const database = makeDatabase({
+      getActorsFromIds: vi.fn().mockResolvedValue([remoteActor])
+    })
+
+    await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({ to: [remoteActor.id] })
+    })
+
+    expect(database.getFederationSigningActor).not.toHaveBeenCalled()
   })
 
   it('bounds explicit recipient remote profile lookups', async () => {
