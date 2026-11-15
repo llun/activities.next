@@ -69,6 +69,7 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   })
 
   afterEach(async () => {
+    currentDatabase = null
     await database.destroy()
   })
 
@@ -408,9 +409,11 @@ describe('recordActorIfNeeded refuses a handle its host does not vouch for', () 
     db = testDb.db
     database = testDb.database
     await database.migrate()
+    currentDatabase = database
   })
 
   afterEach(async () => {
+    currentDatabase = null
     await database.destroy()
   })
 
