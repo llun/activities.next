@@ -1,0 +1,22 @@
+lib/utils/getPersonFromActor.test.ts
+  s_dd277f8ec5b352::t_46b52285b6fef4 77-98,104-116
+  s_dd277f8ec5b352::t_6362ac8c32023a 99-103
+lib/utils/getPersonFromActor.ts
+  s_dd277f8ec5b352::t_81ed2b351db25d 1,32-50,60,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04c189728a86481a30374a7b6bdeb1aab4442b26",
+  "prompts": {},
+  "sessions": {
+    "s_dd277f8ec5b352": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57718715-60c3-4227-b388-3ec0dca5dff9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
