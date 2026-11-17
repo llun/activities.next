@@ -144,7 +144,7 @@
     "jest-extended": "^7.0.0",
     "jest-fetch-mock": "^4.2.0",
     "jsdom": "^31.0.0",
-    "lint-staged": "^17.6.0",
+    "lint-staged": "^17.6.1",
     "oxlint": "^1.90.0",
     "pino-pretty": "^13.2.0",
     "postcss": "^8.5.32",
