@@ -22,7 +22,7 @@ const getTrustedHostsFromEnvironment = (options?: EnvironmentListOptions) => {
   if (options?.onInvalidList === 'throw') {
     // The index, not the entry: a mistyped entry may hold a pasted credential.
     throw new Error(
-      `ACTIVITIES_TRUSTED_HOSTS: each entry must be one host; entry ${listed} holds a comma, so split it into separate JSON array entries`
+      `ACTIVITIES_TRUSTED_HOSTS: each entry must be one host; entry ${listed + 1} (counting from 1) holds a comma, so split it into separate JSON array entries`
     )
   }
   return entries.filter((entry) => !entry.includes(','))

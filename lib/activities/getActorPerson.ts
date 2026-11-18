@@ -172,7 +172,7 @@ export const getActorPerson: GetActorPersonFunction = ({
         span.recordException(loggable)
         logger.error({
           message: '[getActorProfile] Actor lookup failed',
-          requestedHost: toLoggableUrl(requestedUrl),
+          requestedOrigin: toLoggableUrl(requestedUrl),
           err: loggable
         })
         return null

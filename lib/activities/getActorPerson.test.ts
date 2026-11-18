@@ -149,7 +149,7 @@ describe('getActorPerson', () => {
       expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
       expect(error).toHaveBeenCalledWith({
         message: '[getActorProfile] Actor lookup failed',
-        requestedHost: 'https://evil.test',
+        requestedOrigin: 'https://evil.test',
         err: expect.objectContaining({
           message: 'Actor lookup failed: SyntaxError'
         })
