@@ -27,8 +27,8 @@ describe('getActorPerson', () => {
     currentDatabase = mockDatabase
   })
 
-  // A failed assertion must not leave the `logger.warn` spy, with its calls,
-  // for the next test: `vi.spyOn` would hand that same spy back.
+  // A failed assertion must not leave `logger.warn` mocked for the rest of the
+  // file: `vi.spyOn` would hand the next test that same spy back.
   afterEach(() => {
     vi.restoreAllMocks()
   })
