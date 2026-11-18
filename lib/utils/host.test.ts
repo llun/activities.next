@@ -349,6 +349,72 @@ describe('isOwnInstanceHost', () => {
   })
 })
 
+describe('a comma in a host', () => {
+  afterEach(() => {
+    resetHostCachesForTests()
+  })
+
+  const sources = {
+    host: 'llun.test',
+    trustedHosts: ['alias.example', '*.edge.llun.test']
+  }
+
+  // A URL parser keeps `,` in a hostname, so an id on
+  // `llun.test,x.evil.example` names that host, not ours.
+  it.each([
+    'https://llun.test,x.evil.example/users/a',
+    'https://alias.example,x.evil.example/users/a',
+    'https://a.edge.llun.test,x.evil.example/users/a'
+  ])('never makes %s one of ours', (value) => {
+    expect(
+      createServedDomainMatcher(getServedDomainRules(sources))(value)
+    ).toBeFalse()
+    expect(isOwnInstanceHost(new URL(value).host, sources)).toBeFalse()
+    expect(
+      createHostRulesMatcher(['*.edge.llun.test'])(new URL(value).host)
+    ).toBeFalse()
+  })
+
+  // `%2c` and a fullwidth comma (which IDNA maps to `,`) reach the rules pass
+  // as a comma once the host is normalised.
+  it.each([
+    'x.evil.example%2ca.edge.llun.test',
+    'x.evil.example\uff0ca.edge.llun.test'
+  ])(
+    'never matches the encoded comma host %s against a wildcard rule',
+    (host) => {
+      expect(createHostRulesMatcher(['*.edge.llun.test'])(host)).toBeFalse()
+      expect(isOwnInstanceHost(host, sources)).toBeFalse()
+    }
+  )
+
+  // A forwarded header carrying one decodes to a host with a comma in it, and
+  // `isHostTrustedByRules` would read its first entry as the host asked about.
+  // A plain object, as Node's own headers are: `Headers` refuses U+FF0C.
+  it.each([
+    'a.edge.llun.test%2cx.evil.example',
+    'a.edge.llun.test\uff0cx.evil.example',
+    'llun.test%2cx.evil.example'
+  ])('never selects the encoded comma header host %s', (value) => {
+    expect(normalizeHost(value)).toBeNull()
+    expect(selectHeaderHost({ 'x-forwarded-host': value }, sources)).toBe(
+      'llun.test'
+    )
+  })
+
+  it('still reads the first entry of a forwarded host list', () => {
+    expect(
+      isHostTrustedByRules('alias.example, proxy.internal', ['alias.example'])
+    ).toBeTrue()
+    expect(
+      selectHeaderHost(
+        new Headers({ 'x-forwarded-host': 'alias.example, proxy.internal' }),
+        sources
+      )
+    ).toBe('alias.example')
+  })
+})
+
 describe('served domain matching', () => {
   const matchServed = (
     value: string | null | undefined,

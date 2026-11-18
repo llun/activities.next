@@ -14,6 +14,9 @@ const isAllowedOrigin = (value: string, baseUrl: URL): boolean => {
   } catch {
     return false
   }
+  // One host, not a forwarded-host list: a URL parser keeps `,` in a hostname,
+  // and `isTrustedHeaderHost` would read `ours,x.evil.example` as `ours`.
+  if (url.host.includes(',')) return false
   if (url.origin === baseUrl.origin) return true
   return url.protocol === baseUrl.protocol && isTrustedHeaderHost(url.host)
 }

@@ -10,6 +10,8 @@ import {
   normalizeActorId
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
+import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 export type GetActorPersonFunction = (params: {
@@ -34,7 +36,7 @@ const fetchActorDocument = async ({
   url: string
   withNetworkRetry: boolean
   signingActor?: DomainActor
-  allowCrossHostRedirects?: boolean
+  allowCrossHostRedirects: CrossHostRedirectPolicy
 }): Promise<FetchedActorDocument | null> => {
   const response = await signedActivityPubRequest({
     actor: signingActor,
@@ -61,6 +63,25 @@ const fetchActorDocument = async ({
   }
 }
 
+// The caller vetted only the URL it asked for, so a redirect onto another host
+// is followed only when federation policy allows that host: a blocked or
+// non-allowlisted host must not be contacted, nor answer for the actor.
+const isFederatedRedirect = async (url: URL) => {
+  try {
+    const database = getDatabase()
+    return database ? await canFederateWithDomain(database, url.href) : false
+  } catch (error) {
+    // `safeRemoteFetch` refuses a hop whose policy throws, but silently: say
+    // why here.
+    logger.warn({
+      message: 'Refused a redirect whose federation policy could not be read',
+      redirectHost: url.host.slice(0, 512),
+      err: toLoggableError(error)
+    })
+    return false
+  }
+}
+
 // An actor document's own `id` is a claim by whoever answered the request (see
 // "A Fetched Document's Own id Is Not Evidence" in
 // docs/mastodon-api-compatibility.md). Every caller keys database writes —
@@ -82,11 +103,21 @@ export const getActorPerson: GetActorPersonFunction = ({
   signingActor
 }) =>
   withSpan('activity', 'getActorProfile', { actorId }, async (span) => {
+    // For the refusal warning: which fetch was redirected, and where to.
+    let requestedUrl = actorId
+    let refusedRedirectHost: string | undefined
+    const refuseRedirect = (url: URL) => {
+      // Capped: a `Location` host can run to the header size limit.
+      refusedRedirectHost = url.host.slice(0, 512)
+      return false
+    }
     try {
       const fetched = await fetchActorDocument({
         url: actorId,
         withNetworkRetry,
-        signingActor
+        signingActor,
+        allowCrossHostRedirects: async (url) =>
+          (await isFederatedRedirect(url)) || refuseRedirect(url)
       })
       if (!fetched) return null
       if (isSameActivityPubOrigin(fetched.person.id, fetched.servedFrom)) {
@@ -110,6 +141,7 @@ export const getActorPerson: GetActorPersonFunction = ({
         })
         return null
       }
+      requestedUrl = claimedUrl
       const canonical = await fetchActorDocument({
         url: claimedUrl,
         withNetworkRetry,
@@ -117,7 +149,7 @@ export const getActorPerson: GetActorPersonFunction = ({
         // Only the claimed origin can confirm the id, so a hop to another
         // host could never be accepted; refuse it before that host is sent
         // the request.
-        allowCrossHostRedirects: false
+        allowCrossHostRedirects: refuseRedirect
       })
       if (
         canonical &&
@@ -137,6 +169,16 @@ export const getActorPerson: GetActorPersonFunction = ({
       return null
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code === 'ERR_CROSS_HOST_REDIRECT') {
+        span.setAttribute('crossHostRedirect', true)
+        logger.warn({
+          message: 'Refused an actor fetch that redirects to another host',
+          // Hosts only: the requested URL may carry a token in its query.
+          requestedHost: new URL(requestedUrl).host.slice(0, 512),
+          refusedRedirectHost
+        })
+        return null
+      }
       span.recordException(nodeError)
       logger.error(`[getActorProfile] ${nodeError.message}`)
       return null
