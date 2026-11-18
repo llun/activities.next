@@ -103,12 +103,17 @@ export const getActorPerson: GetActorPersonFunction = ({
   signingActor
 }) =>
   withSpan('activity', 'getActorProfile', { actorId }, async (span) => {
+    let refusedRedirectHost: string | undefined
     try {
       const fetched = await fetchActorDocument({
         url: actorId,
         withNetworkRetry,
         signingActor,
-        allowCrossHostRedirects: isFederatedRedirect
+        allowCrossHostRedirects: async (url) => {
+          const allowed = await isFederatedRedirect(url)
+          if (!allowed) refusedRedirectHost = url.host
+          return allowed
+        }
       })
       if (!fetched) return null
       if (isSameActivityPubOrigin(fetched.person.id, fetched.servedFrom)) {
@@ -163,7 +168,9 @@ export const getActorPerson: GetActorPersonFunction = ({
         span.setAttribute('crossHostRedirect', true)
         logger.warn({
           message: 'Refused an actor fetch that redirects to another host',
-          actorId
+          // Hosts only: the requested URL may carry a token in its query.
+          requestedHost: new URL(actorId).host,
+          refusedRedirectHost
         })
         return null
       }

@@ -6,6 +6,7 @@ import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { logger } from '@/lib/utils/logger'
 
 import { getActorPerson } from './getActorPerson'
 
@@ -174,10 +175,18 @@ describe('getActorPerson', () => {
         async (_database, value) => !value.startsWith('https://blocked.test/')
       )
 
+      const warn = vi.spyOn(logger, 'warn')
+
       expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
       expect(
         fetchMock.mock.calls.filter(([url]) => url === blockedId)
       ).toHaveLength(0)
+      expect(warn).toHaveBeenCalledWith({
+        message: 'Refused an actor fetch that redirects to another host',
+        requestedHost: 'evil.test',
+        refusedRedirectHost: 'blocked.test'
+      })
+      warn.mockRestore()
     })
 
     it('does not follow a cross-host redirect when no database can supply the policy', async () => {
