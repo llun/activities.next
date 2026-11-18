@@ -1,0 +1,25 @@
+docs/architecture.md
+  s_449320edf6fe96::t_c782630b81cb8f 1416
+lib/utils/safeRemoteFetch.ts
+  s_449320edf6fe96::t_c782630b81cb8f 577-581
+lib/utils/safeRemoteFetch.test.ts
+  s_449320edf6fe96::t_c782630b81cb8f 293-311
+lib/activities/getActorPerson.ts
+  s_449320edf6fe96::t_ed4e211031dd97 74-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "30f89a253f93bcfe1100b3c10cb453e069bff90d",
+  "prompts": {},
+  "sessions": {
+    "s_449320edf6fe96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01786880-c6f1-43f9-b3f4-e62348bf80e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
