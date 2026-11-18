@@ -388,6 +388,20 @@ describe('a comma in a host', () => {
     }
   )
 
+  // A forwarded header carrying one decodes to a host with a comma in it, and
+  // `isHostTrustedByRules` would read its first entry as the host asked about.
+  // A plain object, as Node's own headers are: `Headers` refuses U+FF0C.
+  it.each([
+    'a.edge.llun.test%2cx.evil.example',
+    'a.edge.llun.test\uff0cx.evil.example',
+    'llun.test%2cx.evil.example'
+  ])('never selects the encoded comma header host %s', (value) => {
+    expect(normalizeHost(value)).toBeNull()
+    expect(selectHeaderHost({ 'x-forwarded-host': value }, sources)).toBe(
+      'llun.test'
+    )
+  })
+
   it('still reads the first entry of a forwarded host list', () => {
     expect(
       isHostTrustedByRules('alias.example, proxy.internal', ['alias.example'])

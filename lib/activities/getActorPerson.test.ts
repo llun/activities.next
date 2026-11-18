@@ -27,6 +27,12 @@ describe('getActorPerson', () => {
     currentDatabase = mockDatabase
   })
 
+  // A failed assertion must not leave the `logger.warn` spy, with its calls,
+  // for the next test: `vi.spyOn` would hand that same spy back.
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('returns person from user id', async () => {
     const person = await getActorPerson({
       actorId: ACTOR1_ID
@@ -186,7 +192,6 @@ describe('getActorPerson', () => {
         requestedHost: 'evil.test',
         refusedRedirectHost: 'blocked.test'
       })
-      warn.mockRestore()
     })
 
     it('does not follow a cross-host redirect when no database can supply the policy', async () => {
@@ -230,7 +235,6 @@ describe('getActorPerson', () => {
           err: expect.any(Error)
         })
       )
-      warn.mockRestore()
     })
 
     it('follows a same-host redirect without consulting policy', async () => {
@@ -306,7 +310,6 @@ describe('getActorPerson', () => {
         requestedHost: 'allowed.test',
         refusedRedirectHost: 'blocked.test'
       })
-      warn.mockRestore()
     })
 
     it('does not re-fetch when no database can supply the policy', async () => {

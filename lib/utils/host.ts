@@ -140,6 +140,11 @@ export const normalizeHost = (
     // that does warn about a misplaced wildcard, so that is where an operator
     // sees the typo.
     if (hostname.includes('*')) return null
+    // The list split above ran on the RAW value, but parsing decodes `%2c` and
+    // IDNA maps a fullwidth comma, so a comma can only appear here once that
+    // has happened. One host is never a list: refuse it, or a later
+    // `normalizeHost` of this output would read its first entry instead.
+    if (hostname.includes(',')) return null
 
     const normalizedHost = explicitPort
       ? `${hostname}:${explicitPort}`
@@ -343,8 +348,7 @@ export const createHostRulesMatcher = (
     if (literalAuthorities.has(authority)) return true
 
     const normalizedHost = normalizeHost(host, { allowWildcard: false })
-    // Decoding can make the comma too: `%2c`, or a fullwidth comma IDNA maps.
-    if (!normalizedHost || normalizedHost.includes(',')) return false
+    if (!normalizedHost) return false
     return normalizedRules.some((rule) => hostMatchesRule(normalizedHost, rule))
   }
 }
