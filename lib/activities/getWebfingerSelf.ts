@@ -22,7 +22,8 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
     let refusedRedirectHost: string | undefined
     try {
       const url = new URL(`https://${domain}/.well-known/webfinger`)
-      // Hosts only in logs: a handle may carry path or query text after `@`.
+      // For the refusal warning, which logs hosts only: a handle may carry path
+      // or query text after `@`.
       requestedHost = url.host
       url.searchParams.set('resource', `acct:${user}@${domain}`)
 
