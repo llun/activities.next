@@ -194,6 +194,26 @@ describe('getActorPerson', () => {
       })
     })
 
+    it('caps a refused redirect host in the warning', async () => {
+      const longHost = `${'a'.repeat(1000)}.blocked.test`
+      serve({
+        [attackerUrl]: {
+          status: 302,
+          headers: { location: `https://${longHost}/users/alice` }
+        }
+      })
+      vi.mocked(canFederateWithDomain).mockResolvedValue(false)
+
+      const warn = vi.spyOn(logger, 'warn')
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(warn).toHaveBeenCalledWith({
+        message: 'Refused an actor fetch that redirects to another host',
+        requestedHost: 'evil.test',
+        refusedRedirectHost: longHost.slice(0, 512)
+      })
+    })
+
     it('does not follow a cross-host redirect when no database can supply the policy', async () => {
       currentDatabase = null
       serve({

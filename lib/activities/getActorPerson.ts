@@ -75,7 +75,7 @@ const isFederatedRedirect = async (url: URL) => {
     // code that `request()` retries, re-contacting the redirecting host.
     logger.warn({
       message: 'Refused a redirect whose federation policy could not be read',
-      redirectHost: url.host,
+      redirectHost: url.host.slice(0, 512),
       err: toLoggableError(error)
     })
     return false
@@ -107,7 +107,9 @@ export const getActorPerson: GetActorPersonFunction = ({
     let requestedUrl = actorId
     let refusedRedirectHost: string | undefined
     const refuseRedirect = (url: URL) => {
-      refusedRedirectHost = url.host
+      // Capped like every remote string logged here: a `Location` host can run
+      // to the header size limit.
+      refusedRedirectHost = url.host.slice(0, 512)
       return false
     }
     try {
@@ -173,7 +175,7 @@ export const getActorPerson: GetActorPersonFunction = ({
         logger.warn({
           message: 'Refused an actor fetch that redirects to another host',
           // Hosts only: the requested URL may carry a token in its query.
-          requestedHost: new URL(requestedUrl).host,
+          requestedHost: new URL(requestedUrl).host.slice(0, 512),
           refusedRedirectHost
         })
         return null
