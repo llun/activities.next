@@ -86,12 +86,24 @@ describe('domainRules', () => {
     expect(isDomainBlockStricter(candidate, existing)).toBe(expected)
   })
 
+  // Each is fetched from blocked.example by the URL parser, so the policy must
+  // judge that host, not `https`.
+  it.each([
+    'https:/blocked.example/users/x',
+    'https:\\\\blocked.example/users/x',
+    'ht\ttps://blocked.example/users/x',
+    'https:blocked.example/users/x'
+  ])('reads %j as the host a fetcher would contact', (value) => {
+    expect(normalizeDomain(value)).toBe('blocked.example')
+  })
+
   it('normalizes domains from bare domains and URLs', () => {
     expect(normalizeDomain('Example.Social')).toBe('example.social')
     expect(normalizeDomain('https://Sub.Example.Social/path')).toBe(
       'sub.example.social'
     )
     expect(normalizeDomain('*.Example.Social')).toBe('*.example.social')
+    expect(normalizeDomain('example.social:8443')).toBe('example.social')
     expect(normalizeDomain('')).toBeNull()
     expect(
       normalizeDomain(Array.from({ length: 5 }, () => 'a'.repeat(63)).join('.'))

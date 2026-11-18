@@ -52,6 +52,15 @@ export const isDomainBlockStricter = (
   )
 }
 
+const isWebUrl = (value: string) => {
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'https:' || protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
 export const normalizeDomain = (value: string): string | null => {
   const trimmed = value.trim().toLowerCase()
   if (!trimmed) return null
@@ -59,9 +68,14 @@ export const normalizeDomain = (value: string): string | null => {
 
   const hasWildcard = trimmed.startsWith('*.')
   const domainToParse = hasWildcard ? trimmed.slice(2) : trimmed
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(domainToParse)
-    ? domainToParse
-    : `https://${domainToParse}`
+  // A value the URL parser already reads as a web URL is judged as that URL,
+  // because a fetcher given it does the same: `https:/blocked.example/x`,
+  // `https:\\blocked.example/x` or a tab inside the scheme all fetch from
+  // blocked.example, while a `://` test alone would read the host as `https`.
+  const withScheme =
+    isWebUrl(domainToParse) || /^[a-z][a-z0-9+.-]*:\/\//i.test(domainToParse)
+      ? domainToParse
+      : `https://${domainToParse}`
 
   try {
     const url = new URL(withScheme)

@@ -37,6 +37,7 @@ const mockGetActorIdByPublicId = vi.fn()
 const mockGetStatusIdByPublicId = vi.fn()
 const mockGetAllServerSettings = vi.fn()
 const mockGetDomainBlockForDomain = vi.fn()
+const mockGetDomainAllowForDomain = vi.fn()
 
 // The dedicated headless federation signer. It is intentionally a different
 // actor from `oauthActor` (the requesting viewer) so the signing assertions
@@ -78,7 +79,8 @@ vi.mock('@/lib/database', () => ({
     getStatusIdByPublicId: mockGetStatusIdByPublicId,
     // Read by the served-domain check through the server-settings resolver.
     getAllServerSettings: mockGetAllServerSettings,
-    getDomainBlockForDomain: mockGetDomainBlockForDomain
+    getDomainBlockForDomain: mockGetDomainBlockForDomain,
+    getDomainAllowForDomain: mockGetDomainAllowForDomain
   })
 }))
 
@@ -163,6 +165,7 @@ describe('GET /api/v2/search', () => {
     mockGetAllServerSettings.mockReset()
     mockGetAllServerSettings.mockResolvedValue([])
     mockGetDomainBlockForDomain.mockResolvedValue(null)
+    mockGetDomainAllowForDomain.mockResolvedValue(null)
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: Date.now() + 60_000,
@@ -1156,12 +1159,45 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
-  it('does not fetch an uncached account URL on a host federation policy refuses', async () => {
-    const accountUrl = 'https://blocked.test/users/remote-resolved'
+  // The odd spellings are fetched from blocked.test by the URL parser, so the
+  // policy check must read that host too, not `https`.
+  it.each([
+    'https://blocked.test/users/remote-resolved',
+    'https:/blocked.test/users/remote-resolved',
+    'https:\\\\blocked.test/users/remote-resolved',
+    'ht\ttps://blocked.test/users/remote-resolved'
+  ])(
+    'does not fetch the uncached account URL %j on a suspended host',
+    async (accountUrl) => {
+      mockSearchAccountIds.mockResolvedValue([])
+      mockGetDomainBlockForDomain.mockImplementation(async (domain: string) =>
+        domain === 'blocked.test' ? { domain, severity: 'suspend' } : null
+      )
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v2/search?q=${encodeURIComponent(accountUrl)}&type=accounts&resolve=true`,
+          { headers: { Authorization: 'Bearer read-search-token' } }
+        ),
+        context
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(mockGetDomainBlockForDomain).toHaveBeenCalledWith('blocked.test')
+      expect(mockGetActorPerson).not.toHaveBeenCalled()
+      expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+      expect(data.accounts).toEqual([])
+    }
+  )
+
+  it('does not fetch an uncached account URL on a host allowlist mode leaves out', async () => {
+    const accountUrl = 'https://unlisted.test/users/remote-resolved'
     mockSearchAccountIds.mockResolvedValue([])
-    mockGetDomainBlockForDomain.mockImplementation(async (domain: string) =>
-      domain === 'blocked.test' ? { domain, severity: 'suspend' } : null
-    )
+    mockGetAllServerSettings.mockResolvedValue([
+      { key: 'federation.mode', value: 'allowlist' },
+      { key: 'federation.allowActorDomains', value: ['llun.test'] }
+    ])
 
     const response = await GET(
       new NextRequest(
@@ -1173,9 +1209,7 @@ describe('GET /api/v2/search', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockGetDomainBlockForDomain).toHaveBeenCalledWith('blocked.test')
     expect(mockGetActorPerson).not.toHaveBeenCalled()
-    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
     expect(data.accounts).toEqual([])
   })
 

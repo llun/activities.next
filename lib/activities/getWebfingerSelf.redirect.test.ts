@@ -2,6 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { logger } from '@/lib/utils/logger'
 
 const mockDatabase = {}
 vi.mock('@/lib/database', () => ({ getDatabase: () => mockDatabase }))
@@ -44,6 +45,10 @@ describe('getWebfingerSelf redirects', () => {
     vi.mocked(canFederateWithDomain).mockReset().mockResolvedValue(true)
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('follows a cross-host redirect onto a host federation policy allows', async () => {
     const socialUrl =
       'https://social.example.test/.well-known/webfinger?resource=acct%3Aalice%40example.test'
@@ -66,10 +71,18 @@ describe('getWebfingerSelf redirects', () => {
       [blockedUrl]: { body: jrd('https://blocked.test/users/alice') }
     })
     vi.mocked(canFederateWithDomain).mockResolvedValue(false)
+    const warn = vi.spyOn(logger, 'warn')
+    const error = vi.spyOn(logger, 'error')
 
     expect(await getWebfingerSelf({ account: 'alice@example.test' })).toBeNull()
     expect(
       fetchMock.mock.calls.filter(([url]) => url === blockedUrl)
     ).toHaveLength(0)
+    // A policy refusal, not a failure.
+    expect(warn).toHaveBeenCalledWith({
+      message: 'Refused a WebFinger redirect to another host',
+      domain: 'example.test'
+    })
+    expect(error).not.toHaveBeenCalled()
   })
 })

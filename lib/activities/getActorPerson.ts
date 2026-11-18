@@ -106,10 +106,8 @@ export const getActorPerson: GetActorPersonFunction = ({
       }
 
       const claimedId = fetched.person.id
-      // Parsed once and used for both the policy check and the fetch: the
-      // policy helpers read a scheme only before a literal `://`, so a raw
-      // `https:/blocked.example/...` would be judged as host `https` while the
-      // request layer's URL parser sends it to blocked.example.
+      // Parsed once and used for both the policy check and the fetch, so both
+      // read the same host however the id is spelled.
       const claimedUrl = new URL(claimedId).href
       const database = getDatabase()
       if (!database || !(await canFederateWithDomain(database, claimedUrl))) {

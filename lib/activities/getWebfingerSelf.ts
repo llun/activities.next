@@ -39,6 +39,16 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       const data = WebFinger.parse(JSON.parse(body))
       return getActivityPubSelfHrefs(data.links)[0] ?? null
     } catch (error) {
+      // A redirect federation policy refused is policy at work, not a failure;
+      // `isFederatedRedirect` already logged why when the policy could not be
+      // read.
+      if ((error as NodeJS.ErrnoException).code === 'ERR_CROSS_HOST_REDIRECT') {
+        logger.warn({
+          message: 'Refused a WebFinger redirect to another host',
+          domain: domain.slice(0, 512)
+        })
+        return null
+      }
       const loggable = toLoggableError(error)
       span.recordException(loggable)
       logger.error({
