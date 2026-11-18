@@ -284,11 +284,18 @@ describe('getActorPerson', () => {
         [claimedId]: { status: 302, headers: { location: redirectTarget } },
         [redirectTarget]: { body: actorDocument(claimedId, 'BLOCKED KEY') }
       })
+      const warn = vi.spyOn(logger, 'warn')
 
       expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
       expect(
         fetchMock.mock.calls.filter(([url]) => url === redirectTarget)
       ).toHaveLength(0)
+      expect(warn).toHaveBeenCalledWith({
+        message: 'Refused an actor fetch that redirects to another host',
+        requestedHost: 'allowed.test',
+        refusedRedirectHost: 'blocked.test'
+      })
+      warn.mockRestore()
     })
 
     it('does not re-fetch when no database can supply the policy', async () => {

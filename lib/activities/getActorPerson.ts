@@ -103,17 +103,20 @@ export const getActorPerson: GetActorPersonFunction = ({
   signingActor
 }) =>
   withSpan('activity', 'getActorProfile', { actorId }, async (span) => {
+    // For the refusal warning: which fetch was redirected, and where to.
+    let requestedUrl = actorId
     let refusedRedirectHost: string | undefined
+    const refuseRedirect = (url: URL) => {
+      refusedRedirectHost = url.host
+      return false
+    }
     try {
       const fetched = await fetchActorDocument({
         url: actorId,
         withNetworkRetry,
         signingActor,
-        allowCrossHostRedirects: async (url) => {
-          const allowed = await isFederatedRedirect(url)
-          if (!allowed) refusedRedirectHost = url.host
-          return allowed
-        }
+        allowCrossHostRedirects: async (url) =>
+          (await isFederatedRedirect(url)) || refuseRedirect(url)
       })
       if (!fetched) return null
       if (isSameActivityPubOrigin(fetched.person.id, fetched.servedFrom)) {
@@ -137,6 +140,7 @@ export const getActorPerson: GetActorPersonFunction = ({
         })
         return null
       }
+      requestedUrl = claimedUrl
       const canonical = await fetchActorDocument({
         url: claimedUrl,
         withNetworkRetry,
@@ -144,7 +148,7 @@ export const getActorPerson: GetActorPersonFunction = ({
         // Only the claimed origin can confirm the id, so a hop to another
         // host could never be accepted; refuse it before that host is sent
         // the request.
-        allowCrossHostRedirects: false
+        allowCrossHostRedirects: refuseRedirect
       })
       if (
         canonical &&
@@ -169,7 +173,7 @@ export const getActorPerson: GetActorPersonFunction = ({
         logger.warn({
           message: 'Refused an actor fetch that redirects to another host',
           // Hosts only: the requested URL may carry a token in its query.
-          requestedHost: new URL(actorId).host,
+          requestedHost: new URL(requestedUrl).host,
           refusedRedirectHost
         })
         return null
