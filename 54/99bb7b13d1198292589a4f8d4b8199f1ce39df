@@ -1,0 +1,78 @@
+lib/utils/host.ts
+  s_449320edf6fe96::t_365de85924e02d 465-476,484
+lib/services/federation/domainPolicy.ts
+  s_449320edf6fe96::t_0715c0fc88e4dd 7,42-43,46,48-55
+lib/activities/getWebfingerSelf.ts
+  s_449320edf6fe96::t_c5d23e25d65408 67
+  s_449320edf6fe96::t_5abc6573a5e838 14,25-26,28
+docs/maintenance.md
+  s_449320edf6fe96::t_02a948839b44fd 1234
+app/(timeline)/[actor]/profileFollowLookup.test.ts
+  s_449320edf6fe96::t_7d6231a2d960c9 93-94
+lib/activities/activityPubResponse.test.ts
+  s_449320edf6fe96::t_05035c5679e9a5 1-2,80-106
+  s_449320edf6fe96::t_7e624114842dfb 107
+lib/services/serverSettings/index.ts
+  s_449320edf6fe96::t_0715c0fc88e4dd 15,48-51,183,189-191
+lib/services/serverSettings/index.test.ts
+  s_449320edf6fe96::t_453273cb747560 256-259,286-288
+lib/services/federation/statusDelivery.test.ts
+  s_449320edf6fe96::t_6eac4193b0197e 69-70
+lib/utils/traceApiRoute.test.ts
+  s_449320edf6fe96::t_c5d23e25d65408 342
+  s_449320edf6fe96::t_b6eec960d2e7f4 339-340,355
+lib/services/federation/domainPolicy.test.ts
+  s_449320edf6fe96::t_6eac4193b0197e 3,18,27-28,31-38
+  s_449320edf6fe96::t_453273cb747560 118-152
+lib/services/domains/domainCheck.ts
+  s_449320edf6fe96::t_365de85924e02d 62
+  s_449320edf6fe96::t_59c6dd9c310f3d 11
+lib/activities/getActorPerson.ts
+  s_449320edf6fe96::t_b6eec960d2e7f4 92-98,100-111,113-135,137-143,146-147,149,153-167,170
+  s_449320edf6fe96::t_4338d248cca1a2 13,87-91,148,150
+lib/activities/getActorPerson.test.ts
+  s_449320edf6fe96::t_05035c5679e9a5 129-147
+docs/environment-variables.md
+  s_449320edf6fe96::t_02a948839b44fd 124,545
+  s_449320edf6fe96::t_3aa2f230879b33 24-33
+  s_449320edf6fe96::t_47cf3c45a45ace 113-123,125
+lib/config/host.ts
+  s_449320edf6fe96::t_365de85924e02d 14-29,38,46
+lib/utils/loggableUrl.ts
+  s_449320edf6fe96::t_4338d248cca1a2 1-12
+lib/activities/getWebfingerSelf.redirect.test.ts
+  s_449320edf6fe96::t_fb50e8be0b4d7d 91-111
+proxy.ts
+  s_449320edf6fe96::t_365de85924e02d 7,96
+lib/config/host.test.ts
+  s_449320edf6fe96::t_4e19c842737dae 40-42,45-53,56-60
+  s_449320edf6fe96::t_59c6dd9c310f3d 43-44,54-55
+lib/utils/loggableUrl.test.ts
+  s_449320edf6fe96::t_4338d248cca1a2 1-20
+lib/activities/activityPubResponse.ts
+  s_449320edf6fe96::t_b6eec960d2e7f4 4
+  s_449320edf6fe96::t_5abc6573a5e838 41-42
+lib/utils/host.test.ts
+  s_449320edf6fe96::t_4e19c842737dae 407,409-419
+  s_449320edf6fe96::t_59c6dd9c310f3d 1-2,408
+lib/services/statuses/getReadableStatusForAction.allowlist.test.ts
+  s_449320edf6fe96::t_61c1c34a9ce0b9 57-65
+lib/utils/traceApiRoute.ts
+  s_449320edf6fe96::t_c5d23e25d65408 142-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5499bb7b13d1198292589a4f8d4b8199f1ce39df",
+  "prompts": {},
+  "sessions": {
+    "s_449320edf6fe96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01786880-c6f1-43f9-b3f4-e62348bf80e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
