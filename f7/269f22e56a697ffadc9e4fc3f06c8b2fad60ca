@@ -1,0 +1,28 @@
+lib/utils/host.test.ts
+  s_002c9665ab6369::t_fee0b0c793c639 378-379,384-390
+  s_002c9665ab6369::t_ceafa82944e1da 380-383
+lib/utils/host.ts
+  s_002c9665ab6369::t_ceafa82944e1da 346-347
+lib/services/guards/sameOriginProof.ts
+  s_002c9665ab6369::t_ceafa82944e1da 19-21
+docs/maintenance.md
+  s_002c9665ab6369::t_c25c3ccbc4fa80 1234
+lib/activities/getActorPerson.test.ts
+  s_002c9665ab6369::t_ceafa82944e1da 216-217,225-233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f7269f22e56a697ffadc9e4fc3f06c8b2fad60ca",
+  "prompts": {},
+  "sessions": {
+    "s_002c9665ab6369": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fe34918-b928-4f62-8e7f-8b5c526ec6d6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
