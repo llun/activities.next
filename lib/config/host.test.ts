@@ -46,7 +46,7 @@ describe('getHostConfigFromEnvironment', () => {
     expect(() =>
       getHostConfigFromEnvironment({ onInvalidList: 'throw' })
     ).toThrow(
-      'ACTIVITIES_TRUSTED_HOSTS: each entry must be one host; entry 2 (counting from 1) holds a comma, so split it into separate JSON array entries'
+      'ACTIVITIES_TRUSTED_HOSTS: each entry must be one host; split the entry that holds a comma into separate JSON array entries'
     )
   })
 
