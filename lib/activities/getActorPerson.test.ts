@@ -213,6 +213,8 @@ describe('getActorPerson', () => {
         })
       )
 
+      const warn = vi.spyOn(logger, 'warn')
+
       expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
       expect(
         fetchMock.mock.calls.filter(([url]) => url === victimId)
@@ -220,6 +222,15 @@ describe('getActorPerson', () => {
       expect(
         fetchMock.mock.calls.filter(([url]) => url === attackerUrl)
       ).toHaveLength(1)
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message:
+            'Refused a redirect whose federation policy could not be read',
+          redirectHost: 'victim.test',
+          err: expect.any(Error)
+        })
+      )
+      warn.mockRestore()
     })
 
     it('follows a same-host redirect without consulting policy', async () => {

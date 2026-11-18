@@ -375,6 +375,19 @@ describe('a comma in a host', () => {
     ).toBeFalse()
   })
 
+  // `%2c` and a fullwidth comma (which IDNA maps to `,`) reach the rules pass
+  // as a comma once the host is normalised.
+  it.each([
+    'x.evil.example%2ca.edge.llun.test',
+    'x.evil.example\uff0ca.edge.llun.test'
+  ])(
+    'never matches the encoded comma host %s against a wildcard rule',
+    (host) => {
+      expect(createHostRulesMatcher(['*.edge.llun.test'])(host)).toBeFalse()
+      expect(isOwnInstanceHost(host, sources)).toBeFalse()
+    }
+  )
+
   it('still reads the first entry of a forwarded host list', () => {
     expect(
       isHostTrustedByRules('alias.example, proxy.internal', ['alias.example'])

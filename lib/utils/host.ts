@@ -343,7 +343,8 @@ export const createHostRulesMatcher = (
     if (literalAuthorities.has(authority)) return true
 
     const normalizedHost = normalizeHost(host, { allowWildcard: false })
-    if (!normalizedHost) return false
+    // Decoding can make the comma too: `%2c`, or a fullwidth comma IDNA maps.
+    if (!normalizedHost || normalizedHost.includes(',')) return false
     return normalizedRules.some((rule) => hostMatchesRule(normalizedHost, rule))
   }
 }
