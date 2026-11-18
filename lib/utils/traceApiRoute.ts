@@ -139,10 +139,12 @@ const SENSITIVE_QUERY_NAME_PARTS = new Set([
   'nonce',
   'otp',
   'password',
-  // Typed or forwarded text: search (`q`), a looked-up handle (`acct`) and
-  // the original page query `/api/handle-redirect` carries (`query`).
+  // Typed or forwarded text: search (`q`), a looked-up handle (`acct`, and
+  // WebFinger's `resource`) and the original page query `/api/handle-redirect`
+  // carries (`query`).
   'q',
   'acct',
+  'resource',
   'query',
   'secret',
   'sig',

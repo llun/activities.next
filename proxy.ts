@@ -185,6 +185,16 @@ const isRewrittenApiRoute = (pathname: string): boolean => {
 const SHARE_TARGET_PATH = '/_share-target'
 
 export async function proxy(request: NextRequest) {
+  // One host, never a list. HTTP/1.1 allows a single `Host`, and Next.js both
+  // copies it into a missing `X-Forwarded-Host` and reads that header's first
+  // entry in its own Server Action origin check, so refuse the request here.
+  if (request.headers.get('host')?.includes(',')) {
+    return withContentSecurityPolicy(
+      new NextResponse(null, { status: 400 }),
+      request
+    )
+  }
+
   const pathname = request.nextUrl.pathname
 
   // Reject non-existent auth subpaths (e.g. /auth/callback) early with 404

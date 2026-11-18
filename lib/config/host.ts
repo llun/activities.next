@@ -17,11 +17,12 @@ let cachedProxyHostConfig: HostConfig | null = null
 // reads the list, drops the entry instead of guessing.
 const getTrustedHostsFromEnvironment = (options?: EnvironmentListOptions) => {
   const entries = getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
-  const listed = entries.find((entry) => entry.includes(','))
-  if (listed === undefined) return entries
+  const listed = entries.findIndex((entry) => entry.includes(','))
+  if (listed === -1) return entries
   if (options?.onInvalidList === 'throw') {
+    // The index, not the entry: a mistyped entry may hold a pasted credential.
     throw new Error(
-      `ACTIVITIES_TRUSTED_HOSTS: each entry must be one host; split ${JSON.stringify(listed)} into separate JSON array entries`
+      `ACTIVITIES_TRUSTED_HOSTS: each entry must be one host; entry ${listed} holds a comma, so split it into separate JSON array entries`
     )
   }
   return entries.filter((entry) => !entry.includes(','))

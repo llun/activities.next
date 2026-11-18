@@ -1,10 +1,13 @@
 import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 
 describe('toLoggableUrl', () => {
-  it('keeps the scheme, host and path only', () => {
+  it('keeps the scheme and host only', () => {
     expect(
       toLoggableUrl('https://user:pass@remote.test:8443/users/a?token=x#frag')
-    ).toBe('https://remote.test:8443/users/a')
+    ).toBe('https://remote.test:8443')
+    expect(toLoggableUrl('https://remote.test/u/heatmaps/share-token')).toBe(
+      'https://remote.test'
+    )
   })
 
   it('returns null for text that is not an http(s) URL', () => {
@@ -16,9 +19,9 @@ describe('toLoggableUrl', () => {
     ).toBeNull()
   })
 
-  it('caps a long path', () => {
+  it('caps a long host', () => {
     expect(
-      toLoggableUrl(`https://remote.test/${'a'.repeat(1000)}`)
+      toLoggableUrl(`https://${'a'.repeat(1000)}.remote.test/x`)
     ).toHaveLength(512)
   })
 })

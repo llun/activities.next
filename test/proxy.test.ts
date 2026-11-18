@@ -475,6 +475,41 @@ describe('proxy', () => {
     )
   })
 
+  // HTTP/1.1 allows one Host, and Next.js would read a comma Host's first
+  // entry in its own Server Action origin check.
+  it('refuses a request whose Host holds a comma', async () => {
+    const request = new NextRequest('https://internal.example.com/@alice', {
+      method: 'GET',
+      headers: { host: 'runtime-public.example.com, evil.example.com' }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.status).toBe(400)
+  })
+
+  // Only X-Forwarded-Host is a list; a comma in our own header is no host.
+  it('does not read the first entry of a comma X-Activity-Next-Host', async () => {
+    process.env.ACTIVITIES_HOST = 'runtime-public.example.com'
+    process.env.ACTIVITIES_TRUSTED_HOSTS = JSON.stringify([
+      'runtime-edge.example.com'
+    ])
+
+    const request = new NextRequest('https://internal.example.com/@alice', {
+      method: 'GET',
+      headers: {
+        host: 'internal.example.com',
+        'x-activity-next-host': 'runtime-edge.example.com, evil.example.com'
+      }
+    })
+
+    const response = await proxy(request)
+
+    expect(response?.headers.get('x-middleware-rewrite')).toBe(
+      'https://internal.example.com/api/handle-redirect?path=%2F%40alice&query='
+    )
+  })
+
   it('ignores runtime config file host config when runtime environment is absent', async () => {
     delete process.env.ACTIVITIES_HOST
     fs.writeFileSync(

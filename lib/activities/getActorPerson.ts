@@ -13,6 +13,7 @@ import {
 import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 export type GetActorPersonFunction = (params: {
@@ -162,8 +163,18 @@ export const getActorPerson: GetActorPersonFunction = ({
           })
           return null
         }
-        span.recordException(nodeError)
-        logger.error(`[getActorProfile] ${nodeError.message}`)
+        // Name and code only: a JSON parse error's message quotes the remote
+        // body, and a request error can carry the request URL.
+        const loggable = Object.assign(
+          new Error(`Actor lookup failed: ${toLoggableError(error).name}`),
+          { code: nodeError.code }
+        )
+        span.recordException(loggable)
+        logger.error({
+          message: '[getActorProfile] Actor lookup failed',
+          requestedHost: toLoggableUrl(requestedUrl),
+          err: loggable
+        })
         return null
       }
     }

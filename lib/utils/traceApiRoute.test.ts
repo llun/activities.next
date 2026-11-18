@@ -354,6 +354,7 @@ describe('traceApiRoute', () => {
     'password',
     'q',
     'acct',
+    'resource',
     'query',
     'secret',
     'sig',

@@ -84,7 +84,7 @@ describe('isActivityPubDocumentResponse logging', () => {
   })
 
   // A requested or redirected URL may carry a token in its query.
-  it('logs the refused URLs without their query or userinfo', () => {
+  it('logs the refused URLs as their origin only', () => {
     const warn = vi.spyOn(logger, 'warn')
 
     expect(
@@ -99,9 +99,25 @@ describe('isActivityPubDocumentResponse logging', () => {
     ).toBe(false)
     expect(warn).toHaveBeenCalledWith({
       message: 'Refused remote document served without an ActivityPub type',
-      url: 'https://remote.test/users/a',
-      servedFrom: 'https://remote.test/final',
+      url: 'https://remote.test',
+      servedFrom: 'https://remote.test',
       contentType: 'application/json'
     })
+  })
+
+  it('logs a malformed content type as unrecognised', () => {
+    const warn = vi.spyOn(logger, 'warn')
+
+    isActivityPubDocumentResponse(
+      {
+        statusCode: 200,
+        headers: { 'content-type': 'https://x.test/?token=secret' },
+        url: 'https://remote.test/a'
+      },
+      'https://remote.test/a'
+    )
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ contentType: 'unrecognised' })
+    )
   })
 })
