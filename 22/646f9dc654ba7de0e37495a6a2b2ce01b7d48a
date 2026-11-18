@@ -1,0 +1,19 @@
+lib/activities/getWebfingerSelf.ts
+  s_449320edf6fe96::t_ea477c891272bf 25-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22646f9dc654ba7de0e37495a6a2b2ce01b7d48a",
+  "prompts": {},
+  "sessions": {
+    "s_449320edf6fe96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01786880-c6f1-43f9-b3f4-e62348bf80e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
