@@ -1,0 +1,55 @@
+lib/config/host.test.ts
+  s_449320edf6fe96::t_ef6641ba9809b5 49
+docs/environment-variables.md
+  s_449320edf6fe96::t_6dcb8679d577a0 535
+lib/activities/activityPubResponse.ts
+  s_449320edf6fe96::t_ef6641ba9809b5 32-41,53-54
+lib/activities/activityPubResponse.test.ts
+  s_449320edf6fe96::t_ef6641ba9809b5 87,102-103
+  s_449320edf6fe96::t_5f41d38688b975 107-122
+lib/utils/traceApiRoute.ts
+  s_449320edf6fe96::t_ef6641ba9809b5 142-144,147
+lib/activities/getWebfingerSelf.redirect.test.ts
+  s_449320edf6fe96::t_96ebf17700a3d7 14-33,137-143
+  s_449320edf6fe96::t_c0693595875f4e 144-145
+docs/maintenance.md
+  s_449320edf6fe96::t_6dcb8679d577a0 1234
+proxy.ts
+  s_449320edf6fe96::t_55f4d5f2c968de 188-197
+lib/utils/traceApiRoute.test.ts
+  s_449320edf6fe96::t_ef6641ba9809b5 357
+lib/activities/getActorPerson.test.ts
+  s_449320edf6fe96::t_96ebf17700a3d7 20-34,159-165
+  s_449320edf6fe96::t_59215bd35d91e4 145-146,150-154,156
+  s_449320edf6fe96::t_5f41d38688b975 144,147-149,155,157-158,166
+  s_449320edf6fe96::t_ef6641ba9809b5 168,181-183
+  s_449320edf6fe96::t_a6c199b1021e2b 167
+lib/activities/getActorPerson.ts
+  s_449320edf6fe96::t_ef6641ba9809b5 16,166-177
+test/proxy.test.ts
+  s_449320edf6fe96::t_3c9413adc2b664 478-512
+lib/utils/loggableUrl.test.ts
+  s_449320edf6fe96::t_c6c61d8a199ef8 4,7-10,22,24
+lib/config/host.ts
+  s_449320edf6fe96::t_ef6641ba9809b5 20-21,23,25
+lib/services/domains/domainCheck.test.ts
+  s_449320edf6fe96::t_be9655c20e8a30 83-91
+lib/utils/loggableUrl.ts
+  s_449320edf6fe96::t_c6c61d8a199ef8 1-5,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32b288ed8f1f383b65b85150df402601282aac70",
+  "prompts": {},
+  "sessions": {
+    "s_449320edf6fe96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01786880-c6f1-43f9-b3f4-e62348bf80e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
