@@ -82,9 +82,36 @@ describe('getWebfingerSelf redirects', () => {
     // A policy refusal, not a failure.
     expect(warn).toHaveBeenCalledWith({
       message: 'Refused a WebFinger redirect to another host',
-      domain: 'example.test',
+      requestedHost: 'example.test',
       refusedRedirectHost: 'blocked.test'
     })
     expect(error).not.toHaveBeenCalled()
+  })
+
+  it('logs only the host of a handle that carries a query', async () => {
+    const requested = new URL(
+      'https://example.test?token=secret/.well-known/webfinger'
+    )
+    requested.searchParams.set(
+      'resource',
+      'acct:alice@example.test?token=secret'
+    )
+    serve({
+      [requested.toString()]: {
+        status: 302,
+        headers: { location: 'https://blocked.test/.well-known/webfinger' }
+      }
+    })
+    vi.mocked(canFederateWithDomain).mockResolvedValue(false)
+    const warn = vi.spyOn(logger, 'warn')
+
+    expect(
+      await getWebfingerSelf({ account: 'alice@example.test?token=secret' })
+    ).toBeNull()
+    expect(warn).toHaveBeenCalledWith({
+      message: 'Refused a WebFinger redirect to another host',
+      requestedHost: 'example.test',
+      refusedRedirectHost: 'blocked.test'
+    })
   })
 })

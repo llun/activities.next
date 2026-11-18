@@ -18,9 +18,12 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       return null
     }
 
+    let requestedHost: string | undefined
     let refusedRedirectHost: string | undefined
     try {
       const url = new URL(`https://${domain}/.well-known/webfinger`)
+      // Hosts only in logs: a handle may carry path or query text after `@`.
+      requestedHost = url.host
       url.searchParams.set('resource', `acct:${user}@${domain}`)
 
       const { statusCode, body } = await request({
@@ -50,7 +53,7 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       if ((error as NodeJS.ErrnoException).code === 'ERR_CROSS_HOST_REDIRECT') {
         logger.warn({
           message: 'Refused a WebFinger redirect to another host',
-          domain: domain.slice(0, 512),
+          requestedHost: requestedHost?.slice(0, 512),
           refusedRedirectHost
         })
         return null
