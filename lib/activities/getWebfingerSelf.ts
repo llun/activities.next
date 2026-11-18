@@ -1,4 +1,5 @@
 import { getActivityPubSelfHrefs } from '@/lib/activities/getWebfingerDocument'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
@@ -17,14 +18,27 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       return null
     }
 
+    let requestedHost: string | undefined
+    let refusedRedirectHost: string | undefined
     try {
       const url = new URL(`https://${domain}/.well-known/webfinger`)
+      // For the refusal warning, which logs hosts only: a handle may carry path
+      // or query text after `@`.
+      requestedHost = url.host
       url.searchParams.set('resource', `acct:${user}@${domain}`)
 
       const { statusCode, body } = await request({
         url: url.toString(),
         headers: {
           Accept: 'application/jrd+json, application/json'
+        },
+        // A handle's domain may hand WebFinger to another host
+        // (`example.com` -> `social.example.com`), but never to one federation
+        // policy refuses.
+        allowCrossHostRedirects: async (redirectUrl) => {
+          if (await isFederatedRedirect(redirectUrl)) return true
+          refusedRedirectHost = redirectUrl.host.slice(0, 512)
+          return false
         }
       })
       if (statusCode !== 200) {
@@ -34,6 +48,17 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       const data = WebFinger.parse(JSON.parse(body))
       return getActivityPubSelfHrefs(data.links)[0] ?? null
     } catch (error) {
+      // A redirect federation policy refused is policy at work, not a failure;
+      // `isFederatedRedirect` already logged why when the policy could not be
+      // read.
+      if ((error as NodeJS.ErrnoException).code === 'ERR_CROSS_HOST_REDIRECT') {
+        logger.warn({
+          message: 'Refused a WebFinger redirect to another host',
+          requestedHost: requestedHost?.slice(0, 512),
+          refusedRedirectHost
+        })
+        return null
+      }
       const loggable = toLoggableError(error)
       span.recordException(loggable)
       logger.error({

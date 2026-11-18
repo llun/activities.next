@@ -3,6 +3,7 @@ import { compactActivityPub } from '@/lib/activities/jsonld'
 import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import {
@@ -11,7 +12,6 @@ import {
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 export type GetActorPersonFunction = (params: {
@@ -63,25 +63,6 @@ const fetchActorDocument = async ({
   }
 }
 
-// The caller vetted only the URL it asked for, so a redirect onto another host
-// is followed only when federation policy allows that host: a blocked or
-// non-allowlisted host must not be contacted, nor answer for the actor.
-const isFederatedRedirect = async (url: URL) => {
-  try {
-    const database = getDatabase()
-    return database ? await canFederateWithDomain(database, url.href) : false
-  } catch (error) {
-    // `safeRemoteFetch` refuses a hop whose policy throws, but silently: say
-    // why here.
-    logger.warn({
-      message: 'Refused a redirect whose federation policy could not be read',
-      redirectHost: url.host.slice(0, 512),
-      err: toLoggableError(error)
-    })
-    return false
-  }
-}
-
 // An actor document's own `id` is a claim by whoever answered the request (see
 // "A Fetched Document's Own id Is Not Evidence" in
 // docs/mastodon-api-compatibility.md). Every caller keys database writes —
@@ -125,10 +106,8 @@ export const getActorPerson: GetActorPersonFunction = ({
       }
 
       const claimedId = fetched.person.id
-      // Parsed once and used for both the policy check and the fetch: the
-      // policy helpers read a scheme only before a literal `://`, so a raw
-      // `https:/blocked.example/...` would be judged as host `https` while the
-      // request layer's URL parser sends it to blocked.example.
+      // Parsed once and used for both the policy check and the fetch, so both
+      // read the same host however the id is spelled.
       const claimedUrl = new URL(claimedId).href
       const database = getDatabase()
       if (!database || !(await canFederateWithDomain(database, claimedUrl))) {

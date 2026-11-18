@@ -52,20 +52,39 @@ export const isDomainBlockStricter = (
   )
 }
 
+const isWebUrl = (value: string) => {
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'https:' || protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
 export const normalizeDomain = (value: string): string | null => {
-  const trimmed = value.trim().toLowerCase()
+  // Not lowercased before parsing: the URL parser lowercases and IDNA-maps the
+  // hostname itself, and JavaScript's contextual lowercasing of a capital
+  // sigma can yield different punycode than the host a fetcher contacts.
+  const trimmed = value.trim()
   if (!trimmed) return null
   if (trimmed === '*') return '*'
 
   const hasWildcard = trimmed.startsWith('*.')
   const domainToParse = hasWildcard ? trimmed.slice(2) : trimmed
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(domainToParse)
-    ? domainToParse
-    : `https://${domainToParse}`
+  // A value the URL parser already reads as a web URL is judged as that URL,
+  // because a fetcher given it does the same: `https:/blocked.example/x`,
+  // `https:\\blocked.example/x` or a tab inside the scheme all fetch from
+  // blocked.example, while a `://` test alone would read the host as `https`.
+  const withScheme =
+    isWebUrl(domainToParse) || /^[a-z][a-z0-9+.-]*:\/\//i.test(domainToParse)
+      ? domainToParse
+      : `https://${domainToParse}`
 
   try {
     const url = new URL(withScheme)
-    const normalized = url.hostname.replace(/\.$/, '')
+    // A parsed hostname is ASCII (punycode, or percent-encoded for a
+    // non-special scheme's opaque host, which the parser leaves in its case).
+    const normalized = url.hostname.toLowerCase().replace(/\.$/, '')
     if (!normalized) return null
     const domain = hasWildcard ? `*.${normalized}` : normalized
     if (domain.length > 255) return null

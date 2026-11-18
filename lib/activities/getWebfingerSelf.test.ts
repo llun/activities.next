@@ -58,7 +58,8 @@ describe('getWebfingerSelf', () => {
         )}`,
         headers: {
           Accept: 'application/jrd+json, application/json'
-        }
+        },
+        allowCrossHostRedirects: expect.any(Function)
       })
     }
   )
