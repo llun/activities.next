@@ -353,6 +353,8 @@ describe('traceApiRoute', () => {
     'otp',
     'password',
     'q',
+    'acct',
+    'query',
     'secret',
     'sig',
     'signature',

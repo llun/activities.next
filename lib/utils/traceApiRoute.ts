@@ -139,8 +139,11 @@ const SENSITIVE_QUERY_NAME_PARTS = new Set([
   'nonce',
   'otp',
   'password',
-  // Search text (`q`) is what a person typed, often a handle or a pasted URL.
+  // Typed or forwarded text: search (`q`), a looked-up handle (`acct`) and
+  // the original page query `/api/handle-redirect` carries (`query`).
   'q',
+  'acct',
+  'query',
   'secret',
   'sig',
   'signature',

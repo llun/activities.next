@@ -60,7 +60,14 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
         })
         return null
       }
-      const loggable = toLoggableError(error)
+      // Name and code only: the thrown error can carry the request URL (Got's
+      // `options`, a URL error's `input`/`base`) or remote body text (a JSON
+      // parse error's message), and the logger serialises its own properties.
+      const thrown = toLoggableError(error)
+      const loggable = Object.assign(
+        new Error(`WebFinger lookup failed: ${thrown.name}`),
+        { code: (error as NodeJS.ErrnoException).code }
+      )
       span.recordException(loggable)
       logger.error({
         message: 'Failed to fetch webfinger self link',

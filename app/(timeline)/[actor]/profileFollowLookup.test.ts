@@ -90,8 +90,6 @@ describe('profile follow lookup', () => {
     // canFederateWithDomain (federation gate added on the remote persist path)
     getDomainBlockForDomain: vi.fn().mockResolvedValue(null),
     getDomainAllowForDomain: vi.fn().mockResolvedValue(null),
-    // Read by federation policy; an unreadable settings table fails closed.
-    getAllServerSettings: vi.fn().mockResolvedValue([]),
     // getProfileData persist branch resolves by the written id (person.id)
     getActorFromId: vi.fn().mockResolvedValue(null),
     // getRelationship

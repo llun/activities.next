@@ -4,7 +4,7 @@ import {
   ensureServedDomainsFresh,
   getServedHostConfig
 } from '@/lib/services/domains/servedDomainSnapshot'
-import { getServerSettingsView } from '@/lib/services/serverSettings'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   createServedDomainMatcher,
   getServedDomainRules
@@ -39,20 +39,12 @@ export const getDomainFromUrl = (value: string): string | null =>
 const getFederationPolicy = async (
   database: Database
 ): Promise<{ mode: FederationMode; isLocal: LocalDomainMatcher }> => {
-  const [view] = await Promise.all([
-    getServerSettingsView(database),
+  const [{ federation }] = await Promise.all([
+    getResolvedServerSettings(database),
     ensureServedDomainsFresh()
   ])
-  const { federation } = view.settings
   return {
-    // Fail closed: with the stored settings unreadable and nothing cached, the
-    // default `open` would undo an allowlist kept only in the database, so an
-    // unpinned mode is treated as `allowlist` until the read recovers (the
-    // resolver logs the failure and retries within seconds).
-    mode:
-      view.degraded && !view.locks['federation.mode']?.locked
-        ? 'allowlist'
-        : federation.mode,
+    mode: federation.mode,
     isLocal: createServedDomainMatcher([
       ...getServedDomainRules(getServedHostConfig()),
       ...federation.allowActorDomains

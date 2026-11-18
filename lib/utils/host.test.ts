@@ -417,6 +417,23 @@ describe('a comma in a host', () => {
     }
   )
 
+  // Next.js copies `Host` into `X-Forwarded-Host` when no proxy set one.
+  it('does not read the first entry of a forwarded host copied from a comma Host', () => {
+    const value = 'alias.example, x.evil.example'
+    expect(
+      selectHeaderHost(
+        new Headers({ host: value, 'x-forwarded-host': value }),
+        sources
+      )
+    ).toBe('llun.test')
+    expect(
+      selectHeaderHost(
+        new Headers({ host: 'llun.test', 'x-forwarded-host': value }),
+        sources
+      )
+    ).toBe('alias.example')
+  })
+
   it('still reads the first entry of a forwarded host list', () => {
     expect(
       isHostTrustedByRules('alias.example, proxy.internal', ['alias.example'])

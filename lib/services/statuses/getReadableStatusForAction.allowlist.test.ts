@@ -54,15 +54,11 @@ vi.mock('@/lib/services/domains/servedDomainSnapshot', () => ({
 }))
 
 vi.mock('@/lib/services/serverSettings', () => ({
-  getServerSettingsView: vi.fn(async () => ({
-    settings: {
-      federation: {
-        mode: 'allowlist',
-        allowActorDomains: ['allowed.remote']
-      }
-    },
-    locks: {},
-    updatedAt: {}
+  getResolvedServerSettings: vi.fn(async () => ({
+    federation: {
+      mode: 'allowlist',
+      allowActorDomains: ['allowed.remote']
+    }
   }))
 }))
 

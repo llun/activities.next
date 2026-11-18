@@ -471,7 +471,12 @@ export const getHostHeaderValue = (
 ) => {
   const value = getHeaderValue(headers, name)
   if (!value) return undefined
-  return name !== FORWARDED_HOST && value.includes(',') ? undefined : value
+  if (!value.includes(',')) return value
+  // Next.js copies `Host` into `X-Forwarded-Host` when no proxy set one, so a
+  // forwarded list identical to a comma-carrying `Host` is that `Host`.
+  return name === FORWARDED_HOST && value !== getHeaderValue(headers, 'host')
+    ? value
+    : undefined
 }
 
 export const selectHeaderHost = (

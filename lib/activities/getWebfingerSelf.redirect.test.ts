@@ -107,6 +107,20 @@ describe('getWebfingerSelf redirects', () => {
       requestedHost: 'example.test',
       err: expect.any(Error)
     })
+    // The JSON parse error's message quotes the body; a URL error carries
+    // the requested URL. Only the error's name reaches the log.
+    expect(error.mock.calls[0]?.[0]).toMatchObject({
+      err: { message: 'WebFinger lookup failed: SyntaxError' }
+    })
+  })
+
+  it('logs no part of a handle the URL parser refuses', async () => {
+    const error = vi.spyOn(logger, 'error')
+
+    expect(
+      await getWebfingerSelf({ account: 'alice@example.test:abc?token=secret' })
+    ).toBeNull()
+    expect(JSON.stringify(error.mock.calls)).not.toContain('secret')
   })
 
   it('logs only the host of a handle that carries a query', async () => {

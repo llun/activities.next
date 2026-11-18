@@ -7,9 +7,13 @@ describe('toLoggableUrl', () => {
     ).toBe('https://remote.test:8443/users/a')
   })
 
-  it('returns null for text that is not a URL', () => {
+  it('returns null for text that is not an http(s) URL', () => {
     expect(toLoggableUrl('alice@remote.test?token=x')).toBeNull()
     expect(toLoggableUrl(undefined)).toBeNull()
+    expect(toLoggableUrl('data:text/plain,secret-token')).toBeNull()
+    expect(
+      toLoggableUrl('blob:https://user:pass@remote.test/a?token=x')
+    ).toBeNull()
   })
 
   it('caps a long path', () => {

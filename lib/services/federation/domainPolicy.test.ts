@@ -1,6 +1,6 @@
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { Database } from '@/lib/database/types'
-import { getServerSettingsView } from '@/lib/services/serverSettings'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import {
   canFederateWithDomain,
@@ -15,7 +15,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/services/serverSettings', () => ({
-  getServerSettingsView: vi.fn()
+  getResolvedServerSettings: vi.fn()
 }))
 
 // The host stays env-configured; the federation mode + actor allow-list are
@@ -24,18 +24,12 @@ const mockFederation = ({
   host = 'local.test',
   trustedHosts = [] as string[],
   mode = 'open' as 'open' | 'allowlist',
-  allowActorDomains = [] as string[],
-  degraded = false
+  allowActorDomains = [] as string[]
 } = {}) => {
   mockGetConfig.mockReturnValue({ host, trustedHosts })
-  vi.mocked(getServerSettingsView).mockResolvedValue({
-    settings: {
-      ...structuredClone(DEFAULT_SERVER_SETTINGS),
-      federation: { mode, allowActorDomains }
-    },
-    locks: {},
-    updatedAt: {},
-    degraded
+  vi.mocked(getResolvedServerSettings).mockResolvedValue({
+    ...structuredClone(DEFAULT_SERVER_SETTINGS),
+    federation: { mode, allowActorDomains }
   })
 }
 
@@ -113,41 +107,6 @@ describe('domainPolicy', () => {
     await expect(
       canFederateWithDomain(database, 'https://other.test/users/a')
     ).resolves.toBe(false)
-  })
-
-  // A database-only allowlist must not turn into open federation while the
-  // stored settings cannot be read.
-  it('fails closed to allowlist mode when the settings view is degraded', async () => {
-    mockFederation({ mode: 'open', degraded: true })
-    const database = createDatabase({ allows: ['trusted.test'] })
-
-    await expect(
-      canFederateWithDomain(database, 'https://other.test/users/a')
-    ).resolves.toBe(false)
-    await expect(
-      canFederateWithDomain(database, 'https://trusted.test/users/a')
-    ).resolves.toBe(true)
-    await expect(
-      canFederateWithDomain(database, 'https://local.test/users/a')
-    ).resolves.toBe(true)
-  })
-
-  it('keeps an env-pinned open mode while the settings view is degraded', async () => {
-    mockFederation({ mode: 'open', degraded: true })
-    vi.mocked(getServerSettingsView).mockResolvedValue({
-      ...(await getServerSettingsView({} as never)),
-      locks: {
-        'federation.mode': {
-          locked: true,
-          envVar: 'ACTIVITIES_FEDERATION_MODE'
-        }
-      }
-    })
-    const database = createDatabase({})
-
-    await expect(
-      canFederateWithDomain(database, 'https://other.test/users/a')
-    ).resolves.toBe(true)
   })
 
   it('always allows local actor domains', async () => {

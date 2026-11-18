@@ -40,7 +40,8 @@ export const isActivityPubDocumentResponse = (
     message: 'Refused remote document served without an ActivityPub type',
     url: toLoggableUrl(requestedUrl),
     servedFrom: toLoggableUrl(response.url ?? requestedUrl),
-    contentType: contentType ?? null
+    // The media type only: parameters are the remote's free text.
+    contentType: contentType?.split(';')[0]?.trim() || null
   })
   return false
 }

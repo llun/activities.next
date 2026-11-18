@@ -91,7 +91,7 @@ describe('isActivityPubDocumentResponse logging', () => {
       isActivityPubDocumentResponse(
         {
           statusCode: 200,
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json; note=secret' },
           url: 'https://remote.test/final?token=secret'
         },
         'https://user:pass@remote.test/users/a?token=secret'
