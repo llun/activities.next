@@ -574,7 +574,11 @@ export const createSafeRemoteFetch = ({
       if (
         isCrossHostRedirect &&
         !(typeof allowCrossHostRedirects === 'function'
-          ? await allowCrossHostRedirects(redirectUrl)
+          ? // A throwing policy refuses the hop: its error could carry a network
+            // code `request()` retries, re-contacting the redirecting host.
+            await Promise.resolve()
+              .then(() => allowCrossHostRedirects(redirectUrl))
+              .catch(() => false)
           : allowCrossHostRedirects)
       ) {
         throw createCrossHostRedirectError()

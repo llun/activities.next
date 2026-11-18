@@ -71,8 +71,8 @@ const isFederatedRedirect = async (url: URL) => {
     const database = getDatabase()
     return database ? await canFederateWithDomain(database, url.href) : false
   } catch (error) {
-    // Refuse rather than throw: a thrown database error can carry a network
-    // code that `request()` retries, re-contacting the redirecting host.
+    // `safeRemoteFetch` refuses a hop whose policy throws, but silently: say
+    // why here.
     logger.warn({
       message: 'Refused a redirect whose federation policy could not be read',
       redirectHost: url.host.slice(0, 512),
