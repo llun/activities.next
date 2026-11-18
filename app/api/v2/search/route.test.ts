@@ -1156,6 +1156,29 @@ describe('GET /api/v2/search', () => {
     ])
   })
 
+  it('does not fetch an uncached account URL on a host federation policy refuses', async () => {
+    const accountUrl = 'https://blocked.test/users/remote-resolved'
+    mockSearchAccountIds.mockResolvedValue([])
+    mockGetDomainBlockForDomain.mockImplementation(async (domain: string) =>
+      domain === 'blocked.test' ? { domain, severity: 'suspend' } : null
+    )
+
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(accountUrl)}&type=accounts&resolve=true`,
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockGetDomainBlockForDomain).toHaveBeenCalledWith('blocked.test')
+    expect(mockGetActorPerson).not.toHaveBeenCalled()
+    expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+    expect(data.accounts).toEqual([])
+  })
+
   it('canonicalizes Mastodon account profile URLs before recording actors', async () => {
     const accountUrl = 'https://remote.test/@remote-resolved'
     const canonicalActorId = 'https://remote.test/users/remote-resolved'

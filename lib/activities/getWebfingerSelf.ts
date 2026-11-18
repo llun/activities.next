@@ -1,4 +1,5 @@
 import { getActivityPubSelfHrefs } from '@/lib/activities/getWebfingerDocument'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
@@ -25,7 +26,11 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
         url: url.toString(),
         headers: {
           Accept: 'application/jrd+json, application/json'
-        }
+        },
+        // A handle's domain may hand WebFinger to another host
+        // (`example.com` -> `social.example.com`), but never to one federation
+        // policy refuses.
+        allowCrossHostRedirects: isFederatedRedirect
       })
       if (statusCode !== 200) {
         return null

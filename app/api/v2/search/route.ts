@@ -295,6 +295,12 @@ const resolveAccountId = async ({
 
   if (isUrl(query)) {
     const existingActor = await database.getActorFromId({ id: query })
+    // An unknown URL is gated on its own host before the (instance-signed)
+    // fetch: `getActorPerson` vets only the hosts it is redirected or pointed
+    // to, never the one it was asked for.
+    if (!existingActor && !(await canFederateWithDomain(database, query))) {
+      return null
+    }
     const canonicalActorId = existingActor
       ? query
       : await getCanonicalAccountActorId({

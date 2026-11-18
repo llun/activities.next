@@ -1,4 +1,5 @@
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { request } from '@/lib/utils/request'
 
 vi.mock('@/lib/utils/request', () => ({ request: vi.fn() }))
@@ -58,7 +59,8 @@ describe('getWebfingerSelf', () => {
         )}`,
         headers: {
           Accept: 'application/jrd+json, application/json'
-        }
+        },
+        allowCrossHostRedirects: isFederatedRedirect
       })
     }
   )

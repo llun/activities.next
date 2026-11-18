@@ -3,6 +3,7 @@ import { compactActivityPub } from '@/lib/activities/jsonld'
 import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import {
@@ -11,7 +12,6 @@ import {
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
-import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
 export type GetActorPersonFunction = (params: {
@@ -60,25 +60,6 @@ const fetchActorDocument = async ({
   return {
     person: actorResult.data,
     servedFrom: response.url ?? url
-  }
-}
-
-// The caller vetted only the URL it asked for, so a redirect onto another host
-// is followed only when federation policy allows that host: a blocked or
-// non-allowlisted host must not be contacted, nor answer for the actor.
-const isFederatedRedirect = async (url: URL) => {
-  try {
-    const database = getDatabase()
-    return database ? await canFederateWithDomain(database, url.href) : false
-  } catch (error) {
-    // `safeRemoteFetch` refuses a hop whose policy throws, but silently: say
-    // why here.
-    logger.warn({
-      message: 'Refused a redirect whose federation policy could not be read',
-      redirectHost: url.host.slice(0, 512),
-      err: toLoggableError(error)
-    })
-    return false
   }
 }
 
