@@ -4,7 +4,8 @@ import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { logger } from '@/lib/utils/logger'
 
-const mockDatabase = {}
+// Read by the request layer's server-settings lookup.
+const mockDatabase = { getAllServerSettings: async () => [] }
 vi.mock('@/lib/database', () => ({ getDatabase: () => mockDatabase }))
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: vi.fn()
@@ -81,7 +82,8 @@ describe('getWebfingerSelf redirects', () => {
     // A policy refusal, not a failure.
     expect(warn).toHaveBeenCalledWith({
       message: 'Refused a WebFinger redirect to another host',
-      domain: 'example.test'
+      domain: 'example.test',
+      refusedRedirectHost: 'blocked.test'
     })
     expect(error).not.toHaveBeenCalled()
   })

@@ -18,6 +18,7 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       return null
     }
 
+    let refusedRedirectHost: string | undefined
     try {
       const url = new URL(`https://${domain}/.well-known/webfinger`)
       url.searchParams.set('resource', `acct:${user}@${domain}`)
@@ -30,7 +31,11 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
         // A handle's domain may hand WebFinger to another host
         // (`example.com` -> `social.example.com`), but never to one federation
         // policy refuses.
-        allowCrossHostRedirects: isFederatedRedirect
+        allowCrossHostRedirects: async (redirectUrl) => {
+          if (await isFederatedRedirect(redirectUrl)) return true
+          refusedRedirectHost = redirectUrl.host.slice(0, 512)
+          return false
+        }
       })
       if (statusCode !== 200) {
         return null
@@ -45,7 +50,8 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       if ((error as NodeJS.ErrnoException).code === 'ERR_CROSS_HOST_REDIRECT') {
         logger.warn({
           message: 'Refused a WebFinger redirect to another host',
-          domain: domain.slice(0, 512)
+          domain: domain.slice(0, 512),
+          refusedRedirectHost
         })
         return null
       }

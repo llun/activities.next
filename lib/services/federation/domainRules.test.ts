@@ -97,6 +97,19 @@ describe('domainRules', () => {
     expect(normalizeDomain(value)).toBe('blocked.example')
   })
 
+  // `'ΑΣ1'.toLowerCase()` picks a final sigma, which IDNA keeps distinct.
+  it.each(['https://ΑΣ1.example/users/x', 'ΑΣ-a.example', '*.ΑΣ1.example'])(
+    'reads the IDN %j as the URL parser does',
+    (value) => {
+      const hostname = new URL(
+        value.includes('://') ? value : `https://${value.replace(/^\*\./, '')}`
+      ).hostname
+      expect(normalizeDomain(value)).toBe(
+        value.startsWith('*.') ? `*.${hostname}` : hostname
+      )
+    }
+  )
+
   it('normalizes domains from bare domains and URLs', () => {
     expect(normalizeDomain('Example.Social')).toBe('example.social')
     expect(normalizeDomain('https://Sub.Example.Social/path')).toBe(

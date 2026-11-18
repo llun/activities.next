@@ -62,7 +62,10 @@ const isWebUrl = (value: string) => {
 }
 
 export const normalizeDomain = (value: string): string | null => {
-  const trimmed = value.trim().toLowerCase()
+  // Not lowercased before parsing: the URL parser lowercases and IDNA-maps the
+  // hostname itself, and JavaScript's contextual lowercasing of a capital
+  // sigma can yield different punycode than the host a fetcher contacts.
+  const trimmed = value.trim()
   if (!trimmed) return null
   if (trimmed === '*') return '*'
 
