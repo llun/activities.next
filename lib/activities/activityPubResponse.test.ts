@@ -1,3 +1,5 @@
+import { logger } from '@/lib/utils/logger'
+
 import {
   isActivityPubContentType,
   isActivityPubDocumentResponse
@@ -74,4 +76,32 @@ describe('isActivityPubDocumentResponse', () => {
       ).toBe(false)
     }
   )
+})
+
+describe('isActivityPubDocumentResponse logging', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // A requested or redirected URL may carry a token in its query.
+  it('logs the refused URLs without their query or userinfo', () => {
+    const warn = vi.spyOn(logger, 'warn')
+
+    expect(
+      isActivityPubDocumentResponse(
+        {
+          statusCode: 200,
+          headers: { 'content-type': 'application/json' },
+          url: 'https://remote.test/final?token=secret'
+        },
+        'https://user:pass@remote.test/users/a?token=secret'
+      )
+    ).toBe(false)
+    expect(warn).toHaveBeenCalledWith({
+      message: 'Refused remote document served without an ActivityPub type',
+      url: 'https://remote.test/users/a',
+      servedFrom: 'https://remote.test/final',
+      contentType: 'application/json'
+    })
+  })
 })

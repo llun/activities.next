@@ -253,6 +253,10 @@ describe('server settings resolver', () => {
     expect(settings.registrations.open).toBe(
       DEFAULT_SERVER_SETTINGS.registrations.open
     )
+    // Flagged, so a consumer whose default is permissive can refuse instead.
+    await expect(getServerSettingsView(database)).resolves.toMatchObject({
+      degraded: true
+    })
 
     spy.mockRestore()
     await database.destroy()
@@ -279,8 +283,9 @@ describe('server settings resolver', () => {
 
       // Must serve the stale stored value (closed), not revert to the
       // permissive default (open).
-      const settings = await getResolvedServerSettings(database)
-      expect(settings.registrations.open).toBe(false)
+      const view = await getServerSettingsView(database)
+      expect(view.settings.registrations.open).toBe(false)
+      expect(view.degraded).toBeUndefined()
       expect(spy).toHaveBeenCalled()
       spy.mockRestore()
     } finally {

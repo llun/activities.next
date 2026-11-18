@@ -139,6 +139,8 @@ const SENSITIVE_QUERY_NAME_PARTS = new Set([
   'nonce',
   'otp',
   'password',
+  // Search text (`q`) is what a person typed, often a handle or a pasted URL.
+  'q',
   'secret',
   'sig',
   'signature',

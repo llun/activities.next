@@ -1,6 +1,7 @@
 import { parseAcceptContentTypes } from '@/lib/utils/acceptContentTypes'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
+import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 import type { RequestResult } from '@/lib/utils/request'
 
@@ -37,8 +38,8 @@ export const isActivityPubDocumentResponse = (
   if (isActivityPubContentType(contentType)) return true
   logger.warn({
     message: 'Refused remote document served without an ActivityPub type',
-    url: requestedUrl,
-    servedFrom: response.url ?? requestedUrl,
+    url: toLoggableUrl(requestedUrl),
+    servedFrom: toLoggableUrl(response.url ?? requestedUrl),
     contentType: contentType ?? null
   })
   return false

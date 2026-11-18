@@ -88,6 +88,27 @@ describe('getWebfingerSelf redirects', () => {
     expect(error).not.toHaveBeenCalled()
   })
 
+  it('logs only the host when the WebFinger answer cannot be read', async () => {
+    const requested = new URL(
+      'https://example.test?token=secret/.well-known/webfinger'
+    )
+    requested.searchParams.set(
+      'resource',
+      'acct:alice@example.test?token=secret'
+    )
+    serve({ [requested.toString()]: { body: 'not json' } })
+    const error = vi.spyOn(logger, 'error')
+
+    expect(
+      await getWebfingerSelf({ account: 'alice@example.test?token=secret' })
+    ).toBeNull()
+    expect(error).toHaveBeenCalledWith({
+      message: 'Failed to fetch webfinger self link',
+      requestedHost: 'example.test',
+      err: expect.any(Error)
+    })
+  })
+
   it('logs only the host of a handle that carries a query', async () => {
     const requested = new URL(
       'https://example.test?token=secret/.well-known/webfinger'

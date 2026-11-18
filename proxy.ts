@@ -4,6 +4,7 @@ import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import {
   HOST_HEADER_NAMES,
+  getHostHeaderValue,
   getTrustedHostRules,
   isHostTrustedByRules,
   normalizeHost,
@@ -92,7 +93,7 @@ const proxyHeaderHost = (headers: Headers): string => {
 // puts the value in a path or header itself.
 const hasHostOutsideEnv = (headers: Headers): boolean => {
   for (const name of HOST_HEADER_NAMES) {
-    const value = headers.get(name)
+    const value = getHostHeaderValue(headers, name)
     if (!value) continue
     const normalized = normalizeHost(value, { allowWildcard: false })
     if (!normalized) continue

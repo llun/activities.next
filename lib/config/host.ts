@@ -11,6 +11,22 @@ export type AppHostConfig = HostConfig & {
 
 let cachedProxyHostConfig: HostConfig | null = null
 
+// One host per entry. A URL parser keeps `,` in a hostname, so the host rules
+// would read `a.example,b.example` as `a.example` alone and trust only that,
+// without a word. The app's config load refuses it; the proxy, which only
+// reads the list, drops the entry instead of guessing.
+const getTrustedHostsFromEnvironment = (options?: EnvironmentListOptions) => {
+  const entries = getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
+  const listed = entries.find((entry) => entry.includes(','))
+  if (listed === undefined) return entries
+  if (options?.onInvalidList === 'throw') {
+    throw new Error(
+      `ACTIVITIES_TRUSTED_HOSTS: each entry must be one host; split ${JSON.stringify(listed)} into separate JSON array entries`
+    )
+  }
+  return entries.filter((entry) => !entry.includes(','))
+}
+
 export const getHostConfigFromEnvironment = (
   options?: EnvironmentListOptions
 ): AppHostConfig => ({
@@ -19,7 +35,7 @@ export const getHostConfigFromEnvironment = (
     'ACTIVITIES_ALLOW_ACTOR_DOMAINS',
     options
   ),
-  trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS', options)
+  trustedHosts: getTrustedHostsFromEnvironment(options)
 })
 
 export const getProxyHostConfig = (): HostConfig => {
@@ -27,7 +43,7 @@ export const getProxyHostConfig = (): HostConfig => {
 
   cachedProxyHostConfig = {
     host: process.env.ACTIVITIES_HOST || '',
-    trustedHosts: getEnvironmentList('ACTIVITIES_TRUSTED_HOSTS')
+    trustedHosts: getTrustedHostsFromEnvironment()
   }
   return cachedProxyHostConfig
 }

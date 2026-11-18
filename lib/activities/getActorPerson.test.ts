@@ -126,6 +126,25 @@ describe('getActorPerson', () => {
       expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
     })
 
+    it('logs a rejected actor document without the query of either URL', async () => {
+      const requested = `${attackerUrl}?token=secret`
+      serve({
+        [requested]: {
+          body: actorDocument(`${victimId}?claim=secret`, 'ATTACKER KEY')
+        }
+      })
+      const warn = vi.spyOn(logger, 'warn')
+
+      expect(await getActorPerson({ actorId: requested })).toBeNull()
+      expect(warn).toHaveBeenCalledWith({
+        message:
+          'Rejected actor document whose id is not served by its own origin',
+        requestedActorId: attackerUrl,
+        servedFrom: attackerUrl,
+        claimedActorId: victimId
+      })
+    })
+
     it('rejects when the claimed origin answers with a different id', async () => {
       serve({
         [attackerUrl]: { body: actorDocument(victimId, 'ATTACKER KEY') },

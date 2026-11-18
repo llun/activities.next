@@ -11,7 +11,7 @@ type GetWebfingerSelfFunction = (params: {
 }) => Promise<string | null>
 
 export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
-  withSpan('activity', 'getWebfingerSelf', { account }, async (span) => {
+  withSpan('activity', 'getWebfingerSelf', {}, async (span) => {
     const cleanedAccount = account.replace(/^acct:/i, '').replace(/^@+/, '')
     const [user, domain, ...rest] = cleanedAccount.split('@')
     if (!user || !domain || rest.length > 0) {
@@ -22,9 +22,10 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
     let refusedRedirectHost: string | undefined
     try {
       const url = new URL(`https://${domain}/.well-known/webfinger`)
-      // For the refusal warning, which logs hosts only: a handle may carry path
-      // or query text after `@`.
+      // Logs and the span record hosts only: a handle may carry path or query
+      // text after `@`.
       requestedHost = url.host
+      span.setAttribute('webfinger.host', requestedHost.slice(0, 512))
       url.searchParams.set('resource', `acct:${user}@${domain}`)
 
       const { statusCode, body } = await request({
@@ -63,7 +64,7 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       span.recordException(loggable)
       logger.error({
         message: 'Failed to fetch webfinger self link',
-        account,
+        requestedHost: requestedHost?.slice(0, 512),
         err: loggable
       })
       return null

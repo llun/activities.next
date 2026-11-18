@@ -10,6 +10,7 @@ import {
   isSameActivityPubOrigin,
   normalizeActorId
 } from '@/lib/utils/activitypub'
+import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
 import { withSpan } from '@/lib/utils/trace'
@@ -83,83 +84,87 @@ export const getActorPerson: GetActorPersonFunction = ({
   withNetworkRetry = true,
   signingActor
 }) =>
-  withSpan('activity', 'getActorProfile', { actorId }, async (span) => {
-    // For the refusal warning: which fetch was redirected, and where to.
-    let requestedUrl = actorId
-    let refusedRedirectHost: string | undefined
-    const refuseRedirect = (url: URL) => {
-      // Capped: a `Location` host can run to the header size limit.
-      refusedRedirectHost = url.host.slice(0, 512)
-      return false
-    }
-    try {
-      const fetched = await fetchActorDocument({
-        url: actorId,
-        withNetworkRetry,
-        signingActor,
-        allowCrossHostRedirects: async (url) =>
-          (await isFederatedRedirect(url)) || refuseRedirect(url)
-      })
-      if (!fetched) return null
-      if (isSameActivityPubOrigin(fetched.person.id, fetched.servedFrom)) {
-        return fetched.person
+  withSpan(
+    'activity',
+    'getActorProfile',
+    { actorId: toLoggableUrl(actorId) ?? '' },
+    async (span) => {
+      // For the refusal warning: which fetch was redirected, and where to.
+      let requestedUrl = actorId
+      let refusedRedirectHost: string | undefined
+      const refuseRedirect = (url: URL) => {
+        // Capped: a `Location` host can run to the header size limit.
+        refusedRedirectHost = url.host.slice(0, 512)
+        return false
       }
+      try {
+        const fetched = await fetchActorDocument({
+          url: actorId,
+          withNetworkRetry,
+          signingActor,
+          allowCrossHostRedirects: async (url) =>
+            (await isFederatedRedirect(url)) || refuseRedirect(url)
+        })
+        if (!fetched) return null
+        if (isSameActivityPubOrigin(fetched.person.id, fetched.servedFrom)) {
+          return fetched.person
+        }
 
-      const claimedId = fetched.person.id
-      // Parsed once and used for both the policy check and the fetch, so both
-      // read the same host however the id is spelled.
-      const claimedUrl = new URL(claimedId).href
-      const database = getDatabase()
-      if (!database || !(await canFederateWithDomain(database, claimedUrl))) {
+        const claimedId = fetched.person.id
+        // Parsed once and used for both the policy check and the fetch, so both
+        // read the same host however the id is spelled.
+        const claimedUrl = new URL(claimedId).href
+        const database = getDatabase()
+        if (!database || !(await canFederateWithDomain(database, claimedUrl))) {
+          logger.warn({
+            message:
+              'Skipped re-fetching an actor id claimed on a non-federated domain',
+            requestedActorId: toLoggableUrl(actorId),
+            claimedActorId: toLoggableUrl(claimedId)
+          })
+          return null
+        }
+        requestedUrl = claimedUrl
+        const canonical = await fetchActorDocument({
+          url: claimedUrl,
+          withNetworkRetry,
+          signingActor,
+          // Only the claimed origin can confirm the id, so a hop to another
+          // host could never be accepted; refuse it before that host is sent
+          // the request.
+          allowCrossHostRedirects: refuseRedirect
+        })
+        if (
+          canonical &&
+          isSameActivityPubOrigin(canonical.person.id, canonical.servedFrom) &&
+          normalizeActorId(canonical.person.id) === normalizeActorId(claimedId)
+        ) {
+          return canonical.person
+        }
+
         logger.warn({
           message:
-            'Skipped re-fetching an actor id claimed on a non-federated domain',
-          requestedActorId: actorId,
-          // The remote chooses this string; a prefix is enough to diagnose.
-          claimedActorId: claimedId.slice(0, 512)
+            'Rejected actor document whose id is not served by its own origin',
+          requestedActorId: toLoggableUrl(actorId),
+          servedFrom: toLoggableUrl(fetched.servedFrom),
+          claimedActorId: toLoggableUrl(claimedId)
         })
         return null
-      }
-      requestedUrl = claimedUrl
-      const canonical = await fetchActorDocument({
-        url: claimedUrl,
-        withNetworkRetry,
-        signingActor,
-        // Only the claimed origin can confirm the id, so a hop to another
-        // host could never be accepted; refuse it before that host is sent
-        // the request.
-        allowCrossHostRedirects: refuseRedirect
-      })
-      if (
-        canonical &&
-        isSameActivityPubOrigin(canonical.person.id, canonical.servedFrom) &&
-        normalizeActorId(canonical.person.id) === normalizeActorId(claimedId)
-      ) {
-        return canonical.person
-      }
-
-      logger.warn({
-        message:
-          'Rejected actor document whose id is not served by its own origin',
-        requestedActorId: actorId,
-        servedFrom: fetched.servedFrom,
-        claimedActorId: claimedId.slice(0, 512)
-      })
-      return null
-    } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException
-      if (nodeError.code === 'ERR_CROSS_HOST_REDIRECT') {
-        span.setAttribute('crossHostRedirect', true)
-        logger.warn({
-          message: 'Refused an actor fetch that redirects to another host',
-          // Hosts only: the requested URL may carry a token in its query.
-          requestedHost: new URL(requestedUrl).host.slice(0, 512),
-          refusedRedirectHost
-        })
+      } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException
+        if (nodeError.code === 'ERR_CROSS_HOST_REDIRECT') {
+          span.setAttribute('crossHostRedirect', true)
+          logger.warn({
+            message: 'Refused an actor fetch that redirects to another host',
+            // Hosts only: the requested URL may carry a token in its query.
+            requestedHost: new URL(requestedUrl).host.slice(0, 512),
+            refusedRedirectHost
+          })
+          return null
+        }
+        span.recordException(nodeError)
+        logger.error(`[getActorProfile] ${nodeError.message}`)
         return null
       }
-      span.recordException(nodeError)
-      logger.error(`[getActorProfile] ${nodeError.message}`)
-      return null
     }
-  })
+  )
