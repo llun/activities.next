@@ -107,8 +107,7 @@ export const getActorPerson: GetActorPersonFunction = ({
     let requestedUrl = actorId
     let refusedRedirectHost: string | undefined
     const refuseRedirect = (url: URL) => {
-      // Capped like every remote string logged here: a `Location` host can run
-      // to the header size limit.
+      // Capped: a `Location` host can run to the header size limit.
       refusedRedirectHost = url.host.slice(0, 512)
       return false
     }

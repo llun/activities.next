@@ -194,10 +194,12 @@ describe('getActorPerson', () => {
       })
     })
 
-    it('caps a refused redirect host in the warning', async () => {
+    it('caps the hosts it logs for a refused redirect', async () => {
+      const requestedHost = `${'r'.repeat(1000)}.evil.test`
+      const requestedUrl = `https://${requestedHost}/users/alice`
       const longHost = `${'a'.repeat(1000)}.blocked.test`
       serve({
-        [attackerUrl]: {
+        [requestedUrl]: {
           status: 302,
           headers: { location: `https://${longHost}/users/alice` }
         }
@@ -206,12 +208,34 @@ describe('getActorPerson', () => {
 
       const warn = vi.spyOn(logger, 'warn')
 
-      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(await getActorPerson({ actorId: requestedUrl })).toBeNull()
       expect(warn).toHaveBeenCalledWith({
         message: 'Refused an actor fetch that redirects to another host',
-        requestedHost: 'evil.test',
+        requestedHost: requestedHost.slice(0, 512),
         refusedRedirectHost: longHost.slice(0, 512)
       })
+    })
+
+    it('caps the host it logs when the redirect policy cannot be read', async () => {
+      const longHost = `${'a'.repeat(1000)}.victim.test`
+      serve({
+        [attackerUrl]: {
+          status: 302,
+          headers: { location: `https://${longHost}/users/alice` }
+        }
+      })
+      vi.mocked(canFederateWithDomain).mockRejectedValue(new Error('db down'))
+
+      const warn = vi.spyOn(logger, 'warn')
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message:
+            'Refused a redirect whose federation policy could not be read',
+          redirectHost: longHost.slice(0, 512)
+        })
+      )
     })
 
     it('does not follow a cross-host redirect when no database can supply the policy', async () => {
