@@ -82,7 +82,9 @@ export const normalizeDomain = (value: string): string | null => {
 
   try {
     const url = new URL(withScheme)
-    const normalized = url.hostname.replace(/\.$/, '')
+    // A parsed hostname is ASCII (punycode, or percent-encoded for a
+    // non-special scheme's opaque host, which the parser leaves in its case).
+    const normalized = url.hostname.toLowerCase().replace(/\.$/, '')
     if (!normalized) return null
     const domain = hasWildcard ? `*.${normalized}` : normalized
     if (domain.length > 255) return null

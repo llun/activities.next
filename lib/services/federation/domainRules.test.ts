@@ -117,6 +117,7 @@ describe('domainRules', () => {
     )
     expect(normalizeDomain('*.Example.Social')).toBe('*.example.social')
     expect(normalizeDomain('example.social:8443')).toBe('example.social')
+    expect(normalizeDomain('gopher://EXAMPLE.Social/x')).toBe('example.social')
     expect(normalizeDomain('')).toBeNull()
     expect(
       normalizeDomain(Array.from({ length: 5 }, () => 'a'.repeat(63)).join('.'))
