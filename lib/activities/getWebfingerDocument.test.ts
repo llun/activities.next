@@ -99,7 +99,10 @@ describe('getWebfingerDocument', () => {
     const logged = JSON.stringify(
       warn.mock.calls.map(([entry]) => {
         const { err, ...rest } = entry as { err?: Error }
-        return { ...rest, message: err?.message, stack: err?.stack }
+        return {
+          ...rest,
+          err: { ...err, errMessage: err?.message, errStack: err?.stack }
+        }
       })
     )
     expect(logged).toContain('remote.test')
