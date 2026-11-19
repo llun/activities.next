@@ -306,7 +306,10 @@ describe('/api/v1/imports', () => {
             limit: 1
           })
           expect(stored.state).toBe('finished')
-          expect(stored.lastError).toBeTruthy()
+          // A generic message, never the job's own error text.
+          expect(stored.lastError).toBe(
+            'The import stopped because of an error'
+          )
           expect(stored.finishedAt).not.toBeNull()
         })
 
