@@ -1,0 +1,21 @@
+lib/services/quotes/fetchQuoteTargetForCreate.ts
+  s_449320edf6fe96::t_19d4503f727928 12,154-155
+lib/services/quotes/fetchQuoteTargetForCreate.test.ts
+  s_449320edf6fe96::t_64f53ce35b521e 3,364-383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d143bb75b6142b547a3b950ffa61eba3906a3947",
+  "prompts": {},
+  "sessions": {
+    "s_449320edf6fe96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01786880-c6f1-43f9-b3f4-e62348bf80e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
