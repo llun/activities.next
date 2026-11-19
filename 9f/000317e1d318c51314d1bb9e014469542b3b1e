@@ -1,0 +1,21 @@
+lib/services/statuses/getReadableStatusForAction.test.ts
+  s_f5e9eb82f5325f::t_2acc17caf3fa8d 468-482
+lib/services/statuses/getReadableStatusForAction.ts
+  s_f5e9eb82f5325f::t_01c6916d7d8d48 76-79,86-88,93-94,104-105,110,113-114,124-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f000317e1d318c51314d1bb9e014469542b3b1e",
+  "prompts": {},
+  "sessions": {
+    "s_f5e9eb82f5325f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e159a96f-0960-4002-ba26-3aaae213c07e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
