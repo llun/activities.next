@@ -4,12 +4,25 @@ import { getConfig } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createRelayAnnounceJob } from '@/lib/jobs/createRelayAnnounceJob'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
 enableFetchMocks()
+
+vi.mock('@/lib/services/federation/domainPolicy', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/federation/domainPolicy')
+    >()
+  return {
+    ...actual,
+    canFederateWithDomain: vi.fn(actual.canFederateWithDomain)
+  }
+})
 
 const ACTIVITY_STREAM_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
 const RELAY_ACTOR = 'https://relay.example/actor'
@@ -39,9 +52,18 @@ describe('createRelayAnnounceJob', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    // Restore the real policy for every test; the policy-unavailable test
+    // replaces it for its own run.
+    const actual = await vi.importActual<
+      typeof import('@/lib/services/federation/domainPolicy')
+    >('@/lib/services/federation/domainPolicy')
+    vi.mocked(canFederateWithDomain).mockReset()
+    vi.mocked(canFederateWithDomain).mockImplementation(
+      actual.canFederateWithDomain
+    )
   })
 
   it('fetches the wrapped note from origin, stores it, and federates it', async () => {
@@ -489,5 +511,61 @@ describe('createRelayAnnounceJob', () => {
       timeline: Timeline.FEDERATED_PUBLIC
     })
     expect(federated.map((status) => status.id)).toContain(canonicalNote)
+  })
+
+  it('does not fetch a relayed object on a blocked domain', async () => {
+    const objectId = 'https://blocked-relay-object.test/statuses/relayed'
+    await database.createDomainBlock({
+      domain: 'blocked-relay-object.test',
+      severity: 'suspend'
+    })
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-blocked-object',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(objectId, `${RELAY_ACTOR}/announce/blocked-object`)
+    })
+
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).not.toContain(
+      objectId
+    )
+    await expect(database.getStatus({ statusId: objectId })).resolves.toBeNull()
+  })
+
+  it('fetches a relayed object on an allowed cross-host domain', async () => {
+    const objectId = 'https://allowed-relay-object.test/statuses/relayed'
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-allowed-object',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(objectId, `${RELAY_ACTOR}/announce/allowed-object`)
+    })
+
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain(
+      objectId
+    )
+    await expect(
+      database.getStatus({ statusId: objectId })
+    ).resolves.toBeDefined()
+  })
+
+  it('propagates an unavailable federation policy from the relayed object check', async () => {
+    const objectId = 'https://policy-unavailable-relay.test/statuses/relayed'
+    vi.mocked(canFederateWithDomain).mockRejectedValue(
+      new FederationPolicyUnavailableError()
+    )
+
+    await expect(
+      createRelayAnnounceJob(database, {
+        id: 'job-policy-unavailable-object',
+        name: RELAY_ANNOUNCE_JOB_NAME,
+        data: announceOf(objectId, `${RELAY_ACTOR}/announce/policy-unavailable`)
+      })
+    ).rejects.toThrow(FederationPolicyUnavailableError)
+
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).not.toContain(
+      objectId
+    )
+    await expect(database.getStatus({ statusId: objectId })).resolves.toBeNull()
   })
 })

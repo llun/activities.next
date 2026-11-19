@@ -6,6 +6,51 @@ export const parseAccountHandle = (value: string) => {
 }
 
 /**
+ * Accepts a bare hostname only — no credentials, path, query or fragment — so
+ * the domain that ends up in a URL cannot smuggle anything else in. Returns
+ * the URL parser's normalized host (lowercased, punycoded, default port
+ * dropped), or null.
+ *
+ * `requireDot` (default true) also rejects a single-label host, which the
+ * remote-follow route applies because a bare `localhost` there is never a real
+ * server. Callers that only need the structural guarantee pass false.
+ */
+export const parseBareDomain = (
+  value: string,
+  { requireDot = true }: { requireDot?: boolean } = {}
+): string | null => {
+  // Judged on the raw text as well as the parsed URL: the parser resolves
+  // `host/path/..` to `/` and reads `https:8443` as host `https`, while the
+  // policy reads that as a web URL. One trailing slash is fine (a pasted
+  // `example.com/`).
+  const bare = value.endsWith('/') ? value.slice(0, -1) : value
+  if (/[\s/\\?#@%]/.test(bare) || /^https?:/i.test(bare)) return null
+  try {
+    const url = new URL(`https://${bare}`)
+    if (
+      // Again after IDNA mapping: a fullwidth or soft-hyphenated `https:`
+      // passes the raw test but maps to the scheme-like `https`.
+      /^https?:/i.test(url.host) ||
+      url.hostname.includes('..') ||
+      url.hostname.startsWith('.') ||
+      // The policy strips a leading `*.` that the fetch keeps.
+      url.hostname.includes('*') ||
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash ||
+      (requireDot && !url.hostname.includes('.'))
+    ) {
+      return null
+    }
+    return url.host
+  } catch {
+    return null
+  }
+}
+
+/**
  * Whether a handle IS the actor's current one, case-insensitively: the
  * username folds both sides, the domain folds both sides (a current handle
  * may have been stored before domains were normalized). A current handle and

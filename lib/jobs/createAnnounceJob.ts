@@ -6,6 +6,7 @@ import { getNote } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { dispatchCreateNoteOrPollJob } from '@/lib/jobs/dispatchCreateNoteOrPollJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
 import {
@@ -19,6 +20,7 @@ import {
   normalizeActivityPubAnnounce,
   toRecipientArray
 } from '@/lib/utils/activitypub'
+import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 
 export const createAnnounceJob: JobHandle = createJobHandle(
@@ -57,6 +59,19 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       withReplies: false
     })
     if (!targetStatus) {
+      // The announced object is named by the remote Announce, so it can point
+      // at another host. Check that host against federation policy before the
+      // signed fetch; a policy that cannot be read throws, so the queue
+      // retries rather than dropping the boost.
+      if (!(await canFederateWithDomain(database, object))) {
+        logger.warn({
+          message:
+            'Ignoring an announce whose boosted object is on a non-federated domain',
+          announceId: toLoggableUrl(status.id),
+          announcedObject: toLoggableUrl(object)
+        })
+        return
+      }
       const boostedStatus = await getNote({ statusId: object, signingActor })
       if (!boostedStatus) {
         return

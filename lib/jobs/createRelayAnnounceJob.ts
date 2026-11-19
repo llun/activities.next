@@ -5,6 +5,7 @@ import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { dispatchCreateNoteOrPollJob } from '@/lib/jobs/dispatchCreateNoteOrPollJob'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { getLocalDomainMatcher } from '@/lib/services/domains/localDomains'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
 import { Status } from '@/lib/types/domain/status'
@@ -89,6 +90,10 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
       // Without the instance signing actor we cannot make the signed origin
       // fetch most servers require, so skip rather than fetch unsigned.
       if (!signingActor) return
+      // The relay names the wrapped object, so it can point at another host.
+      // Check that host against federation policy before the signed fetch; a
+      // policy that cannot be read throws, so the queue retries.
+      if (!(await canFederateWithDomain(database, objectId))) return
       const note = await getNote({ statusId: objectId, signingActor })
       if (!note) return
       if (!isHttpUrl(note.id) || !isSameActivityPubOrigin(note.id, objectId)) {

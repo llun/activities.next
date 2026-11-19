@@ -1,7 +1,10 @@
 import { isActivityPubContentType } from '@/lib/activities/activityPubResponse'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
+import { parseBareDomain } from '@/lib/utils/accountHandle'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -29,27 +32,38 @@ export const getActivityPubSelfHrefs = (links: WebFinger['links']) => {
  * keeps only the `self` link. Retries are disabled by default: the remote-follow
  * caller is an unauthenticated interactive endpoint, so a slow or dead remote
  * must cost one bounded request rather than several.
+ *
+ * The account's domain must be a bare host, and the request is built from the
+ * validated host, so a value such as `evil.test://allowed.example` — which the
+ * federation policy reads as `allowed.example` — cannot send the request to
+ * `evil.test`. A cross-host redirect is followed only when federation policy
+ * allows the target host, unless the caller passes its own policy.
  */
 export const getWebfingerDocument = async ({
   account,
   withNetworkRetry = false,
   responseTimeout,
-  allowCrossHostRedirects
+  allowCrossHostRedirects = isFederatedRedirect
 }: {
   account: string
   withNetworkRetry?: boolean
   responseTimeout?: number
   /** See `SafeRemoteFetchOptions.allowCrossHostRedirects`. */
-  allowCrossHostRedirects?: boolean
+  allowCrossHostRedirects?: CrossHostRedirectPolicy
 }): Promise<WebFinger | null> =>
-  withSpan('activity', 'getWebfingerDocument', { account }, async (span) => {
+  withSpan('activity', 'getWebfingerDocument', {}, async (span) => {
     const [user, domain, ...rest] = account.split('@')
     if (!user || !domain || rest.length > 0) {
       return null
     }
 
+    const host = parseBareDomain(domain, { requireDot: false })
+    if (!host) return null
+    // Hosts only, as in getWebfingerSelf: never the handle.
+    span.setAttribute('webfinger.host', host)
+
     try {
-      const url = new URL(`https://${domain}/.well-known/webfinger`)
+      const url = new URL(`https://${host}/.well-known/webfinger`)
       url.searchParams.set('resource', `acct:${account}`)
 
       const { statusCode, body } = await request({
@@ -67,11 +81,18 @@ export const getWebfingerDocument = async ({
       const parsed = WebFinger.safeParse(JSON.parse(body))
       return parsed.success ? parsed.data : null
     } catch (error) {
-      span.recordException(error as Error)
+      // Name and code only, as in getWebfingerSelf: the thrown error can carry
+      // the request URL with its `acct:` resource (Got's `options`, a URL
+      // error's `input`) or remote body text (a JSON parse error's message).
+      const loggable = Object.assign(
+        new Error(`WebFinger lookup failed: ${toLoggableError(error).name}`),
+        { code: (error as NodeJS.ErrnoException).code }
+      )
+      span.recordException(loggable)
       logger.warn({
         message: 'Failed to fetch webfinger document',
-        account,
-        err: toLoggableError(error)
+        host: host.slice(0, 512),
+        err: loggable
       })
       return null
     }

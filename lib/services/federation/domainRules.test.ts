@@ -163,9 +163,40 @@ describe('domainRules', () => {
       description: 'returns null for an unparseable value',
       input: 'not a domain !!',
       expected: null
+    },
+    // A `://` test alone reads the host of each of these as `https`, while the
+    // URL parser (and a fetcher) reads h.example.
+    {
+      description: 'reads a single-slash scheme as the URL it parses to',
+      input: 'https:/h.example/x',
+      expected: 'h.example'
+    },
+    {
+      description: 'reads a backslash scheme as the URL it parses to',
+      input: 'https:\\\\h.example/x',
+      expected: 'h.example'
+    },
+    {
+      description: 'reads a tab inside the scheme as the URL it parses to',
+      input: 'ht\ttps://h.example/x',
+      expected: 'h.example'
+    },
+    {
+      description: 'keeps the port of a single-slash scheme URL',
+      input: 'https:/h.example:8443/x',
+      expected: 'h.example:8443'
     }
   ])('normalizeActorHost $description', ({ input, expected }) => {
     expect(normalizeActorHost(input)).toBe(expected)
+  })
+
+  // Lowercasing before parsing is not the same as the parser's IDNA mapping:
+  // JavaScript lowercases a capital sigma contextually (final sigma), which
+  // yields different punycode than the host a fetcher contacts.
+  it('normalizeActorHost keeps the punycode the URL parser derives', () => {
+    const actorId = 'https://example.ΑΣ/users/a'
+    expect(normalizeActorHost(actorId)).toBe(new URL(actorId).host)
+    expect(normalizeActorHost('example.ΑΣ')).toBe(new URL(actorId).host)
   })
 
   it('matches exact domains and wildcard subdomains', () => {

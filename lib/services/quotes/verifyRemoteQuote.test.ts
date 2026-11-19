@@ -13,6 +13,12 @@ vi.mock('@/lib/utils/request', () => ({ request: vi.fn() }))
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
   getFederationSigningActor: vi.fn().mockResolvedValue(undefined)
 }))
+const { mockCanFederateWithDomain } = vi.hoisted(() => ({
+  mockCanFederateWithDomain: vi.fn()
+}))
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
+  canFederateWithDomain: mockCanFederateWithDomain
+}))
 // Compaction is tested separately; keep it identity here so the stamp body we
 // return in tests is validated as-is.
 vi.mock('@/lib/activities/jsonld', () => ({
@@ -85,6 +91,7 @@ describe('verifyRemoteQuote', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(request).mockReset()
+    mockCanFederateWithDomain.mockResolvedValue(true)
   })
 
   it('accepts a self-quote (same author) without fetching a stamp', async () => {
@@ -259,6 +266,21 @@ describe('verifyRemoteQuote', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('does not dereference a stamp on a host federation policy refuses', async () => {
+    // The stamp uri is on the quoted author's own origin, so the same-origin
+    // check passes; the host is still refused, so it must not be contacted.
+    mockCanFederateWithDomain.mockResolvedValue(false)
+
+    const state = await verifyRemoteQuote({
+      database,
+      note: makeNote({ quoteAuthorization: STAMP_URI }),
+      actorId: QUOTING_ACTOR_ID,
+      quotedStatus: makeQuotedStatus()
+    })
+    expect(state).toBe('pending')
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('is pending when the stamp is served after a cross-host redirect', async () => {
     routeStampFetchThroughOpenRedirect()
 
@@ -316,6 +338,7 @@ describe('verifyQuoteAuthorizationStamp', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(request).mockReset()
+    mockCanFederateWithDomain.mockResolvedValue(true)
   })
 
   const check = async (
@@ -404,6 +427,16 @@ describe('verifyQuoteAuthorizationStamp', () => {
       expect(request).not.toHaveBeenCalled()
     }
   )
+
+  it('reports unavailable without fetching when federation policy refuses the stamp host', async () => {
+    mockCanFederateWithDomain.mockResolvedValue(false)
+    const request = await mockStamp({
+      statusCode: 200,
+      body: validStampBody()
+    })
+    await expect(check()).resolves.toBe('unavailable')
+    expect(request).not.toHaveBeenCalled()
+  })
 
   it('accepts a stamp uri matching quoted author with explicit port', async () => {
     const authorWithPort = 'https://llun.test:8080/users/target'

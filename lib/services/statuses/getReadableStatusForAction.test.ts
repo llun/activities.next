@@ -467,6 +467,21 @@ describe('getReadableStatusForAction', () => {
       expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
     })
 
+    it('returns fetchedNote null when the author-domain check throws a plain error', async () => {
+      // A non-policy throw must not hand out the unchecked note: search would
+      // render it under an author whose domain was never vetted.
+      mockGetNote.mockResolvedValue(mockNote)
+      mockCanFederateWithDomain
+        .mockResolvedValueOnce(true) // the requested id passes
+        .mockRejectedValueOnce(new Error('settings read failed'))
+
+      await expect(variant(mockStatus.id)).resolves.toEqual({
+        status: null,
+        fetchedNote: null
+      })
+      expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
+    })
+
     it('returns fetchedNote null when attributedTo is on another origin', async () => {
       const forgedAuthorNote = {
         ...mockNote,

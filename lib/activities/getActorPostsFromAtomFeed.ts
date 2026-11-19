@@ -1,6 +1,8 @@
 import { XMLParser } from 'fast-xml-parser'
 
 import { getNote } from '@/lib/activities'
+import { isFederatedUrlForActor } from '@/lib/activities/getActorCollections'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { Actor } from '@/lib/types/activitypub'
 import { Note } from '@/lib/types/activitypub/objects'
@@ -120,6 +122,7 @@ export const getActorPostsFromAtomFeed = async ({
         try {
           const { statusCode, body } = await request({
             url: atomUrl,
+            allowCrossHostRedirects: isFederatedRedirect,
             headers: {
               Accept:
                 'application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8',
@@ -163,6 +166,12 @@ export const getActorPostsFromAtomFeed = async ({
             ATOM_FEED_FETCH_CONCURRENCY,
             async (entryUrl) => {
               try {
+                // The entry URL is named by the feed body, so it can point at
+                // another host. Refuse it before the signed fetch when
+                // federation policy does not allow that host.
+                if (!(await isFederatedUrlForActor(entryUrl, person.id))) {
+                  return null
+                }
                 const note = await getNote({
                   statusId: entryUrl,
                   signingActor

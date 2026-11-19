@@ -2,6 +2,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getNote } from '@/lib/activities'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -20,6 +21,10 @@ vi.mock('@/lib/activities', () => ({
   getNote: vi.fn()
 }))
 
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn()
+}))
+
 describe('getActorPostsFromAtomFeed', () => {
   const getNoteMock = getNote as jest.Mock
 
@@ -29,6 +34,7 @@ describe('getActorPostsFromAtomFeed', () => {
     // reset its implementation. Reset it explicitly so no test inherits a
     // neighbour's implementation.
     vi.mocked(getNote).mockReset()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
   })
 
   it('returns empty array when actor URL is malformed', async () => {
@@ -328,5 +334,112 @@ describe('getActorPostsFromAtomFeed', () => {
     const statuses = await resultPromise
     expect(peak).toBeLessThanOrEqual(ATOM_FEED_FETCH_CONCURRENCY)
     expect(statuses).toHaveLength(total)
+  })
+
+  const mockAtomFeed = (actorId: string, entryUrls: string[]) => {
+    const entries = entryUrls
+      .map((url) => `<entry><id>${url}</id><title>Post</title></entry>`)
+      .join('')
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}.atom`) {
+        return {
+          status: 200,
+          headers: { 'Content-Type': 'application/atom+xml' },
+          body: `<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom"><id>${actorId}.atom</id>${entries}</feed>`
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+  }
+
+  it('does not fetch an entry on a domain federation policy refuses', async () => {
+    const actorId = 'https://pixelfed.example/users/testuser'
+    const person = MockActivityPubPerson({ id: actorId }) as Actor
+    const entryUrl = 'https://blocked-entry.example/p/testuser/4001'
+
+    vi.mocked(isFederatedRedirect).mockResolvedValue(false)
+    mockAtomFeed(actorId, [entryUrl])
+
+    const statuses = await getActorPostsFromAtomFeed({ person })
+
+    expect(statuses).toEqual([])
+    expect(getNote).not.toHaveBeenCalled()
+  })
+
+  it('fetches an entry on an allowed cross-host domain', async () => {
+    const actorId = 'https://pixelfed.example/users/testuser'
+    const person = MockActivityPubPerson({ id: actorId }) as Actor
+    const entryUrl = 'https://allowed-entry.example/p/testuser/4002'
+
+    vi.mocked(isFederatedRedirect).mockResolvedValue(true)
+    mockAtomFeed(actorId, [entryUrl])
+    getNoteMock.mockResolvedValue(
+      MockMastodonActivityPubNote({
+        id: entryUrl,
+        from: actorId,
+        content: 'Allowed cross-host entry',
+        withContext: true
+      }) as Note
+    )
+
+    const statuses = await getActorPostsFromAtomFeed({ person })
+
+    expect(statuses).toHaveLength(1)
+    expect(getNote).toHaveBeenCalledWith(
+      expect.objectContaining({ statusId: entryUrl })
+    )
+  })
+
+  it('does not consult federation policy for an entry on the actor origin', async () => {
+    const actorId = 'https://pixelfed.example/users/testuser'
+    const person = MockActivityPubPerson({ id: actorId }) as Actor
+    const entryUrl = 'https://pixelfed.example/p/testuser/4003'
+
+    // A refusal would drop the entry, so a kept entry proves the lookup was
+    // skipped rather than answered.
+    vi.mocked(isFederatedRedirect).mockResolvedValue(false)
+    mockAtomFeed(actorId, [entryUrl])
+    getNoteMock.mockResolvedValue(
+      MockMastodonActivityPubNote({
+        id: entryUrl,
+        from: actorId,
+        content: 'Same-origin entry',
+        withContext: true
+      }) as Note
+    )
+
+    const statuses = await getActorPostsFromAtomFeed({ person })
+
+    expect(statuses).toHaveLength(1)
+    expect(isFederatedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('does not follow the feed redirect onto a host federation policy refuses', async () => {
+    const actorId = 'https://pixelfed.example/users/testuser'
+    const person = MockActivityPubPerson({ id: actorId }) as Actor
+
+    vi.mocked(isFederatedRedirect).mockImplementation(
+      async (url) => url.host !== 'blocked-feed.example'
+    )
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}.atom`) {
+        return {
+          status: 302,
+          headers: { Location: 'https://blocked-feed.example/feed.atom' },
+          body: ''
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    expect(await getActorPostsFromAtomFeed({ person })).toEqual([])
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).startsWith('https://blocked-feed.example/')
+      )
+    ).toBe(false)
+    expect(isFederatedRedirect).toHaveBeenCalledWith(
+      new URL('https://blocked-feed.example/feed.atom')
+    )
   })
 })

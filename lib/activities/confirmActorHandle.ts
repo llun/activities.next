@@ -11,6 +11,7 @@ import { FederationPolicyUnavailableError } from '@/lib/services/federation/poli
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { normalizeActivityPubUri } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
+import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
 import {
   REMOTE_USERNAME_HARD_LIMIT,
   isValidRemoteUsername,
@@ -121,7 +122,8 @@ export const confirmActorHandle = async ({
   webfinger?: string
   withNetworkRetry?: boolean
   responseTimeout?: number
-  allowCrossHostRedirects?: boolean
+  /** See `SafeRemoteFetchOptions.allowCrossHostRedirects`. */
+  allowCrossHostRedirects?: CrossHostRedirectPolicy
 }): Promise<ConfirmedActorHandle | null> => {
   const host = URL.canParse(actorId) ? new URL(actorId).host : ''
   if (!host) return null

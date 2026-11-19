@@ -1,7 +1,9 @@
 import { getNote } from '@/lib/activities'
 import { BaseNote, getQuoteTargetId } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 
@@ -35,6 +37,11 @@ export const verifyQuoteInstrument = async ({
   quotedStatusId
 }: VerifyQuoteInstrumentParams): Promise<boolean> => {
   try {
+    // The instrument id is remote-supplied and this runs in a queued job before
+    // any row is written, so a host this server refuses must not be contacted.
+    // An undecidable policy propagates (the queue retries it) rather than
+    // reading as a refusal.
+    if (!(await canFederateWithDomain(database, instrumentId))) return false
     const signingActor = await getFederationSigningActor(database)
     const note = await getNote({ statusId: instrumentId, signingActor })
     if (!note) return false
@@ -53,6 +60,7 @@ export const verifyQuoteInstrument = async ({
 
     return true
   } catch (error) {
+    rethrowIfFederationPolicyUnavailable(error)
     logger.warn({
       message: 'Failed to verify quote instrument',
       instrumentId,

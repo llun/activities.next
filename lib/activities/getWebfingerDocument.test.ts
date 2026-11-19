@@ -3,6 +3,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { mockRequests } from '@/lib/stub/activities'
 import { MockWebfinger } from '@/lib/stub/webfinger'
+import { logger } from '@/lib/utils/logger'
 
 import {
   getWebfingerDocument,
@@ -73,6 +74,41 @@ describe('getWebfingerDocument', () => {
 
     expect(document).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'user@evil.test://allowed.example',
+    'user@https:/blocked.example',
+    'user@host/path'
+  ])('does not request the non-bare domain in %s', async (account) => {
+    expect(await getWebfingerDocument({ account })).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('logs the host, never the handle or the remote body, when the lookup fails', async () => {
+    fetchMock.resetMocks()
+    fetchMock.mockResponseOnce('not json secretbody')
+    const warn = vi.spyOn(logger, 'warn')
+
+    expect(
+      await getWebfingerDocument({ account: 'secretuser@remote.test' })
+    ).toBeNull()
+
+    // An Error's message and stack are not enumerable, so they are read
+    // explicitly: the logger emits the stack.
+    const logged = JSON.stringify(
+      warn.mock.calls.map(([entry]) => {
+        const { err, ...rest } = entry as { err?: Error }
+        return {
+          ...rest,
+          err: { ...err, errMessage: err?.message, errStack: err?.stack }
+        }
+      })
+    )
+    expect(logged).toContain('remote.test')
+    expect(logged).not.toContain('secretuser')
+    expect(logged).not.toContain('secretbody')
+    warn.mockRestore()
   })
 })
 

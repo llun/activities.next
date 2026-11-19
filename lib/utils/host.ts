@@ -1,5 +1,6 @@
 import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
+import { withWebScheme } from '@/lib/utils/webScheme'
 
 type NormalizeHostOptions = {
   allowWildcard?: boolean
@@ -395,9 +396,7 @@ export const getServedAuthority = (
   if (!trimmed) return null
 
   try {
-    const url = new URL(
-      /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-    )
+    const url = new URL(withWebScheme(trimmed))
     const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
     if (!hostname || hostname.includes('*')) return null
     const port = url.port === '443' || url.port === '80' ? '' : url.port

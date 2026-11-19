@@ -1,6 +1,7 @@
 /** @vitest-size medium */
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -11,9 +12,14 @@ import { getActorPerson } from './getActorPerson'
 
 enableFetchMocks()
 
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn()
+}))
+
 beforeEach(() => {
   fetchMock.resetMocks()
   mockRequests(fetchMock)
+  vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
 })
 
 describe('getActorCollectionCounts', () => {
@@ -201,4 +207,99 @@ describe('getActorCollectionCounts', () => {
       )
     }
   )
+
+  it('does not fetch a collection on a domain federation policy refuses', async () => {
+    const person = {
+      id: 'https://remote.test/users/alice',
+      followers: 'https://blocked-collection.test/users/alice/followers',
+      following: 'https://blocked-collection.test/users/alice/following',
+      outbox: 'https://remote.test/users/alice/outbox'
+    } as Actor
+
+    vi.mocked(isFederatedRedirect).mockResolvedValue(false)
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === person.outbox) {
+        return {
+          status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: person.outbox,
+            type: 'OrderedCollection',
+            totalItems: 42
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    await expect(getActorCollectionCounts({ person })).resolves.toEqual({
+      followersCount: null,
+      followingCount: null,
+      statusesCount: 42
+    })
+    const requested = fetchMock.mock.calls.map(([input]) => String(input))
+    expect(requested).not.toContain(person.followers)
+    expect(requested).not.toContain(person.following)
+  })
+
+  it('fetches a collection on an allowed cross-host domain', async () => {
+    const person = {
+      id: 'https://remote.test/users/alice',
+      followers: 'https://allowed-collection.test/users/alice/followers',
+      following: 'https://remote.test/users/alice/following',
+      outbox: 'https://remote.test/users/alice/outbox'
+    } as Actor
+
+    vi.mocked(isFederatedRedirect).mockResolvedValue(true)
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => ({
+      status: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: req.url,
+        type: 'OrderedCollection',
+        totalItems: req.url === person.followers ? 9 : 1
+      })
+    }))
+
+    await expect(getActorCollectionCounts({ person })).resolves.toEqual({
+      followersCount: 9,
+      followingCount: 1,
+      statusesCount: 1
+    })
+    expect(vi.mocked(isFederatedRedirect).mock.calls[0][0].href).toBe(
+      person.followers
+    )
+  })
+
+  it('does not consult federation policy for same-origin collections', async () => {
+    const person = {
+      id: 'https://remote.test/users/alice',
+      followers: 'https://remote.test/users/alice/followers',
+      following: 'https://remote.test/users/alice/following',
+      outbox: 'https://remote.test/users/alice/outbox'
+    } as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => ({
+      status: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: req.url,
+        type: 'OrderedCollection',
+        totalItems: 1
+      })
+    }))
+
+    await expect(getActorCollectionCounts({ person })).resolves.toEqual({
+      followersCount: 1,
+      followingCount: 1,
+      statusesCount: 1
+    })
+    expect(isFederatedRedirect).not.toHaveBeenCalled()
+  })
 })

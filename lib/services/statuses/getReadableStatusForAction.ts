@@ -73,25 +73,25 @@ export const getReadableStatusAndFetchedNoteForAction = async ({
     return { status: null, fetchedNote: null }
   }
 
-  // Declared outside the try so the catch can still see the note: once the
-  // same-origin, author-origin, author-domain-policy and public-addressing
-  // checks have passed, the note is handed out even when the store step or
-  // the re-read below fails.
+  // Assigned only after every check below has passed, so the catch cannot hand
+  // out a note that failed one of them (a throw from the author-domain policy
+  // lookup, say) — search would otherwise render it. Once assigned, the note is
+  // handed out even when the store step or the re-read below fails.
   let note: BaseNote | null = null
   try {
     const signingActor = await getFederationSigningActorSafe(
       database,
       'for remote status action'
     )
-    note = await getNote({ statusId, signingActor })
-    if (!note) return { status: null, fetchedNote: null }
-    if (!isSameActivityPubOrigin(note.id, statusId)) {
+    const fetchedNote = await getNote({ statusId, signingActor })
+    if (!fetchedNote) return { status: null, fetchedNote: null }
+    if (!isSameActivityPubOrigin(fetchedNote.id, statusId)) {
       return { status: null, fetchedNote: null }
     }
     // The note's author must share the note id's origin, or search would show
     // an ephemeral status under a forged author (same check as dispatch).
-    const authorId = extractActivityPubId(note.attributedTo)
-    if (!authorId || !isSameActivityPubOrigin(authorId, note.id)) {
+    const authorId = extractActivityPubId(fetchedNote.attributedTo)
+    if (!authorId || !isSameActivityPubOrigin(authorId, fetchedNote.id)) {
       return { status: null, fetchedNote: null }
     }
     // The author's server must also pass federation domain policy, like the
@@ -101,15 +101,17 @@ export const getReadableStatusAndFetchedNoteForAction = async ({
     }
     if (
       !isPubliclyAddressed({
-        to: toRecipientArray(note.to),
-        cc: toRecipientArray(note.cc)
+        to: toRecipientArray(fetchedNote.to),
+        cc: toRecipientArray(fetchedNote.cc)
       })
     ) {
       return { status: null, fetchedNote: null }
     }
-    if (requireType && note.type !== requireType) {
+    if (requireType && fetchedNote.type !== requireType) {
       return { status: null, fetchedNote: null }
     }
+    // Every check passed: from here the note may be handed out.
+    note = fetchedNote
     await dispatchCreateNoteOrPollJob(database, note)
   } catch (err) {
     // A 5xx to try again, not a 404 for a status that may well exist.
@@ -119,8 +121,8 @@ export const getReadableStatusAndFetchedNoteForAction = async ({
       statusId,
       err: toLoggableError(err)
     })
-    // A throw before the fetch (signer lookup) leaves note null; a throw from
-    // the store step leaves the checked note set for the ephemeral fallback.
+    // A throw before every check passed leaves note null; a throw from the
+    // store step leaves the checked note set for the ephemeral fallback.
     return { status: null, fetchedNote: note }
   }
 

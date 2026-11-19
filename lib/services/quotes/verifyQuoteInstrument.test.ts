@@ -1,10 +1,18 @@
 import type { Database } from '@/lib/database/types'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { verifyQuoteInstrument } from '@/lib/services/quotes/verifyQuoteInstrument'
 
-const { mockGetNote } = vi.hoisted(() => ({ mockGetNote: vi.fn() }))
+const { mockGetNote, mockCanFederateWithDomain } = vi.hoisted(() => ({
+  mockGetNote: vi.fn(),
+  mockCanFederateWithDomain: vi.fn()
+}))
 
 vi.mock('@/lib/activities', () => ({
   getNote: mockGetNote
+}))
+
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
+  canFederateWithDomain: mockCanFederateWithDomain
 }))
 
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
@@ -27,7 +35,30 @@ const params = (overrides: Record<string, string> = {}) => ({
 })
 
 describe('verifyQuoteInstrument', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCanFederateWithDomain.mockResolvedValue(true)
+  })
+
+  it('returns false without fetching when federation policy refuses the instrument host', async () => {
+    mockCanFederateWithDomain.mockResolvedValue(false)
+
+    await expect(verifyQuoteInstrument(params())).resolves.toBe(false)
+    expect(mockGetNote).not.toHaveBeenCalled()
+  })
+
+  it('propagates an unavailable federation policy instead of refusing', async () => {
+    // The queued job retries an undecidable policy; reading it as a refusal
+    // would drop a legitimate quote request for good.
+    mockCanFederateWithDomain.mockRejectedValue(
+      new FederationPolicyUnavailableError()
+    )
+
+    await expect(verifyQuoteInstrument(params())).rejects.toThrow(
+      FederationPolicyUnavailableError
+    )
+    expect(mockGetNote).not.toHaveBeenCalled()
+  })
 
   it('returns true when the fetched note is authored by the requester and quotes the target', async () => {
     mockGetNote.mockResolvedValue({

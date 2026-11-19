@@ -3,6 +3,7 @@ import {
   parseAccountHandle,
   parseAccountUrlHandle,
   parseActorUrlAccountHandle,
+  parseBareDomain,
   parseBlueskyBridgeQuery,
   parseProfileUrlAccountHandle,
   stripAcctPrefix
@@ -44,6 +45,58 @@ describe('parseAccountHandle', () => {
     { description: 'rejects an empty value', input: '', expected: null }
   ])('$description', ({ input, expected }) => {
     expect(parseAccountHandle(input)).toEqual(expected)
+  })
+})
+
+describe('parseBareDomain', () => {
+  it.each([
+    ['a bare host', 'example.com', 'example.com'],
+    ['a host with a non-default port', 'example.com:8443', 'example.com:8443'],
+    ['a punycoded host', 'bücher.test', 'xn--bcher-kva.test'],
+    ['a trailing dot', 'example.com.', 'example.com.'],
+    ['one trailing slash', 'example.com/', 'example.com']
+  ])('accepts %s', (_description, input, expected) => {
+    expect(parseBareDomain(input)).toBe(expected)
+  })
+
+  it.each([
+    ['a scheme', 'evil.test://allowed.example'],
+    ['a path', 'host/path'],
+    ['credentials', 'user:pass@example.com'],
+    ['a query', 'example.com?token=secret'],
+    ['a fragment', 'example.com#fragment'],
+    ['a single-label host', 'localhost'],
+    ['a dot segment the parser would resolve away', 'example.com/path/..'],
+    ['a backslash path', 'example.com\\path\\..'],
+    ['a percent-encoded character', 'example%2ecom'],
+    ['a web scheme the policy reads as a URL', 'https:8443'],
+    ['an http scheme with a port', 'http:80'],
+    ['whitespace', 'exa mple.com'],
+    ['an empty label', 'example..com'],
+    ['a leading empty label', '.example.com'],
+    ['a wildcard label', '*.example.com']
+  ])('rejects %s', (_description, input) => {
+    expect(parseBareDomain(input)).toBeNull()
+  })
+
+  it.each([
+    ['a web scheme with a port', 'https:8443'],
+    [
+      'a fullwidth https: the parser maps to the scheme',
+      '\uff48\uff54\uff54\uff50\uff53:8443'
+    ],
+    ['a soft-hyphenated https:', 'ht\u00adtps:8443'],
+    ['a zero-width-spaced https:', 'https\u200b:8443'],
+    ['a wildcard label before a web scheme', '*.https:8443']
+  ])('rejects %s even when a dot is not required', (_description, input) => {
+    expect(parseBareDomain(input, { requireDot: false })).toBeNull()
+  })
+
+  it('accepts a single-label host when a dot is not required', () => {
+    expect(parseBareDomain('localhost', { requireDot: false })).toBe(
+      'localhost'
+    )
+    expect(parseBareDomain('host:443', { requireDot: false })).toBe('host')
   })
 })
 

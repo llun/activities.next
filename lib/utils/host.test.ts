@@ -605,11 +605,24 @@ describe('getServedAuthority', () => {
     { value: 'http://example.com:80/x', expected: 'example.com' },
     { value: 'example.com:8443', expected: 'example.com:8443' },
     { value: 'bücher.example', expected: 'xn--bcher-kva.example' },
+    // A `://` test alone reads the host of each of these as `https`, while the
+    // URL parser (and a fetcher) reads h.example.
+    { value: 'https:/h.example/x', expected: 'h.example' },
+    { value: 'https:\\\\h.example/x', expected: 'h.example' },
+    { value: 'ht\ttps://h.example/x', expected: 'h.example' },
+    { value: 'https:/h.example:8443/x', expected: 'h.example:8443' },
+    { value: 'https:/h.example:443/x', expected: 'h.example' },
     { value: '*.example.com', expected: null },
     { value: 'not a host', expected: null },
     { value: '', expected: null }
   ])('normalises $value to $expected', ({ value, expected }) => {
     expect(getServedAuthority(value)).toBe(expected)
+  })
+
+  it('keeps the punycode the URL parser derives for a capital sigma', () => {
+    const actorId = 'https://example.ΑΣ/users/a'
+    expect(getServedAuthority(actorId)).toBe(new URL(actorId).hostname)
+    expect(getServedAuthority('example.ΑΣ')).toBe(new URL(actorId).hostname)
   })
 })
 

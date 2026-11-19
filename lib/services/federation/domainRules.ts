@@ -7,6 +7,7 @@ import {
   DomainFederationRuleType
 } from '@/lib/types/database/operations'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { withWebScheme } from '@/lib/utils/webScheme'
 
 export const FEDERATION_MODE_VALUES = ['open', 'allowlist'] as const
 export type FederationMode = (typeof FEDERATION_MODE_VALUES)[number]
@@ -52,15 +53,6 @@ export const isDomainBlockStricter = (
   )
 }
 
-const isWebUrl = (value: string) => {
-  try {
-    const { protocol } = new URL(value)
-    return protocol === 'https:' || protocol === 'http:'
-  } catch {
-    return false
-  }
-}
-
 export const normalizeDomain = (value: string): string | null => {
   // Not lowercased before parsing: the URL parser lowercases and IDNA-maps the
   // hostname itself, and JavaScript's contextual lowercasing of a capital
@@ -71,17 +63,9 @@ export const normalizeDomain = (value: string): string | null => {
 
   const hasWildcard = trimmed.startsWith('*.')
   const domainToParse = hasWildcard ? trimmed.slice(2) : trimmed
-  // A value the URL parser already reads as a web URL is judged as that URL,
-  // because a fetcher given it does the same: `https:/blocked.example/x`,
-  // `https:\\blocked.example/x` or a tab inside the scheme all fetch from
-  // blocked.example, while a `://` test alone would read the host as `https`.
-  const withScheme =
-    isWebUrl(domainToParse) || /^[a-z][a-z0-9+.-]*:\/\//i.test(domainToParse)
-      ? domainToParse
-      : `https://${domainToParse}`
 
   try {
-    const url = new URL(withScheme)
+    const url = new URL(withWebScheme(domainToParse))
     // A parsed hostname is ASCII (punycode, or percent-encoded for a
     // non-special scheme's opaque host, which the parser leaves in its case).
     const normalized = url.hostname.toLowerCase().replace(/\.$/, '')
@@ -107,16 +91,15 @@ export const normalizeDomain = (value: string): string | null => {
 // `.host` renders them. User blocks never carry wildcards (the route rejects
 // them), so no wildcard handling is needed here.
 export const normalizeActorHost = (value: string): string | null => {
-  const trimmed = value.trim().toLowerCase()
+  // Not lowercased before parsing: the URL parser lowercases and IDNA-maps the
+  // hostname itself, and JavaScript's contextual lowercasing of a capital
+  // sigma can yield different punycode than the host a fetcher contacts.
+  const trimmed = value.trim()
   if (!trimmed) return null
 
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`
-
   try {
-    const url = new URL(withScheme)
-    const hostname = url.hostname.replace(/\.$/, '')
+    const url = new URL(withWebScheme(trimmed))
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
     if (!hostname) return null
     const host = url.port ? `${hostname}:${url.port}` : hostname
     if (host.length > 255) return null
