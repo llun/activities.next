@@ -4,11 +4,15 @@ import { getNote } from '@/lib/activities'
 import { isFederatedUrlForActor } from '@/lib/activities/getActorCollections'
 import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/activitypub'
 import { Note } from '@/lib/types/activitypub/objects'
 import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Status, fromNote } from '@/lib/types/domain/status'
-import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import {
+  isSameActivityPubOrigin,
+  normalizeActivityPubContent
+} from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { mapWithConcurrency } from '@/lib/utils/mapWithConcurrency'
 import { request } from '@/lib/utils/request'
@@ -185,6 +189,17 @@ export const getActorPostsFromAtomFeed = async ({
 
                 const status = await getStatusFromNote(noteResult.data)
                 if (!status) return null
+
+                // Rendered under this actor, as an outbox Create is: a public
+                // note by this actor's origin, its id on the URL's origin.
+                if (
+                  (status.actorId !== person.id &&
+                    !isSameActivityPubOrigin(person.id, status.actorId)) ||
+                  !isSameActivityPubOrigin(entryUrl, status.id) ||
+                  !isPublicOrUnlisted(status)
+                ) {
+                  return null
+                }
 
                 if (actor) status.actor = actor
                 return status

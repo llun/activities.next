@@ -69,6 +69,47 @@ describe('getActorPostsFromAtomFeed', () => {
     expect(result).toEqual([])
   })
 
+  it.each([
+    ['an author on another origin', { from: 'https://victim.example/users/v' }],
+    ['an id off the entry URL origin', { id: 'https://victim.example/p/v/1' }],
+    [
+      'followers-only addressing',
+      { to: ['https://pixelfed.example/users/testuser/followers'] }
+    ]
+  ])('drops an entry whose note has %s', async (_label, override) => {
+    const actorId = 'https://pixelfed.example/users/testuser'
+    const person = MockActivityPubPerson({ id: actorId }) as Actor
+    const keptUrl = 'https://pixelfed.example/p/testuser/2001'
+    const droppedUrl = 'https://pixelfed.example/p/testuser/2002'
+    fetchMock.mockResponse(async (req) =>
+      req.url === `${actorId}.atom`
+        ? {
+            status: 200,
+            headers: { 'Content-Type': 'application/atom+xml' },
+            body: `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry><id>${droppedUrl}</id></entry>
+      <entry><id>${keptUrl}</id></entry>
+    </feed>`
+          }
+        : { status: 404, body: 'Not Found' }
+    )
+    getNoteMock.mockImplementation(
+      async ({ statusId }: { statusId: string }) =>
+        MockMastodonActivityPubNote({
+          id: statusId,
+          from: actorId,
+          content: 'Entry content',
+          withContext: true,
+          ...(statusId === droppedUrl ? override : {})
+        }) as Note
+    )
+
+    const result = await getActorPostsFromAtomFeed({ person })
+
+    expect(result.map((status) => status.id)).toEqual([keptUrl])
+  })
+
   it('fetches posts from Atom feed with multiple entries', async () => {
     const actorId = 'https://pixelfed.example/users/testuser'
     const person = MockActivityPubPerson({ id: actorId }) as Actor
