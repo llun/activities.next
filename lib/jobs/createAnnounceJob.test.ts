@@ -5,6 +5,7 @@ import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockAnnounceStatus } from '@/lib/stub/announce'
@@ -31,6 +32,17 @@ vi.mock('@/lib/actions/utils', async (importOriginal) => {
   }
 })
 
+vi.mock('@/lib/services/federation/domainPolicy', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/federation/domainPolicy')
+    >()
+  return {
+    ...actual,
+    canFederateWithDomain: vi.fn(actual.canFederateWithDomain)
+  }
+})
+
 describe('Announce action', () => {
   const { database, prepare } = createTestDatabase()
   let actor1: Actor | null = null
@@ -44,9 +56,18 @@ describe('Announce action', () => {
     if (!database) return
     await database.destroy()
   })
-  beforeEach(() => {
+  beforeEach(async () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    // Restore the real policy for every test; the policy-unavailable test
+    // replaces it for its own run.
+    const actual = await vi.importActual<
+      typeof import('@/lib/services/federation/domainPolicy')
+    >('@/lib/services/federation/domainPolicy')
+    vi.mocked(canFederateWithDomain).mockReset()
+    vi.mocked(canFederateWithDomain).mockImplementation(
+      actual.canFederateWithDomain
+    )
   })
 
   it('loads announce status and save it locally', async () => {
@@ -868,5 +889,82 @@ describe('Announce action', () => {
     } finally {
       createAnnounceSpy.mockRestore()
     }
+  })
+
+  it('does not fetch an announced object on a blocked domain', async () => {
+    const objectId = 'https://blocked-object.test/statuses/boost-1'
+    const statusId = 'https://somewhere.test/statuses/announce-blocked-object'
+    await database.createDomainBlock({
+      domain: 'blocked-object.test',
+      severity: 'suspend'
+    })
+
+    await createAnnounceJob(database, {
+      id: 'id-announce-blocked-object',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: MockAnnounceStatus({
+        actorId: 'https://somewhere.test/actors/friend',
+        statusId,
+        announceStatusId: objectId
+      })
+    })
+
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).not.toContain(
+      objectId
+    )
+    await expect(
+      database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.toBeNull()
+  })
+
+  it('fetches an announced object on an allowed cross-host domain', async () => {
+    const objectId = 'https://allowed-object.test/statuses/boost-2'
+    const statusId = 'https://somewhere.test/statuses/announce-allowed-object'
+
+    await createAnnounceJob(database, {
+      id: 'id-announce-allowed-object',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: MockAnnounceStatus({
+        actorId: 'https://somewhere.test/actors/friend',
+        statusId,
+        announceStatusId: objectId
+      })
+    })
+
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain(
+      objectId
+    )
+    await expect(
+      database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.not.toBeNull()
+  })
+
+  it('propagates an unavailable federation policy from the announced object check', async () => {
+    const objectId = 'https://policy-unavailable-object.test/statuses/boost-3'
+    const statusId =
+      'https://somewhere.test/statuses/announce-policy-unavailable-object'
+    vi.mocked(canFederateWithDomain).mockImplementation(async (_db, value) => {
+      if (value === objectId) throw new FederationPolicyUnavailableError()
+      return true
+    })
+
+    await expect(
+      createAnnounceJob(database, {
+        id: 'id-announce-object-policy-unavailable',
+        name: CREATE_ANNOUNCE_JOB_NAME,
+        data: MockAnnounceStatus({
+          actorId: 'https://somewhere.test/actors/friend',
+          statusId,
+          announceStatusId: objectId
+        })
+      })
+    ).rejects.toThrow(FederationPolicyUnavailableError)
+
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).not.toContain(
+      objectId
+    )
+    await expect(
+      database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.toBeNull()
   })
 })

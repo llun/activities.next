@@ -1,6 +1,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { clearServerSoftwareCache } from '@/lib/services/federation/serverSoftware'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -14,6 +15,10 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getActorPosts } from './getActorPosts'
 
 enableFetchMocks()
+
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn()
+}))
 
 describe('getActorPosts', () => {
   const { database, prepare } = createTestDatabase()
@@ -33,6 +38,7 @@ describe('getActorPosts', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     clearServerSoftwareCache()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
   })
 
   it('keeps the boost actor on Announce and does not assign it to the original status', async () => {
@@ -594,5 +600,155 @@ describe('getActorPosts', () => {
       domain: 'bsky.brid.gy',
       name: 'patak'
     })
+  })
+
+  const mockOutboxWithAnnounce = ({
+    actorId,
+    announceStatusId,
+    objectId,
+    objectActorId,
+    published
+  }: {
+    actorId: string
+    announceStatusId: string
+    objectId: string
+    objectActorId: string
+    published: number
+  }) => {
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
+          body: JSON.stringify({
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            first: `${actorId}/outbox?page=true`
+          })
+        }
+      }
+
+      if (req.url === `${actorId}/outbox?page=true`) {
+        return {
+          status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
+          body: JSON.stringify({
+            id: `${actorId}/outbox?page=true`,
+            type: 'OrderedCollectionPage',
+            partOf: `${actorId}/outbox`,
+            orderedItems: [
+              {
+                id: announceStatusId,
+                type: AnnounceAction,
+                actor: actorId,
+                published: new Date(published).toISOString(),
+                to: [ACTIVITY_STREAM_PUBLIC],
+                cc: [`${actorId}/followers`],
+                object: objectId
+              }
+            ]
+          })
+        }
+      }
+
+      if (req.url === objectId) {
+        return {
+          status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
+          body: JSON.stringify(
+            MockMastodonActivityPubNote({
+              id: objectId,
+              from: objectActorId,
+              content: 'Original status text',
+              withContext: true
+            })
+          )
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+  }
+
+  it('does not fetch an announced object on a domain federation policy refuses', async () => {
+    const boosterActorId = 'https://boost-blocked.example/users/booster'
+    const originalActorId = 'https://blocked-origin.example/users/original'
+    const originalStatusId = `${originalActorId}/statuses/blocked`
+    const announceStatusId = `${boosterActorId}/statuses/announce-blocked/activity`
+    const person = MockActivityPubPerson({
+      id: boosterActorId,
+      withContext: true
+    }) as Actor
+
+    vi.mocked(isFederatedRedirect).mockResolvedValue(false)
+    mockOutboxWithAnnounce({
+      actorId: boosterActorId,
+      announceStatusId,
+      objectId: originalStatusId,
+      objectActorId: originalActorId,
+      published: Date.now()
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statuses).toEqual([])
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).not.toContain(
+      originalStatusId
+    )
+  })
+
+  it('fetches an announced object on an allowed cross-host domain', async () => {
+    const boosterActorId = 'https://boost-allowed.example/users/booster'
+    const originalActorId = 'https://allowed-origin.example/users/original'
+    const originalStatusId = `${originalActorId}/statuses/allowed`
+    const announceStatusId = `${boosterActorId}/statuses/announce-allowed/activity`
+    const person = MockActivityPubPerson({
+      id: boosterActorId,
+      withContext: true
+    }) as Actor
+
+    vi.mocked(isFederatedRedirect).mockResolvedValue(true)
+    mockOutboxWithAnnounce({
+      actorId: boosterActorId,
+      announceStatusId,
+      objectId: originalStatusId,
+      objectActorId: originalActorId,
+      published: Date.now()
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statuses).toHaveLength(1)
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain(
+      originalStatusId
+    )
+  })
+
+  it('does not consult federation policy for an announced object on the actor origin', async () => {
+    const boosterActorId = 'https://boost-same-origin.example/users/booster'
+    const originalStatusId = `${boosterActorId}/statuses/same-origin`
+    const announceStatusId = `${boosterActorId}/statuses/announce-same-origin/activity`
+    const person = MockActivityPubPerson({
+      id: boosterActorId,
+      withContext: true
+    }) as Actor
+
+    // A refusal would drop the item, so a kept item proves the lookup was
+    // skipped rather than answered.
+    vi.mocked(isFederatedRedirect).mockResolvedValue(false)
+    mockOutboxWithAnnounce({
+      actorId: boosterActorId,
+      announceStatusId,
+      objectId: originalStatusId,
+      objectActorId: boosterActorId,
+      published: Date.now()
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statuses).toHaveLength(1)
+    expect(isFederatedRedirect).not.toHaveBeenCalled()
   })
 })

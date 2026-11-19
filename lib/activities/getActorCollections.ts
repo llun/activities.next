@@ -6,8 +6,10 @@ import {
   toCollectionItems
 } from '@/lib/activities/orderedCollection'
 import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { withSpan } from '@/lib/utils/trace'
 import { isRecord } from '@/lib/utils/typeGuards'
@@ -39,18 +41,38 @@ export const isCollectionPageUrl = (pageUrl: string, collectionUrl: string) => {
   }
 }
 
+// A URL an actor's documents name (a collection, an outbox item) can be on
+// another host. The caller vetted only the actor's own origin, so a URL
+// elsewhere is fetched only when federation policy allows its host. An
+// unparseable URL is refused. `isFederatedRedirect` answers false when the
+// policy cannot be read, which is the right answer for these read-only paths.
+export const isFederatedUrlForActor = async (url: string, actorId: string) => {
+  if (isSameActivityPubOrigin(url, actorId)) return true
+  try {
+    return await isFederatedRedirect(new URL(url))
+  } catch {
+    return false
+  }
+}
+
 // Fetch an ActivityPub collection root document (no page follow). Shared by
 // the full collection fetch below and the counts-only helper
 // (getActorCollectionCounts) so the fetch semantics stay in one place. A
 // non-200 response, or a 200 not labelled ActivityPub, yields a null
-// collection; network errors propagate for the caller to handle.
+// collection; network errors propagate for the caller to handle. A URL on a
+// host federation policy refuses is a failed fetch with no request made.
 export const fetchCollectionRoot = async ({
   url,
+  actorId,
   signingActor
 }: {
   url: string
+  actorId: string
   signingActor?: DomainActor
 }): Promise<{ statusCode: number; collection: OrderedCollection | null }> => {
+  if (!(await isFederatedUrlForActor(url, actorId))) {
+    return { statusCode: 0, collection: null }
+  }
   const response = await signedActivityPubRequest({
     actor: signingActor,
     method: 'GET',
@@ -99,6 +121,7 @@ export const getActorCollections = async ({
 
       const fieldResponse = await fetchCollectionRoot({
         url: person[field],
+        actorId: person.id,
         signingActor
       })
       if (!fieldResponse.collection) {
@@ -145,6 +168,23 @@ export const getActorCollections = async ({
       // This is common for remote actors where Mastodon only provides totalItems
       // without exposing the actual list of followers/following
       if (!collectionPageUrl) {
+        return {
+          page: null,
+          totalItems: collectionTotalItems
+        }
+      }
+
+      // The page URL is named by the remote document, so it can point at
+      // another host. Refuse it before the signed request when federation
+      // policy does not allow that host.
+      if (!(await isFederatedUrlForActor(collectionPageUrl, person.id))) {
+        span.setAttributes({
+          url: collectionPageUrl,
+          status: 0
+        })
+        span.recordException(
+          new Error(`Person ${field} page is on a non-federated domain`)
+        )
         return {
           page: null,
           totalItems: collectionTotalItems

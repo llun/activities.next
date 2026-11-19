@@ -5,11 +5,15 @@ import {
   isCollectionPageUrl,
   parseTotalItems
 } from '@/lib/activities/getActorCollections'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { ACTIVITY_JSON_HEADERS } from '@/lib/stub/activities'
 import { Actor } from '@/lib/types/activitypub'
 import { request } from '@/lib/utils/request'
 
 vi.mock('@/lib/utils/request', () => ({ request: vi.fn() }))
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn()
+}))
 
 describe('parseTotalItems', () => {
   it('returns null for undefined, null, and non-number types', () => {
@@ -401,4 +405,141 @@ describe('getActorCollections content type gate', () => {
       expect(result).toEqual({ page: null, totalItems: 3 })
     }
   )
+})
+
+describe('getActorCollections federation policy', () => {
+  const mockRequest = vi.mocked(request)
+
+  beforeEach(() => {
+    mockRequest.mockReset()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
+  })
+
+  it('does not fetch a collection root on a domain federation policy refuses', async () => {
+    vi.mocked(isFederatedRedirect).mockResolvedValue(false)
+    const person = {
+      id: 'https://example.com/users/alice',
+      followers: 'https://blocked.example/users/alice/followers'
+    } as Actor
+
+    const result = await getActorCollections({ person, field: 'followers' })
+
+    expect(result).toBeNull()
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('fetches a collection root on an allowed cross-host domain', async () => {
+    const person = {
+      id: 'https://example.com/users/alice',
+      followers: 'https://allowed.example/users/alice/followers'
+    } as Actor
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: person.followers,
+        type: 'OrderedCollection',
+        totalItems: 5
+      })
+    })
+
+    const result = await getActorCollections({ person, field: 'followers' })
+
+    expect(result?.totalItems).toBe(5)
+    expect(vi.mocked(isFederatedRedirect).mock.calls[0][0].href).toBe(
+      person.followers
+    )
+  })
+
+  it('does not consult federation policy for a same-origin collection root', async () => {
+    const person = {
+      id: 'https://example.com/users/alice',
+      followers: 'https://example.com/users/alice/followers'
+    } as Actor
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: person.followers,
+        type: 'OrderedCollection',
+        totalItems: 3
+      })
+    })
+
+    const result = await getActorCollections({ person, field: 'followers' })
+
+    expect(result?.totalItems).toBe(3)
+    expect(isFederatedRedirect).not.toHaveBeenCalled()
+  })
+
+  it('does not fetch a collection page on a domain federation policy refuses', async () => {
+    const person = {
+      id: 'https://example.com/users/alice',
+      followers: 'https://example.com/users/alice/followers'
+    } as Actor
+    const blockedPage =
+      'https://blocked-page.example/users/alice/followers?page=1'
+    vi.mocked(isFederatedRedirect).mockImplementation(
+      async (url) => url.host !== 'blocked-page.example'
+    )
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: person.followers,
+        type: 'OrderedCollection',
+        totalItems: 7,
+        first: blockedPage
+      })
+    })
+
+    const result = await getActorCollections({ person, field: 'followers' })
+
+    expect(result).toEqual({ page: null, totalItems: 7 })
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+    expect(mockRequest).not.toHaveBeenCalledWith(
+      expect.objectContaining({ url: blockedPage })
+    )
+  })
+
+  it('fetches a collection page on an allowed cross-host domain', async () => {
+    const person = {
+      id: 'https://example.com/users/alice',
+      followers: 'https://example.com/users/alice/followers'
+    } as Actor
+    const allowedPage =
+      'https://allowed-page.example/users/alice/followers?page=1'
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: person.followers,
+        type: 'OrderedCollection',
+        totalItems: 7,
+        first: allowedPage
+      })
+    })
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        id: allowedPage,
+        type: 'OrderedCollectionPage',
+        orderedItems: ['https://allowed-page.example/users/follower']
+      })
+    })
+
+    const result = await getActorCollections({ person, field: 'followers' })
+
+    expect(result?.page?.orderedItems).toEqual([
+      'https://allowed-page.example/users/follower'
+    ])
+    expect(mockRequest).toHaveBeenLastCalledWith(
+      expect.objectContaining({ url: allowedPage })
+    )
+  })
 })

@@ -34,7 +34,11 @@ const getCollectionTotalItems = async (
   if (!url) return null
 
   try {
-    const { collection } = await fetchCollectionRoot({ url, signingActor })
+    const { collection } = await fetchCollectionRoot({
+      url,
+      actorId: person.id,
+      signingActor
+    })
     return parseTotalItems(collection?.totalItems)
   } catch (error) {
     logger.warn({

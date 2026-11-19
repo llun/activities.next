@@ -4,6 +4,7 @@ import { BaseNote, getQuoteTargetId } from '@/lib/activities/note'
 import { QuoteAuthorization } from '@/lib/activities/quoteRequest'
 import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { Database } from '@/lib/database/types'
+import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import {
   QuoteState,
@@ -79,6 +80,12 @@ const fetchQuoteAuthorization = async (
   stampUri: string
 ): Promise<QuoteAuthorization | null> => {
   try {
+    // The stamp uri is remote-supplied and the same-origin check only ties it
+    // to the quoted author, not to this server's federation policy: a host we
+    // refuse must not be contacted at all. An undecidable policy is a refusal
+    // here — the note row is already written (or this runs inline in an inbox),
+    // so a retry cannot redo it and the caller degrades to `pending`.
+    if (!(await canFederateWithDomain(database, stampUri))) return null
     const signingActor = await getFederationSigningActor(database)
     const response = await signedActivityPubRequest({
       actor: signingActor,

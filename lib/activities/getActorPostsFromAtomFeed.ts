@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser'
 
 import { getNote } from '@/lib/activities'
+import { isFederatedUrlForActor } from '@/lib/activities/getActorCollections'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { Actor } from '@/lib/types/activitypub'
 import { Note } from '@/lib/types/activitypub/objects'
@@ -163,6 +164,12 @@ export const getActorPostsFromAtomFeed = async ({
             ATOM_FEED_FETCH_CONCURRENCY,
             async (entryUrl) => {
               try {
+                // The entry URL is named by the feed body, so it can point at
+                // another host. Refuse it before the signed fetch when
+                // federation policy does not allow that host.
+                if (!(await isFederatedUrlForActor(entryUrl, person.id))) {
+                  return null
+                }
                 const note = await getNote({
                   statusId: entryUrl,
                   signingActor

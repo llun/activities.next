@@ -41,7 +41,10 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 import { isRecord } from '@/lib/utils/typeGuards'
 
-import { getActorCollections } from './getActorCollections'
+import {
+  getActorCollections,
+  isFederatedUrlForActor
+} from './getActorCollections'
 import { getActorPerson } from './getActorPerson'
 import { getActorPostsFromAtomFeed } from './getActorPostsFromAtomFeed'
 import { getPixelfedPosts } from './getPixelfedPosts'
@@ -207,6 +210,14 @@ export const getActorPosts: GetActorPostsFunction = async ({
               }
 
               if (!originalStatus) {
+                // The announced object is named by the remote outbox, so it can
+                // point at another host. Refuse it before the signed fetch when
+                // federation policy does not allow that host.
+                if (
+                  !(await isFederatedUrlForActor(announce.object, person.id))
+                ) {
+                  return null
+                }
                 const note = await getNote({
                   statusId: announce.object,
                   signingActor
