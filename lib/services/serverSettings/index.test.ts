@@ -300,7 +300,8 @@ describe('server settings resolver', () => {
     const database = await freshDatabase()
     const other = await freshDatabase()
     await database.setServerSettings([
-      { key: 'registrations.open', value: false }
+      { key: 'registrations.open', value: false },
+      { key: 'federation.allowActorDomains', value: ['only.example'] }
     ])
     invalidateServerSettingsCache(database)
     await getResolvedServerSettings(database)
@@ -310,12 +311,13 @@ describe('server settings resolver', () => {
       .spyOn(database, 'getAllServerSettings')
       .mockRejectedValue(new Error('database unavailable'))
 
-    // Degraded for federation policy, but registration stays closed: the
-    // defaults would open it.
+    // Degraded for federation policy, but the replaced values are kept: the
+    // defaults would open registration and admit every served domain for
+    // new actors.
     const view = await getServerSettingsView(database)
     expect(view.degraded).toBe(true)
     expect(view.settings.registrations.open).toBe(false)
-    expect(view.settings.federation).toEqual(DEFAULT_SERVER_SETTINGS.federation)
+    expect(view.settings.federation.allowActorDomains).toEqual(['only.example'])
 
     spy.mockRestore()
     await database.destroy()

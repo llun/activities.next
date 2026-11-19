@@ -187,22 +187,14 @@ export const getServerSettingsView = async (
     // failing database — and re-log — on every request; recovery stays bounded
     // to FAILURE_CACHE_TTL_MS.
     // Only a view of the current epoch is last-known-good. An older one is
-    // what an admin's save (in this or another module copy) replaced: its
-    // other settings are kept, since the defaults are the more permissive
-    // (open registration), but its federation policy is not trusted.
-    const fallback = buildView(new Map())
-    const view: ServerSettingsView = !entry
-      ? { ...fallback, degraded: true }
-      : entry.epoch === epoch
+    // what an admin's save (in this or another module copy) replaced: it is
+    // still served, since the defaults are looser (open registration, an
+    // empty actor-domain list that admits every served domain), but marked
+    // degraded so federation policy does not trust it.
+    const view: ServerSettingsView =
+      entry && entry.epoch === epoch
         ? entry.view
-        : {
-            ...entry.view,
-            settings: {
-              ...entry.view.settings,
-              federation: fallback.settings.federation
-            },
-            degraded: true
-          }
+        : { ...(entry?.view ?? buildView(new Map())), degraded: true }
     writeCache(database, view, now + FAILURE_CACHE_TTL_MS, epoch)
     return view
   }

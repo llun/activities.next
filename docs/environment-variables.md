@@ -23,9 +23,10 @@ when set, always wins regardless.
 
 When the `server_settings` table cannot be read, the last values read
 successfully in the current cache epoch keep being served. With none (a fresh
-process), the environment and the defaults are served for a couple of seconds;
-a view an admin's save has since replaced keeps its other values but not its
-federation policy. Either way the view is marked `degraded`.
+process), the environment and the defaults are served for a couple of seconds; a view
+an admin's save has since replaced keeps being served, since the defaults are
+looser. Either way the view is marked `degraded`, and federation policy does
+not trust its mode or its `federation.allowActorDomains` unless pinned.
 Federation policy then cannot trust the `open` default of an unpinned
 `federation.mode`, since a database-only allowlist may be in force: served
 domains, `ACTIVITIES_ALLOW_ACTOR_DOMAINS` entries and database domain allows

@@ -2,10 +2,12 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { likeRequest } from '@/lib/actions/like'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import { toActivityPubObject } from '@/lib/utils/toActivityPubObject'
 
@@ -167,6 +169,49 @@ describe('Like action', () => {
         database
       })
       recordActorSpy.mockRestore()
+    })
+
+    it('completes and creates the notification when recording the actor hits unavailable federation policy', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/like-policy-unavailable-${Date.now()}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        to: [],
+        cc: [],
+        text: 'Like should still notify when policy is unavailable'
+      })
+      const recordActorSpy = vi
+        .spyOn(await import('@/lib/actions/utils'), 'recordActorIfNeeded')
+        .mockRejectedValueOnce(new FederationPolicyUnavailableError())
+
+      try {
+        await expect(
+          likeRequest({
+            activity: {
+              actor: EXTERNAL_ACTOR1,
+              id: `${EXTERNAL_ACTOR1}/like-policy-unavailable`,
+              type: 'Like',
+              object: statusId
+            },
+            database
+          })
+        ).resolves.toBeUndefined()
+
+        const notifications = await database.getNotifications({
+          actorId: ACTOR1_ID,
+          limit: 20
+        })
+        expect(
+          notifications.some(
+            (notification) =>
+              notification.statusId === statusId &&
+              notification.sourceActorId === EXTERNAL_ACTOR1
+          )
+        ).toBe(true)
+      } finally {
+        recordActorSpy.mockRestore()
+      }
     })
   })
 })

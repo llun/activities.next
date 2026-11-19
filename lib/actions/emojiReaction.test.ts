@@ -9,6 +9,7 @@ import {
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getReactionGroupKey } from '@/lib/services/reactions/reactionGroupKey'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -444,6 +445,44 @@ describe('emojiReactionRequest', () => {
       expect(
         notifications.filter((entry) => entry.reactionName === '🛎️')
       ).toHaveLength(1)
+    })
+
+    it('completes and creates the notification when recording the actor hits unavailable federation policy', async () => {
+      const statusId = statuses.primary.post
+      const recordActorSpy = vi
+        .spyOn(await import('@/lib/actions/utils'), 'recordActorIfNeeded')
+        .mockRejectedValueOnce(new FederationPolicyUnavailableError())
+
+      try {
+        await expect(
+          emojiReactionRequest({
+            activity: emojiReactActivity({ object: statusId, content: '🧪' }),
+            database
+          })
+        ).resolves.toBeUndefined()
+
+        const reactors = await database.getStatusReactionActors({
+          statusId,
+          name: '🧪'
+        })
+        expect(reactors).toHaveLength(1)
+
+        const notifications = await database.getNotifications({
+          actorId: actors.primary.id,
+          limit: 20,
+          types: [NotificationType.enum.emoji_reaction]
+        })
+        expect(
+          notifications.some(
+            (entry) =>
+              entry.statusId === statusId &&
+              entry.sourceActorId === REMOTE_ACTOR &&
+              entry.reactionName === '🧪'
+          )
+        ).toBe(true)
+      } finally {
+        recordActorSpy.mockRestore()
+      }
     })
 
     it('does not notify the author when they react to their own status', async () => {

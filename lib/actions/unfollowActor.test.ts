@@ -70,6 +70,7 @@ const follow: Follow = {
 describe('undoFollow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCanFederateWithDomain.mockReset().mockResolvedValue(true)
     mockUpdateFollowStatus.mockResolvedValue(undefined)
     mockPublish.mockResolvedValue(undefined)
     mockGetFederationSigningActor.mockResolvedValue(signingActor)
@@ -93,6 +94,9 @@ describe('undoFollow', () => {
       name: SEND_UNDO_FOLLOW_JOB_NAME,
       data: { actorId: follow.actorId, follow }
     })
+    expect(mockUpdateFollowStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPublish.mock.invocationCallOrder[0]
+    )
     expect(mockUnfollow).not.toHaveBeenCalled()
   })
 
@@ -156,5 +160,19 @@ describe('undoFollow', () => {
     } finally {
       warn.mockRestore()
     }
+  })
+
+  it('propagates a non-policy error from canFederateWithDomain without publishing or undoing', async () => {
+    mockCanFederateWithDomain.mockRejectedValue(
+      new Error('policy lookup failed')
+    )
+
+    await expect(undoFollow(database, currentActor, follow)).rejects.toThrow(
+      'policy lookup failed'
+    )
+
+    expect(mockUpdateFollowStatus).not.toHaveBeenCalled()
+    expect(mockPublish).not.toHaveBeenCalled()
+    expect(mockUnfollow).not.toHaveBeenCalled()
   })
 })

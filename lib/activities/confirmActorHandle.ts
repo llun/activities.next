@@ -7,6 +7,7 @@ import {
   canFederateWithDomain,
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { normalizeActivityPubUri } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
@@ -174,7 +175,14 @@ export const confirmActorHandle = async ({
     !sameHandle(candidate, hostHandle) &&
     // Our own WebFinger answers only for local actors, never a remote id.
     !(await isLocalFederationDomain(database, `https://${candidate.domain}`)) &&
-    (await canFederateWithDomain(database, `https://${candidate.domain}`))
+    // An undecidable policy asks no one, as a refusal does: this runs while an
+    // actor is recorded, often after its status row is already written.
+    (await canFederateWithDomain(database, `https://${candidate.domain}`).catch(
+      (error: unknown) => {
+        if (error instanceof FederationPolicyUnavailableError) return false
+        throw error
+      }
+    ))
   let handle: ConfirmedActorHandle | null = null
   for (const candidate of [
     parseAcct(webfinger),

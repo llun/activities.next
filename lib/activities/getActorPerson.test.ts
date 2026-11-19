@@ -2,6 +2,7 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
@@ -422,6 +423,21 @@ describe('getActorPerson', () => {
       })
 
       expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === victimId)
+      ).toHaveLength(0)
+    })
+
+    it('resolves to null when the claimed-id policy lookup is unavailable', async () => {
+      serve({
+        [attackerUrl]: { body: actorDocument(victimId, 'ATTACKER KEY') },
+        [victimId]: { body: actorDocument(victimId, 'VICTIM KEY') }
+      })
+      vi.mocked(canFederateWithDomain).mockRejectedValue(
+        new FederationPolicyUnavailableError()
+      )
+
+      await expect(getActorPerson({ actorId: attackerUrl })).resolves.toBeNull()
       expect(
         fetchMock.mock.calls.filter(([url]) => url === victimId)
       ).toHaveLength(0)

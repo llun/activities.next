@@ -49,21 +49,28 @@ const getFederationPolicy = async (
     ensureServedDomainsFresh()
   ])
   const { federation } = view.settings
+  const unknown =
+    Boolean(view.degraded) &&
+    !(
+      view.locks['federation.mode']?.locked &&
+      (federation.mode === 'open' ||
+        view.locks['federation.allowActorDomains']?.locked)
+    )
   return {
     mode: federation.mode,
-    // The defaults stand in for unread stored settings. The policy is still
-    // known when the env pins an open mode, or an allowlist mode together with
-    // its allowed servers (otherwise those servers would read as refused).
-    unknown:
-      Boolean(view.degraded) &&
-      !(
-        view.locks['federation.mode']?.locked &&
-        (federation.mode === 'open' ||
-          view.locks['federation.allowActorDomains']?.locked)
-      ),
+    // The defaults stand in for unread stored settings, or a replaced view
+    // for current ones. The policy is still known when the env pins an open
+    // mode, or an allowlist mode together with its allowed servers (otherwise
+    // those servers would read as refused).
+    unknown,
+    // An unread or replaced actor-domain list is not trusted to exempt a
+    // host, even when the mode is pinned: a stale entry would skip the block
+    // lookup, and a remote "allowed server" is then undecidable, not local.
     isLocal: createServedDomainMatcher([
       ...getServedDomainRules(getServedHostConfig()),
-      ...federation.allowActorDomains
+      ...(!view.degraded || view.locks['federation.allowActorDomains']?.locked
+        ? federation.allowActorDomains
+        : [])
     ])
   }
 }

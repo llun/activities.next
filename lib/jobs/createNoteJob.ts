@@ -22,7 +22,7 @@ import {
   resolveForwardingInboxes,
   shouldForwardActivity
 } from '@/lib/services/federation/forwardingDelivery'
-import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
+import { forwardToNoOneWhenFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { getQueue } from '@/lib/services/queue'
@@ -50,7 +50,6 @@ import {
   toRecipientArray
 } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
@@ -285,7 +284,7 @@ export const createNoteJob = createJobHandle(
             authorActorId: actorId,
             to: note.to,
             cc: note.cc
-          })
+          }).catch(forwardToNoOneWhenFederationPolicyUnavailable)
 
           if (inboxes.length > 0) {
             const createActivity = {
@@ -310,15 +309,6 @@ export const createNoteJob = createJobHandle(
           }
         }
       }
-    } catch (error) {
-      // The note is already stored, so a retry would stop at the
-      // existing-status check above and never forward. Skip forwarding rather
-      // than fail a job no retry can complete.
-      if (!(error instanceof FederationPolicyUnavailableError)) throw error
-      logger.warn({
-        message: 'Skipped inbox forwarding: federation policy unavailable',
-        noteOrigin: toLoggableUrl(note.id)
-      })
     } finally {
       // A reply whose parent is not stored here queues the parent's fetch
       // (Mastodon's ThreadResolveWorker), which walks on up the chain. The

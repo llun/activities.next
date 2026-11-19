@@ -2635,14 +2635,17 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     local, blocked and allow-listed hosts and throw `FederationPolicyUnavailableError`
     (`lib/services/federation/policyUnavailable.ts`) for any other, because outbound jobs treat a
     "no" as a finished skip (a Delete or Block never sent). The policy stays decidable when the env
-    pins an `open` mode, or an `allowlist` mode together with its allowed servers. A catch that
+    pins an `open` mode, or an `allowlist` mode together with its allowed servers, and an unpinned
+    `federation.allowActorDomains` exempts no host while degraded (a stale entry would skip the block
+    lookup). A catch that
     would turn every error into a skip, a null or a 4xx (the shared inbox's 400,
     `getSenderPublicKeyDetails` and its key-rotation refresh, `recordRemoteActorBestEffort`, the
     actor-deletion fan-out, Flag reporter recording, bulk import and its overwrite pass, the
     status-action fetch) calls `rethrowIfFederationPolicyUnavailable` first, so the error reaches a
     queue retry or a 5xx. **Never let it escape after a write a retry cannot redo:**
-    `createNoteJob` returns early for a stored note, so its inbox forwarding catches the error and
-    skips, and `getActorPerson`, the inbound quote fetch and like/reaction actor recording keep
+    inbox forwarding in `createNoteJob`, `updateNoteJob` and `deleteObjectJob` forwards to no one
+    (`forwardToNoOneWhenFederationPolicyUnavailable`: a stored note returns early, a replayed edit
+    appends history, a delete must not wait on forwarding), `confirmActorHandle` asks no one, and `getActorPerson`, the inbound quote fetch and like/reaction actor recording keep
     swallowing it (each runs after its row is written). Unfollow (`undoFollow`) undoes the follow
     here and queues the Undo, whose job rechecks policy. A remote profile render shows the profile
     as unavailable, the not-found status page still shows its loading state, and read-only

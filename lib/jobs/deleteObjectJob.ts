@@ -8,6 +8,7 @@ import {
   resolveForwardingInboxes,
   shouldForwardActivity
 } from '@/lib/services/federation/forwardingDelivery'
+import { forwardToNoOneWhenFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { getQueue } from '@/lib/services/queue'
 import { JobMessage } from '@/lib/services/queue/type'
 import { Announce, Tombstone } from '@/lib/types/activitypub'
@@ -83,7 +84,7 @@ const deleteStatusFromTombstone = async (
         authorActorId: existingStatus.actorId,
         to: existingStatus.to,
         cc: existingStatus.cc
-      })
+      }).catch(forwardToNoOneWhenFederationPolicyUnavailable)
 
       if (inboxes.length > 0) {
         const deleteActivity = {
