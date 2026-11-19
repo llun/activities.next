@@ -98,6 +98,11 @@ describe('contextBudget check', () => {
 
   it('lets a file under its target keep the target as its ceiling', () => {
     write('AGENTS.md', 'small')
+    const result = check(root, { target: 100, files: { 'AGENTS.md': 400 } })
+    expect(result.errors).toEqual([
+      expect.stringContaining('must come down to 100')
+    ])
+    expect(result.ceilings['AGENTS.md']).toBe(100)
     expect(
       check(root, { target: 100, files: { 'AGENTS.md': 100 } }).errors
     ).toEqual([])
@@ -120,10 +125,12 @@ describe('contextBudget check', () => {
       { files: { 'AGENTS.md': 12288 }, routes: ['AGENTS.md'] },
       {
         base: 'main',
-        diff: () => [
-          { file: 'docs/g.md', line: 3, text: 'Changed in #2837' },
-          { file: 'AGENTS.md', line: 1, text: 'Plain rule' }
-        ]
+        diff: (files) =>
+          [
+            { file: 'docs/g.md', line: 3, text: 'Changed in #2837' },
+            { file: 'AGENTS.md', line: 1, text: 'Plain rule' },
+            { file: 'other.md', line: 1, text: 'Changed in #2837' }
+          ].filter((entry) => files.includes(entry.file))
       }
     )
     expect(errors).toEqual([
@@ -193,7 +200,12 @@ describe('contextBudget edge cases', () => {
       files: { 'A.md': 40, 'B.md': 20 }
     })
     expect(errors).toHaveLength(2)
-    expect(stale).toEqual([errors[0]])
+    expect(stale).toEqual([
+      expect.stringContaining('A.md is 10 bytes, so its ceiling of 40')
+    ])
+    expect(errors).toContainEqual(
+      expect.stringContaining('B.md is 30 bytes, over')
+    )
   })
 })
 
@@ -208,7 +220,7 @@ describe('contextBudget code fences', () => {
     )
   })
 
-  it('ignores an anchor inside a fence and not after inline backticks', () => {
+  it('ignores an anchor inside a fence but finds one after an inline code span', () => {
     expect(sectionBytes('```\n<a id="x"></a>\n```', 'x')).toBeNull()
     expect(sectionBytes('```js``` <a id="x"></a>\ntext', 'x')).toBe(
       Buffer.byteLength('```js``` <a id="x"></a>\ntext')
