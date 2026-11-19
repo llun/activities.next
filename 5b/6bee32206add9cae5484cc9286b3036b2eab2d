@@ -1,0 +1,22 @@
+lib/activities/getPixelfedPosts.test.ts
+  s_07cf5e0ce96ca2::t_26fdfff991c3fb 4,15-18,144-155
+  s_07cf5e0ce96ca2::t_b87d08e8382719 156-158
+lib/activities/getPixelfedPosts.ts
+  s_07cf5e0ce96ca2::t_375cfe6394ce21 1-2,82,198-200,203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5b6bee32206add9cae5484cc9286b3036b2eab2d",
+  "prompts": {},
+  "sessions": {
+    "s_07cf5e0ce96ca2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00b91562-0fca-4657-bd46-a83ec7adc12c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
