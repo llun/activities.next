@@ -2655,7 +2655,8 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     rechecks policy. `NoQueue`, which retries nothing, logs the error from an inline job instead
     of failing the request that published it after its own work committed; the inboxes use
     `publishInbound`, which runs an inline job directly so the error still answers 5xx and the
-    sender retries.
+    sender retries, and the bulk-import route runs its inline job with `handle` so a failed run
+    still finishes the import.
   - A remote profile render (including handle confirmation) shows the profile as unavailable, the
     not-found status page still shows its loading state, Bluesky sharing reports the bridge as
     unavailable, and read-only backfills (thread walks, collection and profile refreshes) still

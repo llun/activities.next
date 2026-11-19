@@ -154,7 +154,9 @@ export const POST = traceApiRoute(
       // the request for the import and turn a job error into a failed start.
       // NoQueue never retries, so a failed run finishes the import here;
       // otherwise it would block the actor's next import until it goes stale.
-      void queue.publish(message).catch(async (error) => {
+      // `handle`, not `publish`: NoQueue's publish logs an undecidable
+      // federation policy instead of throwing, and this catch must see it.
+      void queue.handle(message).catch(async (error) => {
         logger.error({
           message: 'Inline bulk import run failed',
           importId,
