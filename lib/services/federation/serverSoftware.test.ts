@@ -1,6 +1,7 @@
 /** @vitest-size medium */
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { Actor } from '@/lib/types/activitypub'
 
@@ -21,6 +22,10 @@ import {
   isPixelfedActor,
   isPixelfedDomain
 } from './serverSoftware'
+
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
 
 const requestedUrls = () =>
   fetchMock.mock.calls.map((call) => {
@@ -309,6 +314,32 @@ describe('serverSoftware', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['https:evil.example/nodeinfo', 'https:\\\\evil.example/nodeinfo'])(
+    'fetches the link it checked, not %s parsed without a base',
+    async (href) => {
+      const domain = 'victim3.example'
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+          return {
+            status: 200,
+            body: JSON.stringify({
+              links: [
+                { rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0', href }
+              ]
+            })
+          }
+        }
+        return { status: 404, body: 'Not Found' }
+      })
+
+      await getServerSoftwareInfo(domain)
+
+      expect(
+        requestedUrls().filter((url) => new URL(url).host !== domain)
+      ).toEqual([])
+    }
+  )
+
   it('still follows a rel-less first link on the same host (compatibility fallback preserved)', async () => {
     const domain = 'norel.example'
     const infoUrl = `https://${domain}/nodeinfo/2.0`
@@ -339,5 +370,48 @@ describe('serverSoftware', () => {
     }
 
     expect(getServerSoftwareCacheSizeForTests()).toBe(MAX_CACHED_DOMAINS)
+  })
+})
+
+describe('serverSoftware federation policy', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    clearServerSoftwareCache()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
+  })
+
+  it('probes no host federation policy refuses, and caches no answer', async () => {
+    mockNodeInfo('blocked.example', { name: 'mastodon' })
+    vi.mocked(isFederatedRedirect).mockResolvedValue(false)
+
+    expect(await getServerSoftwareInfo('blocked.example')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(vi.mocked(isFederatedRedirect).mock.calls[0]?.[0].href).toBe(
+      'https://blocked.example/.well-known/nodeinfo'
+    )
+
+    // Allowed later: probed then, not answered from a cached refusal.
+    vi.mocked(isFederatedRedirect).mockResolvedValue(true)
+    expect(await getServerSoftware('blocked.example')).toBe('mastodon')
+  })
+
+  it('does not follow a NodeInfo redirect onto a host federation policy refuses', async () => {
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === 'https://allowed.example/.well-known/nodeinfo') {
+        return {
+          status: 302,
+          headers: { location: 'https://blocked.example/.well-known/nodeinfo' }
+        }
+      }
+      return { status: 200, body: JSON.stringify({ links: [] }) }
+    })
+    vi.mocked(isFederatedRedirect).mockImplementation(
+      async (url) => url.host !== 'blocked.example'
+    )
+
+    expect(await getServerSoftwareInfo('allowed.example')).toBeNull()
+    expect(requestedUrls()).toEqual([
+      'https://allowed.example/.well-known/nodeinfo'
+    ])
   })
 })

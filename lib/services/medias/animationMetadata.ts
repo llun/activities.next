@@ -1,3 +1,4 @@
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { getServerSoftware } from '@/lib/services/federation/serverSoftware'
 import { MediaDatabase } from '@/lib/types/database/operations'
 import { Attachment, PlaybackType } from '@/lib/types/domain/attachment'
@@ -233,6 +234,7 @@ const fetchMastodonStatusMetadata = async (
   try {
     const result = await safeRemoteFetch({
       url: requestUrl,
+      allowCrossHostRedirects: isFederatedRedirect,
       timeoutInMilliseconds: REMOTE_STATUS_TIMEOUT_MS,
       maxBodyBytes: MAX_RESPONSE_BYTES,
       headers: {
@@ -363,6 +365,12 @@ export const resolveAnimationMetadata = async ({
       const cached = statusMetadataCache.get(cacheKey)
       if (cached && cached.expiresAt > Date.now()) {
         return mapAttachments(videoAttachments, cached.data, cached.definitive)
+      }
+
+      // The domain comes from the status id or its `url`, which can name any
+      // host. Not definitive and not cached: a later allow can still resolve.
+      if (!(await isFederatedRedirect(new URL(`https://${domain}/`)))) {
+        return mapAttachments(videoAttachments, null, false)
       }
 
       const isSupported = await isMastodonCompatibleSoftware(domain)

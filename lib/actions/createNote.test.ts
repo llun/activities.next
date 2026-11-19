@@ -20,6 +20,10 @@ import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 import { useCreateNoteFixtures } from './createNote.testUtils'
 
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
+
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn().mockReturnValue({
     publish: vi.fn().mockResolvedValue(undefined)

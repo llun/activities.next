@@ -4,11 +4,16 @@ import { getNote } from '@/lib/activities'
 import { isFederatedUrlForActor } from '@/lib/activities/getActorCollections'
 import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/activitypub'
 import { Note } from '@/lib/types/activitypub/objects'
 import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Status, fromNote } from '@/lib/types/domain/status'
-import { normalizeActivityPubContent } from '@/lib/utils/activitypub'
+import {
+  actorIdsMatch,
+  isSameActivityPubOrigin,
+  normalizeActivityPubContent
+} from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { mapWithConcurrency } from '@/lib/utils/mapWithConcurrency'
 import { request } from '@/lib/utils/request'
@@ -73,7 +78,10 @@ const getCandidateAtomUrls = (person: Actor): string[] => {
   } catch {
     // Malformed actor id URL
   }
-  return urls
+  // `${person.id}.atom` leaves the actor's host when the id is a bare origin
+  // (`https://example.com` -> `example.com.atom`); only the actor's origin,
+  // which the caller vetted, is fetched.
+  return urls.filter((url) => isSameActivityPubOrigin(url, person.id))
 }
 
 const extractEntryUrl = (entry: AtomFeedEntry): string | null => {
@@ -185,6 +193,18 @@ export const getActorPostsFromAtomFeed = async ({
 
                 const status = await getStatusFromNote(noteResult.data)
                 if (!status) return null
+
+                // Rendered under this actor, whose feed lists only its own
+                // posts: a public note by this actor (exactly, since an entry
+                // may sit on another allowed host that could otherwise name any
+                // account on the actor's origin), its id on the fetched origin.
+                if (
+                  !actorIdsMatch(status.actorId, person.id) ||
+                  !isSameActivityPubOrigin(entryUrl, status.id) ||
+                  !isPublicOrUnlisted(status)
+                ) {
+                  return null
+                }
 
                 if (actor) status.actor = actor
                 return status

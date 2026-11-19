@@ -1,6 +1,10 @@
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { request } from '@/lib/utils/request'
 
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
+
 vi.mock('@/lib/utils/request', () => ({ request: vi.fn() }))
 
 describe('getWebfingerSelf', () => {

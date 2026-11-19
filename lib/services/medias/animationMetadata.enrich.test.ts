@@ -12,6 +12,10 @@ import {
   resolveAnimationMetadata
 } from './animationMetadata'
 
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
+
 vi.mock('@/lib/services/federation/serverSoftware', () => ({
   getServerSoftware: vi.fn()
 }))

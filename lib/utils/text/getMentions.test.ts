@@ -6,6 +6,10 @@ import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { getMentions } from '@/lib/utils/text/getMentions'
 
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
+
 describe('getMentions', () => {
   const { database, prepare } = createTestDatabase()
   let actor1: Actor | null | undefined

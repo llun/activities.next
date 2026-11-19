@@ -319,9 +319,12 @@ export const getActorPosts: GetActorPostsFunction = async ({
             const status = await getStatusFromNote(noteResult.data, span)
             if (!status) return null
 
+            // An inline object's `id` is only the outbox's claim, as its author
+            // is: both must be on the actor's origin.
             if (
-              status.actorId !== person.id &&
-              !isSameActivityPubOrigin(person.id, status.actorId)
+              (status.actorId !== person.id &&
+                !isSameActivityPubOrigin(person.id, status.actorId)) ||
+              !isSameActivityPubOrigin(person.id, status.id)
             ) {
               return null
             }

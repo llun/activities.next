@@ -12,6 +12,10 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { useCreateNoteFixtures } from './createNote.testUtils'
 
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
+
 enableFetchMocks()
 
 vi.mock('@/lib/services/queue', () => ({

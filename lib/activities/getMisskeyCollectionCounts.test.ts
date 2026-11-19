@@ -1,16 +1,22 @@
 /** @vitest-size medium */
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { Actor } from '@/lib/types/activitypub'
 
 import { getMisskeyCollectionCounts } from './getMisskeyCollectionCounts'
+
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
 
 enableFetchMocks()
 
 describe('getMisskeyCollectionCounts', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
   })
 
   it.each([
@@ -127,5 +133,25 @@ describe('getMisskeyCollectionCounts', () => {
       followingCount: 42,
       statusesCount: 10
     })
+  })
+
+  it('makes no request to a host federation policy refuses', async () => {
+    const person = MockActivityPubPerson({
+      id: 'https://misskey.example/users/7rkrarq81i'
+    }) as Actor
+    vi.mocked(isFederatedRedirect).mockResolvedValueOnce(false)
+    const currentCounts = {
+      followersCount: null,
+      followingCount: 42,
+      statusesCount: 10
+    }
+
+    expect(await getMisskeyCollectionCounts({ person, currentCounts })).toEqual(
+      currentCounts
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(vi.mocked(isFederatedRedirect).mock.calls[0]?.[0].href).toBe(
+      'https://misskey.example/api/users/show'
+    )
   })
 })

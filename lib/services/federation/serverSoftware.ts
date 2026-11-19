@@ -1,3 +1,4 @@
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { Actor } from '@/lib/types/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
@@ -89,8 +90,15 @@ export const getServerSoftwareInfo = async (
     }
 
     try {
+      const wellKnownUrl = new URL(
+        `https://${normalizedDomain}/.well-known/nodeinfo`
+      )
+      // Not cached: the answer changes with policy, not with the remote.
+      if (!(await isFederatedRedirect(wellKnownUrl))) return null
+
       const { statusCode, body } = await request({
-        url: `https://${normalizedDomain}/.well-known/nodeinfo`,
+        url: wellKnownUrl.href,
+        allowCrossHostRedirects: isFederatedRedirect,
         headers: {
           Accept: 'application/json, application/activity+json, */*;q=0.8',
           'User-Agent': 'activities.next'
@@ -127,7 +135,10 @@ export const getServerSoftwareInfo = async (
       }
 
       const { statusCode: infoStatus, body: infoBody } = await request({
-        url: nodeInfoLink.href,
+        // The URL the same-host check resolved, not the raw href: parsed
+        // without a base, `https:other.example/x` names another host.
+        url: new URL(nodeInfoLink.href, `https://${normalizedDomain}`).href,
+        allowCrossHostRedirects: isFederatedRedirect,
         headers: {
           Accept: 'application/json, */*;q=0.8',
           'User-Agent': 'activities.next'

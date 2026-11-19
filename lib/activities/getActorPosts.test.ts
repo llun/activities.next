@@ -333,6 +333,50 @@ describe('getActorPosts', () => {
     expect(response.statuses[0].id).toBe(statusId)
   })
 
+  it('drops an inline Create whose note id is on another origin', async () => {
+    const actorId = 'https://inline-bind.example/users/actor'
+    const statusId = `${actorId}/statuses/kept`
+    const forgedId = 'https://victim.example/users/someone/statuses/forged'
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+    const create = (id: string) => ({
+      id: `${actorId}/activities/${encodeURIComponent(id)}`,
+      type: 'Create',
+      actor: actorId,
+      published: new Date().toISOString(),
+      object: MockMastodonActivityPubNote({
+        id,
+        from: actorId,
+        content: 'Inline status text',
+        withContext: true
+      })
+    })
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 2,
+            orderedItems: [create(forgedId), create(statusId)]
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statuses.map((status) => status.id)).toEqual([statusId])
+  })
+
   it('returns the one activity of an outbox page whose orderedItems is a bare object', async () => {
     const actorId = 'https://single.example/users/actor'
     const statusId = `${actorId}/statuses/single-1`

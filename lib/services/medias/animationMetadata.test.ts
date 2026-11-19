@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { getServerSoftware } from '@/lib/services/federation/serverSoftware'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
@@ -10,6 +11,10 @@ import {
   isSameAuthor,
   resolveAnimationMetadata
 } from './animationMetadata'
+
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
 
 vi.mock('@/lib/services/federation/serverSoftware', () => ({
   getServerSoftware: vi.fn()
@@ -61,11 +66,57 @@ describe('resolveAnimationMetadata', () => {
   beforeEach(() => {
     clearAnimationMetadataCacheForTests()
     vi.clearAllMocks()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
     vi.mocked(getServerSoftware).mockResolvedValue('mastodon')
   })
 
   afterEach(() => {
     clearAnimationMetadataCacheForTests()
+  })
+
+  it('contacts no host federation policy refuses, and caches no answer', async () => {
+    const params = {
+      statusId: 'https://allowed.example/users/alice/statuses/1',
+      // The `url` can name any host; it is the one used when the id has no
+      // Mastodon status path.
+      statusUrl: 'https://blocked.example/@alice/1',
+      attachments: [
+        { url: 'https://allowed.example/a.mp4', mediaType: 'video/mp4' }
+      ]
+    }
+    vi.mocked(isFederatedRedirect).mockImplementation(
+      async (url) => url.host !== 'blocked.example'
+    )
+
+    expect(
+      await resolveAnimationMetadata({
+        ...params,
+        statusId: 'https://allowed.example/notes/1'
+      })
+    ).toEqual({
+      'https://allowed.example/a.mp4': {
+        playbackType: 'unknown',
+        previewUrl: null,
+        definitive: false
+      }
+    })
+    expect(getServerSoftware).not.toHaveBeenCalled()
+    expect(safeRemoteFetch).not.toHaveBeenCalled()
+    expect(getAnimationMetadataCacheSizeForTests()).toBe(0)
+
+    // An allowed host is fetched with the redirect policy.
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      statusCode: 404,
+      headers: {},
+      body: ''
+    } as Awaited<ReturnType<typeof safeRemoteFetch>>)
+    await resolveAnimationMetadata(params)
+    expect(safeRemoteFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://allowed.example/api/v1/statuses/1',
+        allowCrossHostRedirects: isFederatedRedirect
+      })
+    )
   })
 
   it('resolves gifv playbackType for matched Mastodon attachment', async () => {

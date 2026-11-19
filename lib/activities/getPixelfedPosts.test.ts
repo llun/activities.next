@@ -1,6 +1,7 @@
 /** @vitest-size medium */
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { Actor } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
@@ -10,6 +11,10 @@ import {
   getPixelfedAccountId,
   getPixelfedPosts
 } from './getPixelfedPosts'
+
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
 
 enableFetchMocks()
 
@@ -22,6 +27,7 @@ describe('getPixelfedPosts', () => {
 
   beforeEach(() => {
     fetchMock.resetMocks()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
   })
 
   describe('getPixelfedAccountId', () => {
@@ -134,6 +140,65 @@ describe('getPixelfedPosts', () => {
       expect(result?.nextPageUrl).toBe(
         'https://pixelfed.example/api/pixelfed/v1/accounts/2/statuses?limit=20&max_id=1981'
       )
+    })
+
+    it('fetches no page URL off the actor origin, even on an allowed host', async () => {
+      const result = await getPixelfedPosts({
+        person,
+        pageUrl: 'https://other.example/api/pixelfed/v1/accounts/2/statuses'
+      })
+
+      expect(result).toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('does not follow a page redirect onto a host federation policy refuses', async () => {
+      const pageUrl =
+        'https://pixelfed.example/api/pixelfed/v1/accounts/2/statuses'
+      fetchMock.mockResponse(async (req) =>
+        req.url === pageUrl
+          ? {
+              status: 302,
+              headers: { location: 'https://blocked.example/statuses' }
+            }
+          : { status: 200, body: '[]' }
+      )
+      vi.mocked(isFederatedRedirect).mockImplementation(
+        async (url) => url.host !== 'blocked.example'
+      )
+
+      expect(await getPixelfedPosts({ person, pageUrl })).toBeNull()
+      expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+        pageUrl
+      ])
+    })
+
+    it('drops an item whose uri or url is off the actor origin', async () => {
+      const pageUrl =
+        'https://pixelfed.example/api/pixelfed/v1/accounts/2/statuses'
+      const item = (id: string, uri: string) => ({
+        id,
+        uri,
+        url: uri,
+        content: '<p>photo</p>',
+        created_at: '2026-08-31T17:15:56.000Z'
+      })
+      fetchMock.mockResponseOnce(
+        JSON.stringify([
+          item('1', 'https://victim.example/p/someone/1'),
+          {
+            ...item('2', 'https://pixelfed.example/p/dansup/2'),
+            url: 'https://victim.example/p/2'
+          },
+          item('3', 'https://pixelfed.example/p/dansup/3')
+        ])
+      )
+
+      const result = await getPixelfedPosts({ person, pageUrl })
+
+      expect(result?.statuses.map((status) => status.id)).toEqual([
+        'https://pixelfed.example/p/dansup/3'
+      ])
     })
 
     it('returns null when account lookup fails', async () => {
