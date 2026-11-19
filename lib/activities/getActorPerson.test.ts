@@ -2,7 +2,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
-import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
@@ -413,19 +412,6 @@ describe('getActorPerson', () => {
         requestedHost: 'allowed.test',
         refusedRedirectHost: 'blocked.test'
       })
-    })
-
-    it('rejects when the claimed-id policy lookup is unavailable', async () => {
-      serve({
-        [attackerUrl]: { body: actorDocument(victimId, 'ATTACKER KEY') }
-      })
-      vi.mocked(canFederateWithDomain).mockRejectedValue(
-        new FederationPolicyUnavailableError()
-      )
-
-      await expect(getActorPerson({ actorId: attackerUrl })).rejects.toThrow(
-        FederationPolicyUnavailableError
-      )
     })
 
     it('does not re-fetch when no database can supply the policy', async () => {

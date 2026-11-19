@@ -183,6 +183,44 @@ describe('domainPolicy', () => {
     ).resolves.toBe(true)
   })
 
+  // A pinned allowlist mode with its allowed servers kept in the database is
+  // still undecidable: the defaults list no servers at all.
+  it('treats a pinned allowlist whose allowed servers are stored as undecidable while degraded', async () => {
+    mockFederation({ mode: 'allowlist', degraded: true })
+    const pinned = await getServerSettingsView({} as never)
+    vi.mocked(getServerSettingsView).mockResolvedValue({
+      ...pinned,
+      locks: {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        }
+      }
+    })
+    const database = createDatabase({})
+
+    await expect(
+      canFederateWithDomain(database, 'https://other.test/users/a')
+    ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+
+    vi.mocked(getServerSettingsView).mockResolvedValue({
+      ...pinned,
+      locks: {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        },
+        'federation.allowActorDomains': {
+          locked: true,
+          envVar: 'ACTIVITIES_ALLOW_ACTOR_DOMAINS'
+        }
+      }
+    })
+    await expect(
+      canFederateWithDomain(database, 'https://other.test/users/a')
+    ).resolves.toBe(false)
+  })
+
   it('always allows local actor domains', async () => {
     mockFederation({ mode: 'allowlist', allowActorDomains: ['alias.test'] })
     const database = createDatabase({})

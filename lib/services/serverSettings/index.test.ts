@@ -310,9 +310,12 @@ describe('server settings resolver', () => {
       .spyOn(database, 'getAllServerSettings')
       .mockRejectedValue(new Error('database unavailable'))
 
-    await expect(getServerSettingsView(database)).resolves.toMatchObject({
-      degraded: true
-    })
+    // Degraded for federation policy, but registration stays closed: the
+    // defaults would open it.
+    const view = await getServerSettingsView(database)
+    expect(view.degraded).toBe(true)
+    expect(view.settings.registrations.open).toBe(false)
+    expect(view.settings.federation).toEqual(DEFAULT_SERVER_SETTINGS.federation)
 
     spy.mockRestore()
     await database.destroy()

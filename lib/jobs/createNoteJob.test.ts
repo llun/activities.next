@@ -2,7 +2,13 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
-import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  CREATE_NOTE_JOB_NAME,
+  FORWARD_ACTIVITY_JOB_NAME
+} from '@/lib/jobs/names'
+import { resolveForwardingInboxes } from '@/lib/services/federation/forwardingDelivery'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
+import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
@@ -11,10 +17,29 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 
 import { FRIEND_ACTOR_ID } from './createNoteJob.testUtils'
 
 enableFetchMocks()
+
+// Pass-through spy: the forwarding block runs for real, but a test can make
+// inbox resolution fail the way an unreadable federation policy does.
+vi.mock(
+  '@/lib/services/federation/forwardingDelivery',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@/lib/services/federation/forwardingDelivery')
+      >()
+    return {
+      ...actual,
+      resolveForwardingInboxes: vi.fn(actual.resolveForwardingInboxes)
+    }
+  }
+)
+
+const originalInboxForwarding = process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
 
 describe('createNoteJob', () => {
   const { database, prepare } = createTestDatabase()
@@ -38,6 +63,15 @@ describe('createNoteJob', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (originalInboxForwarding === undefined) {
+      delete process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
+    } else {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = originalInboxForwarding
+    }
   })
 
   it('adds note into database and returns note', async () => {
@@ -716,5 +750,78 @@ describe('createNoteJob', () => {
     expect(hashtagTags).toHaveLength(1)
     expect(mentionTags[0].name).toEqual('@someone')
     expect(hashtagTags[0].name).toEqual('#topic')
+  })
+
+  describe('inbox forwarding when federation policy is unavailable', () => {
+    const forwardingNote = (id: string) =>
+      MockMastodonActivityPubNote({
+        id,
+        from: FRIEND_ACTOR_ID,
+        content: '<p>Hello</p>',
+        tags: [
+          {
+            type: 'Mention',
+            href: actor1!.id,
+            name: `@${actor1!.username}@${actor1!.domain}`
+          }
+        ]
+      })
+
+    beforeEach(() => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+    })
+
+    it('skips forwarding and completes when the policy cannot be decided', async () => {
+      const publish = vi
+        .spyOn(getQueue(), 'publish')
+        .mockResolvedValue(undefined)
+      const warn = vi.spyOn(logger, 'warn')
+      vi.mocked(resolveForwardingInboxes).mockRejectedValueOnce(
+        new FederationPolicyUnavailableError()
+      )
+      const note = forwardingNote(
+        'https://somewhere.test/actors/friend/statuses/forward-policy-unavailable'
+      )
+
+      await expect(
+        createNoteJob(database, {
+          id: 'forward-policy-unavailable',
+          name: CREATE_NOTE_JOB_NAME,
+          data: note,
+          verifiedSenderActorId: FRIEND_ACTOR_ID
+        })
+      ).resolves.toBeUndefined()
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Skipped inbox forwarding: federation policy unavailable'
+        })
+      )
+      expect(publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: FORWARD_ACTIVITY_JOB_NAME })
+      )
+      await expect(
+        database.getStatus({ statusId: note.id })
+      ).resolves.not.toBeNull()
+    })
+
+    it('still propagates any other forwarding error', async () => {
+      vi.spyOn(getQueue(), 'publish').mockResolvedValue(undefined)
+      vi.mocked(resolveForwardingInboxes).mockRejectedValueOnce(
+        new Error('forwarding exploded')
+      )
+      const note = forwardingNote(
+        'https://somewhere.test/actors/friend/statuses/forward-other-error'
+      )
+
+      await expect(
+        createNoteJob(database, {
+          id: 'forward-other-error',
+          name: CREATE_NOTE_JOB_NAME,
+          data: note,
+          verifiedSenderActorId: FRIEND_ACTOR_ID
+        })
+      ).rejects.toThrow('forwarding exploded')
+    })
   })
 })

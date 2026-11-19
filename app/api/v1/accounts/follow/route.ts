@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server'
 
+import { undoFollow } from '@/lib/actions/unfollowActor'
 /**
 
  * @deprecated Use POST /api/v1/accounts/:id/follow and /unfollow instead
  * This custom endpoint is maintained for backward compatibility.
  */
-import { follow, unfollow } from '@/lib/activities'
+import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -162,17 +163,7 @@ export const DELETE = traceApiRoute(
         data: ERROR_404,
         responseStatusCode: 404
       })
-    const canFederate = await canFederateWithDomain(database, target)
-    const signingActor = canFederate
-      ? await getFederationSigningActor(database)
-      : undefined
-    await Promise.all([
-      canFederate ? unfollow(currentActor, follow, signingActor) : undefined,
-      database.updateFollowStatus({
-        followId: follow.id,
-        status: FollowStatus.enum.Undo
-      })
-    ])
+    await undoFollow(database, currentActor, follow)
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,

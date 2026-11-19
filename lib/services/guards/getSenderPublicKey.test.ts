@@ -1466,6 +1466,34 @@ describe('getSenderPublicKey', () => {
       ).resolves.toBeNull()
       expect(fetchMock).not.toHaveBeenCalled()
     })
+
+    it('propagates an undecidable federation policy instead of returning null', async () => {
+      const getActorFromId = vi
+        .spyOn(database, 'getActorFromId')
+        .mockRejectedValueOnce(new FederationPolicyUnavailableError())
+
+      try {
+        await expect(
+          refreshSenderPublicKeyDetails(database, keyId, stale)
+        ).rejects.toThrow(FederationPolicyUnavailableError)
+      } finally {
+        getActorFromId.mockRestore()
+      }
+    })
+
+    it('still returns null for any other refresh failure', async () => {
+      const getActorFromId = vi
+        .spyOn(database, 'getActorFromId')
+        .mockRejectedValueOnce(new Error('database unavailable'))
+
+      try {
+        await expect(
+          refreshSenderPublicKeyDetails(database, keyId, stale)
+        ).resolves.toBeNull()
+      } finally {
+        getActorFromId.mockRestore()
+      }
+    })
   })
 
   it('returns empty string when remote actor not found', async () => {

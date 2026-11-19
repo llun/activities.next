@@ -4,7 +4,6 @@ import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
-import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import {
@@ -154,8 +153,6 @@ export const getActorPerson: GetActorPersonFunction = ({
         return null
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
-        // Retried by the caller, not reported as a missing actor.
-        rethrowIfFederationPolicyUnavailable(error)
         if (nodeError.code === 'ERR_CROSS_HOST_REDIRECT') {
           span.setAttribute('crossHostRedirect', true)
           logger.warn({

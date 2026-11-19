@@ -608,7 +608,7 @@ describe('POST /api/inbox', () => {
   })
 
   it('rethrows a policy-unavailable error so the sender retries with a 5xx', async () => {
-    mockCanFederateWithDomain.mockRejectedValue(
+    mockCanFederateWithDomain.mockRejectedValueOnce(
       new FederationPolicyUnavailableError()
     )
 

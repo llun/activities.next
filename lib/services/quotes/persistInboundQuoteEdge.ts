@@ -6,7 +6,6 @@ import {
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
-import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
 import { Status } from '@/lib/types/domain/status'
 import {
@@ -125,7 +124,6 @@ export const resolveInboundQuotedStatus = async ({
       withReplies: false
     })
   } catch (error) {
-    rethrowIfFederationPolicyUnavailable(error)
     logger.warn({
       message:
         'Failed to fetch quoted note for inbound quote; leaving the edge pending',

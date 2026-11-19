@@ -2631,16 +2631,24 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
   - Comparing the port matters: the policy's `getDomainFromUrl` drops it, so locality is decided on
     the full URL, not on the domain the block lookups use.
   - **An undecidable policy is an error, never a "no".** When the server settings cannot be read
-    and nothing is cached, `canFederateWithDomain` / `filterFederatedUrls` still answer for local,
-    blocked and allow-listed hosts and throw `FederationPolicyUnavailableError`
+    and nothing current is cached, `canFederateWithDomain` / `filterFederatedUrls` still answer for
+    local, blocked and allow-listed hosts and throw `FederationPolicyUnavailableError`
     (`lib/services/federation/policyUnavailable.ts`) for any other, because outbound jobs treat a
-    "no" as a finished skip (a Delete or Block never sent). A catch that would turn every error
-    into a skip or a null (the shared inbox's 400, `getSenderPublicKeyDetails`, `getActorPerson`,
-    the actor-deletion fan-out, Flag, bulk import, like and reaction actor recording, quote and
-    status-action fetches) calls `rethrowIfFederationPolicyUnavailable` first, so the error reaches
-    a queue retry or a 5xx. Read-only backfills (thread walks, collection and profile refreshes)
-    still skip, and under `NoQueue`, which retries nothing, a status delete's fan-out is lost as
-    any failed inline job is.
+    "no" as a finished skip (a Delete or Block never sent). The policy stays decidable when the env
+    pins an `open` mode, or an `allowlist` mode together with its allowed servers. A catch that
+    would turn every error into a skip, a null or a 4xx (the shared inbox's 400,
+    `getSenderPublicKeyDetails` and its key-rotation refresh, `recordRemoteActorBestEffort`, the
+    actor-deletion fan-out, Flag reporter recording, bulk import and its overwrite pass, the
+    status-action fetch) calls `rethrowIfFederationPolicyUnavailable` first, so the error reaches a
+    queue retry or a 5xx. **Never let it escape after a write a retry cannot redo:**
+    `createNoteJob` returns early for a stored note, so its inbox forwarding catches the error and
+    skips, and `getActorPerson`, the inbound quote fetch and like/reaction actor recording keep
+    swallowing it (each runs after its row is written). Unfollow (`undoFollow`) undoes the follow
+    here and queues the Undo, whose job rechecks policy. A remote profile render shows the profile
+    as unavailable, the not-found status page still shows its loading state, and read-only
+    backfills (thread walks, collection and profile refreshes) still skip. Other user-facing reads
+    answer 500 for that moment. Under `NoQueue`, which retries nothing, a Delete or Undo whose job
+    fails is lost, as any failed inline job is.
   - Widening "local" only skips work — no fetch, no WebFinger, no domain-block or allow-list lookup,
     no forward — and never stands in for a signature or ownership check; every rule is operator
     configuration, and an authority spelled with a `*` (literally, or `%2a` that the parser decodes)

@@ -3,7 +3,6 @@ import { LikeStatus } from '@/lib/activities/likeAction'
 import { Database } from '@/lib/database/types'
 import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildLikeEmail } from '@/lib/services/email/templates/like'
-import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
@@ -36,9 +35,6 @@ export const likeRequest = async ({
       database
     })
   } catch (error) {
-    // Retried with the inbound activity; the stored like makes the retry skip
-    // the notification.
-    rethrowIfFederationPolicyUnavailable(error)
     logger.warn({
       message: 'Failed to record actor for like request',
       actorId: request.actor,

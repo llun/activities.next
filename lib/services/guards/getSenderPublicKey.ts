@@ -466,6 +466,8 @@ export const refreshSenderPublicKeyDetails = async (
     if (details.publicKey === stale.publicKey) return null
     return { ...details, isDefaultKey }
   } catch (error) {
+    // A 5xx for the sender to retry, not a failed verification (401).
+    rethrowIfFederationPolicyUnavailable(error)
     logger.warn({
       err: toLoggableError(error),
       keyId,

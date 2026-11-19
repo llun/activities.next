@@ -9,7 +9,6 @@ import {
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
-import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getReactionGroupKey } from '@/lib/services/reactions/reactionGroupKey'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -445,33 +444,6 @@ describe('emojiReactionRequest', () => {
       expect(
         notifications.filter((entry) => entry.reactionName === '🛎️')
       ).toHaveLength(1)
-    })
-
-    it('rethrows a policy-unavailable error when recording the actor', async () => {
-      const statusId = statuses.primary.post
-      const recordActorSpy = vi
-        .spyOn(await import('@/lib/actions/utils'), 'recordActorIfNeeded')
-        .mockRejectedValueOnce(new FederationPolicyUnavailableError())
-        .mockRejectedValueOnce(new Error('network down'))
-
-      try {
-        await expect(
-          emojiReactionRequest({
-            activity: emojiReactActivity({ object: statusId, content: '🧪' }),
-            database
-          })
-        ).rejects.toThrow(FederationPolicyUnavailableError)
-
-        // Any other failure is still logged and the reaction carries on.
-        await expect(
-          emojiReactionRequest({
-            activity: emojiReactActivity({ object: statusId, content: '🧫' }),
-            database
-          })
-        ).resolves.toBeUndefined()
-      } finally {
-        recordActorSpy.mockRestore()
-      }
     })
 
     it('does not notify the author when they react to their own status', async () => {

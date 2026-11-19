@@ -186,12 +186,23 @@ export const getServerSettingsView = async (
     // or the env/defaults fallback) so a sustained outage does not re-read the
     // failing database — and re-log — on every request; recovery stays bounded
     // to FAILURE_CACHE_TTL_MS.
-    // Only a view of the current epoch is last-known-good: an older one is
-    // what an admin's save (in this or another module copy) has replaced.
-    const view =
-      entry && entry.epoch === epoch
+    // Only a view of the current epoch is last-known-good. An older one is
+    // what an admin's save (in this or another module copy) replaced: its
+    // other settings are kept, since the defaults are the more permissive
+    // (open registration), but its federation policy is not trusted.
+    const fallback = buildView(new Map())
+    const view: ServerSettingsView = !entry
+      ? { ...fallback, degraded: true }
+      : entry.epoch === epoch
         ? entry.view
-        : { ...buildView(new Map()), degraded: true }
+        : {
+            ...entry.view,
+            settings: {
+              ...entry.view.settings,
+              federation: fallback.settings.federation
+            },
+            degraded: true
+          }
     writeCache(database, view, now + FAILURE_CACHE_TTL_MS, epoch)
     return view
   }

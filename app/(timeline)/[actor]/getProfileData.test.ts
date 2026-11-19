@@ -11,6 +11,7 @@ import {
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import {
   getServerSoftwareInfo,
   isPeerTubeActor,
@@ -1945,6 +1946,34 @@ describe('getProfileData', () => {
         expect(getActorPerson).not.toHaveBeenCalled()
         expect(mockDatabase.createActor).not.toHaveBeenCalled()
         expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+      })
+
+      it('returns null when federation policy cannot be decided for a remote profile', async () => {
+        ;(canFederateWithDomain as jest.Mock).mockRejectedValue(
+          new FederationPolicyUnavailableError()
+        )
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@remoteuser@remote.com',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result).toBeNull()
+        expect(getActorPerson).not.toHaveBeenCalled()
+      })
+
+      it('rethrows any other federation check failure', async () => {
+        ;(canFederateWithDomain as jest.Mock).mockRejectedValue(
+          new Error('settings exploded')
+        )
+
+        await expect(
+          getProfileData(mockDatabase, '@remoteuser@remote.com', true, {
+            currentActor: null
+          })
+        ).rejects.toThrow('settings exploded')
       })
 
       // The WebFinger id can be federatable while the server's own canonical

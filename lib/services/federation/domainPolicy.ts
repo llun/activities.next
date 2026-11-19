@@ -51,9 +51,16 @@ const getFederationPolicy = async (
   const { federation } = view.settings
   return {
     mode: federation.mode,
-    // The defaults stand in for unread stored settings; an env-pinned mode is
-    // still known.
-    unknown: Boolean(view.degraded) && !view.locks['federation.mode']?.locked,
+    // The defaults stand in for unread stored settings. The policy is still
+    // known when the env pins an open mode, or an allowlist mode together with
+    // its allowed servers (otherwise those servers would read as refused).
+    unknown:
+      Boolean(view.degraded) &&
+      !(
+        view.locks['federation.mode']?.locked &&
+        (federation.mode === 'open' ||
+          view.locks['federation.allowActorDomains']?.locked)
+      ),
     isLocal: createServedDomainMatcher([
       ...getServedDomainRules(getServedHostConfig()),
       ...federation.allowActorDomains
