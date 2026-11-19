@@ -46,8 +46,9 @@ export interface ServerSettingsView {
   // report this as their date.
   updatedAt: Record<string, number | null>
   // True when the stored settings could not be read and no last-known-good
-  // view was cached, so stored fields show their defaults. A consumer whose
-  // default is the permissive choice (federation policy) must not trust them.
+  // view was cached, so stored fields show their defaults or the values an
+  // admin's save replaced. A consumer whose default is the permissive choice
+  // (federation policy) must not trust them.
   degraded?: boolean
 }
 
@@ -193,7 +194,12 @@ export const getServerSettingsView = async (
     // open registration and admit every served domain for new actors, though
     // a just-lowered limit or a just-removed actor domain keeps its old value
     // while reads fail.
-    // The epoch is read again: an admin's save can land while the read runs.
+    // The epoch is read again: an admin's save can land while the read runs,
+    // and the save's own re-read may already have cached the new view.
+    const latest = readCacheEntry(database)
+    if (latest && latest !== entry && latest.epoch === currentEpoch()) {
+      return latest.view
+    }
     const view: ServerSettingsView =
       entry && entry.epoch === currentEpoch()
         ? entry.view

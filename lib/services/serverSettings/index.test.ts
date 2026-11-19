@@ -353,6 +353,40 @@ describe('server settings resolver', () => {
     await database.destroy()
   })
 
+  it("keeps a save's fresh view when a read in flight during the save fails", async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false }
+    ])
+    invalidateServerSettingsCache(database)
+    await getResolvedServerSettings(database)
+    invalidateServerSettingsCache(database)
+
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockImplementationOnce(async () => {
+        // An admin's save commits and its re-read caches the new view first.
+        await database.setServerSettings([
+          { key: 'registrations.open', value: true }
+        ])
+        invalidateServerSettingsCache(database)
+        await getServerSettingsView(database)
+        throw new Error('database unavailable')
+      })
+
+    const view = await getServerSettingsView(database)
+    expect(view.settings.registrations.open).toBe(true)
+    expect(view.degraded).toBeUndefined()
+    // The saved view is still the cached one.
+    spy.mockRejectedValue(new Error('database unavailable'))
+    expect(
+      (await getServerSettingsView(database)).settings.registrations.open
+    ).toBe(true)
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
   it('serves the invalidated cached values as degraded on the same database when re-read fails', async () => {
     const database = await freshDatabase()
     await database.setServerSettings([
