@@ -110,6 +110,25 @@ describe('getActorPostsFromAtomFeed', () => {
     expect(result.map((status) => status.id)).toEqual([keptUrl])
   })
 
+  it('keeps an entry whose author spells the actor id with a trailing slash', async () => {
+    const actorId = 'https://pixelfed.example/users/testuser'
+    const person = MockActivityPubPerson({ id: actorId }) as Actor
+    const entryUrl = 'https://pixelfed.example/p/testuser/3101'
+    mockAtomFeed(actorId, [entryUrl])
+    getNoteMock.mockResolvedValue(
+      MockMastodonActivityPubNote({
+        id: entryUrl,
+        from: `${actorId}/`,
+        content: 'Entry content',
+        withContext: true
+      }) as Note
+    )
+
+    const result = await getActorPostsFromAtomFeed({ person })
+
+    expect(result.map((status) => status.id)).toEqual([entryUrl])
+  })
+
   it('drops an off-origin entry whose note names an author on the actor origin', async () => {
     const actorId = 'https://pixelfed.example/users/testuser'
     const person = MockActivityPubPerson({ id: actorId }) as Actor

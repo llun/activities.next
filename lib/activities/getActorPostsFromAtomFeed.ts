@@ -10,6 +10,7 @@ import { Note } from '@/lib/types/activitypub/objects'
 import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Status, fromNote } from '@/lib/types/domain/status'
 import {
+  actorIdsMatch,
   isSameActivityPubOrigin,
   normalizeActivityPubContent
 } from '@/lib/utils/activitypub'
@@ -195,7 +196,7 @@ export const getActorPostsFromAtomFeed = async ({
                 // may sit on another allowed host that could otherwise name any
                 // account on the actor's origin), its id on the fetched origin.
                 if (
-                  status.actorId !== person.id ||
+                  !actorIdsMatch(status.actorId, person.id) ||
                   !isSameActivityPubOrigin(entryUrl, status.id) ||
                   !isPublicOrUnlisted(status)
                 ) {
