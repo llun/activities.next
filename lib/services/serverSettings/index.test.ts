@@ -443,6 +443,41 @@ describe('server settings resolver', () => {
     await database.destroy()
   })
 
+  it('does not let a read from before two saves replace the fallback built from the first', async () => {
+    const database = await freshDatabase()
+    // Cached with registration open (the default).
+    await getResolvedServerSettings(database)
+    invalidateServerSettingsCache(database)
+    const realRead = database.getAllServerSettings.bind(database)
+    const staleRows = await realRead()
+
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockImplementationOnce(async () => {
+        // Save 1 closes registration and its re-read succeeds; save 2's
+        // re-read fails, leaving save 1's view as the degraded fallback.
+        await database.setServerSettings([
+          { key: 'registrations.open', value: false }
+        ])
+        invalidateServerSettingsCache(database)
+        await getServerSettingsView(database)
+        invalidateServerSettingsCache(database)
+        spy.mockRejectedValueOnce(new Error('database unavailable'))
+        await getServerSettingsView(database)
+        // This read began before both saves.
+        return staleRows
+      })
+
+    await getServerSettingsView(database)
+    spy.mockRejectedValue(new Error('database unavailable'))
+    const next = await getServerSettingsView(database)
+    expect(next.degraded).toBe(true)
+    expect(next.settings.registrations.open).toBe(false)
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
   it('serves the invalidated cached values as degraded on the same database when re-read fails', async () => {
     const database = await freshDatabase()
     await database.setServerSettings([

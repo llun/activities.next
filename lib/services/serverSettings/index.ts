@@ -70,6 +70,8 @@ type CacheEntry = {
   expiresAt: number
   // The invalidation epoch the entry was read under; stale once it moves on.
   epoch: number
+  // The epoch of the successful read the view came from (-1 for defaults).
+  sourceEpoch: number
 }
 
 // Next bundles route handlers and server components as separate module graphs,
@@ -140,13 +142,20 @@ const writeCache = (
   database: Database | null,
   view: ServerSettingsView,
   expiresAt: number,
-  epoch: number
+  epoch: number,
+  sourceEpoch = epoch
 ) => {
-  // A read that started before an admin's save must not replace a newer view,
-  // unless that view is only a degraded fallback.
+  // A read that started before an admin's save must not replace a view read
+  // after it, nor a newer trusted view with anything older.
   const existing = readCacheEntry(database)
-  if (existing && existing.epoch > epoch && !existing.view.degraded) return
-  const entry: CacheEntry = { view, expiresAt, epoch }
+  if (
+    existing &&
+    (existing.sourceEpoch > sourceEpoch ||
+      (existing.epoch > epoch && !existing.view.degraded))
+  ) {
+    return
+  }
+  const entry: CacheEntry = { view, expiresAt, epoch, sourceEpoch }
   if (database) cacheByDatabase.set(database, entry)
   else nullDatabaseCache = entry
 }
@@ -205,7 +214,13 @@ export const getServerSettingsView = async (
       latest && latest.epoch === currentEpoch()
         ? latest.view
         : { ...(latest?.view ?? buildView(new Map())), degraded: true }
-    writeCache(database, view, now + FAILURE_CACHE_TTL_MS, epoch)
+    writeCache(
+      database,
+      view,
+      now + FAILURE_CACHE_TTL_MS,
+      epoch,
+      latest?.sourceEpoch ?? -1
+    )
     return view
   }
 
