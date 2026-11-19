@@ -41,7 +41,8 @@ const DeleteActorJobData = z.object({
 // audience Mastodon uses. The Delete must be signed with the actor's key,
 // which `deleteActorData` removes with the row, so the sends happen in this job
 // rather than as queued deliveries that would find no key on retry.
-// Best effort: a failure is logged and never stops the local deletion.
+// Best effort: a failure is logged and never stops the local deletion, except
+// an undecidable policy, which waits for the retry (see the catch below).
 //
 // The sends share a wall-clock budget: a hosted queue (QStash allows 30s)
 // cuts the job off at its deadline and retries it from the top, so a fan-out
@@ -50,7 +51,11 @@ const DeleteActorJobData = z.object({
 // ends within its own request timeout.
 export const ACTOR_DELETION_FEDERATION_BUDGET_MS = 15_000
 
-const federateActorDeletion = async (database: Database, actor: Actor) => {
+const federateActorDeletion = async (
+  database: Database,
+  actor: Actor,
+  dueAt: number | null
+) => {
   if (!actor.privateKey) return
   const deadline = Date.now() + ACTOR_DELETION_FEDERATION_BUDGET_MS
   try {
@@ -92,10 +97,12 @@ const federateActorDeletion = async (database: Database, actor: Actor) => {
       skippedCount: skipped
     })
   } catch (err) {
-    // A queue retries the job from the still-scheduled row. NoQueue retries
-    // nothing and an immediate deletion's row has no schedule to sweep, so
-    // there the deletion goes ahead without its fan-out, as on a send failure.
-    if (!getQueue().runsInline) rethrowIfFederationPolicyUnavailable(err)
+    // A queue retries the job, and the sweep retries a delayed deletion, from
+    // the still-scheduled row. Under NoQueue an immediate deletion has neither,
+    // so it goes ahead without its fan-out, as on a send failure.
+    if (!(getQueue().runsInline && dueAt === null)) {
+      rethrowIfFederationPolicyUnavailable(err)
+    }
     logger.error({
       message: 'Failed to federate actor deletion',
       actorId: actor.id,
@@ -237,7 +244,7 @@ export const deleteActorJob = createJobHandle(
       // the sends is retried from here, whereas one marked `deleting` would be
       // skipped by the status check above and never finish. A repeated Delete
       // is a no-op for the receiver.
-      await federateActorDeletion(database, actor)
+      await federateActorDeletion(database, actor, dueAt)
 
       // The sends take a while, and a cancel landing meanwhile must still win
       // over the local delete.

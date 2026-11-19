@@ -218,8 +218,8 @@ describe('moveActorJob', () => {
       }
     })
     try {
-      await expect(moveActorJob(database, message())).rejects.toThrow(
-        'could not be queued'
+      await expect(moveActorJob(database, message())).rejects.toBeInstanceOf(
+        FederationPolicyUnavailableError
       )
     } finally {
       mockInline.runsInline = false

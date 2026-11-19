@@ -2659,8 +2659,8 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     sender retries, the bulk-import route runs its inline job with `handle` so a failed run
     still finishes the import, and the move jobs (the outgoing start and
     the follower rewiring of an outgoing or inbound Move) publish through `publishSurfacingErrors`
-    so a move is not marked started or queued while its follower jobs could not run. Under `NoQueue` the actor-deletion fan-out does not rethrow: an
-    immediate deletion has no schedule a sweep would retry, so the data is deleted without the
+    so a move is not marked started or queued while its follower jobs could not run. Under `NoQueue` an immediate actor deletion's fan-out does not
+    rethrow: it has no schedule a sweep would retry (a delayed one does, so it rethrows), so the data is deleted without the
     `Delete(Actor)` fan-out, as on a send failure.
   - A remote profile render (including handle confirmation) shows the profile as unavailable, the
     not-found status page still shows its loading state, Bluesky sharing reports the bridge as

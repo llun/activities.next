@@ -476,7 +476,10 @@ describe('deleteActorJob', () => {
   describe('federating the deletion', () => {
     const REMOTE_FOLLOWER_INBOX = 'https://remote.test/inbox'
 
-    const createFollowedActor = async (suffix: string) => {
+    const createFollowedActor = async (
+      suffix: string,
+      scheduledAt: number | null = null
+    ) => {
       const username = `delete-job-federate-${suffix}`
       const actorId = `https://test.social/users/${username}`
       await database.createAccount({
@@ -501,7 +504,10 @@ describe('deleteActorJob', () => {
         sharedInbox: TEST_SHARED_INBOX,
         status: FollowStatus.enum.Accepted
       })
-      await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+      await database.scheduleActorDeletion({
+        actorId,
+        scheduledAt: scheduledAt === null ? null : new Date(scheduledAt)
+      })
       return actorId
     }
 
@@ -619,6 +625,32 @@ describe('deleteActorJob', () => {
       }
 
       // The row is still scheduled, so the retry finds it.
+      expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
+    })
+
+    it('leaves a due delayed deletion for the sweep under an inline queue when the policy is unavailable', async () => {
+      const suffix = `${Date.now()}-policy-inline-delayed`
+      const scheduledAt = Date.now() - 60_000
+      const actorId = await createFollowedActor(suffix, scheduledAt)
+      const statusDelivery =
+        await import('@/lib/services/federation/statusDelivery')
+      const inboxLookup = vi
+        .spyOn(statusDelivery, 'getFederatedStatusDeliveryInboxes')
+        .mockRejectedValue(new FederationPolicyUnavailableError())
+
+      try {
+        await expect(
+          deleteActorJob(database, {
+            id: `delete-job-federate-${suffix}`,
+            name: DELETE_ACTOR_JOB_NAME,
+            data: { actorId, scheduledAt }
+          })
+        ).rejects.toThrow(FederationPolicyUnavailableError)
+      } finally {
+        inboxLookup.mockRestore()
+      }
+
+      // The row is still scheduled and due, so the next sweep retries it.
       expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
     })
 
