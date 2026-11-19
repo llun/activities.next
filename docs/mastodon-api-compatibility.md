@@ -2649,11 +2649,13 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     record the actor before inserting the row, not alongside it. Inbox forwarding in
     `createNoteJob`, `updateNoteJob` and `deleteObjectJob` forwards to no one
     (`forwardToNoOneWhenFederationPolicyUnavailable`: a stored note returns early, a replayed edit
-    appends history, a delete must not wait on forwarding). `getActorPerson`, the inbound quote
-    fetch and like/reaction actor recording keep swallowing it (each runs after its row is
-    written). Unfollow (`undoFollow`) undoes the follow here and queues the Undo, whose job
+    appends history, a delete must not wait on forwarding). The inbound quote fetch and
+    like/reaction actor recording keep swallowing it (each runs after its row is written), and so
+    does `getActorPerson`, which runs inside actor recording. Unfollow (`undoFollow`) undoes the follow here and queues the Undo, whose job
     rechecks policy. `NoQueue`, which retries nothing, logs the error from an inline job instead
-    of failing the request that published it after its own work committed.
+    of failing the request that published it after its own work committed; the inboxes use
+    `publishInbound`, which runs an inline job directly so the error still answers 5xx and the
+    sender retries.
   - A remote profile render (including handle confirmation) shows the profile as unavailable, the
     not-found status page still shows its loading state, Bluesky sharing reports the bridge as
     unavailable, and read-only backfills (thread walks, collection and profile refreshes) still

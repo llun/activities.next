@@ -187,10 +187,12 @@ export const getServerSettingsView = async (
     // failing database — and re-log — on every request; recovery stays bounded
     // to FAILURE_CACHE_TTL_MS.
     // Only a view of the current epoch is last-known-good. An older one is
-    // what an admin's save (in this or another module copy) replaced: it is
-    // still served, since the defaults are looser (open registration, an
-    // empty actor-domain list that admits every served domain), but marked
-    // degraded so federation policy does not trust it.
+    // what an admin's save (in this or another module copy) replaced, and may
+    // be what is still stored if the save failed. It is still served, marked
+    // degraded so federation policy does not trust it: the defaults would
+    // open registration and admit every served domain for new actors, though
+    // a just-lowered limit or a just-removed actor domain keeps its old value
+    // while reads fail.
     const view: ServerSettingsView =
       entry && entry.epoch === epoch
         ? entry.view

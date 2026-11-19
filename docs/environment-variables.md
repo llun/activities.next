@@ -34,7 +34,8 @@ still pass, database domain blocks still refuse, and every other host gets a
 retryable `FederationPolicyUnavailableError` rather than a "no". Queued jobs
 retry, an inbox answers `500` so the sender retries, and a redirect onto such a
 host is refused. Under `NoQueue`, which retries nothing, such an error inside
-an inline job is logged instead. Pinning `ACTIVITIES_FEDERATION_MODE=open`, or an `allowlist`
+an inline job published by a user request is logged instead (an inbox still
+answers `500`). Pinning `ACTIVITIES_FEDERATION_MODE=open`, or an `allowlist`
 mode together with `ACTIVITIES_ALLOW_ACTOR_DOMAINS`, keeps the policy decidable
 throughout. The read failure is logged at error level.
 
