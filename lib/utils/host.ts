@@ -1,6 +1,6 @@
 import { ACTIVITIES_HOST, FORWARDED_HOST } from '@/lib/constants'
-import { withWebScheme } from '@/lib/services/federation/domainRules'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
+import { withWebScheme } from '@/lib/utils/webScheme'
 
 type NormalizeHostOptions = {
   allowWildcard?: boolean

@@ -24,7 +24,15 @@ const FILESYSTEM_MODULES = new Set(['fs', 'node:fs', 'path', 'node:path'])
 //
 // lib/config/storageValue.ts states this constraint in prose as its reason for
 // existing; this is what enforces it.
-const NODE_ONLY_MODULES = new Set(['pino', '@/lib/utils/logger'])
+// Node's `crypto` module is not in the Edge runtime either (Web Crypto is
+// `globalThis.crypto`); lib/services/federation/domainRules imports it, so
+// lib/utils/host must not.
+const NODE_ONLY_MODULES = new Set([
+  'pino',
+  '@/lib/utils/logger',
+  'crypto',
+  'node:crypto'
+])
 const SOURCE_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.mjs']
 
 const resolveSourcePath = (rawPath: string): string | null => {
