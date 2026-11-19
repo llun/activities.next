@@ -170,6 +170,20 @@ describe('sendQuoteRequestJob', () => {
     )
   })
 
+  it('sends nothing when the fetched note names an author on another origin', async () => {
+    const statusId = await seedQuotingStatus()
+    const uncachedId = 'https://other.test/users/someone/statuses/forged'
+    vi.mocked(getNote).mockResolvedValue({
+      id: uncachedId,
+      attributedTo: 'https://blocked.test/users/victim'
+    } as never)
+
+    await runJob(jobData(statusId, uncachedId))
+
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect(sendQuoteRequest).not.toHaveBeenCalled()
+  })
+
   it('falls back to <author>/inbox when the author profile cannot be fetched', async () => {
     const statusId = await seedQuotingStatus()
     const uncachedId = 'https://other.test/users/someone/statuses/no-profile'

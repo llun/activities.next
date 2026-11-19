@@ -8,6 +8,7 @@ import { SEND_QUOTE_REQUEST_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -53,6 +54,14 @@ export const sendQuoteRequestJob: JobHandle = createJobHandle(
         (await getNote({ statusId: quotedStatusId, signingActor }))
           ?.attributedTo
       if (typeof quotedAuthorId !== 'string') {
+        return
+      }
+      // A fetched note's author is only its claim: it must be on the note's
+      // own origin, which federation policy already allowed above.
+      if (
+        !quotedStatus &&
+        !isSameActivityPubOrigin(quotedAuthorId, quotedStatusId)
+      ) {
         return
       }
 
