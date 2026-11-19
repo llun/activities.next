@@ -1,3 +1,5 @@
+import { isFederatedUrlForActor } from '@/lib/activities/getActorCollections'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { Actor } from '@/lib/types/activitypub'
 import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
@@ -77,6 +79,7 @@ export const getPixelfedAccountId = async (
   try {
     const { statusCode, body } = await request({
       url: `https://${domain}/api/v1/accounts/lookup?acct=${encodeURIComponent(username)}`,
+      allowCrossHostRedirects: isFederatedRedirect,
       headers: {
         Accept: 'application/json',
         'User-Agent': 'activities.next'
@@ -192,8 +195,12 @@ export const getPixelfedPosts = async ({
         fetchUrl = `https://${domain}/api/pixelfed/v1/accounts/${accountId}/statuses?limit=${PIXELFED_PAGE_LIMIT}`
       }
 
+      // A page URL comes from the caller and can name any host.
+      if (!(await isFederatedUrlForActor(fetchUrl, person.id))) return null
+
       const { statusCode, body } = await request({
         url: fetchUrl,
+        allowCrossHostRedirects: isFederatedRedirect,
         headers: {
           Accept: 'application/json',
           'User-Agent': 'activities.next'

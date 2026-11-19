@@ -1,6 +1,7 @@
 /** @vitest-size medium */
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { Actor } from '@/lib/types/activitypub'
 import { StatusType } from '@/lib/types/domain/status'
@@ -10,6 +11,10 @@ import {
   getPixelfedAccountId,
   getPixelfedPosts
 } from './getPixelfedPosts'
+
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
 
 enableFetchMocks()
 
@@ -133,6 +138,21 @@ describe('getPixelfedPosts', () => {
       expect(result?.statusesCount).toBe(20)
       expect(result?.nextPageUrl).toBe(
         'https://pixelfed.example/api/pixelfed/v1/accounts/2/statuses?limit=20&max_id=1981'
+      )
+    })
+
+    it('fetches no page URL on another host federation policy refuses', async () => {
+      vi.mocked(isFederatedRedirect).mockResolvedValueOnce(false)
+
+      const result = await getPixelfedPosts({
+        person,
+        pageUrl: 'https://blocked.example/api/pixelfed/v1/accounts/2/statuses'
+      })
+
+      expect(result).toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(vi.mocked(isFederatedRedirect).mock.calls[0]?.[0].href).toBe(
+        'https://blocked.example/api/pixelfed/v1/accounts/2/statuses'
       )
     })
 
