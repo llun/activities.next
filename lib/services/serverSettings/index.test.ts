@@ -286,7 +286,9 @@ describe('server settings resolver', () => {
       const view = await getServerSettingsView(database)
       expect(view.settings.registrations.open).toBe(false)
       expect(view.degraded).toBeUndefined()
-      expect(spy).toHaveBeenCalled()
+      // Re-cached briefly: a sustained outage does not re-read on every call.
+      await getServerSettingsView(database)
+      expect(spy).toHaveBeenCalledTimes(1)
       spy.mockRestore()
     } finally {
       vi.useRealTimers()
@@ -408,6 +410,34 @@ describe('server settings resolver', () => {
     const view = await getServerSettingsView(database)
     expect(view.degraded).toBe(true)
     expect(view.settings.registrations.open).toBe(false)
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
+  it('lets a successful read replace a newer degraded fallback', async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false }
+    ])
+    invalidateServerSettingsCache(database)
+    const realRead = database.getAllServerSettings.bind(database)
+
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockImplementationOnce(async () => {
+        // While this read runs, a save's re-read fails with nothing cached and
+        // leaves the defaults (registration open) as a degraded fallback.
+        invalidateServerSettingsCache(database)
+        await getServerSettingsView(database)
+        return realRead()
+      })
+      .mockRejectedValueOnce(new Error('database unavailable'))
+
+    await getServerSettingsView(database)
+    const next = await getServerSettingsView(database)
+    expect(next.degraded).toBeUndefined()
+    expect(next.settings.registrations.open).toBe(false)
 
     spy.mockRestore()
     await database.destroy()

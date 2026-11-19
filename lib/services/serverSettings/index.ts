@@ -142,9 +142,10 @@ const writeCache = (
   expiresAt: number,
   epoch: number
 ) => {
-  // A read that started before an admin's save must not replace a newer view.
+  // A read that started before an admin's save must not replace a newer view,
+  // unless that view is only a degraded fallback.
   const existing = readCacheEntry(database)
-  if (existing && existing.epoch > epoch) return
+  if (existing && existing.epoch > epoch && !existing.view.degraded) return
   const entry: CacheEntry = { view, expiresAt, epoch }
   if (database) cacheByDatabase.set(database, entry)
   else nullDatabaseCache = entry
