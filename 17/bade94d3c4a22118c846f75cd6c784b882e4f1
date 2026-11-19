@@ -1,0 +1,27 @@
+docs/mastodon-api-compatibility.md
+  s_449320edf6fe96::t_8a6f5a6d2287a7 2659-2663
+lib/jobs/deleteActorJob.test.ts
+  s_449320edf6fe96::t_91dfec7ffe79e5 596-600,624-648
+lib/jobs/deleteActorJob.ts
+  s_449320edf6fe96::t_39e1203999455a 95-98
+lib/services/accounts/migration/outgoingMove.test.ts
+  s_449320edf6fe96::t_5d6691468b9a47 5,119-139
+lib/services/accounts/migration/outgoingMove.ts
+  s_449320edf6fe96::t_cdc9b9b18fb7ff 241,249-253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17bade94d3c4a22118c846f75cd6c784b882e4f1",
+  "prompts": {},
+  "sessions": {
+    "s_449320edf6fe96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01786880-c6f1-43f9-b3f4-e62348bf80e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
