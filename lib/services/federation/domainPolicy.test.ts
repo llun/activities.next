@@ -1,6 +1,6 @@
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { Database } from '@/lib/database/types'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { getServerSettingsView } from '@/lib/services/serverSettings'
 
 import {
   canFederateWithDomain,
@@ -8,6 +8,7 @@ import {
   isDomainAllowed,
   isLocalFederationDomain
 } from './domainPolicy'
+import { FederationPolicyUnavailableError } from './policyUnavailable'
 
 const mockGetConfig = vi.fn()
 vi.mock('@/lib/config', () => ({
@@ -15,7 +16,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/services/serverSettings', () => ({
-  getResolvedServerSettings: vi.fn()
+  getServerSettingsView: vi.fn()
 }))
 
 // The host stays env-configured; the federation mode + actor allow-list are
@@ -24,12 +25,18 @@ const mockFederation = ({
   host = 'local.test',
   trustedHosts = [] as string[],
   mode = 'open' as 'open' | 'allowlist',
-  allowActorDomains = [] as string[]
+  allowActorDomains = [] as string[],
+  degraded = false
 } = {}) => {
   mockGetConfig.mockReturnValue({ host, trustedHosts })
-  vi.mocked(getResolvedServerSettings).mockResolvedValue({
-    ...structuredClone(DEFAULT_SERVER_SETTINGS),
-    federation: { mode, allowActorDomains }
+  vi.mocked(getServerSettingsView).mockResolvedValue({
+    settings: {
+      ...structuredClone(DEFAULT_SERVER_SETTINGS),
+      federation: { mode, allowActorDomains }
+    },
+    locks: {},
+    updatedAt: {},
+    degraded
   })
 }
 
@@ -107,6 +114,73 @@ describe('domainPolicy', () => {
     await expect(
       canFederateWithDomain(database, 'https://other.test/users/a')
     ).resolves.toBe(false)
+  })
+
+  // With the stored settings unreadable, a database-only allowlist may be in
+  // force: a refusal would make outbound jobs skip for good, so anything but
+  // a local, blocked or allow-listed host is a retryable error instead.
+  it('answers only what holds in both modes while the settings view is degraded', async () => {
+    mockFederation({ mode: 'open', degraded: true })
+    const database = createDatabase({
+      allows: ['trusted.test'],
+      blocks: ['blocked.test']
+    })
+
+    await expect(
+      canFederateWithDomain(database, 'https://local.test/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      canFederateWithDomain(database, 'https://trusted.test/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      canFederateWithDomain(database, 'https://blocked.test/users/a')
+    ).resolves.toBe(false)
+    await expect(
+      canFederateWithDomain(database, 'https://other.test/users/a')
+    ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+  })
+
+  it('throws instead of filtering an unlisted inbox while the settings view is degraded', async () => {
+    mockFederation({ mode: 'open', degraded: true })
+    const database = createDatabase({
+      allows: ['trusted.test'],
+      blocks: ['blocked.test']
+    })
+
+    await expect(
+      filterFederatedUrls(database, [
+        'https://trusted.test/inbox',
+        'https://blocked.test/inbox',
+        'https://local.test/inbox'
+      ])
+    ).resolves.toEqual([
+      'https://trusted.test/inbox',
+      'https://local.test/inbox'
+    ])
+    await expect(
+      filterFederatedUrls(database, [
+        'https://trusted.test/inbox',
+        'https://other.test/inbox'
+      ])
+    ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+  })
+
+  it('keeps an env-pinned open mode while the settings view is degraded', async () => {
+    mockFederation({ mode: 'open', degraded: true })
+    vi.mocked(getServerSettingsView).mockResolvedValue({
+      ...(await getServerSettingsView({} as never)),
+      locks: {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        }
+      }
+    })
+    const database = createDatabase({})
+
+    await expect(
+      canFederateWithDomain(database, 'https://other.test/users/a')
+    ).resolves.toBe(true)
   })
 
   it('always allows local actor domains', async () => {

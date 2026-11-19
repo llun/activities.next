@@ -4,6 +4,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { RECEIVE_FLAG_JOB_NAME } from '@/lib/jobs/names'
 import { receiveFlagJob } from '@/lib/jobs/receiveFlagJob'
 import { serializeAdminReports } from '@/lib/services/admin/serializeAdminReports'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { seedDatabase } from '@/lib/stub/database'
 import { FEDIVERSE_ACTORS, mockFediverseRequests } from '@/lib/stub/fediverse'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -393,6 +394,37 @@ describe('receiveFlagJob', () => {
     expect(matching).toHaveLength(1)
     expect(matching[0].actorId).toBe(INSTANCE_ACTOR)
     expect(await reportsFrom(aliased)).toEqual([])
+  })
+
+  it('rethrows a policy-unavailable error when the reporter cannot be recorded', async () => {
+    const actions = await import('@/lib/actions/utils')
+    const recordActor = vi
+      .spyOn(actions, 'recordActorIfNeeded')
+      .mockRejectedValueOnce(new FederationPolicyUnavailableError())
+      .mockRejectedValueOnce(new Error('network down'))
+
+    try {
+      await expect(
+        run({
+          id: 'https://mastodon.example/flag-policy-unavailable',
+          actor: INSTANCE_ACTOR,
+          object: [ACTOR1_ID],
+          content: 'Spam'
+        })
+      ).rejects.toThrow(FederationPolicyUnavailableError)
+
+      // Any other failure is still logged and the report is skipped.
+      await expect(
+        run({
+          id: 'https://mastodon.example/flag-policy-unavailable',
+          actor: INSTANCE_ACTOR,
+          object: [ACTOR1_ID],
+          content: 'Spam'
+        })
+      ).resolves.toBeUndefined()
+    } finally {
+      recordActor.mockRestore()
+    }
   })
 
   it('does not file a report against the federation signing actor', async () => {

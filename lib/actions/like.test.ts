@@ -2,6 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { likeRequest } from '@/lib/actions/like'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -167,6 +168,42 @@ describe('Like action', () => {
         database
       })
       recordActorSpy.mockRestore()
+    })
+
+    it('rethrows a policy-unavailable error when recording the actor', async () => {
+      const recordActorSpy = vi
+        .spyOn(await import('@/lib/actions/utils'), 'recordActorIfNeeded')
+        .mockRejectedValueOnce(new FederationPolicyUnavailableError())
+        .mockRejectedValueOnce(new Error('network down'))
+
+      try {
+        await expect(
+          likeRequest({
+            activity: {
+              actor: ACTOR2_ID,
+              id: `${ACTOR2_ID}/like-policy-unavailable`,
+              type: 'Like',
+              object: `${ACTOR1_ID}/statuses/post-1`
+            },
+            database
+          })
+        ).rejects.toThrow(FederationPolicyUnavailableError)
+
+        // Any other failure is still logged and the like carries on.
+        await expect(
+          likeRequest({
+            activity: {
+              actor: ACTOR2_ID,
+              id: `${ACTOR2_ID}/like-policy-unavailable-2`,
+              type: 'Like',
+              object: `${ACTOR1_ID}/statuses/post-1`
+            },
+            database
+          })
+        ).resolves.toBeUndefined()
+      } finally {
+        recordActorSpy.mockRestore()
+      }
     })
   })
 })

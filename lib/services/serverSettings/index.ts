@@ -12,6 +12,7 @@ import {
   ServerSettingValue
 } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 // Resolves database-backed server settings using env -> database -> default
 // precedence. An env var always wins and locks its field; otherwise a stored
@@ -44,6 +45,10 @@ export interface ServerSettingsView {
   // an invalid one, an env pin, or a cleared policy). The terms of service and privacy policy
   // report this as their date.
   updatedAt: Record<string, number | null>
+  // True when the stored settings could not be read and no last-known-good
+  // view was cached, so stored fields show their defaults. A consumer whose
+  // default is the permissive choice (federation policy) must not trust them.
+  degraded?: boolean
 }
 
 export type ServerSettingRejectionReason = 'unknown' | 'locked' | 'invalid'
@@ -175,13 +180,18 @@ export const getServerSettingsView = async (
     logger.error({
       message:
         'serverSettings: failed to read stored settings; serving cached values or env/defaults',
-      error: error instanceof Error ? error.message : String(error)
+      err: toLoggableError(error)
     })
     // Re-cache the served view briefly (whether the stale last-known-good entry
     // or the env/defaults fallback) so a sustained outage does not re-read the
     // failing database — and re-log — on every request; recovery stays bounded
     // to FAILURE_CACHE_TTL_MS.
-    const view = entry ? entry.view : buildView(new Map())
+    // Only a view of the current epoch is last-known-good: an older one is
+    // what an admin's save (in this or another module copy) has replaced.
+    const view =
+      entry && entry.epoch === epoch
+        ? entry.view
+        : { ...buildView(new Map()), degraded: true }
     writeCache(database, view, now + FAILURE_CACHE_TTL_MS, epoch)
     return view
   }

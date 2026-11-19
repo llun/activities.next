@@ -14,6 +14,7 @@ import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
 import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -91,6 +92,8 @@ const federateActorDeletion = async (database: Database, actor: Actor) => {
       skippedCount: skipped
     })
   } catch (err) {
+    // The job is retried from the still-scheduled row.
+    rethrowIfFederationPolicyUnavailable(err)
     logger.error({
       message: 'Failed to federate actor deletion',
       actorId: actor.id,

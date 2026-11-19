@@ -4,7 +4,8 @@ import {
   ensureServedDomainsFresh,
   getServedHostConfig
 } from '@/lib/services/domains/servedDomainSnapshot'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
+import { getServerSettingsView } from '@/lib/services/serverSettings'
 import {
   createServedDomainMatcher,
   getServedDomainRules
@@ -38,13 +39,21 @@ export const getDomainFromUrl = (value: string): string | null =>
 // inbound path still makes.
 const getFederationPolicy = async (
   database: Database
-): Promise<{ mode: FederationMode; isLocal: LocalDomainMatcher }> => {
-  const [{ federation }] = await Promise.all([
-    getResolvedServerSettings(database),
+): Promise<{
+  mode: FederationMode
+  isLocal: LocalDomainMatcher
+  unknown: boolean
+}> => {
+  const [view] = await Promise.all([
+    getServerSettingsView(database),
     ensureServedDomainsFresh()
   ])
+  const { federation } = view.settings
   return {
     mode: federation.mode,
+    // The defaults stand in for unread stored settings; an env-pinned mode is
+    // still known.
+    unknown: Boolean(view.degraded) && !view.locks['federation.mode']?.locked,
     isLocal: createServedDomainMatcher([
       ...getServedDomainRules(getServedHostConfig()),
       ...federation.allowActorDomains
@@ -98,13 +107,16 @@ export const canFederateWithDomain = async (
   const domain = getDomainFromUrl(value)
   if (!domain) return false
 
-  const { mode, isLocal } = await getFederationPolicy(database)
+  const { mode, isLocal, unknown } = await getFederationPolicy(database)
   if (isLocal(value)) return true
 
   if (await isDomainBlocked(database, domain)) return false
 
-  if (mode === 'allowlist') {
-    return Boolean(await database.getDomainAllowForDomain(domain))
+  if (mode === 'allowlist' || unknown) {
+    if (await database.getDomainAllowForDomain(domain)) return true
+    // Unknown mode: only an allow row is a yes that holds in both modes.
+    if (unknown) throw new FederationPolicyUnavailableError()
+    return false
   }
 
   return true
@@ -113,7 +125,8 @@ export const canFederateWithDomain = async (
 const getFederationDecisionsForDomains = async (
   database: Database,
   mode: FederationMode,
-  domains: string[]
+  domains: string[],
+  unknown = false
 ): Promise<Map<string, boolean>> => {
   const remoteDomains = [...new Set(domains)]
   const decisions = new Map<string, boolean>()
@@ -128,12 +141,16 @@ const getFederationDecisionsForDomains = async (
     return !isBlocked
   })
 
-  if (mode !== 'allowlist' || unblockedDomains.length === 0) {
+  if ((mode !== 'allowlist' && !unknown) || unblockedDomains.length === 0) {
     return decisions
   }
 
   const allowRules = await database.getDomainAllowsForDomains(unblockedDomains)
   for (const domain of unblockedDomains) {
+    // Unknown mode: an unlisted domain is neither a yes nor a safe no.
+    if (unknown && !allowRules[domain]) {
+      throw new FederationPolicyUnavailableError()
+    }
     decisions.set(domain, Boolean(allowRules[domain]))
   }
 
@@ -144,7 +161,7 @@ export const filterFederatedUrls = async (
   database: Database,
   urls: string[]
 ): Promise<string[]> => {
-  const { mode, isLocal } = await getFederationPolicy(database)
+  const { mode, isLocal, unknown } = await getFederationPolicy(database)
   const uniqueUrls = [...new Set(urls)]
   // Locality is decided per URL rather than per domain, because the
   // served-domain rules compare the port that `getDomainFromUrl` drops.
@@ -160,7 +177,8 @@ export const filterFederatedUrls = async (
   const decisions = await getFederationDecisionsForDomains(
     database,
     mode,
-    domains
+    domains,
+    unknown
   )
 
   return uniqueUrls.filter((url) => {

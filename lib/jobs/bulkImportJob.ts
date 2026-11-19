@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { Database } from '@/lib/database/types'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { BULK_IMPORT_JOB_NAME } from '@/lib/jobs/names'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { importRow, isValidListName } from '@/lib/services/imports/importRow'
 import { applyOverwrite } from '@/lib/services/imports/overwrite'
 import { getQueue } from '@/lib/services/queue'
@@ -189,6 +190,9 @@ const processImport = async (
             data: row.data
           })
         } catch (error) {
+          // Escapes to the job's catch, which rethrows: the queue retries
+          // from the checkpoint and the row stays pending.
+          rethrowIfFederationPolicyUnavailable(error)
           logger.error({
             message: 'Bulk import row failed',
             importId,

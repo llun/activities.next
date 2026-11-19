@@ -5,6 +5,7 @@ import { compactActivityPub } from '@/lib/activities/jsonld'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import {
   annotateInboxRejection,
@@ -223,6 +224,8 @@ export const POST = traceApiRoute(
           responseStatusCode: 202
         })
       } catch (error) {
+        // A 5xx, so the sender retries; every other failure here is a 400.
+        rethrowIfFederationPolicyUnavailable(error)
         const span = trace.getActiveSpan()
         const err = error instanceof Error ? error : new Error(String(error))
         span?.recordException(err)

@@ -6,6 +6,7 @@ import { RECEIVE_FLAG_JOB_NAME } from '@/lib/jobs/names'
 import { actorMatchesVerifiedSender } from '@/lib/jobs/verifiedSender'
 import { getDomainFromUrl } from '@/lib/services/federation/domainPolicy'
 import { isFederationSigningActor } from '@/lib/services/federation/instanceActor'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { JobHandle } from '@/lib/services/queue/type'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -99,6 +100,7 @@ export const receiveFlagJob: JobHandle = createJobHandle(
     try {
       reporter = await recordActorIfNeeded({ actorId: actor, database })
     } catch (error) {
+      rethrowIfFederationPolicyUnavailable(error)
       logger.warn({
         message: 'Failed to record the reporter of an inbound Flag',
         actorId: actor,

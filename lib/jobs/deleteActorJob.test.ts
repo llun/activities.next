@@ -12,6 +12,7 @@ import {
   deleteActorJob
 } from '@/lib/jobs/deleteActorJob'
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
@@ -589,6 +590,31 @@ describe('deleteActorJob', () => {
       ).resolves.toBeUndefined()
 
       expect(await database.getActorFromId({ id: actorId })).toBeNull()
+    })
+
+    it('rethrows a policy-unavailable error so the queue retries the job', async () => {
+      const suffix = `${Date.now()}-policy`
+      const actorId = await createFollowedActor(suffix)
+      const statusDelivery =
+        await import('@/lib/services/federation/statusDelivery')
+      const inboxLookup = vi
+        .spyOn(statusDelivery, 'getFederatedStatusDeliveryInboxes')
+        .mockRejectedValue(new FederationPolicyUnavailableError())
+
+      try {
+        await expect(
+          deleteActorJob(database, {
+            id: `delete-job-federate-${suffix}`,
+            name: DELETE_ACTOR_JOB_NAME,
+            data: { actorId }
+          })
+        ).rejects.toThrow(FederationPolicyUnavailableError)
+      } finally {
+        inboxLookup.mockRestore()
+      }
+
+      // The row is still scheduled, so the retry finds it.
+      expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
     })
   })
 

@@ -2630,6 +2630,17 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     wildcards included).
   - Comparing the port matters: the policy's `getDomainFromUrl` drops it, so locality is decided on
     the full URL, not on the domain the block lookups use.
+  - **An undecidable policy is an error, never a "no".** When the server settings cannot be read
+    and nothing is cached, `canFederateWithDomain` / `filterFederatedUrls` still answer for local,
+    blocked and allow-listed hosts and throw `FederationPolicyUnavailableError`
+    (`lib/services/federation/policyUnavailable.ts`) for any other, because outbound jobs treat a
+    "no" as a finished skip (a Delete or Block never sent). A catch that would turn every error
+    into a skip or a null (the shared inbox's 400, `getSenderPublicKeyDetails`, `getActorPerson`,
+    the actor-deletion fan-out, Flag, bulk import, like and reaction actor recording, quote and
+    status-action fetches) calls `rethrowIfFederationPolicyUnavailable` first, so the error reaches
+    a queue retry or a 5xx. Read-only backfills (thread walks, collection and profile refreshes)
+    still skip, and under `NoQueue`, which retries nothing, a status delete's fan-out is lost as
+    any failed inline job is.
   - Widening "local" only skips work — no fetch, no WebFinger, no domain-block or allow-list lookup,
     no forward — and never stands in for a signature or ownership check; every rule is operator
     configuration, and an authority spelled with a `*` (literally, or `%2a` that the parser decodes)

@@ -10,6 +10,7 @@ import type {
 import { Database } from '@/lib/database/types'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
 import { normalizeActorHost } from '@/lib/services/federation/domainRules'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -183,6 +184,7 @@ const syncAccountRelations = async ({
         if (resolved.type === 'resolved') resolvedActorId = resolved.actor.id
         resolutionForbidden = resolved.type === 'forbidden'
       } catch (error) {
+        rethrowIfFederationPolicyUnavailable(error)
         logger.warn({
           message: 'Bulk import could not resolve an account',
           importId: bulkImport.id,

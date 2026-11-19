@@ -1,5 +1,6 @@
 import { BaseNote } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import {
   persistInboundQuoteEdge,
   resolveInboundQuotedStatus
@@ -262,6 +263,31 @@ describe('resolveInboundQuotedStatus', () => {
     expect(storeNote).toHaveBeenCalledWith(fetched, {
       skipQuoteResolution: true
     })
+  })
+
+  it('rethrows a policy-unavailable error instead of leaving the edge pending', async () => {
+    mockGetNote
+      .mockRejectedValueOnce(new FederationPolicyUnavailableError())
+      .mockRejectedValueOnce(new Error('network down'))
+
+    await expect(
+      resolveInboundQuotedStatus({
+        database: unstoredDatabase(),
+        note: note(STAMP_URI),
+        quotedStatusId: QUOTED_STATUS_ID,
+        storeNote: vi.fn()
+      })
+    ).rejects.toThrow(FederationPolicyUnavailableError)
+
+    // Any other fetch failure still leaves the edge pending.
+    await expect(
+      resolveInboundQuotedStatus({
+        database: unstoredDatabase(),
+        note: note(STAMP_URI),
+        quotedStatusId: QUOTED_STATUS_ID,
+        storeNote: vi.fn()
+      })
+    ).resolves.toBeNull()
   })
 
   it('degrades to null when the lookup confirming the stored note rejects', async () => {

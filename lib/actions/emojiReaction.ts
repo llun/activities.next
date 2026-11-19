@@ -6,6 +6,7 @@ import {
   type LocalDomainMatcher,
   getLocalDomainMatcher
 } from '@/lib/services/domains/localDomains'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
@@ -239,6 +240,9 @@ export const emojiReactionRequest = async ({
       database
     })
   } catch (error) {
+    // Retried with the inbound activity; the stored reaction makes the retry
+    // skip the notification.
+    rethrowIfFederationPolicyUnavailable(error)
     logger.warn({
       message: 'Failed to record actor for emoji reaction request',
       actorId: activity.actor,
