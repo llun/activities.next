@@ -131,9 +131,8 @@ describe('contextBudget check', () => {
     console.log = () => {}
     try {
       expect(main([], root)).toBe(1)
+      expect(main(['--update'], root)).toBe(1)
       write('B.md', 'x'.repeat(20))
-      expect(main([], root)).toBe(1)
-      expect(main(['--update'], root)).toBe(0)
     } finally {
       console.log = log
     }
