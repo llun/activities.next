@@ -254,7 +254,8 @@ export const runSendMove = async (
         cursor = last
       }
       if (Date.now() >= deadline) {
-        await queue.publish({
+        // Inline, the next slice runs here, and its policy error must fail the move too.
+        await publishSurfacingErrors({
           id: getSendMoveContinueJobId(migrationId, phase, cursor),
           name: SEND_MOVE_JOB_NAME,
           data: { migrationId, originActorId, targetActorId, phase, cursor }

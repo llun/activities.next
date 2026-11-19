@@ -643,7 +643,8 @@ describe('deleteActorJob', () => {
           deleteActorJob(database, {
             id: `delete-job-federate-${suffix}`,
             name: DELETE_ACTOR_JOB_NAME,
-            data: { actorId, scheduledAt }
+            // The sweep's job shape: the schedule comes from the stored row.
+            data: { actorId }
           })
         ).rejects.toThrow(FederationPolicyUnavailableError)
       } finally {
@@ -651,7 +652,9 @@ describe('deleteActorJob', () => {
       }
 
       // The row is still scheduled and due, so the next sweep retries it.
-      expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
+      expect(
+        (await database.getActorDeletionStatus({ id: actorId }))?.status
+      ).toBe('scheduled')
     })
 
     it('still deletes the actor under an inline queue when the policy is unavailable', async () => {

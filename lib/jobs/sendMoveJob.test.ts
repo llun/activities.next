@@ -503,6 +503,19 @@ describe('sendMoveJob', () => {
       ).toBeGreaterThan(0)
     })
 
+    it('fails the move when its next slice cannot read the federation policy', async () => {
+      mockInline.runsInline = true
+      mockInline.handle.mockImplementation(async (job: { name: string }) => {
+        if (job.name === SEND_MOVE_JOB_NAME) {
+          throw new FederationPolicyUnavailableError()
+        }
+      })
+
+      await expect(
+        runSendMove(database, message(), { budgetMs: 0, pageSize: 2 })
+      ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+    })
+
     it('keeps going when a follower job fails for another reason', async () => {
       mockInline.runsInline = true
       mockInline.handle.mockImplementation(async (job: { name: string }) => {
