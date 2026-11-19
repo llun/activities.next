@@ -593,6 +593,11 @@ describe('deleteActorJob', () => {
     })
 
     it('rethrows a policy-unavailable error so the queue retries the job', async () => {
+      vi.mocked(getQueue).mockReturnValue({
+        runsInline: false,
+        publish,
+        handle: vi.fn()
+      } as unknown as ReturnType<typeof getQueue>)
       const suffix = `${Date.now()}-policy`
       const actorId = await createFollowedActor(suffix)
       const statusDelivery =
@@ -615,6 +620,31 @@ describe('deleteActorJob', () => {
 
       // The row is still scheduled, so the retry finds it.
       expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
+    })
+
+    it('still deletes the actor under an inline queue when the policy is unavailable', async () => {
+      const suffix = `${Date.now()}-policy-inline`
+      const actorId = await createFollowedActor(suffix)
+      const statusDelivery =
+        await import('@/lib/services/federation/statusDelivery')
+      const inboxLookup = vi
+        .spyOn(statusDelivery, 'getFederatedStatusDeliveryInboxes')
+        .mockRejectedValue(new FederationPolicyUnavailableError())
+
+      try {
+        await expect(
+          deleteActorJob(database, {
+            id: `delete-job-federate-${suffix}`,
+            name: DELETE_ACTOR_JOB_NAME,
+            data: { actorId }
+          })
+        ).resolves.toBeUndefined()
+      } finally {
+        inboxLookup.mockRestore()
+      }
+
+      // NoQueue retries nothing, so the data must not wait for a retry.
+      expect(await database.getActorFromId({ id: actorId })).toBeNull()
     })
   })
 

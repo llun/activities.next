@@ -92,8 +92,10 @@ const federateActorDeletion = async (database: Database, actor: Actor) => {
       skippedCount: skipped
     })
   } catch (err) {
-    // The job is retried from the still-scheduled row.
-    rethrowIfFederationPolicyUnavailable(err)
+    // A queue retries the job from the still-scheduled row. NoQueue retries
+    // nothing and an immediate deletion's row has no schedule to sweep, so
+    // there the deletion goes ahead without its fan-out, as on a send failure.
+    if (!getQueue().runsInline) rethrowIfFederationPolicyUnavailable(err)
     logger.error({
       message: 'Failed to federate actor deletion',
       actorId: actor.id,

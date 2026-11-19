@@ -238,7 +238,7 @@ export const performOutgoingMove = async ({
   if (kind === 'move') {
     try {
       // The id is the migration's, so a retry re-publishes the same job.
-      await getQueue().publish({
+      const message = {
         id: `${migration.id}:start`,
         name: SEND_MOVE_JOB_NAME,
         data: {
@@ -246,7 +246,11 @@ export const performOutgoingMove = async ({
           originActorId: actor.id,
           targetActorId: target.id
         }
-      })
+      }
+      // NoQueue's publish logs an undecidable-policy error from the inline
+      // job; running it directly lets that error keep the retry window open.
+      const queue = getQueue()
+      await (queue.runsInline ? queue.handle(message) : queue.publish(message))
       // Ends the retry window: a repeat of this move is 422 from here on.
       await database.markActorMigrationStarted({ id: migration.id })
     } catch (error) {
