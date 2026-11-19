@@ -1,0 +1,46 @@
+lib/activities/getActorPosts.ts
+  s_f5e9eb82f5325f::t_e7f8895b531a4c 120-124,244-253
+lib/utils/accountHandle.test.ts
+  s_f5e9eb82f5325f::t_8cdf5cef8ff7d6 56-57,68-74
+lib/activities/getActorPosts.announce.test.ts
+  s_f5e9eb82f5325f::t_5152f1ce248a73 754-821
+lib/activities/getActorCollections.test.ts
+  s_f5e9eb82f5325f::t_8f0c95bec7c311 455-489
+lib/activities/getActorPostsFromAtomFeed.test.ts
+  s_f5e9eb82f5325f::t_736b08314c62b6 416-444
+docs/mastodon-api-compatibility.md
+  s_f5e9eb82f5325f::t_e3737eea2e52fe 1852
+lib/activities/getWebfingerDocument.ts
+  s_f5e9eb82f5325f::t_aff85aa8457af3 62-63,87
+  s_f5e9eb82f5325f::t_36ccdb153b79a5 54
+lib/services/actors/resolveAccountTarget.test.ts
+  s_f5e9eb82f5325f::t_e6a2d4bed1d40a 194,199-200,203-212
+lib/activities/getActorCollections.ts
+  s_f5e9eb82f5325f::t_e7f8895b531a4c 13,80-82,185,201-202
+lib/utils/accountHandle.ts
+  s_f5e9eb82f5325f::t_36ccdb153b79a5 22-27,29
+lib/activities/getActorPostsFromAtomFeed.ts
+  s_f5e9eb82f5325f::t_e7f8895b531a4c 5,125
+lib/services/actors/resolveAccountTarget.ts
+  s_f5e9eb82f5325f::t_36ccdb153b79a5 69-70,75-76,83,91-96
+lib/activities/getWebfingerSelf.redirect.test.ts
+  s_f5e9eb82f5325f::t_4d69d25aa6dd0e 141-144
+lib/jobs/createAnnounceJob.ts
+  s_f5e9eb82f5325f::t_e7f8895b531a4c 23,70-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7d0bc2724506d8b04f8c888b44ae767f9a91cc83",
+  "prompts": {},
+  "sessions": {
+    "s_f5e9eb82f5325f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e159a96f-0960-4002-ba26-3aaae213c07e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
