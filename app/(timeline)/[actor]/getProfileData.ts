@@ -13,6 +13,7 @@ import { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import {
   ServerSoftware,
   getServerSoftwareInfo,
@@ -419,6 +420,15 @@ const getLocalProfileData = async (
   }
 }
 
+// A profile render is a read: when federation policy cannot be decided (the
+// server settings are unreadable for a moment), show the profile as
+// unavailable, as a refusal does, rather than failing the page.
+const canFederateForProfileRead = (database: Database, value: string) =>
+  canFederateWithDomain(database, value).catch((error: unknown) => {
+    if (error instanceof FederationPolicyUnavailableError) return false
+    throw error
+  })
+
 const getRemoteProfileData = async (
   database: Database,
   actorHandle: string,
@@ -456,7 +466,7 @@ const getRemoteProfileData = async (
   // WebFinger-resolved id decides federation policy, and it is re-checked
   // against `person.id` below because that id — the server's own choice of
   // canonical id — can name a different host.
-  if (!(await canFederateWithDomain(database, actorId))) return null
+  if (!(await canFederateForProfileRead(database, actorId))) return null
 
   const signingParams = signingActor ? { signingActor } : {}
   const person = await getActorPerson({ actorId, ...signingParams })
@@ -466,7 +476,7 @@ const getRemoteProfileData = async (
   // federation gate is applied again to the id we persist and index — a
   // split-domain deployment answers WebFinger for `@llun@llun.dev` with a
   // Person whose id lives on `social.llun.dev`, so the two hosts differ.
-  if (!(await canFederateWithDomain(database, person.id))) return null
+  if (!(await canFederateForProfileRead(database, person.id))) return null
 
   // Look up the row by the id we are about to write (`person.id`), NOT by the
   // handle `persistedActor` was resolved from. On a split-domain deployment the
@@ -513,6 +523,11 @@ const getRemoteProfileData = async (
           actorId: persistablePerson.id,
           username: persistablePerson.preferredUsername,
           webfinger: persistablePerson.webfinger
+        }).catch((error: unknown) => {
+          // A read: an undecidable handle host leaves the actor unconfirmed
+          // and unstored for now, as a refusal does, instead of a 500.
+          if (error instanceof FederationPolicyUnavailableError) return null
+          throw error
         })
       : null
   if (!storedActor && !handle) {

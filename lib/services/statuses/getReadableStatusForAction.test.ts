@@ -1,5 +1,6 @@
 import type { BaseNote } from '@/lib/activities/note'
 import type { Database } from '@/lib/database/types'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import type { Actor } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
 import { logger } from '@/lib/utils/logger'
@@ -452,6 +453,18 @@ describe('getReadableStatusForAction', () => {
         status: null,
         fetchedNote: null
       })
+    })
+
+    it('rejects when the author-domain policy lookup is unavailable', async () => {
+      mockGetNote.mockResolvedValue(mockNote)
+      mockCanFederateWithDomain
+        .mockResolvedValueOnce(true) // the requested id passes
+        .mockRejectedValueOnce(new FederationPolicyUnavailableError())
+
+      await expect(variant(mockStatus.id)).rejects.toThrow(
+        FederationPolicyUnavailableError
+      )
+      expect(mockDispatchCreateNoteOrPollJob).not.toHaveBeenCalled()
     })
 
     it('returns fetchedNote null when attributedTo is on another origin', async () => {

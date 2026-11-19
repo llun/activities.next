@@ -1,4 +1,6 @@
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { defaultJobHandle } from './base'
 import { JobMessage, Queue } from './type'
@@ -22,7 +24,23 @@ export class NoQueue implements Queue {
       )
       return
     }
-    await this.handle(message)
+    try {
+      await this.handle(message)
+    } catch (error) {
+      // NoQueue retries nothing, so an undecidable federation policy inside an
+      // inline job has no retry to reach; surfacing it would fail the request
+      // that published the job after its own work committed (a saved edit
+      // answering 400). Logged, as any job NoQueue cannot retry.
+      if (!(error instanceof FederationPolicyUnavailableError)) throw error
+      logger.warn(
+        {
+          name: message.name,
+          messageId: message.id,
+          err: toLoggableError(error)
+        },
+        'NoQueue: skipped a job whose federation policy could not be read'
+      )
+    }
   }
 
   async handle(message: JobMessage) {

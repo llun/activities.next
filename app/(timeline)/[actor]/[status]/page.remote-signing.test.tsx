@@ -355,6 +355,25 @@ describe('Page remote-status fetch signing', () => {
     })
   })
 
+  it('renders the loading state when queueing the remote status fetch fails', async () => {
+    // The status is not stored and the live fetch found nothing, so the page
+    // queues the fetch job. A queue failure must not 500 the page: the loading
+    // state is still the right answer.
+    mockGetRemoteStatus.mockResolvedValue(null)
+    mockGetQueue.mockReturnValue({
+      publish: vi.fn().mockRejectedValue(new Error('queue down')),
+      runsInline: false
+    } as never)
+
+    await expect(renderRemoteStatusPage()).resolves.toBeUndefined()
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to queue a remote status fetch'
+      })
+    )
+  })
+
   it('keeps "Load more" for a stored status with more to load', async () => {
     mockResolveStatusFromPath.mockResolvedValue({
       pathActor: PATH_ACTOR,

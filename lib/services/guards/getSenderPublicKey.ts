@@ -6,6 +6,7 @@ import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { Actor } from '@/lib/types/activitypub'
 import { selectDefaultActorPublicKey } from '@/lib/types/activitypub/actor'
 import {
@@ -465,6 +466,8 @@ export const refreshSenderPublicKeyDetails = async (
     if (details.publicKey === stale.publicKey) return null
     return { ...details, isDefaultKey }
   } catch (error) {
+    // A 5xx for the sender to retry, not a failed verification (401).
+    rethrowIfFederationPolicyUnavailable(error)
     logger.warn({
       err: toLoggableError(error),
       keyId,
@@ -520,6 +523,8 @@ export async function getSenderPublicKeyDetails(
     try {
       return await resolveSenderPublicKeyDetails(database, actorId)
     } catch (error) {
+      // Retried by the sender (5xx), not answered as an unknown key (401).
+      rethrowIfFederationPolicyUnavailable(error)
       const nodeError = error as Error
       span.recordException(nodeError)
       logger.warn({

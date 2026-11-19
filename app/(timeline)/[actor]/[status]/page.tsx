@@ -314,11 +314,20 @@ const Page: FC<Props> = async ({ params }) => {
     // Queue the fetch job with a deterministic ID to avoid duplicates. As above,
     // an inline NoQueue run is kept to the focused note's direct replies so the
     // awaited call stays fast; a real queue walks the full thread out of band.
-    await queue.publish({
-      id: `fetch-remote-status-${fullStatusId}`,
-      name: FETCH_REMOTE_STATUS_JOB_NAME,
-      data: { statusId: fullStatusId, firstPageOnly: queue.runsInline }
-    })
+    // As above, a queue (or inline job) failure must not 500 the page: the
+    // loading state below is still the right answer.
+    try {
+      await queue.publish({
+        id: `fetch-remote-status-${fullStatusId}`,
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: fullStatusId, firstPageOnly: queue.runsInline }
+      })
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to queue a remote status fetch',
+        err: toLoggableError(error)
+      })
+    }
 
     // Show loading state. Its own "Fetching remote status" heading stays the
     // page's h1, so the mobile bar only names the page.

@@ -3,6 +3,7 @@ import { unfollow } from '@/lib/activities'
 import { Database } from '@/lib/database/types'
 import { SEND_UNBLOCK_JOB_NAME } from '@/lib/jobs/names'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { BulkImportRowData, BulkImportType } from '@/lib/services/imports/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -473,6 +474,23 @@ describe('applyOverwrite', () => {
 
         expect(await follows(dropped)).toBeNull()
       })
+    })
+
+    it('rethrows a policy-unavailable error from the resolve pass', async () => {
+      await database.createFollow({
+        actorId: actor.id,
+        targetActorId: alice.id,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${actor.id}/inbox`,
+        sharedInbox: 'https://test.llun.dev/inbox'
+      })
+      vi.mocked(resolveAccountTarget).mockRejectedValue(
+        new FederationPolicyUnavailableError()
+      )
+
+      await expect(
+        run('following', [{ acct: 'alice@example.com' }])
+      ).rejects.toThrow(FederationPolicyUnavailableError)
     })
 
     describe('a failed row protects a relation only when it can be the same account', () => {

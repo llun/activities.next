@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 
 import { clearRememberedSignatureSchemes } from '@/lib/activities/signedRequest'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import {
   KEY_REFRESH_ATTEMPTS_MAX,
   SENDER_KEY_REFRESH_MIN_INTERVAL_MS,
@@ -1070,6 +1071,18 @@ describe('getSenderPublicKey', () => {
     })
   })
 
+  it('rethrows a policy-unavailable error instead of returning empty details', async () => {
+    const actorId = 'https://remote.test/users/test1'
+    vi.mocked(request).mockRejectedValueOnce(
+      new FederationPolicyUnavailableError()
+    )
+
+    await expect(getSenderPublicKeyDetails(database, actorId)).rejects.toThrow(
+      FederationPolicyUnavailableError
+    )
+    expect(mockWarn).not.toHaveBeenCalled()
+  })
+
   it('signs remote public key fetches with a local actor', async () => {
     const actorId = 'https://remote.test/users/signed-key'
     const publicKey = await getSenderPublicKey(database, actorId)
@@ -1452,6 +1465,34 @@ describe('getSenderPublicKey', () => {
         )
       ).resolves.toBeNull()
       expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('propagates an undecidable federation policy instead of returning null', async () => {
+      const getActorFromId = vi
+        .spyOn(database, 'getActorFromId')
+        .mockRejectedValueOnce(new FederationPolicyUnavailableError())
+
+      try {
+        await expect(
+          refreshSenderPublicKeyDetails(database, keyId, stale)
+        ).rejects.toThrow(FederationPolicyUnavailableError)
+      } finally {
+        getActorFromId.mockRestore()
+      }
+    })
+
+    it('still returns null for any other refresh failure', async () => {
+      const getActorFromId = vi
+        .spyOn(database, 'getActorFromId')
+        .mockRejectedValueOnce(new Error('database unavailable'))
+
+      try {
+        await expect(
+          refreshSenderPublicKeyDetails(database, keyId, stale)
+        ).resolves.toBeNull()
+      } finally {
+        getActorFromId.mockRestore()
+      }
     })
   })
 

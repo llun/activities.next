@@ -7,6 +7,7 @@ import {
   canFederateWithDomain,
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { normalizeActivityPubUri } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
@@ -170,11 +171,24 @@ export const confirmActorHandle = async ({
   // asked gets the one question. A property naming the actor host itself (as
   // WordPress's always does), a blocked domain or this instance falls through
   // to the `subject` rather than ending the check.
-  const canAsk = async (candidate: ConfirmedActorHandle) =>
-    !sameHandle(candidate, hostHandle) &&
-    // Our own WebFinger answers only for local actors, never a remote id.
-    !(await isLocalFederationDomain(database, `https://${candidate.domain}`)) &&
-    (await canFederateWithDomain(database, `https://${candidate.domain}`))
+  // An undecidable domain is skipped like a refused one, so another candidate
+  // can still confirm; only if none does is the result undecidable too.
+  let undecidable = false
+  const canAsk = async (candidate: ConfirmedActorHandle) => {
+    if (sameHandle(candidate, hostHandle)) return false
+    const url = `https://${candidate.domain}`
+    try {
+      return (
+        // Our own WebFinger answers only for local actors, never a remote id.
+        !(await isLocalFederationDomain(database, url)) &&
+        (await canFederateWithDomain(database, url))
+      )
+    } catch (error) {
+      if (!(error instanceof FederationPolicyUnavailableError)) throw error
+      undecidable = true
+      return false
+    }
+  }
   let handle: ConfirmedActorHandle | null = null
   for (const candidate of [
     parseAcct(webfinger),
@@ -197,6 +211,9 @@ export const confirmActorHandle = async ({
   ) {
     return handleSubject
   }
+  // Not a refusal: the handle that might confirm is on a host whose policy is
+  // unknown right now, so the caller retries (or treats it as unavailable).
+  if (undecidable) throw new FederationPolicyUnavailableError()
 
   logger.warn({
     message: 'Refused remote actor whose handle WebFinger does not confirm',

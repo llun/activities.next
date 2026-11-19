@@ -10,7 +10,8 @@ import { MOVE_ACTOR_JOB_NAME, MOVE_FOLLOWER_JOB_NAME } from '@/lib/jobs/names'
 import { actorMatchesVerifiedSender } from '@/lib/jobs/verifiedSender'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
-import { getQueue } from '@/lib/services/queue'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
+import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { JobHandle } from '@/lib/services/queue/type'
 import { Actor } from '@/lib/types/domain/actor'
 import { actorIdsMatch, normalizeActorId } from '@/lib/utils/activitypub'
@@ -261,15 +262,21 @@ export const moveActorJob: JobHandle = createJobHandle(
           targetActorId: origin.id
         })
         let failures = relationshipFailures
+        let policyError: FederationPolicyUnavailableError | undefined
         for (const oldFollow of follows) {
           try {
-            await getQueue().publish({
+            // Run inline under NoQueue, so a follower job that cannot read the
+            // policy counts as a failure and the Move is retried, not marked queued.
+            await publishSurfacingErrors({
               id: getMoveFollowerJobId(oldFollow.id, target.id),
               name: MOVE_FOLLOWER_JOB_NAME,
               data: { followId: oldFollow.id, targetActorId: target.id }
             })
           } catch (error) {
             failures += 1
+            if (error instanceof FederationPolicyUnavailableError) {
+              policyError = error
+            }
             logger.error({
               message: 'Move: failed to queue a follower',
               actorId: oldFollow.actorId,
@@ -281,6 +288,8 @@ export const moveActorJob: JobHandle = createJobHandle(
         }
         // Retry: the ids are deterministic, so followers already queued are
         // not queued twice.
+        // The typed error keeps the shared inbox's answer a retryable 5xx.
+        if (policyError) throw policyError
         if (failures > 0) {
           throw new Error(`Move: ${failures} follower(s) could not be queued`)
         }

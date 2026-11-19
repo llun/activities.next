@@ -14,6 +14,7 @@ import {
 import type { Database } from '@/lib/database/types'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { ROUTE_MAP_ATTACHMENT_NAME } from '@/lib/services/fitness-files/mapAttachments'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import {
@@ -315,6 +316,35 @@ describe('POST /api/v1/statuses', () => {
           withReplies: false
         })
       ).toBeNull()
+    })
+
+    it('rethrows FederationPolicyUnavailableError instead of answering 400 while other errors still answer 400', async () => {
+      const remoteParentId = `${remoteActorId}/statuses/route-remote-reply-policy-unavailable`
+      mockGetNote.mockRejectedValueOnce(new FederationPolicyUnavailableError())
+
+      await expect(
+        postReply(remoteParentId, 'a reply during policy outage')
+      ).rejects.toThrow(FederationPolicyUnavailableError)
+
+      const emojiSpy = vi
+        .spyOn(database, 'getCustomEmojis')
+        .mockRejectedValueOnce(new Error('Database hiccup'))
+      try {
+        const failed = await POST(
+          new NextRequest('https://llun.test/api/v1/statuses', {
+            method: 'POST',
+            body: JSON.stringify({ status: 'Other failure :blobcat:' }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }),
+          { params: Promise.resolve({}) }
+        )
+        expect(failed.status).toBe(400)
+      } finally {
+        emojiSpy.mockRestore()
+      }
     })
   })
 

@@ -1,6 +1,6 @@
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { Database } from '@/lib/database/types'
-import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { getServerSettingsView } from '@/lib/services/serverSettings'
 
 import {
   canFederateWithDomain,
@@ -8,6 +8,7 @@ import {
   isDomainAllowed,
   isLocalFederationDomain
 } from './domainPolicy'
+import { FederationPolicyUnavailableError } from './policyUnavailable'
 
 const mockGetConfig = vi.fn()
 vi.mock('@/lib/config', () => ({
@@ -15,7 +16,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('@/lib/services/serverSettings', () => ({
-  getResolvedServerSettings: vi.fn()
+  getServerSettingsView: vi.fn()
 }))
 
 // The host stays env-configured; the federation mode + actor allow-list are
@@ -24,12 +25,18 @@ const mockFederation = ({
   host = 'local.test',
   trustedHosts = [] as string[],
   mode = 'open' as 'open' | 'allowlist',
-  allowActorDomains = [] as string[]
+  allowActorDomains = [] as string[],
+  degraded = false
 } = {}) => {
   mockGetConfig.mockReturnValue({ host, trustedHosts })
-  vi.mocked(getResolvedServerSettings).mockResolvedValue({
-    ...structuredClone(DEFAULT_SERVER_SETTINGS),
-    federation: { mode, allowActorDomains }
+  vi.mocked(getServerSettingsView).mockResolvedValue({
+    settings: {
+      ...structuredClone(DEFAULT_SERVER_SETTINGS),
+      federation: { mode, allowActorDomains }
+    },
+    locks: {},
+    updatedAt: {},
+    degraded
   })
 }
 
@@ -107,6 +114,196 @@ describe('domainPolicy', () => {
     await expect(
       canFederateWithDomain(database, 'https://other.test/users/a')
     ).resolves.toBe(false)
+  })
+
+  // With the stored settings unreadable, a database-only allowlist may be in
+  // force: a refusal would make outbound jobs skip for good, so anything but
+  // a local, blocked or allow-listed host is a retryable error instead.
+  it('answers only what holds in both modes while the settings view is degraded', async () => {
+    mockFederation({ mode: 'open', degraded: true })
+    const database = createDatabase({
+      allows: ['trusted.test'],
+      blocks: ['blocked.test']
+    })
+
+    await expect(
+      canFederateWithDomain(database, 'https://local.test/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      canFederateWithDomain(database, 'https://trusted.test/users/a')
+    ).resolves.toBe(true)
+    await expect(
+      canFederateWithDomain(database, 'https://blocked.test/users/a')
+    ).resolves.toBe(false)
+    await expect(
+      canFederateWithDomain(database, 'https://other.test/users/a')
+    ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+  })
+
+  it('throws instead of filtering an unlisted inbox while the settings view is degraded', async () => {
+    mockFederation({ mode: 'open', degraded: true })
+    const database = createDatabase({
+      allows: ['trusted.test'],
+      blocks: ['blocked.test']
+    })
+
+    await expect(
+      filterFederatedUrls(database, [
+        'https://trusted.test/inbox',
+        'https://blocked.test/inbox',
+        'https://local.test/inbox'
+      ])
+    ).resolves.toEqual([
+      'https://trusted.test/inbox',
+      'https://local.test/inbox'
+    ])
+    await expect(
+      filterFederatedUrls(database, [
+        'https://trusted.test/inbox',
+        'https://other.test/inbox'
+      ])
+    ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+  })
+
+  it('keeps an env-pinned open mode while the settings view is degraded', async () => {
+    mockFederation({ mode: 'open', degraded: true })
+    vi.mocked(getServerSettingsView).mockResolvedValue({
+      ...(await getServerSettingsView({} as never)),
+      locks: {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        }
+      }
+    })
+    const database = createDatabase({})
+
+    await expect(
+      canFederateWithDomain(database, 'https://other.test/users/a')
+    ).resolves.toBe(true)
+  })
+
+  // A pinned allowlist mode with its allowed servers kept in the database is
+  // still undecidable: the defaults list no servers at all.
+  it('treats a pinned allowlist whose allowed servers are stored as undecidable while degraded', async () => {
+    mockFederation({ mode: 'allowlist', degraded: true })
+    const pinned = await getServerSettingsView({} as never)
+    vi.mocked(getServerSettingsView).mockResolvedValue({
+      ...pinned,
+      locks: {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        }
+      }
+    })
+    const database = createDatabase({})
+
+    await expect(
+      canFederateWithDomain(database, 'https://other.test/users/a')
+    ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+
+    vi.mocked(getServerSettingsView).mockResolvedValue({
+      ...pinned,
+      locks: {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        },
+        'federation.allowActorDomains': {
+          locked: true,
+          envVar: 'ACTIVITIES_ALLOW_ACTOR_DOMAINS'
+        }
+      }
+    })
+    await expect(
+      canFederateWithDomain(database, 'https://other.test/users/a')
+    ).resolves.toBe(false)
+  })
+
+  // In allowlist mode the actor-domain list holds remote "allowed servers";
+  // an unread or replaced copy must not exempt one.
+  it('does not exempt an allowActorDomains entry while the settings view is degraded', async () => {
+    mockFederation({ allowActorDomains: ['remote.test'] })
+    const database = createDatabase({})
+    await expect(
+      canFederateWithDomain(database, 'https://remote.test/users/a')
+    ).resolves.toBe(true)
+
+    mockFederation({ allowActorDomains: ['remote.test'], degraded: true })
+    await expect(
+      canFederateWithDomain(database, 'https://remote.test/users/a')
+    ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+    await expect(
+      canFederateWithDomain(database, 'https://local.test/users/a')
+    ).resolves.toBe(true)
+  })
+
+  // A pinned open mode keeps the policy decidable, but a stale actor-domain
+  // list must not exempt a host from its block.
+  it('applies a block to a stale allowActorDomains entry under a pinned open mode', async () => {
+    mockFederation({
+      mode: 'open',
+      allowActorDomains: ['blocked.test'],
+      degraded: true
+    })
+    const view = await getServerSettingsView({} as never)
+    vi.mocked(getServerSettingsView).mockResolvedValue({
+      ...view,
+      locks: {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        }
+      }
+    })
+    const database = createDatabase({ blocks: ['blocked.test'] })
+
+    await expect(
+      canFederateWithDomain(database, 'https://blocked.test/users/a')
+    ).resolves.toBe(false)
+  })
+
+  it('rejects untrusted allowActorDomains in isLocalFederationDomain when degraded and honors env-locked allowlist', async () => {
+    mockFederation({
+      allowActorDomains: ['alias.test'],
+      degraded: true
+    })
+    const database = createDatabase({})
+
+    await expect(
+      isLocalFederationDomain(database, 'https://alias.test')
+    ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+    await expect(
+      isLocalFederationDomain(database, 'https://local.test')
+    ).resolves.toBe(true)
+    await expect(
+      isLocalFederationDomain(database, 'https://other.test')
+    ).resolves.toBe(false)
+
+    mockFederation({
+      mode: 'allowlist',
+      allowActorDomains: ['trusted.test'],
+      degraded: true
+    })
+    const view = await getServerSettingsView({} as never)
+    vi.mocked(getServerSettingsView).mockResolvedValue({
+      ...view,
+      locks: {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        },
+        'federation.allowActorDomains': {
+          locked: true,
+          envVar: 'ACTIVITIES_ALLOW_ACTOR_DOMAINS'
+        }
+      }
+    })
+
+    await expect(
+      canFederateWithDomain(database, 'https://trusted.test/users/a')
+    ).resolves.toBe(true)
   })
 
   it('always allows local actor domains', async () => {

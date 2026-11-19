@@ -1,5 +1,6 @@
 import type { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import type { Actor } from '@/lib/types/domain/actor'
 import { BLUESKY_BRIDGE_ACTOR_ID } from '@/lib/utils/blueskySharing'
 
@@ -72,5 +73,23 @@ describe('stored Bluesky sharing state', () => {
       username: 'bsky.brid.gy',
       domain: 'bsky.brid.gy'
     })
+  })
+
+  it('reports federationAllowed as false when policy is unavailable and rejects other errors', async () => {
+    vi.mocked(canFederateWithDomain).mockRejectedValueOnce(
+      new FederationPolicyUnavailableError()
+    )
+    const state = await getBlueskySharingState(
+      database as unknown as Database,
+      actor
+    )
+    expect(state.federationAllowed).toBe(false)
+
+    vi.mocked(canFederateWithDomain).mockRejectedValueOnce(
+      new Error('policy lookup failed')
+    )
+    await expect(
+      getBlueskySharingState(database as unknown as Database, actor)
+    ).rejects.toThrow('policy lookup failed')
   })
 })

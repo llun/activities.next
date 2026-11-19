@@ -1,5 +1,6 @@
 import type { Database } from '@/lib/database/types'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 
 /**
  * Given an already-parsed `username`/`domain` pulled out of an `@user@domain`
@@ -34,7 +35,14 @@ export const getNonLocalActorRedirectTarget = async (
   domain: string,
   subpath: string
 ): Promise<string | null> => {
-  const isLocal = await isLocalFederationDomain(database, domain)
+  // An undecidable policy (the server settings are unreadable for a moment)
+  // redirects nowhere: the page renders whatever is stored instead of a 500.
+  const isLocal = await isLocalFederationDomain(database, domain).catch(
+    (error: unknown) => {
+      if (error instanceof FederationPolicyUnavailableError) return true
+      throw error
+    }
+  )
   if (isLocal) return null
   return `https://${domain}/@${username}${subpath}`
 }

@@ -5,7 +5,7 @@ import { SEND_MOVE_JOB_NAME } from '@/lib/jobs/names'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { comparePassword } from '@/lib/services/auth/passwordHash'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
-import { getQueue } from '@/lib/services/queue'
+import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { Actor } from '@/lib/types/domain/actor'
 import { actorIdsMatch } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
@@ -238,7 +238,7 @@ export const performOutgoingMove = async ({
   if (kind === 'move') {
     try {
       // The id is the migration's, so a retry re-publishes the same job.
-      await getQueue().publish({
+      const message = {
         id: `${migration.id}:start`,
         name: SEND_MOVE_JOB_NAME,
         data: {
@@ -246,7 +246,9 @@ export const performOutgoingMove = async ({
           originActorId: actor.id,
           targetActorId: target.id
         }
-      })
+      }
+      // An undecidable policy inside an inline job must keep the retry window open.
+      await publishSurfacingErrors(message)
       // Ends the retry window: a repeat of this move is 422 from here on.
       await database.markActorMigrationStarted({ id: migration.id })
     } catch (error) {

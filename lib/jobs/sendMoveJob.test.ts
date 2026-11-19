@@ -10,6 +10,7 @@ import {
 } from '@/lib/jobs/names'
 import { runSendMove, sendMoveJob } from '@/lib/jobs/sendMoveJob'
 import { getDeliveryJobId } from '@/lib/jobs/sendNoteJob'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -17,9 +18,14 @@ import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
 const mockPublish = vi.hoisted(() => vi.fn())
+const mockInline = vi.hoisted(() => ({ runsInline: false, handle: vi.fn() }))
 
 vi.mock('@/lib/services/queue', () => ({
-  getQueue: () => ({ publish: mockPublish, runsInline: false })
+  getQueue: () => ({
+    publish: mockPublish,
+    runsInline: mockInline.runsInline,
+    handle: mockInline.handle
+  })
 }))
 
 const ORIGIN = ACTOR1_ID
@@ -471,5 +477,52 @@ describe('sendMoveJob', () => {
     mockPublish.mockRejectedValue(new Error('queue unavailable'))
 
     await expect(sendMoveJob(database, message())).rejects.toThrow('move jobs')
+  })
+
+  describe('under an inline queue', () => {
+    afterEach(() => {
+      mockInline.runsInline = false
+      mockInline.handle.mockReset()
+    })
+
+    it('fails the move when a follower job cannot read the federation policy', async () => {
+      mockInline.runsInline = true
+      mockInline.handle.mockImplementation(async (job: { name: string }) => {
+        if (job.name === MOVE_FOLLOWER_JOB_NAME) {
+          throw new FederationPolicyUnavailableError()
+        }
+      })
+
+      await expect(sendMoveJob(database, message())).rejects.toBeInstanceOf(
+        FederationPolicyUnavailableError
+      )
+      expect(
+        mockInline.handle.mock.calls.filter(
+          ([job]) => job.name === MOVE_FOLLOWER_JOB_NAME
+        ).length
+      ).toBeGreaterThan(0)
+    })
+
+    it('fails the move when its next slice cannot read the federation policy', async () => {
+      mockInline.runsInline = true
+      mockInline.handle.mockImplementation(async (job: { name: string }) => {
+        if (job.name === SEND_MOVE_JOB_NAME) {
+          throw new FederationPolicyUnavailableError()
+        }
+      })
+
+      await expect(
+        runSendMove(database, message(), { budgetMs: 0, pageSize: 2 })
+      ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+    })
+
+    it('keeps going when a follower job fails for another reason', async () => {
+      mockInline.runsInline = true
+      mockInline.handle.mockImplementation(async (job: { name: string }) => {
+        if (job.name === MOVE_FOLLOWER_JOB_NAME) throw new Error('row gone')
+      })
+
+      await expect(sendMoveJob(database, message())).resolves.toBeUndefined()
+    })
   })
 })

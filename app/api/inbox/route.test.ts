@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -604,6 +605,19 @@ describe('POST /api/inbox', () => {
     expect(mockLogger.error.mock.calls[0][0].err.message).toBe(
       'queue publish failed'
     )
+  })
+
+  it('rethrows a policy-unavailable error so the sender retries with a 5xx', async () => {
+    mockCanFederateWithDomain.mockRejectedValueOnce(
+      new FederationPolicyUnavailableError()
+    )
+
+    await expect(
+      POST(createRequest('https://allowed.test/users/a'), {
+        params: Promise.resolve({})
+      })
+    ).rejects.toThrow(FederationPolicyUnavailableError)
+    expect(mockPublish).not.toHaveBeenCalled()
   })
 
   describe('forwarded activity handling', () => {

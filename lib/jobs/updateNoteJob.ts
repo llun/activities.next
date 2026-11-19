@@ -16,6 +16,7 @@ import {
   resolveForwardingInboxes,
   shouldForwardActivity
 } from '@/lib/services/federation/forwardingDelivery'
+import { forwardToNoOneWhenFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { notifyQuotedStatusUpdate } from '@/lib/services/notifications/notifyQuotedStatusUpdate'
@@ -478,7 +479,7 @@ export const updateNoteJob = createJobHandle(
           authorActorId: note.attributedTo,
           to: note.to,
           cc: note.cc
-        })
+        }).catch(forwardToNoOneWhenFederationPolicyUnavailable)
 
         if (inboxes.length > 0) {
           // Each edit must forward under its own ids: the queue (and QStash)

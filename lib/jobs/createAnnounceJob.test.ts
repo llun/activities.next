@@ -1,9 +1,11 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockAnnounceStatus } from '@/lib/stub/announce'
 import { seedDatabase } from '@/lib/stub/database'
@@ -20,6 +22,14 @@ import {
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
+
+vi.mock('@/lib/actions/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/actions/utils')>()
+  return {
+    ...actual,
+    recordActorIfNeeded: vi.fn(actual.recordActorIfNeeded)
+  }
+})
 
 describe('Announce action', () => {
   const { database, prepare } = createTestDatabase()
@@ -821,5 +831,42 @@ describe('Announce action', () => {
     })) as StatusAnnounce | null
     expect(savedAnnounce).not.toBeNull()
     expect(savedAnnounce?.originalStatus?.id).toEqual(targetStatus.id)
+  })
+
+  it('rejects without inserting the announce when recordActorIfNeeded hits unavailable federation policy', async () => {
+    const statusId = stubNoteId()
+    const targetStatus = await database.createNote({
+      id: `${actor1?.id}/statuses/note-for-announce-policy-unavailable`,
+      url: `${actor1?.id}/statuses/note-for-announce-policy-unavailable`,
+      actorId: actor1!.id,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: 'Local note for policy unavailable boost'
+    })
+    const createAnnounceSpy = vi.spyOn(database, 'createAnnounce')
+    vi.mocked(recordActorIfNeeded).mockRejectedValueOnce(
+      new FederationPolicyUnavailableError()
+    )
+
+    try {
+      await expect(
+        createAnnounceJob(database, {
+          id: 'id-announce-record-actor-policy-unavailable',
+          name: CREATE_ANNOUNCE_JOB_NAME,
+          data: MockAnnounceStatus({
+            actorId: 'https://somewhere.test/actors/friend',
+            statusId,
+            announceStatusId: targetStatus.id
+          })
+        })
+      ).rejects.toThrow(FederationPolicyUnavailableError)
+
+      expect(createAnnounceSpy).not.toHaveBeenCalled()
+      await expect(
+        database.getStatus({ statusId: `${statusId}/activity` })
+      ).resolves.toBeNull()
+    } finally {
+      createAnnounceSpy.mockRestore()
+    }
   })
 })

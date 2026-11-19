@@ -2630,6 +2630,44 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     wildcards included).
   - Comparing the port matters: the policy's `getDomainFromUrl` drops it, so locality is decided on
     the full URL, not on the domain the block lookups use.
+  - **An undecidable policy is an error, never a "no".** When the server settings cannot be read
+    and nothing current is cached, `canFederateWithDomain` / `filterFederatedUrls` still answer for
+    local, blocked and allow-listed hosts and throw `FederationPolicyUnavailableError`
+    (`lib/services/federation/policyUnavailable.ts`) for any other, because outbound jobs treat a
+    "no" as a finished skip (a Delete or Block never sent). The policy stays decidable when the env
+    pins an `open` mode, or an `allowlist` mode together with its allowed servers. An unpinned
+    `federation.allowActorDomains` exempts no host while degraded (a stale entry would skip the block
+    lookup), and `isLocalFederationDomain` throws for a host local only through the served stale list (with
+    nothing cached the list is empty, so such a host reads as not local, as before).
+  - A catch that would turn every error into a skip, a null or a 4xx (the shared inbox's 400,
+    `getSenderPublicKeyDetails` and its key-rotation refresh, `recordRemoteActorBestEffort`, the
+    actor-deletion fan-out, Flag reporter recording, bulk import and its overwrite pass, the
+    status-action fetch, status creation on `/api/v1/statuses` and the legacy outbox, including storing a fetched quote
+    target) calls
+    `rethrowIfFederationPolicyUnavailable` first, so the error reaches a queue retry or a 5xx.
+    `confirmActorHandle` skips an undecidable candidate domain like a refused one and throws only
+    when no other candidate confirms.
+  - **Never let it escape after a write a retry cannot redo.** The Note, Poll and Announce jobs
+    record the actor before inserting the row, not alongside it. Inbox forwarding in
+    `createNoteJob`, `updateNoteJob` and `deleteObjectJob` forwards to no one
+    (`forwardToNoOneWhenFederationPolicyUnavailable`: a stored note returns early, a replayed edit
+    appends history, a delete must not wait on forwarding). The inbound quote fetch and
+    like/reaction actor recording keep swallowing it (each runs after its row is written), and so
+    does `getActorPerson`, which runs inside actor recording. Unfollow (`undoFollow`) undoes the follow here and queues the Undo, whose job
+    rechecks policy. `NoQueue`, which retries nothing, logs the error from an inline job instead
+    of failing the request that published it after its own work committed; the inboxes use
+    `publishSurfacingErrors`, which runs an inline job directly so the error still answers 5xx and the
+    sender retries, the bulk-import route runs its inline job with `handle` so a failed run
+    still finishes the import, and the move jobs (the outgoing start and
+    the follower rewiring of an outgoing or inbound Move) publish through `publishSurfacingErrors`
+    so a move is not marked started or queued while a follower job could not read the federation policy. Under `NoQueue` an immediate actor deletion's fan-out does not
+    rethrow: it has no schedule a sweep would retry (a delayed one does, so it rethrows), so the data is deleted without the
+    `Delete(Actor)` fan-out, as on a send failure.
+  - A remote profile render shows the profile as unavailable (an undecidable handle domain leaves
+    the actor rendered but unstored, as a refusal does), the
+    not-found status page still shows its loading state, Bluesky sharing reports the bridge as
+    unavailable, and read-only backfills (thread walks, collection and profile refreshes) still
+    skip. Other user-facing reads answer 500 for that moment.
   - Widening "local" only skips work — no fetch, no WebFinger, no domain-block or allow-list lookup,
     no forward — and never stands in for a signature or ownership check; every rule is operator
     configuration, and an authority spelled with a `*` (literally, or `%2a` that the parser decodes)

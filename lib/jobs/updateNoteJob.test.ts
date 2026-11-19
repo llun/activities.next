@@ -16,6 +16,7 @@ import {
   MAX_FORWARD_INBOXES_PER_JOB,
   resolveForwardingInboxes
 } from '@/lib/services/federation/forwardingDelivery'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage, Queue } from '@/lib/services/queue/type'
@@ -34,6 +35,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 enableFetchMocks()
 
@@ -1675,6 +1677,72 @@ describe('updateNoteJob', () => {
       expect(forwardedActivityId(second[0])).toEqual(
         forwardedActivityId(first[0])
       )
+    })
+
+    it('skips forwarding and completes when the policy cannot be decided', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+      const { remoteAuthor, initialNote } =
+        await seedForwardingScenario('policy-unavailable')
+      const warn = vi.spyOn(logger, 'warn')
+      vi.mocked(resolveForwardingInboxes).mockRejectedValueOnce(
+        new FederationPolicyUnavailableError()
+      )
+
+      try {
+        queueSpy.mockClear()
+        await expect(
+          updateNoteJob(database, {
+            id: 'update-policy-unavailable',
+            name: UPDATE_NOTE_JOB_NAME,
+            data: {
+              ...initialNote,
+              content: '<p>Updated while policy unavailable</p>',
+              updated: new Date().toISOString()
+            },
+            verifiedSenderActorId: remoteAuthor
+          })
+        ).resolves.toBeUndefined()
+
+        expect(warn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: 'Skipped inbox forwarding: federation policy unavailable'
+          })
+        )
+        expect(forwardedMessages()).toHaveLength(0)
+
+        const status = (await database.getStatus({
+          statusId: initialNote.id
+        })) as StatusNote
+        expect(status.text).toEqual('<p>Updated while policy unavailable</p>')
+        expect(status.edits).toHaveLength(1)
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('still propagates any other forwarding error', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+      const { remoteAuthor, initialNote } = await seedForwardingScenario(
+        'forward-other-error'
+      )
+      vi.mocked(resolveForwardingInboxes).mockRejectedValueOnce(
+        new Error('forwarding exploded')
+      )
+
+      queueSpy.mockClear()
+      await expect(
+        updateNoteJob(database, {
+          id: 'update-forward-other-error',
+          name: UPDATE_NOTE_JOB_NAME,
+          data: {
+            ...initialNote,
+            content: '<p>Updated before error</p>',
+            updated: new Date().toISOString()
+          },
+          verifiedSenderActorId: remoteAuthor
+        })
+      ).rejects.toThrow('forwarding exploded')
+      expect(forwardedMessages()).toHaveLength(0)
     })
   })
 

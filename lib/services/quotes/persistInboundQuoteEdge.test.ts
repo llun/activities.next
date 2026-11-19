@@ -1,5 +1,6 @@
 import { BaseNote } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import {
   persistInboundQuoteEdge,
   resolveInboundQuotedStatus
@@ -79,6 +80,22 @@ describe('resolveInboundQuotedStatus', () => {
       expect(mockGetNote).not.toHaveBeenCalled()
     }
   )
+
+  it('resolves to null when the federation policy check is unavailable', async () => {
+    mockCanFederateWithDomain.mockRejectedValueOnce(
+      new FederationPolicyUnavailableError()
+    )
+
+    await expect(
+      resolveInboundQuotedStatus({
+        database: unstoredDatabase(),
+        note: note(STAMP_URI),
+        quotedStatusId: QUOTED_STATUS_ID,
+        storeNote: vi.fn()
+      })
+    ).resolves.toBeNull()
+    expect(mockGetNote).not.toHaveBeenCalled()
+  })
 
   it('refuses a fetched note attributed to an actor on another origin', async () => {
     // The quoter controls the quoted origin here: it answers with the id it

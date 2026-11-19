@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { getActorPerson } from '@/lib/activities/getActorPerson'
+import { SEND_UNDO_FOLLOW_JOB_NAME } from '@/lib/jobs/names'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
 import { DELETE, GET, POST } from './route'
@@ -8,6 +10,7 @@ import { DELETE, GET, POST } from './route'
 const mockFollow = vi.fn()
 const mockUnfollow = vi.fn()
 const mockCanFederateWithDomain = vi.fn()
+const mockPublish = vi.fn()
 const mockCurrentActor = {
   id: 'https://llun.test/users/llun',
   domain: 'llun.test'
@@ -38,6 +41,12 @@ vi.mock('@/lib/activities/getActorPerson', () => ({
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: (...params: unknown[]) =>
     mockCanFederateWithDomain(...params)
+}))
+
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({
+    publish: (...params: unknown[]) => mockPublish(...params)
+  })
 }))
 
 vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
@@ -80,6 +89,7 @@ describe('DELETE /api/v1/accounts/follow', () => {
     })
     mockDatabase.updateFollowStatus.mockResolvedValue(undefined)
     mockDatabase.getFederationSigningActor.mockResolvedValue(mockSigningActor)
+    mockPublish.mockResolvedValue(undefined)
   })
 
   const createRequest = () =>
@@ -133,6 +143,26 @@ describe('DELETE /api/v1/accounts/follow', () => {
       followId: 'follow-1',
       status: FollowStatus.enum.Undo
     })
+  })
+
+  it('answers 202 and undoes the follow when federation policy is unavailable', async () => {
+    mockCanFederateWithDomain.mockRejectedValue(
+      new FederationPolicyUnavailableError()
+    )
+
+    const response = await DELETE(createRequest(), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockDatabase.updateFollowStatus).toHaveBeenCalledWith({
+      followId: 'follow-1',
+      status: FollowStatus.enum.Undo
+    })
+    expect(mockUnfollow).not.toHaveBeenCalled()
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({ name: SEND_UNDO_FOLLOW_JOB_NAME })
+    )
   })
 
   it('sends Undo when the target domain is allowed', async () => {

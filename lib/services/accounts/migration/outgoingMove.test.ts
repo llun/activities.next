@@ -2,6 +2,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getQueue } from '@/lib/services/queue'
 import { MockActor } from '@/lib/stub/actor'
 import { Actor } from '@/lib/types/domain/actor'
@@ -113,6 +114,27 @@ describe('performOutgoingMove on a real database', () => {
       `${rows[0].id}:start`,
       `${rows[0].id}:start`
     ])
+  })
+
+  it('keeps the retry window open when an inline queue cannot read the federation policy', async () => {
+    const { actor, target } = await setup('inline-policy')
+    const handle = vi
+      .fn()
+      .mockRejectedValue(new FederationPolicyUnavailableError())
+    vi.mocked(getQueue).mockReturnValue({
+      runsInline: true,
+      publish,
+      handle
+    } as never)
+
+    expect(
+      await performOutgoingMove({ database, actor, target, kind: 'move' })
+    ).toMatchObject({ ok: false, status: 503 })
+    expect(handle).toHaveBeenCalledTimes(1)
+    expect(publish).not.toHaveBeenCalled()
+    expect(
+      (await database.getActorMigrations({ actorId: actor.id }))[0].startedAt
+    ).toBeNull()
   })
 
   it('marks the move started after a successful publish', async () => {

@@ -1,5 +1,6 @@
 import type { Database } from '@/lib/database/types'
 import { CREATE_NOTE_JOB_NAME, CREATE_POLL_JOB_NAME } from '@/lib/jobs/names'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { fetchQuoteTargetForCreate } from '@/lib/services/quotes/fetchQuoteTargetForCreate'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -360,4 +361,39 @@ describe('fetchQuoteTargetForCreate', () => {
 
     expect(result).toBeNull()
   })
+
+  it.each([
+    { type: 'Note', job: () => mockCreateNoteJob },
+    { type: 'Question', job: () => mockCreatePollJob }
+  ])(
+    'rethrows a policy-unavailable error from storing a $type so the request can be retried',
+    async ({ type, job }) => {
+      mockGetNote.mockResolvedValue({
+        id: remoteStatusId,
+        type,
+        attributedTo: 'https://remote.test/users/alice',
+        content: 'Hello world',
+        published: '2026-01-01T00:00:00Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        ...(type === 'Question'
+          ? {
+              oneOf: [
+                { name: 'Option 1', type: 'Note' },
+                { name: 'Option 2', type: 'Note' }
+              ]
+            }
+          : {})
+      })
+      job().mockRejectedValue(new FederationPolicyUnavailableError())
+
+      await expect(
+        fetchQuoteTargetForCreate({
+          database: makeDatabase(),
+          quotedStatusId: remoteStatusId
+        })
+      ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+      expect(job()).toHaveBeenCalled()
+    }
+  )
 })

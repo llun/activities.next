@@ -11,6 +11,7 @@ import {
   MAX_FORWARD_INBOXES_PER_JOB,
   resolveForwardingInboxes
 } from '@/lib/services/federation/forwardingDelivery'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage, Queue } from '@/lib/services/queue/type'
 import { mockRequests } from '@/lib/stub/activities'
@@ -19,6 +20,7 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 enableFetchMocks()
 
@@ -1077,6 +1079,123 @@ describe('deleteObjectJob', () => {
         expect(chunk.length).toBeLessThanOrEqual(MAX_FORWARD_INBOXES_PER_JOB)
       }
       expect(chunks.flat()).toEqual(manyInboxes)
+    })
+
+    it('skips forwarding and deletes the status when the policy cannot be decided', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+
+      const localActorId = actor1!.id
+      const localStatusId = `${localActorId}/statuses/parent-for-delete-policy-unavailable`
+      await database.createNote({
+        id: localStatusId,
+        url: localStatusId,
+        actorId: localActorId,
+        text: 'parent note for delete',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+
+      await database.createFollow({
+        actorId: 'https://delete-policy-follower.test/users/follower1',
+        targetActorId: localActorId,
+        status: 'Accepted',
+        inbox: 'https://delete-policy-follower.test/users/follower1/inbox',
+        sharedInbox: 'https://delete-policy-follower.test/inbox'
+      })
+
+      const remoteAuthor = 'https://delete-policy-author.test/users/author'
+      const replyStatusId = `${remoteAuthor}/statuses/reply-to-delete-policy-unavailable`
+      await database.createNote({
+        id: replyStatusId,
+        url: replyStatusId,
+        actorId: remoteAuthor,
+        reply: localStatusId,
+        text: 'reply note to be deleted',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [localActorId]
+      })
+
+      const warn = vi.spyOn(logger, 'warn')
+      vi.mocked(resolveForwardingInboxes).mockRejectedValueOnce(
+        new FederationPolicyUnavailableError()
+      )
+
+      try {
+        queueSpy.mockClear()
+        await expect(
+          deleteObjectJob(database, {
+            id: 'delete-reply-policy-unavailable',
+            name: DELETE_OBJECT_JOB_NAME,
+            data: {
+              id: replyStatusId,
+              type: 'Tombstone'
+            },
+            verifiedSenderActorId: remoteAuthor
+          })
+        ).resolves.toBeUndefined()
+
+        expect(warn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: 'Skipped inbox forwarding: federation policy unavailable'
+          })
+        )
+        expect(queueSpy).not.toHaveBeenCalledWith(
+          expect.objectContaining({ name: FORWARD_ACTIVITY_JOB_NAME })
+        )
+        await expect(
+          database.getStatus({ statusId: replyStatusId, withReplies: false })
+        ).resolves.toBeNull()
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('still propagates any other forwarding error', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+
+      const localActorId = actor1!.id
+      const localStatusId = `${localActorId}/statuses/parent-for-delete-other-error`
+      await database.createNote({
+        id: localStatusId,
+        url: localStatusId,
+        actorId: localActorId,
+        text: 'parent note for delete',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+
+      const remoteAuthor = 'https://delete-other-author.test/users/author'
+      const replyStatusId = `${remoteAuthor}/statuses/reply-to-delete-other-error`
+      await database.createNote({
+        id: replyStatusId,
+        url: replyStatusId,
+        actorId: remoteAuthor,
+        reply: localStatusId,
+        text: 'reply note not yet deleted',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [localActorId]
+      })
+
+      vi.mocked(resolveForwardingInboxes).mockRejectedValueOnce(
+        new Error('forwarding exploded')
+      )
+
+      queueSpy.mockClear()
+      await expect(
+        deleteObjectJob(database, {
+          id: 'delete-reply-other-error',
+          name: DELETE_OBJECT_JOB_NAME,
+          data: {
+            id: replyStatusId,
+            type: 'Tombstone'
+          },
+          verifiedSenderActorId: remoteAuthor
+        })
+      ).rejects.toThrow('forwarding exploded')
+
+      expect(queueSpy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: FORWARD_ACTIVITY_JOB_NAME })
+      )
     })
   })
 })

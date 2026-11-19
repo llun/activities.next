@@ -6,6 +6,7 @@ import { dispatchCreateNoteOrPollJob } from '@/lib/jobs/dispatchCreateNoteOrPoll
 import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import type { Actor } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
@@ -111,6 +112,8 @@ export const getReadableStatusAndFetchedNoteForAction = async ({
     }
     await dispatchCreateNoteOrPollJob(database, note)
   } catch (err) {
+    // A 5xx to try again, not a 404 for a status that may well exist.
+    rethrowIfFederationPolicyUnavailable(err)
     logger.warn({
       message: 'Failed to fetch remote status for action',
       statusId,

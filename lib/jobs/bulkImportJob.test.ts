@@ -13,6 +13,7 @@ import {
 import { fetchRemoteStatusJob } from '@/lib/jobs/fetchRemoteStatusJob'
 import { BULK_IMPORT_JOB_NAME } from '@/lib/jobs/names'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import {
   createImportTestDatabase,
   createPublicNote,
@@ -179,6 +180,22 @@ describe('bulkImportJob', () => {
       processedItems: 1,
       importedItems: 0
     })
+  })
+
+  it('rethrows a policy-unavailable error so the row stays pending', async () => {
+    vi.mocked(resolveAccountTarget).mockRejectedValueOnce(
+      new FederationPolicyUnavailableError()
+    )
+    await createImport('following', [{ acct: 'bob@remote.test' }])
+
+    await expect(runBulkImport(database, IMPORT_ID)).rejects.toThrow(
+      FederationPolicyUnavailableError
+    )
+
+    expect(await getImport()).toMatchObject({ processedItems: 0 })
+    expect(
+      await database.getBulkImportFailedRows({ importId: IMPORT_ID })
+    ).toHaveLength(0)
   })
 
   it('overwrites: counts kept follows, removes the rest, imports the new ones', async () => {

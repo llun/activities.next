@@ -1,3 +1,6 @@
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
+import { logger } from '@/lib/utils/logger'
+
 import { NoQueue } from './noqueue'
 import { JobMessage } from './type'
 
@@ -6,6 +9,10 @@ describe('NoQueue', () => {
 
   beforeEach(() => {
     queue = new NoQueue()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   describe('publish', () => {
@@ -34,6 +41,32 @@ describe('NoQueue', () => {
 
       await expect(queue.publish(message)).resolves.toBeUndefined()
       expect(handle).not.toHaveBeenCalled()
+    })
+
+    it('logs a warning and resolves on FederationPolicyUnavailableError while rejecting other errors', async () => {
+      const warn = vi.spyOn(logger, 'warn')
+      const message: JobMessage = {
+        id: 'job-policy-unavailable',
+        name: 'testJob',
+        data: { key: 'value' }
+      }
+      const handle = vi
+        .spyOn(queue, 'handle')
+        .mockRejectedValueOnce(new FederationPolicyUnavailableError())
+        .mockRejectedValueOnce(new Error('job failed'))
+
+      await expect(queue.publish(message)).resolves.toBeUndefined()
+      expect(warn).toHaveBeenCalledWith(
+        {
+          name: message.name,
+          messageId: message.id,
+          err: expect.any(FederationPolicyUnavailableError)
+        },
+        'NoQueue: skipped a job whose federation policy could not be read'
+      )
+
+      await expect(queue.publish(message)).rejects.toThrow('job failed')
+      expect(handle).toHaveBeenCalledTimes(2)
     })
   })
 })

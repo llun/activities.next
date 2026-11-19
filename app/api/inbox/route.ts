@@ -5,12 +5,13 @@ import { compactActivityPub } from '@/lib/activities/jsonld'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
 import {
   annotateInboxRejection,
   getActivityTraceAttributes
 } from '@/lib/services/guards/inboxRejectionTrace'
-import { getQueue } from '@/lib/services/queue'
+import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { AnnounceAction } from '@/lib/types/activitypub/activities'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -154,7 +155,7 @@ export const POST = traceApiRoute(
         if (forwarded) {
           const forwardedJobMessage = getForwardedJobMessage(activity)
           if (forwardedJobMessage) {
-            await getQueue().publish(forwardedJobMessage)
+            await publishSurfacingErrors(forwardedJobMessage)
           } else {
             annotateInboxRejection('forwarded_activity_dropped', {
               activity_id: activity.id,
@@ -186,7 +187,7 @@ export const POST = traceApiRoute(
           // never create a relay-attributed Announce row.
           if (relay) {
             if (relay.state === 'accepted' && activity.id) {
-              await getQueue().publish({
+              await publishSurfacingErrors({
                 id: getInboxJobId(activity.id),
                 name: RELAY_ANNOUNCE_JOB_NAME,
                 data: activity
@@ -215,7 +216,7 @@ export const POST = traceApiRoute(
           })
         }
 
-        await getQueue().publish(jobMessage)
+        await publishSurfacingErrors(jobMessage)
         return apiResponse({
           req: request,
           allowedMethods: CORS_HEADERS,
@@ -223,6 +224,8 @@ export const POST = traceApiRoute(
           responseStatusCode: 202
         })
       } catch (error) {
+        // A 5xx, so the sender retries; every other failure here is a 400.
+        rethrowIfFederationPolicyUnavailable(error)
         const span = trace.getActiveSpan()
         const err = error instanceof Error ? error : new Error(String(error))
         span?.recordException(err)

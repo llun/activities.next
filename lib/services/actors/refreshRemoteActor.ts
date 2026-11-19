@@ -1,5 +1,6 @@
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { Database } from '@/lib/database/types'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
@@ -148,6 +149,9 @@ export const recordRemoteActorBestEffort = async ({
       (await recordActorIfNeeded({ actorId, database, signingActor })) ?? null
     )
   } catch (error) {
+    // Best effort against a failed fetch, not an undecidable policy: a caller
+    // such as a bulk import would otherwise record the account as not found.
+    rethrowIfFederationPolicyUnavailable(error)
     logger.warn({
       message: 'Failed to record remote actor',
       actorId,

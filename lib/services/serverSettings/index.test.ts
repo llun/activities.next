@@ -253,6 +253,10 @@ describe('server settings resolver', () => {
     expect(settings.registrations.open).toBe(
       DEFAULT_SERVER_SETTINGS.registrations.open
     )
+    // Flagged, so a consumer whose default is permissive can refuse instead.
+    await expect(getServerSettingsView(database)).resolves.toMatchObject({
+      degraded: true
+    })
 
     spy.mockRestore()
     await database.destroy()
@@ -279,13 +283,221 @@ describe('server settings resolver', () => {
 
       // Must serve the stale stored value (closed), not revert to the
       // permissive default (open).
-      const settings = await getResolvedServerSettings(database)
-      expect(settings.registrations.open).toBe(false)
-      expect(spy).toHaveBeenCalled()
+      const view = await getServerSettingsView(database)
+      expect(view.settings.registrations.open).toBe(false)
+      expect(view.degraded).toBeUndefined()
+      // Re-cached briefly: a sustained outage does not re-read on every call.
+      await getServerSettingsView(database)
+      expect(spy).toHaveBeenCalledTimes(1)
       spy.mockRestore()
     } finally {
       vi.useRealTimers()
     }
+    await database.destroy()
+  })
+
+  // Each Next module graph has its own cache and shares only the epoch, so a
+  // view older than an admin's save must not stand in as last-known-good.
+  it('does not serve a view an invalidation replaced when the read then fails', async () => {
+    const database = await freshDatabase()
+    const other = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false },
+      { key: 'federation.allowActorDomains', value: ['only.example'] }
+    ])
+    invalidateServerSettingsCache(database)
+    await getResolvedServerSettings(database)
+    // Bumps the shared epoch while leaving this database's entry in place.
+    invalidateServerSettingsCache(other)
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockRejectedValue(new Error('database unavailable'))
+
+    // Degraded for federation policy, but the replaced values are kept: the
+    // defaults would open registration and admit every served domain for
+    // new actors.
+    const view = await getServerSettingsView(database)
+    expect(view.degraded).toBe(true)
+    expect(view.settings.registrations.open).toBe(false)
+    expect(view.settings.federation.allowActorDomains).toEqual(['only.example'])
+
+    spy.mockRestore()
+    await database.destroy()
+    await other.destroy()
+  })
+
+  it('marks the view degraded when an admin save lands during a read that then fails', async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false }
+    ])
+    invalidateServerSettingsCache(database)
+    await getResolvedServerSettings(database)
+
+    vi.useFakeTimers()
+    try {
+      vi.advanceTimersByTime(60_000)
+      const spy = vi
+        .spyOn(database, 'getAllServerSettings')
+        .mockImplementation(async () => {
+          // The save's invalidation arrives before the read fails.
+          invalidateServerSettingsCache(database)
+          throw new Error('database unavailable')
+        })
+
+      const view = await getServerSettingsView(database)
+      expect(view.degraded).toBe(true)
+      expect(view.settings.registrations.open).toBe(false)
+      spy.mockRestore()
+    } finally {
+      vi.useRealTimers()
+    }
+    await database.destroy()
+  })
+
+  it("keeps a save's fresh view when a read in flight during the save fails", async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false }
+    ])
+    invalidateServerSettingsCache(database)
+    await getResolvedServerSettings(database)
+    invalidateServerSettingsCache(database)
+
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockImplementationOnce(async () => {
+        // An admin's save commits and its re-read caches the new view first.
+        await database.setServerSettings([
+          { key: 'registrations.open', value: true }
+        ])
+        invalidateServerSettingsCache(database)
+        await getServerSettingsView(database)
+        throw new Error('database unavailable')
+      })
+
+    const view = await getServerSettingsView(database)
+    expect(view.settings.registrations.open).toBe(true)
+    expect(view.degraded).toBeUndefined()
+    // The saved view stays cached: the next call reads nothing.
+    await getServerSettingsView(database)
+    expect(spy).toHaveBeenCalledTimes(2)
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
+  it('builds the degraded view from the newest cached view, not the one a failed read started with', async () => {
+    const database = await freshDatabase()
+    // Cached with registration open (the default).
+    await getResolvedServerSettings(database)
+    invalidateServerSettingsCache(database)
+
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockImplementationOnce(async () => {
+        // A save closes registration and its re-read caches that view, then a
+        // second save fails after invalidating, so nothing current is cached.
+        await database.setServerSettings([
+          { key: 'registrations.open', value: false }
+        ])
+        invalidateServerSettingsCache(database)
+        await getServerSettingsView(database)
+        invalidateServerSettingsCache(database)
+        throw new Error('database unavailable')
+      })
+
+    const view = await getServerSettingsView(database)
+    expect(view.degraded).toBe(true)
+    expect(view.settings.registrations.open).toBe(false)
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
+  it('lets a successful read replace a newer degraded fallback', async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false }
+    ])
+    invalidateServerSettingsCache(database)
+    const realRead = database.getAllServerSettings.bind(database)
+
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockImplementationOnce(async () => {
+        // While this read runs, a save's re-read fails with nothing cached and
+        // leaves the defaults (registration open) as a degraded fallback.
+        invalidateServerSettingsCache(database)
+        await getServerSettingsView(database)
+        return realRead()
+      })
+      .mockRejectedValueOnce(new Error('database unavailable'))
+
+    await getServerSettingsView(database)
+    const next = await getServerSettingsView(database)
+    expect(next.degraded).toBeUndefined()
+    expect(next.settings.registrations.open).toBe(false)
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
+  it('does not let a read from before two saves replace the fallback built from the first', async () => {
+    const database = await freshDatabase()
+    // Cached with registration open (the default).
+    await getResolvedServerSettings(database)
+    invalidateServerSettingsCache(database)
+    const realRead = database.getAllServerSettings.bind(database)
+    const staleRows = await realRead()
+
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockImplementationOnce(async () => {
+        // Save 1 closes registration and its re-read succeeds; save 2's
+        // re-read fails, leaving save 1's view as the degraded fallback.
+        await database.setServerSettings([
+          { key: 'registrations.open', value: false }
+        ])
+        invalidateServerSettingsCache(database)
+        await getServerSettingsView(database)
+        invalidateServerSettingsCache(database)
+        spy.mockRejectedValueOnce(new Error('database unavailable'))
+        await getServerSettingsView(database)
+        // This read began before both saves.
+        return staleRows
+      })
+
+    await getServerSettingsView(database)
+    spy.mockRejectedValue(new Error('database unavailable'))
+    const next = await getServerSettingsView(database)
+    expect(next.degraded).toBe(true)
+    expect(next.settings.registrations.open).toBe(false)
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
+  it('serves the invalidated cached values as degraded on the same database when re-read fails', async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false },
+      { key: 'federation.allowActorDomains', value: ['only.example'] }
+    ])
+    invalidateServerSettingsCache(database)
+    await getResolvedServerSettings(database)
+
+    invalidateServerSettingsCache(database)
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockRejectedValue(new Error('database unavailable'))
+
+    const view = await getServerSettingsView(database)
+    expect(view.degraded).toBe(true)
+    expect(view.settings.registrations.open).toBe(false)
+    expect(view.settings.federation.allowActorDomains).toEqual(['only.example'])
+
+    spy.mockRestore()
     await database.destroy()
   })
 

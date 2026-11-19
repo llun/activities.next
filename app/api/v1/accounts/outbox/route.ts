@@ -9,6 +9,7 @@ import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getMaxStatusMediaAttachments } from '@/lib/services/mastodon/constants'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -305,6 +306,8 @@ export const POST = traceApiRoute(
         }
       }
     } catch (error) {
+      // A 5xx to try again, not a 400 for a request that may well be valid.
+      rethrowIfFederationPolicyUnavailable(error)
       // The post is saved and stays visible, but was not sent: not a 400, or
       // the client would post it again as a duplicate.
       if (error instanceof StatusPublishFailedError) {

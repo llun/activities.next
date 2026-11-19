@@ -66,6 +66,8 @@ const makeDatabase = (overrides: Partial<Database>): Database =>
     getFollowersInbox: vi.fn().mockResolvedValue([]),
     getAcceptedRelays: vi.fn().mockResolvedValue([]),
     getDomainBlocksForDomains: vi.fn().mockResolvedValue({}),
+    // Read by federation policy; an unreadable settings table fails closed.
+    getAllServerSettings: vi.fn().mockResolvedValue([]),
     getDomainAllowsForDomains: vi.fn().mockResolvedValue({}),
     getFederationSigningActor: vi.fn().mockResolvedValue(null),
     ...overrides

@@ -13,7 +13,9 @@ import {
   enqueueDeliveries,
   runWithConcurrencyLimit
 } from '@/lib/services/federation/enqueueDeliveries'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getQueue } from '@/lib/services/queue'
+import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { JobHandle, JobMessage } from '@/lib/services/queue/type'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -93,7 +95,7 @@ export const runSendMove = async (
       const results = await runWithConcurrencyLimit(
         jobs,
         MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
-        (job) => queue.publish(job)
+        (job) => publishSurfacingErrors(job)
       )
       const errors = results
         .filter(
@@ -115,6 +117,12 @@ export const runSendMove = async (
           )
         }
         errors.forEach((error) => span.recordException(error))
+        // The rest ran; an undecidable policy still fails the move so its
+        // caller keeps the retry window open (the follower jobs are idempotent).
+        const policyError = errors.find(
+          (error) => error instanceof FederationPolicyUnavailableError
+        )
+        if (policyError) throw policyError
       }
     }
 
@@ -246,7 +254,8 @@ export const runSendMove = async (
         cursor = last
       }
       if (Date.now() >= deadline) {
-        await queue.publish({
+        // Inline, the next slice runs here, and its policy error must fail the move too.
+        await publishSurfacingErrors({
           id: getSendMoveContinueJobId(migrationId, phase, cursor),
           name: SEND_MOVE_JOB_NAME,
           data: { migrationId, originActorId, targetActorId, phase, cursor }

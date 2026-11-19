@@ -13,6 +13,7 @@ import {
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { BULK_IMPORT_JOB_NAME } from '@/lib/jobs/names'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import {
   BULK_IMPORT_FILE_SIZE_LIMIT,
   BULK_IMPORT_ROWS_LIMIT
@@ -54,11 +55,13 @@ vi.mock('@/lib/config', () => ({
 }))
 
 const mockPublish = vi.fn().mockResolvedValue(undefined)
+const mockHandle = vi.fn().mockResolvedValue(undefined)
 let mockRunsInline = false
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn(() => ({
     runsInline: mockRunsInline,
-    publish: mockPublish
+    publish: mockPublish,
+    handle: mockHandle
   }))
 }))
 
@@ -264,7 +267,7 @@ describe('/api/v1/imports', () => {
     it('starts an inline queue run without waiting for it and answers 202', async () => {
       mockRunsInline = true
       let finishRun!: () => void
-      mockPublish.mockReturnValueOnce(
+      mockHandle.mockReturnValueOnce(
         new Promise<void>((resolve) => {
           finishRun = resolve
         })
@@ -275,33 +278,47 @@ describe('/api/v1/imports', () => {
         params: Promise.resolve({})
       })
       expect(response.status).toBe(HTTP_STATUS.ACCEPTED)
-      expect(mockPublish).toHaveBeenCalledTimes(1)
+      expect(mockHandle).toHaveBeenCalledTimes(1)
       finishRun()
     })
 
-    it('answers 202 and finishes the import with an error when an inline run throws, freeing the actor', async () => {
-      mockRunsInline = true
-      mockPublish.mockRejectedValueOnce(new Error('job exploded'))
+    // NoQueue's publish logs an undecidable federation policy instead of
+    // throwing, so the route runs the handler itself to see it.
+    it.each([
+      ['an error', new Error('job exploded')],
+      [
+        'an undecidable federation policy',
+        new FederationPolicyUnavailableError()
+      ]
+    ])(
+      'answers 202 and finishes the import when an inline run throws %s, freeing the actor',
+      async (_label, error) => {
+        mockRunsInline = true
+        mockHandle.mockRejectedValueOnce(error)
 
-      const response = await POST(createPostRequest(buildValidForm()), {
-        params: Promise.resolve({})
-      })
-      expect(response.status).toBe(HTTP_STATUS.ACCEPTED)
-      await vi.waitFor(async () => {
-        const [stored] = await database.getBulkImports({
-          actorId: ACTOR1_ID,
-          limit: 1
+        const response = await POST(createPostRequest(buildValidForm()), {
+          params: Promise.resolve({})
         })
-        expect(stored.state).toBe('finished')
-        expect(stored.lastError).toBeTruthy()
-        expect(stored.finishedAt).not.toBeNull()
-      })
+        expect(response.status).toBe(HTTP_STATUS.ACCEPTED)
+        await vi.waitFor(async () => {
+          const [stored] = await database.getBulkImports({
+            actorId: ACTOR1_ID,
+            limit: 1
+          })
+          expect(stored.state).toBe('finished')
+          // A generic message, never the job's own error text.
+          expect(stored.lastError).toBe(
+            'The import stopped because of an error'
+          )
+          expect(stored.finishedAt).not.toBeNull()
+        })
 
-      const retry = await POST(createPostRequest(buildValidForm()), {
-        params: Promise.resolve({})
-      })
-      expect(retry.status).toBe(HTTP_STATUS.ACCEPTED)
-    })
+        const retry = await POST(createPostRequest(buildValidForm()), {
+          params: Promise.resolve({})
+        })
+        expect(retry.status).toBe(HTTP_STATUS.ACCEPTED)
+      }
+    )
 
     it('returns 413 before reading the body when content-length is too large', async () => {
       const req = new NextRequest('https://llun.test/api/v1/imports', {

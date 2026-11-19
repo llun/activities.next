@@ -21,6 +21,24 @@ and `/api/v2/instance`. On a multi-instance deployment an admin's save
 reaches other instances within a short cache window; an environment variable,
 when set, always wins regardless.
 
+When the `server_settings` table cannot be read, the last values read
+successfully in the current cache epoch keep being served. With none (a fresh
+process), the environment and the defaults are served for a couple of seconds; a view
+an admin's save has since replaced (in any module copy, including the one that
+saved) keeps being served, since the defaults are looser. Either way the view is marked `degraded`, and federation policy does
+not trust its mode or its `federation.allowActorDomains` unless pinned.
+Federation policy then cannot trust the `open` default of an unpinned
+`federation.mode`, since a database-only allowlist may be in force: served
+domains, `ACTIVITIES_ALLOW_ACTOR_DOMAINS` entries and database domain allows
+still pass, database domain blocks still refuse, and every other host gets a
+retryable `FederationPolicyUnavailableError` rather than a "no". Queued jobs
+retry, an inbox answers `500` so the sender retries, and a redirect onto such a
+host is refused. Under `NoQueue`, which retries nothing, such an error inside
+an inline job published by a user request is logged instead (an inbox still
+answers `500`). Pinning `ACTIVITIES_FEDERATION_MODE=open`, or an `allowlist`
+mode together with `ACTIVITIES_ALLOW_ACTOR_DOMAINS`, keeps the policy decidable
+throughout. The read failure is logged at error level.
+
 Every endpoint that creates or edits a status — `POST`/`PUT`
 `/api/v1/statuses[/:id]` (which the web composer and the inline reply box post
 through) and the deprecated `POST /api/v1/accounts/outbox` — enforces the

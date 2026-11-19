@@ -12,6 +12,7 @@ import {
   ServerSettingValue
 } from '@/lib/types/database/operations'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 // Resolves database-backed server settings using env -> database -> default
 // precedence. An env var always wins and locks its field; otherwise a stored
@@ -44,6 +45,11 @@ export interface ServerSettingsView {
   // an invalid one, an env pin, or a cleared policy). The terms of service and privacy policy
   // report this as their date.
   updatedAt: Record<string, number | null>
+  // True when the stored settings could not be read and no last-known-good
+  // view was cached, so stored fields show their defaults or the values an
+  // admin's save replaced. A consumer whose default is the permissive choice
+  // (federation policy) must not trust them.
+  degraded?: boolean
 }
 
 export type ServerSettingRejectionReason = 'unknown' | 'locked' | 'invalid'
@@ -64,6 +70,8 @@ type CacheEntry = {
   expiresAt: number
   // The invalidation epoch the entry was read under; stale once it moves on.
   epoch: number
+  // The epoch of the successful read the view came from (-1 for defaults).
+  sourceEpoch: number
 }
 
 // Next bundles route handlers and server components as separate module graphs,
@@ -134,9 +142,20 @@ const writeCache = (
   database: Database | null,
   view: ServerSettingsView,
   expiresAt: number,
-  epoch: number
+  epoch: number,
+  sourceEpoch = epoch
 ) => {
-  const entry: CacheEntry = { view, expiresAt, epoch }
+  // A read that started before an admin's save must not replace a view read
+  // after it, nor a newer trusted view with anything older.
+  const existing = readCacheEntry(database)
+  if (
+    existing &&
+    (existing.sourceEpoch > sourceEpoch ||
+      (existing.epoch > epoch && !existing.view.degraded))
+  ) {
+    return
+  }
+  const entry: CacheEntry = { view, expiresAt, epoch, sourceEpoch }
   if (database) cacheByDatabase.set(database, entry)
   else nullDatabaseCache = entry
 }
@@ -175,14 +194,33 @@ export const getServerSettingsView = async (
     logger.error({
       message:
         'serverSettings: failed to read stored settings; serving cached values or env/defaults',
-      error: error instanceof Error ? error.message : String(error)
+      err: toLoggableError(error)
     })
     // Re-cache the served view briefly (whether the stale last-known-good entry
     // or the env/defaults fallback) so a sustained outage does not re-read the
     // failing database — and re-log — on every request; recovery stays bounded
     // to FAILURE_CACHE_TTL_MS.
-    const view = entry ? entry.view : buildView(new Map())
-    writeCache(database, view, now + FAILURE_CACHE_TTL_MS, epoch)
+    // Only a view of the current epoch is last-known-good. An older one is
+    // what an admin's save (in this or another module copy) replaced, and may
+    // be what is still stored if the save failed. It is still served, marked
+    // degraded so federation policy does not trust it: the defaults would
+    // open registration and admit every served domain for new actors, though
+    // a just-lowered limit or a just-removed actor domain keeps its old value
+    // while reads fail.
+    // The cache is read again: an admin's save can land while the read runs,
+    // and the save's own re-read may already have cached the newer view.
+    const latest = readCacheEntry(database)
+    const view: ServerSettingsView =
+      latest && latest.epoch === currentEpoch()
+        ? latest.view
+        : { ...(latest?.view ?? buildView(new Map())), degraded: true }
+    writeCache(
+      database,
+      view,
+      now + FAILURE_CACHE_TTL_MS,
+      epoch,
+      latest?.sourceEpoch ?? -1
+    )
     return view
   }
 
@@ -197,12 +235,12 @@ export const getResolvedServerSettings = async (
 ): Promise<ResolvedServerSettings> =>
   (await getServerSettingsView(database)).settings
 
-// Drops the cached view so the next read reflects a fresh env/database state.
-export const invalidateServerSettingsCache = (
-  database: Database | null = getDatabase()
-) => {
-  if (database) cacheByDatabase.delete(database)
-  else nullDatabaseCache = null
+// Marks every cached view stale, so the next read reflects a fresh env/database
+// state. Takes the database for symmetry with the readers; the epoch is shared.
+export const invalidateServerSettingsCache = (_database?: Database | null) => {
+  // The entry stays: a stale epoch is never served as fresh, and if the next
+  // read fails it is the degraded fallback (an admin's save may have failed and
+  // rolled back, and the defaults are looser than what was stored).
   globalEpoch[EPOCH_KEY] = currentEpoch() + 1
 }
 

@@ -1,6 +1,7 @@
 /** @vitest-size medium */
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { Database } from '@/lib/database/types'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { createDeferred } from '@/lib/testing/deferred'
 import { Actor } from '@/lib/types/domain/actor'
 
@@ -248,5 +249,18 @@ describe('recordRemoteActorBestEffort', () => {
         database: mockDatabase
       })
     ).resolves.toBeNull()
+  })
+
+  it('rethrows when federation policy cannot be decided', async () => {
+    ;(recordActorIfNeeded as jest.Mock).mockRejectedValue(
+      new FederationPolicyUnavailableError()
+    )
+
+    await expect(
+      recordRemoteActorBestEffort({
+        actorId: remoteActor.id,
+        database: mockDatabase
+      })
+    ).rejects.toThrow(FederationPolicyUnavailableError)
   })
 })
