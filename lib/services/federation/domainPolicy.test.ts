@@ -264,6 +264,48 @@ describe('domainPolicy', () => {
     ).resolves.toBe(false)
   })
 
+  it('rejects untrusted allowActorDomains in isLocalFederationDomain when degraded and honors env-locked allowlist', async () => {
+    mockFederation({
+      allowActorDomains: ['alias.test'],
+      degraded: true
+    })
+    const database = createDatabase({})
+
+    await expect(
+      isLocalFederationDomain(database, 'https://alias.test')
+    ).rejects.toBeInstanceOf(FederationPolicyUnavailableError)
+    await expect(
+      isLocalFederationDomain(database, 'https://local.test')
+    ).resolves.toBe(true)
+    await expect(
+      isLocalFederationDomain(database, 'https://other.test')
+    ).resolves.toBe(false)
+
+    mockFederation({
+      mode: 'allowlist',
+      allowActorDomains: ['trusted.test'],
+      degraded: true
+    })
+    const view = await getServerSettingsView({} as never)
+    vi.mocked(getServerSettingsView).mockResolvedValue({
+      ...view,
+      locks: {
+        'federation.mode': {
+          locked: true,
+          envVar: 'ACTIVITIES_FEDERATION_MODE'
+        },
+        'federation.allowActorDomains': {
+          locked: true,
+          envVar: 'ACTIVITIES_ALLOW_ACTOR_DOMAINS'
+        }
+      }
+    })
+
+    await expect(
+      canFederateWithDomain(database, 'https://trusted.test/users/a')
+    ).resolves.toBe(true)
+  })
+
   it('always allows local actor domains', async () => {
     mockFederation({ mode: 'allowlist', allowActorDomains: ['alias.test'] })
     const database = createDatabase({})

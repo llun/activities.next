@@ -1,5 +1,6 @@
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { Actor } from '@/lib/types/domain/actor'
 import { BLUESKY_BRIDGE_DOMAIN } from '@/lib/utils/accountHandle'
 import {
@@ -26,7 +27,14 @@ export const getBlueskySharingState = async (
   const [follow, block, federationAllowed] = await Promise.all([
     database.getAcceptedOrRequestedFollow({ actorId: actor.id, targetActorId }),
     database.getBlock({ actorId: actor.id, targetActorId }),
-    canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN)
+    // An undecidable policy reads as unavailable: this state is also built
+    // for the response after a change has already committed.
+    canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN).catch(
+      (error: unknown) => {
+        if (error instanceof FederationPolicyUnavailableError) return false
+        throw error
+      }
+    )
   ])
   return {
     status: getBlueskySharingStatus(Boolean(block), follow?.status),

@@ -141,16 +141,17 @@ export const createAnnounceJob: JobHandle = createJobHandle(
     if (existingAnnounce) {
       return
     }
-    const [, announce] = await Promise.all([
-      recordActorIfNeeded({ actorId: status.actor, database, signingActor }),
-      database.createAnnounce({
-        id: status.id,
-        actorId: status.actor,
-        to: announceTo,
-        cc: announceCc,
-        originalStatusId: targetStatus.id
-      })
-    ])
+    // Recorded before the insert, not alongside it: a policy error from
+    // recording must fail the job before the row exists, since a retry stops
+    // at the existing-row check above.
+    await recordActorIfNeeded({ actorId: status.actor, database, signingActor })
+    const announce = await database.createAnnounce({
+      id: status.id,
+      actorId: status.actor,
+      to: announceTo,
+      cc: announceCc,
+      originalStatusId: targetStatus.id
+    })
     if (!announce) {
       return
     }

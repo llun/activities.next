@@ -210,12 +210,12 @@ export const getResolvedServerSettings = async (
 ): Promise<ResolvedServerSettings> =>
   (await getServerSettingsView(database)).settings
 
-// Drops the cached view so the next read reflects a fresh env/database state.
-export const invalidateServerSettingsCache = (
-  database: Database | null = getDatabase()
-) => {
-  if (database) cacheByDatabase.delete(database)
-  else nullDatabaseCache = null
+// Marks every cached view stale, so the next read reflects a fresh env/database
+// state. Takes the database for symmetry with the readers; the epoch is shared.
+export const invalidateServerSettingsCache = (_database?: Database | null) => {
+  // The entry stays: a stale epoch is never served as fresh, and if the next
+  // read fails it is the degraded fallback (an admin's save may have failed and
+  // rolled back, and the defaults are looser than what was stored).
   globalEpoch[EPOCH_KEY] = currentEpoch() + 1
 }
 

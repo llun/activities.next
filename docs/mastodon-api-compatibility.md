@@ -2635,23 +2635,29 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     local, blocked and allow-listed hosts and throw `FederationPolicyUnavailableError`
     (`lib/services/federation/policyUnavailable.ts`) for any other, because outbound jobs treat a
     "no" as a finished skip (a Delete or Block never sent). The policy stays decidable when the env
-    pins an `open` mode, or an `allowlist` mode together with its allowed servers, and an unpinned
+    pins an `open` mode, or an `allowlist` mode together with its allowed servers. An unpinned
     `federation.allowActorDomains` exempts no host while degraded (a stale entry would skip the block
-    lookup). A catch that
-    would turn every error into a skip, a null or a 4xx (the shared inbox's 400,
+    lookup), and `isLocalFederationDomain` throws for a host local only through that list.
+  - A catch that would turn every error into a skip, a null or a 4xx (the shared inbox's 400,
     `getSenderPublicKeyDetails` and its key-rotation refresh, `recordRemoteActorBestEffort`, the
     actor-deletion fan-out, Flag reporter recording, bulk import and its overwrite pass, the
-    status-action fetch) calls `rethrowIfFederationPolicyUnavailable` first, so the error reaches a
-    queue retry or a 5xx. **Never let it escape after a write a retry cannot redo:**
-    inbox forwarding in `createNoteJob`, `updateNoteJob` and `deleteObjectJob` forwards to no one
+    status-action fetch, status creation on `/api/v1/statuses` and the legacy outbox) calls
+    `rethrowIfFederationPolicyUnavailable` first, so the error reaches a queue retry or a 5xx.
+    `confirmActorHandle` skips an undecidable candidate domain like a refused one and throws only
+    when no other candidate confirms.
+  - **Never let it escape after a write a retry cannot redo.** The Note, Poll and Announce jobs
+    record the actor before inserting the row, not alongside it. Inbox forwarding in
+    `createNoteJob`, `updateNoteJob` and `deleteObjectJob` forwards to no one
     (`forwardToNoOneWhenFederationPolicyUnavailable`: a stored note returns early, a replayed edit
-    appends history, a delete must not wait on forwarding), `confirmActorHandle` asks no one, and `getActorPerson`, the inbound quote fetch and like/reaction actor recording keep
-    swallowing it (each runs after its row is written). Unfollow (`undoFollow`) undoes the follow
-    here and queues the Undo, whose job rechecks policy. A remote profile render shows the profile
-    as unavailable, the not-found status page still shows its loading state, and read-only
-    backfills (thread walks, collection and profile refreshes) still skip. Other user-facing reads
-    answer 500 for that moment. Under `NoQueue`, which retries nothing, a Delete or Undo whose job
-    fails is lost, as any failed inline job is.
+    appends history, a delete must not wait on forwarding). `getActorPerson`, the inbound quote
+    fetch and like/reaction actor recording keep swallowing it (each runs after its row is
+    written). Unfollow (`undoFollow`) undoes the follow here and queues the Undo, whose job
+    rechecks policy. `NoQueue`, which retries nothing, logs the error from an inline job instead
+    of failing the request that published it after its own work committed.
+  - A remote profile render (including handle confirmation) shows the profile as unavailable, the
+    not-found status page still shows its loading state, Bluesky sharing reports the bridge as
+    unavailable, and read-only backfills (thread walks, collection and profile refreshes) still
+    skip. Other user-facing reads answer 500 for that moment.
   - Widening "local" only skips work — no fetch, no WebFinger, no domain-block or allow-list lookup,
     no forward — and never stands in for a signature or ownership check; every rule is operator
     configuration, and an authority spelled with a `*` (literally, or `%2a` that the parser decodes)

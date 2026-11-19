@@ -324,6 +324,29 @@ describe('server settings resolver', () => {
     await other.destroy()
   })
 
+  it('serves the invalidated cached values as degraded on the same database when re-read fails', async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false },
+      { key: 'federation.allowActorDomains', value: ['only.example'] }
+    ])
+    invalidateServerSettingsCache(database)
+    await getResolvedServerSettings(database)
+
+    invalidateServerSettingsCache(database)
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockRejectedValue(new Error('database unavailable'))
+
+    const view = await getServerSettingsView(database)
+    expect(view.degraded).toBe(true)
+    expect(view.settings.registrations.open).toBe(false)
+    expect(view.settings.federation.allowActorDomains).toEqual(['only.example'])
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
   describe('updateServerSettings', () => {
     it('writes valid values and reflects them immediately', async () => {
       const database = await freshDatabase()

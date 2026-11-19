@@ -74,34 +74,35 @@ export const createPollJob = createJobHandle(
       database
     })
 
-    const [, createResult] = await Promise.all([
-      recordActorIfNeeded({
-        actorId: question.attributedTo,
-        database
-      }),
-      database.createPollWithResult({
-        id: question.id,
-        // A peer's `url` is served back to clients as a link, so only an
-        // http(s) value is kept — the same rule createNoteJob applies.
-        url: getUrl(question.url) || question.id,
+    // Recorded before the insert, not alongside it: a policy error from
+    // recording must fail the job before the row exists, since a retry stops
+    // at the existing-row check above.
+    await recordActorIfNeeded({
+      actorId: question.attributedTo,
+      database
+    })
+    const createResult = await database.createPollWithResult({
+      id: question.id,
+      // A peer's `url` is served back to clients as a link, so only an
+      // http(s) value is kept — the same rule createNoteJob applies.
+      url: getUrl(question.url) || question.id,
 
-        actorId: question.attributedTo,
+      actorId: question.attributedTo,
 
-        text,
-        summary,
+      text,
+      summary,
 
-        to: toRecipientArray(question.to),
-        cc: toRecipientArray(question.cc),
+      to: toRecipientArray(question.to),
+      cc: toRecipientArray(question.cc),
 
-        reply: getReply(question.inReplyTo) || '',
-        choices,
-        pollType,
-        language,
-        endAt,
-        remoteUpdatedAt,
-        createdAt: new Date(question.published).getTime()
-      })
-    ])
+      reply: getReply(question.inReplyTo) || '',
+      choices,
+      pollType,
+      language,
+      endAt,
+      remoteUpdatedAt,
+      createdAt: new Date(question.published).getTime()
+    })
     const { status, isNew } = createResult
 
     // A concurrent delivery of the same poll won the unique-key insert, so this

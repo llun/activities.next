@@ -1,7 +1,10 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import {
+  canFederateWithDomain,
+  isLocalFederationDomain
+} from '@/lib/services/federation/domainPolicy'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { JRD_JSON_HEADERS } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -11,22 +14,30 @@ import { confirmActorHandle } from './confirmActorHandle'
 
 enableFetchMocks()
 
-const { actualCanFederateWithDomain } = vi.hoisted(() => ({
-  actualCanFederateWithDomain: {
-    fn: undefined as
-      | typeof import('@/lib/services/federation/domainPolicy').canFederateWithDomain
-      | undefined
-  }
-}))
+const { actualCanFederateWithDomain, actualIsLocalFederationDomain } =
+  vi.hoisted(() => ({
+    actualCanFederateWithDomain: {
+      fn: undefined as
+        | typeof import('@/lib/services/federation/domainPolicy').canFederateWithDomain
+        | undefined
+    },
+    actualIsLocalFederationDomain: {
+      fn: undefined as
+        | typeof import('@/lib/services/federation/domainPolicy').isLocalFederationDomain
+        | undefined
+    }
+  }))
 
 vi.mock('@/lib/services/federation/domainPolicy', async () => {
   const actual = await vi.importActual<
     typeof import('@/lib/services/federation/domainPolicy')
   >('@/lib/services/federation/domainPolicy')
   actualCanFederateWithDomain.fn = actual.canFederateWithDomain
+  actualIsLocalFederationDomain.fn = actual.isLocalFederationDomain
   return {
     ...actual,
-    canFederateWithDomain: vi.fn(actual.canFederateWithDomain)
+    canFederateWithDomain: vi.fn(actual.canFederateWithDomain),
+    isLocalFederationDomain: vi.fn(actual.isLocalFederationDomain)
   }
 })
 
@@ -82,6 +93,11 @@ describe('confirmActorHandle', () => {
       vi.mocked(canFederateWithDomain)
         .mockReset()
         .mockImplementation(actualCanFederateWithDomain.fn)
+    }
+    if (actualIsLocalFederationDomain.fn) {
+      vi.mocked(isLocalFederationDomain)
+        .mockReset()
+        .mockImplementation(actualIsLocalFederationDomain.fn)
     }
   })
 
@@ -415,7 +431,58 @@ describe('confirmActorHandle', () => {
         'acct:alice@ap.remote.test',
         'acct:alice@subject.test'
       ])
+
+      serveWebfinger({
+        'alice@ap.remote.test': {
+          self: 'https://ap.remote.test/users/other',
+          subject: 'acct:alice@subject.test'
+        },
+        'alice@handle.test': { self: actorId },
+        'alice@subject.test': { self: actorId }
+      })
+      vi.mocked(isLocalFederationDomain).mockRejectedValueOnce(
+        new FederationPolicyUnavailableError()
+      )
+
+      await expect(
+        confirmActorHandle({
+          database,
+          actorId,
+          username: 'alice',
+          webfinger: 'alice@handle.test'
+        })
+      ).resolves.toEqual({ username: 'alice', domain: 'subject.test' })
+      expect(askedAccounts()).toEqual([
+        'acct:alice@ap.remote.test',
+        'acct:alice@subject.test'
+      ])
     })
+
+    it.each(['canFederateWithDomain', 'isLocalFederationDomain'] as const)(
+      'rejects with FederationPolicyUnavailableError when %s is unavailable and no candidate confirms',
+      async (check) => {
+        serveWebfinger({ 'alice@handle.test': { self: actorId } })
+        if (check === 'canFederateWithDomain') {
+          vi.mocked(canFederateWithDomain).mockRejectedValueOnce(
+            new FederationPolicyUnavailableError()
+          )
+        } else {
+          vi.mocked(isLocalFederationDomain).mockRejectedValueOnce(
+            new FederationPolicyUnavailableError()
+          )
+        }
+
+        await expect(
+          confirmActorHandle({
+            database,
+            actorId,
+            username: 'alice',
+            webfinger: 'alice@handle.test'
+          })
+        ).rejects.toThrow(FederationPolicyUnavailableError)
+        expect(askedAccounts()).toEqual(['acct:alice@ap.remote.test'])
+      }
+    )
 
     it('propagates non-policy errors from canFederateWithDomain', async () => {
       serveWebfinger({ 'alice@handle.test': { self: actorId } })

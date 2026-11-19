@@ -523,6 +523,11 @@ const getRemoteProfileData = async (
           actorId: persistablePerson.id,
           username: persistablePerson.preferredUsername,
           webfinger: persistablePerson.webfinger
+        }).catch((error: unknown) => {
+          // A read: an undecidable handle host leaves the actor unconfirmed
+          // and unstored for now, as a refusal does, instead of a 500.
+          if (error instanceof FederationPolicyUnavailableError) return null
+          throw error
         })
       : null
   if (!storedActor && !handle) {

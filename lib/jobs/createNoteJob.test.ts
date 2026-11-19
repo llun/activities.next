@@ -1,5 +1,6 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import {
@@ -38,6 +39,14 @@ vi.mock(
     }
   }
 )
+
+vi.mock('@/lib/actions/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/actions/utils')>()
+  return {
+    ...actual,
+    recordActorIfNeeded: vi.fn(actual.recordActorIfNeeded)
+  }
+})
 
 const originalInboxForwarding = process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING
 
@@ -823,5 +832,34 @@ describe('createNoteJob', () => {
         })
       ).rejects.toThrow('forwarding exploded')
     })
+  })
+
+  it('rejects without inserting the note when recordActorIfNeeded hits unavailable federation policy', async () => {
+    const createNoteSpy = vi.spyOn(database, 'createNoteWithResult')
+    vi.mocked(recordActorIfNeeded).mockRejectedValueOnce(
+      new FederationPolicyUnavailableError()
+    )
+    const note = MockMastodonActivityPubNote({
+      id: 'https://somewhere.test/actors/friend/statuses/note-record-actor-policy-unavailable',
+      from: FRIEND_ACTOR_ID,
+      content: '<p>Should not be inserted</p>'
+    })
+
+    try {
+      await expect(
+        createNoteJob(database, {
+          id: 'note-record-actor-policy-unavailable',
+          name: CREATE_NOTE_JOB_NAME,
+          data: note
+        })
+      ).rejects.toThrow(FederationPolicyUnavailableError)
+
+      expect(createNoteSpy).not.toHaveBeenCalled()
+      await expect(
+        database.getStatus({ statusId: note.id })
+      ).resolves.toBeNull()
+    } finally {
+      createNoteSpy.mockRestore()
+    }
   })
 })

@@ -16,6 +16,7 @@ import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import {
   OAuthGuardAnyScope,
   OptionalOAuthGuard,
@@ -688,6 +689,8 @@ export const POST = traceApiRoute(
           data: mastodonStatus
         })
       } catch (error) {
+        // A 5xx to try again, not a 400 for a request that may well be valid.
+        rethrowIfFederationPolicyUnavailable(error)
         if (error instanceof IdempotencyConflictError) {
           return apiResponse({
             req,

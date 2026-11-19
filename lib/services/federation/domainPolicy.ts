@@ -42,6 +42,7 @@ const getFederationPolicy = async (
 ): Promise<{
   mode: FederationMode
   isLocal: LocalDomainMatcher
+  isLocalByUntrustedList: LocalDomainMatcher
   unknown: boolean
 }> => {
   const [view] = await Promise.all([
@@ -56,6 +57,9 @@ const getFederationPolicy = async (
       (federation.mode === 'open' ||
         view.locks['federation.allowActorDomains']?.locked)
     )
+  const listTrusted =
+    !view.degraded ||
+    Boolean(view.locks['federation.allowActorDomains']?.locked)
   return {
     mode: federation.mode,
     // The defaults stand in for unread stored settings, or a replaced view
@@ -68,10 +72,11 @@ const getFederationPolicy = async (
     // lookup, and a remote "allowed server" is then undecidable, not local.
     isLocal: createServedDomainMatcher([
       ...getServedDomainRules(getServedHostConfig()),
-      ...(!view.degraded || view.locks['federation.allowActorDomains']?.locked
-        ? federation.allowActorDomains
-        : [])
-    ])
+      ...(listTrusted ? federation.allowActorDomains : [])
+    ]),
+    isLocalByUntrustedList: listTrusted
+      ? () => false
+      : createServedDomainMatcher(federation.allowActorDomains)
   }
 }
 
@@ -83,8 +88,15 @@ export const isLocalFederationDomain = async (
   database: Database,
   value: string
 ): Promise<boolean> => {
-  const { isLocal } = await getFederationPolicy(database)
-  return isLocal(value)
+  const { isLocal, isLocalByUntrustedList } =
+    await getFederationPolicy(database)
+  if (isLocal(value)) return true
+  // Local only through an actor-domain list that cannot be trusted right now:
+  // "not local" would be wrong, and some callers act on it for good.
+  if (isLocalByUntrustedList(value)) {
+    throw new FederationPolicyUnavailableError()
+  }
+  return false
 }
 
 export const isDomainBlocked = async (

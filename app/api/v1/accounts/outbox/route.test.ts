@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { StatusPublishFailedError } from '@/lib/database/domains/idempotency/types'
 import { Database } from '@/lib/database/types'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -222,6 +223,29 @@ describe('POST /api/v1/accounts/outbox', () => {
     await expect(res.json()).resolves.toEqual({
       error: 'Your post was saved but could not be sent'
     })
+  })
+
+  it('rethrows FederationPolicyUnavailableError instead of answering 400 while other errors still answer 400', async () => {
+    const buildReq = () =>
+      new NextRequest('http://localhost/api/v1/accounts/outbox', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'note', message: 'hello' }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        }
+      })
+
+    mockCreateNoteFromUserInput.mockRejectedValueOnce(
+      new FederationPolicyUnavailableError()
+    )
+    await expect(
+      POST(buildReq(), { params: Promise.resolve({}) })
+    ).rejects.toThrow(FederationPolicyUnavailableError)
+
+    mockCreateNoteFromUserInput.mockRejectedValueOnce(new Error('boom'))
+    const res = await POST(buildReq(), { params: Promise.resolve({}) })
+    expect(res.status).toBe(400)
   })
 
   it('passes an authorized quote through to the create action', async () => {

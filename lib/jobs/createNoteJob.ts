@@ -121,26 +121,27 @@ export const createNoteJob = createJobHandle(
       database
     })
 
-    const [, createResult] = await Promise.all([
-      recordActorIfNeeded({ actorId, database }),
-      database.createNoteWithResult({
-        id: note.id,
-        url: getStatusUrl(note) || note.id,
+    // Recorded before the insert, not alongside it: a policy error from
+    // recording must fail the job before the row exists, since a retry stops
+    // at the existing-row check above.
+    await recordActorIfNeeded({ actorId, database })
+    const createResult = await database.createNoteWithResult({
+      id: note.id,
+      url: getStatusUrl(note) || note.id,
 
-        actorId,
+      actorId,
 
-        text,
-        summary,
-        sensitive: note.sensitive === true,
-        language,
+      text,
+      summary,
+      sensitive: note.sensitive === true,
+      language,
 
-        to: toRecipientArray(note.to),
-        cc: toRecipientArray(note.cc),
+      to: toRecipientArray(note.to),
+      cc: toRecipientArray(note.cc),
 
-        reply: getReply(note.inReplyTo) || '',
-        createdAt: publishedAt
-      })
-    ])
+      reply: getReply(note.inReplyTo) || '',
+      createdAt: publishedAt
+    })
     const { status, isNew } = createResult
 
     // A concurrent delivery of the same note won the unique-key insert, so this

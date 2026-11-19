@@ -2006,6 +2006,42 @@ describe('getProfileData', () => {
         expect(mockDatabase.createActor).not.toHaveBeenCalled()
         expect(mockDatabase.updateActor).not.toHaveBeenCalled()
       })
+
+      it('resolves without persisting when handle confirmation hits unavailable federation policy for a never-stored actor', async () => {
+        const personWithAlias: Actor = {
+          ...mockPerson,
+          webfinger: 'remoteuser@alias.test'
+        }
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+          null
+        )
+        ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue(null)
+        ;(getActorPerson as jest.Mock).mockResolvedValue(personWithAlias)
+        fetchMock.mockResponseOnce(async () => ({
+          status: 404,
+          body: 'Not Found'
+        }))
+        ;(canFederateWithDomain as jest.Mock).mockImplementation(
+          async (_database: unknown, value: string) => {
+            if (value.includes('alias.test')) {
+              throw new FederationPolicyUnavailableError()
+            }
+            return true
+          }
+        )
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@remoteuser@remote.com',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result?.person).toEqual(personWithAlias)
+        expect(mockDatabase.createActor).not.toHaveBeenCalled()
+        expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+        expect(mockDatabase.setActorCounters).not.toHaveBeenCalled()
+      })
     })
   })
 

@@ -1,8 +1,10 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createPollJob } from '@/lib/jobs/createPollJob'
 import { CREATE_POLL_JOB_NAME } from '@/lib/jobs/names'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -12,6 +14,14 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 enableFetchMocks()
+
+vi.mock('@/lib/actions/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/actions/utils')>()
+  return {
+    ...actual,
+    recordActorIfNeeded: vi.fn(actual.recordActorIfNeeded)
+  }
+})
 
 const REMOTE_ACTOR_ID = 'https://somewhere.test/actors/pollcreator'
 
@@ -665,5 +675,32 @@ describe('createPollJob', () => {
     expect(status.choices[1].totalVotes).toEqual(34)
     expect(status.choices[2].totalVotes).toEqual(56)
     expect(status.choices[3].totalVotes).toEqual(78)
+  })
+
+  it('rejects without inserting the poll when recordActorIfNeeded hits unavailable federation policy', async () => {
+    const createPollSpy = vi.spyOn(database, 'createPollWithResult')
+    vi.mocked(recordActorIfNeeded).mockRejectedValueOnce(
+      new FederationPolicyUnavailableError()
+    )
+    const question = MockActivityPubQuestion({
+      id: 'https://somewhere.test/actors/pollcreator/questions/policy-unavailable'
+    })
+
+    try {
+      await expect(
+        createPollJob(database, {
+          id: 'poll-record-actor-policy-unavailable',
+          name: CREATE_POLL_JOB_NAME,
+          data: question
+        })
+      ).rejects.toThrow(FederationPolicyUnavailableError)
+
+      expect(createPollSpy).not.toHaveBeenCalled()
+      await expect(
+        database.getStatus({ statusId: question.id })
+      ).resolves.toBeNull()
+    } finally {
+      createPollSpy.mockRestore()
+    }
   })
 })
