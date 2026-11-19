@@ -1,0 +1,25 @@
+lib/services/federation/domainRules.test.ts
+  s_f5e9eb82f5325f::t_c57f73229bfa23 166-187,193-201
+lib/services/federation/domainRules.ts
+  s_f5e9eb82f5325f::t_a2c8652b78f111 64-79,92,118-121,125-126
+lib/utils/host.test.ts
+  s_f5e9eb82f5325f::t_5cdf04637115f6 608-614,621-626
+lib/utils/host.ts
+  s_f5e9eb82f5325f::t_97d8a4a465926c 2,399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c7f2d0bed41343408102a63e044a02541b35ff38",
+  "prompts": {},
+  "sessions": {
+    "s_f5e9eb82f5325f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e159a96f-0960-4002-ba26-3aaae213c07e",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
