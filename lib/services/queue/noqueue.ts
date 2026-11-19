@@ -1,5 +1,6 @@
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { defaultJobHandle } from './base'
 import { JobMessage, Queue } from './type'
@@ -32,7 +33,7 @@ export class NoQueue implements Queue {
       // answering 400). Logged, as any job NoQueue cannot retry.
       if (!(error instanceof FederationPolicyUnavailableError)) throw error
       logger.warn(
-        { name: message.name },
+        { name: message.name, id: message.id, err: toLoggableError(error) },
         'NoQueue: skipped a job whose federation policy could not be read'
       )
     }

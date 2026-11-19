@@ -57,7 +57,13 @@ describe('NoQueue', () => {
 
       await expect(queue.publish(message)).resolves.toBeUndefined()
       expect(warn).toHaveBeenCalledWith(
-        { name: message.name },
+        {
+          name: message.name,
+          id: message.id,
+          err: expect.objectContaining({
+            name: 'FederationPolicyUnavailableError'
+          })
+        },
         'NoQueue: skipped a job whose federation policy could not be read'
       )
 
