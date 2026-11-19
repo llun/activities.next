@@ -1,7 +1,10 @@
 import { isActivityPubContentType } from '@/lib/activities/activityPubResponse'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
+import { parseBareDomain } from '@/lib/utils/accountHandle'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { CrossHostRedirectPolicy } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -29,18 +32,24 @@ export const getActivityPubSelfHrefs = (links: WebFinger['links']) => {
  * keeps only the `self` link. Retries are disabled by default: the remote-follow
  * caller is an unauthenticated interactive endpoint, so a slow or dead remote
  * must cost one bounded request rather than several.
+ *
+ * The account's domain must be a bare host, and the request is built from the
+ * validated host, so a value such as `evil.test://allowed.example` — which the
+ * federation policy reads as `allowed.example` — cannot send the request to
+ * `evil.test`. A cross-host redirect is followed only when federation policy
+ * allows the target host, unless the caller passes its own policy.
  */
 export const getWebfingerDocument = async ({
   account,
   withNetworkRetry = false,
   responseTimeout,
-  allowCrossHostRedirects
+  allowCrossHostRedirects = isFederatedRedirect
 }: {
   account: string
   withNetworkRetry?: boolean
   responseTimeout?: number
   /** See `SafeRemoteFetchOptions.allowCrossHostRedirects`. */
-  allowCrossHostRedirects?: boolean
+  allowCrossHostRedirects?: CrossHostRedirectPolicy
 }): Promise<WebFinger | null> =>
   withSpan('activity', 'getWebfingerDocument', { account }, async (span) => {
     const [user, domain, ...rest] = account.split('@')
@@ -48,8 +57,11 @@ export const getWebfingerDocument = async ({
       return null
     }
 
+    const host = parseBareDomain(domain, { requireDot: false })
+    if (!host) return null
+
     try {
-      const url = new URL(`https://${domain}/.well-known/webfinger`)
+      const url = new URL(`https://${host}/.well-known/webfinger`)
       url.searchParams.set('resource', `acct:${account}`)
 
       const { statusCode, body } = await request({

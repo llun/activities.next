@@ -3,7 +3,11 @@ import { z } from 'zod'
 import { getWebfingerSubscribeTemplate } from '@/lib/activities/getWebfingerDocument'
 import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
-import { parseAccountHandle, stripAcctPrefix } from '@/lib/utils/accountHandle'
+import {
+  parseAccountHandle,
+  parseBareDomain,
+  stripAcctPrefix
+} from '@/lib/utils/accountHandle'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   HTTP_STATUS,
@@ -37,27 +41,6 @@ const USERNAME_PATTERN = /^[a-zA-Z0-9._-]+$/
 
 const buildFallbackTemplate = (domain: string) =>
   `https://${domain}/authorize_interaction?uri={uri}`
-
-// Accepts a bare hostname only — no credentials, path, query or fragment — so
-// the domain that ends up in the redirect cannot smuggle anything else in.
-const parseBareDomain = (value: string): string | null => {
-  try {
-    const url = new URL(`https://${value}`)
-    if (
-      url.username ||
-      url.password ||
-      url.pathname !== '/' ||
-      url.search ||
-      url.hash ||
-      !url.hostname.includes('.')
-    ) {
-      return null
-    }
-    return url.host
-  } catch {
-    return null
-  }
-}
 
 const isUsableRedirectUrl = (value: string) => {
   if (value.length > MAX_RESULT_URL_LENGTH) return false

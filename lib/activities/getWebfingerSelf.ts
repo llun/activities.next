@@ -1,6 +1,7 @@
 import { getActivityPubSelfHrefs } from '@/lib/activities/getWebfingerDocument'
 import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
+import { parseBareDomain } from '@/lib/utils/accountHandle'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -18,12 +19,17 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       return null
     }
 
+    // The domain must be a bare host, and the request is built from the
+    // validated host: `evil.test://allowed.example` reads as `allowed.example`
+    // to the federation policy but would send the request to `evil.test`.
+    const host = parseBareDomain(domain, { requireDot: false })
+    if (!host) return null
+
     let requestedHost: string | undefined
     let refusedRedirectHost: string | undefined
     try {
-      const url = new URL(`https://${domain}/.well-known/webfinger`)
-      // Logs and the span record hosts only: a handle may carry path or query
-      // text after `@`.
+      const url = new URL(`https://${host}/.well-known/webfinger`)
+      // Logs and the span record the host only, never the handle.
       requestedHost = url.host
       span.setAttribute('webfinger.host', requestedHost.slice(0, 512))
       url.searchParams.set('resource', `acct:${user}@${domain}`)

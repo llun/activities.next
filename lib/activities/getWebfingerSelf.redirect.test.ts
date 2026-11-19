@@ -109,19 +109,10 @@ describe('getWebfingerSelf redirects', () => {
   })
 
   it('logs only the host when the WebFinger answer cannot be read', async () => {
-    const requested = new URL(
-      'https://example.test?token=secret/.well-known/webfinger'
-    )
-    requested.searchParams.set(
-      'resource',
-      'acct:alice@example.test?token=secret'
-    )
-    serve({ [requested.toString()]: { body: 'not json' } })
+    serve({ [webfingerUrl]: { body: 'not json' } })
     const error = vi.spyOn(logger, 'error')
 
-    expect(
-      await getWebfingerSelf({ account: 'alice@example.test?token=secret' })
-    ).toBeNull()
+    expect(await getWebfingerSelf({ account: 'alice@example.test' })).toBeNull()
     expect(error).toHaveBeenCalledWith({
       message: 'Failed to fetch webfinger self link',
       requestedHost: 'example.test',
@@ -138,7 +129,7 @@ describe('getWebfingerSelf redirects', () => {
     spanRecords.length = 0
     serve({})
 
-    await getWebfingerSelf({ account: 'alice@example.test?token=secret' })
+    await getWebfingerSelf({ account: 'alice@example.test' })
 
     expect(spanRecords).toEqual([{}, { 'webfinger.host': 'example.test' }])
   })
@@ -152,30 +143,21 @@ describe('getWebfingerSelf redirects', () => {
     expect(JSON.stringify(error.mock.calls)).not.toContain('secret')
   })
 
-  it('logs only the host of a handle that carries a query', async () => {
-    const requested = new URL(
-      'https://example.test?token=secret/.well-known/webfinger'
-    )
-    requested.searchParams.set(
-      'resource',
-      'acct:alice@example.test?token=secret'
-    )
-    serve({
-      [requested.toString()]: {
-        status: 302,
-        headers: { location: 'https://blocked.test/.well-known/webfinger' }
-      }
-    })
-    vi.mocked(canFederateWithDomain).mockResolvedValue(false)
+  it.each([
+    'alice@evil.test://allowed.example',
+    'alice@https:/blocked.example',
+    'alice@host/path',
+    'alice@example.test?token=secret'
+  ])('refuses the non-bare domain in %s without a request', async (account) => {
+    serve({})
     const warn = vi.spyOn(logger, 'warn')
+    const error = vi.spyOn(logger, 'error')
 
+    expect(await getWebfingerSelf({ account })).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+    // The refused value is never logged, in whole or in part.
     expect(
-      await getWebfingerSelf({ account: 'alice@example.test?token=secret' })
-    ).toBeNull()
-    expect(warn).toHaveBeenCalledWith({
-      message: 'Refused a WebFinger redirect to another host',
-      requestedHost: 'example.test',
-      refusedRedirectHost: 'blocked.test'
-    })
+      JSON.stringify([...warn.mock.calls, ...error.mock.calls])
+    ).not.toContain('secret')
   })
 })

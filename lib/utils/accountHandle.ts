@@ -6,6 +6,38 @@ export const parseAccountHandle = (value: string) => {
 }
 
 /**
+ * Accepts a bare hostname only — no credentials, path, query or fragment — so
+ * the domain that ends up in a URL cannot smuggle anything else in. Returns
+ * the URL parser's normalized host (lowercased, punycoded, default port
+ * dropped), or null.
+ *
+ * `requireDot` (default true) also rejects a single-label host, which the
+ * remote-follow route applies because a bare `localhost` there is never a real
+ * server. Callers that only need the structural guarantee pass false.
+ */
+export const parseBareDomain = (
+  value: string,
+  { requireDot = true }: { requireDot?: boolean } = {}
+): string | null => {
+  try {
+    const url = new URL(`https://${value}`)
+    if (
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash ||
+      (requireDot && !url.hostname.includes('.'))
+    ) {
+      return null
+    }
+    return url.host
+  } catch {
+    return null
+  }
+}
+
+/**
  * Whether a handle IS the actor's current one, case-insensitively: the
  * username folds both sides, the domain folds both sides (a current handle
  * may have been stored before domains were normalized). A current handle and

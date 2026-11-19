@@ -74,6 +74,15 @@ describe('getWebfingerDocument', () => {
     expect(document).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it.each([
+    'user@evil.test://allowed.example',
+    'user@https:/blocked.example',
+    'user@host/path'
+  ])('does not request the non-bare domain in %s', async (account) => {
+    expect(await getWebfingerDocument({ account })).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('getWebfingerSubscribeTemplate', () => {

@@ -156,6 +156,51 @@ describe('parseAccountTarget', () => {
       expected: null
     },
     {
+      description: 'rejects a domain that is not a bare host',
+      input: 'alice@evil.test://allowed.example',
+      expected: null
+    },
+    {
+      description: 'rejects a domain carrying a scheme',
+      input: 'alice@https:/blocked.example',
+      expected: null
+    },
+    {
+      description: 'rejects a domain carrying a path',
+      input: 'alice@host/path',
+      expected: null
+    },
+    {
+      description: 'accepts a single-label host',
+      input: 'alice@host',
+      expected: {
+        type: 'handle',
+        username: 'alice',
+        domain: 'host',
+        acct: 'alice@host'
+      }
+    },
+    {
+      description: 'lowercases a single-label host',
+      input: 'alice@HOST',
+      expected: {
+        type: 'handle',
+        username: 'alice',
+        domain: 'host',
+        acct: 'alice@host'
+      }
+    },
+    {
+      description: 'accepts a host with a port',
+      input: 'alice@host:443',
+      expected: {
+        type: 'handle',
+        username: 'alice',
+        domain: 'host:443',
+        acct: 'alice@host:443'
+      }
+    },
+    {
       description: 'rejects a javascript url',
       input: 'javascript:alert(1)',
       expected: null
@@ -193,6 +238,17 @@ describe('resolveAccountTarget', () => {
 
     expect(result).toEqual({ type: 'invalid' })
     expect(canFederateWithDomain).not.toHaveBeenCalled()
+  })
+
+  it('returns invalid for a handle whose domain is not a bare host', async () => {
+    const result = await resolveAccountTarget({
+      database,
+      input: 'alice@evil.test://allowed.example'
+    })
+
+    expect(result).toEqual({ type: 'invalid' })
+    expect(canFederateWithDomain).not.toHaveBeenCalled()
+    expect(getWebfingerSelf).not.toHaveBeenCalled()
   })
 
   it('returns forbidden when the instance cannot federate with the domain', async () => {

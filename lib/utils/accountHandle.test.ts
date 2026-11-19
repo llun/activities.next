@@ -3,6 +3,7 @@ import {
   parseAccountHandle,
   parseAccountUrlHandle,
   parseActorUrlAccountHandle,
+  parseBareDomain,
   parseBlueskyBridgeQuery,
   parseProfileUrlAccountHandle,
   stripAcctPrefix
@@ -44,6 +45,35 @@ describe('parseAccountHandle', () => {
     { description: 'rejects an empty value', input: '', expected: null }
   ])('$description', ({ input, expected }) => {
     expect(parseAccountHandle(input)).toEqual(expected)
+  })
+})
+
+describe('parseBareDomain', () => {
+  it.each([
+    ['a bare host', 'example.com', 'example.com'],
+    ['a host with a non-default port', 'example.com:8443', 'example.com:8443'],
+    ['a punycoded host', 'bücher.test', 'xn--bcher-kva.test'],
+    ['a trailing dot', 'example.com.', 'example.com.']
+  ])('accepts %s', (_description, input, expected) => {
+    expect(parseBareDomain(input)).toBe(expected)
+  })
+
+  it.each([
+    ['a scheme', 'evil.test://allowed.example'],
+    ['a path', 'host/path'],
+    ['credentials', 'user:pass@example.com'],
+    ['a query', 'example.com?token=secret'],
+    ['a fragment', 'example.com#fragment'],
+    ['a single-label host', 'localhost']
+  ])('rejects %s', (_description, input) => {
+    expect(parseBareDomain(input)).toBeNull()
+  })
+
+  it('accepts a single-label host when a dot is not required', () => {
+    expect(parseBareDomain('localhost', { requireDot: false })).toBe(
+      'localhost'
+    )
+    expect(parseBareDomain('host:443', { requireDot: false })).toBe('host')
   })
 })
 

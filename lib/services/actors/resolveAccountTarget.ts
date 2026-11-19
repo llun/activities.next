@@ -9,6 +9,7 @@ import { getFederationSigningActorSafe } from '@/lib/services/federation/getFede
 import { Actor } from '@/lib/types/domain/actor'
 import {
   parseAccountHandle,
+  parseBareDomain,
   parseProfileUrlAccountHandle,
   stripAcctPrefix
 } from '@/lib/utils/accountHandle'
@@ -61,6 +62,11 @@ export const parseAccountTarget = (input: string): AccountTarget | null => {
 
   const handle = parseAccountHandle(withoutAcct)
   if (!handle) return null
+
+  // The domain must be a bare host. `evil.test://allowed.example` reads as
+  // `allowed.example` to the federation policy, but WebFinger would contact
+  // `evil.test`; the page answers invalid instead of resolving it.
+  if (!parseBareDomain(handle.domain, { requireDot: false })) return null
 
   return {
     type: 'handle',

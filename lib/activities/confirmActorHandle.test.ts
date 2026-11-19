@@ -631,4 +631,84 @@ describe('confirmActorHandle', () => {
       expect(askedAccounts()).toEqual(['acct:alice@ap.remote.test'])
     })
   })
+
+  describe('cross-host redirects', () => {
+    const actorId = 'https://ap.remote.test/users/1234'
+    const redirectedUrl =
+      'https://elsewhere.test/.well-known/webfinger?resource=acct%3Aalice%40ap.remote.test'
+
+    // The actor host answers with a redirect onto another host, which serves
+    // the document naming this actor.
+    const serveRedirect = () => {
+      fetchMock.resetMocks()
+      fetchMock.mockResponse(async (req) => {
+        const url = new URL(req.url)
+        if (url.host === 'ap.remote.test') {
+          return { status: 302, headers: { location: redirectedUrl } }
+        }
+        return {
+          status: 200,
+          headers: JRD_JSON_HEADERS,
+          body: JSON.stringify(
+            MockWebfinger({ account: 'alice@ap.remote.test', userUrl: actorId })
+          )
+        }
+      })
+    }
+
+    const contactedElsewhere = () =>
+      fetchMock.mock.calls.filter(([input]) =>
+        String(input).includes('elsewhere.test')
+      )
+
+    it('refuses a host lookup redirect onto a host federation policy blocks', async () => {
+      serveRedirect()
+      vi.mocked(canFederateWithDomain).mockResolvedValue(false)
+
+      await expect(
+        confirmActorHandle({ database, actorId, username: 'alice' })
+      ).resolves.toBeNull()
+      expect(contactedElsewhere()).toHaveLength(0)
+    })
+
+    // The handle-domain lookup is the one place a redirect must never leave
+    // the vetted host, even when federation policy would allow the target.
+    it('refuses a cross-host redirect on the handle-domain lookup', async () => {
+      const handleRedirectUrl =
+        'https://elsewhere.test/.well-known/webfinger?resource=acct%3Aalice%40handle.test'
+      fetchMock.resetMocks()
+      fetchMock.mockResponse(async (req) => {
+        const url = new URL(req.url)
+        if (url.host === 'ap.remote.test') {
+          return {
+            status: 200,
+            headers: JRD_JSON_HEADERS,
+            body: JSON.stringify({
+              ...MockWebfinger({
+                account: 'alice@ap.remote.test',
+                userUrl: 'https://ap.remote.test/users/other'
+              }),
+              subject: 'acct:alice@handle.test'
+            })
+          }
+        }
+        if (url.host === 'handle.test') {
+          return { status: 302, headers: { location: handleRedirectUrl } }
+        }
+        return {
+          status: 200,
+          headers: JRD_JSON_HEADERS,
+          body: JSON.stringify(
+            MockWebfinger({ account: 'alice@handle.test', userUrl: actorId })
+          )
+        }
+      })
+      vi.mocked(canFederateWithDomain).mockResolvedValue(true)
+
+      await expect(
+        confirmActorHandle({ database, actorId, username: 'alice' })
+      ).resolves.toBeNull()
+      expect(contactedElsewhere()).toHaveLength(0)
+    })
+  })
 })
