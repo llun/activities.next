@@ -16,6 +16,7 @@ enableFetchMocks()
 describe('getMisskeyCollectionCounts', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
   })
 
   it.each([

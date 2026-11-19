@@ -1,4 +1,3 @@
-import { isFederatedUrlForActor } from '@/lib/activities/getActorCollections'
 import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { Actor } from '@/lib/types/activitypub'
@@ -6,6 +5,7 @@ import { ActorProfile, Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -195,8 +195,9 @@ export const getPixelfedPosts = async ({
         fetchUrl = `https://${domain}/api/pixelfed/v1/accounts/${accountId}/statuses?limit=${PIXELFED_PAGE_LIMIT}`
       }
 
-      // A page URL comes from the caller and can name any host.
-      if (!(await isFederatedUrlForActor(fetchUrl, person.id))) return null
+      // A page URL comes from the caller; Pixelfed's own pages (`nextPageUrl`
+      // below) are always on the actor's host, which the caller vetted.
+      if (!isSameActivityPubOrigin(fetchUrl, person.id)) return null
 
       const { statusCode, body } = await request({
         url: fetchUrl,
@@ -220,8 +221,15 @@ export const getPixelfedPosts = async ({
         ? (ActorProfile.safeParse(actor).data ?? null)
         : null
 
+      // Rendered as this actor's posts, so an item naming an id or URL on
+      // another origin is dropped, as an outbox Create would be.
+      const ownItems = items.filter((item: PixelfedStatus) =>
+        [item?.uri, item?.url].every(
+          (value) => !value || isSameActivityPubOrigin(value, person.id)
+        )
+      )
       const statuses: Status[] = await Promise.all(
-        items.map((item) => fromPixelfedStatus(item, person, actorProfile))
+        ownItems.map((item) => fromPixelfedStatus(item, person, actorProfile))
       )
 
       let nextPageUrl: string | null = null

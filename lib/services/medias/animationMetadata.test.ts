@@ -66,6 +66,7 @@ describe('resolveAnimationMetadata', () => {
   beforeEach(() => {
     clearAnimationMetadataCacheForTests()
     vi.clearAllMocks()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
     vi.mocked(getServerSoftware).mockResolvedValue('mastodon')
   })
 
