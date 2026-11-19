@@ -1,0 +1,44 @@
+app/(timeline)/[actor]/[status]/page.tsx
+  s_449320edf6fe96::t_36ca4692a65b78 317-330
+lib/actions/unfollowActor.ts
+  s_449320edf6fe96::t_a1893e7a407aef 3,6-7,9-12,43-66,68,70,74,77-98
+lib/services/federation/domainPolicy.ts
+  s_449320edf6fe96::t_056cffb8a9a7fd 54-63
+lib/services/federation/domainPolicy.test.ts
+  s_449320edf6fe96::t_7d4a33ef585af3 186-223
+app/(timeline)/[actor]/getProfileData.ts
+  s_449320edf6fe96::t_36ca4692a65b78 423-431,469,479
+  s_449320edf6fe96::t_a89a1c7f74568d 16
+lib/services/actors/refreshRemoteActor.ts
+  s_449320edf6fe96::t_a89a1c7f74568d 3
+  s_449320edf6fe96::t_36ca4692a65b78 152-154
+app/api/v1/accounts/follow/route.ts
+  s_449320edf6fe96::t_a1893e7a407aef 3,9,166
+lib/services/serverSettings/index.ts
+  s_449320edf6fe96::t_056cffb8a9a7fd 189-196,198-205
+lib/jobs/createNoteJob.ts
+  s_449320edf6fe96::t_a1893e7a407aef 25,53
+  s_449320edf6fe96::t_b93f49a77d3507 313-321
+lib/services/guards/getSenderPublicKey.ts
+  s_449320edf6fe96::t_36ca4692a65b78 469-470
+app/api/inbox/route.test.ts
+  s_449320edf6fe96::t_36ca4692a65b78 611
+lib/services/serverSettings/index.test.ts
+  s_449320edf6fe96::t_7d4a33ef585af3 313-318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b415467d714d5a19536a2a77daa84b35fdb48321",
+  "prompts": {},
+  "sessions": {
+    "s_449320edf6fe96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01786880-c6f1-43f9-b3f4-e62348bf80e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
