@@ -2641,7 +2641,8 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
   - A catch that would turn every error into a skip, a null or a 4xx (the shared inbox's 400,
     `getSenderPublicKeyDetails` and its key-rotation refresh, `recordRemoteActorBestEffort`, the
     actor-deletion fan-out, Flag reporter recording, bulk import and its overwrite pass, the
-    status-action fetch, status creation on `/api/v1/statuses` and the legacy outbox) calls
+    status-action fetch, status creation on `/api/v1/statuses` and the legacy outbox, including storing a fetched quote
+    target) calls
     `rethrowIfFederationPolicyUnavailable` first, so the error reaches a queue retry or a 5xx.
     `confirmActorHandle` skips an undecidable candidate domain like a refused one and throws only
     when no other candidate confirms.

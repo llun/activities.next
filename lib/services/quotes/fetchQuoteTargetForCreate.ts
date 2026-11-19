@@ -151,7 +151,7 @@ export const fetchQuoteTargetForCreate = async ({
       })
     }
   } catch (error) {
-    // createNoteJob throws this before inserting, so the request can be retried
+    // createNoteJob and createPollJob throw this before inserting, so a retry is safe
     rethrowIfFederationPolicyUnavailable(error)
     logger.warn({
       message: 'Failed to persist fetched quoted note for create',
