@@ -43,6 +43,24 @@ describe('getActorPostsFromAtomFeed', () => {
     expect(result).toEqual([])
   })
 
+  it('fetches no Atom candidate off the actor origin', async () => {
+    // A bare-origin actor id: appending `.atom` would name another host.
+    const person = {
+      ...MockActivityPubPerson({ id: 'https://root.example' }),
+      preferredUsername: 'root'
+    } as Actor
+    fetchMock.mockResponse(async () => ({ status: 404, body: 'Not Found' }))
+
+    await getActorPostsFromAtomFeed({ person })
+
+    const hosts = fetchMock.mock.calls.map(
+      ([input]) =>
+        new URL(String(input instanceof Request ? input.url : input)).host
+    )
+    expect(hosts).not.toContain('root.example.atom')
+    expect(hosts.every((host) => host === 'root.example')).toBe(true)
+  })
+
   it('returns empty array when Atom feed returns 404', async () => {
     const actorId = 'https://pixelfed.example/users/testuser'
     const person = MockActivityPubPerson({ id: actorId }) as Actor

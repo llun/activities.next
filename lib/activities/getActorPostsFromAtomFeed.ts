@@ -78,7 +78,10 @@ const getCandidateAtomUrls = (person: Actor): string[] => {
   } catch {
     // Malformed actor id URL
   }
-  return urls
+  // `${person.id}.atom` leaves the actor's host when the id is a bare origin
+  // (`https://example.com` -> `example.com.atom`); only the actor's origin,
+  // which the caller vetted, is fetched.
+  return urls.filter((url) => isSameActivityPubOrigin(url, person.id))
 }
 
 const extractEntryUrl = (entry: AtomFeedEntry): string | null => {
