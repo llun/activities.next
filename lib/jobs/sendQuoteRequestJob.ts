@@ -64,6 +64,11 @@ export const sendQuoteRequestJob: JobHandle = createJobHandle(
       ) {
         return
       }
+      // A stored author can sit on another host than its status, so its host
+      // is checked before the signed actor GET and the QuoteRequest POST.
+      if (!(await canFederateWithDomain(database, quotedAuthorId))) {
+        return
+      }
 
       const person = await getActorPerson({
         actorId: quotedAuthorId,

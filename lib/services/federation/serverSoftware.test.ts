@@ -314,6 +314,32 @@ describe('serverSoftware', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['https:evil.example/nodeinfo', 'https:\\\\evil.example/nodeinfo'])(
+    'fetches the link it checked, not %s parsed without a base',
+    async (href) => {
+      const domain = 'victim3.example'
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+          return {
+            status: 200,
+            body: JSON.stringify({
+              links: [
+                { rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0', href }
+              ]
+            })
+          }
+        }
+        return { status: 404, body: 'Not Found' }
+      })
+
+      await getServerSoftwareInfo(domain)
+
+      expect(
+        requestedUrls().filter((url) => new URL(url).host !== domain)
+      ).toEqual([])
+    }
+  )
+
   it('still follows a rel-less first link on the same host (compatibility fallback preserved)', async () => {
     const domain = 'norel.example'
     const infoUrl = `https://${domain}/nodeinfo/2.0`

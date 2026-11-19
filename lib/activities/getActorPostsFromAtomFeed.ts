@@ -190,11 +190,12 @@ export const getActorPostsFromAtomFeed = async ({
                 const status = await getStatusFromNote(noteResult.data)
                 if (!status) return null
 
-                // Rendered under this actor, as an outbox Create is: a public
-                // note by this actor's origin, its id on the URL's origin.
+                // Rendered under this actor, whose feed lists only its own
+                // posts: a public note by this actor (exactly, since an entry
+                // may sit on another allowed host that could otherwise name any
+                // account on the actor's origin), its id on the fetched origin.
                 if (
-                  (status.actorId !== person.id &&
-                    !isSameActivityPubOrigin(person.id, status.actorId)) ||
+                  status.actorId !== person.id ||
                   !isSameActivityPubOrigin(entryUrl, status.id) ||
                   !isPublicOrUnlisted(status)
                 ) {

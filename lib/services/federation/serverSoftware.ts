@@ -135,7 +135,9 @@ export const getServerSoftwareInfo = async (
       }
 
       const { statusCode: infoStatus, body: infoBody } = await request({
-        url: nodeInfoLink.href,
+        // The URL the same-host check resolved, not the raw href: parsed
+        // without a base, `https:other.example/x` names another host.
+        url: new URL(nodeInfoLink.href, `https://${normalizedDomain}`).href,
         allowCrossHostRedirects: isFederatedRedirect,
         headers: {
           Accept: 'application/json, */*;q=0.8',

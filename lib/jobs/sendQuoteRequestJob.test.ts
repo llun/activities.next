@@ -51,7 +51,7 @@ describe('sendQuoteRequestJob', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(canFederateWithDomain).mockResolvedValue(true)
+    vi.mocked(canFederateWithDomain).mockReset().mockResolvedValue(true)
     vi.mocked(getFederationSigningActor).mockResolvedValue(
       SIGNING_ACTOR as never
     )
@@ -179,6 +179,21 @@ describe('sendQuoteRequestJob', () => {
     } as never)
 
     await runJob(jobData(statusId, uncachedId))
+
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect(sendQuoteRequest).not.toHaveBeenCalled()
+  })
+
+  it('sends nothing when the cached quoted author is on a host policy refuses', async () => {
+    const statusId = await seedQuotingStatus()
+    const cachedId =
+      'https://allowed.test/users/someone/statuses/cached-elsewhere'
+    await cacheQuotedStatus(cachedId, 'https://refused.test/users/author')
+    vi.mocked(canFederateWithDomain).mockImplementation(
+      async (_database, value) => new URL(value).host !== 'refused.test'
+    )
+
+    await runJob(jobData(statusId, cachedId))
 
     expect(getActorPerson).not.toHaveBeenCalled()
     expect(sendQuoteRequest).not.toHaveBeenCalled()

@@ -110,6 +110,43 @@ describe('getActorPostsFromAtomFeed', () => {
     expect(result.map((status) => status.id)).toEqual([keptUrl])
   })
 
+  it('drops an off-origin entry whose note names an author on the actor origin', async () => {
+    const actorId = 'https://pixelfed.example/users/testuser'
+    const person = MockActivityPubPerson({ id: actorId }) as Actor
+    const keptUrl = 'https://pixelfed.example/p/testuser/3001'
+    const externalUrl = 'https://publisher.example/p/3002'
+    fetchMock.mockResponse(async (req) =>
+      req.url === `${actorId}.atom`
+        ? {
+            status: 200,
+            headers: { 'Content-Type': 'application/atom+xml' },
+            body: `<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry><id>${externalUrl}</id></entry>
+      <entry><id>${keptUrl}</id></entry>
+    </feed>`
+          }
+        : { status: 404, body: 'Not Found' }
+    )
+    getNoteMock.mockImplementation(
+      async ({ statusId }: { statusId: string }) =>
+        MockMastodonActivityPubNote({
+          id: statusId,
+          // Another account on the actor's server.
+          from:
+            statusId === externalUrl
+              ? 'https://pixelfed.example/users/someone-else'
+              : actorId,
+          content: 'Entry content',
+          withContext: true
+        }) as Note
+    )
+
+    const result = await getActorPostsFromAtomFeed({ person })
+
+    expect(result.map((status) => status.id)).toEqual([keptUrl])
+  })
+
   it('fetches posts from Atom feed with multiple entries', async () => {
     const actorId = 'https://pixelfed.example/users/testuser'
     const person = MockActivityPubPerson({ id: actorId }) as Actor
