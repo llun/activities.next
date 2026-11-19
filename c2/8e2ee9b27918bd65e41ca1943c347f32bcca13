@@ -1,0 +1,98 @@
+lib/services/federation/statusDelivery.test.ts
+  s_449320edf6fe96::t_3f9a4335c184a4 69-70
+lib/services/federation/domainPolicy.ts
+  s_449320edf6fe96::t_cced9277631a60 7
+  s_449320edf6fe96::t_4bf68dc43af10a 8,42-48,51,54-56,110,115-119,128-129,144,150-153,164,180-181
+lib/services/imports/overwrite.ts
+  s_449320edf6fe96::t_5da95fb68835a4 187
+  s_449320edf6fe96::t_cced9277631a60 13
+lib/actions/emojiReaction.ts
+  s_449320edf6fe96::t_cced9277631a60 9
+  s_449320edf6fe96::t_5da95fb68835a4 243-245
+lib/activities/getActorPerson.ts
+  s_449320edf6fe96::t_51f0a4bf57bfb6 157-158
+  s_449320edf6fe96::t_cced9277631a60 7
+lib/jobs/receiveFlagJob.ts
+  s_449320edf6fe96::t_cced9277631a60 9
+  s_449320edf6fe96::t_7dae26adb86291 103
+app/(timeline)/[actor]/profileFollowLookup.test.ts
+  s_449320edf6fe96::t_3f9a4335c184a4 93-94
+app/api/inbox/route.ts
+  s_449320edf6fe96::t_7dae26adb86291 227
+  s_449320edf6fe96::t_51f0a4bf57bfb6 228
+  s_449320edf6fe96::t_cced9277631a60 8
+lib/jobs/deleteActorJob.ts
+  s_449320edf6fe96::t_cced9277631a60 17
+  s_449320edf6fe96::t_51f0a4bf57bfb6 95-96
+lib/services/guards/getSenderPublicKey.ts
+  s_449320edf6fe96::t_cced9277631a60 9
+  s_449320edf6fe96::t_7dae26adb86291 524-525
+lib/services/federation/domainPolicy.test.ts
+  s_449320edf6fe96::t_aa9c9dfc20d5f7 119-122,124-127,130-131,136-165
+  s_449320edf6fe96::t_365146221e43a3 185
+  s_449320edf6fe96::t_cced9277631a60 11
+  s_449320edf6fe96::t_3f9a4335c184a4 3,19,28-29,32-39,123,128-129,132-135,166-184
+lib/actions/like.ts
+  s_449320edf6fe96::t_5da95fb68835a4 39-41
+  s_449320edf6fe96::t_cced9277631a60 6
+lib/services/statuses/getReadableStatusForAction.allowlist.test.ts
+  s_449320edf6fe96::t_3f9a4335c184a4 57-65
+lib/services/serverSettings/index.ts
+  s_449320edf6fe96::t_4bf68dc43af10a 15,48-51,183,189-194
+lib/services/statuses/getReadableStatusForAction.ts
+  s_449320edf6fe96::t_5da95fb68835a4 115-116
+  s_449320edf6fe96::t_cced9277631a60 9
+lib/services/serverSettings/index.test.ts
+  s_449320edf6fe96::t_aa9c9dfc20d5f7 297-321
+  s_449320edf6fe96::t_4bf68dc43af10a 256-259,286-288
+lib/services/federation/policyUnavailable.ts
+  s_449320edf6fe96::t_cced9277631a60 1-16
+lib/services/quotes/persistInboundQuoteEdge.ts
+  s_449320edf6fe96::t_5da95fb68835a4 128
+  s_449320edf6fe96::t_cced9277631a60 9
+lib/jobs/bulkImportJob.ts
+  s_449320edf6fe96::t_cced9277631a60 7
+  s_449320edf6fe96::t_5da95fb68835a4 193-195
+docs/environment-variables.md
+  s_449320edf6fe96::t_c39361728d8071 23-35
+docs/mastodon-api-compatibility.md
+  s_449320edf6fe96::t_97667267fa0346 2633-2643
+app/api/inbox/route.test.ts
+  s_449320edf6fe96::t_bd2751fc5eaf31 5,610-622
+lib/actions/emojiReaction.test.ts
+  s_449320edf6fe96::t_c7221247d1d004 12,450-476
+lib/actions/like.test.ts
+  s_449320edf6fe96::t_6a9c96f512d5ef 5,172-207
+lib/activities/getActorPerson.test.ts
+  s_449320edf6fe96::t_b38d25429bd45d 5,418-430
+lib/jobs/bulkImportJob.test.ts
+  s_449320edf6fe96::t_24478992a5ab42 16,185-200
+lib/jobs/deleteActorJob.test.ts
+  s_449320edf6fe96::t_6975f32a5b49c8 15,594-618
+lib/jobs/receiveFlagJob.test.ts
+  s_449320edf6fe96::t_3ba6de086f59df 7,399-429
+lib/services/guards/getSenderPublicKey.test.ts
+  s_449320edf6fe96::t_ea2a9c06a80454 6,1074-1085
+lib/services/imports/overwrite.test.ts
+  s_449320edf6fe96::t_ebcb0962826540 6,479-495
+lib/services/quotes/persistInboundQuoteEdge.test.ts
+  s_449320edf6fe96::t_e648c1253c95f2 3,268-292
+lib/services/statuses/getReadableStatusForAction.test.ts
+  s_449320edf6fe96::t_40a8270e7c7811 3,458-469
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c28e2ee9b27918bd65e41ca1943c347f32bcca13",
+  "prompts": {},
+  "sessions": {
+    "s_449320edf6fe96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01786880-c6f1-43f9-b3f4-e62348bf80e7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
