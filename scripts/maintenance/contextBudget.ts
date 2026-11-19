@@ -280,7 +280,7 @@ function addedLines(root: string, base: string, files: string[]) {
   )
 }
 
-function main(argv: string[]) {
+export function main(argv: string[], cwd = process.cwd()) {
   let base: string | null = null
   let update = false
   for (let i = 0; i < argv.length; i++) {
@@ -298,6 +298,7 @@ function main(argv: string[]) {
   }
   if (!base && process.env.GITHUB_EVENT_NAME === 'pull_request') base = 'HEAD^1'
   const root = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+    cwd,
     encoding: 'utf8'
   }).trim()
   const configPath = path.join(root, 'context-budget.json')

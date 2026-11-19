@@ -1,11 +1,13 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   check,
   historyHit,
+  main,
   parseAdded,
   routeLinks,
   sectionBytes,
@@ -22,6 +24,7 @@ beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-budget-'))
 })
 afterEach(() => {
+  vi.unstubAllEnvs()
   fs.rmSync(root, { recursive: true, force: true })
 })
 
@@ -108,6 +111,40 @@ describe('contextBudget check', () => {
     ).toEqual([])
   })
 
+  it('defaults the target to 12288 bytes', () => {
+    write('AGENTS.md', 'small')
+    expect(
+      check(root, { files: { 'AGENTS.md': 12289 } }).ceilings['AGENTS.md']
+    ).toBe(12288)
+    expect(check(root, { files: { 'AGENTS.md': 12288 } }).errors).toEqual([])
+  })
+
+  it('--update writes lowered ceilings and still fails other errors', () => {
+    // CI's pull_request event would otherwise send main() to HEAD^1.
+    vi.stubEnv('GITHUB_EVENT_NAME', '')
+    execFileSync('git', ['init', '-q'], { cwd: root })
+    write('A.md', 'x'.repeat(10))
+    write('B.md', 'x'.repeat(30))
+    const config = { target: 5, files: { 'A.md': 40, 'B.md': 20 } }
+    write('context-budget.json', JSON.stringify(config))
+    const log = console.log
+    console.log = () => {}
+    try {
+      expect(main([], root)).toBe(1)
+      write('B.md', 'x'.repeat(20))
+      expect(main([], root)).toBe(1)
+      expect(main(['--update'], root)).toBe(0)
+    } finally {
+      console.log = log
+    }
+    expect(
+      JSON.parse(
+        fs.readFileSync(path.join(root, 'context-budget.json'), 'utf8')
+      ).files
+    ).toEqual({ 'A.md': 10, 'B.md': 20 })
+    expect(main([], root)).toBe(0)
+  })
+
   it('reports a route link to a missing anchor', () => {
     write('AGENTS.md', '[g](docs/g.md#nope)')
     write('docs/g.md', '## Real\ntext')
@@ -128,13 +165,15 @@ describe('contextBudget check', () => {
         diff: (files) =>
           [
             { file: 'docs/g.md', line: 3, text: 'Changed in #2837' },
-            { file: 'AGENTS.md', line: 1, text: 'Plain rule' },
+            { file: 'AGENTS.md', line: 1, text: 'Fixed in #2840' },
+            { file: 'AGENTS.md', line: 2, text: 'Plain rule' },
             { file: 'other.md', line: 1, text: 'Changed in #2837' }
           ].filter((entry) => files.includes(entry.file))
       }
     )
     expect(errors).toEqual([
-      expect.stringContaining('docs/g.md:3 adds history')
+      expect.stringContaining('docs/g.md:3 adds history'),
+      expect.stringContaining('AGENTS.md:1 adds history')
     ])
   })
 })
