@@ -73,7 +73,8 @@ describe('parseBareDomain', () => {
     ['an http scheme with a port', 'http:80'],
     ['whitespace', 'exa mple.com'],
     ['an empty label', 'example..com'],
-    ['a leading empty label', '.example.com']
+    ['a leading empty label', '.example.com'],
+    ['a wildcard label', '*.example.com']
   ])('rejects %s', (_description, input) => {
     expect(parseBareDomain(input)).toBeNull()
   })
@@ -85,7 +86,8 @@ describe('parseBareDomain', () => {
       '\uff48\uff54\uff54\uff50\uff53:8443'
     ],
     ['a soft-hyphenated https:', 'ht\u00adtps:8443'],
-    ['a zero-width-spaced https:', 'https\u200b:8443']
+    ['a zero-width-spaced https:', 'https\u200b:8443'],
+    ['a wildcard label before a web scheme', '*.https:8443']
   ])('rejects %s even when a dot is not required', (_description, input) => {
     expect(parseBareDomain(input, { requireDot: false })).toBeNull()
   })

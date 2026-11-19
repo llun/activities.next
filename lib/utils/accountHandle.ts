@@ -33,6 +33,8 @@ export const parseBareDomain = (
       /^https?:/i.test(url.host) ||
       url.hostname.includes('..') ||
       url.hostname.startsWith('.') ||
+      // The policy strips a leading `*.` that the fetch keeps.
+      url.hostname.includes('*') ||
       url.username ||
       url.password ||
       url.pathname !== '/' ||
