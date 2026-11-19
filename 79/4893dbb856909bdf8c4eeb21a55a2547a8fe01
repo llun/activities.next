@@ -1,0 +1,29 @@
+docs/architecture.md
+  s_07cf5e0ce96ca2::t_6fd6b79ef232ab 1416
+lib/activities/getPixelfedPosts.ts
+  s_07cf5e0ce96ca2::t_6fd6b79ef232ab 8,198-200,224-230,232
+docs/mastodon-api-compatibility.md
+  s_07cf5e0ce96ca2::t_6fd6b79ef232ab 1852
+lib/activities/getPixelfedPosts.test.ts
+  s_07cf5e0ce96ca2::t_6fd6b79ef232ab 30,145,148,153-164,166-201
+lib/services/medias/animationMetadata.test.ts
+  s_07cf5e0ce96ca2::t_6fd6b79ef232ab 69
+lib/activities/getMisskeyCollectionCounts.test.ts
+  s_07cf5e0ce96ca2::t_6fd6b79ef232ab 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "794893dbb856909bdf8c4eeb21a55a2547a8fe01",
+  "prompts": {},
+  "sessions": {
+    "s_07cf5e0ce96ca2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00b91562-0fca-4657-bd46-a83ec7adc12c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
