@@ -1,3 +1,5 @@
+import { ACTIVITIES_HOST } from '@/lib/constants'
+
 import {
   HostHeaders,
   createHostRulesMatcher,
@@ -400,6 +402,36 @@ describe('a comma in a host', () => {
     expect(selectHeaderHost({ 'x-forwarded-host': value }, sources)).toBe(
       'llun.test'
     )
+  })
+
+  // Only `X-Forwarded-Host` is a list; a comma in `Host` is no host at all.
+  it.each(['host', ACTIVITIES_HOST])(
+    'does not read the first entry of a comma in the %s header',
+    (name) => {
+      expect(
+        selectHeaderHost(
+          new Headers({ [name]: 'alias.example, x.evil.example' }),
+          sources
+        )
+      ).toBe('llun.test')
+    }
+  )
+
+  // Next.js copies `Host` into `X-Forwarded-Host` when no proxy set one.
+  it('does not read the first entry of a forwarded host copied from a comma Host', () => {
+    const value = 'alias.example, x.evil.example'
+    expect(
+      selectHeaderHost(
+        new Headers({ host: value, 'x-forwarded-host': value }),
+        sources
+      )
+    ).toBe('llun.test')
+    expect(
+      selectHeaderHost(
+        new Headers({ host: 'llun.test', 'x-forwarded-host': value }),
+        sources
+      )
+    ).toBe('alias.example')
   })
 
   it('still reads the first entry of a forwarded host list', () => {

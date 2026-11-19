@@ -11,7 +11,7 @@ type GetWebfingerSelfFunction = (params: {
 }) => Promise<string | null>
 
 export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
-  withSpan('activity', 'getWebfingerSelf', { account }, async (span) => {
+  withSpan('activity', 'getWebfingerSelf', {}, async (span) => {
     const cleanedAccount = account.replace(/^acct:/i, '').replace(/^@+/, '')
     const [user, domain, ...rest] = cleanedAccount.split('@')
     if (!user || !domain || rest.length > 0) {
@@ -22,9 +22,10 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
     let refusedRedirectHost: string | undefined
     try {
       const url = new URL(`https://${domain}/.well-known/webfinger`)
-      // For the refusal warning, which logs hosts only: a handle may carry path
-      // or query text after `@`.
+      // Logs and the span record hosts only: a handle may carry path or query
+      // text after `@`.
       requestedHost = url.host
+      span.setAttribute('webfinger.host', requestedHost.slice(0, 512))
       url.searchParams.set('resource', `acct:${user}@${domain}`)
 
       const { statusCode, body } = await request({
@@ -59,11 +60,18 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
         })
         return null
       }
-      const loggable = toLoggableError(error)
+      // Name and code only: the thrown error can carry the request URL (Got's
+      // `options`, a URL error's `input`/`base`) or remote body text (a JSON
+      // parse error's message), and the logger serialises its own properties.
+      const thrown = toLoggableError(error)
+      const loggable = Object.assign(
+        new Error(`WebFinger lookup failed: ${thrown.name}`),
+        { code: (error as NodeJS.ErrnoException).code }
+      )
       span.recordException(loggable)
       logger.error({
         message: 'Failed to fetch webfinger self link',
-        account,
+        requestedHost: requestedHost?.slice(0, 512),
         err: loggable
       })
       return null

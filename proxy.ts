@@ -4,6 +4,7 @@ import { getProxyHostConfig } from '@/lib/config/host'
 import { acceptContainsContentTypes } from '@/lib/utils/acceptContainsContentTypes'
 import {
   HOST_HEADER_NAMES,
+  getHostHeaderValue,
   getTrustedHostRules,
   isHostTrustedByRules,
   normalizeHost,
@@ -92,7 +93,7 @@ const proxyHeaderHost = (headers: Headers): string => {
 // puts the value in a path or header itself.
 const hasHostOutsideEnv = (headers: Headers): boolean => {
   for (const name of HOST_HEADER_NAMES) {
-    const value = headers.get(name)
+    const value = getHostHeaderValue(headers, name)
     if (!value) continue
     const normalized = normalizeHost(value, { allowWildcard: false })
     if (!normalized) continue
@@ -184,6 +185,18 @@ const isRewrittenApiRoute = (pathname: string): boolean => {
 const SHARE_TARGET_PATH = '/_share-target'
 
 export async function proxy(request: NextRequest) {
+  // One host, never a list. HTTP/1.1 allows a single `Host`, and Next.js both
+  // copies it into a missing `X-Forwarded-Host` and reads that header's first
+  // entry in its own Server Action origin check, so refuse the request here.
+  // This covers the routes the proxy runs on (see `config.matcher`), not the
+  // ones it skips, such as a multipart `/api/*` request.
+  if (request.headers.get('host')?.includes(',')) {
+    return withContentSecurityPolicy(
+      new NextResponse(null, { status: 400 }),
+      request
+    )
+  }
+
   const pathname = request.nextUrl.pathname
 
   // Reject non-existent auth subpaths (e.g. /auth/callback) early with 404

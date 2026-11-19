@@ -336,10 +336,10 @@ describe('traceApiRoute', () => {
   })
 
   it('bounds and redacts the recorded query', () => {
-    expect(redactTraceQuery('?access_token=x&client_secret=y&q=hi')).toBe(
-      'access_token=REDACTED&client_secret=REDACTED&q=hi'
+    expect(redactTraceQuery('?access_token=x&client_secret=y&limit=20')).toBe(
+      'access_token=REDACTED&client_secret=REDACTED&limit=20'
     )
-    expect(redactTraceQuery(`q=${'a'.repeat(5000)}`)).toHaveLength(2048)
+    expect(redactTraceQuery(`limit=${'a'.repeat(5000)}`)).toHaveLength(2048)
   })
 
   // Spelled out here rather than imported, so dropping a name from the
@@ -352,6 +352,10 @@ describe('traceApiRoute', () => {
     'nonce',
     'otp',
     'password',
+    'q',
+    'acct',
+    'resource',
+    'query',
     'secret',
     'sig',
     'signature',

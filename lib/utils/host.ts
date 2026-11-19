@@ -462,6 +462,23 @@ export const HOST_HEADER_NAMES = [
   'host'
 ] as const
 
+// Only `X-Forwarded-Host` is a list (each proxy appends its host). `Host` and
+// our own header name exactly one host, so a comma there makes the value no
+// host at all rather than a list whose first entry is read.
+export const getHostHeaderValue = (
+  headers: HostHeaders,
+  name: (typeof HOST_HEADER_NAMES)[number]
+) => {
+  const value = getHeaderValue(headers, name)
+  if (!value) return undefined
+  if (!value.includes(',')) return value
+  // Next.js copies `Host` into `X-Forwarded-Host` when no proxy set one, so a
+  // forwarded list identical to a comma-carrying `Host` is that `Host`.
+  return name === FORWARDED_HOST && value !== getHeaderValue(headers, 'host')
+    ? value
+    : undefined
+}
+
 export const selectHeaderHost = (
   headers: HostHeaders,
   config: HostRuleConfig
@@ -469,7 +486,7 @@ export const selectHeaderHost = (
   const configuredHost = getConfiguredHost(config.host)
 
   for (const headerName of HOST_HEADER_NAMES) {
-    const headerHost = getHeaderValue(headers, headerName)
+    const headerHost = getHostHeaderValue(headers, headerName)
     if (!headerHost) continue
 
     const normalizedHost = normalizeHost(headerHost, { allowWildcard: false })

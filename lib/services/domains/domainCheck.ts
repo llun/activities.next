@@ -5,10 +5,10 @@ import type {
   DomainCheckItem,
   DomainCheckResult
 } from '@/lib/database/domains/servedDomain/types'
-import { getHeaderValue } from '@/lib/utils/getHeaderValue'
 import {
   HOST_HEADER_NAMES,
   type HostHeaders,
+  getHostHeaderValue,
   getServedAuthority
 } from '@/lib/utils/host'
 import {
@@ -59,7 +59,7 @@ export const getDomainCheckProof = (
  */
 export const getDomainCheckRequestHost = (headers: HostHeaders): string => {
   for (const name of HOST_HEADER_NAMES) {
-    const value = getHeaderValue(headers, name)?.split(',')[0]?.trim()
+    const value = getHostHeaderValue(headers, name)?.split(',')[0]?.trim()
     if (!value) continue
     return getServedAuthority(value) ?? ''
   }

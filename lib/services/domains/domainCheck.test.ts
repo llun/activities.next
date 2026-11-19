@@ -80,6 +80,15 @@ describe('getDomainCheckRequestHost', () => {
     ).toBe('photos.example')
     expect(getDomainCheckRequestHost(new Headers())).toBe('')
   })
+
+  // Only X-Forwarded-Host is a list: a comma Host names no host.
+  it('reads no host from a Host that holds a comma', () => {
+    expect(
+      getDomainCheckRequestHost(
+        new Headers({ host: 'photos.example, x.evil.example' })
+      )
+    ).toBe('')
+  })
 })
 
 describe('checkDomainReachability', () => {

@@ -11,6 +11,26 @@ vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: vi.fn()
 }))
 
+// The real span, with what each call records on it kept for assertions.
+const { spanRecords } = vi.hoisted(() => ({ spanRecords: [] as unknown[] }))
+vi.mock('@/lib/utils/trace', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/utils/trace')>()
+  return {
+    ...actual,
+    withSpan: ((op, name, data, fn) => {
+      spanRecords.push(data)
+      return actual.withSpan(op, name, data, (span) => {
+        const setAttribute = span.setAttribute.bind(span)
+        span.setAttribute = (key, value) => {
+          spanRecords.push({ [key]: value })
+          return setAttribute(key, value)
+        }
+        return fn(span)
+      })
+    }) as typeof actual.withSpan
+  }
+})
+
 enableFetchMocks()
 
 // Runs through the real request layer (unlike getWebfingerSelf.test.ts), so a
@@ -86,6 +106,50 @@ describe('getWebfingerSelf redirects', () => {
       refusedRedirectHost: 'blocked.test'
     })
     expect(error).not.toHaveBeenCalled()
+  })
+
+  it('logs only the host when the WebFinger answer cannot be read', async () => {
+    const requested = new URL(
+      'https://example.test?token=secret/.well-known/webfinger'
+    )
+    requested.searchParams.set(
+      'resource',
+      'acct:alice@example.test?token=secret'
+    )
+    serve({ [requested.toString()]: { body: 'not json' } })
+    const error = vi.spyOn(logger, 'error')
+
+    expect(
+      await getWebfingerSelf({ account: 'alice@example.test?token=secret' })
+    ).toBeNull()
+    expect(error).toHaveBeenCalledWith({
+      message: 'Failed to fetch webfinger self link',
+      requestedHost: 'example.test',
+      err: expect.any(Error)
+    })
+    // The JSON parse error's message quotes the body; a URL error carries
+    // the requested URL. Only the error's name reaches the log.
+    expect(error.mock.calls[0]?.[0]).toMatchObject({
+      err: { message: 'WebFinger lookup failed: SyntaxError' }
+    })
+  })
+
+  it('records only the host of the handle on its span', async () => {
+    spanRecords.length = 0
+    serve({})
+
+    await getWebfingerSelf({ account: 'alice@example.test?token=secret' })
+
+    expect(spanRecords).toEqual([{}, { 'webfinger.host': 'example.test' }])
+  })
+
+  it('logs no part of a handle the URL parser refuses', async () => {
+    const error = vi.spyOn(logger, 'error')
+
+    expect(
+      await getWebfingerSelf({ account: 'alice@example.test:abc?token=secret' })
+    ).toBeNull()
+    expect(JSON.stringify(error.mock.calls)).not.toContain('secret')
   })
 
   it('logs only the host of a handle that carries a query', async () => {

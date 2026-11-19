@@ -17,6 +17,21 @@ vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: vi.fn()
 }))
 
+// The real span, with the attributes each call is given kept for assertions.
+const { spanAttributes } = vi.hoisted(() => ({
+  spanAttributes: [] as unknown[]
+}))
+vi.mock('@/lib/utils/trace', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/utils/trace')>()
+  return {
+    ...actual,
+    withSpan: ((op, name, data, fn) => {
+      spanAttributes.push(data)
+      return actual.withSpan(op, name, data, fn)
+    }) as typeof actual.withSpan
+  }
+})
+
 enableFetchMocks()
 
 describe('getActorPerson', () => {
@@ -124,6 +139,49 @@ describe('getActorPerson', () => {
       })
 
       expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+    })
+
+    it('logs a failed lookup by error name, not the remote body', async () => {
+      // `JSON.parse` quotes this body in its error message.
+      serve({ [attackerUrl]: { body: 'secret-body' } })
+      const error = vi.spyOn(logger, 'error')
+
+      expect(await getActorPerson({ actorId: attackerUrl })).toBeNull()
+      expect(error).toHaveBeenCalledWith({
+        message: '[getActorProfile] Actor lookup failed',
+        requestedOrigin: 'https://evil.test',
+        err: expect.objectContaining({
+          message: 'Actor lookup failed: SyntaxError'
+        })
+      })
+    })
+
+    it('records only the origin of the requested URL on its span', async () => {
+      spanAttributes.length = 0
+      serve({})
+
+      await getActorPerson({ actorId: `${attackerUrl}?token=secret` })
+
+      expect(spanAttributes).toEqual([{ actorId: 'https://evil.test' }])
+    })
+
+    it('logs a rejected actor document by the origin of each URL', async () => {
+      const requested = `${attackerUrl}?token=secret`
+      serve({
+        [requested]: {
+          body: actorDocument(`${victimId}?claim=secret`, 'ATTACKER KEY')
+        }
+      })
+      const warn = vi.spyOn(logger, 'warn')
+
+      expect(await getActorPerson({ actorId: requested })).toBeNull()
+      expect(warn).toHaveBeenCalledWith({
+        message:
+          'Rejected actor document whose id is not served by its own origin',
+        requestedActorId: 'https://evil.test',
+        servedFrom: 'https://evil.test',
+        claimedActorId: 'https://victim.test'
+      })
     })
 
     it('rejects when the claimed origin answers with a different id', async () => {

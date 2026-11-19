@@ -37,6 +37,27 @@ describe('getHostConfigFromEnvironment', () => {
     ).toThrow('ACTIVITIES_ALLOW_ACTOR_DOMAINS must be a JSON array')
   })
 
+  // A URL parser keeps `,` in a hostname, so the host rules would read the
+  // entry as `a.example` alone.
+  it('refuses a trusted host entry that holds a comma in strict mode', () => {
+    process.env.ACTIVITIES_TRUSTED_HOSTS =
+      '["ok.example", "a.example,b.example"]'
+
+    expect(() =>
+      getHostConfigFromEnvironment({ onInvalidList: 'throw' })
+    ).toThrow(
+      'ACTIVITIES_TRUSTED_HOSTS: each entry must be one host; split the entry that holds a comma into separate JSON array entries'
+    )
+  })
+
+  it('drops a trusted host entry that holds a comma outside strict mode', () => {
+    process.env.ACTIVITIES_TRUSTED_HOSTS =
+      '["ok.example", "a.example,b.example"]'
+
+    expect(getHostConfigFromEnvironment().trustedHosts).toEqual(['ok.example'])
+    expect(getProxyHostConfig().trustedHosts).toEqual(['ok.example'])
+  })
+
   it('uses an empty list for parseable non-array list values outside strict mode', () => {
     process.env.ACTIVITIES_ALLOW_ACTOR_DOMAINS = '"not-an-array"'
     process.env.ACTIVITIES_TRUSTED_HOSTS = '{}'

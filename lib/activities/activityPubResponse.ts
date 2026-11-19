@@ -1,6 +1,7 @@
 import { parseAcceptContentTypes } from '@/lib/utils/acceptContentTypes'
 import { ACTIVITY_STREAM_URL } from '@/lib/utils/activitystream'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
+import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 import type { RequestResult } from '@/lib/utils/request'
 
@@ -28,6 +29,16 @@ export const isActivityPubContentType = (contentType: string | undefined) => {
 // `application/octet-stream`. Reading it anyway is how a JSON upload minted an
 // actor (its own key and inbox) or a note on someone else's instance. Every
 // ActivityPub GET goes through this instead of a bare `statusCode === 200`.
+const toLoggableMediaType = (value: string | undefined | null) => {
+  const mediaType = value?.split(';')[0]?.trim().toLowerCase()
+  if (!mediaType) return null
+  return /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/.test(
+    mediaType
+  )
+    ? mediaType
+    : 'unrecognised'
+}
+
 export const isActivityPubDocumentResponse = (
   response: Pick<RequestResult, 'statusCode' | 'headers' | 'url'>,
   requestedUrl: string
@@ -37,9 +48,10 @@ export const isActivityPubDocumentResponse = (
   if (isActivityPubContentType(contentType)) return true
   logger.warn({
     message: 'Refused remote document served without an ActivityPub type',
-    url: requestedUrl,
-    servedFrom: response.url ?? requestedUrl,
-    contentType: contentType ?? null
+    url: toLoggableUrl(requestedUrl),
+    servedFrom: toLoggableUrl(response.url ?? requestedUrl),
+    // A media type only, never the remote's free text.
+    contentType: toLoggableMediaType(contentType)
   })
   return false
 }
