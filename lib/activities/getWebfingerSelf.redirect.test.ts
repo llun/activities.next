@@ -91,7 +91,9 @@ describe('getWebfingerSelf redirects', () => {
       [webfingerUrl]: { status: 302, headers: { location: blockedUrl } },
       [blockedUrl]: { body: jrd('https://blocked.test/users/alice') }
     })
-    vi.mocked(canFederateWithDomain).mockResolvedValue(false)
+    vi.mocked(canFederateWithDomain).mockImplementation(
+      async (_database, value) => new URL(value).host !== 'blocked.test'
+    )
     const warn = vi.spyOn(logger, 'warn')
     const error = vi.spyOn(logger, 'error')
 
@@ -107,6 +109,33 @@ describe('getWebfingerSelf redirects', () => {
     })
     expect(error).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['refuses', async () => false],
+    [
+      'cannot decide',
+      async () => {
+        throw new Error('settings unavailable')
+      }
+    ]
+  ])(
+    'makes no request to a handle host federation policy %s',
+    async (_label, policy) => {
+      serve({
+        [webfingerUrl]: { body: jrd('https://example.test/users/alice') }
+      })
+      vi.mocked(canFederateWithDomain).mockImplementation(policy)
+
+      expect(
+        await getWebfingerSelf({ account: 'alice@example.test' })
+      ).toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(canFederateWithDomain).toHaveBeenCalledWith(
+        mockDatabase,
+        'https://example.test/.well-known/webfinger'
+      )
+    }
+  )
 
   it('logs only the host when the WebFinger answer cannot be read', async () => {
     serve({ [webfingerUrl]: { body: 'not json' } })

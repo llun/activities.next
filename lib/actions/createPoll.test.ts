@@ -17,6 +17,10 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { isPublicId } from '@/lib/utils/publicId'
 
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
+
 enableFetchMocks()
 
 vi.mock('@/lib/services/timelines', () => ({

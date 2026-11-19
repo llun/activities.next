@@ -32,6 +32,9 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
       // Logs and the span record the host only, never the handle.
       requestedHost = url.host
       span.setAttribute('webfinger.host', requestedHost.slice(0, 512))
+      // The handle's own host is judged like a redirect hop: a host federation
+      // policy refuses (or cannot decide) is never contacted.
+      if (!(await isFederatedRedirect(url))) return null
       url.searchParams.set('resource', `acct:${user}@${domain}`)
 
       const { statusCode, body } = await request({
