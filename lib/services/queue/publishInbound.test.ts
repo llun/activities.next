@@ -16,7 +16,9 @@ describe('publishInbound', () => {
       publish: vi.fn().mockResolvedValue(undefined),
       handle: vi.fn()
     } satisfies Queue
-    vi.mocked(getQueue).mockReturnValue(queue)
+    vi.mocked(getQueue).mockReturnValue(
+      queue as unknown as ReturnType<typeof getQueue>
+    )
 
     await publishInbound(message)
 
