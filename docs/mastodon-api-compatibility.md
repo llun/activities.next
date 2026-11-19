@@ -2655,10 +2655,11 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     does `getActorPerson`, which runs inside actor recording. Unfollow (`undoFollow`) undoes the follow here and queues the Undo, whose job
     rechecks policy. `NoQueue`, which retries nothing, logs the error from an inline job instead
     of failing the request that published it after its own work committed; the inboxes use
-    `publishInbound`, which runs an inline job directly so the error still answers 5xx and the
+    `publishSurfacingErrors`, which runs an inline job directly so the error still answers 5xx and the
     sender retries, the bulk-import route runs its inline job with `handle` so a failed run
-    still finishes the import, and an outgoing move runs its inline job with `handle` so the move
-    is not marked started. Under `NoQueue` the actor-deletion fan-out does not rethrow: an
+    still finishes the import, and the move jobs (the outgoing start and
+    the follower rewiring of an outgoing or inbound Move) publish through `publishSurfacingErrors`
+    so a move is not marked started or queued while its follower jobs could not run. Under `NoQueue` the actor-deletion fan-out does not rethrow: an
     immediate deletion has no schedule a sweep would retry, so the data is deleted without the
     `Delete(Actor)` fan-out, as on a send failure.
   - A remote profile render (including handle confirmation) shows the profile as unavailable, the

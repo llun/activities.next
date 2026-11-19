@@ -10,7 +10,7 @@ import { MOVE_ACTOR_JOB_NAME, MOVE_FOLLOWER_JOB_NAME } from '@/lib/jobs/names'
 import { actorMatchesVerifiedSender } from '@/lib/jobs/verifiedSender'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
-import { getQueue } from '@/lib/services/queue'
+import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { JobHandle } from '@/lib/services/queue/type'
 import { Actor } from '@/lib/types/domain/actor'
 import { actorIdsMatch, normalizeActorId } from '@/lib/utils/activitypub'
@@ -263,7 +263,9 @@ export const moveActorJob: JobHandle = createJobHandle(
         let failures = relationshipFailures
         for (const oldFollow of follows) {
           try {
-            await getQueue().publish({
+            // Run inline under NoQueue, so a follower job that cannot read the
+            // policy counts as a failure and the Move is retried, not marked queued.
+            await publishSurfacingErrors({
               id: getMoveFollowerJobId(oldFollow.id, target.id),
               name: MOVE_FOLLOWER_JOB_NAME,
               data: { followId: oldFollow.id, targetActorId: target.id }

@@ -37,7 +37,7 @@ import {
   annotateInboxRejection,
   getActivityTraceAttributes
 } from '@/lib/services/guards/inboxRejectionTrace'
-import { publishInbound } from '@/lib/services/queue/publishInbound'
+import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import {
   Accept,
   Block,
@@ -206,7 +206,7 @@ export const POST = traceApiRoute(
                     )
                   : null
                 if (forwardedJobMessage) {
-                  await publishInbound(forwardedJobMessage)
+                  await publishSurfacingErrors(forwardedJobMessage)
                 } else {
                   logAcceptedWithoutSideEffects({
                     activity: compactedForwarded as {
@@ -315,7 +315,7 @@ export const POST = traceApiRoute(
                 context.verifiedSenderActorId
               )
               if (jobMessage) {
-                await publishInbound(jobMessage)
+                await publishSurfacingErrors(jobMessage)
               } else {
                 logAcceptedWithoutSideEffects({
                   activity: compactedActivity as {
@@ -771,7 +771,7 @@ export const POST = traceApiRoute(
                 // Defer to the shared quote-request handler via the queue so the
                 // authorship-verifying fetch runs in the worker rather than
                 // inline in the inbox response (mirrors the shared-inbox path).
-                await publishInbound({
+                await publishSurfacingErrors({
                   id: getInboxJobId(activity.id),
                   name: HANDLE_QUOTE_REQUEST_JOB_NAME,
                   data: compactedActivity,

@@ -11,7 +11,7 @@ import {
   annotateInboxRejection,
   getActivityTraceAttributes
 } from '@/lib/services/guards/inboxRejectionTrace'
-import { publishInbound } from '@/lib/services/queue/publishInbound'
+import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { AnnounceAction } from '@/lib/types/activitypub/activities'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -155,7 +155,7 @@ export const POST = traceApiRoute(
         if (forwarded) {
           const forwardedJobMessage = getForwardedJobMessage(activity)
           if (forwardedJobMessage) {
-            await publishInbound(forwardedJobMessage)
+            await publishSurfacingErrors(forwardedJobMessage)
           } else {
             annotateInboxRejection('forwarded_activity_dropped', {
               activity_id: activity.id,
@@ -187,7 +187,7 @@ export const POST = traceApiRoute(
           // never create a relay-attributed Announce row.
           if (relay) {
             if (relay.state === 'accepted' && activity.id) {
-              await publishInbound({
+              await publishSurfacingErrors({
                 id: getInboxJobId(activity.id),
                 name: RELAY_ANNOUNCE_JOB_NAME,
                 data: activity
@@ -216,7 +216,7 @@ export const POST = traceApiRoute(
           })
         }
 
-        await publishInbound(jobMessage)
+        await publishSurfacingErrors(jobMessage)
         return apiResponse({
           req: request,
           allowedMethods: CORS_HEADERS,

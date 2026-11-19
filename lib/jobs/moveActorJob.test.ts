@@ -10,6 +10,7 @@ import {
   MOVE_FOLLOWER_JOB_NAME,
   MOVE_RELATIONSHIPS_JOB_NAME
 } from '@/lib/jobs/names'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -18,9 +19,14 @@ import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
 const mockPublish = vi.hoisted(() => vi.fn())
+const mockInline = vi.hoisted(() => ({ runsInline: false, handle: vi.fn() }))
 
 vi.mock('@/lib/services/queue', () => ({
-  getQueue: () => ({ publish: mockPublish })
+  getQueue: () => ({
+    publish: mockPublish,
+    runsInline: mockInline.runsInline,
+    handle: mockInline.handle
+  })
 }))
 vi.mock('@/lib/activities/getActorPerson', () => ({ getActorPerson: vi.fn() }))
 vi.mock('@/lib/actions/utils', () => ({ recordActorIfNeeded: vi.fn() }))
@@ -198,6 +204,27 @@ describe('moveActorJob', () => {
     await expect(moveActorJob(database, message())).rejects.toThrow(
       'could not be queued'
     )
+
+    const stored = await claim()
+    expect(stored?.verified).toBe(true)
+    expect(stored?.queued).toBeUndefined()
+  })
+
+  it('does not mark the claim queued when an inline follower job cannot read the federation policy', async () => {
+    mockInline.runsInline = true
+    mockInline.handle.mockImplementation(async (job: { name: string }) => {
+      if (job.name === MOVE_FOLLOWER_JOB_NAME) {
+        throw new FederationPolicyUnavailableError()
+      }
+    })
+    try {
+      await expect(moveActorJob(database, message())).rejects.toThrow(
+        'could not be queued'
+      )
+    } finally {
+      mockInline.runsInline = false
+      mockInline.handle.mockReset()
+    }
 
     const stored = await claim()
     expect(stored?.verified).toBe(true)

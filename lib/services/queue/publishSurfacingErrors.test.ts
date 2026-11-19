@@ -1,14 +1,14 @@
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getQueue } from '@/lib/services/queue'
 import { NoQueue } from '@/lib/services/queue/noqueue'
-import { publishInbound } from '@/lib/services/queue/publishInbound'
+import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { Queue } from '@/lib/services/queue/type'
 
 vi.mock('@/lib/services/queue', () => ({ getQueue: vi.fn() }))
 
 const message = { id: 'job-1', name: 'test-job', data: {} }
 
-describe('publishInbound', () => {
+describe('publishSurfacingErrors', () => {
   it('enqueues on a real broker', async () => {
     const queue = {
       runsInline: false,
@@ -20,7 +20,7 @@ describe('publishInbound', () => {
       queue as unknown as ReturnType<typeof getQueue>
     )
 
-    await publishInbound(message)
+    await publishSurfacingErrors(message)
 
     expect(queue.publish).toHaveBeenCalledWith(message)
     expect(queue.handle).not.toHaveBeenCalled()
@@ -35,7 +35,7 @@ describe('publishInbound', () => {
     )
     vi.mocked(getQueue).mockReturnValue(queue)
 
-    await expect(publishInbound(message)).rejects.toBeInstanceOf(
+    await expect(publishSurfacingErrors(message)).rejects.toBeInstanceOf(
       FederationPolicyUnavailableError
     )
     await expect(queue.publish(message)).resolves.toBeUndefined()
