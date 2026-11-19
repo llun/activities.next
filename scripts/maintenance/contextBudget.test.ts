@@ -1,0 +1,217 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import {
+  check,
+  historyHit,
+  parseAdded,
+  routeLinks,
+  sectionBytes,
+  slug
+} from './contextBudget'
+
+let root: string
+const write = (file: string, text: string) => {
+  fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true })
+  fs.writeFileSync(path.join(root, file), text)
+}
+
+beforeEach(() => {
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-budget-'))
+})
+afterEach(() => {
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+describe('contextBudget history patterns', () => {
+  it('flags PR, issue and phase numbers and dated "since"', () => {
+    for (const line of [
+      'Fixed in #2837.',
+      'See (#12)',
+      'Added by PR 15b',
+      'PR #4 moved it',
+      'Phase 2 of the plan',
+      'true since 12 November 2026',
+      'since 2026-11-19'
+    ])
+      expect(historyHit(line), line).toBe(true)
+  })
+
+  it('leaves anchors, colours and ordinary numbers alone', () => {
+    for (const line of [
+      '[Setup](docs/setup.md#agents-build-test-and-development-commands)',
+      'color: #1f2937',
+      'Node.js 26 and 20 rounds',
+      'since the last release'
+    ])
+      expect(historyHit(line), line).toBe(false)
+  })
+})
+
+describe('contextBudget sections and routes', () => {
+  it('matches GitHub heading slugs', () => {
+    expect(slug('Status Posts & Actions')).toBe('status-posts--actions')
+  })
+
+  it('measures from an anchor to the next heading of the same level', () => {
+    const text = '# A\n<a id="x"></a>\n## X\nbody\n### Sub\nmore\n## Y\nrest'
+    expect(sectionBytes(text, 'x')).toBe(
+      Buffer.byteLength('<a id="x"></a>\n## X\nbody\n### Sub\nmore')
+    )
+    expect(sectionBytes(text, 'y')).toBe(Buffer.byteLength('## Y\nrest'))
+    expect(sectionBytes(text, 'missing')).toBeNull()
+  })
+
+  it('collects relative Markdown links per line and skips URLs', () => {
+    expect(
+      routeLinks(
+        'a [s](docs/setup.md#one) [c](CONTRIBUTING.md)\nnone\n[x](https://e.com/a.md)',
+        'AGENTS.md'
+      )
+    ).toEqual([
+      {
+        line: 1,
+        links: [
+          { file: 'docs/setup.md', anchor: 'one' },
+          { file: 'CONTRIBUTING.md', anchor: null }
+        ]
+      }
+    ])
+  })
+})
+
+describe('contextBudget check', () => {
+  it('fails a file over its ceiling and a ceiling left above size and target', () => {
+    write('AGENTS.md', 'x'.repeat(100))
+    write('BIG.md', 'x'.repeat(300))
+    const { errors, ceilings } = check(root, {
+      target: 50,
+      files: { 'AGENTS.md': 90, 'BIG.md': 400 }
+    })
+    expect(errors).toHaveLength(2)
+    expect(errors[0]).toContain('over its ceiling of 90')
+    expect(errors[1]).toContain('must come down to 300')
+    expect(ceilings['BIG.md']).toBe(300)
+  })
+
+  it('lets a file under its target keep the target as its ceiling', () => {
+    write('AGENTS.md', 'small')
+    expect(
+      check(root, { target: 100, files: { 'AGENTS.md': 100 } }).errors
+    ).toEqual([])
+  })
+
+  it('reports a route link to a missing anchor', () => {
+    write('AGENTS.md', '[g](docs/g.md#nope)')
+    write('docs/g.md', '## Real\ntext')
+    expect(check(root, { routes: ['AGENTS.md'] }).errors[0]).toContain(
+      'which has no such anchor'
+    )
+  })
+
+  it('fails added history lines in budgeted and linked files only', () => {
+    write('AGENTS.md', '[g](docs/g.md)')
+    write('docs/g.md', 'text')
+    write('other.md', 'text')
+    const { errors } = check(
+      root,
+      { files: { 'AGENTS.md': 12288 }, routes: ['AGENTS.md'] },
+      {
+        base: 'main',
+        diff: () => [
+          { file: 'docs/g.md', line: 3, text: 'Changed in #2837' },
+          { file: 'AGENTS.md', line: 1, text: 'Plain rule' }
+        ]
+      }
+    )
+    expect(errors).toEqual([
+      expect.stringContaining('docs/g.md:3 adds history')
+    ])
+  })
+})
+
+describe('contextBudget parseAdded', () => {
+  it('keeps added lines with their numbers and drops lines moved elsewhere', () => {
+    const diff = [
+      'diff --git a/AGENTS.md b/AGENTS.md',
+      '--- a/AGENTS.md',
+      '+++ b/AGENTS.md',
+      '@@ -3,1 +3,2 @@',
+      '-Moved rule (#1)',
+      '+New rule',
+      '+Second',
+      'diff --git a/docs/g.md b/docs/g.md',
+      '--- /dev/null',
+      '+++ b/docs/g.md',
+      '@@ -0,0 +1,1 @@',
+      '+Moved rule (#1)'
+    ].join('\n')
+    expect(parseAdded(diff, ['AGENTS.md', 'docs/g.md'])).toEqual([
+      { file: 'AGENTS.md', line: 3, text: 'New rule' },
+      { file: 'AGENTS.md', line: 4, text: 'Second' }
+    ])
+  })
+})
+
+describe('contextBudget edge cases', () => {
+  it('ignores # lines inside code fences when measuring a section', () => {
+    const text = '## A\n```bash\n# comment\n```\nafter\n## B'
+    expect(sectionBytes(text, 'a')).toBe(
+      Buffer.byteLength('## A\n```bash\n# comment\n```\nafter')
+    )
+  })
+
+  it('reads an added "++ " line inside a hunk as content, not a header', () => {
+    const diff = [
+      'diff --git a/AGENTS.md b/AGENTS.md',
+      '--- a/AGENTS.md',
+      '+++ b/AGENTS.md',
+      '@@ -0,0 +1,2 @@',
+      '+++ counter',
+      '+Fixed in #12'
+    ].join('\n')
+    expect(parseAdded(diff, ['AGENTS.md'])).toEqual([
+      { file: 'AGENTS.md', line: 1, text: '++ counter' },
+      { file: 'AGENTS.md', line: 2, text: 'Fixed in #12' }
+    ])
+  })
+
+  it('fails a route link to a missing file', () => {
+    write('AGENTS.md', '[g](docs/gone.md)')
+    expect(check(root, { routes: ['AGENTS.md'] }).errors[0]).toContain(
+      'docs/gone.md, which is not a file here'
+    )
+  })
+
+  it('separates ceilings --update can lower from other failures', () => {
+    write('A.md', 'x'.repeat(10))
+    write('B.md', 'x'.repeat(30))
+    const { errors, stale } = check(root, {
+      target: 5,
+      files: { 'A.md': 40, 'B.md': 20 }
+    })
+    expect(errors).toHaveLength(2)
+    expect(stale).toEqual([errors[0]])
+  })
+})
+
+describe('contextBudget code fences', () => {
+  it('closes a fence only on the same marker, at least as long, bare', () => {
+    expect(sectionBytes('## A\n```\n~~~\n```\n## B\nbody', 'b')).toBe(
+      Buffer.byteLength('## B\nbody')
+    )
+    const nested = '## A\n````\n```\n# x\n```\n````\nend\n## B'
+    expect(sectionBytes(nested, 'a')).toBe(
+      Buffer.byteLength('## A\n````\n```\n# x\n```\n````\nend')
+    )
+  })
+
+  it('ignores an anchor inside a fence and not after inline backticks', () => {
+    expect(sectionBytes('```\n<a id="x"></a>\n```', 'x')).toBeNull()
+    expect(sectionBytes('```js``` <a id="x"></a>\ntext', 'x')).toBe(
+      Buffer.byteLength('```js``` <a id="x"></a>\ntext')
+    )
+  })
+})

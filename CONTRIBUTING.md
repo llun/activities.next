@@ -929,10 +929,12 @@ When a change alters what users see, update the design in the same task:
   - Migrations → regenerate both schema dumps and the Kysely DB types (see Database Backends & Local Setup in `docs/setup.md`)
   - `scripts/` utilities added or changed → `docs/maintenance.md` (and the feature guide that lists them)
   - Deployment, Docker, or runtime-config changes → `README.md`, `docs/setup.md`, and the database setup guides
-  - New or changed coding conventions and patterns → the matching `AGENTS.md` section and the `REVIEW.md` checklist
+  - New or changed coding conventions and patterns → a lint rule (`lint/agentsRules.mjs`) or a guard test when one can check it, otherwise the guide the `AGENTS.md` routing table links for that area, and the `REVIEW.md` checklist
   - Visual design changes (tokens, components, layouts, screen states) → `Activities.next.sketch`, when screens change `Activities.next/Screens/`, and the regenerated `Activities.next/Interactive/` prototype in the `llun/sketch` repository (see Design Library Sync)
   - Changes to AGENTS.md rules themselves → `AGENTS.md` (which `CLAUDE.md` symlinks to) and the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`
 - Keep `docs/` durable and general-purpose (see [Docs hygiene](#review-docs-hygiene) and Project Structure): update the reference docs in place; do not add change-specific writeups.
+- **Fix what your change made false; add nothing by default.** Edit the existing paragraph instead of appending a new one, and write what is true now: PR or issue numbers, phase numbers and "since <date>" belong in the PR and git history, not in a doc.
+- **Instruction files have byte ceilings.** `context-budget.json` caps `AGENTS.md`, `CONTRIBUTING.md` and `REVIEW.md`, and `yarn context:budget` (run in CI's lint job) fails when one grows past its ceiling or when a change adds history to them or to a guide the routing table links. Replace or move text rather than adding it; when a file shrinks, `yarn context:budget --update` lowers its ceiling. Raising one is an edit to `context-budget.json` that the PR explains. Reference guides have no cap: keep them precise instead.
 
 <a id="review-docs-hygiene"></a>
 

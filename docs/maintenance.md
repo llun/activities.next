@@ -60,6 +60,10 @@ Each route's size is the sum of its first-load chunks (gzip level 9 on the files
 
 In CI, `yarn bundle:report --check` runs right after `yarn build` to guard the public routes against accidental client-bundle growth or lost code-splits. It checks each route's uncompressed and gzipped first-load JavaScript against the per-route byte ceilings in `PUBLIC_ROUTE_JS_BUDGETS` (`scripts/maintenance/bundleReport.ts`) and exits non-zero if any budgeted route exceeds its ceiling or is missing from the build. When a change intentionally ships more first-load client code on a budgeted public route, inspect the delta with `yarn bundle:report --compare` and update the route's entry in `PUBLIC_ROUTE_JS_BUDGETS` in the same PR.
 
+## Instruction File Budget
+
+`yarn context:budget` (`scripts/maintenance/contextBudget.ts`) checks the byte ceilings in `context-budget.json` and runs in CI's lint job; the rules it enforces are in [Documentation Maintenance](../CONTRIBUTING.md#agents-documentation-maintenance). It reads only the working tree and git. With `--base <ref>` (on a pull request in CI, the merge commit's first parent) it also fails a line the change adds to a budgeted file, or to a guide the `AGENTS.md` routing table links, that carries a PR or issue number, a phase number or a dated "since"; a line the same change removes elsewhere counts as moved. It also prints how many bytes each routing-table line makes a reader open, for information only. `--update` writes lowered ceilings after a file shrinks.
+
 ## Database Queue Worker
 
 When the database queue runs in a separate process, start the worker with the

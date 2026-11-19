@@ -1,0 +1,9 @@
+{
+  "target": 12288,
+  "files": {
+    "AGENTS.md": 27061,
+    "CONTRIBUTING.md": 80550,
+    "REVIEW.md": 12288
+  },
+  "routes": ["AGENTS.md"]
+}

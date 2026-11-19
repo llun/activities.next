@@ -44,6 +44,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # The context budget diffs a pull request's merge commit against
+          # its first parent, the base branch.
+          fetch-depth: 2
       - name: Enable corepack
         run: |
           command -v corepack >/dev/null || npm install -g corepack@0.36.0
@@ -59,6 +63,8 @@ jobs:
         run: yarn lint
       - name: Check prettier formatting
         run: yarn prettier:check
+      - name: Check instruction file budgets
+        run: yarn context:budget
 
   # `next build` type-checks tsconfig.build.json, which excludes *.test.ts(x).
   # This job runs the same compiler over tsconfig.json (all files including
