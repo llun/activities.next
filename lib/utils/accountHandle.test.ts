@@ -72,7 +72,8 @@ describe('parseBareDomain', () => {
     ['a web scheme the policy reads as a URL', 'https:8443'],
     ['an http scheme with a port', 'http:80'],
     ['whitespace', 'exa mple.com'],
-    ['an empty label', 'example..com']
+    ['an empty label', 'example..com'],
+    ['a leading empty label', '.example.com']
   ])('rejects %s', (_description, input) => {
     expect(parseBareDomain(input)).toBeNull()
   })

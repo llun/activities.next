@@ -32,6 +32,7 @@ export const parseBareDomain = (
       // passes the raw test but maps to the scheme-like `https`.
       /^https?:/i.test(url.host) ||
       url.hostname.includes('..') ||
+      url.hostname.startsWith('.') ||
       url.username ||
       url.password ||
       url.pathname !== '/' ||

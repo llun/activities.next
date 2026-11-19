@@ -94,7 +94,14 @@ describe('getWebfingerDocument', () => {
       await getWebfingerDocument({ account: 'secretuser@remote.test' })
     ).toBeNull()
 
-    const logged = JSON.stringify(warn.mock.calls)
+    // An Error's message and stack are not enumerable, so they are read
+    // explicitly: the logger emits the stack.
+    const logged = JSON.stringify(
+      warn.mock.calls.map(([entry]) => {
+        const { err, ...rest } = entry as { err?: Error }
+        return { ...rest, message: err?.message, stack: err?.stack }
+      })
+    )
     expect(logged).toContain('remote.test')
     expect(logged).not.toContain('secretuser')
     expect(logged).not.toContain('secretbody')
