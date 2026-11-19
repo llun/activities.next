@@ -9,6 +9,7 @@ import {
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
+import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { ENTITY_TYPE_QUESTION } from '@/lib/types/activitypub'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -150,6 +151,8 @@ export const fetchQuoteTargetForCreate = async ({
       })
     }
   } catch (error) {
+    // createNoteJob throws this before inserting, so the request can be retried
+    rethrowIfFederationPolicyUnavailable(error)
     logger.warn({
       message: 'Failed to persist fetched quoted note for create',
       quotedStatusId,
