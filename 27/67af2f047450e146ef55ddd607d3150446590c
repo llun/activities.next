@@ -1,0 +1,53 @@
+lib/activities/getActorCollections.ts
+  s_f5e9eb82f5325f::t_1d6bebda10487e 44-57,62-63,66,70,73-75,124,177-180
+  s_f5e9eb82f5325f::t_08ad820cebadcc 9,12,181-193
+lib/activities/getActorPosts.ts
+  s_f5e9eb82f5325f::t_a474dc29f7d097 44-47,213-218
+  s_f5e9eb82f5325f::t_d7c5f4261d5366 219-220
+lib/activities/getActorPostsFromAtomFeed.ts
+  s_f5e9eb82f5325f::t_a474dc29f7d097 4
+  s_f5e9eb82f5325f::t_1d6bebda10487e 170
+  s_f5e9eb82f5325f::t_6fb8508cda49c2 167-169,171-172
+lib/activities/getActorCollectionCounts.test.ts
+  s_f5e9eb82f5325f::t_ba4b9b40101e04 4,15-18,22,210-304
+lib/activities/getActorCollectionCounts.ts
+  s_f5e9eb82f5325f::t_df7ee02e4db5db 37-41
+lib/activities/getActorCollections.test.ts
+  s_f5e9eb82f5325f::t_413f8d6781ca50 8,14-16,409-545
+lib/activities/getActorPosts.announce.test.ts
+  s_f5e9eb82f5325f::t_df355ff4aa2159 4,19-22,41,604-753
+lib/activities/getActorPostsFromAtomFeed.test.ts
+  s_f5e9eb82f5325f::t_474140e43d2776 5,24-27,37,338-415
+lib/jobs/createAnnounceJob.test.ts
+  s_f5e9eb82f5325f::t_732fab69aedfb0 8,35-45,59,62-70,893-969
+lib/jobs/createAnnounceJob.ts
+  s_f5e9eb82f5325f::t_a8afca9e4a0ad4 9,61-73
+lib/jobs/createRelayAnnounceJob.test.ts
+  s_f5e9eb82f5325f::t_e9b82a4b51a675 7-8,16-26,55,58-66,515-570
+lib/jobs/createRelayAnnounceJob.ts
+  s_f5e9eb82f5325f::t_d98260a9f03c4a 8,93-96
+lib/services/quotes/verifyQuoteInstrument.test.ts
+  s_f5e9eb82f5325f::t_979e3dc8cfaf6a 2,5-8,14-17,38-61
+lib/services/quotes/verifyQuoteInstrument.ts
+  s_f5e9eb82f5325f::t_4a2351af758647 4,6,40-44,63
+lib/services/quotes/verifyRemoteQuote.test.ts
+  s_f5e9eb82f5325f::t_12b3a6c9f49342 16-21,94,269-283,341,431-440
+lib/services/quotes/verifyRemoteQuote.ts
+  s_f5e9eb82f5325f::t_20e15f03093644 7,83-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2767af2f047450e146ef55ddd607d3150446590c",
+  "prompts": {},
+  "sessions": {
+    "s_f5e9eb82f5325f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e159a96f-0960-4002-ba26-3aaae213c07e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
