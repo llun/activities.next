@@ -193,8 +193,9 @@ export const getServerSettingsView = async (
     // open registration and admit every served domain for new actors, though
     // a just-lowered limit or a just-removed actor domain keeps its old value
     // while reads fail.
+    // The epoch is read again: an admin's save can land while the read runs.
     const view: ServerSettingsView =
-      entry && entry.epoch === epoch
+      entry && entry.epoch === currentEpoch()
         ? entry.view
         : { ...(entry?.view ?? buildView(new Map())), degraded: true }
     writeCache(database, view, now + FAILURE_CACHE_TTL_MS, epoch)

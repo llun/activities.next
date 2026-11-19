@@ -2637,7 +2637,8 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     "no" as a finished skip (a Delete or Block never sent). The policy stays decidable when the env
     pins an `open` mode, or an `allowlist` mode together with its allowed servers. An unpinned
     `federation.allowActorDomains` exempts no host while degraded (a stale entry would skip the block
-    lookup), and `isLocalFederationDomain` throws for a host local only through that list.
+    lookup), and `isLocalFederationDomain` throws for a host local only through the served stale list (with
+    nothing cached the list is empty, so such a host reads as not local, as before).
   - A catch that would turn every error into a skip, a null or a 4xx (the shared inbox's 400,
     `getSenderPublicKeyDetails` and its key-rotation refresh, `recordRemoteActorBestEffort`, the
     actor-deletion fan-out, Flag reporter recording, bulk import and its overwrite pass, the

@@ -324,6 +324,35 @@ describe('server settings resolver', () => {
     await other.destroy()
   })
 
+  it('marks the view degraded when an admin save lands during a read that then fails', async () => {
+    const database = await freshDatabase()
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false }
+    ])
+    invalidateServerSettingsCache(database)
+    await getResolvedServerSettings(database)
+
+    vi.useFakeTimers()
+    try {
+      vi.advanceTimersByTime(60_000)
+      const spy = vi
+        .spyOn(database, 'getAllServerSettings')
+        .mockImplementation(async () => {
+          // The save's invalidation arrives before the read fails.
+          invalidateServerSettingsCache(database)
+          throw new Error('database unavailable')
+        })
+
+      const view = await getServerSettingsView(database)
+      expect(view.degraded).toBe(true)
+      expect(view.settings.registrations.open).toBe(false)
+      spy.mockRestore()
+    } finally {
+      vi.useRealTimers()
+    }
+    await database.destroy()
+  })
+
   it('serves the invalidated cached values as degraded on the same database when re-read fails', async () => {
     const database = await freshDatabase()
     await database.setServerSettings([
