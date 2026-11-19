@@ -11,6 +11,10 @@ import { StatusType } from '@/lib/types/domain/status'
 
 import { getActorPosts } from './getActorPosts'
 
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
+
 enableFetchMocks()
 
 describe('getActorPosts', () => {

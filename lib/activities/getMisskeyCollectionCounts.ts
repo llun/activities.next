@@ -1,4 +1,5 @@
 import { ActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { Actor } from '@/lib/types/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
@@ -35,8 +36,14 @@ export const getMisskeyCollectionCounts = async ({
       ? { userId }
       : { username: person.preferredUsername }
 
+    const showUrl = new URL(`https://${actorUrl.host}/api/users/show`)
+    if (!(await isFederatedRedirect(showUrl))) {
+      return { followersCount, followingCount, statusesCount }
+    }
+
     const response = await request({
-      url: `https://${actorUrl.host}/api/users/show`,
+      url: showUrl.href,
+      allowCrossHostRedirects: isFederatedRedirect,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 /** @vitest-size medium */
 import { enableFetchMocks } from 'jest-fetch-mock'
 
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { Actor } from '@/lib/types/activitypub'
 
@@ -21,6 +22,10 @@ import {
   isPixelfedActor,
   isPixelfedDomain
 } from './serverSoftware'
+
+vi.mock('@/lib/services/federation/federatedRedirect', () => ({
+  isFederatedRedirect: vi.fn(async () => true)
+}))
 
 const requestedUrls = () =>
   fetchMock.mock.calls.map((call) => {
@@ -339,5 +344,48 @@ describe('serverSoftware', () => {
     }
 
     expect(getServerSoftwareCacheSizeForTests()).toBe(MAX_CACHED_DOMAINS)
+  })
+})
+
+describe('serverSoftware federation policy', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    clearServerSoftwareCache()
+    vi.mocked(isFederatedRedirect).mockReset().mockResolvedValue(true)
+  })
+
+  it('probes no host federation policy refuses, and caches no answer', async () => {
+    mockNodeInfo('blocked.example', { name: 'mastodon' })
+    vi.mocked(isFederatedRedirect).mockResolvedValue(false)
+
+    expect(await getServerSoftwareInfo('blocked.example')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(vi.mocked(isFederatedRedirect).mock.calls[0]?.[0].href).toBe(
+      'https://blocked.example/.well-known/nodeinfo'
+    )
+
+    // Allowed later: probed then, not answered from a cached refusal.
+    vi.mocked(isFederatedRedirect).mockResolvedValue(true)
+    expect(await getServerSoftware('blocked.example')).toBe('mastodon')
+  })
+
+  it('does not follow a NodeInfo redirect onto a host federation policy refuses', async () => {
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === 'https://allowed.example/.well-known/nodeinfo') {
+        return {
+          status: 302,
+          headers: { location: 'https://blocked.example/.well-known/nodeinfo' }
+        }
+      }
+      return { status: 200, body: JSON.stringify({ links: [] }) }
+    })
+    vi.mocked(isFederatedRedirect).mockImplementation(
+      async (url) => url.host !== 'blocked.example'
+    )
+
+    expect(await getServerSoftwareInfo('allowed.example')).toBeNull()
+    expect(requestedUrls()).toEqual([
+      'https://allowed.example/.well-known/nodeinfo'
+    ])
   })
 })
