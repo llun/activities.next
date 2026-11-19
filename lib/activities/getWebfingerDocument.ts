@@ -51,7 +51,7 @@ export const getWebfingerDocument = async ({
   /** See `SafeRemoteFetchOptions.allowCrossHostRedirects`. */
   allowCrossHostRedirects?: CrossHostRedirectPolicy
 }): Promise<WebFinger | null> =>
-  withSpan('activity', 'getWebfingerDocument', { account }, async (span) => {
+  withSpan('activity', 'getWebfingerDocument', {}, async (span) => {
     const [user, domain, ...rest] = account.split('@')
     if (!user || !domain || rest.length > 0) {
       return null
@@ -59,6 +59,8 @@ export const getWebfingerDocument = async ({
 
     const host = parseBareDomain(domain, { requireDot: false })
     if (!host) return null
+    // Hosts only, as in getWebfingerSelf: never the handle.
+    span.setAttribute('webfinger.host', host)
 
     try {
       const url = new URL(`https://${host}/.well-known/webfinger`)
@@ -82,7 +84,7 @@ export const getWebfingerDocument = async ({
       span.recordException(error as Error)
       logger.warn({
         message: 'Failed to fetch webfinger document',
-        account,
+        host,
         err: toLoggableError(error)
       })
       return null

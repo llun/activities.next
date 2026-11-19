@@ -751,4 +751,72 @@ describe('getActorPosts', () => {
     expect(response.statuses).toHaveLength(1)
     expect(isFederatedRedirect).not.toHaveBeenCalled()
   })
+
+  it('drops a boosted note whose author is on another origin than the note', async () => {
+    const boosterActorId = 'https://boost-forged.example/users/booster'
+    const originalStatusId = `${boosterActorId}/statuses/forged`
+    const forgedAuthorId = 'https://victim.example/users/victim'
+    const announceStatusId = `${boosterActorId}/statuses/announce-forged/activity`
+    const person = MockActivityPubPerson({
+      id: boosterActorId,
+      withContext: true
+    }) as Actor
+
+    mockOutboxWithAnnounce({
+      actorId: boosterActorId,
+      announceStatusId,
+      objectId: originalStatusId,
+      objectActorId: forgedAuthorId,
+      published: Date.now()
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statuses).toEqual([])
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).startsWith('https://victim.example/')
+      )
+    ).toBe(false)
+  })
+
+  it('does not fetch the author of a stored boosted note on a host federation policy refuses', async () => {
+    const boosterActorId = 'https://boost-stored.example/users/booster'
+    const authorId = 'https://refused-author.example/users/author'
+    const originalStatusId = `${authorId}/statuses/stored`
+    const announceStatusId = `${boosterActorId}/statuses/announce-stored/activity`
+    const published = Date.now()
+    await database.createNote({
+      id: originalStatusId,
+      url: originalStatusId,
+      actorId: authorId,
+      text: 'Stored before the domain was refused',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [`${authorId}/followers`],
+      createdAt: published - 1
+    })
+    const person = MockActivityPubPerson({
+      id: boosterActorId,
+      withContext: true
+    }) as Actor
+
+    vi.mocked(isFederatedRedirect).mockImplementation(
+      async (url) => url.host !== 'refused-author.example'
+    )
+    mockOutboxWithAnnounce({
+      actorId: boosterActorId,
+      announceStatusId,
+      objectId: originalStatusId,
+      objectActorId: authorId,
+      published
+    })
+
+    await getActorPosts({ database, person })
+
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).startsWith('https://refused-author.example/')
+      )
+    ).toBe(false)
+  })
 })

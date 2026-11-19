@@ -53,7 +53,8 @@ describe('parseBareDomain', () => {
     ['a bare host', 'example.com', 'example.com'],
     ['a host with a non-default port', 'example.com:8443', 'example.com:8443'],
     ['a punycoded host', 'bücher.test', 'xn--bcher-kva.test'],
-    ['a trailing dot', 'example.com.', 'example.com.']
+    ['a trailing dot', 'example.com.', 'example.com.'],
+    ['one trailing slash', 'example.com/', 'example.com']
   ])('accepts %s', (_description, input, expected) => {
     expect(parseBareDomain(input)).toBe(expected)
   })
@@ -64,7 +65,13 @@ describe('parseBareDomain', () => {
     ['credentials', 'user:pass@example.com'],
     ['a query', 'example.com?token=secret'],
     ['a fragment', 'example.com#fragment'],
-    ['a single-label host', 'localhost']
+    ['a single-label host', 'localhost'],
+    ['a dot segment the parser would resolve away', 'example.com/path/..'],
+    ['a backslash path', 'example.com\\path\\..'],
+    ['a percent-encoded character', 'example%2ecom'],
+    ['a web scheme the policy reads as a URL', 'https:8443'],
+    ['an http scheme with a port', 'http:80'],
+    ['whitespace', 'exa mple.com']
   ])('rejects %s', (_description, input) => {
     expect(parseBareDomain(input)).toBeNull()
   })

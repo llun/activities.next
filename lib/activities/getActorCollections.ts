@@ -10,6 +10,7 @@ import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
+import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 import { withSpan } from '@/lib/utils/trace'
 import { isRecord } from '@/lib/utils/typeGuards'
@@ -76,7 +77,9 @@ export const fetchCollectionRoot = async ({
   const response = await signedActivityPubRequest({
     actor: signingActor,
     method: 'GET',
-    url
+    url,
+    // The host just checked must not hand the request to one policy refuses.
+    requestOptions: { allowCrossHostRedirects: isFederatedRedirect }
   })
   if (!isActivityPubDocumentResponse(response, url)) {
     return { statusCode: response.statusCode, collection: null }
@@ -179,7 +182,7 @@ export const getActorCollections = async ({
       // policy does not allow that host.
       if (!(await isFederatedUrlForActor(collectionPageUrl, person.id))) {
         span.setAttributes({
-          url: collectionPageUrl,
+          url: toLoggableUrl(collectionPageUrl) ?? 'unrecognised',
           status: 0
         })
         span.recordException(
@@ -195,7 +198,8 @@ export const getActorCollections = async ({
         const response = await signedActivityPubRequest({
           actor: signingActor,
           method: 'GET',
-          url: collectionPageUrl
+          url: collectionPageUrl,
+          requestOptions: { allowCrossHostRedirects: isFederatedRedirect }
         })
         if (!isActivityPubDocumentResponse(response, collectionPageUrl)) {
           span.setAttributes({

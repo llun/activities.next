@@ -452,6 +452,41 @@ describe('getActorCollections federation policy', () => {
     )
   })
 
+  it('checks federation policy on every redirect hop of the root and page fetches', async () => {
+    const person = {
+      id: 'https://example.com/users/alice',
+      outbox: 'https://example.com/users/alice/outbox'
+    } as Actor
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: person.outbox,
+        type: 'OrderedCollection',
+        totalItems: 1,
+        first: `${person.outbox}?page=true`
+      })
+    })
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${person.outbox}?page=true`,
+        type: 'OrderedCollectionPage',
+        orderedItems: []
+      })
+    })
+
+    await getActorCollections({ person, field: 'outbox' })
+
+    expect(mockRequest).toHaveBeenCalledTimes(2)
+    for (const [options] of mockRequest.mock.calls) {
+      expect(options.allowCrossHostRedirects).toBe(isFederatedRedirect)
+    }
+  })
+
   it('does not consult federation policy for a same-origin collection root', async () => {
     const person = {
       id: 'https://example.com/users/alice',

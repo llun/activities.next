@@ -20,6 +20,7 @@ import {
   normalizeActivityPubAnnounce,
   toRecipientArray
 } from '@/lib/utils/activitypub'
+import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 
 export const createAnnounceJob: JobHandle = createJobHandle(
@@ -66,8 +67,8 @@ export const createAnnounceJob: JobHandle = createJobHandle(
         logger.warn({
           message:
             'Ignoring an announce whose boosted object is on a non-federated domain',
-          announceId: status.id,
-          announcedObjectId: object
+          announceId: toLoggableUrl(status.id),
+          announcedObject: toLoggableUrl(object)
         })
         return
       }

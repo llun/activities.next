@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser'
 
 import { getNote } from '@/lib/activities'
 import { isFederatedUrlForActor } from '@/lib/activities/getActorCollections'
+import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { Actor } from '@/lib/types/activitypub'
 import { Note } from '@/lib/types/activitypub/objects'
@@ -121,6 +122,7 @@ export const getActorPostsFromAtomFeed = async ({
         try {
           const { statusCode, body } = await request({
             url: atomUrl,
+            allowCrossHostRedirects: isFederatedRedirect,
             headers: {
               Accept:
                 'application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8',

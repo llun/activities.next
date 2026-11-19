@@ -134,20 +134,14 @@ describe('getWebfingerSelf redirects', () => {
     expect(spanRecords).toEqual([{}, { 'webfinger.host': 'example.test' }])
   })
 
-  it('logs no part of a handle the URL parser refuses', async () => {
-    const error = vi.spyOn(logger, 'error')
-
-    expect(
-      await getWebfingerSelf({ account: 'alice@example.test:abc?token=secret' })
-    ).toBeNull()
-    expect(JSON.stringify(error.mock.calls)).not.toContain('secret')
-  })
-
   it.each([
     'alice@evil.test://allowed.example',
     'alice@https:/blocked.example',
     'alice@host/path',
-    'alice@example.test?token=secret'
+    'alice@example.test?token=secret',
+    'alice@example.test:abc?token=secret',
+    'alice@https:8443',
+    'alice@host.test/path/..'
   ])('refuses the non-bare domain in %s without a request', async (account) => {
     serve({})
     const warn = vi.spyOn(logger, 'warn')

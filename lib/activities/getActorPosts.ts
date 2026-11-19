@@ -117,6 +117,11 @@ export const getActorPosts: GetActorPostsFunction = async ({
               return ActorProfile.parse(persistedActor)
             }
 
+            // An author id comes from a remote document (a boosted note's
+            // `attributedTo`), so its host must pass policy before the fetch.
+            if (!(await isFederatedUrlForActor(actorId, person.id))) {
+              return persistedActor ? ActorProfile.parse(persistedActor) : null
+            }
             const actorPerson = await getActorPerson({
               actorId,
               signingActor
@@ -236,6 +241,16 @@ export const getActorPosts: GetActorPostsFunction = async ({
 
                 originalStatus = await getStatusFromNote(noteResult.data, span)
                 if (!originalStatus) return null
+                // The note's author must share its origin, or a boost would
+                // render a note under a forged author (as dispatch requires).
+                if (
+                  !isSameActivityPubOrigin(
+                    originalStatus.actorId,
+                    originalStatus.id
+                  )
+                ) {
+                  return null
+                }
                 // Fetched with the instance actor's signature, like the Create
                 // branch below, so a server that filters by signer can hand
                 // back a followers-only or direct original. The stored-original

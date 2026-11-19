@@ -19,8 +19,14 @@ export const parseBareDomain = (
   value: string,
   { requireDot = true }: { requireDot?: boolean } = {}
 ): string | null => {
+  // Judged on the raw text as well as the parsed URL: the parser resolves
+  // `host/path/..` to `/` and reads `https:8443` as host `https`, while the
+  // policy reads that as a web URL. One trailing slash is fine (a pasted
+  // `example.com/`).
+  const bare = value.endsWith('/') ? value.slice(0, -1) : value
+  if (/[\s/\\?#@%]/.test(bare) || /^https?:/i.test(bare)) return null
   try {
-    const url = new URL(`https://${value}`)
+    const url = new URL(`https://${bare}`)
     if (
       url.username ||
       url.password ||

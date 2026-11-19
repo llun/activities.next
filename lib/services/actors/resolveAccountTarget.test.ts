@@ -191,14 +191,24 @@ describe('parseAccountTarget', () => {
       }
     },
     {
-      description: 'accepts a host with a port',
+      description: 'accepts a host with a port, as the parsed host',
       input: 'alice@host:443',
       expected: {
         type: 'handle',
         username: 'alice',
-        domain: 'host:443',
-        acct: 'alice@host:443'
+        domain: 'host',
+        acct: 'alice@host'
       }
+    },
+    {
+      description: 'rejects a web scheme the policy would read as a URL',
+      input: 'alice@https:8443',
+      expected: null
+    },
+    {
+      description: 'rejects a dot segment the parser would resolve away',
+      input: 'alice@host.test/path/..',
+      expected: null
     },
     {
       description: 'rejects a javascript url',

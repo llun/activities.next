@@ -413,4 +413,33 @@ describe('getActorPostsFromAtomFeed', () => {
     expect(statuses).toHaveLength(1)
     expect(isFederatedRedirect).not.toHaveBeenCalled()
   })
+
+  it('does not follow the feed redirect onto a host federation policy refuses', async () => {
+    const actorId = 'https://pixelfed.example/users/testuser'
+    const person = MockActivityPubPerson({ id: actorId }) as Actor
+
+    vi.mocked(isFederatedRedirect).mockImplementation(
+      async (url) => url.host !== 'blocked-feed.example'
+    )
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}.atom`) {
+        return {
+          status: 302,
+          headers: { Location: 'https://blocked-feed.example/feed.atom' },
+          body: ''
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    expect(await getActorPostsFromAtomFeed({ person })).toEqual([])
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).startsWith('https://blocked-feed.example/')
+      )
+    ).toBe(false)
+    expect(isFederatedRedirect).toHaveBeenCalledWith(
+      new URL('https://blocked-feed.example/feed.atom')
+    )
+  })
 })

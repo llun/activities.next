@@ -66,29 +66,34 @@ export const parseAccountTarget = (input: string): AccountTarget | null => {
   // The domain must be a bare host. `evil.test://allowed.example` reads as
   // `allowed.example` to the federation policy, but WebFinger would contact
   // `evil.test`; the page answers invalid instead of resolving it.
-  if (!parseBareDomain(handle.domain, { requireDot: false })) return null
+  const domain = parseBareDomain(handle.domain, { requireDot: false })
+  if (!domain) return null
 
   return {
     type: 'handle',
     username: handle.username,
-    domain: handle.domain,
-    acct: `${handle.username}@${handle.domain}`
+    domain,
+    acct: `${handle.username}@${domain}`
   }
 }
 
 const resolveHandle = async ({
   database,
   username,
-  domain,
-  acct,
+  domain: rawDomain,
   signingActor
 }: {
   database: Database
   username: string
   domain: string
-  acct: string
   signingActor?: Actor
 }): Promise<ResolveAccountTargetResult> => {
+  // The policy check, the lookups and WebFinger all use this one parsed host,
+  // so none of them can read the domain as a different host.
+  const domain = parseBareDomain(rawDomain, { requireDot: false })
+  if (!domain) return { type: 'invalid' }
+  const acct = `${username}@${domain}`
+
   // Gated here rather than at the call sites so the check always covers the
   // domain actually being resolved. A profile URL can carry a handle on a
   // DIFFERENT domain than its own host (`https://a.test/@user@b.test`), so
@@ -167,7 +172,6 @@ export const resolveAccountTarget = async ({
       database,
       username: target.username,
       domain: target.domain,
-      acct: target.acct,
       signingActor
     })
   }
@@ -182,7 +186,6 @@ export const resolveAccountTarget = async ({
       database,
       username: profileHandle.username,
       domain: profileHandle.domain,
-      acct: `${profileHandle.username}@${profileHandle.domain}`,
       signingActor
     })
   }
