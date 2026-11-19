@@ -1,0 +1,22 @@
+lib/services/queue/noqueue.test.ts
+  s_f5e9eb82f5325f::t_15c668970a8e7e 60-62,66
+  s_f5e9eb82f5325f::t_8338be7d9b199c 63-65
+lib/services/queue/noqueue.ts
+  s_f5e9eb82f5325f::t_15c668970a8e7e 3,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "022b45b24996e338653a44868e07d9ce27e0bec0",
+  "prompts": {},
+  "sessions": {
+    "s_f5e9eb82f5325f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e159a96f-0960-4002-ba26-3aaae213c07e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
