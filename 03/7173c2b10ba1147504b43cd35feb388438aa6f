@@ -1,0 +1,21 @@
+lib/utils/accountHandle.ts
+  s_f5e9eb82f5325f::t_6d7fd79e9cdd03 36-37
+lib/utils/accountHandle.test.ts
+  s_f5e9eb82f5325f::t_6d7fd79e9cdd03 76-77,89-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "037173c2b10ba1147504b43cd35feb388438aa6f",
+  "prompts": {},
+  "sessions": {
+    "s_f5e9eb82f5325f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e159a96f-0960-4002-ba26-3aaae213c07e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
