@@ -377,11 +377,37 @@ describe('server settings resolver', () => {
     const view = await getServerSettingsView(database)
     expect(view.settings.registrations.open).toBe(true)
     expect(view.degraded).toBeUndefined()
-    // The saved view is still the cached one.
-    spy.mockRejectedValue(new Error('database unavailable'))
-    expect(
-      (await getServerSettingsView(database)).settings.registrations.open
-    ).toBe(true)
+    // The saved view stays cached: the next call reads nothing.
+    await getServerSettingsView(database)
+    expect(spy).toHaveBeenCalledTimes(2)
+
+    spy.mockRestore()
+    await database.destroy()
+  })
+
+  it('builds the degraded view from the newest cached view, not the one a failed read started with', async () => {
+    const database = await freshDatabase()
+    // Cached with registration open (the default).
+    await getResolvedServerSettings(database)
+    invalidateServerSettingsCache(database)
+
+    const spy = vi
+      .spyOn(database, 'getAllServerSettings')
+      .mockImplementationOnce(async () => {
+        // A save closes registration and its re-read caches that view, then a
+        // second save fails after invalidating, so nothing current is cached.
+        await database.setServerSettings([
+          { key: 'registrations.open', value: false }
+        ])
+        invalidateServerSettingsCache(database)
+        await getServerSettingsView(database)
+        invalidateServerSettingsCache(database)
+        throw new Error('database unavailable')
+      })
+
+    const view = await getServerSettingsView(database)
+    expect(view.degraded).toBe(true)
+    expect(view.settings.registrations.open).toBe(false)
 
     spy.mockRestore()
     await database.destroy()

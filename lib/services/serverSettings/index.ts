@@ -142,6 +142,9 @@ const writeCache = (
   expiresAt: number,
   epoch: number
 ) => {
+  // A read that started before an admin's save must not replace a newer view.
+  const existing = readCacheEntry(database)
+  if (existing && existing.epoch > epoch) return
   const entry: CacheEntry = { view, expiresAt, epoch }
   if (database) cacheByDatabase.set(database, entry)
   else nullDatabaseCache = entry
@@ -194,16 +197,13 @@ export const getServerSettingsView = async (
     // open registration and admit every served domain for new actors, though
     // a just-lowered limit or a just-removed actor domain keeps its old value
     // while reads fail.
-    // The epoch is read again: an admin's save can land while the read runs,
-    // and the save's own re-read may already have cached the new view.
+    // The cache is read again: an admin's save can land while the read runs,
+    // and the save's own re-read may already have cached the newer view.
     const latest = readCacheEntry(database)
-    if (latest && latest !== entry && latest.epoch === currentEpoch()) {
-      return latest.view
-    }
     const view: ServerSettingsView =
-      entry && entry.epoch === currentEpoch()
-        ? entry.view
-        : { ...(entry?.view ?? buildView(new Map())), degraded: true }
+      latest && latest.epoch === currentEpoch()
+        ? latest.view
+        : { ...(latest?.view ?? buildView(new Map())), degraded: true }
     writeCache(database, view, now + FAILURE_CACHE_TTL_MS, epoch)
     return view
   }
