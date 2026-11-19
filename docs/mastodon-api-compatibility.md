@@ -2663,7 +2663,8 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     so a move is not marked started or queued while a follower job could not read the federation policy. Under `NoQueue` an immediate actor deletion's fan-out does not
     rethrow: it has no schedule a sweep would retry (a delayed one does, so it rethrows), so the data is deleted without the
     `Delete(Actor)` fan-out, as on a send failure.
-  - A remote profile render (including handle confirmation) shows the profile as unavailable, the
+  - A remote profile render shows the profile as unavailable (an undecidable handle domain leaves
+    the actor rendered but unstored, as a refusal does), the
     not-found status page still shows its loading state, Bluesky sharing reports the bridge as
     unavailable, and read-only backfills (thread walks, collection and profile refreshes) still
     skip. Other user-facing reads answer 500 for that moment.
