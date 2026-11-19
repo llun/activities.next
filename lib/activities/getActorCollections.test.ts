@@ -487,6 +487,22 @@ describe('getActorCollections federation policy', () => {
     }
   })
 
+  it('treats a refused redirect of the collection root as an unavailable collection', async () => {
+    const person = {
+      id: 'https://example.com/users/alice',
+      followers: 'https://example.com/users/alice/followers'
+    } as Actor
+    mockRequest.mockRejectedValueOnce(
+      Object.assign(new Error('cross-host redirect refused'), {
+        code: 'ERR_CROSS_HOST_REDIRECT'
+      })
+    )
+
+    await expect(
+      getActorCollections({ person, field: 'followers' })
+    ).resolves.toBeNull()
+  })
+
   it('does not consult federation policy for a same-origin collection root', async () => {
     const person = {
       id: 'https://example.com/users/alice',

@@ -74,13 +74,22 @@ export const fetchCollectionRoot = async ({
   if (!(await isFederatedUrlForActor(url, actorId))) {
     return { statusCode: 0, collection: null }
   }
-  const response = await signedActivityPubRequest({
-    actor: signingActor,
-    method: 'GET',
-    url,
-    // The host just checked must not hand the request to one policy refuses.
-    requestOptions: { allowCrossHostRedirects: isFederatedRedirect }
-  })
+  let response
+  try {
+    response = await signedActivityPubRequest({
+      actor: signingActor,
+      method: 'GET',
+      url,
+      // The host just checked must not hand the request to one policy refuses.
+      requestOptions: { allowCrossHostRedirects: isFederatedRedirect }
+    })
+  } catch (error) {
+    // A refused redirect is a refusal, like the check above, not a failure.
+    if ((error as NodeJS.ErrnoException).code === 'ERR_CROSS_HOST_REDIRECT') {
+      return { statusCode: 0, collection: null }
+    }
+    throw error
+  }
   if (!isActivityPubDocumentResponse(response, url)) {
     return { statusCode: response.statusCode, collection: null }
   }

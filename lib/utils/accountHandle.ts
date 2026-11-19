@@ -28,6 +28,10 @@ export const parseBareDomain = (
   try {
     const url = new URL(`https://${bare}`)
     if (
+      // Again after IDNA mapping: a fullwidth or soft-hyphenated `https:`
+      // passes the raw test but maps to the scheme-like `https`.
+      /^https?:/i.test(url.host) ||
+      url.hostname.includes('..') ||
       url.username ||
       url.password ||
       url.pathname !== '/' ||

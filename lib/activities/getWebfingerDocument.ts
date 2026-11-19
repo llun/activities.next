@@ -81,11 +81,18 @@ export const getWebfingerDocument = async ({
       const parsed = WebFinger.safeParse(JSON.parse(body))
       return parsed.success ? parsed.data : null
     } catch (error) {
-      span.recordException(error as Error)
+      // Name and code only, as in getWebfingerSelf: the thrown error can carry
+      // the request URL with its `acct:` resource (Got's `options`, a URL
+      // error's `input`) or remote body text (a JSON parse error's message).
+      const loggable = Object.assign(
+        new Error(`WebFinger lookup failed: ${toLoggableError(error).name}`),
+        { code: (error as NodeJS.ErrnoException).code }
+      )
+      span.recordException(loggable)
       logger.warn({
         message: 'Failed to fetch webfinger document',
-        host,
-        err: toLoggableError(error)
+        host: host.slice(0, 512),
+        err: loggable
       })
       return null
     }

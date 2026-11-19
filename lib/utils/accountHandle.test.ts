@@ -71,9 +71,22 @@ describe('parseBareDomain', () => {
     ['a percent-encoded character', 'example%2ecom'],
     ['a web scheme the policy reads as a URL', 'https:8443'],
     ['an http scheme with a port', 'http:80'],
-    ['whitespace', 'exa mple.com']
+    ['whitespace', 'exa mple.com'],
+    ['an empty label', 'example..com']
   ])('rejects %s', (_description, input) => {
     expect(parseBareDomain(input)).toBeNull()
+  })
+
+  it.each([
+    ['a web scheme with a port', 'https:8443'],
+    [
+      'a fullwidth https: the parser maps to the scheme',
+      '\uff48\uff54\uff54\uff50\uff53:8443'
+    ],
+    ['a soft-hyphenated https:', 'ht\u00adtps:8443'],
+    ['a zero-width-spaced https:', 'https\u200b:8443']
+  ])('rejects %s even when a dot is not required', (_description, input) => {
+    expect(parseBareDomain(input, { requireDot: false })).toBeNull()
   })
 
   it('accepts a single-label host when a dot is not required', () => {
