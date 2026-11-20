@@ -8,6 +8,10 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
+import {
+  isActorConfirmationPending,
+  isActorModerationBlocked
+} from '@/lib/services/guards/accountState'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -75,6 +79,15 @@ export const POST = traceApiRoute(
     const currentActor = await getActorFromSession(database, session)
     if (!currentActor) {
       return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
+    }
+
+    // The same account-state checks as AuthenticatedGuard: a suspended or
+    // unconfirmed actor must not get a bucket write it could never complete.
+    if (
+      isActorModerationBlocked(currentActor) ||
+      isActorConfirmationPending(currentActor)
+    ) {
+      return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
     }
 
     try {

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
+import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { POST } from './route'
 
@@ -49,6 +50,34 @@ describe('Strava archive presigned URL endpoint', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: 'llun@activities.local' }
     })
+  })
+
+  it.each([
+    ['suspended', { suspendedAt: Date.now() }],
+    ['disabled', { account: { disabledAt: Date.now() } }]
+  ])('refuses a %s actor before issuing an upload URL', async (_, state) => {
+    vi.mocked(getActorFromSession).mockResolvedValueOnce({
+      id: 'https://llun.test/users/llun',
+      username: 'llun',
+      domain: 'llun.test',
+      ...state
+    } as never)
+
+    const req = new NextRequest(
+      'http://localhost/api/v1/fitness/strava/archive/presigned',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
+        body: JSON.stringify({ fileName: 'export.zip', size: 1024 })
+      }
+    )
+    const res = await POST(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(403)
+    expect(mockGetPresignedFitnessFileUrl).not.toHaveBeenCalled()
   })
 
   it('returns 404 when ObjectStorage is not available (LocalFile)', async () => {
