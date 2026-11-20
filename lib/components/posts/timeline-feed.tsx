@@ -377,6 +377,8 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     options?: {
       showReplyContext?: boolean
       parentPreview?: TimelineParentPreview | null
+      lineAbove?: boolean
+      lineBelow?: boolean
     }
   ) => (
     <PostListItem
@@ -390,6 +392,8 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
       postLineLimit={postLineLimit}
       showReplyContext={options?.showReplyContext}
       parentPreview={options?.parentPreview}
+      threadLineAbove={options?.lineAbove}
+      threadLineBelow={options?.lineBelow}
       prioritizeMedia={status.id === prioritizedStatusId}
       canCompose={canCompose}
       activeComposer={
@@ -440,14 +444,23 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   ) => {
     const replyTarget = getStatusReplyTargetId(getActualStatus(first))
     if (!replyTarget)
-      return { showReplyContext: false, parentPreview: undefined }
+      return {
+        showReplyContext: false,
+        parentPreview: undefined,
+        answersAbove: false
+      }
     const parent = getRowStatuses(entryIds).find((status) =>
       getStatusAliases(getActualStatus(status)).includes(replyTarget)
     )
     if (parent && parent.id === above.id) {
-      return { showReplyContext: false, parentPreview: undefined }
+      return {
+        showReplyContext: false,
+        parentPreview: undefined,
+        answersAbove: true
+      }
     }
     return {
+      answersAbove: false,
       showReplyContext: true,
       parentPreview:
         timelineContext?.ancestorsById?.[replyTarget] ??
@@ -470,26 +483,53 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
   // The post-by-post rendering of a row: the first post shows the context of
   // what the row answers, every later one that of a parent not directly above.
-  const renderRowPosts = (statuses: Status[], entryIds: string[]) =>
-    statuses.map((status, index) =>
-      renderPostItem(
-        status,
-        index === 0
-          ? getLeadContext(status, entryIds)
-          : getContextAfter(status, statuses[index - 1], entryIds)
-      )
+  // A post that answers the one directly above joins it with the thread line,
+  // the same decision that leaves its reply preview out.
+  const renderRowPosts = (statuses: Status[], entryIds: string[]) => {
+    const contexts = statuses.map((status, index) =>
+      index === 0
+        ? { ...getLeadContext(status, entryIds), answersAbove: false }
+        : getContextAfter(status, statuses[index - 1], entryIds)
     )
+    return statuses.map((status, index) => {
+      const { answersAbove, ...context } = contexts[index]
+      return renderPostItem(status, {
+        ...context,
+        lineAbove: answersAbove,
+        lineBelow: Boolean(contexts[index + 1]?.answersAbove)
+      })
+    })
+  }
 
-  const renderCombinedBlocks = (entryIds: string[], blocks: CombinedBlock[]) =>
-    blocks.map((block, index) => {
-      const lead =
-        index === 0
-          ? getLeadContext(
+  const renderCombinedBlocks = (
+    entryIds: string[],
+    blocks: CombinedBlock[]
+  ) => {
+    const leads = blocks.map((block, index) =>
+      index === 0
+        ? {
+            ...getLeadContext(
               block.kind === 'run' ? block.parts[0].status : block.status,
               entryIds
-            )
-          : getLaterBlockContext(block, blocks[index - 1], entryIds)
-      if (block.kind === 'post') return renderPostItem(block.status, lead)
+            ),
+            answersAbove: false
+          }
+        : getLaterBlockContext(block, blocks[index - 1], entryIds)
+    )
+    // A block that answers the post directly above (a run's last part, for a
+    // run) joins it with the thread line, like the post-by-post rendering; a
+    // run's own rail carries the line into and out of it.
+    const joinsAbove = (index: number) =>
+      index > 0 && index < blocks.length && leads[index].answersAbove
+    return blocks.map((block, index) => {
+      const { answersAbove: _answersAbove, ...lead } = leads[index]
+      if (block.kind === 'post') {
+        return renderPostItem(block.status, {
+          ...lead,
+          lineAbove: joinsAbove(index),
+          lineBelow: joinsAbove(index + 1)
+        })
+      }
 
       // The composer may be anchored to any post of the run: a reply opened on
       // the visible last post of a collapsed thread stays open when the thread
@@ -517,6 +557,8 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
           postLineLimit={postLineLimit}
           showReplyContext={lead.showReplyContext}
           parentPreview={lead.parentPreview}
+          threadLineAbove={joinsAbove(index)}
+          threadLineBelow={joinsAbove(index + 1)}
           canCompose={canCompose}
           activeComposer={
             currentActor && composerAnchored ? composer.active : null
@@ -539,6 +581,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
         />
       )
     })
+  }
 
   return (
     <>

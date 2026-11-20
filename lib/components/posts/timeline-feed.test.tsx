@@ -1186,6 +1186,84 @@ describe('TimelineFeed', () => {
           screen.queryByLabelText(/Reply to @|In reply to a post/)
         ).toBeNull()
       })
+
+      it('joins a reply that answers the post directly above it with the thread line after a combined run', () => {
+        const a1 = note('cb1', 0, '')
+        const a2 = note('cb2', MINUTE, a1.id)
+        const b1 = note('cb3', 2 * MINUTE, a2.id, mockBob)
+        const c1 = note('cb4', 3 * MINUTE, b1.id, mockCarol)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[c1, b1, a2, a1]}
+            currentActor={mockAlice}
+            showActions
+          />
+        )
+
+        const rowOf = (text: string) =>
+          screen.getByText(text).closest('article') as HTMLElement
+
+        // Alice's two posts combine into one card; Bob's and Carol's replies
+        // stay plain posts after it.
+        expect(screen.getByText(/2 of 2/)).toBeInTheDocument()
+
+        // Carol answers Bob, the post directly above her, so the line runs
+        // into her row and out of Bob's.
+        expect(
+          within(rowOf('Text of cb4')).queryAllByTestId('thread-line').length
+        ).toBeGreaterThan(0)
+        expect(
+          within(rowOf('Text of cb3')).queryAllByTestId('thread-line').length
+        ).toBeGreaterThan(0)
+
+        // Answering the post above leaves the reply preview out.
+        expect(
+          within(rowOf('Text of cb4')).queryByText(/In reply to/)
+        ).toBeNull()
+        expect(
+          within(rowOf('Text of cb4')).queryByLabelText(/^Reply to @/)
+        ).toBeNull()
+      })
+
+      it('joins a reply to a combined run’s last part to the run with the thread line', () => {
+        const a1 = note('cr1', 0, '')
+        const a2 = note('cr2', MINUTE, a1.id)
+        const b1 = note('cr3', 2 * MINUTE, a2.id, mockBob)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[b1, a2, a1]}
+            currentActor={mockAlice}
+            showActions
+          />
+        )
+
+        const run = screen
+          .getByText('Text of cr1')
+          .closest('[data-combined-post]') as HTMLElement
+        const bobRow = screen
+          .getByText('Text of cr3')
+          .closest('article') as HTMLElement
+
+        // Bob answers the run's last part, directly above him: the line runs
+        // on below the run and into his row, and he shows no reply preview.
+        expect(screen.getByText(/2 of 2/)).toBeInTheDocument()
+        expect(
+          bobRow.querySelector('[data-testid="thread-line"][data-edge="above"]')
+        ).not.toBeNull()
+        // The two segments that carry the run's rail past its action bar and its
+        // padding down to Bob's row.
+        expect(
+          run.querySelectorAll('[data-testid="thread-line"]')
+        ).toHaveLength(2)
+        expect(within(bobRow).queryByText(/In reply to/)).toBeNull()
+        expect(within(bobRow).queryByLabelText(/^Reply to @/)).toBeNull()
+      })
     })
 
     it('collapses a thread that gains older parts instead of keeping it in full', () => {
@@ -1233,6 +1311,34 @@ describe('TimelineFeed', () => {
       expect(screen.queryByLabelText('In reply to a post')).toBeNull()
       expect(screen.getAllByLabelText(/^Reply to @/)).toHaveLength(2)
       expect(screen.getByLabelText('Reply to @bob')).toBeInTheDocument()
+    })
+
+    it('joins a post that answers the one directly above it with the thread line', () => {
+      const a1 = note('tl1', 0, '')
+      const b1 = note('tl2', MINUTE, a1.id, mockBob)
+      const c1 = note('tl3', 2 * MINUTE, a1.id, mockCarol)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[c1, b1, a1]}
+          currentActor={mockAlice}
+          showActions
+        />
+      )
+
+      const rowOf = (text: string) =>
+        screen.getByText(text).closest('article') as HTMLElement
+
+      // b1 answers a1, the post directly above it, so the line runs into it.
+      expect(
+        within(rowOf('Text of tl2')).queryAllByTestId('thread-line').length
+      ).toBeGreaterThan(0)
+      // c1 answers a1, not b1, so no line joins it to the row above.
+      expect(
+        within(rowOf('Text of tl3')).queryAllByTestId('thread-line')
+      ).toEqual([])
     })
 
     it('names the combined card for assistive technology', () => {

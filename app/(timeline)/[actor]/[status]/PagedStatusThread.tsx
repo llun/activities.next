@@ -24,7 +24,7 @@ type Props = Omit<
  * replies": the page renders the first limit step, and each load re-asks the
  * thread route at the next one (`useThreadContextPager`). `StatusThread` stays
  * mounted throughout, so the opened post, an open composer and the reader's
- * expanded branches survive a load.
+ * open folds survive a load.
  */
 export const PagedStatusThread: FC<Props> = ({
   status,

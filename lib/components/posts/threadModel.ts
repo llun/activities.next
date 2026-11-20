@@ -10,7 +10,6 @@ export interface ThreadNode {
   parentUnavailable?: boolean
   replies: ThreadNode[]
   totalDescendantCount: number
-  initiallyCollapsed: boolean
 }
 
 export interface ThreadTree {
@@ -39,7 +38,10 @@ export interface BuildThreadTreeParams {
   ancestorIdAliases?: Map<string, string>
 }
 
-export const THREAD_COLLAPSE_THRESHOLD = 10
+/** From this many loaded replies on, long conversations and side replies fold. */
+export const THREAD_FOLD_THRESHOLD = 10
+/** How many posts of a conversation show before "Show N more in this conversation". */
+export const CONVERSATION_VISIBLE_POSTS = 3
 
 export const getStatusAuthorId = (status: Status): string => {
   if (status.type === StatusType.enum.Announce) {
@@ -73,10 +75,13 @@ const compareStatusesChronologically = (a: Status, b: Status): number => {
 /**
  * Pure, immutable thread hierarchy builder that mirrors Phanpy's thread model:
  * - Promotes focused-author replies to the top tier while preserving chronological order within tiers.
+ * - Puts the viewer's just-posted replies (`priorityStatusIds`) first among
+ *   the top-level replies only: nested, they keep their normal place, so they
+ *   never take the first-child slot (and the thread line) from an older reply.
  * - Nests replies beneath their actual parent.
  * - Detects missing/unavailable parents and includes visible replies with parentUnavailable: true.
  * - Prevents cycles in malformed reply chains.
- * - Applies collapse policy: expanded if total < 10; collapses branches if total >= 10.
+ * Folding is decided at display time by `buildThreadConversations`.
  */
 export function buildThreadTree({
   focusedStatus,
@@ -103,7 +108,6 @@ export function buildThreadTree({
   }
 
   const totalDescendants = descendants.length
-  const shouldCollapseBranches = totalDescendants >= THREAD_COLLAPSE_THRESHOLD
 
   // Index descendants by all known IDs/URLs
   const descendantMap = new Map<string, Status>()
@@ -204,8 +208,7 @@ export function buildThreadTree({
         depth,
         parentUnavailable: true,
         replies: [],
-        totalDescendantCount: 0,
-        initiallyCollapsed: false
+        totalDescendantCount: 0
       }
     }
     const nextVisited = new Set(visitedIds).add(status.id)
@@ -230,32 +233,22 @@ export function buildThreadTree({
     }
     const uniqueChildren = [...uniqueChildrenMap.values()]
 
-    // Sort children: priority replies first, then author-priority tier, then others, sorted chronologically
-    const priorityChildren: Status[] = []
+    // Sort children: author-priority tier, then others, each chronological
     const authorChildren: Status[] = []
     const otherChildren: Status[] = []
 
     for (const child of uniqueChildren) {
-      if (priorityStatusIds?.has(child.id)) {
-        priorityChildren.push(child)
-      } else if (getStatusAuthorId(child) === focusedAuthorId) {
+      if (getStatusAuthorId(child) === focusedAuthorId) {
         authorChildren.push(child)
       } else {
         otherChildren.push(child)
       }
     }
 
-    priorityChildren.sort(
-      (a, b) => getStatusCreatedAtMs(b) - getStatusCreatedAtMs(a)
-    )
     authorChildren.sort(compareStatusesChronologically)
     otherChildren.sort(compareStatusesChronologically)
 
-    const sortedChildren = [
-      ...priorityChildren,
-      ...authorChildren,
-      ...otherChildren
-    ]
+    const sortedChildren = [...authorChildren, ...otherChildren]
 
     const childNodes = sortedChildren.map((child) =>
       buildNode(child, depth + 1, nextVisited)
@@ -271,9 +264,7 @@ export function buildThreadTree({
       depth,
       ...(parentUnavailable ? { parentUnavailable: true } : {}),
       replies: childNodes,
-      totalDescendantCount,
-      initiallyCollapsed:
-        shouldCollapseBranches && depth >= 0 && childNodes.length > 0
+      totalDescendantCount
     }
   }
 
@@ -336,23 +327,9 @@ export function buildThreadTree({
       }
       const uniqueChildren = [...uniqueChildrenMap.values()]
 
-      const priorityAncestorReplies: Status[] = []
-      const regularAncestorReplies: Status[] = []
-      for (const child of uniqueChildren) {
-        if (priorityStatusIds?.has(child.id)) {
-          priorityAncestorReplies.push(child)
-        } else {
-          regularAncestorReplies.push(child)
-        }
-      }
-      priorityAncestorReplies.sort(
-        (a, b) => getStatusCreatedAtMs(b) - getStatusCreatedAtMs(a)
+      const sortedAncestorReplies = uniqueChildren.sort(
+        compareStatusesChronologically
       )
-      regularAncestorReplies.sort(compareStatusesChronologically)
-      const sortedAncestorReplies = [
-        ...priorityAncestorReplies,
-        ...regularAncestorReplies
-      ]
 
       ancestorReplies[ancestor.id] = sortedAncestorReplies.map((child) =>
         buildNode(child, 1, new Set([ancestor.id]))
@@ -369,4 +346,204 @@ export function buildThreadTree({
     hasMoreAncestors,
     hasMoreDescendants
   }
+}
+
+/**
+ * One row of a flattened reply conversation. A `post` row joins the row above
+ * it with the thread line (`lineAbove`) only when it replies to that row's
+ * post; otherwise, nested, it names its parent with a visible "Replying to".
+ * `lineBelow` mirrors the next row's `lineAbove`.
+ */
+export type ThreadDisplayRow =
+  | {
+      kind: 'post'
+      key: string
+      node: ThreadNode
+      /** The post this one answers; null for a reply to the opened post. */
+      parent: Status | null
+      lineAbove: boolean
+      lineBelow: boolean
+    }
+  | {
+      kind: 'fold'
+      key: string
+      /**
+       * `conversation`: the rest of a first-reply chain, on the line.
+       * `others`: a shown post's replies after its first one.
+       */
+      fold: 'conversation' | 'others'
+      /** The post whose chain or replies fold here. */
+      parent: Status
+      hiddenCount: number
+      expanded: boolean
+      lineAbove: boolean
+      lineBelow: boolean
+    }
+
+/** A top-level reply and everything under it, flattened depth-first. */
+export interface ThreadConversation {
+  key: string
+  rows: ThreadDisplayRow[]
+}
+
+export const getConversationFoldKey = (statusId: string) =>
+  `conversation:${statusId}`
+export const getOthersFoldKey = (statusId: string) => `others:${statusId}`
+
+/** The open folds with `key` opened, or closed when it was open. */
+export const toggleFoldKey = (
+  folds: ReadonlySet<string>,
+  key: string
+): ReadonlySet<string> => {
+  const next = new Set(folds)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  return next
+}
+
+export const countThreadNodes = (nodes: readonly ThreadNode[]): number =>
+  nodes.reduce((sum, node) => sum + 1 + node.totalDescendantCount, 0)
+
+/**
+ * Flattens the reply tree into conversations, depth-first, as Mastodon lists
+ * replies: a post's first reply follows it on the line, its other replies come
+ * after that whole chain and say which post they answer.
+ *
+ * With `THREAD_FOLD_THRESHOLD` or more loaded replies (or `foldEnabled`,
+ * when the caller counts replies these nodes leave out), a chain shows its first
+ * `CONVERSATION_VISIBLE_POSTS` posts and then "Show N more in this
+ * conversation", and a shown post's other replies fold behind "Show N other
+ * replies to <name>". A fold is open when its key (`getConversationFoldKey` /
+ * `getOthersFoldKey`, by status id) is in `expandedFolds`, so an opened fold
+ * stays open whatever the count does later.
+ */
+export function buildThreadConversations(
+  nodes: readonly ThreadNode[],
+  expandedFolds: ReadonlySet<string> = new Set(),
+  foldEnabled: boolean = countThreadNodes(nodes) >= THREAD_FOLD_THRESHOLD
+): ThreadConversation[] {
+  const emitBranch = (
+    rows: ThreadDisplayRow[],
+    start: ThreadNode,
+    parent: Status | null
+  ) => {
+    const chain: ThreadNode[] = [start]
+    while (chain[chain.length - 1].replies.length > 0) {
+      chain.push(chain[chain.length - 1].replies[0])
+    }
+
+    const canFoldChain =
+      foldEnabled && chain.length > CONVERSATION_VISIBLE_POSTS
+    const chainKey = getConversationFoldKey(start.status.id)
+    const chainExpanded = !canFoldChain || expandedFolds.has(chainKey)
+    const shown = chainExpanded
+      ? chain
+      : chain.slice(0, CONVERSATION_VISIBLE_POSTS)
+
+    shown.forEach((node, index) => {
+      if (canFoldChain && index === CONVERSATION_VISIBLE_POSTS) {
+        rows.push({
+          kind: 'fold',
+          key: chainKey,
+          fold: 'conversation',
+          parent: start.status,
+          hiddenCount: chain.length - CONVERSATION_VISIBLE_POSTS,
+          expanded: true,
+          lineAbove: true,
+          lineBelow: false
+        })
+      }
+      rows.push({
+        kind: 'post',
+        key: node.status.id,
+        node,
+        parent: index === 0 ? parent : chain[index - 1].status,
+        lineAbove: index > 0,
+        lineBelow: false
+      })
+    })
+    if (!chainExpanded) {
+      rows.push({
+        kind: 'fold',
+        key: chainKey,
+        fold: 'conversation',
+        parent: start.status,
+        hiddenCount: chain.length - CONVERSATION_VISIBLE_POSTS,
+        expanded: false,
+        lineAbove: true,
+        lineBelow: false
+      })
+    }
+
+    // Deepest first, which is depth-first order: a later chain post's other
+    // replies come before an earlier one's.
+    for (let index = shown.length - 1; index >= 0; index--) {
+      const node = shown[index]
+      const others = node.replies.slice(1)
+      if (others.length === 0) continue
+      if (!foldEnabled) {
+        others.forEach((other) => emitBranch(rows, other, node.status))
+        continue
+      }
+      const othersKey = getOthersFoldKey(node.status.id)
+      const othersExpanded = expandedFolds.has(othersKey)
+      rows.push({
+        kind: 'fold',
+        key: othersKey,
+        fold: 'others',
+        parent: node.status,
+        hiddenCount: countThreadNodes(others),
+        expanded: othersExpanded,
+        lineAbove: false,
+        lineBelow: false
+      })
+      if (othersExpanded) {
+        others.forEach((other) => emitBranch(rows, other, node.status))
+      }
+    }
+  }
+
+  return nodes.map((node) => {
+    const rows: ThreadDisplayRow[] = []
+    emitBranch(rows, node, null)
+    // A post continues its line into the row under it when that row joins it,
+    // and an open chain fold carries the line on to the post it revealed.
+    rows.forEach((row, index) => {
+      const next = rows[index + 1]
+      if (row.kind === 'fold') {
+        row.lineBelow = Boolean(row.expanded && next?.lineAbove)
+      } else {
+        row.lineBelow = Boolean(next?.lineAbove)
+      }
+    })
+    return { key: node.status.id, rows }
+  })
+}
+
+/**
+ * The fold keys to open so `reply` shows where it lands: for every post on its
+ * way up (matched by id or url among `known`), that post's chain and its other
+ * replies.
+ */
+export const getFoldKeysRevealing = (
+  reply: Status,
+  known: readonly Status[]
+): string[] => {
+  const keys: string[] = []
+  const seen = new Set<string>()
+  let currentId = getStatusReplyTargetId(getOriginalStatus(reply))
+  while (currentId && !seen.has(currentId)) {
+    seen.add(currentId)
+    const id = currentId
+    const parent = known.find(
+      (item) =>
+        item.id === id ||
+        getStatusUrl(item) === id ||
+        (Boolean(item.publicId) && item.publicId === id)
+    )
+    if (!parent) break
+    keys.push(getConversationFoldKey(parent.id), getOthersFoldKey(parent.id))
+    currentId = getStatusReplyTargetId(getOriginalStatus(parent))
+  }
+  return keys
 }

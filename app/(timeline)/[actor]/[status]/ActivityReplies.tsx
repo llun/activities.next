@@ -21,10 +21,15 @@ import {
   getRunMergedStatuses
 } from '@/lib/components/posts/selfThreadModel'
 import { ThreadLoadMore } from '@/lib/components/posts/thread-load-more'
-import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
-  type ThreadNode,
-  buildThreadTree
+  ThreadConversationList,
+  ThreadReplyNode
+} from '@/lib/components/posts/thread-reply-node'
+import {
+  buildThreadConversations,
+  buildThreadTree,
+  getFoldKeysRevealing,
+  toggleFoldKey
 } from '@/lib/components/posts/threadModel'
 import type { InlineComposerControls } from '@/lib/components/posts/useInlineComposer'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
@@ -107,8 +112,8 @@ const EMPTY_STATUSES: Status[] = []
  * (remembered per site), the first few replies with "Load more replies" for
  * the rest (and then for replies the page has not loaded), and "No replies
  * yet" when there are none and the activity stands on its own. Each reply is
- * the post page's own `ThreadReplyNode`, so nested replies, their toggles and
- * their inline composer behave the same here.
+ * the post page's own `ThreadReplyNode` through `ThreadConversationList`, so
+ * the thread line, folds and inline composer behave the same here.
  */
 export const ActivityReplies: FC<ActivityRepliesProps> = ({
   host,
@@ -139,9 +144,10 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   const [deletedStatusIds, setDeletedStatusIds] = useState<Set<string>>(
     () => new Set()
   )
-  const [expandedBranchOverrides, setExpandedBranchOverrides] = useState<
-    Record<string, boolean>
-  >({})
+  // Open folds by status-id key, so paging or a new reply never closes one.
+  const [expandedFolds, setExpandedFolds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  )
 
   const handlePostDeleted = useCallback((deletedStatus: Status) => {
     setDeletedStatusIds((prev) => {
@@ -282,27 +288,19 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
     ]
   )
 
-  const isBranchExpanded = (node: ThreadNode): boolean =>
-    expandedBranchOverrides[node.status.id] ?? !node.initiallyCollapsed
-
-  const toggleBranch = (nodeId: string) => {
-    const findNode = (nodes: ThreadNode[]): ThreadNode | null => {
-      for (const node of nodes) {
-        if (node.status.id === nodeId) return node
-        const inChild = findNode(node.replies)
-        if (inChild) return inChild
-      }
-      return null
-    }
-    setExpandedBranchOverrides((current) => {
-      const target = findNode(tree.descendants)
-      const isOpen =
-        current[nodeId] ?? (target ? !target.initiallyCollapsed : true)
-      return { ...current, [nodeId]: !isOpen }
-    })
+  const toggleFold = (key: string) => {
+    setExpandedFolds((current) => toggleFoldKey(current, key))
   }
 
   const handleReplyCreated = (reply: Status) => {
+    const revealKeys = getFoldKeysRevealing(reply, [
+      status,
+      ...ancestors,
+      ...allReplies
+    ])
+    if (revealKeys.length > 0) {
+      setExpandedFolds((current) => new Set([...current, ...revealKeys]))
+    }
     setLocallyCreatedReplies((current) =>
       current.some((item) => item.id === reply.id) ||
       replies.some((item) => item.id === reply.id)
@@ -319,8 +317,12 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   }
 
   const total = tree.totalDescendants
-  const visibleNodes = tree.descendants.slice(0, visibleCount)
-  const hiddenCount = tree.descendants.length - visibleNodes.length
+  // Folding counts every loaded reply, not only the five shown so far.
+  const visibleConversations = buildThreadConversations(
+    tree.descendants,
+    expandedFolds
+  ).slice(0, visibleCount)
+  const hiddenCount = tree.descendants.length - visibleConversations.length
   const loadedCount = tree.descendants.length
 
   // "Load more replies" past the loaded ones asks the server; the next page
@@ -444,7 +446,6 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
         return (
           <div
             key={ancestor.id}
-            id={ancestor.id}
             data-testid="ancestor-status"
             className="border-b px-4"
           >
@@ -453,16 +454,13 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
                 status: ancestor,
                 depth: 0,
                 replies: [],
-                totalDescendantCount: 0,
-                initiallyCollapsed: false
+                totalDescendantCount: 0
               }}
               host={host}
               currentActor={currentActor}
               currentTime={currentTime}
               isMediaUploadEnabled={isMediaUploadEnabled}
               composer={composer}
-              isExpanded={() => true}
-              onToggle={() => {}}
               onOpenStatus={openStatus}
               onShowAttachment={(allMedias, index) =>
                 onShowAttachment(allMedias, index)
@@ -642,29 +640,25 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
               data-testid="activity-replies-list"
               className="divide-y divide-border/40 px-4"
             >
-              {visibleNodes.map((node) => (
-                <ThreadReplyNode
-                  key={node.status.id}
-                  node={node}
-                  host={host}
-                  currentActor={currentActor}
-                  currentTime={currentTime}
-                  isMediaUploadEnabled={isMediaUploadEnabled}
-                  composer={composer}
-                  isExpanded={isBranchExpanded}
-                  onToggle={toggleBranch}
-                  onOpenStatus={openStatus}
-                  onShowAttachment={(allMedias, index) =>
-                    onShowAttachment(allMedias, index)
-                  }
-                  onReplyCreated={handleReplyCreated}
-                  onComposerDone={() => router.refresh()}
-                  replyingToLabels={
-                    hasRun ? selfThread.replyingToByReplyId : undefined
-                  }
-                  onPostDeleted={handlePostDeleted}
-                />
-              ))}
+              <ThreadConversationList
+                conversations={visibleConversations}
+                onToggleFold={toggleFold}
+                host={host}
+                currentActor={currentActor}
+                currentTime={currentTime}
+                isMediaUploadEnabled={isMediaUploadEnabled}
+                composer={composer}
+                onOpenStatus={openStatus}
+                onShowAttachment={(allMedias, index) =>
+                  onShowAttachment(allMedias, index)
+                }
+                onReplyCreated={handleReplyCreated}
+                onComposerDone={() => router.refresh()}
+                replyingToLabels={
+                  hasRun ? selfThread.replyingToByReplyId : undefined
+                }
+                onPostDeleted={handlePostDeleted}
+              />
             </div>
             {loadMoreRow}
           </div>

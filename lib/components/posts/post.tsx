@@ -17,6 +17,7 @@ import {
 } from '@/lib/types/domain/status'
 import { TimelineParentPreview } from '@/lib/types/domain/timeline'
 import type { StatusReaction } from '@/lib/types/mastodon/statusReaction'
+import { cn } from '@/lib/utils'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { Actions } from './actions/actions'
@@ -32,6 +33,7 @@ import { PostHeader } from './post-header'
 import { ReactionRow } from './reaction-row'
 import { ReadOnlyStats } from './read-only-stats'
 import { StatusContextIndicator } from './status-context'
+import { ThreadLineSegment } from './thread-line'
 import { TranslationProvider } from './translation-context'
 import { useReactionState } from './useReactionState'
 
@@ -92,6 +94,18 @@ export interface PostProps {
    */
   prioritizeMedia?: boolean
   isPinned?: boolean
+  /**
+   * Off for a row the thread line joins: the reaction chips and action row
+   * then start at the text, as a run part's do, instead of reaching back
+   * across the avatar column the line runs down (and every row of a joined
+   * chain lines up the same way).
+   */
+  fullBleed?: boolean
+  /**
+   * Draw the thread line from under the avatar to the bottom of the post, for
+   * a row the next row joins. The caller carries it on to its row's edge.
+   */
+  threadLineBelow?: boolean
 }
 
 // The same line as BoostStatus's, for a post pinned to its author's profile.
@@ -168,6 +182,7 @@ export const Post: FC<PostProps> = (props) => {
   // The same gate `Actions` applies to itself, hoisted so the chip row above it
   // knows whether there will be an action row under it to align with.
   const showsActionRow = Boolean(props.showActions && props.currentActor)
+  const fullBleed = props.fullBleed !== false
   const { isTranslatable, translationLanguage, inlineTranslation } =
     getPostTranslation(
       actualStatus,
@@ -196,12 +211,15 @@ export const Post: FC<PostProps> = (props) => {
           />
         )}
         <div className="flex min-h-0 min-w-0 gap-3">
-          <div className="shrink-0">
+          <div className="relative shrink-0">
             <ActorAvatar
               actor={actualStatus.actor}
               actorId={actualStatus.actorId}
               statusUrl={actualStatus.url}
             />
+            {props.threadLineBelow ? (
+              <ThreadLineSegment className="top-[44px] bottom-0" />
+            ) : null}
           </div>
           <div className="flex-1 min-h-0 min-w-0">
             <PostHeader
@@ -222,7 +240,7 @@ export const Post: FC<PostProps> = (props) => {
               prioritizeMedia={Boolean(props.focused || props.prioritizeMedia)}
             />
 
-            <div>
+            <div className={cn(!fullBleed && showsActionRow && 'mt-2')}>
               {/* Chips sit between the content and the action row: they belong to
                 the post, not to the actions, and a logged-out reader still sees
                 them (read-only) while the action row is hidden. They go
@@ -230,9 +248,13 @@ export const Post: FC<PostProps> = (props) => {
                 read-only surface the row beneath them is `ReadOnlyStats`, which
                 starts at the text, and chips hanging 52px further left would
                 line up with nothing. */}
-              <ReactionRow state={reactionState} fullBleed={showsActionRow} />
+              <ReactionRow
+                state={reactionState}
+                fullBleed={showsActionRow && fullBleed}
+              />
               <Actions
                 {...props}
+                fullBleed={fullBleed}
                 currentTime={currentTime}
                 reactionState={reactionState}
               />

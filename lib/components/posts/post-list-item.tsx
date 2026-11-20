@@ -13,6 +13,7 @@ import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { InlineStatusComposer } from './lazy-inline-status-composer'
 import { Post } from './post'
+import { ThreadLineSegment } from './thread-line'
 import {
   ActiveStatusComposer,
   InlineComposerControls
@@ -33,6 +34,13 @@ export interface PostListItemProps {
   /** The row whose first picture is the list's first visible media. */
   prioritizeMedia?: boolean
   parentPreview?: TimelineParentPreview | null
+  /**
+   * The thread line from the row above (this post answers it) and on to the
+   * row below (which answers this one), for a thread or conversation row
+   * rendered post by post. Drawn inside the row, since a feed row clips.
+   */
+  threadLineAbove?: boolean
+  threadLineBelow?: boolean
   /** Reply/quote/edit are offered (signed-in actor and an interactive feed). */
   canCompose: boolean
   /**
@@ -91,6 +99,8 @@ export const PostListItem = memo(function PostListItem({
   isPinned,
   prioritizeMedia,
   parentPreview,
+  threadLineAbove = false,
+  threadLineBelow = false,
   canCompose,
   activeComposer,
   isMediaUploadEnabled,
@@ -124,8 +134,15 @@ export const PostListItem = memo(function PostListItem({
       // Callers may pass the framed box's corner radius so any child
       // background can't bleed past the rounded edges now that the list has no
       // `overflow-hidden`.
-      className={cn('feed-row min-h-0 min-w-0 px-4 py-3', className)}
+      className={cn(
+        'feed-row min-h-0 min-w-0 px-4 pt-3',
+        (threadLineAbove || threadLineBelow) && 'relative',
+        className
+      )}
     >
+      {threadLineAbove ? (
+        <ThreadLineSegment edge="above" className="top-0 left-[35px] h-3" />
+      ) : null}
       <Post
         host={host}
         currentTime={currentTime}
@@ -140,6 +157,8 @@ export const PostListItem = memo(function PostListItem({
         isPinned={isPinned}
         prioritizeMedia={prioritizeMedia}
         parentPreview={parentPreview}
+        fullBleed={!threadLineAbove && !threadLineBelow}
+        threadLineBelow={threadLineBelow}
         onReply={
           canCompose ? (target) => openReply(target, status.id) : undefined
         }
@@ -158,20 +177,26 @@ export const PostListItem = memo(function PostListItem({
           onShowMedia(allMedias, index, actualStatus)
         }
       />
-      {activeComposer && currentActor ? (
-        <InlineStatusComposer
-          key={`${activeComposer.mode}-${activeComposer.anchorId}`}
-          host={host}
-          profile={currentActor}
-          mode={activeComposer.mode}
-          status={activeComposer.status}
-          isMediaUploadEnabled={isMediaUploadEnabled}
-          onCancel={close}
-          onReplyCreated={onReplyCreated}
-          onCreated={onStatusCreated}
-          onUpdated={onPostUpdated}
-        />
-      ) : null}
+      {/* The row's bottom padding, after the composer when it is open here;
+          the line runs on through both to the next row. */}
+      {/* flow-root keeps the composer's own top margin inside this block. */}
+      <div className={cn('flow-root pb-3', threadLineBelow && 'relative')}>
+        {threadLineBelow ? <ThreadLineSegment className="inset-y-0" /> : null}
+        {activeComposer && currentActor ? (
+          <InlineStatusComposer
+            key={`${activeComposer.mode}-${activeComposer.anchorId}`}
+            host={host}
+            profile={currentActor}
+            mode={activeComposer.mode}
+            status={activeComposer.status}
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            onCancel={close}
+            onReplyCreated={onReplyCreated}
+            onCreated={onStatusCreated}
+            onUpdated={onPostUpdated}
+          />
+        ) : null}
+      </div>
     </article>
   )
 })

@@ -14,10 +14,6 @@ import {
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
-import {
-  getActorDisplayName,
-  getActorIdMention
-} from '@/lib/components/posts/actor'
 import { OPENED_ROW_TINT } from '@/lib/components/posts/combined-post-list-item'
 import { CombinedPart } from '@/lib/components/posts/combinedThreadModel'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
@@ -29,13 +25,23 @@ import {
   buildSelfThreadModel,
   getRunMergedStatuses
 } from '@/lib/components/posts/selfThreadModel'
-import { ThreadLoadMore } from '@/lib/components/posts/thread-load-more'
-import { ThreadReplyNode } from '@/lib/components/posts/thread-reply-node'
 import {
+  REPLYING_TO_LINK_CLASS_NAME,
+  ThreadLineSegment,
+  focusStatusAnchor,
+  getReplyTargetName
+} from '@/lib/components/posts/thread-line'
+import { ThreadLoadMore } from '@/lib/components/posts/thread-load-more'
+import { ThreadConversationList } from '@/lib/components/posts/thread-reply-node'
+import {
+  THREAD_FOLD_THRESHOLD,
   ThreadNode,
+  buildThreadConversations,
   buildThreadTree,
+  getFoldKeysRevealing,
   getStatusReplyTargetId,
-  getStatusUrl
+  getStatusUrl,
+  toggleFoldKey
 } from '@/lib/components/posts/threadModel'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
@@ -51,7 +57,6 @@ import {
 import { Tag } from '@/lib/types/domain/tag'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
-import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 export interface StatusThreadProps {
   host: string
@@ -76,9 +81,6 @@ export interface StatusThreadProps {
 }
 
 const EMPTY_STATUS_LIST: Status[] = []
-
-const REPLYING_TO_LINK_CLASS_NAME =
-  'rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
 
 interface ReplyingToLineProps {
   /** The author of the part being answered, or the handle of its actor id. */
@@ -112,6 +114,7 @@ const ReplyingToLine: FC<ReplyingToLineProps> = ({
         <a
           href={`#${statusId}`}
           className={REPLYING_TO_LINK_CLASS_NAME}
+          onClick={(event) => focusStatusAnchor(event, statusId)}
           aria-label={`Part ${partIndex + 1} of ${partCount} by ${name}`}
         >
           {partIndex + 1} of {partCount}
@@ -123,6 +126,7 @@ const ReplyingToLine: FC<ReplyingToLineProps> = ({
         <a
           href={`#${statusId}`}
           className={REPLYING_TO_LINK_CLASS_NAME}
+          onClick={(event) => focusStatusAnchor(event, statusId)}
           aria-label={`Post by ${name}`}
         >
           {name}
@@ -180,10 +184,14 @@ export const StatusThread: FC<StatusThreadProps> = ({
     []
   )
 
-  // Map of nodeId -> boolean override for expansion
-  const [expandedBranchOverrides, setExpandedBranchOverrides] = useState<
-    Record<string, boolean>
-  >({})
+  // Open folds by key (`getConversationFoldKey` / `getOthersFoldKey`), kept
+  // by status id so loading more replies or posting one never closes them.
+  const [expandedFolds, setExpandedFolds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const toggleFold = useCallback((key: string) => {
+    setExpandedFolds((prev) => toggleFoldKey(prev, key))
+  }, [])
   const [separateRows, setSeparateRows] = useState<Set<string>>(() => new Set())
   const [deletedStatusIds, setDeletedStatusIds] = useState<Set<string>>(
     () => new Set()
@@ -452,40 +460,16 @@ export const StatusThread: FC<StatusThreadProps> = ({
       return [newReply, ...prev]
     })
 
-    const actualReply = getOriginalStatus(newReply)
-    const parentId =
-      ('reply' in actualReply &&
-      typeof actualReply.reply === 'string' &&
-      actualReply.reply.trim()
-        ? actualReply.reply.trim()
-        : null) || getStatusReplyTargetId(actualReply)
-
-    if (parentId) {
-      setExpandedBranchOverrides((prev) => {
-        const next = { ...prev, [parentId]: true }
-        let curId: string | null = parentId
-        const seen = new Set<string>()
-        const allKnown = [
-          ...ancestors,
-          status,
-          ...descendants,
-          ...locallyCreatedReplies,
-          newReply
-        ]
-        while (curId && !seen.has(curId)) {
-          seen.add(curId)
-          next[curId] = true
-          const parentStatus = allKnown.find(
-            (d) => d.id === curId || getOriginalStatus(d).url === curId
-          )
-          if (parentStatus) {
-            curId = getStatusReplyTargetId(getOriginalStatus(parentStatus))
-          } else {
-            break
-          }
-        }
-        return next
-      })
+    // Open every fold on the way to the new reply, so it shows where it
+    // lands: its parent's other replies, or the chain it continues.
+    const revealKeys = getFoldKeysRevealing(newReply, [
+      ...ancestors,
+      status,
+      ...descendants,
+      ...locallyCreatedReplies
+    ])
+    if (revealKeys.length > 0) {
+      setExpandedFolds((prev) => new Set([...prev, ...revealKeys]))
     }
 
     setReplyToastStatus(newReply)
@@ -507,55 +491,23 @@ export const StatusThread: FC<StatusThreadProps> = ({
     // Note: router.refresh() is omitted to avoid Next.js App Router resetting scroll to top.
   }
 
-  const isBranchExpanded = (node: ThreadNode): boolean => {
-    const nodeStatus = getOriginalStatus(node.status)
-    const override =
-      expandedBranchOverrides[node.status.id] ??
-      (nodeStatus.url ? expandedBranchOverrides[nodeStatus.url] : undefined)
-    if (override !== undefined) return override
-    return !node.initiallyCollapsed
-  }
+  // Folding starts at the page's loaded reply count, the same for the
+  // Replies section and the side replies under ancestors.
+  const foldEnabled = tree.totalDescendants >= THREAD_FOLD_THRESHOLD
 
-  const toggleBranch = (nodeId: string) => {
-    setExpandedBranchOverrides((prev) => {
-      const current = prev[nodeId]
-      if (current !== undefined) {
-        return { ...prev, [nodeId]: !current }
-      }
-      // If no override yet, check tree initial state
-      const findNode = (nodes: ThreadNode[]): ThreadNode | null => {
-        for (const n of nodes) {
-          if (
-            n.status.id === nodeId ||
-            getOriginalStatus(n.status).url === nodeId
-          )
-            return n
-          const inChild = findNode(n.replies)
-          if (inChild) return inChild
-        }
-        return null
-      }
-      const allTreeNodes = [
-        ...tree.descendants,
-        ...Object.values(tree.ancestorReplies ?? {}).flat()
-      ]
-      const targetNode = findNode(allTreeNodes)
-      const initialState = targetNode ? !targetNode.initiallyCollapsed : true
-      return { ...prev, [nodeId]: !initialState }
-    })
-  }
-
-  const renderThreadNode = (node: ThreadNode): ReactNode => (
-    <ThreadReplyNode
-      key={node.status.id}
-      node={node}
+  const renderConversations = (nodes: readonly ThreadNode[]): ReactNode => (
+    <ThreadConversationList
+      conversations={buildThreadConversations(
+        nodes,
+        expandedFolds,
+        foldEnabled
+      )}
+      onToggleFold={toggleFold}
       host={host}
       currentActor={currentActor}
       currentTime={currentTime}
       isMediaUploadEnabled={isMediaUploadEnabled}
       composer={composer}
-      isExpanded={isBranchExpanded}
-      onToggle={toggleBranch}
       onOpenStatus={openStatus}
       onShowAttachment={(allMedias, index, actualStatus) => {
         setModalMedias({
@@ -582,7 +534,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
     opened?: { openedPartIndex: number; focusedFooter: ReactNode },
     anchorPartIndex?: number,
     replyingTo?: ReactNode,
-    hidePartNumbers?: boolean
+    hidePartNumbers?: boolean,
+    continueRailBelow?: boolean
   ): ReactNode => {
     const closeComposerAndRefresh = () => {
       composer.close()
@@ -594,6 +547,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         openedPartIndex={opened?.openedPartIndex}
         anchorPartIndex={anchorPartIndex}
         hidePartNumbers={hidePartNumbers}
+        continueRailBelow={continueRailBelow}
         host={host}
         currentTime={currentTime}
         currentActor={currentActor ?? undefined}
@@ -650,29 +604,18 @@ export const StatusThread: FC<StatusThreadProps> = ({
   // the viewer splits it into plain rows the part keeps its own anchor, and
   // the name alone links to it.
   const replyingToPart = selfThread.focusedReplyingTo
-  const replyingToActualStatus = replyingToPart
-    ? getActualStatus(replyingToPart.status)
-    : null
-  const replyingToActor = replyingToActualStatus?.actor ?? null
-  // `Status.actor` is nullable: fall back to the handle its actor id carries
-  // (as the boost line does). A name that is only the "@" separators is all a
-  // degenerate id yields, so the line is skipped rather than naming nothing.
-  const replyingToName =
-    (replyingToActor &&
-      (getActorDisplayName(replyingToActor) || replyingToActor.username)) ||
-    (replyingToActualStatus &&
-      getActorIdMention(
-        replyingToActualStatus.actorId,
-        replyingToActualStatus.url
-      )) ||
-    ''
+  // Empty when neither the actor nor its id yields a name: the line is then
+  // skipped rather than naming nothing.
+  const replyingToName = replyingToPart
+    ? getReplyTargetName(replyingToPart.status)
+    : ''
   const replyingToRunIsActive = replyingToPart
     ? activeAncestorRuns.some((run) =>
         run.parts.some((part) => part.status.id === replyingToPart.status.id)
       )
     : false
   const replyingToLineProps =
-    replyingToPart && replyingToName.replace(/@/g, '').trim()
+    replyingToPart && replyingToName
       ? {
           name: replyingToName,
           statusId: replyingToPart.status.id,
@@ -744,6 +687,70 @@ export const StatusThread: FC<StatusThreadProps> = ({
     !showDescendantsLoadMore &&
     activeDescendantRuns.length === 0
 
+  // The thread line joins a row above the opened post to the next one when
+  // the next answers it (a run's last part, for a run row), as long as no side
+  // replies render in between.
+  const ancestorRowEdges = tree.ancestors.map((ancestor) => {
+    const run = ancestorRunByFirstStatusId.get(ancestor.id)
+    return {
+      top: ancestor,
+      bottom: run ? run.parts[run.parts.length - 1].status : ancestor
+    }
+  })
+  const focusedTopStatus =
+    isCombinedRun && selfThread.run ? selfThread.parts[0].status : status
+  const rowAnswersAbove = (top: Status, aboveIndex: number): boolean => {
+    const above = ancestorRowEdges[aboveIndex]
+    if (!above) return false
+    if (tree.ancestorReplies?.[tree.ancestors[aboveIndex].id]?.length) {
+      return false
+    }
+    const target = getStatusReplyTargetId(getOriginalStatus(top))
+    if (!target) return false
+    const bottom = getOriginalStatus(above.bottom)
+    return [bottom.id, bottom.url, above.bottom.publicId].includes(target)
+  }
+  const ancestorJoinsAbove = ancestorRowEdges.map((edge, index) =>
+    rowAnswersAbove(edge.top, index - 1)
+  )
+  const focusedJoinsAbove = rowAnswersAbove(
+    focusedTopStatus,
+    ancestorRowEdges.length - 1
+  )
+  // A joined row names what it answers to screen readers, once: the visible
+  // "Replying to" line does that when it is there.
+  const aboveName = (aboveIndex: number) => {
+    const above = ancestorRowEdges[aboveIndex]
+    return above ? getReplyTargetName(above.bottom) : ''
+  }
+  const focusedAboveName = aboveName(ancestorRowEdges.length - 1)
+  const ancestorJoinsBelow = (index: number) =>
+    index === ancestorRowEdges.length - 1
+      ? focusedJoinsAbove
+      : ancestorJoinsAbove[index + 1]
+  // Whether the opened block shows the visible "Replying to" line: the run
+  // passes it to its first header; a plain opened row only when it answers
+  // that part itself.
+  const focusedShowsReplyingTo =
+    isCombinedRun && selfThread.run
+      ? Boolean(replyingToLine)
+      : Boolean(replyingToLineProps && openedRowAnswersReplyingTo)
+  // From the focused card's top edge to the opened avatar: its 16px padding,
+  // the tint's 6px top padding (or the opened first part's own 22px), and the
+  // "Replying to" line (20px) when it sits above the avatar.
+  const focusedLineAboveClass =
+    isCombinedRun && selfThread.run
+      ? selfThread.openedPartIndex === 0
+        ? 'h-[22px]'
+        : 'h-4'
+      : replyingToLineProps && openedRowAnswersReplyingTo
+        ? openedRowIsMarked
+          ? 'h-[42px]'
+          : 'h-9'
+        : openedRowIsMarked
+          ? 'h-[22px]'
+          : 'h-4'
+
   const focusedRef = useRef<HTMLDivElement | null>(null)
   useScrollOpenedPostIntoView(
     () => focusedRef.current,
@@ -775,12 +782,15 @@ export const StatusThread: FC<StatusThreadProps> = ({
             const ancestorRunIds = ancestorRun
               ? new Set(getRunMergedStatuses(ancestorRun).map((s) => s.id))
               : null
+            const joinsAbove = ancestorJoinsAbove[index]
+            const joinsBelow = ancestorJoinsBelow(index)
             return (
               <div
                 key={ancestor.id}
                 data-testid="ancestor-status"
                 className={cn(
-                  'border-b bg-background p-4 last:border-b-0',
+                  'relative border-b bg-background p-4 last:border-b-0',
+                  joinsBelow && 'border-b-0',
                   // Signed-in viewers get the full-bleed feed surface below
                   // `md`, so every row is square there; a logged-out thread is
                   // an inset card at every width and its first row meets the
@@ -789,6 +799,20 @@ export const StatusThread: FC<StatusThreadProps> = ({
                   !currentActor && index === 0 && 'rounded-t-lg'
                 )}
               >
+                {joinsAbove ? (
+                  <ThreadLineSegment
+                    edge="above"
+                    className="top-0 left-[35px] h-4"
+                  />
+                ) : null}
+                {joinsAbove && aboveName(index - 1) ? (
+                  <span className="sr-only">
+                    Replying to {aboveName(index - 1)}
+                  </span>
+                ) : null}
+                {joinsBelow ? (
+                  <ThreadLineSegment className="bottom-0 left-[35px] h-4" />
+                ) : null}
                 {ancestorRun && ancestorRunIds ? (
                   renderSelfThreadRun(
                     ancestorRun.parts,
@@ -796,7 +820,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
                     undefined,
                     selfThread.ancestorRunAnchorIndexById.get(ancestorRun.key),
                     undefined,
-                    hidesPartNumbers(getRunMergedStatuses(ancestorRun))
+                    hidesPartNumbers(getRunMergedStatuses(ancestorRun)),
+                    joinsBelow
                   )
                 ) : (
                   <>
@@ -814,6 +839,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
                         status={ancestor}
                         showActions={canComposeFocused}
                         showReadOnlyStats={!canComposeFocused}
+                        fullBleed={!joinsAbove && !joinsBelow}
+                        threadLineBelow={joinsBelow}
                         editable={
                           canComposeFocused &&
                           currentActor?.id === actualAncestor.actorId
@@ -852,37 +879,40 @@ export const StatusThread: FC<StatusThreadProps> = ({
                       />
                     </div>
 
-                    {composer.active?.anchorId === ancestor.id &&
-                    currentActor ? (
-                      <div className="mt-3">
-                        <InlineStatusComposer
-                          key={`${composer.active.mode}-${composer.active.anchorId}`}
-                          host={host}
-                          profile={currentActor}
-                          mode={composer.active.mode}
-                          status={composer.active.status}
-                          isMediaUploadEnabled={isMediaUploadEnabled}
-                          onCancel={composer.close}
-                          onReplyCreated={handleReplyCreated}
-                          onCreated={() => {
-                            composer.close()
-                            router.refresh()
-                          }}
-                          onUpdated={() => {
-                            composer.close()
-                            router.refresh()
-                          }}
-                        />
-                      </div>
-                    ) : null}
+                    <div className="relative">
+                      {joinsBelow ? (
+                        <ThreadLineSegment className="inset-y-0" />
+                      ) : null}
+                      {composer.active?.anchorId === ancestor.id &&
+                      currentActor ? (
+                        <div className="flow-root">
+                          <InlineStatusComposer
+                            key={`${composer.active.mode}-${composer.active.anchorId}`}
+                            host={host}
+                            profile={currentActor}
+                            mode={composer.active.mode}
+                            status={composer.active.status}
+                            isMediaUploadEnabled={isMediaUploadEnabled}
+                            onCancel={composer.close}
+                            onReplyCreated={handleReplyCreated}
+                            onCreated={() => {
+                              composer.close()
+                              router.refresh()
+                            }}
+                            onUpdated={() => {
+                              composer.close()
+                              router.refresh()
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
                   </>
                 )}
 
                 {tree.ancestorReplies?.[ancestor.id]?.length ? (
                   <div className="mt-3 divide-y divide-border/40 border-t border-border/40">
-                    {tree.ancestorReplies[ancestor.id].map((replyNode) =>
-                      renderThreadNode(replyNode)
-                    )}
+                    {renderConversations(tree.ancestorReplies[ancestor.id])}
                   </div>
                 ) : null}
               </div>
@@ -896,7 +926,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         ref={focusedRef}
         data-testid="focused-status"
         className={cn(
-          'border-b bg-background p-4',
+          'relative border-b bg-background p-4',
           currentActor && 'max-md:rounded-none',
           !currentActor && tree.ancestors.length === 0 && 'rounded-t-lg',
           focusedIsLast &&
@@ -905,6 +935,15 @@ export const StatusThread: FC<StatusThreadProps> = ({
               : 'max-md:border-b-0 max-md:rounded-b-lg')
         )}
       >
+        {focusedJoinsAbove ? (
+          <ThreadLineSegment
+            edge="above"
+            className={cn('top-0 left-[35px]', focusedLineAboveClass)}
+          />
+        ) : null}
+        {focusedJoinsAbove && !focusedShowsReplyingTo && focusedAboveName ? (
+          <span className="sr-only">Replying to {focusedAboveName}</span>
+        ) : null}
         {isCombinedRun && selfThread.run ? (
           renderSelfThreadRun(
             selfThread.parts,
@@ -1045,7 +1084,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
           </div>
 
           <div className="divide-y divide-border/40 p-4 space-y-2">
-            {tree.descendants.map((node) => renderThreadNode(node))}
+            {renderConversations(tree.descendants)}
           </div>
 
           {showDescendantsLoadMore && onLoadMoreDescendants ? (
