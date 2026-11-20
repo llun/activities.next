@@ -104,8 +104,14 @@ describe('dependabot auto-merge workflow', () => {
     expect(body).not.toContain('|| true')
   })
 
-  it('checks for new packages before it decides about auto-merge', () => {
+  it('verifies sender and commit authorship before reading the PR lockfile', () => {
     const names = steps().map((candidate) => candidate.name)
+    const disable = names.indexOf('Disable auto-merge until every check passes')
+    const fetch = names.indexOf('Fetch the PR head commit')
+    const trusted = names.indexOf(
+      "Verify the sender and every commit are Dependabot's"
+    )
+    const read = names.indexOf('Read both lockfiles as data')
     const check = names.indexOf('Check for new package names')
     const versions = names.indexOf(
       'Check the new versions are at least 7 days old'
@@ -113,10 +119,24 @@ describe('dependabot auto-merge workflow', () => {
     const enable = names.indexOf('Enable auto-merge for Dependabot PRs')
     const review = names.indexOf('Ask a human to review the new packages')
 
-    expect(check).toBeGreaterThan(-1)
+    expect(fetch).toBe(disable + 1)
+    expect(trusted).toBe(fetch + 1)
+    expect(read).toBeGreaterThan(trusted)
+    expect(check).toBeGreaterThan(read)
     expect(versions).toBeGreaterThan(check)
     expect(enable).toBeGreaterThan(versions)
     expect(review).toBeGreaterThan(versions)
+
+    for (const guarded of [
+      'Read both lockfiles as data',
+      'Check for new package names',
+      'Check the new versions are at least 7 days old'
+    ]) {
+      expect(step(guarded).block).toContain(
+        "if: steps.trusted.outputs.ok == 'true'"
+      )
+    }
+
     expect(step('Check for new package names').block).toContain(
       'node .github/scripts/lockfile-new-packages.mjs'
     )
@@ -128,7 +148,7 @@ describe('dependabot auto-merge workflow', () => {
     expect(versions.block).toContain('id: versions')
     const body = runBody(versions.block)
     expect(body).toContain('--changed-versions')
-    expect(body).toContain('npm view "$locator" time --json')
+    expect(body).toContain('npm view --json -- "$locator" time')
     expect(body).toContain('"$age" -lt 7')
     expect(step('Enable auto-merge for Dependabot PRs').block).toContain(
       "steps.versions.outputs.found == 'false'"
@@ -138,15 +158,15 @@ describe('dependabot auto-merge workflow', () => {
     )
   })
 
-  it('decides auto-merge from the check output', () => {
+  it('decides auto-merge from the trust, package, and version check outputs', () => {
     expect(step('Check for new package names').block).toContain(
       'id: new-packages'
     )
     expect(step('Enable auto-merge for Dependabot PRs').block).toContain(
-      "if: steps.new-packages.outputs.found == 'false'"
+      "if: steps.trusted.outputs.ok == 'true' && steps.new-packages.outputs.found == 'false' && steps.versions.outputs.found == 'false'"
     )
     expect(step('Ask a human to review the new packages').block).toContain(
-      "if: steps.new-packages.outputs.found == 'true'"
+      "if: steps.trusted.outputs.ok != 'true' || steps.new-packages.outputs.found == 'true' || steps.versions.outputs.found == 'true'"
     )
   })
 
@@ -189,6 +209,17 @@ describe('dependabot auto-merge workflow', () => {
 
     expect(review).not.toContain('--disable-auto')
     expect(review).toContain('auto-merge is off')
+  })
+
+  it('does not echo lockfile content in the review comment when trust verification fails', () => {
+    const review = runBody(step('Ask a human to review the new packages').block)
+    const untrustedBranch = review.match(
+      /if \[ "\$TRUSTED" != 'true' \]; then([\s\S]*?)\belse\b/
+    )
+
+    expect(untrustedBranch).toBeTruthy()
+    expect(untrustedBranch?.[1]).not.toContain('new-packages.txt')
+    expect(untrustedBranch?.[1]).not.toContain('too-new.txt')
   })
 
   it('never interpolates an expression into a run block', () => {

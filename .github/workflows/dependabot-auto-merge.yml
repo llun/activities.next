@@ -55,66 +55,12 @@ jobs:
       - name: Fetch the PR head commit
         run: git fetch --no-tags origin "$HEAD_SHA"
 
-      - name: Read both lockfiles as data
-        run: |
-          set -euo pipefail
-          git show "$BASE_SHA:yarn.lock" > "$RUNNER_TEMP/base-yarn.lock"
-          git show "$HEAD_SHA:yarn.lock" > "$RUNNER_TEMP/head-yarn.lock"
-
-      - name: Check for new package names
-        id: new-packages
-        run: |
-          set -euo pipefail
-          node .github/scripts/lockfile-new-packages.mjs \
-            "$RUNNER_TEMP/base-yarn.lock" "$RUNNER_TEMP/head-yarn.lock" \
-            > "$RUNNER_TEMP/new-packages.txt"
-          if [ -s "$RUNNER_TEMP/new-packages.txt" ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Yarn's `npmMinimalAgeGate` does not re-check a version the PR's
-      # lockfile already pins, and Dependabot security updates ignore cooldown,
-      # so the publish time is checked here instead. `npm view` reads the
-      # registry; nothing is installed.
-      - name: Check the new versions are at least 7 days old
-        id: versions
-        run: |
-          set -euo pipefail
-          node .github/scripts/lockfile-new-packages.mjs --changed-versions \
-            "$RUNNER_TEMP/base-yarn.lock" "$RUNNER_TEMP/head-yarn.lock" \
-            > "$RUNNER_TEMP/changed-versions.txt"
-          : > "$RUNNER_TEMP/too-new.txt"
-          now=$(date -u +%s)
-          while IFS= read -r locator; do
-            [ -n "$locator" ] || continue
-            version=${locator##*@}
-            published=$(npm view "$locator" time --json 2>/dev/null \
-              | jq -r --arg version "$version" '.[$version] // empty') || published=''
-            if [ -z "$published" ]; then
-              echo "$locator (publish time unavailable)" >> "$RUNNER_TEMP/too-new.txt"
-              continue
-            fi
-            if ! published_epoch=$(date -u -d "$published" +%s); then
-              echo "$locator (publish time unreadable)" >> "$RUNNER_TEMP/too-new.txt"
-              continue
-            fi
-            age=$(( (now - published_epoch) / 86400 ))
-            if [ "$age" -lt 7 ]; then
-              echo "$locator (published $published)" >> "$RUNNER_TEMP/too-new.txt"
-            fi
-          done < "$RUNNER_TEMP/changed-versions.txt"
-          if [ -s "$RUNNER_TEMP/too-new.txt" ]; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-          fi
-
       # `pull_request.user.login` stays `dependabot[bot]` when someone else
       # pushes to a Dependabot branch, so the author alone is not enough. Every
       # commit between the base and the head must be Dependabot's and carry
-      # GitHub's signature (Dependabot signs its commits).
+      # GitHub's signature (Dependabot signs its commits). Run this before
+      # reading the PR's lockfile so untrusted commits never reach the parser
+      # or `npm view`.
       - name: Verify the sender and every commit are Dependabot's
         id: trusted
         env:
@@ -153,12 +99,71 @@ jobs:
           done
           echo "ok=true" >> "$GITHUB_OUTPUT"
 
+      - name: Read both lockfiles as data
+        if: steps.trusted.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          git show "$BASE_SHA:yarn.lock" > "$RUNNER_TEMP/base-yarn.lock"
+          git show "$HEAD_SHA:yarn.lock" > "$RUNNER_TEMP/head-yarn.lock"
+
+      - name: Check for new package names
+        id: new-packages
+        if: steps.trusted.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          node .github/scripts/lockfile-new-packages.mjs \
+            "$RUNNER_TEMP/base-yarn.lock" "$RUNNER_TEMP/head-yarn.lock" \
+            > "$RUNNER_TEMP/new-packages.txt"
+          if [ -s "$RUNNER_TEMP/new-packages.txt" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Yarn's `npmMinimalAgeGate` does not re-check a version the PR's
+      # lockfile already pins, and Dependabot security updates ignore cooldown,
+      # so the publish time is checked here instead. `npm view` reads the
+      # registry; nothing is installed.
+      - name: Check the new versions are at least 7 days old
+        id: versions
+        if: steps.trusted.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          node .github/scripts/lockfile-new-packages.mjs --changed-versions \
+            "$RUNNER_TEMP/base-yarn.lock" "$RUNNER_TEMP/head-yarn.lock" \
+            > "$RUNNER_TEMP/changed-versions.txt"
+          : > "$RUNNER_TEMP/too-new.txt"
+          now=$(date -u +%s)
+          while IFS= read -r locator; do
+            [ -n "$locator" ] || continue
+            version=${locator##*@}
+            published=$(npm view --json -- "$locator" time 2>/dev/null \
+              | jq -r --arg version "$version" '.[$version] // empty') || published=''
+            if [ -z "$published" ]; then
+              echo "$locator (publish time unavailable)" >> "$RUNNER_TEMP/too-new.txt"
+              continue
+            fi
+            if ! published_epoch=$(date -u -d "$published" +%s); then
+              echo "$locator (publish time unreadable)" >> "$RUNNER_TEMP/too-new.txt"
+              continue
+            fi
+            age=$(( (now - published_epoch) / 86400 ))
+            if [ "$age" -lt 7 ]; then
+              echo "$locator (published $published)" >> "$RUNNER_TEMP/too-new.txt"
+            fi
+          done < "$RUNNER_TEMP/changed-versions.txt"
+          if [ -s "$RUNNER_TEMP/too-new.txt" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Enable auto-merge for Dependabot PRs
-        if: steps.new-packages.outputs.found == 'false' && steps.versions.outputs.found == 'false' && steps.trusted.outputs.ok == 'true'
+        if: steps.trusted.outputs.ok == 'true' && steps.new-packages.outputs.found == 'false' && steps.versions.outputs.found == 'false'
         run: gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
 
       - name: Ask a human to review the new packages
-        if: steps.new-packages.outputs.found == 'true' || steps.versions.outputs.found == 'true' || steps.trusted.outputs.ok != 'true'
+        if: steps.trusted.outputs.ok != 'true' || steps.new-packages.outputs.found == 'true' || steps.versions.outputs.found == 'true'
         env:
           NEW_PACKAGES: ${{ steps.new-packages.outputs.found }}
           TOO_NEW: ${{ steps.versions.outputs.found }}
@@ -167,21 +172,22 @@ jobs:
         run: |
           set -euo pipefail
           {
-            if [ "$NEW_PACKAGES" = 'true' ]; then
-              echo "This Dependabot PR adds packages the base lockfile does not have:"
-              echo
-              sed 's/^/- /' "$RUNNER_TEMP/new-packages.txt"
-              echo
-            fi
-            if [ "$TOO_NEW" = 'true' ]; then
-              echo "These versions were published less than 7 days ago, or their publish time could not be read:"
-              echo
-              sed 's/^/- /' "$RUNNER_TEMP/too-new.txt"
-              echo
-            fi
             if [ "$TRUSTED" != 'true' ]; then
               echo "This PR is not entirely Dependabot's: $REASON."
               echo
+            else
+              if [ "$NEW_PACKAGES" = 'true' ]; then
+                echo "This Dependabot PR adds packages the base lockfile does not have:"
+                echo
+                sed 's/^/- /' "$RUNNER_TEMP/new-packages.txt"
+                echo
+              fi
+              if [ "$TOO_NEW" = 'true' ]; then
+                echo "These versions were published less than 7 days ago, or their publish time could not be read:"
+                echo
+                sed 's/^/- /' "$RUNNER_TEMP/too-new.txt"
+                echo
+              fi
             fi
             echo "A human must review this PR before it merges; auto-merge is off."
           } > "$RUNNER_TEMP/comment.md"

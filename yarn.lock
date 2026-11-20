@@ -2742,17 +2742,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@smithy/core@npm:^3.33.2, @smithy/core@npm:^3.38.0":
-  version: 3.38.1
-  resolution: "@smithy/core@npm:3.38.1"
-  dependencies:
-    "@smithy/types": "npm:^4.19.0"
-    tslib: "npm:^2.6.2"
-  checksum: 10c0/04b59d97ef3c0fbfced1499396656b9600ffc5ee971ee0452fb5b3c7f14f626bbae61fcebb1cd119c25b5148f52eeb99b155df4f48b40b24444112474aaa323d
-  languageName: node
-  linkType: hard
-
-"@smithy/core@npm:^3.39.0, @smithy/core@npm:^3.40.0":
+"@smithy/core@npm:^3.33.2, @smithy/core@npm:^3.38.0, @smithy/core@npm:^3.39.0, @smithy/core@npm:^3.40.0":
   version: 3.40.0
   resolution: "@smithy/core@npm:3.40.0"
   dependencies:
@@ -2806,16 +2796,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@smithy/types@npm:^4.17.2, @smithy/types@npm:^4.19.0":
-  version: 4.19.0
-  resolution: "@smithy/types@npm:4.19.0"
-  dependencies:
-    tslib: "npm:^2.6.2"
-  checksum: 10c0/0e9f026e1774aa0089ebd4b67abef7215b09869bd41afc9affdd3382c91e5e3ae4daac54eb2e6b8262c5deaf37019ca7c15e77bcc4be311a69681a40ae047ab0
-  languageName: node
-  linkType: hard
-
-"@smithy/types@npm:^4.20.0":
+"@smithy/types@npm:^4.17.2, @smithy/types@npm:^4.19.0, @smithy/types@npm:^4.20.0":
   version: 4.20.0
   resolution: "@smithy/types@npm:4.20.0"
   dependencies:
@@ -5570,21 +5551,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"magic-string@npm:^1.1.0":
+"magic-string@npm:^1.1.0, magic-string@npm:^1.4.3":
   version: 1.4.5
   resolution: "magic-string@npm:1.4.5"
   dependencies:
     "@jridgewell/sourcemap-codec": "npm:^1.6.0"
   checksum: 10c0/79295b85e19f2e18bb01b81671d27ae192546e88534dfcef2e36f2c04f45b39db497ce85a62efda0336356308cdc037a1c73fc0f1bd0945d12ae1e794163b247
-  languageName: node
-  linkType: hard
-
-"magic-string@npm:^1.4.3":
-  version: 1.4.3
-  resolution: "magic-string@npm:1.4.3"
-  dependencies:
-    "@jridgewell/sourcemap-codec": "npm:^1.6.0"
-  checksum: 10c0/857743a1e7039d2e867505bb272a57cc605f610b90f6bf9ef6cbf9654e9cd64330ec35e564a58ca455350529872c3ecc01f37da934da130391237f9f593cc565
   languageName: node
   linkType: hard
 
@@ -6273,7 +6245,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"postcss@npm:^8.5.25":
+"postcss@npm:^8.5.25, postcss@npm:^8.5.27, postcss@npm:^8.5.30, postcss@npm:^8.5.32":
   version: 8.5.33
   resolution: "postcss@npm:8.5.33"
   dependencies:
@@ -6281,17 +6253,6 @@ __metadata:
     picocolors: "npm:^1.1.1"
     source-map-js: "npm:^1.2.2"
   checksum: 10c0/8711c5ad32a798813ae52dd51024881915ecc6171030f9cc1d3766d1969da20ade4cf71a645d7e54668cb45cb9622eac938dc1ce91fe1f9a0fa5f0bc8cbaa05a
-  languageName: node
-  linkType: hard
-
-"postcss@npm:^8.5.27, postcss@npm:^8.5.30, postcss@npm:^8.5.32":
-  version: 8.5.32
-  resolution: "postcss@npm:8.5.32"
-  dependencies:
-    nanoid: "npm:^3.3.20"
-    picocolors: "npm:^1.1.1"
-    source-map-js: "npm:^1.2.2"
-  checksum: 10c0/5fa6cad84e277c2ced965dc7e8e7c0b8d7e5b76a6835591b57a43fde46e671d0c8428d365e9141c080abaae5441d495ed77ffd7472c5bd41d6c2154bd03c01d7
   languageName: node
   linkType: hard
 
@@ -6834,17 +6795,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"set-cookie-parser@npm:^3.0.1":
+"set-cookie-parser@npm:^3.0.1, set-cookie-parser@npm:^3.1.2":
   version: 3.2.2
   resolution: "set-cookie-parser@npm:3.2.2"
   checksum: 10c0/0fe6b3786e13fe5ba19611ee617bb112c09fd77500a950f86fc124f95bbd78987be0aed1f3a1afc403e4d61b0c18659258891867456e0edc01119d10d48f3e70
-  languageName: node
-  linkType: hard
-
-"set-cookie-parser@npm:^3.1.2":
-  version: 3.1.2
-  resolution: "set-cookie-parser@npm:3.1.2"
-  checksum: 10c0/ea3d4fba5affd57f2a4c2e5172d701c4c17645879f9fddf1331622ae556210d840cdcb6666f0d71288ad545e31db5927bf49696051928e0186e079588cd5ddb0
   languageName: node
   linkType: hard
 
@@ -7135,17 +7089,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tailwindcss@npm:4.3.5":
+"tailwindcss@npm:4.3.5, tailwindcss@npm:^4.3.3":
   version: 4.3.5
   resolution: "tailwindcss@npm:4.3.5"
   checksum: 10c0/a02a1759cc3aaad5d9b5da7919bc2d5570432960e0f933be752185ced814fc8a193885effd9628bc3067c81552c13293e469b8e46e5a43b148dbfc97f00b5994
-  languageName: node
-  linkType: hard
-
-"tailwindcss@npm:^4.3.3":
-  version: 4.3.3
-  resolution: "tailwindcss@npm:4.3.3"
-  checksum: 10c0/7e9cd7553cd890ffa5350efb0ca8971ba5435257d0f98bf0714994ac8f1fee5c7cdf9a9da47fe83e8ac995d728410837ac49d3ef5ea66b5afe1db312086ffae2
   languageName: node
   linkType: hard
 
@@ -7732,18 +7679,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"whatwg-url@npm:^17.1.2":
-  version: 17.2.0
-  resolution: "whatwg-url@npm:17.2.0"
-  dependencies:
-    "@exodus/bytes": "npm:^1.16.0"
-    tr46: "npm:^7.0.0"
-    webidl-conversions: "npm:^8.0.1"
-  checksum: 10c0/e04762553b8bd7e0f693993f314e698e5a9db8ba3d0261d53160ee145dcbf13012e8c418662765b27069077ac6a65f18b23a3dd12a0330b7a008114171d9493d
-  languageName: node
-  linkType: hard
-
-"whatwg-url@npm:^17.3.0":
+"whatwg-url@npm:^17.1.2, whatwg-url@npm:^17.3.0":
   version: 17.3.0
   resolution: "whatwg-url@npm:17.3.0"
   dependencies:

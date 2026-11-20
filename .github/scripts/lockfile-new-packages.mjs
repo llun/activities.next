@@ -21,28 +21,43 @@ const splitLocator = (locator) => {
   }
 }
 
-// A plain registry locator is `name@npm:<version>` with no `::` suffix (which
-// would mean the tarball came from somewhere else). Anything else — a tarball
-// URL, a `file:`/`exec:`/`git:` source, a patch — is not a registry version.
+const NPM_PACKAGE_NAME =
+  /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/
+
+const PLAIN_SEMVER =
+  /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
+
+// A plain registry locator is `name@npm:<version>` where `name` is a valid npm
+// package name and `version` is plain semver (no `::`, URL, or git spec).
+// Anything else — a tarball URL, a `file:`/`exec:`/`git:` source, a patch —
+// is not a registry version.
 const registryVersionOf = (locator) => {
   const parts = splitLocator(locator)
   if (!parts || !parts.reference.startsWith('npm:')) return null
   const version = parts.reference.slice('npm:'.length)
-  if (!version || version.includes('::')) return null
+  if (!NPM_PACKAGE_NAME.test(parts.name) || !PLAIN_SEMVER.test(version))
+    return null
   return { name: parts.name, version }
 }
 
-// A builtin compat patch (`name@patch:name@npm%3A<version>#optional!builtin<compat/…>`)
-// is the package itself, but only when it patches that same registry package
-// and carries exactly one patch: a second patch (`&`- or `,`-joined) or a
-// patch of another package is a source of its own.
+// A builtin compat patch (`name@patch:name@npm%3A<version>#optional!builtin<compat/…>`
+// with an optional trailing `::version=<semver>&hash=<hex>`) is the package
+// itself, but only when it patches that same plain-semver registry package and
+// carries exactly one patch: a second patch (`&`- or `,`-joined), an encoded
+// `::`/`__archiveUrl`, or a patch of another package is a source of its own.
 const isBuiltinCompatPatch = (name, reference) => {
-  const match = /^patch:(.+)@npm%3A([^#]+)#(.+)$/.exec(reference)
+  if (!NPM_PACKAGE_NAME.test(name)) return false
+  const match =
+    /^patch:(.+)@npm%3A([^#]+)#optional!builtin<compat\/[a-z0-9._-]+>(?:::version=([^&]+)&hash=[0-9a-fA-F]+)?$/.exec(
+      reference
+    )
   if (!match) return false
-  const [, patched, , patches] = match
+  const [, patched, innerVersion, trailingVersion] = match
   if (patched !== name) return false
-  if (patches.includes('&') || patches.includes(',')) return false
-  return /^optional!builtin<compat\/[^>]+>$/.test(patches)
+  if (!PLAIN_SEMVER.test(innerVersion)) return false
+  if (trailingVersion !== undefined && !PLAIN_SEMVER.test(trailingVersion))
+    return false
+  return true
 }
 
 // What an entry contributes to the comparison. A plain registry package is its
@@ -57,11 +72,8 @@ const contributionOf = (locator) => {
   // Only the reference decides: `@workspace:` can appear inside a tarball URL.
   if (parts.reference.startsWith('workspace:')) return null
 
-  if (parts.reference.startsWith('npm:')) {
-    const version = parts.reference.slice('npm:'.length)
-    if (version && !version.includes('::')) return parts.name
-    return locator
-  }
+  const registry = registryVersionOf(locator)
+  if (registry) return registry.name
 
   if (isBuiltinCompatPatch(parts.name, parts.reference)) return parts.name
 

@@ -91,10 +91,23 @@ describe('lockfile package names', () => {
         'typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>',
         '7.0.2',
         'typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>'
+      ),
+      entry(
+        'fsevents@patch:fsevents@npm%3A2.3.3#optional!builtin<compat/fsevents>',
+        '2.3.3',
+        'fsevents@patch:fsevents@npm%3A2.3.3#optional!builtin<compat/fsevents>::version=2.3.3&hash=df0bf1'
+      ),
+      entry(
+        'typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>',
+        '7.0.2',
+        'typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>::version=7.0.2&hash=3bafbf'
       )
     ])
 
-    expect([...packageNames(patched)]).toEqual(['typescript'])
+    expect([...packageNames(patched)].sort()).toEqual([
+      'fsevents',
+      'typescript'
+    ])
   })
 
   it('reads the resolution of an entry whose key is written as ? "…" + : lines', () => {
@@ -283,6 +296,37 @@ describe('new packages between two lockfiles', () => {
     expect(newPackages(base, head)).toEqual([])
   })
 
+  it('does not report a version bump of a builtin compat patch with ::version&hash', () => {
+    const before = lockfile([
+      workspace,
+      entry(
+        'fsevents@patch:fsevents@npm%3A2.3.3#optional!builtin<compat/fsevents>',
+        '2.3.3',
+        'fsevents@patch:fsevents@npm%3A2.3.3#optional!builtin<compat/fsevents>::version=2.3.3&hash=df0bf1'
+      ),
+      entry(
+        'typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>',
+        '7.0.2',
+        'typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>::version=7.0.2&hash=3bafbf'
+      )
+    ])
+    const after = lockfile([
+      workspace,
+      entry(
+        'fsevents@patch:fsevents@npm%3A2.3.4#optional!builtin<compat/fsevents>',
+        '2.3.4',
+        'fsevents@patch:fsevents@npm%3A2.3.4#optional!builtin<compat/fsevents>::version=2.3.4&hash=abcdef'
+      ),
+      entry(
+        'typescript@patch:typescript@npm%3A7.0.3#optional!builtin<compat/typescript>',
+        '7.0.3',
+        'typescript@patch:typescript@npm%3A7.0.3#optional!builtin<compat/typescript>::version=7.0.3&hash=1234ab'
+      )
+    ])
+
+    expect(newPackages(before, after)).toEqual([])
+  })
+
   it.each([
     ['a tarball URL', 'pkg@https://example.com/pkg-1.0.0.tgz'],
     [
@@ -307,7 +351,21 @@ describe('new packages between two lockfiles', () => {
     [
       'a builtin compat patch of another package',
       'pkg@patch:other@npm%3A1.0.0#optional!builtin<compat/other>'
-    ]
+    ],
+    [
+      'a builtin compat patch with an encoded __archiveUrl',
+      'pkg@patch:pkg@npm%3A1.0.0%3A%3A__archiveUrl%3Dhttps%253A%252F%252Fexample.com%252Fpkg.tgz#optional!builtin<compat/pkg>::version=1.0.0&hash=3bafbf'
+    ],
+    [
+      'a builtin compat patch with unencoded :: in the inner version',
+      'pkg@patch:pkg@npm%3A1.0.0::__archiveUrl=https://example.com#optional!builtin<compat/pkg>'
+    ],
+    [
+      'a builtin compat patch with extra trailing query parameters',
+      'pkg@patch:pkg@npm%3A1.0.0#optional!builtin<compat/pkg>::version=1.0.0&hash=3bafbf&extra=1'
+    ],
+    ['a non-registry npm: git spec', 'pkg@npm:git+https://x/r.git'],
+    ['a non-registry npm: URL spec', 'pkg@npm:https://x/p.tgz']
   ])('reports %s under an existing name as new', (_label, locator) => {
     const withPkg = lockfile([
       workspace,
@@ -319,6 +377,19 @@ describe('new packages between two lockfiles', () => {
     ])
 
     expect(newPackages(withPkg, head)).toEqual([locator])
+  })
+
+  it.each([
+    ['an invalid npm package name', '--registry=https://x/@npm:1.0.0'],
+    ['a git+https npm: version', 'zod@npm:git+https://x/r.git'],
+    ['an https tarball npm: version', 'zod@npm:https://x/p.tgz']
+  ])('reports %s as a full-locator new source', (_label, locator) => {
+    const head = lockfile([
+      workspace,
+      entry('zod@npm:^4.0.0', '4.0.0', locator)
+    ])
+
+    expect(newPackages(base, head)).toEqual([locator])
   })
 })
 
@@ -367,7 +438,14 @@ describe('changed versions between two lockfiles', () => {
     [
       'a builtin compat patch',
       'pkg@patch:pkg@npm%3A1.0.0#optional!builtin<compat/pkg>'
-    ]
+    ],
+    [
+      'a builtin compat patch with ::version&hash',
+      'typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>::version=7.0.2&hash=3bafbf'
+    ],
+    ['an invalid npm package name', '--registry=https://x/@npm:1.0.0'],
+    ['a git+https npm: version', 'zod@npm:git+https://x/r.git'],
+    ['an https tarball npm: version', 'zod@npm:https://x/p.tgz']
   ])('ignores %s, which is not a registry version', (_label, locator) => {
     const head = lockfile([
       workspace,
