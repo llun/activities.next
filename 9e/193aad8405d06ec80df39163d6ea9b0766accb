@@ -1,0 +1,38 @@
+.github/workflows/version-bump.yml
+  s_0303642889c22e::t_48536ba965cfe9 50,89,111
+.github/workflows/ci.yml
+  s_0303642889c22e::t_48536ba965cfe9 46,56,78,84,99,105,112,150,156,229,235,424,430,454,460
+.github/workflows/package.yml
+  s_0303642889c22e::t_48536ba965cfe9 27,29,31,37,43,50,60,75,82,98,104,107,111,131,137,140,144
+.github/dependabot.yml
+  s_0303642889c22e::t_a139d5c68c4961 101-105
+.github/workflows/ci-rerun.yml
+  s_0303642889c22e::t_48536ba965cfe9 42
+.github/workflows/pinned-actions.test.ts
+  s_0303642889c22e::t_c7789d96fe8edf 1
+  s_0303642889c22e::t_63de40b9256e92 2-31
+.github/workflows/sync-main-to-prod-dispatch.yml
+  s_0303642889c22e::t_48536ba965cfe9 35,46,126
+.github/workflows/tag-version.yml
+  s_0303642889c22e::t_48536ba965cfe9 19
+.github/workflows/codeql.yml
+  s_0303642889c22e::t_48536ba965cfe9 43,47,60,73
+.github/workflows/dependabot-auto-merge.yml
+  s_0303642889c22e::t_48536ba965cfe9 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9e193aad8405d06ec80df39163d6ea9b0766accb",
+  "prompts": {},
+  "sessions": {
+    "s_0303642889c22e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9e80880-6d1c-448c-bf09-ce18b6ac927f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
