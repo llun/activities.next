@@ -84,6 +84,7 @@ describe('S3FitnessStorage presigned upload verification', () => {
 
     expect(S3Client).toHaveBeenCalledWith({
       region: 'auto',
+      requestChecksumCalculation: 'WHEN_REQUIRED',
       endpoint: 'https://account.r2.cloudflarestorage.com',
       forcePathStyle: true
     })

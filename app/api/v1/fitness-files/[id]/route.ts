@@ -93,8 +93,8 @@ export const GET = traceApiRoute(
           // GPS in every shared cache for a year, and outlived the visibility
           // change that was supposed to withdraw it.
           'Cache-Control': 'private, no-store',
-          // `contentType` comes from the stored object, and on the S3 path that
-          // value originates from the presigned upload's client-supplied field,
+          // `contentType` comes from the stored object, and on the S3 path a
+          // direct (non-presigned) upload stores the client's declared type,
           // which has no allow-list. Owner-only already reduces the worst case
           // from stored to self-XSS; these two make it inert — the browser may
           // not re-sniff the bytes into something scriptable, and it may not

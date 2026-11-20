@@ -54,7 +54,11 @@ describe('Strava archive presigned URL endpoint', () => {
 
   it.each([
     ['suspended', { suspendedAt: Date.now() }],
-    ['disabled', { account: { disabledAt: Date.now() } }]
+    ['disabled', { account: { disabledAt: Date.now() } }],
+    [
+      'unconfirmed',
+      { account: { verificationCode: 'code', emailVerified: false } }
+    ]
   ])('refuses a %s actor before issuing an upload URL', async (_, state) => {
     vi.mocked(getActorFromSession).mockResolvedValueOnce({
       id: 'https://llun.test/users/llun',
