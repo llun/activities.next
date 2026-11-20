@@ -171,7 +171,9 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = ({
         <div className="relative pb-3">
           {lineBelow ? <ThreadLineSegment className="inset-y-0" /> : null}
           {composer.active?.anchorId === node.status.id && currentActor ? (
-            <div className="pt-3">
+            // flow-root keeps the composer's own top margin inside this
+            // block, so the line segment runs through it.
+            <div className="flow-root">
               <InlineStatusComposer
                 key={`${composer.active.mode}-${composer.active.anchorId}`}
                 host={host}
@@ -232,7 +234,9 @@ export const ThreadFoldRow: FC<ThreadFoldRowProps> = ({ row, onToggle }) => {
   return (
     <div
       data-testid={`thread-fold-${row.key}`}
-      className="flex min-w-0 gap-3 py-1"
+      // Unpadded, so the rail column spans the whole row and meets the
+      // posts above and below; the button carries the row's spacing.
+      className="flex min-w-0 gap-3"
     >
       <div className="relative w-10 shrink-0">
         {row.fold === 'conversation' ? (
@@ -252,7 +256,7 @@ export const ThreadFoldRow: FC<ThreadFoldRowProps> = ({ row, onToggle }) => {
         onClick={() => onToggle(row.key)}
         aria-expanded={row.expanded}
         aria-label={row.expanded ? labels.hide : undefined}
-        className="inline-flex min-h-6 items-center gap-1 rounded-sm text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="my-1 inline-flex min-h-6 items-center gap-1 rounded-sm text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <Icon aria-hidden="true" className="size-3.5 text-primary" />
         <span>{row.expanded ? 'Hide' : labels.show}</span>

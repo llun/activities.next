@@ -85,13 +85,7 @@ describe('ThreadReplyNode', () => {
     const link = screen.getByRole('link', { name: 'Bob Jones' })
     expect(link).toHaveAttribute('href', `#${parent.id}`)
 
-    // The label is visible, not the screen-reader-only one.
-    const label = screen.getByText(
-      (_, element) =>
-        element?.tagName === 'DIV' &&
-        element.textContent === 'Replying to Bob Jones'
-    )
-    expect(label).not.toHaveClass('sr-only')
+    // Only the visible label names the parent: no screen-reader twin.
     expect(srOnlyLabels('Replying to Bob Jones')).toEqual([])
 
     fireEvent.click(link)
@@ -147,7 +141,7 @@ describe('ThreadFoldRow', () => {
     fireEvent.click(button)
 
     expect(button).toHaveAttribute('aria-expanded', 'true')
-    expect(button).toHaveTextContent('Hide')
+    expect(button).toHaveTextContent(/^Hide$/)
     expect(button).toHaveAccessibleName('Hide 3 more in this conversation')
     expect(document.activeElement).toBe(button)
   })

@@ -501,16 +501,38 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     })
   }
 
-  const renderCombinedBlocks = (entryIds: string[], blocks: CombinedBlock[]) =>
-    blocks.map((block, index) => {
-      const lead =
-        index === 0
-          ? getLeadContext(
+  const renderCombinedBlocks = (
+    entryIds: string[],
+    blocks: CombinedBlock[]
+  ) => {
+    const leads = blocks.map((block, index) =>
+      index === 0
+        ? {
+            ...getLeadContext(
               block.kind === 'run' ? block.parts[0].status : block.status,
               entryIds
-            )
-          : getLaterBlockContext(block, blocks[index - 1], entryIds)
-      if (block.kind === 'post') return renderPostItem(block.status, lead)
+            ),
+            answersAbove: false
+          }
+        : getLaterBlockContext(block, blocks[index - 1], entryIds)
+    )
+    // Two plain posts in a row join with the thread line like the post-by-post
+    // rendering; a combined run keeps its own rail and joins nothing.
+    const joinsAbove = (index: number) =>
+      index > 0 &&
+      index < blocks.length &&
+      blocks[index].kind === 'post' &&
+      blocks[index - 1].kind === 'post' &&
+      leads[index].answersAbove
+    return blocks.map((block, index) => {
+      const { answersAbove: _answersAbove, ...lead } = leads[index]
+      if (block.kind === 'post') {
+        return renderPostItem(block.status, {
+          ...lead,
+          lineAbove: joinsAbove(index),
+          lineBelow: joinsAbove(index + 1)
+        })
+      }
 
       // The composer may be anchored to any post of the run: a reply opened on
       // the visible last post of a collapsed thread stays open when the thread
@@ -560,6 +582,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
         />
       )
     })
+  }
 
   return (
     <>

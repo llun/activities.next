@@ -1186,6 +1186,47 @@ describe('TimelineFeed', () => {
           screen.queryByLabelText(/Reply to @|In reply to a post/)
         ).toBeNull()
       })
+
+      it('joins a reply that answers the post directly above it with the thread line after a combined run', () => {
+        const a1 = note('cb1', 0, '')
+        const a2 = note('cb2', MINUTE, a1.id)
+        const b1 = note('cb3', 2 * MINUTE, a2.id, mockBob)
+        const c1 = note('cb4', 3 * MINUTE, b1.id, mockCarol)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[c1, b1, a2, a1]}
+            currentActor={mockAlice}
+            showActions
+          />
+        )
+
+        const rowOf = (text: string) =>
+          screen.getByText(text).closest('article') as HTMLElement
+
+        // Alice's two posts combine into one card; Bob's and Carol's replies
+        // stay plain posts after it.
+        expect(screen.getByText(/2 of 2/)).toBeInTheDocument()
+
+        // Carol answers Bob, the post directly above her, so the line runs
+        // into her row and out of Bob's.
+        expect(
+          within(rowOf('Text of cb4')).queryAllByTestId('thread-line').length
+        ).toBeGreaterThan(0)
+        expect(
+          within(rowOf('Text of cb3')).queryAllByTestId('thread-line').length
+        ).toBeGreaterThan(0)
+
+        // Answering the post above leaves the reply preview out.
+        expect(
+          within(rowOf('Text of cb4')).queryByText(/In reply to/)
+        ).toBeNull()
+        expect(
+          within(rowOf('Text of cb4')).queryByLabelText(/^Reply to @/)
+        ).toBeNull()
+      })
     })
 
     it('collapses a thread that gains older parts instead of keeping it in full', () => {

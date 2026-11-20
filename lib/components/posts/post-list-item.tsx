@@ -179,7 +179,8 @@ export const PostListItem = memo(function PostListItem({
       />
       {/* The row's bottom padding, after the composer when it is open here;
           the line runs on through both to the next row. */}
-      <div className={cn('pb-3', threadLineBelow && 'relative')}>
+      {/* flow-root keeps the composer's own top margin inside this block. */}
+      <div className={cn('flow-root pb-3', threadLineBelow && 'relative')}>
         {threadLineBelow ? <ThreadLineSegment className="inset-y-0" /> : null}
         {activeComposer && currentActor ? (
           <InlineStatusComposer

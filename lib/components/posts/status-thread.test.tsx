@@ -439,7 +439,7 @@ describe('StatusThread', () => {
     // Now the rest of the chain is visible, behind the same button.
     expect(screen.getByText('Sub reply 2')).toBeInTheDocument()
     expect(screen.getByText('Sub reply 8')).toBeInTheDocument()
-    expect(toggleButton).toHaveTextContent('Hide')
+    expect(toggleButton).toHaveTextContent(/^Hide$/)
     expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
     expect(toggleButton).toHaveAccessibleName(
       'Hide 7 more in this conversation'
@@ -1836,6 +1836,96 @@ describe('StatusThread', () => {
       expect(
         document.querySelector('[aria-current]')?.getAttribute('data-testid')
       ).toBe(`status-${v2.id}`)
+    })
+
+    it('names the post above the opened row to screen readers once its own run is split', async () => {
+      const b1 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/run-b1',
+        actor: mockBob,
+        actorId: mockBob.id,
+        text: 'Bob run part 1',
+        createdAt: BASE_TIME
+      })
+      const b2 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/run-b2',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: b1.id,
+        text: 'Bob run part 2',
+        createdAt: BASE_TIME + MINUTE
+      })
+      const a1 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/run-a1',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: b2.id,
+        text: 'Alice answers Bob',
+        createdAt: BASE_TIME + 2 * MINUTE
+      })
+      const a2 = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/run-a2',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: a1.id,
+        text: 'Alice continues her run',
+        createdAt: BASE_TIME + 3 * MINUTE
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={a2}
+          ancestors={[b1, b2, a1]}
+          descendants={[]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 10 * MINUTE}
+        />
+      )
+
+      // Bob's two posts combine above; Alice's own run holds the opened post.
+      expect(screen.getAllByTestId('self-thread-run')).toHaveLength(2)
+
+      fireEvent.keyDown(
+        within(screen.getByTestId(`status-${a1.id}`)).getByRole('button', {
+          name: /^More actions/
+        }),
+        { key: 'ArrowDown' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Show as separate posts' })
+      )
+      await waitFor(() =>
+        expect(screen.getAllByTestId('self-thread-run')).toHaveLength(1)
+      )
+
+      // The opened post is a plain row directly under Alice's first post,
+      // joined to it by the line.
+      const focused = screen.getByTestId('focused-status')
+      expect(focused).toContainElement(screen.getByTestId(`status-${a2.id}`))
+      expect(
+        focused.querySelector('[data-testid="thread-line"].top-0')
+      ).not.toBeNull()
+      expect(
+        within(screen.getByTestId(`status-${a1.id}`)).queryAllByTestId(
+          'thread-line'
+        ).length
+      ).toBeGreaterThan(0)
+
+      // The row above is named to screen readers, and no visible "Replying to"
+      // line repeats it: the opened post answers Alice's first post, not the
+      // ancestor-run part its run as a whole answered.
+      const replyingToLeaves = Array.from(
+        focused.querySelectorAll<HTMLElement>('*')
+      ).filter(
+        (element) =>
+          element.textContent?.trim().startsWith('Replying to') &&
+          !Array.from(element.children).some((child) =>
+            child.textContent?.trim().startsWith('Replying to')
+          )
+      )
+      expect(replyingToLeaves).toHaveLength(1)
+      expect(replyingToLeaves[0]).toHaveClass('sr-only')
+      expect(replyingToLeaves[0]).toHaveTextContent('Replying to Alice Smith')
     })
 
     it('falls back to the actor id handle when the answered part’s actor is missing', () => {

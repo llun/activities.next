@@ -728,6 +728,13 @@ export const StatusThread: FC<StatusThreadProps> = ({
     index === ancestorRowEdges.length - 1
       ? focusedJoinsAbove
       : ancestorJoinsAbove[index + 1]
+  // Whether the opened block shows the visible "Replying to" line: the run
+  // passes it to its first header; a plain opened row only when it answers
+  // that part itself.
+  const focusedShowsReplyingTo =
+    isCombinedRun && selfThread.run
+      ? Boolean(replyingToLine)
+      : Boolean(replyingToLineProps && openedRowAnswersReplyingTo)
   // From the focused card's top edge to the opened avatar: its 16px padding,
   // the tint's 6px top padding (or the opened first part's own 22px), and the
   // "Replying to" line (20px) when it sits above the avatar.
@@ -875,7 +882,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
                       ) : null}
                       {composer.active?.anchorId === ancestor.id &&
                       currentActor ? (
-                        <div className="pt-3">
+                        <div className="flow-root">
                           <InlineStatusComposer
                             key={`${composer.active.mode}-${composer.active.anchorId}`}
                             host={host}
@@ -930,7 +937,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
             className={cn('top-0 left-[35px]', focusedLineAboveClass)}
           />
         ) : null}
-        {focusedJoinsAbove && !replyingToLine && focusedAboveName ? (
+        {focusedJoinsAbove && !focusedShowsReplyingTo && focusedAboveName ? (
           <span className="sr-only">Replying to {focusedAboveName}</span>
         ) : null}
         {isCombinedRun && selfThread.run ? (
