@@ -156,7 +156,9 @@ export const createStravaArchivePresignedUrl = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       fileName: archive.name,
-      contentType: archive.type || 'application/zip',
+      // The presigned PUT signs `Content-Type: application/zip`, so the request
+      // declares that type whatever the browser reports for the file.
+      contentType: 'application/zip',
       size: archive.size
     })
   })
@@ -196,8 +198,14 @@ export const startStravaArchiveImport = async (
     const { url, fitnessFileId, archiveId } = presignedResult.presigned
 
     try {
-      // Upload archive directly to ObjectStorage via presigned PUT.
-      await uploadFileToPresignedUrl({ presignedUrl: url, media: archive })
+      // Upload archive directly to ObjectStorage via presigned PUT. The URL
+      // signs `Content-Type: application/zip`, so the PUT must send exactly
+      // that, not whatever type the browser reported for the file.
+      await uploadFileToPresignedUrl({
+        presignedUrl: url,
+        media: archive,
+        contentType: 'application/zip'
+      })
     } catch {
       // Presigned PUT failed (e.g. CORS not configured on the bucket).
       // Fall through to the server-side upload path below.

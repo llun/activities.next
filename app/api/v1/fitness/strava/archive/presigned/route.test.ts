@@ -106,6 +106,71 @@ describe('Strava archive presigned URL endpoint', () => {
     expect(typeof body.presigned.archiveId).toBe('string')
   })
 
+  // Browsers report a ZIP as any of these types, or as an empty string, so the
+  // route accepts every alias and always hands the presigner application/zip —
+  // the one type the presigned PUT signs.
+  it.each([
+    ['application/zip'],
+    ['application/x-zip-compressed'],
+    ['application/x-zip'],
+    ['multipart/x-zip'],
+    [''],
+    [undefined]
+  ])('normalises contentType %s to application/zip', async (contentType) => {
+    mockGetPresignedFitnessFileUrl.mockResolvedValue({
+      url: 'https://s3.example.com/bucket',
+      fitnessFileId: 'fitness-file-id-1'
+    })
+
+    const body: Record<string, unknown> = {
+      fileName: 'export.zip',
+      size: 1024
+    }
+    if (contentType !== undefined) body.contentType = contentType
+
+    const req = new NextRequest(
+      'http://localhost/api/v1/fitness/strava/archive/presigned',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
+        body: JSON.stringify(body)
+      }
+    )
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    expect(mockGetPresignedFitnessFileUrl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ contentType: 'application/zip' })
+    )
+  })
+
+  it('returns 422 for a content type that is not a zip alias', async () => {
+    const req = new NextRequest(
+      'http://localhost/api/v1/fitness/strava/archive/presigned',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://test.llun.dev'
+        },
+        body: JSON.stringify({
+          fileName: 'export.zip',
+          contentType: 'text/html',
+          size: 1024
+        })
+      }
+    )
+
+    const response = await POST(req, { params: Promise.resolve({}) })
+    expect(response.status).toBe(422)
+    expect(mockGetPresignedFitnessFileUrl).not.toHaveBeenCalled()
+  })
+
   it('returns 422 on invalid input (non-zip file)', async () => {
     const req = new NextRequest(
       'http://localhost/api/v1/fitness/strava/archive/presigned',

@@ -563,11 +563,9 @@ describe('S3FitnessStorage uploads', () => {
         ContentLength: 2048
       })
       expect(put.Key).toMatch(/^fitness\/\d{4}-\d{2}-\d{2}\/[0-9a-f]{16}\.zip$/)
-      expect(getSignedUrl).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        { expiresIn: 3600 }
-      )
+      const [, , presignOptions] = vi.mocked(getSignedUrl).mock.calls[0]
+      expect(presignOptions?.expiresIn).toBe(3600)
+      expect(presignOptions?.signableHeaders?.has('content-type')).toBe(true)
       expect(database.createFitnessFile).toHaveBeenCalledWith({
         actorId: 'actor-1',
         path: put.Key!.replace('fitness/', ''),
@@ -578,6 +576,64 @@ describe('S3FitnessStorage uploads', () => {
         description: 'Strava export',
         importBatchId: 'batch-9'
       })
+    })
+
+    // The archive is always a ZIP: the type the client declares is ignored, so
+    // a browser's `application/x-zip-compressed` cannot change what is stored.
+    it('signs and stores application/zip whatever type the client declares', async () => {
+      await createStorage().getPresignedForSaveFileUrl(actor, {
+        fileName: 'export.zip',
+        contentType: 'application/x-zip-compressed',
+        size: 2048
+      })
+
+      const put = vi.mocked(PutObjectCommand).mock.calls[0][0]
+      expect(put.ContentType).toBe('application/zip')
+      expect(
+        vi.mocked(database.createFitnessFile).mock.calls[0][0].mimeType
+      ).toBe('application/zip')
+    })
+
+    // Regression: the presigner leaves Content-Type out of the signature unless
+    // asked, so the URL holder could PUT `text/html` under the archive key and
+    // have it served from the bucket's public hostname. Runs the REAL presigner
+    // on the exact command and options the driver built, so the assertion is on
+    // the URL S3 will verify, not on how the mock was called.
+    it('binds the archive content type into the presigned signature', async () => {
+      await createStorage().getPresignedForSaveFileUrl(actor, {
+        fileName: 'export.zip',
+        contentType: 'application/zip',
+        size: 2048
+      })
+
+      const [, command, options] = vi.mocked(getSignedUrl).mock.calls[0]
+      const actualS3 =
+        await vi.importActual<typeof import('@aws-sdk/client-s3')>(
+          '@aws-sdk/client-s3'
+        )
+      const { getSignedUrl: realGetSignedUrl } = await vi.importActual<
+        typeof import('@aws-sdk/s3-request-presigner')
+      >('@aws-sdk/s3-request-presigner')
+      const realClient = new actualS3.S3Client({
+        region: 'us-east-1',
+        credentials: { accessKeyId: 'test', secretAccessKey: 'test' }
+      })
+      const url = await realGetSignedUrl(
+        realClient,
+        new actualS3.PutObjectCommand(
+          (
+            command as {
+              input: ConstructorParameters<typeof PutObjectCommand>[0]
+            }
+          ).input
+        ),
+        options
+      )
+
+      const signedHeaders = new URL(url).searchParams
+        .get('X-Amz-SignedHeaders')
+        ?.split(';')
+      expect(signedHeaders).toContain('content-type')
     })
 
     it('refuses an upload that would exceed the quota before signing anything', async () => {

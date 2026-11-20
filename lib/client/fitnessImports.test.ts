@@ -153,6 +153,37 @@ describe('fitnessImports client module', () => {
       const result = await createStravaArchivePresignedUrl(file)
       expect(result?.presigned.url).toBe('https://storage/upload')
     })
+
+    // The presigned PUT signs `Content-Type: application/zip`, so the request
+    // must declare that type whatever the browser reports for the file.
+    it('declares application/zip whatever type the browser reports', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          presigned: {
+            url: 'https://storage/upload',
+            fitnessFileId: 'fit-1',
+            archiveId: 'arch-1'
+          }
+        }),
+        { status: 200 }
+      )
+      await createStravaArchivePresignedUrl(
+        new File(['zip'], 'export.zip', {
+          type: 'application/x-zip-compressed'
+        })
+      )
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/fitness/strava/archive/presigned',
+        expect.objectContaining({
+          body: JSON.stringify({
+            fileName: 'export.zip',
+            contentType: 'application/zip',
+            size: 3
+          })
+        })
+      )
+    })
   })
 
   describe('startStravaArchiveImport', () => {
@@ -212,6 +243,60 @@ describe('fitnessImports client module', () => {
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    })
+
+    // The presigned PUT signs `Content-Type: application/zip`, so the upload
+    // must send exactly that, not the browser's `application/x-zip-compressed`.
+    it('sends application/zip on the presigned PUT whatever the browser reports', async () => {
+      fetchMock
+        .mockResponseOnce(
+          JSON.stringify({
+            presigned: {
+              url: 'https://storage.example/archive.zip',
+              fitnessFileId: 'fitness-file-1',
+              archiveId: 'archive-1'
+            }
+          }),
+          { status: 200 }
+        )
+        .mockResponseOnce('', { status: 200 })
+        .mockResponseOnce(
+          JSON.stringify({
+            archiveId: 'archive-1',
+            batchId: 'batch-1',
+            importId: 'import-1'
+          }),
+          { status: 200 }
+        )
+
+      await startStravaArchiveImport(
+        new File([Buffer.from('zip-data')], 'export.zip', {
+          type: 'application/x-zip-compressed'
+        }),
+        'private'
+      )
+
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        1,
+        '/api/v1/fitness/strava/archive/presigned',
+        expect.objectContaining({
+          body: JSON.stringify({
+            fileName: 'export.zip',
+            contentType: 'application/zip',
+            size: 8
+          })
+        })
+      )
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        'https://storage.example/archive.zip',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/zip'
+          })
         })
       )
     })

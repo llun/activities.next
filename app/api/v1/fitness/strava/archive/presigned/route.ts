@@ -19,6 +19,15 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+// Browsers report a ZIP with any of these types (or none at all), so every
+// alias is accepted and normalised to the one type the presigned PUT signs.
+const ZIP_ARCHIVE_CONTENT_TYPES = new Set([
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-zip',
+  'multipart/x-zip'
+])
+
 const PresignedArchiveInput = z.object({
   fileName: z
     .string()
@@ -26,7 +35,15 @@ const PresignedArchiveInput = z.object({
       (name) => name.toLowerCase().endsWith('.zip'),
       'Only .zip archive files are accepted'
     ),
-  contentType: z.string().default('application/zip'),
+  contentType: z
+    .string()
+    .optional()
+    .transform((value) => (value ?? '').trim().toLowerCase())
+    .refine(
+      (value) => value === '' || ZIP_ARCHIVE_CONTENT_TYPES.has(value),
+      'Only zip archive files are accepted'
+    )
+    .transform(() => 'application/zip'),
   size: z
     .number()
     .positive()

@@ -28,6 +28,7 @@ import {
 } from '@/lib/config/mediaStorage'
 import { isTransientStorageError } from '@/lib/services/accountArchive/transientErrors'
 import { assertStorageFilePath } from '@/lib/services/medias/storagePath'
+import { PRESIGNED_UPLOAD_SIGNED_HEADERS } from '@/lib/services/storage/presignedUpload'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { logger } from '@/lib/utils/logger'
 
@@ -847,7 +848,11 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
 
   /**
    * A presigned PUT for an exact browser upload size when it fits S3's
-   * single-PUT limit. The signed content length makes S3 reject other sizes.
+   * single-PUT limit. The signed content length makes S3 reject other sizes,
+   * and the signed `Content-Type` makes it reject anything but a ZIP: the
+   * presigner leaves that header unsigned by default, so without it the URL
+   * holder could store the object as `text/html` — and an object that is never
+   * completed still sits in the bucket.
    */
   async getUploadUrl(
     key: string,
@@ -861,9 +866,13 @@ export class S3ArchiveObjectStore implements ArchiveObjectStore {
       new PutObjectCommand({
         Bucket: this.config.bucket,
         Key: assertArchiveKey(key),
+        ContentType: 'application/zip',
         ContentLength: size
       }),
-      { expiresIn: expiresInSec }
+      {
+        expiresIn: expiresInSec,
+        signableHeaders: PRESIGNED_UPLOAD_SIGNED_HEADERS
+      }
     )
   }
 

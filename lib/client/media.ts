@@ -119,17 +119,25 @@ export interface UploadFileToPresignedUrlParams {
   presignedUrl: string
   media: File
   headers?: Record<string, string>
+  /**
+   * Overrides the `Content-Type` sent with the PUT. A presigned URL that signs
+   * `Content-Type` rejects any other value, so a caller whose file type differs
+   * from the signed one (a ZIP a browser labels `application/x-zip-compressed`,
+   * or leaves empty) must pass the signed type here.
+   */
+  contentType?: string
 }
 
 export const uploadFileToPresignedUrl = async ({
   presignedUrl,
   media,
-  headers = {}
+  headers = {},
+  contentType
 }: UploadFileToPresignedUrlParams) => {
   const response = await fetch(presignedUrl, {
     method: 'PUT',
     body: media,
-    headers: { 'Content-Type': media.type, ...headers }
+    headers: { 'Content-Type': contentType ?? media.type, ...headers }
   })
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')

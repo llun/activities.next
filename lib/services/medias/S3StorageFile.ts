@@ -80,6 +80,7 @@ import {
 import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
 import { getAcceptedVideoDimensions } from '@/lib/services/medias/videoProbe'
+import { PRESIGNED_UPLOAD_SIGNED_HEADERS } from '@/lib/services/storage/presignedUpload'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
@@ -157,8 +158,6 @@ const PRESIGNED_UPLOAD_UNHOISTABLE_HEADERS = new Set([
   'x-amz-checksum-sha1',
   'x-amz-meta-checksumsha1'
 ])
-
-const PRESIGNED_UPLOAD_SIGNED_HEADERS = new Set(['content-type'])
 
 interface UploadImageOptions {
   isThumbnail?: boolean

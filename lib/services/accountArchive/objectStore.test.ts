@@ -13,6 +13,7 @@ import {
   type S3Client,
   UploadPartCommand
 } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import crypto from 'crypto'
 import fs from 'fs/promises'
 import http from 'http'
@@ -33,6 +34,14 @@ import {
   getArchiveStorageKey
 } from './objectStore'
 import { ARCHIVE_LEASE_GRACE_MS } from './saver'
+
+// Delegates to the real presigner so the URLs stay genuinely signed, while the
+// command it was handed stays inspectable.
+vi.mock('@aws-sdk/s3-request-presigner', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@aws-sdk/s3-request-presigner')>()
+  return { ...actual, getSignedUrl: vi.fn(actual.getSignedUrl) }
+})
 
 const readAll = async (stream: NodeJS.ReadableStream) => {
   const chunks: Buffer[] = []
@@ -973,6 +982,7 @@ describe('S3 range reads and presigned upload URLs', () => {
         credentials: { accessKeyId: 'AK', secretAccessKey: 'SK' }
       })
     )
+    vi.mocked(getSignedUrl).mockClear()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-27T00:00:00.000Z'))
     try {
@@ -992,6 +1002,15 @@ describe('S3 range reads and presigned upload URLs', () => {
       expect(signedUrl.searchParams.get('X-Amz-SignedHeaders')).toContain(
         'content-length'
       )
+      // The presigner leaves Content-Type unsigned unless asked, so the URL
+      // holder could otherwise store the archive as `text/html`.
+      expect(signedUrl.searchParams.get('X-Amz-SignedHeaders')).toContain(
+        'content-type'
+      )
+      const [, command] = vi.mocked(getSignedUrl).mock.calls[0]
+      expect((command as PutObjectCommand).input).toMatchObject({
+        ContentType: 'application/zip'
+      })
       expect(signedUrl.searchParams.get('X-Amz-Signature')).not.toBe(
         new URL(differentSizeUrl!).searchParams.get('X-Amz-Signature')
       )
