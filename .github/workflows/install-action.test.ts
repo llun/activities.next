@@ -117,6 +117,70 @@ describe('install composite action skipped build scripts', () => {
   })
 })
 
+const ESC = '\u001b'
+const colour = (text: string) => `${ESC}[1m${text}${ESC}[22m`
+const hyperlink = (url: string, text: string) =>
+  `${ESC}]8;;${url}${ESC}\\${text}${ESC}]8;;${ESC}\\`
+
+describe('install composite action YN0004 detection', () => {
+  it('disables colours and hyperlinks on the yarn command', () => {
+    expect(ACTION).toContain('YARN_ENABLE_COLORS=0')
+    expect(ACTION).toContain('YARN_ENABLE_HYPERLINKS=0')
+  })
+
+  it('passes when an allowlisted package is reported in colour', () => {
+    const { status } = runInstallStep([
+      {
+        output: [
+          colour(
+            '➤ YN0004: │ esbuild@npm:0.28.2 lists build scripts, but all build scripts have been disabled.'
+          )
+        ],
+        exit: 0
+      }
+    ])
+    expect(status).toBe(0)
+  })
+
+  it('passes when an allowlisted package is wrapped in a hyperlink', () => {
+    const { status } = runInstallStep([
+      {
+        output: [
+          `➤ YN0004: │ ${hyperlink('https://registry.npmjs.org/esbuild', 'esbuild')}@npm:0.28.2 lists build scripts, but all build scripts have been disabled.`
+        ],
+        exit: 0
+      }
+    ])
+    expect(status).toBe(0)
+  })
+
+  it('fails when an unknown package is reported in colour', () => {
+    const { status } = runInstallStep([
+      {
+        output: [
+          colour(
+            '➤ YN0004: │ evil-pkg@npm:1.0.0 lists build scripts, but all build scripts have been disabled.'
+          )
+        ],
+        exit: 0
+      }
+    ])
+    expect(status).toBe(1)
+  })
+
+  it('fails when an unknown package is wrapped in a hyperlink', () => {
+    const { status } = runInstallStep([
+      {
+        output: [
+          `➤ YN0004: │ ${hyperlink('https://registry.npmjs.org/evil-pkg', 'evil-pkg')}@npm:1.0.0 lists build scripts, but all build scripts have been disabled.`
+        ],
+        exit: 0
+      }
+    ])
+    expect(status).toBe(1)
+  })
+})
+
 describe('install composite action retry loop', () => {
   it('retries a YN0001 ECONNRESET transport error and succeeds on attempt 2', () => {
     const { status, attempts } = runInstallStep([

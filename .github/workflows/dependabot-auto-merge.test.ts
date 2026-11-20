@@ -107,6 +107,49 @@ describe('dependabot auto-merge workflow', () => {
     )
   })
 
+  it('verifies the sender and every commit are Dependabot before enabling', () => {
+    const trusted = step("Verify the sender and every commit are Dependabot's")
+
+    expect(trusted.block).toContain('SENDER: ${{ github.event.sender.login }}')
+    expect(trusted.block).toContain(
+      'PR_NUMBER: ${{ github.event.pull_request.number }}'
+    )
+    const body = runBody(trusted.block)
+    expect(body).toContain('"$SENDER" != \'dependabot[bot]\'')
+    expect(body).toContain(
+      'gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits"'
+    )
+    expect(body).toContain("--jq '.[].author.login'")
+    expect(body).toContain('"$authors" != \'dependabot[bot]\'')
+    expect(step('Enable auto-merge for Dependabot PRs').block).toContain(
+      "steps.trusted.outputs.ok == 'true'"
+    )
+  })
+
+  it('runs one job per PR and gives up after five minutes', () => {
+    expect(workflow).toContain(
+      'group: dependabot-auto-merge-${{ github.event.pull_request.number }}'
+    )
+    expect(workflow).toContain('cancel-in-progress: true')
+    expect(workflow).toContain('timeout-minutes: 5')
+  })
+
+  it('enables auto-merge only for the head commit it checked', () => {
+    expect(step('Enable auto-merge for Dependabot PRs').block).toContain(
+      'gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL"'
+    )
+  })
+
+  it('disables auto-merge without swallowing a failure', () => {
+    const review = runBody(step('Ask a human to review the new packages').block)
+
+    expect(review).toContain(
+      'gh pr view "$PR_URL" --json autoMergeRequest --jq \'.autoMergeRequest != null\''
+    )
+    expect(review).toContain('gh pr merge --disable-auto "$PR_URL"')
+    expect(review).not.toContain('|| true')
+  })
+
   it('never interpolates an expression into a run block', () => {
     for (const candidate of steps())
       expect(runBody(candidate.block), candidate.name).not.toContain('${{')

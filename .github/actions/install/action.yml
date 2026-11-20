@@ -12,14 +12,18 @@ runs:
         set +e -uo pipefail
         log=$(mktemp)
         for attempt in 1 2 3; do
-          yarn install --immutable 2>&1 | tee "$log"
+          # Colours and OSC-8 hyperlinks would wrap the YN0004 package name, so
+          # the check below could miss it (or match a hyperlink's URL instead).
+          YARN_ENABLE_COLORS=0 YARN_ENABLE_HYPERLINKS=0 yarn install --immutable 2>&1 | tee "$log"
           status=${PIPESTATUS[0]}
           if [ "$status" -eq 0 ]; then
             # enableScripts is false: a package whose install script is not known to be unneeded must be
             # reviewed (and given `built: true` in package.json if it truly needs it), not silently skipped.
             allowlist=.github/yarn-unneeded-build-scripts.txt
             [ -f "$allowlist" ] || { echo "::error::$allowlist is missing"; exit 1; }
-            unexpected=$(perl -ne 'print "$1\n" if /YN0004:\s+\S+\s+(\@?[^\@\s]+)\@/' "$log" \
+            # Strip OSC-8 hyperlinks and ANSI CSI sequences first: a coloured or
+            # hyperlinked YN0004 line must still yield the bare package name.
+            unexpected=$(perl -ne 's/\e\]8;;[^\e\a]*(?:\e\\|\a)//g; s/\e\[[0-9;?]*[ -\/]*[@-~]//g; print "$1\n" if /YN0004:\s+\S+\s+(\@?[^\@\s]+)\@/' "$log" \
               | sort -u | grep -vxF -f "$allowlist" || true)
             if [ -n "$unexpected" ]; then
               echo "::error::New packages want install scripts, which are disabled: $(echo $unexpected). Review them, then add each to .github/yarn-unneeded-build-scripts.txt or give it dependenciesMeta built: true."

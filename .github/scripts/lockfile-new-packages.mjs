@@ -5,52 +5,72 @@
 import console from 'node:console'
 import process from 'node:process'
 
-// A descriptor is `<name>@<protocol>:<range>`, e.g. `@scope/a@npm:^1.0.0` or
-// `name@npm:^1.0.0`. The name ends at the `@` that starts the range; a scoped
-// name starts with `@`, so its own `@` is skipped.
-const nameOfDescriptor = (descriptor) => {
-  const separator = descriptor.startsWith('@')
-    ? descriptor.indexOf('@', 1)
-    : descriptor.indexOf('@')
+// A locator is `<name>@<protocol>:<reference>`, e.g. `@scope/a@npm:1.0.0`.
+// The name ends at the `@` that starts the reference; a scoped name starts
+// with `@`, so its own `@` is skipped.
+const splitLocator = (locator) => {
+  const separator = locator.startsWith('@')
+    ? locator.indexOf('@', 1)
+    : locator.indexOf('@')
   if (separator <= 0) return null
-
-  const name = descriptor.slice(0, separator)
-  const range = descriptor.slice(separator + 1)
-  // Workspace entries (`@workspace:packages/foo`) are not registry packages.
-  if (range.startsWith('workspace:')) return null
-  // An npm alias (`alias@npm:real@^1`) installs `real`, so that is the name
-  // whose arrival matters.
-  if (range.startsWith('npm:')) {
-    const target = range.slice('npm:'.length)
-    const aliasSeparator = target.startsWith('@')
-      ? target.indexOf('@', 1)
-      : target.indexOf('@')
-    if (aliasSeparator > 0) return target.slice(0, aliasSeparator)
+  return {
+    name: locator.slice(0, separator),
+    reference: locator.slice(separator + 1)
   }
-  return name
 }
 
-// Top-level entry keys sit at column 0 and end with `:`; quoted keys end with
-// `":`. `__metadata` has no descriptor and is skipped by `nameOfDescriptor`.
-const entryKeys = (lockfile) =>
+// What an entry contributes to the comparison. A plain registry package is its
+// name, so a version bump is not "new". Anything else — a tarball URL, a
+// `file:`/`exec:`/`git:` source, a non-builtin patch, an `__archiveUrl` — is
+// the whole locator, so a new source always shows up as new.
+const contributionOf = (locator) => {
+  // Workspace entries (`@workspace:packages/foo`) are not registry packages.
+  if (locator.includes('@workspace:')) return null
+
+  const parts = splitLocator(locator)
+  if (!parts) return locator
+
+  if (parts.reference.startsWith('npm:')) {
+    const version = parts.reference.slice('npm:'.length)
+    // `name@npm:<version>` is the registry; a `::` suffix (e.g.
+    // `::__archiveUrl=`) means the tarball came from somewhere else.
+    if (version && !version.includes('::')) return parts.name
+    return locator
+  }
+
+  // A builtin compat patch (`name@patch:name@npm%3A…#optional!builtin<compat/…>`)
+  // is the package itself; any other patch is a source of its own.
+  if (
+    parts.reference.startsWith('patch:') &&
+    /@npm%3A[^#]*#.*builtin<compat\//.test(parts.reference)
+  )
+    return parts.name
+
+  return locator
+}
+
+// Each entry has exactly one `resolution:` line, indented two spaces. The
+// descriptor keys are not used: they can exceed 1024 characters and be written
+// as `? "…"` + `:` lines, and an alias chain (`npm:a@npm:b@…`) hides the real
+// name. `__metadata` has no resolution.
+const resolutions = (lockfile) =>
   lockfile
+    .replace(/\r\n/g, '\n')
     .split('\n')
-    .filter((line) => /^[^\s#].*:$/.test(line))
-    .map((line) =>
-      line.startsWith('"') ? line.slice(1, -2) : line.slice(0, -1)
-    )
+    .map((line) => /^ {2}resolution: (.*)$/.exec(line)?.[1])
+    .filter((value) => value !== undefined)
+    .map((value) => value.replace(/^"(.*)"$/, '$1'))
 
 /**
  * @param {string} lockfile  A Yarn Berry `yarn.lock` text.
- * @returns {Set<string>} Every package name the lockfile resolves.
+ * @returns {Set<string>} Every package name (or non-registry locator) the
+ *   lockfile resolves.
  */
 export const packageNames = (lockfile) => {
   const names = new Set()
-  for (const key of entryKeys(lockfile)) {
-    for (const descriptor of key.split(', ')) {
-      const name = nameOfDescriptor(descriptor.trim())
-      if (name) names.add(name)
-    }
+  for (const locator of resolutions(lockfile)) {
+    const contribution = contributionOf(locator)
+    if (contribution) names.add(contribution)
   }
   return names
 }

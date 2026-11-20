@@ -22,22 +22,38 @@ const lockfile = (entries: string[]) =>
     ...entries
   ].join('\n')
 
-const entry = (key: string, version: string) =>
+const entry = (key: string, version: string, resolution: string) =>
   [
     `"${key}":`,
     `  version: ${version}`,
-    `  resolution: "${key.split(', ')[0]}"`,
+    `  resolution: "${resolution}"`,
     ''
   ].join('\n')
 
+// Yarn writes a key longer than 1024 characters as `? "…"` + `: …` lines.
+const longKeyEntry = (key: string, version: string, resolution: string) =>
+  [
+    `? "${key}"`,
+    `: version: ${version}`,
+    `  resolution: "${resolution}"`,
+    ''
+  ].join('\n')
+
+const workspace = entry(
+  '@activities/pg@workspace:packages/pg',
+  '0.0.0-use.local',
+  '@activities/pg@workspace:packages/pg'
+)
+
 const base = lockfile([
-  entry('@activities/pg@workspace:packages/pg', '0.0.0-use.local'),
+  workspace,
   entry(
-    '@babel/code-frame@npm:^7.10.4, @babel/code-frame@npm:^7.29.7',
-    '7.29.7'
+    '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.29.7',
+    '7.29.7',
+    '@babel/code-frame@npm:7.29.7'
   ),
-  entry('react-is-18@npm:react-is@^18.3.1', '18.3.1'),
-  entry('zod@npm:^4.0.0', '4.0.0')
+  entry('react-is-18@npm:react-is@^18.3.1', '18.3.1', 'react-is@npm:18.3.1'),
+  entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0')
 ])
 
 describe('lockfile package names', () => {
@@ -59,34 +75,60 @@ describe('lockfile package names', () => {
 
   it('counts the real package behind an npm alias', () => {
     const aliased = lockfile([
-      entry('react-is-19@npm:react-is@^19.2.5', '19.2.5')
+      entry('react-is-19@npm:react-is@^19.2.5', '19.2.5', 'react-is@npm:19.2.5')
     ])
 
     expect([...packageNames(aliased)]).toEqual(['react-is'])
   })
 
-  it('counts a patch entry under its package name', () => {
+  it('counts a builtin compat patch under its package name', () => {
     const patched = lockfile([
       entry(
         'typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>',
-        '7.0.2'
+        '7.0.2',
+        'typescript@patch:typescript@npm%3A7.0.2#optional!builtin<compat/typescript>'
       )
     ])
 
     expect([...packageNames(patched)]).toEqual(['typescript'])
+  })
+
+  it('reads the resolution of an entry whose key is written as ? "…" + : lines', () => {
+    const long = lockfile([
+      longKeyEntry(
+        `${'@scope/long-name@npm:^1.0.0, '.repeat(40)}@scope/long-name@npm:^1.0.0`,
+        '1.0.0',
+        '@scope/long-name@npm:1.0.0'
+      )
+    ])
+
+    expect([...packageNames(long)]).toEqual(['@scope/long-name'])
+  })
+
+  it('normalises CRLF line endings', () => {
+    const crlf = lockfile([
+      entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0')
+    ]).replace(/\n/g, '\r\n')
+
+    expect([...packageNames(crlf)]).toEqual(['zod'])
   })
 })
 
 describe('new packages between two lockfiles', () => {
   it('reports nothing when only versions moved', () => {
     const head = lockfile([
-      entry('@activities/pg@workspace:packages/pg', '0.0.0-use.local'),
+      workspace,
       entry(
-        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@npm:^7.30.0',
-        '7.30.0'
+        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.30.0',
+        '7.30.0',
+        '@babel/code-frame@npm:7.30.0'
       ),
-      entry('react-is-18@npm:react-is@^18.3.1', '18.3.1'),
-      entry('zod@npm:^4.1.0', '4.1.0')
+      entry(
+        'react-is-18@npm:react-is@^18.3.1',
+        '18.3.1',
+        'react-is@npm:18.3.1'
+      ),
+      entry('zod@npm:^4.1.0', '4.1.0', 'zod@npm:4.1.0')
     ])
 
     expect(newPackages(base, head)).toEqual([])
@@ -94,10 +136,11 @@ describe('new packages between two lockfiles', () => {
 
   it('does not report a package the head lockfile dropped', () => {
     const head = lockfile([
-      entry('@activities/pg@workspace:packages/pg', '0.0.0-use.local'),
+      workspace,
       entry(
-        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@npm:^7.29.7',
-        '7.29.7'
+        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.29.7',
+        '7.29.7',
+        '@babel/code-frame@npm:7.29.7'
       )
     ])
 
@@ -106,15 +149,20 @@ describe('new packages between two lockfiles', () => {
 
   it('reports the names head gained, sorted', () => {
     const head = lockfile([
-      entry('@activities/pg@workspace:packages/pg', '0.0.0-use.local'),
+      workspace,
       entry(
-        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@npm:^7.29.7',
-        '7.29.7'
+        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.29.7',
+        '7.29.7',
+        '@babel/code-frame@npm:7.29.7'
       ),
-      entry('react-is-18@npm:react-is@^18.3.1', '18.3.1'),
-      entry('zod@npm:^4.0.0', '4.0.0'),
-      entry('@scope/new@npm:^1.0.0', '1.0.0'),
-      entry('another@npm:^2.0.0', '2.0.0')
+      entry(
+        'react-is-18@npm:react-is@^18.3.1',
+        '18.3.1',
+        'react-is@npm:18.3.1'
+      ),
+      entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0'),
+      entry('@scope/new@npm:^1.0.0', '1.0.0', '@scope/new@npm:1.0.0'),
+      entry('another@npm:^2.0.0', '2.0.0', 'another@npm:2.0.0')
     ])
 
     expect(newPackages(base, head)).toEqual(['@scope/new', 'another'])
@@ -122,17 +170,135 @@ describe('new packages between two lockfiles', () => {
 
   it('does not report an alias whose target the base lockfile has', () => {
     const head = lockfile([
-      entry('@activities/pg@workspace:packages/pg', '0.0.0-use.local'),
+      workspace,
       entry(
-        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@npm:^7.29.7',
-        '7.29.7'
+        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.29.7',
+        '7.29.7',
+        '@babel/code-frame@npm:7.29.7'
       ),
-      entry('react-is-18@npm:react-is@^18.3.1', '18.3.1'),
-      entry('zod@npm:^4.0.0', '4.0.0'),
-      entry('react-is-19@npm:react-is@^19.2.5', '19.2.5')
+      entry(
+        'react-is-18@npm:react-is@^18.3.1',
+        '18.3.1',
+        'react-is@npm:18.3.1'
+      ),
+      entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0'),
+      entry('react-is-19@npm:react-is@^19.2.5', '19.2.5', 'react-is@npm:19.2.5')
     ])
 
     expect(newPackages(base, head)).toEqual([])
+  })
+
+  it('reports the real name a chained alias resolves to', () => {
+    const head = lockfile([
+      workspace,
+      entry(
+        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.29.7',
+        '7.29.7',
+        '@babel/code-frame@npm:7.29.7'
+      ),
+      entry(
+        'react-is-18@npm:react-is@^18.3.1',
+        '18.3.1',
+        'react-is@npm:18.3.1'
+      ),
+      entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0'),
+      entry(
+        'alias@npm:react-is@npm:new-pkg@^1.0.0',
+        '1.0.0',
+        'new-pkg@npm:1.0.0'
+      )
+    ])
+
+    expect(newPackages(base, head)).toEqual(['new-pkg'])
+  })
+
+  it('reports a new package whose key is written as ? "…" + : lines', () => {
+    const head = lockfile([
+      workspace,
+      entry(
+        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.29.7',
+        '7.29.7',
+        '@babel/code-frame@npm:7.29.7'
+      ),
+      entry(
+        'react-is-18@npm:react-is@^18.3.1',
+        '18.3.1',
+        'react-is@npm:18.3.1'
+      ),
+      entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0'),
+      longKeyEntry(
+        `${'@scope/long-name@npm:^1.0.0, '.repeat(40)}@scope/long-name@npm:^1.0.0`,
+        '1.0.0',
+        '@scope/long-name@npm:1.0.0'
+      )
+    ])
+
+    expect(newPackages(base, head)).toEqual(['@scope/long-name'])
+  })
+
+  it('reports a new package when the head lockfile uses CRLF', () => {
+    const head = lockfile([
+      workspace,
+      entry(
+        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.29.7',
+        '7.29.7',
+        '@babel/code-frame@npm:7.29.7'
+      ),
+      entry(
+        'react-is-18@npm:react-is@^18.3.1',
+        '18.3.1',
+        'react-is@npm:18.3.1'
+      ),
+      entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0'),
+      entry('@scope/new@npm:^1.0.0', '1.0.0', '@scope/new@npm:1.0.0')
+    ]).replace(/\n/g, '\r\n')
+
+    expect(newPackages(base, head)).toEqual(['@scope/new'])
+  })
+
+  it('does not report a builtin compat patch of a package the base has', () => {
+    const head = lockfile([
+      workspace,
+      entry(
+        '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.29.7',
+        '7.29.7',
+        '@babel/code-frame@npm:7.29.7'
+      ),
+      entry(
+        'react-is-18@npm:react-is@^18.3.1',
+        '18.3.1',
+        'react-is@npm:18.3.1'
+      ),
+      entry(
+        'zod@patch:zod@npm%3A4.0.0#optional!builtin<compat/zod>',
+        '4.0.0',
+        'zod@patch:zod@npm%3A4.0.0#optional!builtin<compat/zod>'
+      )
+    ])
+
+    expect(newPackages(base, head)).toEqual([])
+  })
+
+  it.each([
+    ['a tarball URL', 'pkg@https://example.com/pkg-1.0.0.tgz'],
+    [
+      'an __archiveUrl',
+      'pkg@npm:1.0.0::__archiveUrl=https%3A%2F%2Fexample.com'
+    ],
+    ['a file: source', 'pkg@file:./vendor/pkg'],
+    ['an exec: source', 'pkg@exec:./scripts/build-pkg.js'],
+    ['a custom patch', 'pkg@patch:pkg@npm%3A1.0.0#./pkg.patch']
+  ])('reports %s under an existing name as new', (_label, locator) => {
+    const withPkg = lockfile([
+      workspace,
+      entry('pkg@npm:^1.0.0', '1.0.0', 'pkg@npm:1.0.0')
+    ])
+    const head = lockfile([
+      workspace,
+      entry('pkg@npm:^1.0.0', '1.0.0', locator)
+    ])
+
+    expect(newPackages(withPkg, head)).toEqual([locator])
   })
 })
 
@@ -146,14 +312,19 @@ describe('lockfile-new-packages CLI', () => {
       writeFileSync(
         headPath,
         lockfile([
-          entry('@activities/pg@workspace:packages/pg', '0.0.0-use.local'),
+          workspace,
           entry(
-            '@babel/code-frame@npm:^7.10.4, @babel/code-frame@npm:^7.29.7',
-            '7.29.7'
+            '@babel/code-frame@npm:^7.10.4, @babel/code-frame@^7.29.7',
+            '7.29.7',
+            '@babel/code-frame@npm:7.29.7'
           ),
-          entry('react-is-18@npm:react-is@^18.3.1', '18.3.1'),
-          entry('zod@npm:^4.0.0', '4.0.0'),
-          entry('@scope/new@npm:^1.0.0', '1.0.0')
+          entry(
+            'react-is-18@npm:react-is@^18.3.1',
+            '18.3.1',
+            'react-is@npm:18.3.1'
+          ),
+          entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0'),
+          entry('@scope/new@npm:^1.0.0', '1.0.0', '@scope/new@npm:1.0.0')
         ])
       )
 

@@ -15,6 +15,10 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     if: >-
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -53,20 +57,54 @@ jobs:
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Enable auto-merge for Dependabot PRs
-        if: steps.new-packages.outputs.found == 'false'
-        run: gh pr merge --auto --squash "$PR_URL"
-
-      - name: Ask a human to review the new packages
-        if: steps.new-packages.outputs.found == 'true'
+      # `pull_request.user.login` stays `dependabot[bot]` when someone else
+      # pushes to a Dependabot branch, so the author alone is not enough.
+      - name: Verify the sender and every commit are Dependabot's
+        id: trusted
+        env:
+          SENDER: ${{ github.event.sender.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          gh pr merge --disable-auto "$PR_URL" || true
+          if [ "$SENDER" != 'dependabot[bot]' ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "reason=the sender is $SENDER, not dependabot[bot]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          authors=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits" --jq '.[].author.login' | sort -u)
+          if [ "$authors" != 'dependabot[bot]' ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "reason=commits are authored by $(echo "$authors" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge for Dependabot PRs
+        if: steps.new-packages.outputs.found == 'false' && steps.trusted.outputs.ok == 'true'
+        run: gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
+
+      - name: Ask a human to review the new packages
+        if: steps.new-packages.outputs.found == 'true' || steps.trusted.outputs.ok != 'true'
+        env:
+          NEW_PACKAGES: ${{ steps.new-packages.outputs.found }}
+          TRUSTED: ${{ steps.trusted.outputs.ok }}
+          REASON: ${{ steps.trusted.outputs.reason }}
+        run: |
+          set -euo pipefail
+          if [ "$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest != null')" = 'true' ]; then
+            gh pr merge --disable-auto "$PR_URL"
+          fi
           {
-            echo "This Dependabot PR adds packages the base lockfile does not have:"
-            echo
-            sed 's/^/- /' "$RUNNER_TEMP/new-packages.txt"
-            echo
-            echo "A human must review them before this PR merges; auto-merge is off."
+            if [ "$NEW_PACKAGES" = 'true' ]; then
+              echo "This Dependabot PR adds packages the base lockfile does not have:"
+              echo
+              sed 's/^/- /' "$RUNNER_TEMP/new-packages.txt"
+              echo
+            fi
+            if [ "$TRUSTED" != 'true' ]; then
+              echo "This PR is not entirely Dependabot's: $REASON."
+              echo
+            fi
+            echo "A human must review this PR before it merges; auto-merge is off."
           } > "$RUNNER_TEMP/comment.md"
           gh pr comment "$PR_URL" --body-file "$RUNNER_TEMP/comment.md"
