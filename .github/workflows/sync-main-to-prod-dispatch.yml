@@ -122,7 +122,7 @@ jobs:
             core.setOutput('main_sha', sha)
 
       # PROD_DISPATCH_TOKEN is a fine-grained token limited to activities.prod with
-      # Actions: write only, so it can start the sync workflow but cannot push code.
+      # Actions: write only: it can start workflows there but cannot push code itself.
       - name: Dispatch sync workflow
         if: steps.select.outputs.ready == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

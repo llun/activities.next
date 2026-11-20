@@ -217,6 +217,16 @@ describe('daily activities.prod sync workflow', () => {
     )
     expect(workflow).toContain('github.rest.actions.createWorkflowDispatch({')
     expect(workflow).toContain("workflow_id: 'sync-upstream.yml'")
+    expect(workflow).toContain("ref: 'main'")
+    expect(workflow).toContain('main_sha: process.env.MAIN_SHA')
+    // Only the dispatch step holds the token.
+    const dispatchStep = workflow.slice(
+      workflow.indexOf('- name: Dispatch sync workflow')
+    )
+    expect(dispatchStep).toContain('secrets.PROD_DISPATCH_TOKEN')
+    expect(
+      workflow.slice(0, workflow.indexOf('- name: Dispatch sync workflow'))
+    ).not.toContain('PROD_DISPATCH_TOKEN }}')
     expect(workflow).not.toContain('PAT_TOKEN')
     expect(workflow).not.toContain('createDispatchEvent')
   })
