@@ -1,0 +1,31 @@
+.github/actions/install/action.yml
+  s_cdb56b6460d776::t_ce1be332eeecc4 23-24,27-37,40-54
+.github/scripts/lockfile-new-packages.mjs
+  s_cdb56b6460d776::t_74a7f018ff4c04 1-6,24-47,56-59,66,107-126,132-134,137,141-142,146
+.github/scripts/lockfile-new-packages.test.ts
+  s_cdb56b6460d776::t_200d18343410ca 9-13,288-291,298-310,325-380,420-450
+.github/workflows/dependabot-auto-merge.test.ts
+  s_cdb56b6460d776::t_66c9f2faabd4bc 61-66,90-106,110-112,117-119,125-140,153,159-161,163,165-167,187,190-191
+.github/workflows/dependabot-auto-merge.yml
+  s_cdb56b6460d776::t_f378d9149331d9 6-9,24-26,29-30,44-54,77-113,115-117,129-130,132,135-153,157,161,164,176-181
+.github/workflows/install-action.test.ts
+  s_cdb56b6460d776::t_d1e827a79fa132 157-166
+CONTRIBUTING.md
+  s_cdb56b6460d776::t_3bf2d2fc7135e1 190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "decf52b93232fa00f6c8c5207a995e5db34b5355",
+  "prompts": {},
+  "sessions": {
+    "s_cdb56b6460d776": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "48b74c67-4482-4bf0-bc3a-2b0f1ade6503",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
