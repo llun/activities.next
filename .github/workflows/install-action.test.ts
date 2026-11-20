@@ -89,6 +89,34 @@ const transportError: AttemptSpec = {
   exit: 1
 }
 
+describe('install composite action skipped build scripts', () => {
+  it('passes when only reviewed packages had their install scripts skipped', () => {
+    const { status } = runInstallStep([
+      {
+        output: [
+          '➤ YN0004: │ esbuild@npm:0.28.2 lists build scripts, but all build scripts have been disabled.',
+          '➤ YN0004: │ @swc/core@npm:1.16.22 [2e199] lists build scripts, but all build scripts have been disabled.'
+        ],
+        exit: 0
+      }
+    ])
+    expect(status).toBe(0)
+  })
+
+  it('fails when a new package wants an install script', () => {
+    const { status, attempts } = runInstallStep([
+      {
+        output: [
+          '➤ YN0004: │ evil-pkg@npm:1.0.0 lists build scripts, but all build scripts have been disabled.'
+        ],
+        exit: 0
+      }
+    ])
+    expect(status).toBe(1)
+    expect(attempts).toBe(1)
+  })
+})
+
 describe('install composite action retry loop', () => {
   it('retries a YN0001 ECONNRESET transport error and succeeds on attempt 2', () => {
     const { status, attempts } = runInstallStep([

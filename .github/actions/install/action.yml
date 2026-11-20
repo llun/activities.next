@@ -14,7 +14,19 @@ runs:
         for attempt in 1 2 3; do
           yarn install --immutable 2>&1 | tee "$log"
           status=${PIPESTATUS[0]}
-          [ "$status" -eq 0 ] && exit 0
+          if [ "$status" -eq 0 ]; then
+            # enableScripts is false: a package whose install script is not known to be unneeded must be
+            # reviewed (and given `built: true` in package.json if it truly needs it), not silently skipped.
+            allowlist=.github/yarn-unneeded-build-scripts.txt
+            [ -f "$allowlist" ] || { echo "::error::$allowlist is missing"; exit 1; }
+            unexpected=$(perl -ne 'print "$1\n" if /YN0004:\s+\S+\s+(\@?[^\@\s]+)\@/' "$log" \
+              | sort -u | grep -vxF -f "$allowlist" || true)
+            if [ -n "$unexpected" ]; then
+              echo "::error::New packages want install scripts, which are disabled: $(echo $unexpected). Review them, then add each to .github/yarn-unneeded-build-scripts.txt or give it dependenciesMeta built: true."
+              exit 1
+            fi
+            exit 0
+          fi
           if grep -q 'YN0028' "$log"; then
             echo "::error::yarn.lock would change (YN0028): commit the regenerated lockfile. Not retried."
             exit "$status"

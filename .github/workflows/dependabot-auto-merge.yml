@@ -1,5 +1,10 @@
 name: Dependabot Auto-Merge
 
+# `pull_request_target` runs this file from the base branch with a write token,
+# so it must never execute the PR's code: it checks out the base commit, reads
+# both lockfiles as data with `git show`, and runs the base branch's
+# `lockfile-new-packages.mjs`. A PR that adds a package name the base lockfile
+# does not have is left for a human; everything else gets auto-merge.
 on:
   pull_request_target:
 
@@ -9,17 +14,59 @@ permissions:
 
 jobs:
   auto-merge:
-    runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-      - name: Fetch Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@v3
+      - name: Checkout the base commit (never the PR head)
+        uses: actions/checkout@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Fetch the PR head commit
+        run: git fetch --no-tags origin "$HEAD_SHA"
+
+      - name: Read both lockfiles as data
+        run: |
+          set -euo pipefail
+          git show "$BASE_SHA:yarn.lock" > "$RUNNER_TEMP/base-yarn.lock"
+          git show "$HEAD_SHA:yarn.lock" > "$RUNNER_TEMP/head-yarn.lock"
+
+      - name: Check for new package names
+        id: new-packages
+        run: |
+          set -euo pipefail
+          node .github/scripts/lockfile-new-packages.mjs \
+            "$RUNNER_TEMP/base-yarn.lock" "$RUNNER_TEMP/head-yarn.lock" \
+            > "$RUNNER_TEMP/new-packages.txt"
+          if [ -s "$RUNNER_TEMP/new-packages.txt" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Enable auto-merge for Dependabot PRs
+        if: steps.new-packages.outputs.found == 'false'
         run: gh pr merge --auto --squash "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ask a human to review the new packages
+        if: steps.new-packages.outputs.found == 'true'
+        run: |
+          set -euo pipefail
+          gh pr merge --disable-auto "$PR_URL" || true
+          {
+            echo "This Dependabot PR adds packages the base lockfile does not have:"
+            echo
+            sed 's/^/- /' "$RUNNER_TEMP/new-packages.txt"
+            echo
+            echo "A human must review them before this PR merges; auto-merge is off."
+          } > "$RUNNER_TEMP/comment.md"
+          gh pr comment "$PR_URL" --body-file "$RUNNER_TEMP/comment.md"

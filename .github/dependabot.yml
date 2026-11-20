@@ -4,10 +4,12 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
-    # Yarn's npmMinimalAgeGate rejects versions published less than a day ago,
-    # so Dependabot must not propose them (its PRs would fail `yarn install`).
+    # Yarn's npmMinimalAgeGate (7 days, in .yarnrc.yml) rejects versions
+    # published more recently, so Dependabot must not propose them (its PRs
+    # would fail `yarn install`). Security updates ignore cooldown, so a fix
+    # younger than the gate needs an `npmPreapprovedPackages` entry to install.
     cooldown:
-      default-days: 2
+      default-days: 8
     groups:
       # The better-auth stack pins exact cross-package peer versions: better-auth
       # and @better-auth/core require a specific @better-fetch/fetch (e.g.
@@ -94,3 +96,5 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    cooldown:
+      default-days: 8
