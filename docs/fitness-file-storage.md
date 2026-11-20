@@ -55,6 +55,7 @@ Setting `ACTIVITIES_FITNESS_STORAGE_TYPE` to a non-empty value opts out of that 
 - `LocalFileFitnessStorage` (`lib/services/fitness-files/localFile.ts`) stores files on disk.
 - `S3FitnessStorage` (`lib/services/fitness-files/S3StorageFile.ts`) stores files in S3 or S3-compatible object storage.
 - Both implementations enforce file type, file size, and combined media + fitness quota checks before saving.
+- The Strava archive presigned PUT (`S3FitnessStorage.getPresignedForSaveFileUrl`) always stores `application/zip` and signs `Content-Type`, so the browser must send exactly that type. `POST /api/v1/fitness/strava/archive/presigned` accepts the ZIP aliases browsers report (`application/x-zip-compressed`, `application/x-zip`, `multipart/x-zip`, or an empty string) and normalises them to `application/zip`; any other type is a `422`.
 
 ## Database Schema
 

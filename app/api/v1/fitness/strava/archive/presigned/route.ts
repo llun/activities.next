@@ -8,6 +8,10 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
+import {
+  isActorConfirmationPending,
+  isActorModerationBlocked
+} from '@/lib/services/guards/accountState'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -19,6 +23,15 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+// Browsers report a ZIP with any of these types (or none at all), so every
+// alias is accepted and normalised to the one type the presigned PUT signs.
+const ZIP_ARCHIVE_CONTENT_TYPES = new Set([
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-zip',
+  'multipart/x-zip'
+])
+
 const PresignedArchiveInput = z.object({
   fileName: z
     .string()
@@ -26,7 +39,15 @@ const PresignedArchiveInput = z.object({
       (name) => name.toLowerCase().endsWith('.zip'),
       'Only .zip archive files are accepted'
     ),
-  contentType: z.string().default('application/zip'),
+  contentType: z
+    .string()
+    .optional()
+    .transform((value) => (value ?? '').trim().toLowerCase())
+    .refine(
+      (value) => value === '' || ZIP_ARCHIVE_CONTENT_TYPES.has(value),
+      'Only zip archive files are accepted'
+    )
+    .transform(() => 'application/zip'),
   size: z
     .number()
     .positive()
@@ -58,6 +79,15 @@ export const POST = traceApiRoute(
     const currentActor = await getActorFromSession(database, session)
     if (!currentActor) {
       return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
+    }
+
+    // The same account-state checks as AuthenticatedGuard: a suspended or
+    // unconfirmed actor must not get a bucket write it could never complete.
+    if (
+      isActorModerationBlocked(currentActor) ||
+      isActorConfirmationPending(currentActor)
+    ) {
+      return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
     }
 
     try {

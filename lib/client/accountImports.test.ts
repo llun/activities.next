@@ -83,11 +83,11 @@ describe('account archive upload client', () => {
     vi.unstubAllGlobals()
   })
 
-  it('uses a credential-free PUT without custom headers for a presigned upload', async () => {
+  it('uses a credential-free PUT that sends the signed application/zip type', async () => {
     vi.stubGlobal('XMLHttpRequest', FakeXMLHttpRequest)
     const onProgress = vi.fn()
     const file = new File(['archive'], 'backup.zip', {
-      type: 'application/zip'
+      type: 'application/x-zip-compressed'
     })
     const uploading = uploadAccountImport({
       actorId: 'actor-1',
@@ -104,7 +104,8 @@ describe('account archive upload client', () => {
     expect(xhr.method).toBe('PUT')
     expect(xhr.url).toBe('https://storage.example/upload?signature=secret')
     expect(xhr.withCredentials).toBe(false)
-    expect(xhr.requestHeaders).toEqual({})
+    // The presigned PUT signs Content-Type, so it must send exactly this.
+    expect(xhr.requestHeaders).toEqual({ 'Content-Type': 'application/zip' })
     expect(xhr.body).toBe(file)
     expect(onProgress).toHaveBeenCalledWith({ loaded: 3, total: 7 })
   })

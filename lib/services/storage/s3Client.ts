@@ -37,6 +37,12 @@ export const createStorageS3Client = ({
 
   return new S3Client({
     region,
+    // Since 3.729 the SDK adds a CRC32 of the request body by default. A
+    // presigned PUT has no body when it is signed, so the URL would carry the
+    // empty-body checksum (`x-amz-checksum-crc32=AAAAAA==`) and S3 would reject
+    // the browser's upload of the real file. Compute checksums only when an
+    // operation requires one; uploads that want integrity (media) set their own.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
     ...(requestTimeoutMs ? { maxAttempts: 1 } : null),
     ...(requestTimeoutMs
       ? {

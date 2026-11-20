@@ -211,6 +211,31 @@ describe('client media module', () => {
         'Failed to upload to storage: 403 Forbidden. Access denied'
       )
     })
+
+    // A presigned URL that signs Content-Type rejects any other value, so a
+    // caller whose file type differs from the signed one must override it.
+    it('sends the override content type instead of the file type', async () => {
+      fetchMock.mockResponseOnce('', { status: 200 })
+
+      const file = new File(['bytes'], 'archive.zip', {
+        type: 'application/x-zip-compressed'
+      })
+      await uploadFileToPresignedUrl({
+        presignedUrl: 'https://s3.example/upload',
+        media: file,
+        contentType: 'application/zip'
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://s3.example/upload',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/zip'
+          })
+        })
+      )
+    })
   })
 
   describe('completeUploadPresignedUrl', () => {

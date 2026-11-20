@@ -18,6 +18,7 @@ import {
 import { Database } from '@/lib/database/types'
 import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
+import { PRESIGNED_UPLOAD_SIGNED_HEADERS } from '@/lib/services/storage/presignedUpload'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { Actor } from '@/lib/types/domain/actor'
@@ -273,14 +274,25 @@ export class S3FitnessStorage implements FitnessStorage {
     // fall back to chunked transfer encoding for large bodies, causing S3 to
     // reject the request with 403 because the content-length-range policy
     // condition cannot be validated.
+    //
+    // The archive is always a ZIP, whatever type the caller declared: the
+    // presigned PUT signs `Content-Type`, so the stored object's type is fixed
+    // here rather than taken from the request.
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
-      ContentType: input.contentType,
+      ContentType: 'application/zip',
       ContentLength: input.size
     })
     // Strava archive ZIPs can be very large; allow 1 hour for the upload.
-    const url = await getSignedUrl(this._client, command, { expiresIn: 3600 })
+    const url = await getSignedUrl(this._client, command, {
+      expiresIn: 3600,
+      // The presigner leaves Content-Type UNSIGNED by default, so the holder of
+      // this URL could store the object as `text/html` — and an object that is
+      // never completed still sits in the bucket. Signing it binds the stored
+      // type to the ZIP type declared above.
+      signableHeaders: PRESIGNED_UPLOAD_SIGNED_HEADERS
+    })
 
     const storedFile = await this._database.createFitnessFile({
       actorId: actor.id,
@@ -289,7 +301,7 @@ export class S3FitnessStorage implements FitnessStorage {
       // untrusted even when a browser is the client.
       fileName: sanitizeStoredFileName(input.fileName),
       fileType: 'zip',
-      mimeType: input.contentType,
+      mimeType: 'application/zip',
       bytes: input.size,
       description: input.description,
       importBatchId: input.importBatchId

@@ -122,9 +122,9 @@ export const uploadAccountImport = ({
       : uploadUrl!
     xhr.open(direct ? 'POST' : 'PUT', url)
     xhr.withCredentials = direct
-    // The streamed route receives a raw archive body. Presigned S3 PUTs sign
-    // ContentLength only, so they must carry no application-added headers.
-    if (direct) xhr.setRequestHeader('Content-Type', 'application/zip')
+    // The streamed route receives a raw archive body, and the presigned S3 PUT
+    // signs `Content-Type`, so both must send exactly application/zip.
+    xhr.setRequestHeader('Content-Type', 'application/zip')
 
     xhr.upload.addEventListener('progress', (event) => {
       onProgress?.({

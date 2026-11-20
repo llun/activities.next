@@ -1323,9 +1323,11 @@ accepted); other follow requests keep the usual approval rules. See the
   row without one), each as `{ [kind or reason]: count }`.
 
   The presigned request requires `size` because the S3 PUT URL signs that exact
-  content length and expires after 15 minutes. When storage cannot provide a
-  presigned URL—local-file storage or an S3 upload over 5 GiB—`uploadUrl` is
-  `null` and `directUploadPath` names the import's streamed upload route.
+  content length and expires after 15 minutes. It also signs
+  `Content-Type: application/zip`, so the PUT must send exactly that type. When
+  storage cannot provide a presigned URL—local-file storage or an S3 upload over
+  5 GiB—`uploadUrl` is `null` and `directUploadPath` names the import's streamed
+  upload route.
 
   Each route checks the optional `Activities-Expected-Actor` header and returns
   `409` when it names another actor. A mismatched `actorId` query/body value is

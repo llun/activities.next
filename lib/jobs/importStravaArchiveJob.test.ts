@@ -448,6 +448,7 @@ describe('importStravaArchiveJob', () => {
 
     expect(S3Client).toHaveBeenCalledWith({
       region: 'auto',
+      requestChecksumCalculation: 'WHEN_REQUIRED',
       endpoint: 'https://storage.example.com',
       forcePathStyle: true
     })
