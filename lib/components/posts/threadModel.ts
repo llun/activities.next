@@ -390,6 +390,17 @@ export const getConversationFoldKey = (statusId: string) =>
   `conversation:${statusId}`
 export const getOthersFoldKey = (statusId: string) => `others:${statusId}`
 
+/** The open folds with `key` opened, or closed when it was open. */
+export const toggleFoldKey = (
+  folds: ReadonlySet<string>,
+  key: string
+): ReadonlySet<string> => {
+  const next = new Set(folds)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  return next
+}
+
 export const countThreadNodes = (nodes: readonly ThreadNode[]): number =>
   nodes.reduce((sum, node) => sum + 1 + node.totalDescendantCount, 0)
 

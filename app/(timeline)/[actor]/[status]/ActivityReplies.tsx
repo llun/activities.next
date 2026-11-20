@@ -28,7 +28,8 @@ import {
 import {
   buildThreadConversations,
   buildThreadTree,
-  getFoldKeysRevealing
+  getFoldKeysRevealing,
+  toggleFoldKey
 } from '@/lib/components/posts/threadModel'
 import type { InlineComposerControls } from '@/lib/components/posts/useInlineComposer'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
@@ -288,12 +289,7 @@ export const ActivityReplies: FC<ActivityRepliesProps> = ({
   )
 
   const toggleFold = (key: string) => {
-    setExpandedFolds((current) => {
-      const next = new Set(current)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
+    setExpandedFolds((current) => toggleFoldKey(current, key))
   }
 
   const handleReplyCreated = (reply: Status) => {

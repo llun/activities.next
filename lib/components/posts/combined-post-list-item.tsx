@@ -4,7 +4,6 @@ import { formatDistance } from 'date-fns/formatDistance'
 import { Rows3 } from 'lucide-react'
 import { FC, memo } from 'react'
 
-import { RAIL_LINE } from '@/lib/components/posts/thread-line'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -35,6 +34,7 @@ import { showsPrioritizableMedia } from './posts'
 import { ReactionRow } from './reaction-row'
 import { ReadOnlyStats } from './read-only-stats'
 import { StatusContextIndicator } from './status-context'
+import { RAIL_LINE } from './thread-line'
 import { TranslationProvider } from './translation-context'
 import {
   ActiveStatusComposer,

@@ -14,10 +14,6 @@ import {
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
-import {
-  getActorDisplayName,
-  getActorIdMention
-} from '@/lib/components/posts/actor'
 import { OPENED_ROW_TINT } from '@/lib/components/posts/combined-post-list-item'
 import { CombinedPart } from '@/lib/components/posts/combinedThreadModel'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
@@ -30,7 +26,9 @@ import {
   getRunMergedStatuses
 } from '@/lib/components/posts/selfThreadModel'
 import {
+  REPLYING_TO_LINK_CLASS_NAME,
   ThreadLineSegment,
+  focusStatusAnchor,
   getReplyTargetName
 } from '@/lib/components/posts/thread-line'
 import { ThreadLoadMore } from '@/lib/components/posts/thread-load-more'
@@ -42,7 +40,8 @@ import {
   buildThreadTree,
   getFoldKeysRevealing,
   getStatusReplyTargetId,
-  getStatusUrl
+  getStatusUrl,
+  toggleFoldKey
 } from '@/lib/components/posts/threadModel'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
 import { useOpenStatusPath } from '@/lib/components/posts/useOpenStatusPath'
@@ -58,7 +57,6 @@ import {
 import { Tag } from '@/lib/types/domain/tag'
 import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
-import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 export interface StatusThreadProps {
   host: string
@@ -83,9 +81,6 @@ export interface StatusThreadProps {
 }
 
 const EMPTY_STATUS_LIST: Status[] = []
-
-const REPLYING_TO_LINK_CLASS_NAME =
-  'rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
 
 interface ReplyingToLineProps {
   /** The author of the part being answered, or the handle of its actor id. */
@@ -119,6 +114,7 @@ const ReplyingToLine: FC<ReplyingToLineProps> = ({
         <a
           href={`#${statusId}`}
           className={REPLYING_TO_LINK_CLASS_NAME}
+          onClick={(event) => focusStatusAnchor(event, statusId)}
           aria-label={`Part ${partIndex + 1} of ${partCount} by ${name}`}
         >
           {partIndex + 1} of {partCount}
@@ -130,6 +126,7 @@ const ReplyingToLine: FC<ReplyingToLineProps> = ({
         <a
           href={`#${statusId}`}
           className={REPLYING_TO_LINK_CLASS_NAME}
+          onClick={(event) => focusStatusAnchor(event, statusId)}
           aria-label={`Post by ${name}`}
         >
           {name}
@@ -193,12 +190,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
     () => new Set()
   )
   const toggleFold = useCallback((key: string) => {
-    setExpandedFolds((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
+    setExpandedFolds((prev) => toggleFoldKey(prev, key))
   }, [])
   const [separateRows, setSeparateRows] = useState<Set<string>>(() => new Set())
   const [deletedStatusIds, setDeletedStatusIds] = useState<Set<string>>(
@@ -612,29 +604,18 @@ export const StatusThread: FC<StatusThreadProps> = ({
   // the viewer splits it into plain rows the part keeps its own anchor, and
   // the name alone links to it.
   const replyingToPart = selfThread.focusedReplyingTo
-  const replyingToActualStatus = replyingToPart
-    ? getActualStatus(replyingToPart.status)
-    : null
-  const replyingToActor = replyingToActualStatus?.actor ?? null
-  // `Status.actor` is nullable: fall back to the handle its actor id carries
-  // (as the boost line does). A name that is only the "@" separators is all a
-  // degenerate id yields, so the line is skipped rather than naming nothing.
-  const replyingToName =
-    (replyingToActor &&
-      (getActorDisplayName(replyingToActor) || replyingToActor.username)) ||
-    (replyingToActualStatus &&
-      getActorIdMention(
-        replyingToActualStatus.actorId,
-        replyingToActualStatus.url
-      )) ||
-    ''
+  // Empty when neither the actor nor its id yields a name: the line is then
+  // skipped rather than naming nothing.
+  const replyingToName = replyingToPart
+    ? getReplyTargetName(replyingToPart.status)
+    : ''
   const replyingToRunIsActive = replyingToPart
     ? activeAncestorRuns.some((run) =>
         run.parts.some((part) => part.status.id === replyingToPart.status.id)
       )
     : false
   const replyingToLineProps =
-    replyingToPart && replyingToName.replace(/@/g, '').trim()
+    replyingToPart && replyingToName
       ? {
           name: replyingToName,
           statusId: replyingToPart.status.id,

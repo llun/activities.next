@@ -2369,8 +2369,10 @@ consistency is enforced by keeping the wiring in one place rather than per page.
   as it is.
   Each row owns a separate `fullBleed` prop and the two default **differently**:
   `Actions` pulls unless a caller opts out, while `ReactionRow` pulls only when
-  asked (`Post` passes `fullBleed={showsActionRow}`, so chips with no action row
-  beneath them line up with the text instead of hanging off it). A surface with
+  asked (`Post` passes `fullBleed={showsActionRow && fullBleed}`, so chips with
+  no action row beneath them line up with the text instead of hanging off it;
+  `Post`'s own `fullBleed={false}` turns both off for a row the thread line
+  joins). A surface with
   no avatar column to pull back over ends up with neither — the fitness activity
   post, where each row already sits at its own container's padding edge: the
   reaction chips in the post body (`p-4`) and the action row alone in the footer

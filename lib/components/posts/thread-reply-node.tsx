@@ -6,6 +6,7 @@ import { FC } from 'react'
 import { InlineStatusComposer } from '@/lib/components/posts/lazy-inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import {
+  REPLYING_TO_LINK_CLASS_NAME,
   ThreadLineSegment,
   focusStatusAnchor,
   getReplyTargetName
@@ -55,9 +56,6 @@ export interface ThreadReplyNodeProps extends ThreadReplySharedProps {
   /** The row below answers this one and joins it with the thread line. */
   lineBelow?: boolean
 }
-
-const REPLYING_TO_LINK_CLASS_NAME =
-  'rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
 
 /**
  * One reply of a thread: its `Post` and the inline composer when it is open

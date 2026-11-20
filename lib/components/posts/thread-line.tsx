@@ -13,6 +13,10 @@ import { getActualStatus } from '@/lib/utils/text/processStatusText'
 // tall, so its centre (and the dot's) is 12px down: the dot sits at 7px.
 export const RAIL_LINE = 'absolute left-[19px] w-0.5 bg-border'
 
+/** A "Replying to" link to a post on the same page. */
+export const REPLYING_TO_LINK_CLASS_NAME =
+  'rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
+
 interface ThreadLineSegmentProps {
   /** Position and length, e.g. `top-0 h-3` or `inset-y-0`. */
   className: string
