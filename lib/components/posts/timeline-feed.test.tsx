@@ -1235,6 +1235,34 @@ describe('TimelineFeed', () => {
       expect(screen.getByLabelText('Reply to @bob')).toBeInTheDocument()
     })
 
+    it('joins a post that answers the one directly above it with the thread line', () => {
+      const a1 = note('tl1', 0, '')
+      const b1 = note('tl2', MINUTE, a1.id, mockBob)
+      const c1 = note('tl3', 2 * MINUTE, a1.id, mockCarol)
+
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentTime={BASE_TIME + 10 * MINUTE}
+          statuses={[c1, b1, a1]}
+          currentActor={mockAlice}
+          showActions
+        />
+      )
+
+      const rowOf = (text: string) =>
+        screen.getByText(text).closest('article') as HTMLElement
+
+      // b1 answers a1, the post directly above it, so the line runs into it.
+      expect(
+        within(rowOf('Text of tl2')).queryAllByTestId('thread-line').length
+      ).toBeGreaterThan(0)
+      // c1 answers a1, not b1, so no line joins it to the row above.
+      expect(
+        within(rowOf('Text of tl3')).queryAllByTestId('thread-line')
+      ).toEqual([])
+    })
+
     it('names the combined card for assistive technology', () => {
       render(
         <TimelineFeed

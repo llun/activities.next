@@ -6,11 +6,19 @@ import {
   mockAlice,
   mockBob,
   mockCarol,
-  mockDave
+  mockDave,
+  mockEve,
+  mockFrank
 } from '@/lib/components/posts/__fixtures__/timeline-context'
 import {
-  THREAD_COLLAPSE_THRESHOLD,
-  buildThreadTree
+  CONVERSATION_VISIBLE_POSTS,
+  THREAD_FOLD_THRESHOLD,
+  buildThreadConversations,
+  buildThreadTree,
+  countThreadNodes,
+  getConversationFoldKey,
+  getFoldKeysRevealing,
+  getOthersFoldKey
 } from '@/lib/components/posts/threadModel'
 
 describe('threadModel', () => {
@@ -141,7 +149,7 @@ describe('threadModel', () => {
     expect(c1Node.replies[0].parentUnavailable).toBeUndefined()
   })
 
-  it('expands all branches when total descendants < 10', () => {
+  it('shows no fold rows while the loaded replies stay under the fold threshold', () => {
     const a1 = createMockNote({
       id: 'https://activities.local/users/alice/statuses/a1',
       actor: mockAlice,
@@ -170,10 +178,12 @@ describe('threadModel', () => {
       descendants: [b1, c1]
     })
 
-    expect(tree.descendants[0].initiallyCollapsed).toBe(false)
+    expect(tree.totalDescendants).toBeLessThan(THREAD_FOLD_THRESHOLD)
+    const [conversation] = buildThreadConversations(tree.descendants)
+    expect(conversation.rows.map((row) => row.kind)).toEqual(['post', 'post'])
   })
 
-  it('collapses deeper branches when total descendants >= 10', () => {
+  it('folds a chain after three posts once the loaded replies reach the threshold', () => {
     const a1 = createMockNote({
       id: 'https://activities.local/users/alice/statuses/a1',
       actor: mockAlice,
@@ -195,13 +205,16 @@ describe('threadModel', () => {
         id: `https://activities.local/users/bob/statuses/sub-${i}`,
         actor: mockBob,
         actorId: mockBob.id,
-        reply: b1.id,
+        reply:
+          i === 0
+            ? b1.id
+            : `https://activities.local/users/bob/statuses/sub-${i - 1}`,
         createdAt: BASE_TIME + 2000 + i * 1000
       })
     )
 
     const allDescendants = [b1, ...replies]
-    expect(allDescendants.length).toBe(THREAD_COLLAPSE_THRESHOLD)
+    expect(allDescendants.length).toBe(THREAD_FOLD_THRESHOLD)
 
     const tree = buildThreadTree({
       focusedStatus: a1,
@@ -209,8 +222,405 @@ describe('threadModel', () => {
     })
 
     expect(tree.totalDescendants).toBe(10)
-    expect(tree.descendants[0].initiallyCollapsed).toBe(true)
     expect(tree.descendants[0].totalDescendantCount).toBe(9)
+
+    const [conversation] = buildThreadConversations(tree.descendants)
+    expect(conversation.rows.map((row) => row.kind)).toEqual([
+      'post',
+      'post',
+      'post',
+      'fold'
+    ])
+    // The chain's first three posts stay on the line.
+    expect(conversation.rows[0]).toMatchObject({
+      kind: 'post',
+      key: b1.id,
+      lineAbove: false,
+      lineBelow: true
+    })
+    expect(conversation.rows[1]).toMatchObject({
+      kind: 'post',
+      lineAbove: true,
+      lineBelow: true
+    })
+    expect(conversation.rows[2]).toMatchObject({
+      kind: 'post',
+      lineAbove: true,
+      lineBelow: true
+    })
+    expect(conversation.rows[3]).toMatchObject({
+      kind: 'fold',
+      fold: 'conversation',
+      key: getConversationFoldKey(b1.id),
+      hiddenCount: 10 - CONVERSATION_VISIBLE_POSTS,
+      expanded: false,
+      lineAbove: true,
+      lineBelow: false
+    })
+  })
+
+  it('keeps an expanded chain fold between the third and fourth posts, the line running on', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+    const b1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: a1.id,
+      createdAt: BASE_TIME + 1000
+    })
+    const replies = Array.from({ length: 9 }, (_, i) =>
+      createMockNote({
+        id: `https://activities.local/users/bob/statuses/sub-${i}`,
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply:
+          i === 0
+            ? b1.id
+            : `https://activities.local/users/bob/statuses/sub-${i - 1}`,
+        createdAt: BASE_TIME + 2000 + i * 1000
+      })
+    )
+    const tree = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [b1, ...replies]
+    })
+
+    const [conversation] = buildThreadConversations(
+      tree.descendants,
+      new Set([getConversationFoldKey(b1.id)])
+    )
+
+    expect(conversation.rows).toHaveLength(11)
+    expect(conversation.rows[3]).toMatchObject({
+      kind: 'fold',
+      fold: 'conversation',
+      expanded: true,
+      lineAbove: true,
+      lineBelow: true
+    })
+    expect(conversation.rows[4]).toMatchObject({
+      kind: 'post',
+      key: replies[2].id,
+      lineAbove: true
+    })
+  })
+
+  it('folds a shown post’s other replies into one fold after its chain', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+    const b1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: a1.id,
+      createdAt: BASE_TIME + 1000
+    })
+    const c1 = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/c1',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: b1.id,
+      createdAt: BASE_TIME + 2000
+    })
+    const d1 = createMockNote({
+      id: 'https://activities.local/users/dave/statuses/d1',
+      actor: mockDave,
+      actorId: mockDave.id,
+      reply: b1.id,
+      createdAt: BASE_TIME + 3000
+    })
+    const e1 = createMockNote({
+      id: 'https://activities.local/users/eve/statuses/e1',
+      actor: mockEve,
+      actorId: mockEve.id,
+      reply: d1.id,
+      createdAt: BASE_TIME + 4000
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [b1, c1, d1, e1]
+    })
+    expect(countThreadNodes(tree.descendants)).toBe(4)
+
+    // Forced on: the count alone would leave these four replies unfolded.
+    const [conversation] = buildThreadConversations(
+      tree.descendants,
+      new Set(),
+      true
+    )
+
+    expect(conversation.rows.map((row) => row.kind)).toEqual([
+      'post',
+      'post',
+      'fold'
+    ])
+    expect(conversation.rows[2]).toMatchObject({
+      kind: 'fold',
+      fold: 'others',
+      key: getOthersFoldKey(b1.id),
+      parent: b1,
+      hiddenCount: 2,
+      expanded: false
+    })
+  })
+
+  it('opens a post’s other replies in place when its fold is expanded', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+    const b1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: a1.id,
+      createdAt: BASE_TIME + 1000
+    })
+    const c1 = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/c1',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: b1.id,
+      createdAt: BASE_TIME + 2000
+    })
+    const d1 = createMockNote({
+      id: 'https://activities.local/users/dave/statuses/d1',
+      actor: mockDave,
+      actorId: mockDave.id,
+      reply: b1.id,
+      createdAt: BASE_TIME + 3000
+    })
+    const e1 = createMockNote({
+      id: 'https://activities.local/users/eve/statuses/e1',
+      actor: mockEve,
+      actorId: mockEve.id,
+      reply: d1.id,
+      createdAt: BASE_TIME + 4000
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [b1, c1, d1, e1]
+    })
+    const [conversation] = buildThreadConversations(
+      tree.descendants,
+      new Set([getOthersFoldKey(b1.id)]),
+      true
+    )
+
+    expect(conversation.rows.map((row) => row.kind)).toEqual([
+      'post',
+      'post',
+      'fold',
+      'post',
+      'post'
+    ])
+    expect(conversation.rows[2]).toMatchObject({
+      kind: 'fold',
+      fold: 'others',
+      expanded: true
+    })
+    expect(conversation.rows[3]).toMatchObject({ kind: 'post', key: d1.id })
+    expect(conversation.rows[4]).toMatchObject({ kind: 'post', key: e1.id })
+  })
+
+  it('puts a deeper post’s other replies before a shallower post’s', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+    const b1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: a1.id,
+      createdAt: BASE_TIME + 1000
+    })
+    const c1 = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/c1',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: b1.id,
+      createdAt: BASE_TIME + 2000
+    })
+    const d1 = createMockNote({
+      id: 'https://activities.local/users/dave/statuses/d1',
+      actor: mockDave,
+      actorId: mockDave.id,
+      reply: b1.id,
+      createdAt: BASE_TIME + 3000
+    })
+    const e1 = createMockNote({
+      id: 'https://activities.local/users/eve/statuses/e1',
+      actor: mockEve,
+      actorId: mockEve.id,
+      reply: c1.id,
+      createdAt: BASE_TIME + 4000
+    })
+    const f1 = createMockNote({
+      id: 'https://activities.local/users/frank/statuses/f1',
+      actor: mockFrank,
+      actorId: mockFrank.id,
+      reply: c1.id,
+      createdAt: BASE_TIME + 5000
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [b1, c1, d1, e1, f1]
+    })
+    const [conversation] = buildThreadConversations(tree.descendants)
+
+    // The chain is b1 → c1 → e1; f1 (c1's other reply) comes before d1
+    // (b1's other reply), depth-first.
+    expect(conversation.rows.map((row) => row.key)).toEqual([
+      b1.id,
+      c1.id,
+      e1.id,
+      f1.id,
+      d1.id
+    ])
+  })
+
+  it('keeps a fold open when more replies arrive under the same key', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+    const b1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: a1.id,
+      createdAt: BASE_TIME + 1000
+    })
+    const replies = Array.from({ length: 9 }, (_, i) =>
+      createMockNote({
+        id: `https://activities.local/users/bob/statuses/sub-${i}`,
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply:
+          i === 0
+            ? b1.id
+            : `https://activities.local/users/bob/statuses/sub-${i - 1}`,
+        createdAt: BASE_TIME + 2000 + i * 1000
+      })
+    )
+    const expandedFolds = new Set([getConversationFoldKey(b1.id)])
+
+    const before = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [b1, ...replies]
+    })
+    const [beforeConversation] = buildThreadConversations(
+      before.descendants,
+      expandedFolds
+    )
+    expect(beforeConversation.rows[3]).toMatchObject({
+      kind: 'fold',
+      expanded: true,
+      hiddenCount: 7
+    })
+
+    const extra = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/sub-9',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: replies[replies.length - 1].id,
+      createdAt: BASE_TIME + 20000
+    })
+    const after = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [b1, ...replies, extra]
+    })
+    const [afterConversation] = buildThreadConversations(
+      after.descendants,
+      expandedFolds
+    )
+    expect(afterConversation.rows[3]).toMatchObject({
+      kind: 'fold',
+      expanded: true,
+      hiddenCount: 8
+    })
+  })
+
+  it('folds on the caller’s word, whatever the loaded count', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+    const b1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: a1.id,
+      createdAt: BASE_TIME + 1000
+    })
+    const c1 = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/c1',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: b1.id,
+      createdAt: BASE_TIME + 2000
+    })
+    const d1 = createMockNote({
+      id: 'https://activities.local/users/dave/statuses/d1',
+      actor: mockDave,
+      actorId: mockDave.id,
+      reply: c1.id,
+      createdAt: BASE_TIME + 3000
+    })
+    const e1 = createMockNote({
+      id: 'https://activities.local/users/eve/statuses/e1',
+      actor: mockEve,
+      actorId: mockEve.id,
+      reply: d1.id,
+      createdAt: BASE_TIME + 4000
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: a1,
+      descendants: [b1, c1, d1, e1]
+    })
+
+    const [unfolded] = buildThreadConversations(tree.descendants)
+    expect(unfolded.rows.map((row) => row.kind)).toEqual([
+      'post',
+      'post',
+      'post',
+      'post'
+    ])
+
+    const [folded] = buildThreadConversations(tree.descendants, new Set(), true)
+    expect(folded.rows.map((row) => row.kind)).toEqual([
+      'post',
+      'post',
+      'post',
+      'fold'
+    ])
+    expect(folded.rows[3]).toMatchObject({
+      kind: 'fold',
+      fold: 'conversation',
+      hiddenCount: 1
+    })
   })
 
   it('handles cyclic descendant references gracefully', () => {
@@ -419,5 +829,98 @@ describe('threadModel', () => {
       newerPriorityReply.id,
       olderReply.id
     ])
+  })
+
+  it('keeps a priority reply nested under its parent in chronological place', () => {
+    const root = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/root',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+    const parent = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/parent',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: root.id,
+      createdAt: BASE_TIME + 1000
+    })
+    const olderChild = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/older-child',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: parent.id,
+      createdAt: BASE_TIME + 2000
+    })
+    const newerPriorityChild = createMockNote({
+      id: 'https://activities.local/users/dave/statuses/priority-child',
+      actor: mockDave,
+      actorId: mockDave.id,
+      reply: parent.id,
+      createdAt: BASE_TIME + 3000
+    })
+
+    const tree = buildThreadTree({
+      focusedStatus: root,
+      descendants: [parent, olderChild, newerPriorityChild],
+      priorityStatusIds: new Set([newerPriorityChild.id])
+    })
+
+    // The priority tier only lifts top-level replies: nested, the newer reply
+    // keeps its chronological place after the older one.
+    expect(tree.descendants.map((node) => node.status.id)).toEqual([parent.id])
+    expect(tree.descendants[0].replies.map((node) => node.status.id)).toEqual([
+      olderChild.id,
+      newerPriorityChild.id
+    ])
+  })
+
+  it('names every fold on the way to a reply, matching parents by id and url', () => {
+    const a1 = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/a1',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      createdAt: BASE_TIME
+    })
+    const b1 = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/b1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: a1.id,
+      createdAt: BASE_TIME + 1000
+    })
+    const c1 = createMockNote({
+      id: 'https://activities.local/users/carol/statuses/c1',
+      actor: mockCarol,
+      actorId: mockCarol.id,
+      reply: b1.id,
+      createdAt: BASE_TIME + 2000
+    })
+    const byId = createMockNote({
+      id: 'https://activities.local/users/dave/statuses/by-id',
+      actor: mockDave,
+      actorId: mockDave.id,
+      reply: c1.id,
+      createdAt: BASE_TIME + 3000
+    })
+    const byUrl = createMockNote({
+      id: 'https://activities.local/users/eve/statuses/by-url',
+      actor: mockEve,
+      actorId: mockEve.id,
+      reply: c1.url,
+      createdAt: BASE_TIME + 4000
+    })
+
+    const expected = [
+      getConversationFoldKey(c1.id),
+      getOthersFoldKey(c1.id),
+      getConversationFoldKey(b1.id),
+      getOthersFoldKey(b1.id),
+      getConversationFoldKey(a1.id),
+      getOthersFoldKey(a1.id)
+    ]
+
+    expect(getFoldKeysRevealing(byId, [a1, b1, c1])).toEqual(expected)
+    expect(getFoldKeysRevealing(byUrl, [a1, b1, c1])).toEqual(expected)
   })
 })

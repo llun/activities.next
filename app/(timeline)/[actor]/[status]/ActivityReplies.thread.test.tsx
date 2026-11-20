@@ -259,6 +259,19 @@ describe('ActivityReplies in a conversation', () => {
     expect(onLoadMoreDescendants).toHaveBeenCalledTimes(1)
   })
 
+  it('renders the replies through the shared conversation list', () => {
+    const activity = note('cl-ride', mockAlice, '', 0)
+    const b1 = note('cl-reply-1', mockBob, activity.id, 1)
+    const c1 = note('cl-reply-2', mockBob, b1.id, 2)
+
+    renderReplies({ status: activity, replies: [b1, c1] })
+
+    const list = screen.getByTestId('activity-replies-list')
+    // One conversation per top-level reply, its chain flattened into rows.
+    expect(within(list).getAllByTestId('thread-conversation')).toHaveLength(1)
+    expect(within(list).getAllByTestId('thread-node')).toHaveLength(2)
+  })
+
   it('offers "Load more replies" when no reply is loaded yet', () => {
     const activity = note('lm-empty', mockAlice, '', 0)
     const onLoadMoreDescendants = vi.fn()

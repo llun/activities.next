@@ -378,7 +378,7 @@ describe('StatusThread', () => {
     expect(screen.getByPlaceholderText(/Reply to Bob/i)).toBeInTheDocument()
   })
 
-  it('renders collapse toggle and expands collapsed branches on click', () => {
+  it('folds a long conversation after three posts and expands it on click', () => {
     const focused = createMockNote({
       id: 'https://activities.local/users/alice/statuses/focused',
       actor: mockAlice,
@@ -396,13 +396,17 @@ describe('StatusThread', () => {
       createdAt: BASE_TIME + 1000
     })
 
-    // Create 9 sub-replies so total descendants = 10 (triggers collapse)
-    const subReplies = Array.from({ length: 9 }, (_, i) =>
+    // A single-reply chain of ten posts: b1 and nine replies to the one before,
+    // so total descendants = 10 (the fold threshold).
+    const chain = Array.from({ length: 9 }, (_, i) =>
       createMockNote({
         id: `https://activities.local/users/carol/statuses/sub-${i}`,
         actor: mockCarol,
         actorId: mockCarol.id,
-        reply: b1.id,
+        reply:
+          i === 0
+            ? b1.id
+            : `https://activities.local/users/carol/statuses/sub-${i - 1}`,
         text: `Sub reply ${i}`,
         createdAt: BASE_TIME + 2000 + i * 1000
       })
@@ -412,24 +416,34 @@ describe('StatusThread', () => {
       <StatusThread
         host={host}
         status={focused}
-        descendants={[b1, ...subReplies]}
+        descendants={[b1, ...chain]}
         currentTime={BASE_TIME + 50000}
       />
     )
 
-    // Initially, sub-replies are collapsed
+    // The chain shows its first three posts, then the fold.
     expect(screen.getByText('Top level Bob reply')).toBeInTheDocument()
-    expect(screen.queryByText('Sub reply 0')).not.toBeInTheDocument()
+    expect(screen.getByText('Sub reply 0')).toBeInTheDocument()
+    expect(screen.getByText('Sub reply 1')).toBeInTheDocument()
+    expect(screen.queryByText('Sub reply 2')).not.toBeInTheDocument()
 
-    const toggleButton = screen.getByTestId(`toggle-replies-${b1.id}`)
-    expect(toggleButton).toHaveTextContent('Show 9 more replies')
+    const toggleButton = screen.getByTestId(
+      `thread-fold-toggle-conversation:${b1.id}`
+    )
+    expect(toggleButton).toHaveTextContent('Show 7 more in this conversation')
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
 
     // Click to expand
     fireEvent.click(toggleButton)
 
-    // Now sub-replies are visible
-    expect(screen.getByText('Sub reply 0')).toBeInTheDocument()
-    expect(toggleButton).toHaveTextContent('Hide replies')
+    // Now the rest of the chain is visible, behind the same button.
+    expect(screen.getByText('Sub reply 2')).toBeInTheDocument()
+    expect(screen.getByText('Sub reply 8')).toBeInTheDocument()
+    expect(toggleButton).toHaveTextContent('Hide')
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
+    expect(toggleButton).toHaveAccessibleName(
+      'Hide 7 more in this conversation'
+    )
   })
 
   it('renders unavailable parent boundary when parentUnavailable is true', () => {
@@ -468,6 +482,260 @@ describe('StatusThread', () => {
     ).toBeInTheDocument()
   })
 
+  describe('connected replies', () => {
+    const nodeRow = (id: string) =>
+      document.querySelector(`[data-node-id="${id}"]`) as HTMLElement
+
+    it('shows a short mixed-author conversation without folds, joined by the thread line', () => {
+      const focused = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/focused',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: 'Focused Status',
+        createdAt: BASE_TIME
+      })
+      const b1 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/b1',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: focused.id,
+        text: 'Bob answers the post',
+        createdAt: BASE_TIME + 1000
+      })
+      const c1 = createMockNote({
+        id: 'https://activities.local/users/carol/statuses/c1',
+        actor: mockCarol,
+        actorId: mockCarol.id,
+        reply: b1.id,
+        text: 'Carol answers Bob',
+        createdAt: BASE_TIME + 2000
+      })
+      const d1 = createMockNote({
+        id: 'https://activities.local/users/dave/statuses/d1',
+        actor: mockDave,
+        actorId: mockDave.id,
+        reply: focused.id,
+        text: 'Dave answers the post',
+        createdAt: BASE_TIME + 3000
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={focused}
+          descendants={[b1, c1, d1]}
+          currentTime={BASE_TIME + 10000}
+        />
+      )
+
+      // Under the fold threshold: no fold rows at all.
+      expect(
+        document.querySelectorAll('[data-testid^="thread-fold"]')
+      ).toHaveLength(0)
+      // One conversation per top-level reply.
+      expect(screen.getAllByTestId('thread-conversation')).toHaveLength(2)
+
+      // b1 continues into c1, which answers it.
+      expect(
+        within(nodeRow(b1.id)).queryAllByTestId('thread-line').length
+      ).toBeGreaterThan(0)
+      expect(
+        within(nodeRow(c1.id)).queryAllByTestId('thread-line').length
+      ).toBeGreaterThan(0)
+      // d1 starts its own conversation, so no line joins it to the row above.
+      expect(within(nodeRow(d1.id)).queryAllByTestId('thread-line')).toEqual([])
+    })
+
+    it('keeps an opened fold open when more replies arrive', () => {
+      const focused = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/focused',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: 'Focused Status',
+        createdAt: BASE_TIME
+      })
+      const b1 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/b1',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: focused.id,
+        text: 'Top level Bob reply',
+        createdAt: BASE_TIME + 1000
+      })
+      const chain = Array.from({ length: 9 }, (_, i) =>
+        createMockNote({
+          id: `https://activities.local/users/carol/statuses/sub-${i}`,
+          actor: mockCarol,
+          actorId: mockCarol.id,
+          reply:
+            i === 0
+              ? b1.id
+              : `https://activities.local/users/carol/statuses/sub-${i - 1}`,
+          text: `Sub reply ${i}`,
+          createdAt: BASE_TIME + 2000 + i * 1000
+        })
+      )
+
+      const { rerender } = render(
+        <StatusThread
+          host={host}
+          status={focused}
+          descendants={[b1, ...chain]}
+          currentTime={BASE_TIME + 50000}
+        />
+      )
+
+      const foldTestId = `thread-fold-toggle-conversation:${b1.id}`
+      expect(screen.getByTestId(foldTestId)).toHaveAttribute(
+        'aria-expanded',
+        'false'
+      )
+      fireEvent.click(screen.getByTestId(foldTestId))
+      expect(screen.getByTestId(foldTestId)).toHaveAttribute(
+        'aria-expanded',
+        'true'
+      )
+      expect(screen.getByText('Sub reply 8')).toBeInTheDocument()
+
+      const extra = createMockNote({
+        id: 'https://activities.local/users/carol/statuses/sub-9',
+        actor: mockCarol,
+        actorId: mockCarol.id,
+        reply: chain[chain.length - 1].id,
+        text: 'Sub reply 9',
+        createdAt: BASE_TIME + 20000
+      })
+      rerender(
+        <StatusThread
+          host={host}
+          status={focused}
+          descendants={[b1, ...chain, extra]}
+          currentTime={BASE_TIME + 50000}
+        />
+      )
+
+      // The fold is keyed by status id, so the new count leaves it open.
+      expect(screen.getByTestId(foldTestId)).toHaveAttribute(
+        'aria-expanded',
+        'true'
+      )
+      expect(screen.getByText('Sub reply 9')).toBeInTheDocument()
+    })
+
+    it('breaks the ancestor line where a side reply renders between the rows', () => {
+      const root = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/root',
+        actor: mockBob,
+        actorId: mockBob.id,
+        text: 'Root post',
+        createdAt: BASE_TIME
+      })
+      const mid = createMockNote({
+        id: 'https://activities.local/users/dave/statuses/mid',
+        actor: mockDave,
+        actorId: mockDave.id,
+        reply: root.id,
+        text: 'Mid post',
+        createdAt: BASE_TIME + 1000
+      })
+      const focused = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/focused',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: mid.id,
+        text: 'Focused Status',
+        createdAt: BASE_TIME + 2000
+      })
+      const sideReply = createMockNote({
+        id: 'https://activities.local/users/carol/statuses/side',
+        actor: mockCarol,
+        actorId: mockCarol.id,
+        reply: root.id,
+        text: 'Side reply to root',
+        createdAt: BASE_TIME + 3000
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={focused}
+          ancestors={[root, mid]}
+          descendants={[sideReply]}
+          currentTime={BASE_TIME + 10000}
+        />
+      )
+
+      const ancestors = screen.getAllByTestId('ancestor-status')
+      expect(ancestors).toHaveLength(2)
+      // The side reply renders under the root, between it and the mid row.
+      expect(
+        within(ancestors[0]).getByText('Side reply to root')
+      ).toBeInTheDocument()
+      // So the mid row does not join the root above it.
+      expect(
+        ancestors[1].querySelector('[data-testid="thread-line"].top-0')
+      ).toBeNull()
+      // The opened post still joins the row directly above it.
+      expect(
+        screen
+          .getByTestId('focused-status')
+          .querySelector('[data-testid="thread-line"].top-0')
+      ).not.toBeNull()
+    })
+
+    it('keeps the opened post marked and counts its replies in the heading', () => {
+      const root = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/root',
+        actor: mockBob,
+        actorId: mockBob.id,
+        text: 'Root post',
+        createdAt: BASE_TIME
+      })
+      const focused = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/focused',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: root.id,
+        text: 'Focused Status',
+        createdAt: BASE_TIME + 1000
+      })
+      const b1 = createMockNote({
+        id: 'https://activities.local/users/bob/statuses/b1',
+        actor: mockBob,
+        actorId: mockBob.id,
+        reply: focused.id,
+        text: 'Bob answers the post',
+        createdAt: BASE_TIME + 2000
+      })
+      const c1 = createMockNote({
+        id: 'https://activities.local/users/carol/statuses/c1',
+        actor: mockCarol,
+        actorId: mockCarol.id,
+        reply: b1.id,
+        text: 'Carol answers Bob',
+        createdAt: BASE_TIME + 3000
+      })
+
+      render(
+        <StatusThread
+          host={host}
+          status={focused}
+          ancestors={[root]}
+          descendants={[b1, c1]}
+          currentTime={BASE_TIME + 10000}
+        />
+      )
+
+      expect(screen.getByTestId(`status-${focused.id}`)).toHaveAttribute(
+        'aria-current',
+        'location'
+      )
+      expect(
+        screen.getByRole('heading', { name: 'Replies (2)' })
+      ).toBeInTheDocument()
+    })
+  })
+
   it('merges new reply into localDescendants, expands parent branch, and renders ReplyToast', async () => {
     const focused = createMockNote({
       id: 'https://activities.local/users/alice/statuses/focused',
@@ -486,7 +754,7 @@ describe('StatusThread', () => {
       createdAt: BASE_TIME + 1000
     })
 
-    // 9 sub-replies so total descendants = 10 (triggers initiallyCollapsed for b1)
+    // 9 sub-replies so total descendants = 10: b1's other replies fold.
     const subReplies = Array.from({ length: 9 }, (_, i) =>
       createMockNote({
         id: `https://activities.local/users/carol/statuses/sub-${i}`,
@@ -525,12 +793,16 @@ describe('StatusThread', () => {
       />
     )
 
-    // Initially, b1 is collapsed
+    // Initially, b1's other replies are folded behind one button.
     expect(screen.getByText('Top level Bob reply')).toBeInTheDocument()
-    expect(screen.queryByText('Sub reply 0')).not.toBeInTheDocument()
+    expect(screen.getByText('Sub reply 0')).toBeInTheDocument()
+    expect(screen.queryByText('Sub reply 1')).not.toBeInTheDocument()
     expect(
       screen.queryByText('Alice answers Bob in thread')
     ).not.toBeInTheDocument()
+    expect(
+      screen.getByTestId(`thread-fold-toggle-others:${b1.id}`)
+    ).toHaveTextContent('Show 8 other replies to Bob Jones')
 
     // Click reply on b1 (second reply button)
     const replyButtons = screen.getAllByLabelText(/Reply/i)
@@ -554,8 +826,9 @@ describe('StatusThread', () => {
       expect(screen.getByText('Reply posted')).toBeInTheDocument()
     })
 
-    // b1's branch should be expanded now
-    expect(screen.getByText('Sub reply 0')).toBeInTheDocument()
+    // The new reply opens every fold on its way, so it and the rest show.
+    expect(screen.getByText('Sub reply 1')).toBeInTheDocument()
+    expect(screen.getByText('Sub reply 8')).toBeInTheDocument()
     expect(screen.getByText('Alice answers Bob in thread')).toBeInTheDocument()
 
     // onReplyCreated callback was called with newReply
@@ -1467,8 +1740,12 @@ describe('StatusThread', () => {
       )
 
       // The run no longer renders as a run, so its "2 of 2" numbering is
-      // gone: the name alone links to the part's plain row.
-      const replyingToLine = screen.getByText(
+      // gone: the name alone links to the part's plain row. A joined ancestor
+      // row also names its parent to screen readers, so look at the opened
+      // post's own block.
+      const replyingToLine = within(
+        screen.getByTestId('focused-status')
+      ).getByText(
         (_, element) => element?.textContent === 'Replying to Alice Smith'
       )
       const nameLink = within(replyingToLine).getByRole('link', {
@@ -1541,9 +1818,11 @@ describe('StatusThread', () => {
       )
 
       // The opened post V2 replies to V1, not to Alice's part, so the run's
-      // line does not follow it onto the plain row.
+      // line does not follow it onto the plain row. (The plain ancestor row
+      // above still names Alice to screen readers, so look at the opened
+      // post's block.)
       expect(
-        screen.queryByText(
+        within(screen.getByTestId('focused-status')).queryByText(
           (_, element) => element?.textContent === 'Replying to Alice Smith'
         )
       ).toBeNull()

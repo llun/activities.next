@@ -68,6 +68,11 @@ export interface SelfThreadRunProps {
    * run may start above what the page has and its numbers could be wrong.
    */
   hidePartNumbers?: boolean
+  /**
+   * Run the rail on past the last part to the run's bottom edge, where the
+   * caller joins it to the next row (the next ancestor answers this run).
+   */
+  continueRailBelow?: boolean
   host: string
   currentTime: number
   currentActor?: ActorProfile
@@ -106,6 +111,8 @@ interface SelfThreadPartProps {
   hidePartNumbers?: boolean
   isFirstHeader: boolean
   isLastRendered: boolean
+  /** The rail goes on below the last part (`continueRailBelow`). */
+  railContinues?: boolean
   isOpened: boolean
   lastStatus: Status
   replyingTo?: ReactNode
@@ -143,6 +150,7 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
   hidePartNumbers = false,
   isFirstHeader,
   isLastRendered,
+  railContinues = false,
   isOpened,
   lastStatus,
   replyingTo,
@@ -233,7 +241,7 @@ const SelfThreadPart: FC<SelfThreadPartProps> = ({
         <CombinedPartRailColumn
           actualStatus={actualStatus}
           isFirst={isFirstHeader}
-          isLast={isLastRendered}
+          isLast={isLastRendered && !railContinues}
           isOpened={isOpened}
         />
 
@@ -371,6 +379,7 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
   startAt = 0,
   endBefore,
   hidePartNumbers = false,
+  continueRailBelow = false,
   host,
   currentTime,
   currentActor,
@@ -494,6 +503,7 @@ export const SelfThreadRun: FC<SelfThreadRunProps> = ({
               hidePartNumbers={hidePartNumbers}
               isFirstHeader={isFirstHeader}
               isLastRendered={isLastRendered}
+              railContinues={continueRailBelow}
               isOpened={isOpened}
               lastStatus={lastStatus}
               replyingTo={isFirstHeader ? replyingTo : undefined}

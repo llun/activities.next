@@ -377,6 +377,8 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     options?: {
       showReplyContext?: boolean
       parentPreview?: TimelineParentPreview | null
+      lineAbove?: boolean
+      lineBelow?: boolean
     }
   ) => (
     <PostListItem
@@ -390,6 +392,8 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
       postLineLimit={postLineLimit}
       showReplyContext={options?.showReplyContext}
       parentPreview={options?.parentPreview}
+      threadLineAbove={options?.lineAbove}
+      threadLineBelow={options?.lineBelow}
       prioritizeMedia={status.id === prioritizedStatusId}
       canCompose={canCompose}
       activeComposer={
@@ -440,14 +444,23 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
   ) => {
     const replyTarget = getStatusReplyTargetId(getActualStatus(first))
     if (!replyTarget)
-      return { showReplyContext: false, parentPreview: undefined }
+      return {
+        showReplyContext: false,
+        parentPreview: undefined,
+        answersAbove: false
+      }
     const parent = getRowStatuses(entryIds).find((status) =>
       getStatusAliases(getActualStatus(status)).includes(replyTarget)
     )
     if (parent && parent.id === above.id) {
-      return { showReplyContext: false, parentPreview: undefined }
+      return {
+        showReplyContext: false,
+        parentPreview: undefined,
+        answersAbove: true
+      }
     }
     return {
+      answersAbove: false,
       showReplyContext: true,
       parentPreview:
         timelineContext?.ancestorsById?.[replyTarget] ??
@@ -470,15 +483,23 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
 
   // The post-by-post rendering of a row: the first post shows the context of
   // what the row answers, every later one that of a parent not directly above.
-  const renderRowPosts = (statuses: Status[], entryIds: string[]) =>
-    statuses.map((status, index) =>
-      renderPostItem(
-        status,
-        index === 0
-          ? getLeadContext(status, entryIds)
-          : getContextAfter(status, statuses[index - 1], entryIds)
-      )
+  // A post that answers the one directly above joins it with the thread line,
+  // the same decision that leaves its reply preview out.
+  const renderRowPosts = (statuses: Status[], entryIds: string[]) => {
+    const contexts = statuses.map((status, index) =>
+      index === 0
+        ? { ...getLeadContext(status, entryIds), answersAbove: false }
+        : getContextAfter(status, statuses[index - 1], entryIds)
     )
+    return statuses.map((status, index) => {
+      const { answersAbove, ...context } = contexts[index]
+      return renderPostItem(status, {
+        ...context,
+        lineAbove: answersAbove,
+        lineBelow: Boolean(contexts[index + 1]?.answersAbove)
+      })
+    })
+  }
 
   const renderCombinedBlocks = (entryIds: string[], blocks: CombinedBlock[]) =>
     blocks.map((block, index) => {
