@@ -20,6 +20,8 @@ export const REPLYING_TO_LINK_CLASS_NAME =
 interface ThreadLineSegmentProps {
   /** Position and length, e.g. `top-0 h-3` or `inset-y-0`. */
   className: string
+  /** `above`: the stretch that joins this row to the row above it. */
+  edge?: 'above'
 }
 
 /**
@@ -28,11 +30,13 @@ interface ThreadLineSegmentProps {
  * by the row itself.
  */
 export const ThreadLineSegment: FC<ThreadLineSegmentProps> = ({
-  className
+  className,
+  edge
 }) => (
   <span
     aria-hidden="true"
     data-testid="thread-line"
+    data-edge={edge}
     className={cn(RAIL_LINE, className)}
   />
 )

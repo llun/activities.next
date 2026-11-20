@@ -673,13 +673,15 @@ describe('StatusThread', () => {
       ).toBeInTheDocument()
       // So the mid row does not join the root above it.
       expect(
-        ancestors[1].querySelector('[data-testid="thread-line"].top-0')
+        ancestors[1].querySelector(
+          '[data-testid="thread-line"][data-edge="above"]'
+        )
       ).toBeNull()
       // The opened post still joins the row directly above it.
       expect(
         screen
           .getByTestId('focused-status')
-          .querySelector('[data-testid="thread-line"].top-0')
+          .querySelector('[data-testid="thread-line"][data-edge="above"]')
       ).not.toBeNull()
     })
 
@@ -1903,7 +1905,7 @@ describe('StatusThread', () => {
       const focused = screen.getByTestId('focused-status')
       expect(focused).toContainElement(screen.getByTestId(`status-${a2.id}`))
       expect(
-        focused.querySelector('[data-testid="thread-line"].top-0')
+        focused.querySelector('[data-testid="thread-line"][data-edge="above"]')
       ).not.toBeNull()
       expect(
         within(screen.getByTestId(`status-${a1.id}`)).queryAllByTestId(
@@ -1931,7 +1933,7 @@ describe('StatusThread', () => {
     it('falls back to the actor id handle when the answered part’s actor is missing', () => {
       const m1 = createMockNote({
         id: 'https://activities.local/users/jasmine/statuses/no-actor-m1',
-        actor: mockAlice,
+        actor: { ...mockAlice, id: 'https://activities.local/users/jasmine' },
         actorId: 'https://activities.local/users/jasmine',
         text: 'Jasmine run part 1',
         createdAt: BASE_TIME

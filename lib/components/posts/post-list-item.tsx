@@ -141,7 +141,7 @@ export const PostListItem = memo(function PostListItem({
       )}
     >
       {threadLineAbove ? (
-        <ThreadLineSegment className="top-0 left-[35px] h-3" />
+        <ThreadLineSegment edge="above" className="top-0 left-[35px] h-3" />
       ) : null}
       <Post
         host={host}

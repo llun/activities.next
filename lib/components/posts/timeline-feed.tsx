@@ -516,14 +516,11 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
           }
         : getLaterBlockContext(block, blocks[index - 1], entryIds)
     )
-    // Two plain posts in a row join with the thread line like the post-by-post
-    // rendering; a combined run keeps its own rail and joins nothing.
+    // A block that answers the post directly above (a run's last part, for a
+    // run) joins it with the thread line, like the post-by-post rendering; a
+    // run's own rail carries the line into and out of it.
     const joinsAbove = (index: number) =>
-      index > 0 &&
-      index < blocks.length &&
-      blocks[index].kind === 'post' &&
-      blocks[index - 1].kind === 'post' &&
-      leads[index].answersAbove
+      index > 0 && index < blocks.length && leads[index].answersAbove
     return blocks.map((block, index) => {
       const { answersAbove: _answersAbove, ...lead } = leads[index]
       if (block.kind === 'post') {
@@ -560,6 +557,8 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
           postLineLimit={postLineLimit}
           showReplyContext={lead.showReplyContext}
           parentPreview={lead.parentPreview}
+          threadLineAbove={joinsAbove(index)}
+          threadLineBelow={joinsAbove(index + 1)}
           canCompose={canCompose}
           activeComposer={
             currentActor && composerAnchored ? composer.active : null

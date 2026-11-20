@@ -1227,6 +1227,43 @@ describe('TimelineFeed', () => {
           within(rowOf('Text of cb4')).queryByLabelText(/^Reply to @/)
         ).toBeNull()
       })
+
+      it('joins a reply to a combined run’s last part to the run with the thread line', () => {
+        const a1 = note('cr1', 0, '')
+        const a2 = note('cr2', MINUTE, a1.id)
+        const b1 = note('cr3', 2 * MINUTE, a2.id, mockBob)
+
+        render(
+          <TimelineFeed
+            host="activities.local"
+            currentTime={BASE_TIME + 10 * MINUTE}
+            statuses={[b1, a2, a1]}
+            currentActor={mockAlice}
+            showActions
+          />
+        )
+
+        const run = screen
+          .getByText('Text of cr1')
+          .closest('[data-combined-post]') as HTMLElement
+        const bobRow = screen
+          .getByText('Text of cr3')
+          .closest('article') as HTMLElement
+
+        // Bob answers the run's last part, directly above him: the line runs
+        // on below the run and into his row, and he shows no reply preview.
+        expect(screen.getByText(/2 of 2/)).toBeInTheDocument()
+        expect(
+          bobRow.querySelector('[data-testid="thread-line"][data-edge="above"]')
+        ).not.toBeNull()
+        // The two segments that carry the run's rail past its action bar and its
+        // padding down to Bob's row.
+        expect(
+          run.querySelectorAll('[data-testid="thread-line"]')
+        ).toHaveLength(2)
+        expect(within(bobRow).queryByText(/In reply to/)).toBeNull()
+        expect(within(bobRow).queryByLabelText(/^Reply to @/)).toBeNull()
+      })
     })
 
     it('collapses a thread that gains older parts instead of keeping it in full', () => {

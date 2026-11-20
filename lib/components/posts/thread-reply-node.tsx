@@ -111,7 +111,9 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = ({
       ) : null}
 
       <article className="relative pt-3">
-        {lineAbove ? <ThreadLineSegment className="top-0 h-3" /> : null}
+        {lineAbove ? (
+          <ThreadLineSegment edge="above" className="top-0 h-3" />
+        ) : null}
         {lineAbove && parentName ? (
           <span className="sr-only">Replying to {parentName}</span>
         ) : null}

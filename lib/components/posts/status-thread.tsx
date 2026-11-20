@@ -800,7 +800,10 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 )}
               >
                 {joinsAbove ? (
-                  <ThreadLineSegment className="top-0 left-[35px] h-4" />
+                  <ThreadLineSegment
+                    edge="above"
+                    className="top-0 left-[35px] h-4"
+                  />
                 ) : null}
                 {joinsAbove && aboveName(index - 1) ? (
                   <span className="sr-only">
@@ -934,6 +937,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
       >
         {focusedJoinsAbove ? (
           <ThreadLineSegment
+            edge="above"
             className={cn('top-0 left-[35px]', focusedLineAboveClass)}
           />
         ) : null}

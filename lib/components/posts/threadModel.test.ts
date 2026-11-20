@@ -200,7 +200,7 @@ describe('threadModel', () => {
       createdAt: BASE_TIME + 1000
     })
 
-    const replies = Array.from({ length: 9 }, (_, i) =>
+    const replies = Array.from({ length: THREAD_FOLD_THRESHOLD - 1 }, (_, i) =>
       createMockNote({
         id: `https://activities.local/users/bob/statuses/sub-${i}`,
         actor: mockBob,
@@ -221,8 +221,10 @@ describe('threadModel', () => {
       descendants: allDescendants
     })
 
-    expect(tree.totalDescendants).toBe(10)
-    expect(tree.descendants[0].totalDescendantCount).toBe(9)
+    expect(tree.totalDescendants).toBe(THREAD_FOLD_THRESHOLD)
+    expect(tree.descendants[0].totalDescendantCount).toBe(
+      THREAD_FOLD_THRESHOLD - 1
+    )
 
     const [conversation] = buildThreadConversations(tree.descendants)
     expect(conversation.rows.map((row) => row.kind)).toEqual([
@@ -252,7 +254,7 @@ describe('threadModel', () => {
       kind: 'fold',
       fold: 'conversation',
       key: getConversationFoldKey(b1.id),
-      hiddenCount: 10 - CONVERSATION_VISIBLE_POSTS,
+      hiddenCount: THREAD_FOLD_THRESHOLD - CONVERSATION_VISIBLE_POSTS,
       expanded: false,
       lineAbove: true,
       lineBelow: false
@@ -273,7 +275,7 @@ describe('threadModel', () => {
       reply: a1.id,
       createdAt: BASE_TIME + 1000
     })
-    const replies = Array.from({ length: 9 }, (_, i) =>
+    const replies = Array.from({ length: THREAD_FOLD_THRESHOLD - 1 }, (_, i) =>
       createMockNote({
         id: `https://activities.local/users/bob/statuses/sub-${i}`,
         actor: mockBob,
@@ -295,7 +297,7 @@ describe('threadModel', () => {
       new Set([getConversationFoldKey(b1.id)])
     )
 
-    expect(conversation.rows).toHaveLength(11)
+    expect(conversation.rows).toHaveLength(THREAD_FOLD_THRESHOLD + 1)
     expect(conversation.rows[3]).toMatchObject({
       kind: 'fold',
       fold: 'conversation',
@@ -510,7 +512,7 @@ describe('threadModel', () => {
       reply: a1.id,
       createdAt: BASE_TIME + 1000
     })
-    const replies = Array.from({ length: 9 }, (_, i) =>
+    const replies = Array.from({ length: THREAD_FOLD_THRESHOLD - 1 }, (_, i) =>
       createMockNote({
         id: `https://activities.local/users/bob/statuses/sub-${i}`,
         actor: mockBob,
@@ -535,7 +537,7 @@ describe('threadModel', () => {
     expect(beforeConversation.rows[3]).toMatchObject({
       kind: 'fold',
       expanded: true,
-      hiddenCount: 7
+      hiddenCount: THREAD_FOLD_THRESHOLD - CONVERSATION_VISIBLE_POSTS
     })
 
     const extra = createMockNote({
@@ -556,7 +558,7 @@ describe('threadModel', () => {
     expect(afterConversation.rows[3]).toMatchObject({
       kind: 'fold',
       expanded: true,
-      hiddenCount: 8
+      hiddenCount: THREAD_FOLD_THRESHOLD + 1 - CONVERSATION_VISIBLE_POSTS
     })
   })
 

@@ -34,7 +34,7 @@ import { showsPrioritizableMedia } from './posts'
 import { ReactionRow } from './reaction-row'
 import { ReadOnlyStats } from './read-only-stats'
 import { StatusContextIndicator } from './status-context'
-import { RAIL_LINE } from './thread-line'
+import { RAIL_LINE, ThreadLineSegment } from './thread-line'
 import { TranslationProvider } from './translation-context'
 import {
   ActiveStatusComposer,
@@ -99,6 +99,13 @@ export interface CombinedPostListItemProps {
     status: StatusNote | StatusPoll,
     reactions: StatusReaction[]
   ) => void
+  /**
+   * The thread line from the row above (the run's first post answers it) and
+   * on below the last part (the next row answers it), as `PostListItem` draws
+   * it for a single post.
+   */
+  threadLineAbove?: boolean
+  threadLineBelow?: boolean
 }
 
 // See `RAIL_LINE` for the column geometry the dot is centred on.
@@ -418,7 +425,9 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
   onPostDeleted,
   onBookmarkChanged,
   onLikeChanged,
-  onReactionsChanged
+  onReactionsChanged,
+  threadLineAbove = false,
+  threadLineBelow = false
 }: CombinedPostListItemProps) {
   const firstStatus = parts[0].status
   const lastStatus = parts[parts.length - 1].status
@@ -456,10 +465,16 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
   return (
     <article
       // See `PostListItem` for what `feed-row` contains.
-      className="feed-row min-h-0 min-w-0 px-4 py-3"
+      className={cn(
+        'feed-row min-h-0 min-w-0 px-4 pt-3',
+        (threadLineAbove || threadLineBelow) && 'relative'
+      )}
       aria-label={articleLabel}
       data-combined-post
     >
+      {threadLineAbove ? (
+        <ThreadLineSegment edge="above" className="top-0 left-[35px] h-3" />
+      ) : null}
       <TranslationProvider
         key={firstActual.id}
         statusId={firstActual.id}
@@ -546,7 +561,7 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
                   <CombinedPartRailColumn
                     actualStatus={actualStatus}
                     isFirst={isFirst}
-                    isLast={isLast}
+                    isLast={isLast && !threadLineBelow}
                   />
                   <div
                     className={cn('min-h-0 min-w-0 flex-1', !isLast && 'pb-3')}
@@ -631,51 +646,73 @@ export const CombinedPostListItem = memo(function CombinedPostListItem({
               part's translation scope and under the first post's. `ml-13` is
               what the bar's own `fullBleed` pulls back, so it starts at the
               row's left edge like a single post's. */}
-          <div className="ml-13">
-            <ReactionRow state={reactionState} fullBleed={showsActionRow} />
-            <Actions
-              host={host}
-              currentActor={currentActor}
-              currentTime={currentTime}
-              status={firstStatus}
-              editable={currentActor?.id === firstActual.actorId}
-              showActions={showActions}
-              reactionState={reactionState}
-              extraMenuItems={[separateItem]}
-              splitTargets={{
-                replyStatus: getOriginalStatus(lastStatus),
-                replyLabel: 'the latest post',
-                label: 'the first post',
-                menuLabel: 'this post group',
-                menuHeadings: { group: 'Post group', post: 'First post' }
-              }}
-              onReply={handleReply}
-              onEdit={handleEdit}
-              onQuote={handleQuote}
-              onPostDeleted={onPostDeleted}
-              onBookmarkChanged={onBookmarkChanged}
-              onLikeChanged={onLikeChanged}
-            />
-            {showReadOnlyStats && !showActions ? (
-              <ReadOnlyStats status={firstStatus} />
+          {/* With the line running on below, the bar starts at the text (as a
+              joined single post's does) and the line passes beside it, through
+              the column gap above too. */}
+          <div className={cn(threadLineBelow && 'relative')}>
+            {threadLineBelow ? (
+              <ThreadLineSegment className="-top-1 bottom-0" />
             ) : null}
+            <div
+              className={cn(
+                'ml-13',
+                threadLineBelow && showsActionRow && 'mt-2'
+              )}
+            >
+              <ReactionRow
+                state={reactionState}
+                fullBleed={showsActionRow && !threadLineBelow}
+              />
+              <Actions
+                fullBleed={!threadLineBelow}
+                host={host}
+                currentActor={currentActor}
+                currentTime={currentTime}
+                status={firstStatus}
+                editable={currentActor?.id === firstActual.actorId}
+                showActions={showActions}
+                reactionState={reactionState}
+                extraMenuItems={[separateItem]}
+                splitTargets={{
+                  replyStatus: getOriginalStatus(lastStatus),
+                  replyLabel: 'the latest post',
+                  label: 'the first post',
+                  menuLabel: 'this post group',
+                  menuHeadings: { group: 'Post group', post: 'First post' }
+                }}
+                onReply={handleReply}
+                onEdit={handleEdit}
+                onQuote={handleQuote}
+                onPostDeleted={onPostDeleted}
+                onBookmarkChanged={onBookmarkChanged}
+                onLikeChanged={onLikeChanged}
+              />
+              {showReadOnlyStats && !showActions ? (
+                <ReadOnlyStats status={firstStatus} />
+              ) : null}
+            </div>
           </div>
         </div>
       </TranslationProvider>
-      {activeComposer && currentActor ? (
-        <InlineStatusComposer
-          key={`${activeComposer.mode}-${activeComposer.anchorId}`}
-          host={host}
-          profile={currentActor}
-          mode={activeComposer.mode}
-          status={activeComposer.status}
-          isMediaUploadEnabled={isMediaUploadEnabled}
-          onCancel={close}
-          onReplyCreated={onReplyCreated}
-          onCreated={onStatusCreated}
-          onUpdated={onPostUpdated}
-        />
-      ) : null}
+      {/* The row's bottom padding, after the composer when it is open here;
+          flow-root keeps the composer's own top margin inside this block. */}
+      <div className={cn('flow-root pb-3', threadLineBelow && 'relative')}>
+        {threadLineBelow ? <ThreadLineSegment className="inset-y-0" /> : null}
+        {activeComposer && currentActor ? (
+          <InlineStatusComposer
+            key={`${activeComposer.mode}-${activeComposer.anchorId}`}
+            host={host}
+            profile={currentActor}
+            mode={activeComposer.mode}
+            status={activeComposer.status}
+            isMediaUploadEnabled={isMediaUploadEnabled}
+            onCancel={close}
+            onReplyCreated={onReplyCreated}
+            onCreated={onStatusCreated}
+            onUpdated={onPostUpdated}
+          />
+        ) : null}
+      </div>
     </article>
   )
 }, arePropsEqual)
