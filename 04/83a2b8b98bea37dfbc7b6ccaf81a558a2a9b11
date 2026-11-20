@@ -1,0 +1,51 @@
+lib/services/fitness-files/S3StorageFile.test.ts
+  s_4fb28ab57323fe::t_98785d31e54988 566-568,581-638
+app/api/v1/fitness/strava/archive/presigned/route.test.ts
+  s_4fb28ab57323fe::t_e105bfe2244ab7 109-173
+app/api/v1/fitness/strava/archive/presigned/route.ts
+  s_4fb28ab57323fe::t_d8620ccf24647c 22-30,38-46
+docs/fitness-file-storage.md
+  s_4fb28ab57323fe::t_90cdba44bc32a9 58
+docs/maintenance.md
+  s_4fb28ab57323fe::t_b576ce71e891c9 1206,1209
+docs/mastodon-api-compatibility.md
+  s_4fb28ab57323fe::t_637cb2769f78f7 1326-1330
+lib/client/accountImports.test.ts
+  s_4fb28ab57323fe::t_cb5d996e5f0a73 86,90,107-108
+lib/client/accountImports.ts
+  s_4fb28ab57323fe::t_eb546d34ed0ebb 125-127
+lib/client/fitnessImports.test.ts
+  s_4fb28ab57323fe::t_1967796e505176 156-186,249-302
+lib/client/fitnessImports.ts
+  s_4fb28ab57323fe::t_7c282e481258d4 159-161,201-208
+lib/client/media.test.ts
+  s_4fb28ab57323fe::t_31d0c9974d80b0 214-238
+lib/client/media.ts
+  s_4fb28ab57323fe::t_b2c181894b8d97 122-128,134-135,140
+lib/services/accountArchive/objectStore.test.ts
+  s_4fb28ab57323fe::t_633c80fd30bc2a 16,38-45,985,1005-1013
+lib/services/accountArchive/objectStore.ts
+  s_4fb28ab57323fe::t_3d9c52cc12a84e 31,851-855,869,872-875
+lib/services/fitness-files/S3StorageFile.ts
+  s_4fb28ab57323fe::t_ae3a4424b91fa1 21,277-280,284,288-295,304
+lib/services/medias/S3StorageFile.ts
+  s_4fb28ab57323fe::t_9f585ed860fc76 83
+lib/services/storage/presignedUpload.ts
+  s_4fb28ab57323fe::t_fdb1177e40b03b 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0483a2b8b98bea37dfbc7b6ccaf81a558a2a9b11",
+  "prompts": {},
+  "sessions": {
+    "s_4fb28ab57323fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "143ac5cb-61e1-4174-a644-dcb4b80dc66b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
