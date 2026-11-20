@@ -143,7 +143,7 @@ export const ThreadReplyNode: FC<ThreadReplyNodeProps> = ({
             showReadOnlyStats={!canCompose}
             editable={canCompose && currentActor?.id === actualStatus.actorId}
             collapsible
-            fullBleed={!lineBelow}
+            fullBleed={!lineAbove && !lineBelow}
             threadLineBelow={lineBelow}
             onReply={
               canCompose

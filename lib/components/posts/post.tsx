@@ -95,9 +95,10 @@ export interface PostProps {
   prioritizeMedia?: boolean
   isPinned?: boolean
   /**
-   * Off when the thread line runs on below this post's avatar: the reaction
-   * chips and action row then start at the text, as a run part's do, instead
-   * of reaching back across the avatar column the line runs down.
+   * Off for a row the thread line joins: the reaction chips and action row
+   * then start at the text, as a run part's do, instead of reaching back
+   * across the avatar column the line runs down (and every row of a joined
+   * chain lines up the same way).
    */
   fullBleed?: boolean
   /**

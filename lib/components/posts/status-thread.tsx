@@ -848,7 +848,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
                         status={ancestor}
                         showActions={canComposeFocused}
                         showReadOnlyStats={!canComposeFocused}
-                        fullBleed={!joinsBelow}
+                        fullBleed={!joinsAbove && !joinsBelow}
                         threadLineBelow={joinsBelow}
                         editable={
                           canComposeFocused &&
