@@ -1,0 +1,4 @@
+@swc/core
+bcrypt
+esbuild
+protobufjs

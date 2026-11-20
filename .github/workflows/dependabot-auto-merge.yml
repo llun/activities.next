@@ -1,5 +1,12 @@
 name: Dependabot Auto-Merge
 
+# `pull_request_target` runs this file from the base branch with a write token,
+# so it must never execute the PR's code: it checks out the base commit, reads
+# both lockfiles as data with `git show`, and runs the base branch's
+# `lockfile-new-packages.mjs`. Auto-merge is disabled first and enabled again
+# only when every check passes: no new package name, no version published in
+# the last 7 days, and at most 20 commits that are each Dependabot's and
+# GitHub-signed. Anything else is left for a human.
 on:
   pull_request_target:
 
@@ -9,17 +16,179 @@ permissions:
 
 jobs:
   auto-merge:
-    runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    # A PR can be retargeted to any branch, and the base branch's copy of this
+    # file is what runs with the write token, so only the default branch's
+    # checker may decide about auto-merge.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-      - name: Fetch Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@v3
+      - name: Checkout the base commit (never the PR head)
+        uses: actions/checkout@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Fail closed: a cancelled, failed or delayed run must not leave an
+      # auto-merge request armed. The last step re-enables it only when every
+      # check passed.
+      - name: Disable auto-merge until every check passes
+        run: |
+          set -euo pipefail
+          enabled=$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest != null')
+          if [ "$enabled" = 'true' ]; then
+            gh pr merge --disable-auto "$PR_URL"
+          fi
+
+      - name: Fetch the PR head commit
+        run: git fetch --no-tags origin "$HEAD_SHA"
+
+      # `pull_request.user.login` stays `dependabot[bot]` when someone else
+      # pushes to a Dependabot branch, so the author alone is not enough. Every
+      # commit between the base and the head must be Dependabot's and carry
+      # GitHub's signature (Dependabot signs its commits). Run this before
+      # reading the PR's lockfile so untrusted commits never reach the parser
+      # or `npm view`.
+      - name: Verify the sender and every commit are Dependabot's
+        id: trusted
+        env:
+          SENDER: ${{ github.event.sender.login }}
+        run: |
+          set -euo pipefail
+          if [ "$SENDER" != 'dependabot[bot]' ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "reason=the sender is $SENDER, not dependabot[bot]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          count=$(git rev-list --count "$BASE_SHA..$HEAD_SHA")
+          if [ "$count" -eq 0 ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "reason=there are no commits between the base and the head" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$count" -gt 20 ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "reason=the PR has $count commits, more than the 20 checked here" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for sha in $(git rev-list "$BASE_SHA..$HEAD_SHA"); do
+            if ! fields=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '[.author.login, .commit.verification.verified] | @tsv'); then
+              echo "ok=false" >> "$GITHUB_OUTPUT"
+              echo "reason=the commit $sha could not be read" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            author=${fields%%$'\t'*}
+            verified=${fields##*$'\t'}
+            if [ "$author" != 'dependabot[bot]' ] || [ "$verified" != 'true' ]; then
+              echo "ok=false" >> "$GITHUB_OUTPUT"
+              echo "reason=the commit $sha is authored by $author and verified=$verified" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Read both lockfiles as data
+        if: steps.trusted.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          git show "$BASE_SHA:yarn.lock" > "$RUNNER_TEMP/base-yarn.lock"
+          git show "$HEAD_SHA:yarn.lock" > "$RUNNER_TEMP/head-yarn.lock"
+
+      - name: Check for new package names
+        id: new-packages
+        if: steps.trusted.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          node .github/scripts/lockfile-new-packages.mjs \
+            "$RUNNER_TEMP/base-yarn.lock" "$RUNNER_TEMP/head-yarn.lock" \
+            > "$RUNNER_TEMP/new-packages.txt"
+          if [ -s "$RUNNER_TEMP/new-packages.txt" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Yarn's `npmMinimalAgeGate` does not re-check a version the PR's
+      # lockfile already pins, and Dependabot security updates ignore cooldown,
+      # so the publish time is checked here instead. `npm view` reads the
+      # registry; nothing is installed.
+      - name: Check the new versions are at least 7 days old
+        id: versions
+        if: steps.trusted.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          node .github/scripts/lockfile-new-packages.mjs --changed-versions \
+            "$RUNNER_TEMP/base-yarn.lock" "$RUNNER_TEMP/head-yarn.lock" \
+            > "$RUNNER_TEMP/changed-versions.txt"
+          : > "$RUNNER_TEMP/too-new.txt"
+          now=$(date -u +%s)
+          while IFS= read -r locator; do
+            [ -n "$locator" ] || continue
+            version=${locator##*@}
+            published=$(npm view --json -- "$locator" time 2>/dev/null \
+              | jq -r --arg version "$version" '.[$version] // empty') || published=''
+            if [ -z "$published" ]; then
+              echo "$locator (publish time unavailable)" >> "$RUNNER_TEMP/too-new.txt"
+              continue
+            fi
+            if ! published_epoch=$(date -u -d "$published" +%s); then
+              echo "$locator (publish time unreadable)" >> "$RUNNER_TEMP/too-new.txt"
+              continue
+            fi
+            age=$(( (now - published_epoch) / 86400 ))
+            if [ "$age" -lt 7 ]; then
+              echo "$locator (published $published)" >> "$RUNNER_TEMP/too-new.txt"
+            fi
+          done < "$RUNNER_TEMP/changed-versions.txt"
+          if [ -s "$RUNNER_TEMP/too-new.txt" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Enable auto-merge for Dependabot PRs
-        run: gh pr merge --auto --squash "$PR_URL"
+        if: steps.trusted.outputs.ok == 'true' && steps.new-packages.outputs.found == 'false' && steps.versions.outputs.found == 'false'
+        run: gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
+
+      - name: Ask a human to review the new packages
+        if: steps.trusted.outputs.ok != 'true' || steps.new-packages.outputs.found == 'true' || steps.versions.outputs.found == 'true'
         env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_PACKAGES: ${{ steps.new-packages.outputs.found }}
+          TOO_NEW: ${{ steps.versions.outputs.found }}
+          TRUSTED: ${{ steps.trusted.outputs.ok }}
+          REASON: ${{ steps.trusted.outputs.reason }}
+        run: |
+          set -euo pipefail
+          {
+            if [ "$TRUSTED" != 'true' ]; then
+              echo "This PR is not entirely Dependabot's: $REASON."
+              echo
+            else
+              if [ "$NEW_PACKAGES" = 'true' ]; then
+                echo "This Dependabot PR adds packages the base lockfile does not have:"
+                echo
+                sed 's/^/- /' "$RUNNER_TEMP/new-packages.txt"
+                echo
+              fi
+              if [ "$TOO_NEW" = 'true' ]; then
+                echo "These versions were published less than 7 days ago, or their publish time could not be read:"
+                echo
+                sed 's/^/- /' "$RUNNER_TEMP/too-new.txt"
+                echo
+              fi
+            fi
+            echo "A human must review this PR before it merges; auto-merge is off."
+          } > "$RUNNER_TEMP/comment.md"
+          gh pr comment "$PR_URL" --body-file "$RUNNER_TEMP/comment.md"

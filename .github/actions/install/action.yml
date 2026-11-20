@@ -12,9 +12,48 @@ runs:
         set +e -uo pipefail
         log=$(mktemp)
         for attempt in 1 2 3; do
-          yarn install --immutable 2>&1 | tee "$log"
+          # Colours and OSC-8 hyperlinks would wrap the YN0004 package name, so
+          # the check below could miss it (or match a hyperlink's URL instead).
+          YARN_ENABLE_COLORS=0 YARN_ENABLE_HYPERLINKS=0 yarn install --immutable 2>&1 | tee "$log"
           status=${PIPESTATUS[0]}
-          [ "$status" -eq 0 ] && exit 0
+          if [ "$status" -eq 0 ]; then
+            # enableScripts is false: a package whose install script is not known to be unneeded must be
+            # reviewed (and given `built: true` in package.json if it truly needs it), not silently skipped.
+            allowlist=.github/yarn-unneeded-build-scripts.txt
+            [ -r "$allowlist" ] || { echo "::error::$allowlist is missing or unreadable"; exit 1; }
+            [ -f "$log" ] && [ -r "$log" ] || { echo "::error::yarn install wrote no readable log to $log"; exit 1; }
+            # Strip OSC-8 hyperlinks and ANSI CSI sequences first: a coloured or
+            # hyperlinked YN0004 line must still yield the bare package name.
+            # Every YN0004 line must yield a name; one that does not fails the
+            # step instead of being skipped.
+            if ! names=$(perl -ne '
+              s/\e\]8;;[^\e\a]*(?:\e\\|\a)//g;
+              s/\e\[[0-9;?]*[ -\/]*[@-~]//g;
+              next unless /YN0004:/;
+              if (/YN0004:\s+(?:\S+\s+)?(\@?[^\s\@]+)\@/) { print "$1\n" }
+              else { print STDERR "could not parse a YN0004 line: $_"; $bad = 1 }
+              END { exit($bad ? 1 : 0) }
+            ' "$log"); then
+              echo "::error::Could not read a package name out of a YN0004 line in the install log."
+              exit 1
+            fi
+            if [ -n "$names" ]; then
+              # grep exits 1 when every name is allowlisted (nothing left) and
+              # 2 or more when it cannot read the allowlist; only 0 means an
+              # unreviewed package is left.
+              unexpected=$(printf '%s\n' "$names" | sort -u | grep -vxF -f "$allowlist")
+              grep_status=$?
+              if [ "$grep_status" -gt 1 ]; then
+                echo "::error::Could not compare the YN0004 packages with $allowlist."
+                exit 1
+              fi
+              if [ "$grep_status" -eq 0 ]; then
+                echo "::error::New packages want install scripts, which are disabled: $(echo $unexpected). Review them, then add each to .github/yarn-unneeded-build-scripts.txt or give it dependenciesMeta built: true."
+                exit 1
+              fi
+            fi
+            exit 0
+          fi
           if grep -q 'YN0028' "$log"; then
             echo "::error::yarn.lock would change (YN0028): commit the regenerated lockfile. Not retried."
             exit "$status"
