@@ -6,7 +6,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { newPackages, packageNames } from './lockfile-new-packages.mjs'
+import {
+  changedVersions,
+  newPackages,
+  packageNames
+} from './lockfile-new-packages.mjs'
 
 // A lockfile shaped like the real one: quoted descriptor lists, a workspace
 // entry, an npm alias, a patch entry and `__metadata`.
@@ -282,12 +286,28 @@ describe('new packages between two lockfiles', () => {
   it.each([
     ['a tarball URL', 'pkg@https://example.com/pkg-1.0.0.tgz'],
     [
+      'a tarball URL whose path contains @workspace:',
+      'pkg@https://example.com/@workspace:pkg-1.0.0.tgz'
+    ],
+    [
       'an __archiveUrl',
       'pkg@npm:1.0.0::__archiveUrl=https%3A%2F%2Fexample.com'
     ],
     ['a file: source', 'pkg@file:./vendor/pkg'],
     ['an exec: source', 'pkg@exec:./scripts/build-pkg.js'],
-    ['a custom patch', 'pkg@patch:pkg@npm%3A1.0.0#./pkg.patch']
+    ['a custom patch', 'pkg@patch:pkg@npm%3A1.0.0#./pkg.patch'],
+    [
+      'a builtin compat patch with a second &-joined patch',
+      'pkg@patch:pkg@npm%3A1.0.0#optional!builtin<compat/pkg>&./pkg.patch'
+    ],
+    [
+      'a builtin compat patch with a second ,-joined patch',
+      'pkg@patch:pkg@npm%3A1.0.0#optional!builtin<compat/pkg>,./pkg.patch'
+    ],
+    [
+      'a builtin compat patch of another package',
+      'pkg@patch:other@npm%3A1.0.0#optional!builtin<compat/other>'
+    ]
   ])('reports %s under an existing name as new', (_label, locator) => {
     const withPkg = lockfile([
       workspace,
@@ -299,6 +319,62 @@ describe('new packages between two lockfiles', () => {
     ])
 
     expect(newPackages(withPkg, head)).toEqual([locator])
+  })
+})
+
+describe('changed versions between two lockfiles', () => {
+  it('reports nothing when the versions did not move', () => {
+    expect(changedVersions(base, base)).toEqual([])
+  })
+
+  it('reports a bumped version as name@version', () => {
+    const head = lockfile([
+      workspace,
+      entry('zod@npm:^4.1.0', '4.1.0', 'zod@npm:4.1.0')
+    ])
+
+    expect(changedVersions(base, head)).toEqual(['zod@4.1.0'])
+  })
+
+  it('reports the version of a package the base lockfile does not have', () => {
+    const head = lockfile([
+      workspace,
+      entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0'),
+      entry('@scope/new@npm:^1.0.0', '1.0.0', '@scope/new@npm:1.0.0')
+    ])
+
+    expect(changedVersions(base, head)).toEqual(['@scope/new@1.0.0'])
+  })
+
+  it('reports the real package behind an npm alias', () => {
+    const head = lockfile([
+      workspace,
+      entry('zod@npm:^4.0.0', '4.0.0', 'zod@npm:4.0.0'),
+      entry('react-is-19@npm:react-is@^19.2.5', '19.2.5', 'react-is@npm:19.2.5')
+    ])
+
+    expect(changedVersions(base, head)).toEqual(['react-is@19.2.5'])
+  })
+
+  it.each([
+    ['a tarball URL', 'pkg@https://example.com/pkg-1.0.0.tgz'],
+    [
+      'an __archiveUrl',
+      'pkg@npm:1.0.0::__archiveUrl=https%3A%2F%2Fexample.com'
+    ],
+    ['a file: source', 'pkg@file:./vendor/pkg'],
+    ['a custom patch', 'pkg@patch:pkg@npm%3A1.0.0#./pkg.patch'],
+    [
+      'a builtin compat patch',
+      'pkg@patch:pkg@npm%3A1.0.0#optional!builtin<compat/pkg>'
+    ]
+  ])('ignores %s, which is not a registry version', (_label, locator) => {
+    const head = lockfile([
+      workspace,
+      entry('pkg@npm:^1.0.0', '1.0.0', locator)
+    ])
+
+    expect(changedVersions(base, head)).toEqual([])
   })
 })
 
@@ -337,6 +413,37 @@ describe('lockfile-new-packages CLI', () => {
 
       expect(result.status).toBe(0)
       expect(result.stdout).toBe('@scope/new\n')
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('prints the changed versions with --changed-versions', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'lockfile-new-packages-'))
+    try {
+      const basePath = join(directory, 'base.lock')
+      const headPath = join(directory, 'head.lock')
+      writeFileSync(basePath, base)
+      writeFileSync(
+        headPath,
+        lockfile([
+          workspace,
+          entry('zod@npm:^4.1.0', '4.1.0', 'zod@npm:4.1.0'),
+          entry('@scope/new@npm:^1.0.0', '1.0.0', '@scope/new@npm:1.0.0')
+        ])
+      )
+
+      const script = fileURLToPath(
+        new URL('./lockfile-new-packages.mjs', import.meta.url)
+      )
+      const result = spawnSync(
+        process.execPath,
+        [script, '--changed-versions', basePath, headPath],
+        { encoding: 'utf8' }
+      )
+
+      expect(result.status).toBe(0)
+      expect(result.stdout).toBe('@scope/new@1.0.0\nzod@4.1.0\n')
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }

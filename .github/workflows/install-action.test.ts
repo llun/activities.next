@@ -154,6 +154,16 @@ describe('install composite action YN0004 detection', () => {
     expect(status).toBe(0)
   })
 
+  it('fails when a YN0004 line names no package', () => {
+    const { status } = runInstallStep([
+      {
+        output: ['➤ YN0004: │ this line names no package at all'],
+        exit: 0
+      }
+    ])
+    expect(status).toBe(1)
+  })
+
   it('fails when an unknown package is reported in colour', () => {
     const { status } = runInstallStep([
       {

@@ -58,6 +58,12 @@ describe('dependabot auto-merge workflow', () => {
     expect(workflow).not.toContain('github.actor')
   })
 
+  it('only runs for a PR against the default branch', () => {
+    expect(workflow).toContain(
+      'github.event.pull_request.base.ref == github.event.repository.default_branch'
+    )
+  })
+
   it('checks out the base commit only, without persisted credentials', () => {
     const checkout = step('Checkout the base commit (never the PR head)')
 
@@ -81,17 +87,54 @@ describe('dependabot auto-merge workflow', () => {
     expect(workflow).not.toContain('yarn install')
   })
 
+  it('disables auto-merge first, before any check runs', () => {
+    const names = steps().map((candidate) => candidate.name)
+
+    expect(names[0]).toBe('Checkout the base commit (never the PR head)')
+    expect(names[1]).toBe('Disable auto-merge until every check passes')
+
+    const body = runBody(
+      step('Disable auto-merge until every check passes').block
+    )
+    expect(body).toContain('set -euo pipefail')
+    expect(body).toContain(
+      'gh pr view "$PR_URL" --json autoMergeRequest --jq \'.autoMergeRequest != null\''
+    )
+    expect(body).toContain('gh pr merge --disable-auto "$PR_URL"')
+    expect(body).not.toContain('|| true')
+  })
+
   it('checks for new packages before it decides about auto-merge', () => {
     const names = steps().map((candidate) => candidate.name)
     const check = names.indexOf('Check for new package names')
+    const versions = names.indexOf(
+      'Check the new versions are at least 7 days old'
+    )
     const enable = names.indexOf('Enable auto-merge for Dependabot PRs')
     const review = names.indexOf('Ask a human to review the new packages')
 
     expect(check).toBeGreaterThan(-1)
-    expect(enable).toBeGreaterThan(check)
-    expect(review).toBeGreaterThan(check)
+    expect(versions).toBeGreaterThan(check)
+    expect(enable).toBeGreaterThan(versions)
+    expect(review).toBeGreaterThan(versions)
     expect(step('Check for new package names').block).toContain(
       'node .github/scripts/lockfile-new-packages.mjs'
+    )
+  })
+
+  it('checks every new version is at least 7 days old', () => {
+    const versions = step('Check the new versions are at least 7 days old')
+
+    expect(versions.block).toContain('id: versions')
+    const body = runBody(versions.block)
+    expect(body).toContain('--changed-versions')
+    expect(body).toContain('npm view "$locator" time --json')
+    expect(body).toContain('"$age" -lt 7')
+    expect(step('Enable auto-merge for Dependabot PRs').block).toContain(
+      "steps.versions.outputs.found == 'false'"
+    )
+    expect(step('Ask a human to review the new packages').block).toContain(
+      "steps.versions.outputs.found == 'true'"
     )
   })
 
@@ -107,20 +150,21 @@ describe('dependabot auto-merge workflow', () => {
     )
   })
 
-  it('verifies the sender and every commit are Dependabot before enabling', () => {
+  it('verifies the sender and every commit are Dependabot-signed before enabling', () => {
     const trusted = step("Verify the sender and every commit are Dependabot's")
 
     expect(trusted.block).toContain('SENDER: ${{ github.event.sender.login }}')
-    expect(trusted.block).toContain(
-      'PR_NUMBER: ${{ github.event.pull_request.number }}'
-    )
     const body = runBody(trusted.block)
     expect(body).toContain('"$SENDER" != \'dependabot[bot]\'')
+    expect(body).toContain('git rev-list --count "$BASE_SHA..$HEAD_SHA"')
+    expect(body).toContain('"$count" -gt 20')
+    expect(body).toContain('for sha in $(git rev-list "$BASE_SHA..$HEAD_SHA")')
     expect(body).toContain(
-      'gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits"'
+      'gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq \'[.author.login, .commit.verification.verified] | @tsv\''
     )
-    expect(body).toContain("--jq '.[].author.login'")
-    expect(body).toContain('"$authors" != \'dependabot[bot]\'')
+    expect(body).toContain('"$author" != \'dependabot[bot]\'')
+    expect(body).toContain('"$verified" != \'true\'')
+    expect(body).not.toContain('pulls/$PR_NUMBER/commits')
     expect(step('Enable auto-merge for Dependabot PRs').block).toContain(
       "steps.trusted.outputs.ok == 'true'"
     )
@@ -140,14 +184,11 @@ describe('dependabot auto-merge workflow', () => {
     )
   })
 
-  it('disables auto-merge without swallowing a failure', () => {
+  it('leaves auto-merge off in the review step without disabling it again', () => {
     const review = runBody(step('Ask a human to review the new packages').block)
 
-    expect(review).toContain(
-      'gh pr view "$PR_URL" --json autoMergeRequest --jq \'.autoMergeRequest != null\''
-    )
-    expect(review).toContain('gh pr merge --disable-auto "$PR_URL"')
-    expect(review).not.toContain('|| true')
+    expect(review).not.toContain('--disable-auto')
+    expect(review).toContain('auto-merge is off')
   })
 
   it('never interpolates an expression into a run block', () => {

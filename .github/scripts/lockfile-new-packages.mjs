@@ -1,7 +1,9 @@
-// Lists the package names a Yarn Berry lockfile gained, so the Dependabot
-// auto-merge workflow can leave a PR that pulls in a package the base branch
-// never had for a human. Pure so it can be unit tested; the workflow reads
-// both lockfiles with `git show` and runs this file from the base commit.
+// Lists the package names a Yarn Berry lockfile gained, and the registry
+// versions it pins that the base branch did not, so the Dependabot auto-merge
+// workflow can leave a PR that pulls in a package the base branch never had —
+// or a version published too recently — for a human. Pure so it can be unit
+// tested; the workflow reads both lockfiles with `git show` and runs this file
+// from the base commit.
 import console from 'node:console'
 import process from 'node:process'
 
@@ -19,32 +21,49 @@ const splitLocator = (locator) => {
   }
 }
 
+// A plain registry locator is `name@npm:<version>` with no `::` suffix (which
+// would mean the tarball came from somewhere else). Anything else — a tarball
+// URL, a `file:`/`exec:`/`git:` source, a patch — is not a registry version.
+const registryVersionOf = (locator) => {
+  const parts = splitLocator(locator)
+  if (!parts || !parts.reference.startsWith('npm:')) return null
+  const version = parts.reference.slice('npm:'.length)
+  if (!version || version.includes('::')) return null
+  return { name: parts.name, version }
+}
+
+// A builtin compat patch (`name@patch:name@npm%3A<version>#optional!builtin<compat/…>`)
+// is the package itself, but only when it patches that same registry package
+// and carries exactly one patch: a second patch (`&`- or `,`-joined) or a
+// patch of another package is a source of its own.
+const isBuiltinCompatPatch = (name, reference) => {
+  const match = /^patch:(.+)@npm%3A([^#]+)#(.+)$/.exec(reference)
+  if (!match) return false
+  const [, patched, , patches] = match
+  if (patched !== name) return false
+  if (patches.includes('&') || patches.includes(',')) return false
+  return /^optional!builtin<compat\/[^>]+>$/.test(patches)
+}
+
 // What an entry contributes to the comparison. A plain registry package is its
 // name, so a version bump is not "new". Anything else — a tarball URL, a
 // `file:`/`exec:`/`git:` source, a non-builtin patch, an `__archiveUrl` — is
 // the whole locator, so a new source always shows up as new.
 const contributionOf = (locator) => {
-  // Workspace entries (`@workspace:packages/foo`) are not registry packages.
-  if (locator.includes('@workspace:')) return null
-
   const parts = splitLocator(locator)
   if (!parts) return locator
 
+  // Workspace entries (`@workspace:packages/foo`) are not registry packages.
+  // Only the reference decides: `@workspace:` can appear inside a tarball URL.
+  if (parts.reference.startsWith('workspace:')) return null
+
   if (parts.reference.startsWith('npm:')) {
     const version = parts.reference.slice('npm:'.length)
-    // `name@npm:<version>` is the registry; a `::` suffix (e.g.
-    // `::__archiveUrl=`) means the tarball came from somewhere else.
     if (version && !version.includes('::')) return parts.name
     return locator
   }
 
-  // A builtin compat patch (`name@patch:name@npm%3A…#optional!builtin<compat/…>`)
-  // is the package itself; any other patch is a source of its own.
-  if (
-    parts.reference.startsWith('patch:') &&
-    /@npm%3A[^#]*#.*builtin<compat\//.test(parts.reference)
-  )
-    return parts.name
+  if (isBuiltinCompatPatch(parts.name, parts.reference)) return parts.name
 
   return locator
 }
@@ -85,21 +104,44 @@ export const newPackages = (base, head) => {
   return [...packageNames(head)].filter((name) => !before.has(name)).sort()
 }
 
+/**
+ * @param {string} base  The base branch's `yarn.lock`.
+ * @param {string} head  The PR's `yarn.lock`.
+ * @returns {string[]} `name@version` for every plain registry locator `head`
+ *   pins that `base` does not, sorted. A version bump therefore shows up even
+ *   though the package name is not new.
+ */
+export const changedVersions = (base, head) => {
+  const versionsOf = (lockfile) => {
+    const versions = new Set()
+    for (const locator of resolutions(lockfile)) {
+      const entry = registryVersionOf(locator)
+      if (entry) versions.add(`${entry.name}@${entry.version}`)
+    }
+    return versions
+  }
+  const before = versionsOf(base)
+  return [...versionsOf(head)].filter((version) => !before.has(version)).sort()
+}
+
 if (
   process.argv[1] &&
   import.meta.url.endsWith(process.argv[1].split('/').pop())
 ) {
   const { readFileSync } = await import('node:fs')
-  const [basePath, headPath] = process.argv.slice(2)
+  const args = process.argv.slice(2)
+  const changed = args[0] === '--changed-versions'
+  const [basePath, headPath] = changed ? args.slice(1) : args
   if (!basePath || !headPath) {
     console.error(
-      'usage: node lockfile-new-packages.mjs <base-lockfile> <head-lockfile>'
+      'usage: node lockfile-new-packages.mjs [--changed-versions] <base-lockfile> <head-lockfile>'
     )
     process.exit(1)
   }
-  for (const name of newPackages(
+  const list = changed ? changedVersions : newPackages
+  for (const entry of list(
     readFileSync(basePath, 'utf8'),
     readFileSync(headPath, 'utf8')
   ))
-    console.log(name)
+    console.log(entry)
 }
