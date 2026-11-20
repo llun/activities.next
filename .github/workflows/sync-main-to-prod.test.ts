@@ -211,6 +211,16 @@ describe('daily activities.prod sync workflow', () => {
     expect(workflow).not.toMatch(/^\s*workflow_run:/m)
   })
 
+  it('starts the prod sync with the Actions-only dispatch token, never PAT_TOKEN', () => {
+    expect(workflow).toContain(
+      'github-token: ${{ secrets.PROD_DISPATCH_TOKEN }}'
+    )
+    expect(workflow).toContain('github.rest.actions.createWorkflowDispatch({')
+    expect(workflow).toContain("workflow_id: 'sync-upstream.yml'")
+    expect(workflow).not.toContain('PAT_TOKEN')
+    expect(workflow).not.toContain('createDispatchEvent')
+  })
+
   it.each(
     Object.entries(REQUIRED_WORKFLOW_FILES).map(([name, file]) => ({
       name,

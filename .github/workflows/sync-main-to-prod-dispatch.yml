@@ -27,7 +27,7 @@ concurrency:
 jobs:
   dispatch:
     name: Dispatch Sync Runner
-    # Forks have no PAT_TOKEN and no business dispatching to activities.prod.
+    # Forks have no PROD_DISPATCH_TOKEN and no business dispatching to activities.prod.
     if: github.repository == 'llun/activities.next'
     runs-on: ubuntu-latest
     steps:
@@ -121,19 +121,22 @@ jobs:
             core.setOutput('ready', 'true')
             core.setOutput('main_sha', sha)
 
+      # PROD_DISPATCH_TOKEN is a fine-grained token limited to activities.prod with
+      # Actions: write only, so it can start the sync workflow but cannot push code.
       - name: Dispatch sync workflow
         if: steps.select.outputs.ready == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           MAIN_SHA: ${{ steps.select.outputs.main_sha }}
         with:
-          github-token: ${{ secrets.PAT_TOKEN }}
+          github-token: ${{ secrets.PROD_DISPATCH_TOKEN }}
           script: |
-            await github.rest.repos.createDispatchEvent({
+            await github.rest.actions.createWorkflowDispatch({
               owner: 'llun',
               repo: 'activities.prod',
-              event_type: 'sync-upstream',
-              client_payload: {
+              workflow_id: 'sync-upstream.yml',
+              ref: 'main',
+              inputs: {
                 main_sha: process.env.MAIN_SHA,
               },
             })
