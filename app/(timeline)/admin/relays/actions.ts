@@ -6,10 +6,9 @@ import { redirect } from 'next/navigation'
 import { followRelay, unfollowRelay } from '@/lib/activities'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { resolveSessionAdmin } from '@/lib/services/guards/sessionActor'
 import { Relay } from '@/lib/types/domain/relay'
-import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 import { logger } from '@/lib/utils/logger'
 
 const ADMIN_RELAYS_PATH = '/admin/relays'
@@ -18,8 +17,7 @@ const getAdminDatabase = async () => {
   const database = getDatabase()
   if (!database) throw new Error('Failed to load database')
 
-  const session = await getServerAuthSession()
-  const admin = await getAdminFromSession(database, session)
+  const admin = await resolveSessionAdmin(database)
   if (!admin) redirect('/')
 
   return database

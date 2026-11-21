@@ -7,7 +7,7 @@ import {
 } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 
 import { DELETE } from './route'
@@ -79,6 +79,12 @@ describe('DELETE /api/v1/accounts/providers/[provider]', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+    // Reset moderation state a previous case may have set.
+    await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: false })
+    await database.setAccountDisabled({
+      accountId: account1Id,
+      disabled: false
+    })
     // Reset links to: account1 -> github + google, account2 -> github.
     for (const accountId of [account1Id, account2Id]) {
       for (const provider of await providersOf(accountId)) {
@@ -136,6 +142,28 @@ describe('DELETE /api/v1/accounts/providers/[provider]', () => {
     const response = await del('github')
 
     expect(response.status).toBe(401)
+    await expect(providersOf(account1Id)).resolves.toEqual(['github', 'google'])
+  })
+
+  it.each([
+    {
+      description: 'a suspended actor',
+      block: () =>
+        database.setActorSuspended({ actorId: ACTOR1_ID, suspended: true })
+    },
+    {
+      description: 'a disabled account',
+      block: () =>
+        database.setAccountDisabled({ accountId: account1Id, disabled: true })
+    }
+  ])('returns 403 and unlinks nothing for $description', async ({ block }) => {
+    // The route reads the cookie session by hand, so it must apply the same
+    // moderation checks AuthenticatedGuard does.
+    await block()
+
+    const response = await del('github')
+
+    expect(response.status).toBe(403)
     await expect(providersOf(account1Id)).resolves.toEqual(['github', 'google'])
   })
 

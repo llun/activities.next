@@ -27,11 +27,8 @@ const mockQueue = {
 }
 
 vi.mock('@/lib/database', () => ({ getDatabase: () => mockDatabase }))
-vi.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: vi.fn().mockResolvedValue({ user: { id: 'admin' } })
-}))
-vi.mock('@/lib/utils/getAdminFromSession', () => ({
-  getAdminFromSession: vi.fn().mockResolvedValue({ id: 'admin' })
+vi.mock('@/lib/services/guards/sessionActor', () => ({
+  resolveSessionAdmin: vi.fn().mockResolvedValue({ id: 'admin' })
 }))
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn()

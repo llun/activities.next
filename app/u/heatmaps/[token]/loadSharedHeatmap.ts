@@ -13,6 +13,7 @@ import {
   resolveSharedHeatmapRegionBounds,
   toPublicHeatmap
 } from '@/lib/services/fitness-files/publicHeatmap'
+import { isActorModerationBlocked } from '@/lib/services/guards/accountState'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -61,11 +62,17 @@ export const loadSharedHeatmap = cache(
     // highlight around private locations (see toPublicHeatmap).
     const publicHeatmap = toPublicHeatmap(heatmap)
 
-    // Owner display fields (name/handle/initials). Non-critical chrome, so a
-    // lookup failure degrades to an actor-id-derived handle rather than 404ing.
+    // Owner display fields (name/handle/initials). A missing owner is a
+    // refusal, not a degrade: the share belongs to an actor this instance no
+    // longer has, so there is nothing legitimate left to publish. A suspended
+    // actor or a disabled account must not keep publishing a share it created
+    // before the moderation action either — the token is a capability the owner
+    // handed out, and withdrawing it is the same answer a revoked token gets.
+    // The embed page, tiles route and image route fail closed the same way.
     const owner = await database
       .getActorFromId({ id: heatmap.actorId })
       .catch(() => null)
+    if (!owner || isActorModerationBlocked(owner)) return null
 
     // The owner-assigned region label (e.g. "Netherlands"), shown as the title
     // for drawn areas. Best-effort: a lookup failure degrades to the generic
@@ -112,9 +119,11 @@ export const loadSharedHeatmap = cache(
     const view = buildSharedHeatmapView({
       heatmap: publicHeatmap,
       tileSource: buildHeatmapTileSource(publicHeatmap, pyramid),
-      owner: owner
-        ? { name: owner.name, username: owner.username, domain: owner.domain }
-        : null,
+      owner: {
+        name: owner.name,
+        username: owner.username,
+        domain: owner.domain
+      },
       regionName,
       origin,
       token

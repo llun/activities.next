@@ -22,13 +22,15 @@ type MockDatabase = Pick<
   | 'getFitnessRouteHeatmapSummaryByShareToken'
   | 'getFitnessRouteHeatmapPyramid'
   | 'getFitnessRouteHeatmapTilesByKeys'
+  | 'getActorFromId'
 >
 
 const mockDb: jest.Mocked<MockDatabase> = {
   getFitnessRouteHeatmapByShareToken: vi.fn(),
   getFitnessRouteHeatmapSummaryByShareToken: vi.fn(),
   getFitnessRouteHeatmapPyramid: vi.fn(),
-  getFitnessRouteHeatmapTilesByKeys: vi.fn()
+  getFitnessRouteHeatmapTilesByKeys: vi.fn(),
+  getActorFromId: vi.fn()
 }
 let mockDatabase: MockDatabase | null = mockDb
 vi.mock('@/lib/database', () => ({
@@ -122,6 +124,14 @@ describe('/embed/heatmap/[token]/tiles', () => {
     )
     mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue(pyramid())
     mockDb.getFitnessRouteHeatmapTilesByKeys.mockResolvedValue([])
+    // The route 404s when the owner cannot be loaded, so every case that is not
+    // about moderation needs a live owner.
+    mockDb.getActorFromId.mockResolvedValue({
+      id: ACTOR_ID,
+      name: 'User',
+      username: 'user1',
+      domain: 'llun.test'
+    } as never)
   })
 
   describe('region clipping', () => {
@@ -286,6 +296,23 @@ describe('/embed/heatmap/[token]/tiles', () => {
       mockDb.getFitnessRouteHeatmapSummaryByShareToken.mockResolvedValue(null)
       expect((await request(`z=${Z}&tiles=${IN_X}:${IN_Y}`)).status).toBe(404)
       expect(mockDb.getFitnessRouteHeatmapPyramid).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { description: 'a suspended actor', owner: { suspendedAt: 1 } },
+      {
+        description: 'an actor whose account is disabled',
+        owner: { suspendedAt: null, account: { disabledAt: 1 } }
+      },
+      { description: 'an owner that cannot be loaded', owner: null }
+    ])('404s a share owned by $description', async ({ owner }) => {
+      // The token is a capability the owner handed out; a moderation action
+      // withdraws it, before any tile work runs.
+      mockDb.getActorFromId.mockResolvedValue(owner as never)
+
+      const response = await request(`z=${Z}&tiles=${IN_X}:${IN_Y}&v=5`)
+      expect(response.status).toBe(404)
+      expect(mockDb.getFitnessRouteHeatmapTilesByKeys).not.toHaveBeenCalled()
     })
 
     it.each([

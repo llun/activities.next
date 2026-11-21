@@ -82,7 +82,10 @@ const renderPage = async (searchParams: Record<string, string | string[]>) => {
 describe('authorize_interaction page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(getServerAuthSession).mockResolvedValue(null)
+    vi.mocked(getServerAuthSession).mockResolvedValue({
+      user: { email: 'viewer@llun.test' },
+      session: { token: 'session-token' }
+    } as never)
     vi.mocked(getActorFromSession).mockResolvedValue(currentActor)
     vi.mocked(resolveAccountTarget).mockResolvedValue({
       type: 'resolved',
@@ -129,6 +132,24 @@ describe('authorize_interaction page', () => {
       '/authorize_interaction?uri=someone%40remote.test'
     )
     expect(resolveAccountTarget).not.toHaveBeenCalled()
+  })
+
+  it('refuses a blocked session without resolving the target', async () => {
+    // A suspended actor must not drive the outbound fetch resolveAccountTarget
+    // performs, and the page must not bounce to sign-in (which would resume
+    // straight back here).
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      ...currentActor,
+      suspendedAt: 1
+    } as Actor)
+
+    await renderPage({ uri: 'someone@remote.test' })
+
+    expect(
+      screen.getByText("You can't follow accounts right now")
+    ).toBeInTheDocument()
+    expect(resolveAccountTarget).not.toHaveBeenCalled()
+    expect(redirect).not.toHaveBeenCalled()
   })
 
   it('keeps an ampersand in the uri intact through the sign in round trip', async () => {

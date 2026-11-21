@@ -14,12 +14,38 @@ type SessionAccountState = {
   approvedAt?: number | null
 }
 
+// The one actor column this gate reads. Kept structural so the caller can pass
+// the domain `Actor` without this module depending on it.
+type SessionActorState = {
+  suspendedAt?: number | null
+}
+
 export { isAccountConfirmationPending }
 
 export const canCreateSessionForAccount = (
-  account: SessionAccountState
-): boolean =>
-  !isAccountConfirmationPending(account) &&
-  Boolean(account.verifiedAt) &&
-  !account.disabledAt &&
-  Boolean(account.approvedAt)
+  account: SessionAccountState,
+  actors?: SessionActorState[]
+): boolean => {
+  if (
+    isAccountConfirmationPending(account) ||
+    !account.verifiedAt ||
+    account.disabledAt ||
+    !account.approvedAt
+  ) {
+    return false
+  }
+
+  // An account whose every actor is suspended has nothing left to sign in as:
+  // the session would be minted only for every guarded route to refuse it. A
+  // suspended actor among others does not block sign-in — the account can still
+  // act as the actors that are not suspended.
+  if (
+    actors &&
+    actors.length > 0 &&
+    actors.every((actor) => Boolean(actor.suspendedAt))
+  ) {
+    return false
+  }
+
+  return true
+}

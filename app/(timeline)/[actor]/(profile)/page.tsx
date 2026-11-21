@@ -36,12 +36,11 @@ import { getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { getRelationship } from '@/lib/services/accounts/relationship'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
 import { formatServerSoftware } from '@/lib/utils/formatServerSoftware'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 interface Props {
   params: Promise<{ actor: string }>
@@ -83,8 +82,10 @@ export const generateMetadata = async ({
     const [username, domain] = parts
     const database = getDatabase()
     if (database) {
-      const session = await getServerAuthSession()
-      const isLoggedIn = Boolean(session?.user?.email)
+      // A blocked session is anonymous here, exactly as it is in the page: the
+      // flag decides whether a signed-in visitor gets a chance to resolve the
+      // actor locally, and a suspended/disabled/unconfirmed session must not.
+      const isLoggedIn = Boolean(await resolveOptionalSessionActor(database))
       const targetUrl = await getNonLocalActorRedirectTarget(
         database,
         username,
@@ -115,8 +116,13 @@ const Page: FC<Props> = async ({ params }) => {
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
-  const session = await getServerAuthSession()
-  const isLoggedIn = Boolean(session?.user?.email)
+  // A suspended actor or a disabled/unconfirmed account is treated exactly like
+  // an anonymous visitor. `isLoggedIn` gates the signed remote-profile fetch and
+  // the actor save inside getProfileData, and a credential must never let a
+  // blocked session drive them (the OptionalOAuthGuard `unconfirmedAccount:
+  // 'anonymous'` disposition).
+  const currentActor = await resolveOptionalSessionActor(database)
+  const isLoggedIn = Boolean(currentActor)
   const { actor } = await params
   const decodedActorHandle = decodeURIComponent(actor)
   const parts = decodedActorHandle.split('@').slice(1)
@@ -128,7 +134,6 @@ const Page: FC<Props> = async ({ params }) => {
   // Resolve the viewer's actor for relationship/ownership checks, settings, and
   // timeline rendering. Remote-fetch signing is handled inside getProfileData
   // via the headless instance actor, not the viewer.
-  const currentActor = await getActorFromSession(database, session)
   const actorSettings = currentActor
     ? await database.getActorSettings({ actorId: currentActor.id })
     : undefined

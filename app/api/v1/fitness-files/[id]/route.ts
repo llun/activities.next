@@ -1,13 +1,12 @@
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import { UpdateFitnessFileGearRequest } from '@/lib/services/fitness-gears/gearRequests'
 import { evaluateGearServiceReminders } from '@/lib/services/fitness-gears/serviceReminders'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { buildAttachmentContentDisposition } from '@/lib/services/medias/fileName'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
@@ -31,8 +30,7 @@ export const GET = traceApiRoute(
     const { id } = await context.params
 
     try {
-      const session = await getServerAuthSession()
-      const currentActor = await getActorFromSession(database, session)
+      const currentActor = await resolveOptionalSessionActor(database)
       const currentAccountId = currentActor?.account?.id
 
       const fileMetadata = await database.getFitnessFile({ id })

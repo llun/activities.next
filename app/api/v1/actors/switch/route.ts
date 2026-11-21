@@ -3,8 +3,8 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
+import { resolveSessionAccount } from '@/lib/services/guards/sessionActor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -22,11 +22,23 @@ const SwitchActorRequest = z.object({
 
 export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
   const database = getDatabase()
-  const session = await getServerAuthSession()
-
-  if (!database || !session?.user?.email) {
+  if (!database) {
     return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
   }
+
+  const resolved = await resolveSessionAccount(database)
+  if (resolved.type === 'unauthenticated') {
+    return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
+  }
+  // Account-level checks the guard would apply: an unconfirmed or disabled
+  // account may not act. The session's selected actor is deliberately NOT
+  // checked: switching away from a suspended actor is the recovery path, and
+  // another actor on the account being suspended must not lock the account out
+  // of its other profiles.
+  if (resolved.type === 'blocked') {
+    return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
+  }
+  const { account, session } = resolved
 
   // This route authenticates the cookie session manually instead of using
   // AuthenticatedGuard, so it must apply the same CSRF same-origin proof.
@@ -43,13 +55,6 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
 
   const { actorId } = parsed.data
 
-  const account = await database.getAccountFromEmail({
-    email: session.user.email
-  })
-  if (!account) {
-    return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
-  }
-
   const actors = await database.getActorsForAccount({ accountId: account.id })
   const validActor = actors.find((actor) => actor.id === actorId)
   if (!validActor) {
@@ -58,6 +63,18 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
       allowedMethods: ALLOWED_METHODS,
       data: { error: 'Actor not found or not owned by account' },
       responseStatusCode: HTTP_STATUS.NOT_FOUND
+    })
+  }
+
+  // A suspended target is refused: switching to it would hand the session an
+  // actor every guarded route refuses, and a moderator's suspension must not be
+  // sidestepped by re-selecting the actor.
+  if (validActor.suspendedAt) {
+    return apiResponse({
+      req,
+      allowedMethods: ALLOWED_METHODS,
+      data: { error: 'Forbidden' },
+      responseStatusCode: HTTP_STATUS.FORBIDDEN
     })
   }
 
@@ -76,7 +93,7 @@ export const POST = traceApiRoute('switchActor', async (req: NextRequest) => {
 
   // Update the better-auth session's actorId so OAuth consentReferenceId
   // picks up the correct actor when minting access tokens.
-  if (session?.session?.token) {
+  if (session.session?.token) {
     try {
       await database.setSessionActorIdByToken({
         token: session.session.token,

@@ -46,6 +46,7 @@ const buildRequest = (
 const post = (req: NextRequest) => POST(req, { params: Promise.resolve({}) })
 
 describe('POST /api/v1/actors/switch', () => {
+  let accountId: string
   let secondActorId: string
   let deletingActorId: string
 
@@ -65,6 +66,7 @@ describe('POST /api/v1/actors/switch', () => {
       email: seedActor1.email
     })
     if (!account) throw new Error('Account not found')
+    accountId = account.id
     secondActorId = await database.createActorForAccount({
       accountId: account.id,
       username: 'second',
@@ -110,6 +112,17 @@ describe('POST /api/v1/actors/switch', () => {
       .set({ actorId: ACTOR1_ID })
       .where('token', '=', SESSION_TOKEN)
       .execute()
+    // Reset the account and actor state a previous case may have set.
+    await db
+      .updateTable('accounts')
+      .set({ verificationCode: null, disabledAt: null })
+      .where('id', '=', accountId)
+      .execute()
+    await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: false })
+    await database.setActorSuspended({
+      actorId: secondActorId,
+      suspended: false
+    })
   })
 
   it('switches to an owned actor: updates the session actor, sets the cookie and returns the actor summary', async () => {
@@ -175,6 +188,57 @@ describe('POST /api/v1/actors/switch', () => {
 
     expect(response.status).toBe(401)
     expect(mockCookieSet).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 for an account still awaiting e-mail confirmation', async () => {
+    await db
+      .updateTable('accounts')
+      .set({ verificationCode: 'pending-code', emailVerified: false })
+      .where('id', '=', accountId)
+      .execute()
+
+    const response = await post(buildRequest({ actorId: secondActorId }))
+
+    expect(response.status).toBe(403)
+    await expect(sessionActorId()).resolves.toBe(ACTOR1_ID)
+    expect(mockCookieSet).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 for a disabled account', async () => {
+    await database.setAccountDisabled({ accountId, disabled: true })
+
+    const response = await post(buildRequest({ actorId: secondActorId }))
+
+    expect(response.status).toBe(403)
+    await expect(sessionActorId()).resolves.toBe(ACTOR1_ID)
+    expect(mockCookieSet).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 and does not switch to a suspended actor', async () => {
+    await database.setActorSuspended({
+      actorId: secondActorId,
+      suspended: true
+    })
+
+    const response = await post(buildRequest({ actorId: secondActorId }))
+
+    expect(response.status).toBe(403)
+    await expect(sessionActorId()).resolves.toBe(ACTOR1_ID)
+    expect(mockCookieSet).not.toHaveBeenCalled()
+  })
+
+  it('still switches away from a suspended actor, which is the recovery path', async () => {
+    await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: true })
+
+    const response = await post(buildRequest({ actorId: secondActorId }))
+
+    expect(response.status).toBe(200)
+    await expect(sessionActorId()).resolves.toBe(secondActorId)
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      'activities.actor-id',
+      secondActorId,
+      expect.any(Object)
+    )
   })
 
   it.each([

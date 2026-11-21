@@ -91,6 +91,24 @@ describe('GET /api/v1/accounts/[id]/fitness-summary', () => {
     expect(mockDb.getFitnessActivitySummary).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { description: 'a suspended actor', overrides: { suspendedAt: 1 } },
+    {
+      description: 'a disabled account',
+      overrides: { account: { disabledAt: 1 } }
+    }
+  ])('returns 403 for $description', async ({ overrides }) => {
+    // The route reads the cookie session by hand, so it must apply the same
+    // moderation checks AuthenticatedGuard does.
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: ACTOR1_ID,
+      ...overrides
+    })
+    await expectCorsError(await callGet(validQuery), 403)
+    expect(mockDb.getFitnessActivitySummary).not.toHaveBeenCalled()
+  })
+
   it("returns 403 for another actor's summary", async () => {
     mockGetActorFromSession.mockResolvedValue({
       ...seedActor1,

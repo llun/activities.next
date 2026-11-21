@@ -17,6 +17,7 @@ import {
   buildHeatmapSvg,
   buildMapboxStaticUrl
 } from '@/lib/services/fitness-files/staticHeatmapImage'
+import { isActorModerationBlocked } from '@/lib/services/guards/accountState'
 import type { FitnessRouteHeatmapSegment } from '@/lib/types/database/fitnessRouteHeatmap'
 import { logger } from '@/lib/utils/logger'
 import { apiErrorResponse } from '@/lib/utils/response'
@@ -127,6 +128,12 @@ export const GET = traceApiRoute(
     // stored geometry was never clipped, so rendering it publishes the world.
     const regionBounds = resolveSharedHeatmapRegionBounds(heatmap)
     if (!regionBounds) return apiErrorResponse(404)
+
+    // A suspended actor or a disabled account must not keep publishing a share
+    // it created before the moderation action. 404 like a revoked token, before
+    // any render or upstream fetch runs.
+    const owner = await database.getActorFromId({ id: heatmap.actorId })
+    if (!owner || isActorModerationBlocked(owner)) return apiErrorResponse(404)
 
     const publicHeatmap = toPublicHeatmap(heatmap)
     const url = new URL(req.url)

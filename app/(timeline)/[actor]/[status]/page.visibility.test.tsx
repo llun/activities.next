@@ -480,7 +480,9 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     // clearAllMocks does not reset implementations; getStatus is only set by
     // individual ancestor tests, so reset it to avoid leaking across tests.
     mockGetStatus.mockReset()
-    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
     mockGetStatusReplies.mockResolvedValue([])
     // Default: the viewer does not follow anyone.
@@ -845,7 +847,9 @@ describe('Page visibility for the focused-status author', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetStatus.mockReset()
-    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     // The signed-in viewer IS the author of the focused status.
     mockGetActorFromSession.mockResolvedValue({
       ...buildViewer(),
@@ -918,7 +922,9 @@ describe('Page thread backfill', () => {
   })
 
   it('queues the parent the ancestor walk stopped at for a signed-in viewer', async () => {
-    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
     await renderPage()
@@ -934,6 +940,64 @@ describe('Page thread backfill', () => {
   it('queues nothing for a logged-out visitor', async () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockGetActorFromSession.mockResolvedValue(null)
+
+    await renderPage()
+
+    expect(screen.getByTestId('status-gap-reply')).toBeInTheDocument()
+    expect(vi.mocked(queueThreadGapBackfill)).not.toHaveBeenCalled()
+  })
+})
+
+// A session minted before a moderation action must not read more than an
+// anonymous visitor: the page resolves it through `resolveSessionActor`, which
+// downgrades a suspended actor or disabled/unconfirmed account to anonymous.
+describe('Page visibility for a blocked session', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetStatus.mockReset()
+    mockGetStatusReplies.mockResolvedValue([])
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
+    mockGetActorFromSession.mockResolvedValue({
+      ...buildViewer(),
+      suspendedAt: 1
+    } as unknown as Actor)
+  })
+
+  it('does not read a followers-only status', async () => {
+    const focused = buildNote({
+      id: 'followers-only',
+      to: [`${AUTHOR_ID}/followers`],
+      cc: []
+    })
+    mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
+      status: focused,
+      statusId: 'followers-only',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('queues no remote parent fetch', async () => {
+    const focused = buildNote({ id: 'gap-reply', reply: 'gap-parent' })
+    const parent = buildNote({
+      id: 'gap-parent',
+      reply: 'https://remote.example/users/x/statuses/missing'
+    })
+    mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
+      status: focused,
+      statusId: 'gap-reply',
+      fullStatusId: focused.url,
+      isStatusHash: true
+    })
+    mockGetStatus.mockImplementation(async ({ statusId }) =>
+      statusId === 'gap-parent' ? parent : null
+    )
 
     await renderPage()
 

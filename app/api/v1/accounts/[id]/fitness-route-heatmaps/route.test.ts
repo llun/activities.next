@@ -137,6 +137,35 @@ describe('GET /api/v1/accounts/[id]/fitness-route-heatmaps', () => {
     })
   })
 
+  it.each([
+    { description: 'a suspended actor', actor: { suspendedAt: 1 } },
+    {
+      description: 'an actor whose account is disabled',
+      actor: { suspendedAt: null, account: { disabledAt: 1 } }
+    }
+  ])('returns 403 for $description', async ({ actor }) => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: ACTOR1_ID,
+      ...actor
+    })
+
+    const getResponse = await GET(new NextRequest(baseUrl), {
+      params: Promise.resolve({ id: encodedId })
+    })
+    expect(getResponse.status).toBe(403)
+
+    const deleteResponse = await DELETE(
+      new NextRequest(baseUrl, {
+        method: 'DELETE',
+        headers: { Origin: 'https://test.llun.dev' }
+      }),
+      { params: Promise.resolve({ id: encodedId }) }
+    )
+    expect(deleteResponse.status).toBe(403)
+    expect(mockDb.deleteFitnessRouteHeatmapsForActor).not.toHaveBeenCalled()
+  })
+
   it('returns 403 for another actor', async () => {
     mockGetActorFromSession.mockResolvedValue({
       ...seedActor1,

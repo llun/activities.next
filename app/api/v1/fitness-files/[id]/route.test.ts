@@ -235,6 +235,33 @@ describe('GET /api/v1/fitness-files/[id]', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mockGetFitnessFile).toHaveBeenCalled()
   })
+
+  it('treats a suspended owner as anonymous, so the owner-only file 404s', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      path: 'fitness/suspended-owner.fit',
+      fileName: 'suspended-owner.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 2048
+    })
+    await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: true })
+
+    try {
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: fitnessFile!.id })
+      })
+
+      expect(response.status).toBe(404)
+      expect(mockGetFitnessFile).not.toHaveBeenCalled()
+    } finally {
+      await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: false })
+    }
+  })
 })
 
 describe('GET /api/v1/fitness-files/[id] failure paths', () => {

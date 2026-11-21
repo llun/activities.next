@@ -7,16 +7,15 @@ import type {
   FitnessDayActivity,
   FitnessWindowActivity
 } from '@/lib/fitness/calendar/types'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActivityTitle } from '@/lib/services/fitness-files/activityTitle'
 import {
   FitnessCalendarDayQuery,
   describeCalendarQueryError
 } from '@/lib/services/fitness-files/calendarQuery'
+import { resolveSessionActor } from '@/lib/services/guards/sessionActor'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Status, StatusType } from '@/lib/types/domain/status'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -134,8 +133,8 @@ export const GET = traceApiRoute(
       })
     }
 
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -143,16 +142,15 @@ export const GET = traceApiRoute(
         responseStatusCode: 401
       })
     }
-
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
+    if (resolved.type === 'blocked') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
+    const currentActor = resolved.actor
 
     const { id: encodedAccountId } = await params.params
     if (!encodedAccountId) {

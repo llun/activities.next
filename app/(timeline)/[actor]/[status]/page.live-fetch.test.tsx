@@ -344,7 +344,9 @@ describe('Page live-fetch security', () => {
 
   it('does not live-fetch or queue a blocked domain even for a signed-in viewer', async () => {
     const blockedUrl = 'https://blocked.example/users/mallory/statuses/1'
-    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'admin@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(LOCAL_ADMIN)
     mockCanFederateWithDomain.mockResolvedValue(false)
 
@@ -514,7 +516,9 @@ describe('Page live-fetch security', () => {
   })
 
   it('records the author for a signed-in viewer', async () => {
-    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'admin@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(LOCAL_ADMIN)
     mockGetNote.mockResolvedValue(makeRemoteNote() as never)
     mockGetActorFromId.mockImplementation(async ({ id }: { id: string }) =>
@@ -794,7 +798,9 @@ describe('Page live-fetch security', () => {
   })
 
   it('shows the loading state instead of a 500 when federation policy is unavailable', async () => {
-    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'admin@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(LOCAL_ADMIN)
     mockIsLocalFederationDomain.mockRejectedValue(
       new FederationPolicyUnavailableError()

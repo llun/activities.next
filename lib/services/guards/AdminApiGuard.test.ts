@@ -169,7 +169,9 @@ describe('AdminApiGuard', () => {
           database,
           moderator: {
             accountId: adminActor.account!.id,
-            actorId: adminActor.account!.defaultActorId ?? null
+            // The actor the session resolves to, not `defaultActorId` (which
+            // the seed leaves unset).
+            actorId: adminActor.id
           }
         })
       )
@@ -283,6 +285,64 @@ describe('AdminApiGuard', () => {
           actorId: adminActor.id,
           suspended: false
         })
+      }
+    })
+
+    it('names the usable session actor, not a suspended default actor', async () => {
+      // `getAdminFromSession` admits the admin because another actor on the
+      // account is usable, so the moderation record must name that actor — the
+      // default one is suspended and cannot act.
+      const accountId = adminActor.account!.id
+      const usableActorId = 'https://llun.test/users/admin-usable'
+      await database.createActor({
+        actorId: usableActorId,
+        username: 'admin-usable',
+        domain: 'llun.test',
+        followersUrl: `${usableActorId}/followers`,
+        inboxUrl: `${usableActorId}/inbox`,
+        sharedInboxUrl: `${usableActorId}/inbox`,
+        publicKey: 'usable-public-key',
+        createdAt: Date.now()
+      })
+      await db
+        .updateTable('actors')
+        .set({ accountId })
+        .where('id', '=', usableActorId)
+        .execute()
+      await database.setDefaultActor({ accountId, actorId: adminActor.id })
+      await database.setActorSuspended({
+        actorId: adminActor.id,
+        suspended: true
+      })
+
+      try {
+        mockGetServerSession.mockResolvedValue({
+          user: { email: seedActor1.email }
+        })
+
+        const guard = AdminApiGuard([HttpMethod.enum.GET], handle)
+        const response = await guard(createRequest(), {
+          params: Promise.resolve({})
+        })
+
+        expect(response.status).toBe(200)
+        expect(handle).toHaveBeenCalledWith(
+          expect.any(NextRequest),
+          expect.objectContaining({
+            moderator: { accountId, actorId: usableActorId }
+          })
+        )
+      } finally {
+        await database.setActorSuspended({
+          actorId: adminActor.id,
+          suspended: false
+        })
+        await db
+          .updateTable('accounts')
+          .set({ defaultActorId: null })
+          .where('id', '=', accountId)
+          .execute()
+        await db.deleteFrom('actors').where('id', '=', usableActorId).execute()
       }
     })
 

@@ -88,7 +88,13 @@ describe('shared heatmap page', () => {
     vi.clearAllMocks()
     tokenSeq += 1
     token = `tok${tokenSeq}`
-    mockDb.getActorFromId.mockResolvedValue(null)
+    mockDb.getActorFromId.mockResolvedValue({
+      name: 'User',
+      username: 'user1',
+      domain: 'llun.test',
+      suspendedAt: null,
+      account: { disabledAt: null }
+    })
     mockDb.getFitnessRouteHeatmapRegionNames.mockResolvedValue([])
     mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue(null)
   })
@@ -121,6 +127,42 @@ describe('shared heatmap page', () => {
 
     await expect(render()).resolves.toBeDefined()
     expect(mockNotFound).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { description: 'a suspended actor', owner: { suspendedAt: 1 } },
+    {
+      description: 'an actor whose account is disabled',
+      owner: { suspendedAt: null, account: { disabledAt: 1 } }
+    }
+  ])('refuses a share owned by $description', async ({ owner }) => {
+    // The token is a capability the owner handed out; a moderation action
+    // withdraws it, which is the same answer a revoked token gets. Without the
+    // owner check this page keeps publishing a share the owner may no longer
+    // act on.
+    mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
+    mockDb.getActorFromId.mockResolvedValue(owner)
+
+    await expect(render()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(mockNotFound).toHaveBeenCalled()
+  })
+
+  it('refuses a share whose owner no longer exists', async () => {
+    // Fail closed like the embed routes: a share belonging to an actor this
+    // instance no longer has has nothing legitimate left to publish.
+    mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
+    mockDb.getActorFromId.mockResolvedValue(null)
+
+    await expect(render()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(mockNotFound).toHaveBeenCalled()
+  })
+
+  it('refuses a share when the owner lookup fails', async () => {
+    mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
+    mockDb.getActorFromId.mockRejectedValue(new Error('actors table down'))
+
+    await expect(render()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(mockNotFound).toHaveBeenCalled()
   })
 
   // A root-relative logo src is redirected away on a CDN alias domain, so the
@@ -193,6 +235,19 @@ describe('shared heatmap page', () => {
       expect(result.twitter).toBeUndefined()
       expect(result.title).toBe('Route heatmap')
       expect(result.robots).toEqual({ index: false, follow: false })
+    })
+
+    it('publishes no card for a share owned by a suspended actor', async () => {
+      // The page 404s, so a card would describe a page that refuses to serve
+      // it — the region name, the handle and a thumbnail.
+      mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
+      mockDb.getActorFromId.mockResolvedValue({ suspendedAt: 1 })
+
+      const result = await metadata()
+
+      expect(result.openGraph).toBeUndefined()
+      expect(result.twitter).toBeUndefined()
+      expect(result.title).toBe('Route heatmap')
     })
 
     it('describes the same share the page renders', async () => {

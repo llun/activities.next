@@ -5,7 +5,10 @@ import { Database } from '@/lib/database/types'
 import { isEmailAllowedForAccount } from '@/lib/services/domains/signUpDomain'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { isEmailAllowed } from '@/lib/utils/normalizeEmail'
-import { selectAccountActor } from '@/lib/utils/selectAccountActor'
+import {
+  isUsableAccountActor,
+  selectAccountActor
+} from '@/lib/utils/selectAccountActor'
 
 export interface AuthSession {
   user: { email: string }
@@ -60,11 +63,13 @@ export const getActorFromSession = cache(
 
     const actors = await database.getActorsForAccount({ accountId: account.id })
 
-    // 1. Check actor selection cookie
+    // 1. Check actor selection cookie. A suspended actor is skipped for the
+    // same reason a deleting one is: the session must not keep acting as an
+    // identity every guarded route refuses while another actor is usable.
     const actorIdFromCookie = await getActorIdFromCookie()
     if (actorIdFromCookie) {
       const cookieActor = actors.find(
-        (a) => a.id === actorIdFromCookie && !a.deletionStatus
+        (a) => a.id === actorIdFromCookie && isUsableAccountActor(a)
       )
       if (cookieActor) return cookieActor
     }

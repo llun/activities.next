@@ -13,7 +13,9 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page, { generateMetadata } from './page'
 
-const mockDatabase = {}
+const mockDatabase = {
+  getActorSettings: vi.fn().mockResolvedValue(undefined)
+}
 
 vi.mock('@/lib/config', () => ({
   getConfig: () => ({
@@ -147,6 +149,9 @@ describe('[actor] page redirects and non-local handles', () => {
     mockGetServerAuthSession.mockResolvedValue({
       user: { email: 'user@llun.social' }
     } as never)
+    mockGetActorFromSession.mockResolvedValue({
+      id: 'https://llun.social/users/user'
+    } as never)
     mockIsLocalFederationDomain.mockResolvedValue(false)
     mockGetProfileData.mockResolvedValue(null)
 
@@ -155,6 +160,32 @@ describe('[actor] page redirects and non-local handles', () => {
     })
 
     expect(mockNotFound).toHaveBeenCalled()
+  })
+
+  // A session minted before a moderation action is not a signed-in visitor: the
+  // flag gates the signed remote-profile fetch and the actor save, so a
+  // suspended actor must take the anonymous path.
+  it('treats a suspended session as anonymous for the remote-profile fetch', async () => {
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'user@llun.social' }
+    } as never)
+    mockGetActorFromSession.mockResolvedValue({
+      id: 'https://llun.social/users/user',
+      suspendedAt: 1
+    } as never)
+    mockIsLocalFederationDomain.mockResolvedValue(false)
+    mockGetProfileData.mockResolvedValue(null)
+
+    await Page({
+      params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' })
+    })
+
+    expect(mockGetProfileData).toHaveBeenCalledWith(
+      expect.anything(),
+      '@clairenony@pouet.chapril.org',
+      false,
+      expect.anything()
+    )
   })
 
   it('calls notFound for invalid actor handle parameter', async () => {
@@ -203,6 +234,9 @@ describe('[actor] page redirects and non-local handles', () => {
       mockGetServerAuthSession.mockResolvedValue({
         user: { email: 'user@llun.social' }
       } as never)
+      mockGetActorFromSession.mockResolvedValue({
+        id: 'https://llun.social/users/user'
+      } as never)
       mockIsLocalFederationDomain.mockResolvedValue(false)
 
       const metadata = await generateMetadata({
@@ -211,6 +245,30 @@ describe('[actor] page redirects and non-local handles', () => {
 
       expect(metadata).toEqual({
         title: '@clairenony@pouet.chapril.org'
+      })
+    })
+
+    // The same gate applies to metadata: a suspended session is anonymous, so
+    // the non-local actor gets the no-index canonical metadata a logged-out
+    // visitor gets, not the signed-in standard title.
+    it('treats a suspended session as anonymous for metadata', async () => {
+      mockGetServerAuthSession.mockResolvedValue({
+        user: { email: 'user@llun.social' }
+      } as never)
+      mockGetActorFromSession.mockResolvedValue({
+        id: 'https://llun.social/users/user',
+        suspendedAt: 1
+      } as never)
+      mockIsLocalFederationDomain.mockResolvedValue(false)
+
+      const metadata = await generateMetadata({
+        params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' })
+      })
+
+      expect(metadata).toEqual({
+        title: '@clairenony@pouet.chapril.org',
+        robots: { index: false, follow: false },
+        alternates: { canonical: 'https://pouet.chapril.org/@clairenony' }
       })
     })
   })

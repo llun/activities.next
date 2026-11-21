@@ -220,6 +220,33 @@ describe('FollowListPage', () => {
         expect(mockNotFound).not.toHaveBeenCalled()
       }
     )
+
+    // A session minted before a moderation action is not a signed-in visitor:
+    // the flag gates the signed remote-profile fetch and the actor save, so a
+    // suspended actor must take the anonymous path.
+    it('treats a suspended session as anonymous for the remote-profile fetch', async () => {
+      mockGetServerAuthSession.mockResolvedValue({
+        user: { email: 'viewer@llun.social' }
+      } as never)
+      mockGetActorFromSession.mockResolvedValue({
+        id: 'https://llun.social/users/viewer',
+        suspendedAt: 1
+      } as never)
+      mockIsLocalFederationDomain.mockResolvedValue(true)
+      mockGetProfileIdentity.mockResolvedValue(null)
+
+      await FollowListPage({
+        params: Promise.resolve({ actor: '@someone@llun.social' }),
+        direction: 'followers'
+      })
+
+      expect(mockGetProfileIdentity).toHaveBeenCalledWith(
+        mockDatabase,
+        '@someone@llun.social',
+        false,
+        { currentActor: null }
+      )
+    })
   })
 
   describe('public and authenticated shell', () => {
@@ -296,6 +323,9 @@ describe('FollowListPage', () => {
         mockGetServerAuthSession.mockResolvedValue({
           user: { email: 'viewer@llun.social' }
         } as never)
+        mockGetActorFromSession.mockResolvedValue({
+          id: 'https://llun.social/users/viewer'
+        } as never)
         mockIsLocalFederationDomain.mockResolvedValue(true)
         mockGetProfileIdentity.mockResolvedValue({
           ...mockProfile,
@@ -319,6 +349,9 @@ describe('FollowListPage', () => {
     it('renders authenticated PageHeader shell for logged-in user', async () => {
       mockGetServerAuthSession.mockResolvedValue({
         user: { email: 'viewer@llun.social' }
+      } as never)
+      mockGetActorFromSession.mockResolvedValue({
+        id: 'https://llun.social/users/viewer'
       } as never)
       mockIsLocalFederationDomain.mockResolvedValue(true)
       mockGetProfileIdentity.mockResolvedValue(mockProfile as never)

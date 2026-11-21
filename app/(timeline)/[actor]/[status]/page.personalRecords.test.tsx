@@ -247,7 +247,9 @@ describe('activity page personal records', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetStatus.mockReset()
-    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetStatusReplies.mockResolvedValue([])
     mockGetPersonalRecordDurations.mockResolvedValue({ 'fit-1': [5, 60] })
   })

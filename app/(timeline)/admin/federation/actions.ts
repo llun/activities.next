@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   KnownDomainBlocklistSourceId,
   downloadKnownDomainBlocklist
@@ -13,8 +12,8 @@ import {
   DEFAULT_DOMAIN_BLOCK_SEVERITY,
   normalizeDomain
 } from '@/lib/services/federation/domainRules'
+import { resolveSessionAdmin } from '@/lib/services/guards/sessionActor'
 import { DomainBlockSeverity } from '@/lib/types/database/operations'
-import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 import { logger } from '@/lib/utils/logger'
 
 const ADMIN_FEDERATION_PATH = '/admin/federation'
@@ -23,8 +22,7 @@ const getAdminDatabase = async () => {
   const database = getDatabase()
   if (!database) throw new Error('Failed to load database')
 
-  const session = await getServerAuthSession()
-  const admin = await getAdminFromSession(database, session)
+  const admin = await resolveSessionAdmin(database)
   if (!admin) redirect('/')
 
   return database

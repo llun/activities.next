@@ -847,6 +847,33 @@ describe('GET /api/v1/fitness-files/[id]/route-data', () => {
     expect(mockParseFitnessFile).toHaveBeenCalled()
   })
 
+  it('treats a suspended owner as anonymous, so the owner-only route data 404s', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+
+    const fitnessFile = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      path: 'fitness/suspended-owner-route-data.fit',
+      fileName: 'suspended-owner-route-data.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 2_048
+    })
+    await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: true })
+
+    try {
+      const response = await GET(createRequest(), {
+        params: Promise.resolve({ id: fitnessFile!.id })
+      })
+
+      expect(response.status).toBe(404)
+      expect(mockParseFitnessFile).not.toHaveBeenCalled()
+    } finally {
+      await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: false })
+    }
+  })
+
   it('carries power, cadence, temperature, balance, distance, laps and calories', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }

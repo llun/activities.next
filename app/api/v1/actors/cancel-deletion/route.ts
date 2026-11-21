@@ -2,10 +2,8 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { isAccountConfirmationPending } from '@/lib/services/guards/accountState'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
-import { getAccountFromSession } from '@/lib/utils/getActorFromSession'
+import { resolveSessionAccount } from '@/lib/services/guards/sessionActor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   HTTP_STATUS,
@@ -24,24 +22,27 @@ export const POST = traceApiRoute(
   'cancelActorDeletion',
   async (req: NextRequest) => {
     const database = getDatabase()
-    const session = await getServerAuthSession()
-
-    if (!database || !session?.user?.email) {
+    if (!database) {
       return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
     }
+
+    // Account-level resolution: a disabled account must still be able to cancel
+    // a scheduled deletion, so the disabled check is opted out of. An
+    // unconfirmed account is still refused.
+    const resolved = await resolveSessionAccount(database, {
+      allowDisabled: true
+    })
+    if (resolved.type === 'unauthenticated') {
+      return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
+    }
+    if (resolved.type === 'blocked') {
+      return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
+    }
+    const { account } = resolved
 
     // This route authenticates the cookie session manually instead of using
     // AuthenticatedGuard, so it must apply the same CSRF same-origin proof.
     if (!hasSameOriginProof(req)) {
-      return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
-    }
-
-    const account = await getAccountFromSession(database, session)
-    if (!account) {
-      return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
-    }
-
-    if (isAccountConfirmationPending(account)) {
       return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
     }
 

@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
+import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -45,8 +44,7 @@ export const GET = traceApiRoute(
     }
 
     try {
-      const session = await getServerAuthSession()
-      const currentActor = await getActorFromSession(database, session)
+      const currentActor = await resolveOptionalSessionActor(database)
 
       const status = await database.getStatus({
         statusId,

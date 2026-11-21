@@ -5,7 +5,6 @@ import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import { SERVICE_NAME } from '@/lib/constants'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFitnessFile } from '@/lib/services/fitness-files'
 import {
   PRE_PARSED_ROUTE_DATA_VERSION,
@@ -20,9 +19,9 @@ import {
   parseFitnessFile
 } from '@/lib/services/fitness-files/parseFitnessFile'
 import { getFitnessPrivacyLocations } from '@/lib/services/fitness-files/privacy'
+import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { HttpMethod, getCORSHeaders } from '@/lib/utils/http-headers'
@@ -120,8 +119,7 @@ export const GET = traceApiRoute(
     const { id } = await context.params
 
     try {
-      const session = await getServerAuthSession()
-      const currentActor = await getActorFromSession(database, session)
+      const currentActor = await resolveOptionalSessionActor(database)
       const currentAccountId = currentActor?.account?.id
 
       const fileMetadata = await database.getFitnessFile({ id })

@@ -2,9 +2,9 @@ import { NextRequest } from 'next/server'
 
 import { CreateCustomEmojiRequest } from '@/app/api/v1/admin/custom_emojis/schema'
 import { Database } from '@/lib/database/types'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { AdminApiGuard } from '@/lib/services/guards/AdminApiGuard'
+import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
 import { readUploadImageMetadata } from '@/lib/services/medias/imageInput'
@@ -12,7 +12,6 @@ import { getMediaPathFromFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { FileSchema } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { toAdminCustomEmoji } from '@/lib/types/domain/customEmoji'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -135,8 +134,7 @@ export const POST = traceApiRoute(
     // The upload goes through the shared media pipeline, which is actor-scoped.
     // Use the uploading admin's actor. This requires a browser session; an
     // OAuth-token-only admin (no session actor) cannot upload here.
-    const session = await getServerAuthSession()
-    const actor = await getActorFromSession(database, session)
+    const actor = await resolveOptionalSessionActor(database)
     if (!actor) {
       return apiResponse({
         req,

@@ -206,6 +206,28 @@
       }
     },
     {
+      // A route or server action that reads the cookie session by hand must
+      // apply the same suspended/disabled/unconfirmed checks the shared guards
+      // do, or it becomes a way around them (docs/architecture.md → An
+      // Unconfirmed Account May Not Act). `allowFiles` is the FROZEN exception
+      // list: `accounts/sessions` needs the session token itself to preserve the
+      // current session. Never add a file without the same argument.
+      "files": [
+        "app/**/route.ts",
+        "app/**/route.tsx",
+        "app/api/**/*.ts",
+        "app/**/actions.ts"
+      ],
+      "rules": {
+        "agents/no-direct-cookie-session": [
+          "error",
+          {
+            "allowFiles": ["app/api/v1/accounts/sessions/route.ts"]
+          }
+        ]
+      }
+    },
+    {
       // Every filesystem path a LOCAL STORAGE DRIVER builds goes through
       // resolveStorageFilePath/assertStorageFilePath (docs/maintenance.md → A stored path
       // is confined to the storage root). `agents/no-storage-path-builder`

@@ -230,6 +230,30 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
     expect(response.status).toBe(401)
   })
 
+  it.each([
+    { description: 'a suspended actor', overrides: { suspendedAt: 1 } },
+    {
+      description: 'a disabled account',
+      overrides: { account: { disabledAt: 1 } }
+    }
+  ])('returns 403 for $description', async ({ overrides }) => {
+    // The route reads the cookie session by hand, so it must apply the same
+    // moderation checks AuthenticatedGuard does.
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: ACTOR1_ID,
+      ...overrides
+    })
+
+    const response = await POST(
+      postRequest({ period_type: 'all_time', period_key: 'all' }),
+      { params: Promise.resolve({ id: encodedId }) }
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+  })
+
   describe('DELETE', () => {
     it('revokes sharing for the owner', async () => {
       mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(
@@ -272,6 +296,31 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
       const request = new NextRequest(
         `${baseUrl}?period_type=all_time&period_key=all`,
         { method: 'DELETE' }
+      )
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: encodedId })
+      })
+
+      expect(response.status).toBe(403)
+      expect(mockDb.clearFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { description: 'a suspended actor', overrides: { suspendedAt: 1 } },
+      {
+        description: 'a disabled account',
+        overrides: { account: { disabledAt: 1 } }
+      }
+    ])('returns 403 for $description', async ({ overrides }) => {
+      mockGetActorFromSession.mockResolvedValue({
+        ...seedActor1,
+        id: ACTOR1_ID,
+        ...overrides
+      })
+
+      const request = new NextRequest(
+        `${baseUrl}?period_type=all_time&period_key=all`,
+        { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
       )
       const response = await DELETE(request, {
         params: Promise.resolve({ id: encodedId })

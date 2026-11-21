@@ -16,14 +16,16 @@ let statusId = ''
 let ruleId = ''
 
 const mockGetAdminFromSession = vi.fn()
+const mockGetServerAuthSession = vi.fn().mockResolvedValue({
+  user: { email: `admin@${TEST_DOMAIN}` }
+})
 
 vi.mock('@/lib/database', () => ({
   getDatabase: () => database
 }))
 vi.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: vi
-    .fn()
-    .mockResolvedValue({ user: { email: `admin@${TEST_DOMAIN}` } })
+  getServerAuthSession: (...args: unknown[]) =>
+    mockGetServerAuthSession(...args)
 }))
 vi.mock('@/lib/utils/getAdminFromSession', () => ({
   getAdminFromSession: (...args: unknown[]) => mockGetAdminFromSession(...args)
@@ -261,6 +263,12 @@ describe('admin reports API', () => {
       id: adminAccountId,
       defaultActorId: null
     })
+    // The guard names the actor the session resolves, not the account's
+    // default. A session whose account has no actor resolves none, so the
+    // moderator is actor-less even though the admin account exists.
+    mockGetServerAuthSession.mockResolvedValueOnce({
+      user: { email: `actorless@${TEST_DOMAIN}` }
+    } as never)
     const response = await assignRoute.POST(
       adminRequest(`/api/v1/admin/reports/${reportId}/assign_to_self`, {
         method: 'POST'

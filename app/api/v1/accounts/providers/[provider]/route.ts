@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { resolveSessionActor } from '@/lib/services/guards/sessionActor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_401,
@@ -35,9 +34,25 @@ export const DELETE = traceApiRoute(
       })
     }
 
-    const session = await getServerAuthSession()
-    const actor = await getActorFromSession(database, session)
-    if (!actor || !actor.account) {
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_401,
+        responseStatusCode: 401
+      })
+    }
+    if (resolved.type === 'blocked') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
+      })
+    }
+    const actor = resolved.actor
+    if (!actor.account) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

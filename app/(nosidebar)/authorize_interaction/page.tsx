@@ -12,10 +12,9 @@ import {
   ACCOUNT_TARGET_MAX_LENGTH,
   resolveAccountTarget
 } from '@/lib/services/actors/resolveAccountTarget'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { ensureServedDomainsFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { resolveSessionActor } from '@/lib/services/guards/sessionActor'
 
 import { AuthorizeInteractionCard } from './AuthorizeInteractionCard'
 import { AuthorizeInteractionError } from './AuthorizeInteractionError'
@@ -71,12 +70,28 @@ const Page: FC<Props> = async ({ searchParams }) => {
     )
   }
 
-  const session = await getServerAuthSession()
-  const currentActor = await getActorFromSession(database, session)
+  // Resolve the viewer through the shared guard helper, so a suspended actor or
+  // a disabled/unconfirmed account is refused BEFORE `resolveAccountTarget`
+  // runs — that call performs outbound WebFinger/fetch work, and a credential
+  // must never let a blocked session drive it.
+  const resolved = await resolveSessionActor(database)
+
+  if (resolved.type === 'blocked') {
+    return (
+      <div>
+        <BackToTimelineLink />
+        <AuthorizeInteractionError
+          logoSrc={getAuthLogoSrc()}
+          title="You can't follow accounts right now"
+          description="This account is suspended, disabled, or its e-mail address is not confirmed. Contact the server administrator if you think this is a mistake."
+        />
+      </div>
+    )
+  }
 
   // Bounce before resolving anything, so an anonymous visitor can never drive
   // an outbound fetch through this page.
-  if (!currentActor) {
+  if (resolved.type === 'unauthenticated') {
     // Keep the sign-in redirect on the host the request arrived on so a login
     // started on a trusted alias domain is not bounced to ACTIVITIES_HOST;
     // inherit only the scheme from getBaseURL(). Same rule as /oauth/authorize.
@@ -93,6 +108,8 @@ const Page: FC<Props> = async ({ searchParams }) => {
     )
     return redirect(url.toString())
   }
+
+  const currentActor = resolved.actor
 
   const result = await resolveAccountTarget({ database, input: uri })
 

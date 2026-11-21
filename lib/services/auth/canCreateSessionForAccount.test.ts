@@ -99,4 +99,41 @@ describe('canCreateSessionForAccount', () => {
   ])('$description', ({ account, expected }) => {
     expect(canCreateSessionForAccount(account)).toBe(expected)
   })
+
+  describe('when the account owns actors', () => {
+    const allowedAccount = { verifiedAt: 1, approvedAt: 1, disabledAt: null }
+
+    it('rejects an account whose every actor is suspended', () => {
+      // Nothing is left to sign in as: the session would be minted only for
+      // every guarded route to refuse it.
+      expect(
+        canCreateSessionForAccount(allowedAccount, [
+          { suspendedAt: 1 },
+          { suspendedAt: 2 }
+        ])
+      ).toBe(false)
+    })
+
+    it('allows an account with at least one actor that is not suspended', () => {
+      expect(
+        canCreateSessionForAccount(allowedAccount, [
+          { suspendedAt: 1 },
+          { suspendedAt: null }
+        ])
+      ).toBe(true)
+    })
+
+    it('allows an account with no actors, leaving that state to the routes', () => {
+      expect(canCreateSessionForAccount(allowedAccount, [])).toBe(true)
+    })
+
+    it('still rejects a disabled account whatever its actors', () => {
+      expect(
+        canCreateSessionForAccount(
+          { verifiedAt: 1, approvedAt: 1, disabledAt: 1 },
+          [{ suspendedAt: null }]
+        )
+      ).toBe(false)
+    })
+  })
 })

@@ -354,6 +354,43 @@ describe('GET /api/v1/fitness-files/by-status', () => {
     expect(response.status).toBe(200)
   })
 
+  it('treats a suspended owner as anonymous, so their private status 404s', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/suspended-owner-status-files`,
+      url: `${ACTOR1_ID}/statuses/suspended-owner-status-files`,
+      actorId: ACTOR1_ID,
+      text: 'Suspended owner private import',
+      to: [ACTOR1_FOLLOWER_URL],
+      cc: []
+    })
+
+    await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: 'fitness/suspended-owner-status-file.fit',
+      fileName: 'suspended-owner-status-file.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+    await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: true })
+
+    try {
+      const request = new NextRequest(
+        `https://llun.test/api/v1/fitness-files/by-status?statusId=${encodeURIComponent(status.id)}`
+      )
+      const response = await GET(request, routeContext)
+
+      expect(response.status).toBe(404)
+    } finally {
+      await database.setActorSuspended({ actorId: ACTOR1_ID, suspended: false })
+    }
+  })
+
   it('returns summary metrics and elevation series', async () => {
     mockGetServerSession.mockResolvedValue(null)
 

@@ -286,7 +286,9 @@ describe('Page remote-status fetch signing', () => {
     mockGetStatus.mockReset()
     // A logged-in viewer with a usable local actor is present; the federation
     // fetch must still be signed by the instance actor, not this viewer.
-    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
     mockGetStatusReplies.mockResolvedValue([])
     mockGetQueue.mockReturnValue({
