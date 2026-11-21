@@ -40,7 +40,8 @@ The features Activity.next ships today. Most lines link to the documentation tha
 - ✅ **OIDC RP-Initiated Logout** — `end_session_endpoint` advertised in discovery; OAuth clients registered with `post_logout_redirect_uris` can drive single logout
 - ✅ **OAuth Bearer tokens** — API authentication for third-party clients ([Architecture](architecture.md#oauth-access-token-sliding-expiry))
 - ✅ **Email verification** — Required for new accounts ([Architecture](architecture.md#an-unconfirmed-account-may-not-act))
-- ✅ **Password reset** — Reset password via email ([Architecture](architecture.md#authentication))
+- ✅ **Password reset** — Reset password via email; a reset signs every connected app out ([Architecture](architecture.md#oauth-access-token-sliding-expiry))
+- ✅ **Email change** — Change the account email from Account & security; the current password is required and the old address is notified. An account without a password must set one first through "Forgot password" ([Architecture](architecture.md#transactional--notification-emails))
 - ✅ **Sign out & unsent draft protection** — Sign-out confirms first and warns about unsent queued posts, and preserves them if sign-out fails or is offline
 
 ### Timelines & Notifications

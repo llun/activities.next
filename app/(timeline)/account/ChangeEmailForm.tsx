@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { FC, ReactNode, useState } from 'react'
 
 import { requestEmailChange } from '@/lib/client'
@@ -11,6 +12,12 @@ import { Input } from '@/lib/components/ui/input'
 
 interface Props {
   currentEmail: string
+  /**
+   * Whether the account has a password. An account without one cannot change
+   * its address: the new mailbox alone would confirm the change, so a stolen
+   * session could take over recovery. It must set a password first.
+   */
+  requiresPassword: boolean
   /** Rows shown above the change rows in the same box, such as the current email. */
   children?: ReactNode
 }
@@ -24,10 +31,12 @@ interface Props {
  */
 export const ChangeEmailForm: FC<Props> = ({
   currentEmail: _currentEmail,
+  requiresPassword,
   children
 }) => {
   const [isChanging, setIsChanging] = useState(false)
   const [newEmail, setNewEmail] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -39,13 +48,14 @@ export const ChangeEmailForm: FC<Props> = ({
     setIsLoading(true)
 
     try {
-      await requestEmailChange({ newEmail })
+      await requestEmailChange({ newEmail, currentPassword })
 
       setMessage(
         'Verification email sent! Please check your inbox and click the verification link.'
       )
       setIsChanging(false)
       setNewEmail('')
+      setCurrentPassword('')
     } catch (err) {
       setError(
         err instanceof Error
@@ -55,6 +65,23 @@ export const ChangeEmailForm: FC<Props> = ({
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (!requiresPassword) {
+    return (
+      <Frame form>
+        {children}
+        <FormRow label="Change email address">
+          <p className="text-sm">
+            Changing your email address needs a password. Use{' '}
+            <Link href="/auth/forgot-password" className="underline">
+              Forgot password
+            </Link>{' '}
+            to set one; the link is sent to your current address.
+          </p>
+        </FormRow>
+      </Frame>
+    )
   }
 
   if (!isChanging) {
@@ -101,6 +128,7 @@ export const ChangeEmailForm: FC<Props> = ({
                 setIsChanging(false)
                 setError('')
                 setNewEmail('')
+                setCurrentPassword('')
               }}
               disabled={isLoading}
             >
@@ -113,6 +141,22 @@ export const ChangeEmailForm: FC<Props> = ({
         }
       >
         {children}
+        <FormRow
+          label="Current password"
+          htmlFor="currentPassword"
+          hint="Confirms it is you before the address can change."
+        >
+          {({ describedBy }) => (
+            <Input
+              type="password"
+              id="currentPassword"
+              aria-describedby={describedBy}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+            />
+          )}
+        </FormRow>
         <FormRow
           label="New email address"
           htmlFor="newEmail"

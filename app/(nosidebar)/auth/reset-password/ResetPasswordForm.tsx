@@ -194,7 +194,11 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode, footer }) => {
         </FormRow>
 
         {error && <Alert title={error} />}
-        {message && <Alert tone="success" title={message} />}
+        {message && (
+          <Alert tone="success" title={message}>
+            Any connected apps were signed out too.
+          </Alert>
+        )}
       </AuthCardBody>
 
       <AuthCardActions>

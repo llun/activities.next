@@ -14,7 +14,11 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordChangeRequest = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(8)
+  newPassword: z.string().min(8),
+  // Signing connected apps out is the default: a password change is the
+  // moment to end tokens an attacker may hold. The settings form lets the
+  // owner keep them.
+  signOutApps: z.boolean().default(true)
 })
 
 export const POST = traceApiRoute(
@@ -56,7 +60,7 @@ export const POST = traceApiRoute(
     if (!parsed.success) {
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
-    const { currentPassword, newPassword } = parsed.data
+    const { currentPassword, newPassword, signOutApps } = parsed.data
 
     try {
       // Verify current password
@@ -77,11 +81,26 @@ export const POST = traceApiRoute(
       // Hash new password
       const newPasswordHash = await hashPassword(newPassword)
 
-      // Update password
-      await database.changePassword({
+      // Update password. The write matches the hash verified above, so a reset
+      // that landed in between makes it match nothing: report the conflict
+      // instead of overwriting the reset's password.
+      const changed = await database.changePassword({
         accountId: currentActor.account.id,
-        newPasswordHash
+        newPasswordHash,
+        expectedPasswordHash: currentActor.account.passwordHash,
+        signOutApps
       })
+      if (!changed) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: {
+            error:
+              'Your password changed while this request was in progress. Please try again.'
+          },
+          responseStatusCode: 409
+        })
+      }
 
       return apiResponse({
         req,

@@ -12,7 +12,8 @@ import type {
   GetOAuthAccessTokenByHashParams,
   IsOAuthClientPKCERequiredParams,
   OAuthAccessTokenRecord,
-  RevokeAccountConnectedAppParams
+  RevokeAccountConnectedAppParams,
+  RevokeAccountOAuthTokensParams
 } from '@/lib/database/domains/oauth/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { DB } from '@/lib/database/kysely/db'
@@ -293,6 +294,39 @@ export const revokeAccountConnectedApp = (
       .execute()
   })
 
+export const revokeAccountOAuthTokens = (
+  db: Db,
+  { accountId }: RevokeAccountOAuthTokensParams
+): Promise<void> =>
+  // Account recovery: every user-delegated grant the account holds must stop
+  // working, whichever actor it was issued for. Tokens are keyed by `userId`
+  // (the account), so that arm covers all of them; the `referenceId` arm also
+  // catches a token whose `userId` is missing but whose actor belongs to this
+  // account. The actor ids come from a subquery rather than an `in (…)` list,
+  // so a many-actor account cannot exceed SQLite's bound-value limit. App
+  // (`client_credentials`) tokens have neither a user nor an actor, so they are
+  // left alone, as are other accounts' tokens.
+  inTransaction(db, async (trx) => {
+    const actorIds = () =>
+      trx.selectFrom('actors').select('id').where('accountId', '=', accountId)
+
+    const accessScope = (eb: ExpressionBuilder<DB, 'oauthAccessToken'>) =>
+      eb.or([eb('userId', '=', accountId), eb('referenceId', 'in', actorIds())])
+    const refreshScope = (eb: ExpressionBuilder<DB, 'oauthRefreshToken'>) =>
+      eb.or([eb('userId', '=', accountId), eb('referenceId', 'in', actorIds())])
+    const consentScope = (eb: ExpressionBuilder<DB, 'oauthConsent'>) =>
+      eb.or([eb('userId', '=', accountId), eb('referenceId', 'in', actorIds())])
+
+    // Delete access tokens before refresh tokens: oauthAccessToken.refreshId
+    // is a FK into oauthRefreshToken, so the children must go first.
+    await trx.deleteFrom('oauthAccessToken').where(accessScope).execute()
+    await trx.deleteFrom('oauthRefreshToken').where(refreshScope).execute()
+    // The consent rows go too: a surviving consent lets the client skip the
+    // prompt and mint a fresh code after the reset, and keeps it listed under
+    // /account/sessions.
+    await trx.deleteFrom('oauthConsent').where(consentScope).execute()
+  })
+
 export const oauthQueries = {
   getClientFromId,
   getOAuthAccessTokenByHash,
@@ -302,5 +336,6 @@ export const oauthQueries = {
   createOAuthAccessToken,
   extendOAuthAccessToken,
   getAccountConnectedApps,
-  revokeAccountConnectedApp
+  revokeAccountConnectedApp,
+  revokeAccountOAuthTokens
 }

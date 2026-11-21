@@ -9,6 +9,7 @@ import type {
 } from '@/lib/database/domains/account/types'
 import { recordWeeklyLoginSafely } from '@/lib/database/domains/instanceActivity/queries'
 import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
+import { forUpdate } from '@/lib/database/kysely/dialect'
 import { chunkArray } from '@/lib/database/kysely/inList'
 import { Session } from '@/lib/types/domain/session'
 
@@ -55,17 +56,25 @@ const detachOAuthTokensFromSessions = async (
  * `db` is one). Deleting by the resolved ids means a session a concurrent
  * insert added between the lookup and the delete can't be deleted undetached.
  * Returns the number of sessions deleted.
+ *
+ * The lookup locks the matched rows `FOR UPDATE` on PostgreSQL (a no-op on
+ * SQLite, which serialises writers on its one connection). A concurrent OAuth
+ * exchange reads the session, consumes its code and then inserts a token bound
+ * to it as separate autocommit statements; without the lock that insert can
+ * land between the detach and the delete, and the delete then fails with FK
+ * 23503 and rolls the whole reset back. With it, the insert either commits
+ * before the lock (so the detach below sees and clears it) or blocks on the
+ * session row and fails its own FK once the delete commits.
  */
 export const deleteSessionsWithTokenDetach = (
   db: Db,
   scope: (eb: ExpressionBuilder<DB, 'sessions'>) => Expression<SqlBool>
 ): Promise<number> =>
   inTransaction(db, async (trx) => {
-    const rows = await trx
-      .selectFrom('sessions')
-      .select('id')
-      .where(scope)
-      .execute()
+    const rows = await forUpdate(
+      trx,
+      trx.selectFrom('sessions').select('id').where(scope)
+    ).execute()
     const ids = rows.map((row) => row.id).filter(Boolean)
     if (ids.length === 0) return 0
     await detachOAuthTokensFromSessions(trx, ids)

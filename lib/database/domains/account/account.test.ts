@@ -520,7 +520,9 @@ describe('AccountDatabase', () => {
 
         await database.changePassword({
           accountId,
-          newPasswordHash: 'updated_hash'
+          newPasswordHash: 'updated_hash',
+          signOutApps: false,
+          expectedPasswordHash: TEST_PASSWORD_HASH
         })
 
         const account = await database.getAccountFromId({ id: accountId })
@@ -594,7 +596,8 @@ describe('AccountDatabase', () => {
         await database.requestEmailChange({
           accountId,
           newEmail,
-          emailChangeCode
+          emailChangeCode,
+          expectedPasswordHash: TEST_PASSWORD_HASH
         })
 
         const pending = await database.getAccountFromId({ id: accountId })
@@ -656,7 +659,8 @@ describe('AccountDatabase', () => {
         await database.requestEmailChange({
           accountId,
           newEmail: takenEmail.toUpperCase(),
-          emailChangeCode
+          emailChangeCode,
+          expectedPasswordHash: TEST_PASSWORD_HASH
         })
 
         const result = await database.verifyEmailChange({

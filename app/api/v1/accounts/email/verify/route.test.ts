@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
+import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { POST } from './route'
@@ -14,6 +15,7 @@ vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
   getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
+    secretPhase: 'test-secret',
     allowEmails: [],
     allowActorDomains: []
   })
@@ -99,6 +101,31 @@ describe('POST /api/v1/accounts/email/verify', () => {
 
     expect(response.status).toBe(400)
     expect(mockDb.verifyEmailChange).not.toHaveBeenCalled()
+  })
+
+  it('looks the code up by its HMAC, never the raw code from the link', async () => {
+    const request = new NextRequest(
+      'http://llun.test/api/v1/accounts/email/verify',
+      {
+        method: 'POST',
+        body: JSON.stringify({ emailChangeCode: 'raw-link-code' }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.verifyEmailChange).toHaveBeenCalledWith({
+      accountId: account.id,
+      emailChangeCode: hashPasswordResetCode('raw-link-code')
+    })
+    expect(mockDb.verifyEmailChange).not.toHaveBeenCalledWith(
+      expect.objectContaining({ emailChangeCode: 'raw-link-code' })
+    )
   })
 
   it('returns an internal server error when email verification processing fails', async () => {

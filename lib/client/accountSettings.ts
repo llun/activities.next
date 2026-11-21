@@ -39,6 +39,12 @@ export const getRemoteFollowUrl = async ({
 
 export interface RequestEmailChangeParams {
   newEmail: string
+  /**
+   * The account's current password. Always required: an account without a
+   * password cannot change its address (the route refuses it), so the form
+   * only renders for a password account.
+   */
+  currentPassword?: string
 }
 
 export interface RequestEmailChangeResponse {
@@ -46,14 +52,15 @@ export interface RequestEmailChangeResponse {
 }
 
 export const requestEmailChange = async ({
-  newEmail
+  newEmail,
+  currentPassword
 }: RequestEmailChangeParams): Promise<RequestEmailChangeResponse> => {
   const response = await fetch('/api/v1/accounts/email', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ newEmail })
+    body: JSON.stringify({ newEmail, currentPassword })
   })
   if (!response.ok) {
     await throwApiError(response, 'Failed to request email change')
@@ -88,6 +95,8 @@ export const updateAccountName = async ({
 export interface ChangeAccountPasswordParams {
   currentPassword: string
   newPassword: string
+  /** Revoke connected apps' OAuth tokens too. Defaults to true on the server. */
+  signOutApps?: boolean
 }
 
 export interface ChangeAccountPasswordResponse {
@@ -97,14 +106,15 @@ export interface ChangeAccountPasswordResponse {
 
 export const changeAccountPassword = async ({
   currentPassword,
-  newPassword
+  newPassword,
+  signOutApps
 }: ChangeAccountPasswordParams): Promise<ChangeAccountPasswordResponse> => {
   const response = await fetch('/api/v1/accounts/password', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ currentPassword, newPassword })
+    body: JSON.stringify({ currentPassword, newPassword, signOutApps })
   })
   if (!response.ok) {
     await throwApiError(response, 'Failed to change password')

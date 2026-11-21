@@ -511,6 +511,44 @@ const deleteSessionsDetachingOAuthTokens = (
     )
   )
 
+// The better-auth models whose rows carry a `sessionId` foreign key into
+// `sessions.id`.
+const OAUTH_TOKEN_TABLES = new Set(['oauthAccessToken', 'oauthRefreshToken'])
+
+// Inserts a better-auth record. PostgreSQL enforces the `sessionId` foreign key
+// on `oauthAccessToken`/`oauthRefreshToken`, but SQLite does not, so a token a
+// concurrent OAuth exchange mints after a password reset deleted its session
+// would survive there with a dangling `sessionId`. Checking the session and
+// inserting in one transaction serialises with the reset — SQLite holds its one
+// connection for the whole transaction — and refuses the token on both
+// backends once the session is gone. Every other model, and a token without a
+// `sessionId` (a client-credentials grant), inserts as before.
+const insertRecord = async (
+  db: AuthDb,
+  tableName: string,
+  record: Record<string, unknown>
+): Promise<void> => {
+  const sessionId = record.sessionId
+  if (!OAUTH_TOKEN_TABLES.has(tableName) || typeof sessionId !== 'string') {
+    await db.insertInto(tableName).values(record).execute()
+    return
+  }
+  await inTransaction(asDb(db), async (trx) => {
+    const executor = trx as unknown as AuthDb
+    const session = await executor
+      .selectFrom(SESSIONS_TABLE)
+      .select('id')
+      .where('id', '=', sessionId)
+      .executeTakeFirst()
+    if (!session) {
+      throw new Error(
+        `Cannot create ${tableName}: session ${sessionId} no longer exists`
+      )
+    }
+    await executor.insertInto(tableName).values(record).execute()
+  })
+}
+
 type KyselyAdapterOptions = {
   // The WebAuthn rpID this auth instance serves. better-auth's passkey plugin
   // does not persist the rpID a credential was created with (its schema can't be
@@ -599,7 +637,7 @@ export const kyselyAdapter = (
             return hydrate(tableName, row) as any
           }
 
-          await db.insertInto(tableName).values(record).execute()
+          await insertRecord(db, tableName, record)
           const row = await findById(db, tableName, id)
           if (!row) throw new Error('Failed to create record')
           return hydrate(tableName, row) as any

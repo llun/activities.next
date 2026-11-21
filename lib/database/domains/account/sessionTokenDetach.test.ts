@@ -6,6 +6,11 @@ import {
   deleteSessionsWithTokenDetach
 } from '@/lib/database/domains/account/sessions'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  start,
+  waitForLockWait
+} from '@/lib/database/testing/deletionTestHelpers'
+import { pauseAfterStatement } from '@/lib/database/testing/fitnessRouteHeatmapTileTestHelpers'
 
 // The FK-safe session delete that the account queries and the better-auth
 // adapter share. The seed spans more than one chunk of session ids and carries
@@ -263,5 +268,55 @@ describe('deleteSessionsWithTokenDetach', () => {
       )
     ).toBe(0)
     expect(await dump()).toEqual(before)
+  })
+})
+
+// The row lock, raced on two PostgreSQL connections. SQLite has no row locks
+// (its one connection serialises writers), so there is nothing to race there.
+describe.runIf(testDb.backend === 'pg')('PostgreSQL row lock', () => {
+  it('makes a concurrent token insert wait, so the session delete still succeeds', async () => {
+    await seed()
+    // Stop the reset after the last detach UPDATE, before the session DELETE:
+    // the window a concurrent OAuth exchange's token INSERT lands in.
+    const detach = pauseAfterStatement((sql) =>
+      /^update "oauthRefreshToken" set "sessionId" =/.test(sql)
+    )
+    const deletion = start(() =>
+      deleteSessionsWithTokenDetach(db(), (eb) =>
+        eb.and([
+          eb('accountId', '=', targetAccountId),
+          eb.not(eb('token', '=', 'keep-token'))
+        ])
+      )
+    )
+    await detach.reached
+
+    // A concurrent exchange mints a token bound to a session the reset is
+    // about to delete. The FOR UPDATE lock makes the insert wait on that
+    // session row; without it the insert commits and the DELETE fails 23503.
+    const rival = start(() =>
+      db()
+        .insertInto('oauthAccessToken')
+        .values({
+          id: 'rival-access',
+          token: 'rival-access-token',
+          clientId,
+          userId: targetAccountId,
+          sessionId: 'revoke-0000',
+          expiresAt: EXPIRES_AT,
+          scopes: 'read',
+          createdAt: SEEDED_AT
+        })
+        .execute()
+    )
+    const waiting = await waitForLockWait(testDb, rival)
+    expect(waiting).toEqual([
+      expect.stringMatching(/^insert into "oauthAccessToken"/)
+    ])
+
+    detach.release()
+    // The reset commits; the blocked insert then fails its own foreign key.
+    await expect(deletion.result()).resolves.toBe(REVOKED_COUNT)
+    await expect(rival.result()).rejects.toThrow()
   })
 })

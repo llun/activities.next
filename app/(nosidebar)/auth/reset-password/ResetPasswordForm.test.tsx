@@ -192,6 +192,9 @@ describe('ResetPasswordForm', () => {
       expect(
         screen.getByText('Password reset successfully')
       ).toBeInTheDocument()
+      expect(
+        screen.getByText('Any connected apps were signed out too.')
+      ).toBeInTheDocument()
     })
 
     expect(newPasswordInput).toHaveValue('')

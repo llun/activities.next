@@ -6,12 +6,14 @@ import { changeAccountPassword } from '@/lib/client'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
+import { Checkbox } from '@/lib/components/ui/checkbox'
 import { Input } from '@/lib/components/ui/input'
 
 export const ChangePasswordForm: FC = () => {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [signOutApps, setSignOutApps] = useState(true)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -41,7 +43,11 @@ export const ChangePasswordForm: FC = () => {
     setIsLoading(true)
 
     try {
-      await changeAccountPassword({ currentPassword, newPassword })
+      await changeAccountPassword({
+        currentPassword,
+        newPassword,
+        signOutApps
+      })
 
       setSaved(true)
       setCurrentPassword('')
@@ -113,6 +119,25 @@ export const ChangePasswordForm: FC = () => {
             required
             minLength={8}
           />
+        </FormRow>
+
+        <FormRow
+          inline
+          label="Sign out connected apps"
+          htmlFor="signOutApps"
+          hint="Revokes access for apps you've authorized, such as mobile clients."
+        >
+          {({ describedBy }) => (
+            <Checkbox
+              id="signOutApps"
+              aria-describedby={describedBy}
+              checked={signOutApps}
+              onChange={(e) => {
+                setSignOutApps(e.target.checked)
+                setSaved(false)
+              }}
+            />
+          )}
         </FormRow>
       </Frame>
     </form>

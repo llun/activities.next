@@ -517,6 +517,87 @@ describe('kyselyAdapter', () => {
     })
   })
 
+  // `oauthAccessToken` and `oauthRefreshToken` carry a `sessionId` foreign key
+  // into `sessions.id`. PostgreSQL enforces it, SQLite does not, so a token a
+  // concurrent OAuth exchange mints after a password reset deleted its session
+  // would survive on SQLite with a dangling `sessionId`. The adapter checks the
+  // session and inserts in one transaction, which serialises with the reset.
+  describe('OAuth token creation', () => {
+    const seedSession = (id: string, token: string) =>
+      db.insertInto('sessions').values({ id, token }).execute()
+
+    it('refuses an access token whose session no longer exists', async () => {
+      await expect(
+        adapter.create({
+          model: 'oauthAccessToken',
+          data: { id: 'at-gone', sessionId: 'missing-session' }
+        })
+      ).rejects.toThrow(/session missing-session no longer exists/)
+
+      expect(await findRow('oauthAccessToken', 'at-gone')).toBeUndefined()
+    })
+
+    it('refuses a refresh token whose session no longer exists', async () => {
+      await expect(
+        adapter.create({
+          model: 'oauthRefreshToken',
+          data: { id: 'rt-gone', sessionId: 'missing-session' }
+        })
+      ).rejects.toThrow(/session missing-session no longer exists/)
+
+      expect(await findRow('oauthRefreshToken', 'rt-gone')).toBeUndefined()
+    })
+
+    it('creates a token bound to a session that exists', async () => {
+      await seedSession('sid-live', 'live-token')
+
+      await adapter.create({
+        model: 'oauthAccessToken',
+        data: { id: 'at-live', sessionId: 'sid-live' }
+      })
+
+      expect((await findRow('oauthAccessToken', 'at-live'))?.sessionId).toBe(
+        'sid-live'
+      )
+    })
+
+    it('creates a client-credentials token without a session', async () => {
+      await adapter.create({
+        model: 'oauthAccessToken',
+        data: { id: 'at-app' }
+      })
+
+      expect(await findRow('oauthAccessToken', 'at-app')).toBeDefined()
+    })
+
+    // The check only closes the race when it and the insert share one
+    // transaction: SQLite holds its one connection for the whole transaction,
+    // so a reset cannot commit between them. Pinned on the statements issued,
+    // since the interleaving cannot be staged from a single-threaded test.
+    it('checks the session and inserts the token in one transaction', async () => {
+      await seedSession('sid-atomic', 'atomic-token')
+
+      const statements = await captureStatements(() =>
+        adapter.create({
+          model: 'oauthAccessToken',
+          data: { id: 'at-atomic', sessionId: 'sid-atomic' }
+        })
+      )
+
+      expect(statements[0]).toBe('begin')
+      const check = statements.findIndex((sql) =>
+        /^select .* from "sessions"/.test(sql)
+      )
+      const insert = statements.findIndex((sql) =>
+        /^insert into "oauthAccessToken"/.test(sql)
+      )
+      const commit = statements.indexOf('commit')
+      expect(check).toBeGreaterThan(0)
+      expect(insert).toBeGreaterThan(check)
+      expect(commit).toBeGreaterThan(insert)
+    })
+  })
+
   // Better-auth resolves sign-in/sign-up by email through this adapter against
   // the `accounts` (user) table, so the adapter must normalize `accounts.email`
   // on both writes and lookups to keep auth case-insensitive.

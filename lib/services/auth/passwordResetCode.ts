@@ -12,6 +12,17 @@ import { getConfig } from '@/lib/config'
 export const PASSWORD_RESET_REQUEST_COOLDOWN_MS = 5 * 60 * 1000
 
 /**
+ * The shape of every code this app mails (password reset and email change):
+ * `crypto.randomBytes(32).toString('base64url')`, i.e. 43 base64url characters.
+ * A route that accepts a code from a form checks this before any database
+ * lookup, so a malformed value never reaches a query.
+ */
+export const GENERATED_CODE_PATTERN = /^[A-Za-z0-9_-]{43}$/
+
+export const isGeneratedCodeShape = (code: string): boolean =>
+  GENERATED_CODE_PATTERN.test(code)
+
+/**
  * Hash a password reset code for storage and lookup.
  *
  * The reset code is a high-entropy random token (crypto.randomBytes(32), 256

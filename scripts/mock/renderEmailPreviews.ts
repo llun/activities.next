@@ -33,6 +33,7 @@ import path from 'path'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
 import { buildChangeEmail } from '@/lib/services/email/templates/changeEmail'
+import { buildEmailChangeNoticeEmail } from '@/lib/services/email/templates/emailChangeNotice'
 import { buildFollowEmail } from '@/lib/services/email/templates/follow'
 import { buildFollowRequestEmail } from '@/lib/services/email/templates/followRequest'
 import { buildGearServiceDueEmail } from '@/lib/services/email/templates/gearServiceDue'
@@ -149,6 +150,15 @@ const buildPreviews = (): Preview[] => [
     email: buildChangeEmail({
       recipientEmail: 'new@example.com',
       emailChangeCode: FIXTURE_CODE
+    })
+  },
+  {
+    slug: 'email-change-notice',
+    group: 'Account & security',
+    email: buildEmailChangeNoticeEmail({
+      recipientEmail: RECIPIENT,
+      newEmail: 'new@example.com',
+      contactEmail: 'admin@llun.social'
     })
   },
   {
