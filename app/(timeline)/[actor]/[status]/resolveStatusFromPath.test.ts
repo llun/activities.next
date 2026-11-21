@@ -367,7 +367,9 @@ describe('resolveStatusFromPath', () => {
       })
     ).resolves.toEqual({
       pathActor: ORIGINAL_PATH_ACTOR,
-      fullStatusId: 'https://remote.example/users/original/statuses/squatted',
+      // A refused candidate must not be handed back as a fetch target: page.tsx
+      // would live-fetch it and render it under the path actor.
+      fullStatusId: '',
       isStatusHash: false,
       status: null,
       statusId: ''
@@ -389,7 +391,7 @@ describe('resolveStatusFromPath', () => {
       })
     ).resolves.toEqual({
       pathActor: ORIGINAL_PATH_ACTOR,
-      fullStatusId: 'https://remote.example/users/original/statuses/123',
+      fullStatusId: '',
       isStatusHash: false,
       status: null,
       statusId: ''
@@ -508,7 +510,7 @@ describe('resolveStatusFromPath', () => {
         })
       ).resolves.toEqual({
         pathActor: ORIGINAL_PATH_ACTOR,
-        fullStatusId: `https://remote.example/users/original/statuses/${publicId}`,
+        fullStatusId: '',
         isStatusHash: false,
         status: null,
         statusId: ''
@@ -728,7 +730,7 @@ describe('resolveStatusFromPath', () => {
       })
     })
 
-    it('lowercases the path domain before the actor lookup', async () => {
+    it('tries the folded path domain before the exact one', async () => {
       const database = createDatabase()
       database.getActorFromUsername.mockImplementation(({ domain }) =>
         domain === 'remote.example' ? { id: splitDomainActorId } : null
@@ -749,9 +751,184 @@ describe('resolveStatusFromPath', () => {
         statusId: splitDomainStatus.id
       })
 
+      // The folded spelling is asked first, so the exact-username row wins over
+      // a case-variant handle; the path's own spelling is only the fallback.
+      expect(database.getActorFromUsername).toHaveBeenCalledTimes(1)
       expect(database.getActorFromUsername).toHaveBeenCalledWith({
         username: 'original',
         domain: 'remote.example'
+      })
+    })
+
+    it('does not resolve a split-domain status under an unrelated domain', async () => {
+      const database = createDatabase()
+      database.getActorFromUsername.mockResolvedValue(null)
+      database.getStatus.mockResolvedValue(splitDomainStatus)
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@original@other.example',
+          statusParam: '123'
+        })
+      ).resolves.toMatchObject({ status: null, fullStatusId: '' })
+    })
+
+    it('resolves a legacy mixed-case actor domain row through the exact-spelling fallback', async () => {
+      const database = createDatabase()
+      const legacyActorId = 'https://ap.remote.example/users/original'
+      const legacyStatus: StatusNote = {
+        ...originalStatus,
+        id: `${legacyActorId}/statuses/123`,
+        actorId: legacyActorId,
+        // No hydrated actor, so only the actor row can confirm the handle.
+        actor: null
+      }
+      database.getActorFromUsername.mockImplementation(({ domain }) =>
+        domain === 'Remote.Example'
+          ? { id: legacyActorId, username: 'original', domain }
+          : null
+      )
+      database.getStatus.mockResolvedValue(legacyStatus)
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@original@Remote.Example',
+          statusParam: '123'
+        })
+      ).resolves.toEqual({
+        pathActor: { username: 'original', domain: 'Remote.Example' },
+        fullStatusId: `${legacyActorId}/statuses/123`,
+        isStatusHash: false,
+        status: legacyStatus,
+        statusId: legacyStatus.id
+      })
+    })
+
+    it('ignores a keyless remote actor row claiming a local domain', async () => {
+      const database = createDatabase()
+      const localActorId = 'https://test.llun.dev/users/alice'
+      const remoteStatus: StatusNote = {
+        ...originalStatus,
+        id: `${localActorId}/statuses/123`,
+        actorId: localActorId,
+        actor: buildActor(localActorId, 'alice')
+      }
+      // A REMOTE row whose domain equals a served domain, with no private key:
+      // it is not a local actor, so it must not make the path non-local.
+      database.getActorFromUsername.mockResolvedValue({
+        id: localActorId,
+        username: 'alice',
+        domain: 'test.llun.dev'
+      })
+      database.getStatus.mockResolvedValue(remoteStatus)
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@alice@test.llun.dev',
+          statusParam: '123'
+        })
+      ).resolves.toEqual({
+        pathActor: { username: 'alice', domain: 'test.llun.dev' },
+        fullStatusId: '',
+        isStatusHash: false,
+        status: null,
+        statusId: ''
+      })
+    })
+
+    it('resolves a local actor own status on a local path without a fetch target', async () => {
+      const database = createDatabase()
+      const localActorId = 'https://test.llun.dev/users/alice'
+      const localStatus: StatusNote = {
+        ...originalStatus,
+        id: `${localActorId}/statuses/123`,
+        actorId: localActorId,
+        actor: buildActor(localActorId, 'alice')
+      }
+      database.getActorFromUsername.mockResolvedValue({
+        id: localActorId,
+        username: 'alice',
+        domain: 'test.llun.dev',
+        privateKey: 'private-key'
+      })
+      database.getStatus.mockResolvedValue(localStatus)
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@alice@test.llun.dev',
+          statusParam: '123'
+        })
+      ).resolves.toEqual({
+        pathActor: { username: 'alice', domain: 'test.llun.dev' },
+        // A local path never live-fetches, even when it resolved.
+        fullStatusId: '',
+        isStatusHash: false,
+        status: localStatus,
+        statusId: localStatus.id
+      })
+    })
+
+    it('does not pair a confirmed handle with an actor id on another domain', async () => {
+      const database = createDatabase()
+      const squattedStatus: StatusNote = {
+        ...originalStatus,
+        id: 'https://evil.example/users/original/statuses/123',
+        actorId: 'https://evil.example/users/original',
+        // The handle is confirmed on remote.example, but the actor id lives on
+        // evil.example — the confirmed username must not be paired with it.
+        actor: {
+          ...buildActor('https://evil.example/users/original', 'original'),
+          domain: 'remote.example'
+        }
+      }
+      database.getActorFromUsername.mockResolvedValue(null)
+      database.getStatus.mockResolvedValue(squattedStatus)
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@original@evil.example',
+          statusParam: '123'
+        })
+      ).resolves.toEqual({
+        pathActor: { username: 'original', domain: 'evil.example' },
+        fullStatusId: '',
+        isStatusHash: false,
+        status: null,
+        statusId: ''
+      })
+    })
+
+    it('requires the actor id last segment to be the path username on a split domain', async () => {
+      const database = createDatabase()
+      const mismatchedStatus: StatusNote = {
+        ...originalStatus,
+        id: 'https://ap.remote.example/users/someone/statuses/123',
+        actorId: 'https://ap.remote.example/users/someone',
+        actor: {
+          ...buildActor('https://ap.remote.example/users/someone', 'original'),
+          domain: 'remote.example'
+        }
+      }
+      database.getActorFromUsername.mockResolvedValue(null)
+      database.getStatus.mockResolvedValue(mismatchedStatus)
+
+      await expect(
+        resolveStatusFromPath({
+          database,
+          actorParam: '@original@ap.remote.example',
+          statusParam: '123'
+        })
+      ).resolves.toEqual({
+        pathActor: { username: 'original', domain: 'ap.remote.example' },
+        fullStatusId: '',
+        isStatusHash: false,
+        status: null,
+        statusId: ''
       })
     })
 
@@ -759,11 +936,9 @@ describe('resolveStatusFromPath', () => {
       const database = createDatabase()
       const remoteStatus: StatusNote = {
         ...originalStatus,
+        id: 'https://remote.example/users/alice/statuses/123',
         actorId: 'https://remote.example/users/alice',
-        actor: {
-          ...buildActor('https://remote.example/users/alice', 'alice'),
-          domain: 'test.llun.dev'
-        }
+        actor: buildActor('https://remote.example/users/alice', 'alice')
       }
       database.getActorFromUsername.mockResolvedValue(null)
       database.getStatus.mockResolvedValue(remoteStatus)
@@ -792,7 +967,7 @@ describe('resolveStatusFromPath', () => {
         })
       ).resolves.toEqual({
         pathActor: { username: 'alice', domain: 'test.llun.dev' },
-        fullStatusId: 'https://test.llun.dev/users/alice/statuses/123',
+        fullStatusId: '',
         isStatusHash: false,
         status: null,
         statusId: ''

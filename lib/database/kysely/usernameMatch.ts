@@ -36,10 +36,11 @@ import type { Db } from '@/lib/database/kysely'
  * "callers normalize it first": `parseAccountHandle` does, but
  * `app/api/v1/accounts/lookup/route.ts` has its own locally-shadowed
  * `parseAccountHandle` that does not, and
- * `app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts` splits the segment
- * inline with no normalization at all. `getWebFingerResponse` carries its own
- * exact-then-lowercased domain fallback precisely because that is not a
- * guarantee. Note `getExactAccountIds` in `lib/database/domains/search/` DOES fold
+ * `app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts` carries its own
+ * exact-then-lowercased domain fallback (it asks with the path's exact spelling
+ * first, then the folded one). `getWebFingerResponse` carries the same fallback
+ * precisely because that is not a guarantee. Note `getExactAccountIds` in
+ * `lib/database/domains/search/` DOES fold
  * domain, so search and lookup disagree on `alice@Example.COM` — pre-existing,
  * and not something this helper can fix on its own.
  *

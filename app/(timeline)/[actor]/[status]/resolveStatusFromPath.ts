@@ -60,31 +60,46 @@ export const parseActorPathParam = (actorParam: string): PathActor | null => {
 // Whether a stored status's author is the actor the path names. Used only when
 // the path handle has no actor row: a split-domain handle (the row's domain is
 // the WebFinger handle's, not the actor id's host), a remote author whose row
-// was never recorded, or a casing miss. The hydrated actor is compared when
-// present; otherwise the actor id's host and last path segment stand in.
+// was never recorded, or a casing miss.
+//
+// A hydrated actor is a CONFIRMED handle: its username and domain were read
+// from the actor's own document, so they may only be paired with an actor id on
+// that same domain (or a subdomain of it, for split-domain deployments). Pairing
+// the confirmed username with whatever host the actor id happens to name would
+// let a status whose handle is `original@remote.example` resolve under
+// `@original@evil.example` whenever its actor id lives on `evil.example`.
+// Without a confirmed handle the actor id's host and last path segment stand in.
 const actorMatchesPath = (status: Status, pathActor: PathActor): boolean => {
   const username = pathActor.username.toLowerCase()
   const domain = pathActor.domain.toLowerCase()
 
-  if (
-    status.actor &&
-    status.actor.username.toLowerCase() === username &&
-    status.actor.domain.toLowerCase() === domain
-  ) {
-    return true
-  }
-
   let actorHost: string
   try {
-    actorHost = new URL(status.actorId).host
+    actorHost = new URL(status.actorId).host.toLowerCase()
   } catch {
     return false
   }
-  if (actorHost !== domain) return false
 
-  const actorUsername =
-    status.actor?.username ?? getActorIdUsername(status.actorId)
-  return actorUsername.toLowerCase() === username
+  if (status.actor) {
+    const actorUsername = status.actor.username.toLowerCase()
+    const actorDomain = status.actor.domain.toLowerCase()
+    if (actorUsername === username && actorDomain === domain) return true
+    // A confirmed handle on the path's own domain with a different username is
+    // a different actor; never fall through to the actor id's host.
+    if (actorDomain === domain) return false
+    // The handle is confirmed on another domain (a split-domain deployment):
+    // the path must name the actor id's own host, that host must be the
+    // handle's domain or a subdomain of it, and the id's last segment must be
+    // the path's username.
+    if (actorHost !== domain) return false
+    if (actorHost !== actorDomain && !actorHost.endsWith(`.${actorDomain}`)) {
+      return false
+    }
+    return getActorIdUsername(status.actorId).toLowerCase() === username
+  }
+
+  if (actorHost !== domain) return false
+  return getActorIdUsername(status.actorId).toLowerCase() === username
 }
 
 const getStatusForPathActor = (
@@ -106,8 +121,9 @@ const getStatusForPathActor = (
     return null
   }
 
-  // No actor row for the path handle. A local path never falls back: a remote
-  // row claiming a local handle must not resolve under it.
+  // No usable actor row for the path handle (none, or a keyless row on a local
+  // path). A local path never falls back: a remote row claiming a local handle
+  // must not resolve under it.
   if (isLocalPath) return null
 
   if (actorMatchesPath(status, pathActor)) return status
@@ -147,22 +163,29 @@ const resolveStatusFromPathCached = cache(
       return null
     }
 
-    // Domains are case-insensitive, and the actor lookup compares them
-    // case-sensitively, so fold the path's domain before asking.
+    // Domains are case-insensitive, but the actor lookup compares them
+    // case-sensitively. Ask with the folded domain first, as [actor]/layout.tsx
+    // does, so the exact-username row wins over a case-variant handle; then the
+    // path's own spelling, so a legacy row stored with a mixed-case domain
+    // keeps resolving.
     const { username } = pathActor
     const domain = pathActor.domain.toLowerCase()
-    const actorFromPath = await getActorFromUsernameCached(
-      database,
-      username,
-      domain
-    )
-    const actorIdFromPath = actorFromPath?.id
-    // Only needed when the handle has no actor row: a local path must never
-    // fall back to a stored status, so a remote row claiming a local handle
-    // cannot resolve under it.
-    const isLocalPath = actorIdFromPath
-      ? false
-      : await isLocalDomain(null, domain)
+    const actorFromPath =
+      (await getActorFromUsernameCached(database, username, domain)) ??
+      (pathActor.domain === domain
+        ? null
+        : await getActorFromUsernameCached(
+            database,
+            username,
+            pathActor.domain
+          ))
+    // A local path must never resolve a stored status, so a remote row claiming
+    // a local handle cannot resolve under it. That holds even when the lookup
+    // found a row: a REMOTE actors row whose domain equals a served domain is
+    // not a local actor, and only a row with a private key is.
+    const isLocalPath = await isLocalDomain(null, domain)
+    const actorIdFromPath =
+      isLocalPath && !actorFromPath?.privateKey ? undefined : actorFromPath?.id
     const isStatusHash = /^[a-f0-9]{64}$/i.test(decodedStatusParam)
 
     const protocol = domain.startsWith('localhost') ? 'http' : 'https'
@@ -174,6 +197,21 @@ const resolveStatusFromPathCached = cache(
         : `${actorFromPath?.id ?? `${protocol}://${domain}/users/${username}`}/statuses/${decodedStatusParam}`
 
     let status: Status | null = null
+    // A stored candidate the path-actor check refused. page.tsx live-fetches
+    // `fullStatusId` when nothing resolved, so returning it after a refusal
+    // would fetch and render a status under an actor that does not own it.
+    let rejectedCandidate = false
+    const resolveCandidate = (candidate: Status | null | undefined) => {
+      if (!candidate) return null
+      const resolved = getStatusForPathActor(
+        candidate,
+        actorIdFromPath,
+        pathActor,
+        isLocalPath
+      )
+      if (!resolved) rejectedCandidate = true
+      return resolved
+    }
 
     // publicId paths come first: the lookup is a single unique-index hit and it
     // is the only branch that resolves a BACKFILLED status, whose URI tail is not
@@ -187,14 +225,7 @@ const resolveStatusFromPathCached = cache(
         currentActorId
       })
 
-      if (statusFromPublicId) {
-        status = getStatusForPathActor(
-          statusFromPublicId,
-          actorIdFromPath,
-          pathActor,
-          isLocalPath
-        )
-      }
+      status = resolveCandidate(statusFromPublicId)
     }
 
     if (isStatusHash) {
@@ -214,14 +245,7 @@ const resolveStatusFromPathCached = cache(
             currentActorId
           })
 
-          if (unscopedStatus) {
-            status = getStatusForPathActor(
-              unscopedStatus,
-              actorIdFromPath,
-              pathActor,
-              isLocalPath
-            )
-          }
+          status = resolveCandidate(unscopedStatus)
         }
       }
     }
@@ -232,14 +256,7 @@ const resolveStatusFromPathCached = cache(
         withReplies: false,
         currentActorId
       })
-      if (candidate) {
-        status = getStatusForPathActor(
-          candidate,
-          actorIdFromPath,
-          pathActor,
-          isLocalPath
-        )
-      }
+      status = resolveCandidate(candidate)
     }
 
     if (!status && !isStatusHash && !isFullStatusUrl) {
@@ -248,20 +265,16 @@ const resolveStatusFromPathCached = cache(
         currentActorId,
         withReplies: false
       })
-      if (candidate) {
-        status = getStatusForPathActor(
-          candidate,
-          actorIdFromPath,
-          pathActor,
-          isLocalPath
-        )
-      }
+      status = resolveCandidate(candidate)
     }
 
     return {
       status,
       statusId: status?.id ?? '',
-      fullStatusId,
+      // A local path never live-fetches, and a refused candidate must not be
+      // fetched back under the path actor: both 404 instead.
+      fullStatusId:
+        isLocalPath || (!status && rejectedCandidate) ? '' : fullStatusId,
       isStatusHash,
       pathActor
     }

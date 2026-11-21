@@ -308,8 +308,11 @@ const Page: FC<Props> = async ({ params }) => {
     }
   }
 
-  // Try to fetch remote status if not found and user is logged in
-  if (!status && session && !isStatusHash) {
+  // Try to fetch remote status if not found and user is logged in. An empty
+  // `fullStatusId` means there is nothing to fetch — a local path or a stored
+  // candidate the path actor does not own — so fall through to the 404 instead
+  // of queueing a job for an empty id and showing the loading state forever.
+  if (!status && session && !isStatusHash && fullStatusId) {
     const queue = getQueue()
     // Queue the fetch job with a deterministic ID to avoid duplicates. As above,
     // an inline NoQueue run is kept to the focused note's direct replies so the

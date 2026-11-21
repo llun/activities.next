@@ -59,7 +59,10 @@ const request = (query: Record<string, string>) =>
 describe('GET /api/oembed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDatabase.getActorFromUsername.mockResolvedValue({ id: TEST_ACTOR.id })
+    mockDatabase.getActorFromUsername.mockResolvedValue({
+      id: TEST_ACTOR.id,
+      privateKey: 'local-private-key'
+    })
     mockDatabase.getStatusFromUrlHash.mockResolvedValue(null)
     mockDatabase.getStatus.mockImplementation(async ({ statusId }) =>
       statusId === STATUS_ID ? buildNote() : null
