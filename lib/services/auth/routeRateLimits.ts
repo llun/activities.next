@@ -153,8 +153,13 @@ export const checkEmailConfirmationRateLimit = async (
 // The per-IP half alone, for the code-based email-change confirmation: it has
 // no account to key on (the link may be opened signed out), so the code is the
 // credential and the address is the only bucket.
-export const checkEmailConfirmationIpRateLimit = (req: NextRequest) =>
-  consumeByIp(emailConfirmationByIp, req)
+export const checkEmailConfirmationIpRateLimit = async (req: NextRequest) =>
+  consumeByIp(
+    'email-confirmation-ip',
+    EMAIL_CONFIRMATION_IP_LIMIT,
+    FIVE_MINUTES_MS,
+    req
+  )
 
 export const checkEmailChangeRateLimit = (accountId: string) =>
   consumeValue(

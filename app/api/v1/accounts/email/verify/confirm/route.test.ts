@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { createInMemoryRateLimitDatabase } from '@/lib/database/testing/inMemoryRateLimit'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { resetRouteRateLimitsForTests } from '@/lib/services/auth/routeRateLimits'
 
@@ -10,9 +11,14 @@ const VALID_CODE = 'a'.repeat(43)
 
 const mockVerifyEmailChange = vi.fn()
 
-let mockDatabase: { verifyEmailChange: typeof mockVerifyEmailChange } | null = {
-  verifyEmailChange: mockVerifyEmailChange
+type MockDatabase = ReturnType<typeof createInMemoryRateLimitDatabase> & {
+  verifyEmailChange: typeof mockVerifyEmailChange
 }
+const buildMockDatabase = (): MockDatabase => ({
+  ...createInMemoryRateLimitDatabase(),
+  verifyEmailChange: mockVerifyEmailChange
+})
+let mockDatabase: MockDatabase | null = buildMockDatabase()
 
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
@@ -62,10 +68,10 @@ const post = (fields: Record<string, string>, origin?: string | null) =>
   POST(createRequest(fields, origin), { params: Promise.resolve({}) })
 
 describe('POST /api/v1/accounts/email/verify/confirm', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
-    resetRouteRateLimitsForTests()
-    mockDatabase = { verifyEmailChange: mockVerifyEmailChange }
+    await resetRouteRateLimitsForTests()
+    mockDatabase = buildMockDatabase()
     mockVerifyEmailChange.mockResolvedValue({ email: 'new@llun.test' })
   })
 
