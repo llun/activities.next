@@ -267,7 +267,9 @@ describe('Mobile chrome', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetStatus.mockReset()
-    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
     mockGetStatusReplies.mockResolvedValue([])
   })
@@ -400,7 +402,9 @@ describe('Back to profile fallback from an untrusted actor segment', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     mockGetStatus.mockReset()
-    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
     mockGetStatusReplies.mockResolvedValue([])
     // The real resolver, so the test proves such a path renders at all.
@@ -626,6 +630,9 @@ describe('Fitness activity card chrome', () => {
   it('does not clip its children, so post overlays can escape it', async () => {
     // Signed in on purpose: a logged-out viewer gets no action row at all, so
     // there is no overlay to clip and the assertion would be vacuous.
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
     const card = await renderPage()
@@ -634,6 +641,9 @@ describe('Fitness activity card chrome', () => {
   })
 
   it('hands the activity the author’s zone inputs and nothing else of their settings', async () => {
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue({
       ...buildViewer(),
       id: AUTHOR_ID
@@ -671,6 +681,9 @@ describe('Fitness activity card chrome', () => {
   })
 
   it('gives anyone but the author no zone inputs, so their numbers stay on the server', async () => {
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
     await renderPage()
@@ -688,6 +701,9 @@ describe('Fitness activity card chrome', () => {
   // header wrapper stays first and the post block stays last: append another
   // painted block and a rounded row is notched into the middle of the card.
   it('keeps the header wrapper first and the post block last for a signed-in viewer', async () => {
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@activities.local' }
+    } as never)
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
     const card = await renderPage()

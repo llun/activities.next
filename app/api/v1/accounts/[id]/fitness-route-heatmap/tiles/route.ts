@@ -7,14 +7,13 @@ import {
   getRegionBounds,
   normalizeRegionParam
 } from '@/lib/fitness/regions'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   parseTileBatchQuery,
   serveHeatmapTiles
 } from '@/lib/services/fitness-files/heatmapTiles/serveTiles'
+import { resolveSessionActor } from '@/lib/services/guards/sessionActor'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -59,8 +58,8 @@ export const GET = traceApiRoute(
       })
     }
 
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -68,16 +67,15 @@ export const GET = traceApiRoute(
         responseStatusCode: 401
       })
     }
-
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
+    if (resolved.type === 'blocked') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
+    const currentActor = resolved.actor
 
     const { id: encodedAccountId } = await params.params
     if (!encodedAccountId) {

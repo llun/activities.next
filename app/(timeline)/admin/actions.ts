@@ -3,14 +3,13 @@
 import { redirect } from 'next/navigation'
 
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { resolveSessionAdmin } from '@/lib/services/guards/sessionActor'
 import {
   ALL_COUNTER_TYPES,
   MAX_STATS_WINDOW_MS,
   ServiceStatCounterType,
   ServiceStatsBucket
 } from '@/lib/types/database/operations'
-import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 function validateTimeRange(
   startTime: number,
@@ -37,8 +36,7 @@ export async function getStatsBuckets(
   const database = getDatabase()
   if (!database) throw new Error('Failed to load database')
 
-  const session = await getServerAuthSession()
-  const admin = await getAdminFromSession(database, session)
+  const admin = await resolveSessionAdmin(database)
   if (!admin) return redirect('/')
 
   if (!ALL_COUNTER_TYPES.includes(counterType as ServiceStatCounterType)) {
@@ -61,8 +59,7 @@ export async function getAllStatsBuckets(
   const database = getDatabase()
   if (!database) throw new Error('Failed to load database')
 
-  const session = await getServerAuthSession()
-  const admin = await getAdminFromSession(database, session)
+  const admin = await resolveSessionAdmin(database)
   if (!admin) return redirect('/')
 
   const { start, end } = validateTimeRange(startTime, endTime)

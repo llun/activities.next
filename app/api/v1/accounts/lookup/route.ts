@@ -7,21 +7,16 @@ import {
   recordRemoteActorBestEffort,
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import {
   OptionalOAuthGuard,
   corsErrorResponse,
   isBearerAuthorizationHeader
 } from '@/lib/services/guards/OAuthGuard'
-import {
-  isActorConfirmationPending,
-  isActorModerationBlocked
-} from '@/lib/services/guards/accountState'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { Scope } from '@/lib/types/database/operations'
 import { parseAccountUrlHandle } from '@/lib/utils/accountHandle'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -145,17 +140,8 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       // it already held, which is exactly the capability this route's bearer
       // branch withholds from a pending account. The same gap let a suspended
       // account's lingering session through.
-      const session = await getServerAuthSession()
-      const sessionActor = session?.user?.email
-        ? await getActorFromSession(database, session)
-        : null
-      auth = {
-        authorized: Boolean(
-          sessionActor &&
-          !isActorModerationBlocked(sessionActor) &&
-          !isActorConfirmationPending(sessionActor)
-        )
-      }
+      const sessionActor = await resolveOptionalSessionActor(database)
+      auth = { authorized: sessionActor !== null }
     } else {
       const bearerAuth = await authorizeBearerRemoteLookup(req)
       auth = bearerAuth.authorized

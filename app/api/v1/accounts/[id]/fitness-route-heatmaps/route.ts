@@ -1,10 +1,9 @@
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
+import { resolveSessionActor } from '@/lib/services/guards/sessionActor'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { FitnessRouteHeatmapSummary } from '@/lib/types/database/fitnessRouteHeatmap'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_401,
@@ -47,16 +46,6 @@ const serializeRouteHeatmapSummary = (heatmap: FitnessRouteHeatmapSummary) => ({
 export const GET = traceApiRoute(
   'getAccountFitnessRouteHeatmaps',
   async (req, params: AppRouterParams<Params>) => {
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
-
     const database = getDatabase()
     if (!database) {
       return apiResponse({
@@ -67,8 +56,8 @@ export const GET = traceApiRoute(
       })
     }
 
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -76,6 +65,15 @@ export const GET = traceApiRoute(
         responseStatusCode: 401
       })
     }
+    if (resolved.type === 'blocked') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
+      })
+    }
+    const currentActor = resolved.actor
 
     const { id: encodedAccountId } = await params.params
     const id = await resolveActorIdParam(database, encodedAccountId)
@@ -112,13 +110,31 @@ export const GET = traceApiRoute(
 export const DELETE = traceApiRoute(
   'deleteAccountFitnessRouteHeatmaps',
   async (req, params: AppRouterParams<Params>) => {
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
+    const database = getDatabase()
+    if (!database) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
+    }
+
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: ERROR_401,
         responseStatusCode: 401
+      })
+    }
+    if (resolved.type === 'blocked') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
 
@@ -133,25 +149,7 @@ export const DELETE = traceApiRoute(
       })
     }
 
-    const database = getDatabase()
-    if (!database) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
-
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
+    const currentActor = resolved.actor
 
     const { id: encodedAccountId } = await params.params
     const id = await resolveActorIdParam(database, encodedAccountId)

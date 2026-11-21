@@ -19,11 +19,8 @@ const mockDatabase = {
 }
 
 vi.mock('@/lib/database', () => ({ getDatabase: () => mockDatabase }))
-vi.mock('@/lib/services/auth/getSession', () => ({
-  getServerAuthSession: vi.fn()
-}))
-vi.mock('@/lib/utils/getAdminFromSession', () => ({
-  getAdminFromSession: vi.fn().mockResolvedValue({ id: 'admin' })
+vi.mock('@/lib/services/guards/sessionActor', () => ({
+  resolveSessionAdmin: vi.fn().mockResolvedValue({ id: 'admin' })
 }))
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
   getFederationSigningActor: vi.fn().mockResolvedValue({

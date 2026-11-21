@@ -7,6 +7,7 @@ import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isRealAvatar } from '@/lib/utils/isRealAvatar'
+import { isUsableAccountActor } from '@/lib/utils/selectAccountActor'
 
 import { ActorSelectionList } from './ActorSelectionList'
 
@@ -31,7 +32,12 @@ const Page: FC = async () => {
     return redirect('/auth/signin')
   }
 
-  const actors = await database.getActorsForAccount({ accountId: account.id })
+  // Only usable actors are offered: a suspended or deleting actor cannot act,
+  // and `actors/switch` refuses it, so listing it would present a choice that
+  // fails with a server error.
+  const actors = (
+    await database.getActorsForAccount({ accountId: account.id })
+  ).filter(isUsableAccountActor)
 
   if (actors.length <= 1) {
     return redirect('/')

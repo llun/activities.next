@@ -11,6 +11,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { matchesRegisteredRedirectUri } from '@/lib/services/oauth/matchRedirectUri'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { isRealAvatar } from '@/lib/utils/isRealAvatar'
+import { isUsableAccountActor } from '@/lib/utils/selectAccountActor'
 
 import { type AuthorizeActorOption, AuthorizeCard } from './AuthorizeCard'
 import {
@@ -116,17 +117,24 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // picker renders, never the stored Actor (its privateKey and Account secrets
   // would ride along in the RSC payload), and pass the client's display fields
   // rather than the row that carries its secret hash.
+  //
+  // Only usable actors are offered: a suspended or deleting actor cannot act,
+  // and `actors/switch` refuses it, so listing it would present a choice that
+  // fails with a server error. `currentActorId` is usable by construction
+  // (getActorFromSession prefers one), so it is always in this list.
   const accountActors = await database.getActorsForAccount({
     accountId: actor.account.id
   })
-  const actors: AuthorizeActorOption[] = accountActors.map((item) => ({
-    id: item.id,
-    username: item.username,
-    domain: item.domain,
-    name: item.name,
-    iconUrl: item.iconUrl,
-    tags: item.tags
-  }))
+  const actors: AuthorizeActorOption[] = accountActors
+    .filter(isUsableAccountActor)
+    .map((item) => ({
+      id: item.id,
+      username: item.username,
+      domain: item.domain,
+      name: item.name,
+      iconUrl: item.iconUrl,
+      tags: item.tags
+    }))
 
   return (
     <div>

@@ -539,7 +539,10 @@ a string>`, which returns an empty page, so that poller never detects new
   `suspend`/`silence`/`sensitize` act per actor and apply
   to remote actors too, while `disable`/`enable`/`approve`/`reject` are
   local-account-only (a remote target returns `422`); a full Mastodon-style
-  "suspend freezes login" needs both `suspend` and `disable`. Registration
+  "suspend freezes login" needs both `suspend` and `disable`, or `suspend` on
+  every actor the account owns — sign-in is refused when every actor is
+  suspended, because the session would be minted only for every guarded route
+  to refuse it. Registration
   approval is wired but empty today (`pending` lists return `[]` until an
   approval-required mode exists).
 

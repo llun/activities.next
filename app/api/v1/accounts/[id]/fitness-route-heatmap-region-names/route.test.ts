@@ -85,6 +85,28 @@ describe('GET/PUT /api/v1/accounts/[id]/fitness-route-heatmap-region-names', () 
     expect(mockDb.getFitnessRouteHeatmapRegionNames).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { description: 'a suspended actor', overrides: { suspendedAt: 1 } },
+    {
+      description: 'a disabled account',
+      overrides: { account: { disabledAt: 1 } }
+    }
+  ])('returns 403 for $description on GET', async ({ overrides }) => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: ACTOR1_ID,
+      ...overrides
+    })
+
+    const request = new NextRequest(baseUrl)
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(403)
+    expect(mockDb.getFitnessRouteHeatmapRegionNames).not.toHaveBeenCalled()
+  })
+
   it('saves a region name for the owner', async () => {
     const request = new NextRequest(baseUrl, {
       method: 'PUT',
@@ -173,6 +195,35 @@ describe('GET/PUT /api/v1/accounts/[id]/fitness-route-heatmap-region-names', () 
     mockGetActorFromSession.mockResolvedValue({
       ...seedActor1,
       id: 'https://llun.test/users/other'
+    })
+
+    const request = new NextRequest(baseUrl, {
+      method: 'PUT',
+      headers: {
+        Origin: 'https://test.llun.dev',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ region: 'rect:52.60,5.60,52.00,6.20', name: 'x' })
+    })
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(403)
+    expect(mockDb.setFitnessRouteHeatmapRegionName).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { description: 'a suspended actor', overrides: { suspendedAt: 1 } },
+    {
+      description: 'a disabled account',
+      overrides: { account: { disabledAt: 1 } }
+    }
+  ])('returns 403 for $description on PUT', async ({ overrides }) => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: ACTOR1_ID,
+      ...overrides
     })
 
     const request = new NextRequest(baseUrl, {

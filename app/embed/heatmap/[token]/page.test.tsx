@@ -15,6 +15,7 @@ vi.mock('next/navigation', () => ({
 
 const mockDb = {
   getFitnessRouteHeatmapByShareToken: vi.fn(),
+  getActorFromId: vi.fn(),
   getFitnessRouteHeatmapRegionNames: vi.fn(),
   getFitnessRouteHeatmapPyramid: vi.fn()
 }
@@ -51,6 +52,14 @@ describe('public heatmap embed page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // The embed 404s when the owner cannot be loaded, so every case that is not
+    // about moderation needs a live owner.
+    mockDb.getActorFromId.mockResolvedValue({
+      id: 'https://llun.test/users/user1',
+      name: 'User',
+      username: 'user1',
+      domain: 'llun.test'
+    })
     mockDb.getFitnessRouteHeatmapRegionNames.mockResolvedValue([])
     mockDb.getFitnessRouteHeatmapPyramid.mockResolvedValue(null)
   })
@@ -81,6 +90,23 @@ describe('public heatmap embed page', () => {
 
     await expect(render()).resolves.toBeDefined()
     expect(mockNotFound).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { description: 'a suspended actor', owner: { suspendedAt: 1 } },
+    {
+      description: 'an actor whose account is disabled',
+      owner: { suspendedAt: null, account: { disabledAt: 1 } }
+    },
+    { description: 'an owner that cannot be loaded', owner: null }
+  ])('refuses a share owned by $description', async ({ owner }) => {
+    // The token is a capability the owner handed out; a moderation action
+    // withdraws it, which is the same answer a revoked token gets.
+    mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
+    mockDb.getActorFromId.mockResolvedValue(owner)
+
+    await expect(render()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(mockNotFound).toHaveBeenCalled()
   })
 
   it('still renders when the pyramid read fails, and records it', async () => {

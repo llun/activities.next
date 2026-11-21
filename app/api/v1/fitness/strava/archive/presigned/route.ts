@@ -5,16 +5,11 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { DEFAULT_FITNESS_MAX_FILE_SIZE } from '@/lib/config/fitnessStorage'
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getPresignedFitnessFileUrl } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
-import {
-  isActorConfirmationPending,
-  isActorModerationBlocked
-} from '@/lib/services/guards/accountState'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
+import { resolveSessionActor } from '@/lib/services/guards/sessionActor'
 import { getStravaArchiveSourceBatchId } from '@/lib/services/strava/archiveImport'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
@@ -64,29 +59,25 @@ export const POST = traceApiRoute(
   'getStravaArchivePresignedUrl',
   async (req) => {
     const database = getDatabase()
-    const session = await getServerAuthSession()
-
-    if (!database || !session?.user?.email) {
+    if (!database) {
       return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
     }
+
+    // The same account-state checks as AuthenticatedGuard: a suspended,
+    // disabled or unconfirmed actor must not get a bucket write it could never
+    // complete.
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
+      return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
+    }
+    if (resolved.type === 'blocked') {
+      return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
+    }
+    const currentActor = resolved.actor
 
     // Manually authenticated cookie-session mutation: apply the same CSRF
     // same-origin proof as AuthenticatedGuard.
     if (!hasSameOriginProof(req)) {
-      return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
-    }
-
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
-      return apiErrorResponse(HTTP_STATUS.UNAUTHORIZED)
-    }
-
-    // The same account-state checks as AuthenticatedGuard: a suspended or
-    // unconfirmed actor must not get a bucket write it could never complete.
-    if (
-      isActorModerationBlocked(currentActor) ||
-      isActorConfirmationPending(currentActor)
-    ) {
       return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
     }
 

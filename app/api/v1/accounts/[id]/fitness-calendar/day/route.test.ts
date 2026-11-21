@@ -155,6 +155,23 @@ describe('GET /api/v1/accounts/[id]/fitness-calendar/day', () => {
     expect(mockDb.getFitnessActivitiesInWindow).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { description: 'a suspended actor', actor: { suspendedAt: 1 } },
+    {
+      description: 'an actor whose account is disabled',
+      actor: { suspendedAt: null, account: { disabledAt: 1 } }
+    }
+  ])('returns 403 for $description', async ({ actor }) => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: ACTOR1_ID,
+      ...actor
+    })
+    await expectCorsError(await callGet(validQuery), 403)
+    expect(mockDb.getFitnessActivitiesInWindow).not.toHaveBeenCalled()
+    expect(mockDb.getStatusesByIds).not.toHaveBeenCalled()
+  })
+
   it("returns 403 for another actor's day", async () => {
     mockGetActorFromSession.mockResolvedValue({
       ...seedActor1,

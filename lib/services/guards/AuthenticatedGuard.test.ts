@@ -270,6 +270,13 @@ describe('AuthenticatedGuard', () => {
       })
     })
 
+    // The sub-actor is a second usable actor on actor1's account. Leaving it
+    // behind would let the moderation tests below resolve to it instead of the
+    // suspended primary actor, so remove it once this describe is done.
+    afterAll(async () => {
+      await database.deleteActor({ actorId: subActorId })
+    })
+
     it('uses the primary actor when no cookie is set', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor1.email }

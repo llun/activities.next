@@ -7,6 +7,7 @@ import {
 } from '@/lib/services/fitness-files/heatmapTiles/serveTiles'
 import { buildHeatmapTileSource } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
 import { resolveSharedHeatmapRegionBounds } from '@/lib/services/fitness-files/publicHeatmap'
+import { isActorModerationBlocked } from '@/lib/services/guards/accountState'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 export const dynamic = 'force-dynamic'
@@ -74,6 +75,12 @@ export const GET = traceApiRoute(
     // re-queued share keeps its token while it regenerates, and this window is
     // not something the owner chose to publish.
     if (!heatmap || heatmap.status !== 'completed') return refusal(404)
+
+    // A suspended actor or a disabled account must not keep publishing a share
+    // it created before the moderation action. 404 like a revoked token, before
+    // any tile work runs.
+    const owner = await database.getActorFromId({ id: heatmap.actorId })
+    if (!owner || isActorModerationBlocked(owner)) return refusal(404)
 
     const url = new URL(req.url)
     const query = parseTileBatchQuery(url.searchParams)

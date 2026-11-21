@@ -65,6 +65,27 @@ describe('GET /api/v1/accounts/[id]/fitness-activity-types', () => {
     expect(response.status).toBe(401)
   })
 
+  it.each([
+    { description: 'a suspended actor', actor: { suspendedAt: 1 } },
+    {
+      description: 'an actor whose account is disabled',
+      actor: { suspendedAt: null, account: { disabledAt: 1 } }
+    }
+  ])('returns 403 for $description', async ({ actor }) => {
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: ACTOR1_ID,
+      ...actor
+    })
+
+    const request = new NextRequest(baseUrl)
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+    expect(response.status).toBe(403)
+    expect(mockDb.getDistinctActivityTypesForActor).not.toHaveBeenCalled()
+  })
+
   it('returns 403 when requesting another actors data', async () => {
     mockGetActorFromSession.mockResolvedValue({
       ...seedActor1,

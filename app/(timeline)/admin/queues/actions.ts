@@ -4,9 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { resolveSessionAdmin } from '@/lib/services/guards/sessionActor'
 import { getDLQProvider } from '@/lib/services/queue/dlq'
-import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 const ADMIN_QUEUES_PATH = '/admin/queues'
 
@@ -14,8 +13,7 @@ const verifyAdmin = async (): Promise<void> => {
   const database = getDatabase()
   if (!database) throw new Error('Failed to load database')
 
-  const session = await getServerAuthSession()
-  const admin = await getAdminFromSession(database, session)
+  const admin = await resolveSessionAdmin(database)
   if (!admin) redirect('/')
 }
 

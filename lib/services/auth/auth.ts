@@ -24,6 +24,7 @@ import type { WindowCounterResult } from '@/lib/services/gallery/lookups/rateLim
 import { UsableScopes } from '@/lib/types/database/operations'
 import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
 import { logger } from '@/lib/utils/logger'
+import { selectAccountActor } from '@/lib/utils/selectAccountActor'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { canCreateSessionForAccount } from './canCreateSessionForAccount'
@@ -546,11 +547,30 @@ const buildAuth = (baseURL: string, serviceName: string) => {
             }
             if (!account) return false
             // Email-verified, not disabled, and approved (see the helper).
-            if (!canCreateSessionForAccount(account)) return false
+            // Every actor suspended is refused too: the session would be
+            // minted only for every guarded route to refuse it.
+            let actors
+            try {
+              actors = await database.getActorsForAccount({
+                accountId: account.id
+              })
+            } catch (e) {
+              logger.error({
+                message: 'Failed to load account actors in session hook',
+                error: e
+              })
+              return false
+            }
+            if (!canCreateSessionForAccount(account, actors)) return false
             return {
               data: {
                 ...session,
-                actorId: account?.defaultActorId || null
+                // The same rule the web session and OAuth token issuance use:
+                // a usable actor (neither deleting nor suspended) wins over a
+                // suspended default, so the session is not minted for an
+                // identity every guarded route refuses.
+                actorId:
+                  selectAccountActor(actors, account.defaultActorId)?.id ?? null
               }
             }
           }

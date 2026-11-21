@@ -1,7 +1,12 @@
+import { cookies } from 'next/headers'
+
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { Database } from '@/lib/database/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
-import { getAccountFromSession } from '@/lib/utils/getActorFromSession'
+import {
+  getAccountFromSession,
+  getActorFromSession
+} from '@/lib/utils/getActorFromSession'
 
 vi.mock('@/lib/services/serverSettings', () => ({
   getResolvedServerSettings: vi.fn()
@@ -123,5 +128,70 @@ describe('getAccountFromSession', () => {
     await expect(
       getAccountFromSession(database, { user: { email: 'user@example.com' } })
     ).resolves.toEqual(account)
+  })
+})
+
+describe('getActorFromSession', () => {
+  const actor = (id: string, overrides: Record<string, unknown> = {}) => ({
+    id,
+    username: id,
+    domain: 'llun.test',
+    deletionStatus: null,
+    suspendedAt: null,
+    ...overrides
+  })
+
+  const databaseWithActors = (actors: unknown[]) =>
+    ({
+      getAccountFromEmail: vi.fn().mockResolvedValue(account),
+      getActorsForAccount: vi.fn().mockResolvedValue(actors)
+    }) as unknown as Database
+
+  const mockCookieActorId = (actorId?: string) => {
+    vi.mocked(cookies).mockResolvedValue({
+      get: () => (actorId ? { value: actorId } : undefined)
+    } as never)
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAllowEmails([])
+    mockCookieActorId()
+  })
+
+  it('returns the actor selected by the cookie when it is usable', async () => {
+    mockCookieActorId('second')
+    const database = databaseWithActors([actor('first'), actor('second')])
+
+    await expect(
+      getActorFromSession(database, { user: { email: 'user@example.com' } })
+    ).resolves.toMatchObject({ id: 'second' })
+  })
+
+  it('skips a suspended actor selected by the cookie', async () => {
+    // A session minted before the moderation action keeps the cookie pointing
+    // at the suspended actor. Falling back to a usable actor is what keeps the
+    // account acting as an identity the guards accept.
+    mockCookieActorId('first')
+    const database = databaseWithActors([
+      actor('first', { suspendedAt: 1 }),
+      actor('second')
+    ])
+
+    await expect(
+      getActorFromSession(database, { user: { email: 'user@example.com' } })
+    ).resolves.toMatchObject({ id: 'second' })
+  })
+
+  it('skips an actor pending deletion selected by the cookie', async () => {
+    mockCookieActorId('first')
+    const database = databaseWithActors([
+      actor('first', { deletionStatus: 'scheduled' }),
+      actor('second')
+    ])
+
+    await expect(
+      getActorFromSession(database, { user: { email: 'user@example.com' } })
+    ).resolves.toMatchObject({ id: 'second' })
   })
 })

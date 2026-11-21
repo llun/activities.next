@@ -353,6 +353,32 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     expect(response.status).toBe(403)
   })
 
+  it.each([
+    { description: 'a suspended actor', overrides: { suspendedAt: 1 } },
+    {
+      description: 'a disabled account',
+      overrides: { account: { disabledAt: 1 } }
+    }
+  ])('returns 403 for $description', async ({ overrides }) => {
+    // The route reads the cookie session by hand, so it must apply the same
+    // moderation checks AuthenticatedGuard does.
+    mockGetActorFromSession.mockResolvedValue({
+      ...seedActor1,
+      id: ACTOR1_ID,
+      ...overrides
+    })
+
+    const request = new NextRequest(
+      `${baseUrl}?period_type=yearly&period_key=2026`
+    )
+    const response = await GET(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(403)
+    expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+  })
+
   it('queues route heatmap generation', async () => {
     const request = new NextRequest(baseUrl, {
       method: 'POST',
@@ -1010,6 +1036,31 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       })
 
       expect(response.status).toBe(401)
+    })
+
+    it.each([
+      { description: 'a suspended actor', overrides: { suspendedAt: 1 } },
+      {
+        description: 'a disabled account',
+        overrides: { account: { disabledAt: 1 } }
+      }
+    ])('returns 403 for $description', async ({ overrides }) => {
+      mockGetActorFromSession.mockResolvedValue({
+        ...seedActor1,
+        id: ACTOR1_ID,
+        ...overrides
+      })
+
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=2026`,
+        { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
+      )
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: encodedId })
+      })
+
+      expect(response.status).toBe(403)
+      expect(mockDb.deleteFitnessRouteHeatmap).not.toHaveBeenCalled()
     })
   })
 

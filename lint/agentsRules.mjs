@@ -1,4 +1,4 @@
-import { relative } from 'node:path'
+import { relative, sep } from 'node:path'
 
 // Oxlint JS plugin carrying the AGENTS.md conventions that used to be
 // `no-restricted-syntax` selectors in eslint.config.mjs. Oxlint implements no
@@ -475,6 +475,82 @@ export default {
               node,
               message:
                 'Do not call fetch() directly in components — add a named function to lib/client.ts and import it (docs/architecture.md → Client-Side API Calls).'
+            })
+          }
+        }
+      }
+    },
+
+    'no-direct-cookie-session': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'API routes and server actions resolve the cookie session through the shared guards or lib/services/guards/sessionActor, never getServerAuthSession/getActorFromSession/getAccountFromSession directly (docs/architecture.md → An Unconfirmed Account May Not Act)'
+        },
+        schema: [
+          {
+            type: 'object',
+            properties: {
+              allowFiles: { type: 'array', items: { type: 'string' } }
+            },
+            additionalProperties: false
+          }
+        ]
+      },
+      create(context) {
+        const { filename } = context
+        // Tests drive the routes through mocked sessions on purpose.
+        if (/\.test\.tsx?$/.test(filename)) return {}
+        // The FROZEN exception list from .oxlintrc.json: a route that must keep
+        // working for a blocked account on purpose, or that needs the session
+        // token itself. Never add a file without the same argument.
+        const allowFiles = context.options[0]?.allowFiles ?? []
+        // Normalise separators: `relative` answers with `\` on Windows, and the
+        // allow-list is written with `/`.
+        const relativePath = relative(context.cwd, filename)
+          .split(sep)
+          .join('/')
+        if (allowFiles.includes(relativePath)) return {}
+
+        // The module that exports the cookie-session reader. Flagging the
+        // IMPORT rather than a call is what catches a renamed or namespace
+        // import (`import { getServerAuthSession as readSession }`), which a
+        // `callee.name` selector cannot see.
+        const SESSION_MODULE = '@/lib/services/auth/getSession'
+        // `getActorFromSession` reads the actor-selection cookie and
+        // `getAccountFromSession` is the account half of the same resolution;
+        // importing either here bypasses the guard's account-state checks.
+        const ACTOR_SESSION_MODULE = '@/lib/utils/getActorFromSession'
+        const ACTOR_SESSION_NAMES = new Set([
+          'getActorFromSession',
+          'getAccountFromSession'
+        ])
+
+        return {
+          ImportDeclaration(node) {
+            const source = node.source.value
+            if (source === SESSION_MODULE) {
+              context.report({
+                node,
+                message:
+                  'Do not read the cookie session directly in an API route or server action — use AuthenticatedGuard, or resolveSessionActor/resolveOptionalSessionActor/resolveSessionAccount/resolveSessionAdmin from @/lib/services/guards/sessionActor, so a suspended, disabled or unconfirmed account is refused (docs/architecture.md → An Unconfirmed Account May Not Act).'
+              })
+              return
+            }
+            if (source !== ACTOR_SESSION_MODULE) return
+
+            const readsCookie = node.specifiers.some((specifier) => {
+              if (specifier.type === 'ImportNamespaceSpecifier') return true
+              if (specifier.type === 'ImportDefaultSpecifier') return false
+              return ACTOR_SESSION_NAMES.has(specifier.imported.name)
+            })
+            if (!readsCookie) return
+
+            context.report({
+              node,
+              message:
+                'Do not resolve the cookie session actor directly in an API route or server action — use resolveSessionActor/resolveOptionalSessionActor/resolveSessionAccount/resolveSessionAdmin from @/lib/services/guards/sessionActor, so a suspended, disabled or unconfirmed account is refused (docs/architecture.md → An Unconfirmed Account May Not Act).'
             })
           }
         }

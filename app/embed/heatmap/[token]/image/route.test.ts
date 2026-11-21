@@ -31,15 +31,18 @@ vi.mock('@/lib/services/fitness-files/simplifyRoute', async () => {
 const mockGetFitnessRouteHeatmapByShareToken = vi.fn()
 const mockGetFitnessRouteHeatmapPyramid = vi.fn()
 const mockGetFitnessRouteHeatmapTilesInRange = vi.fn()
+const mockGetActorFromId = vi.fn()
 let mockDatabase: Pick<
   Database,
   | 'getFitnessRouteHeatmapByShareToken'
   | 'getFitnessRouteHeatmapPyramid'
   | 'getFitnessRouteHeatmapTilesInRange'
+  | 'getActorFromId'
 > | null = {
   getFitnessRouteHeatmapByShareToken: mockGetFitnessRouteHeatmapByShareToken,
   getFitnessRouteHeatmapPyramid: mockGetFitnessRouteHeatmapPyramid,
-  getFitnessRouteHeatmapTilesInRange: mockGetFitnessRouteHeatmapTilesInRange
+  getFitnessRouteHeatmapTilesInRange: mockGetFitnessRouteHeatmapTilesInRange,
+  getActorFromId: mockGetActorFromId
 }
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
@@ -111,9 +114,19 @@ describe('/embed/heatmap/[token]/image', () => {
       getFitnessRouteHeatmapByShareToken:
         mockGetFitnessRouteHeatmapByShareToken,
       getFitnessRouteHeatmapPyramid: mockGetFitnessRouteHeatmapPyramid,
-      getFitnessRouteHeatmapTilesInRange: mockGetFitnessRouteHeatmapTilesInRange
+      getFitnessRouteHeatmapTilesInRange:
+        mockGetFitnessRouteHeatmapTilesInRange,
+      getActorFromId: mockGetActorFromId
     }
     mockGetFitnessRouteHeatmapByShareToken.mockResolvedValue(sharedHeatmap)
+    // The route 404s when the owner cannot be loaded, so every case that is not
+    // about moderation needs a live owner.
+    mockGetActorFromId.mockResolvedValue({
+      id: sharedHeatmap.actorId,
+      name: 'Alice',
+      username: 'alice',
+      domain: 'example.test'
+    })
     // No pyramid by default: every existing case is about the blob path.
     mockGetFitnessRouteHeatmapPyramid.mockResolvedValue(null)
     mockGetFitnessRouteHeatmapTilesInRange.mockResolvedValue([])
@@ -334,6 +347,25 @@ describe('/embed/heatmap/[token]/image', () => {
       ...sharedHeatmap,
       status: 'generating'
     })
+
+    const response = await GET(imageRequest(), {
+      params: Promise.resolve({ token: 'token-1' })
+    })
+
+    expect(response.status).toBe(404)
+  })
+
+  it.each([
+    { description: 'a suspended actor', owner: { suspendedAt: 1 } },
+    {
+      description: 'an actor whose account is disabled',
+      owner: { suspendedAt: null, account: { disabledAt: 1 } }
+    },
+    { description: 'an owner that cannot be loaded', owner: null }
+  ])('returns 404 for a share owned by $description', async ({ owner }) => {
+    // The token is a capability the owner handed out; a moderation action
+    // withdraws it, before any render or upstream fetch runs.
+    mockGetActorFromId.mockResolvedValue(owner)
 
     const response = await GET(imageRequest(), {
       params: Promise.resolve({ token: 'token-1' })

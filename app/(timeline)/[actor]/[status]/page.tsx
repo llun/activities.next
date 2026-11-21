@@ -15,7 +15,6 @@ import { getBaseURL, getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
 import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
@@ -28,6 +27,7 @@ import { FederationPolicyUnavailableError } from '@/lib/services/federation/poli
 import { getPersonalRecordDurations } from '@/lib/services/fitness-files/personalRecords'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
 import { getTrainingZoneSettings } from '@/lib/services/fitness-files/trainingZoneSettings'
+import { resolveSessionActor } from '@/lib/services/guards/sessionActor'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import {
@@ -52,7 +52,6 @@ import {
 } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { cleanJson } from '@/lib/utils/cleanJson'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getActorMentionPathSegment } from '@/lib/utils/getActorMentionPathSegment'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { getStatusVisibility } from '@/lib/utils/getVisibility'
@@ -249,8 +248,13 @@ const Page: FC<Props> = async ({ params }) => {
   if (!database) throw new Error('Database is not available')
   const { open: registrationOpen } = await getVisitedSignUpDomain(database)
 
-  const session = await getServerAuthSession()
-  const currentActor = await getActorFromSession(database, session)
+  // A suspended actor or a disabled/unconfirmed account is treated exactly like
+  // an anonymous visitor: no remote-fetch queueing and no non-public reads. A
+  // credential must never make a public read worse than sending none (the
+  // OptionalOAuthGuard `unconfirmedAccount: 'anonymous'` disposition).
+  const resolved = await resolveSessionActor(database)
+  const currentActor = resolved.type === 'actor' ? resolved.actor : null
+  const session = resolved.type === 'actor' ? resolved.session : null
   const currentActorProfile = currentActor
     ? getActorProfile(currentActor)
     : null

@@ -574,3 +574,91 @@ describe('/oauth/authorize client component props', () => {
     })
   })
 })
+
+describe('/oauth/authorize actor picker', () => {
+  beforeEach(() => {
+    redirectMock.mockClear()
+    vi.mocked(getConfig).mockReturnValue({
+      host: TEST_DOMAIN,
+      trustedHosts: [] as string[]
+    } as ReturnType<typeof getConfig>)
+    vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}`)
+    headersMock.mockReturnValue(
+      new Headers({ 'x-forwarded-host': TEST_DOMAIN })
+    )
+  })
+
+  it('offers only actors that are neither suspended nor pending deletion', async () => {
+    // A suspended or deleting actor cannot act, and `actors/switch` refuses it,
+    // so listing it would present a choice that fails with a server error.
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'https://activities.local/users/llun',
+      account: {
+        id: 'account-id',
+        email: 'rider@example.com',
+        name: 'Ride',
+        iconUrl: null
+      }
+    } as Awaited<ReturnType<typeof getActorFromSession>>)
+
+    vi.mocked(getDatabase).mockReturnValue({
+      getClientFromId: vi.fn().mockResolvedValue({
+        clientId: 'client-id',
+        redirectUris: ['https://app.example/callback']
+      }),
+      getActorsForAccount: vi.fn().mockResolvedValue([
+        {
+          id: 'https://activities.local/users/llun',
+          username: 'llun',
+          domain: 'activities.local',
+          name: 'Llun',
+          iconUrl: null,
+          tags: [],
+          suspendedAt: null,
+          deletionStatus: null
+        },
+        {
+          id: 'https://activities.local/users/suspended',
+          username: 'suspended',
+          domain: 'activities.local',
+          name: 'Suspended',
+          iconUrl: null,
+          tags: [],
+          suspendedAt: 1,
+          deletionStatus: null
+        },
+        {
+          id: 'https://activities.local/users/deleting',
+          username: 'deleting',
+          domain: 'activities.local',
+          name: 'Deleting',
+          iconUrl: null,
+          tags: [],
+          suspendedAt: null,
+          deletionStatus: 'scheduled'
+        }
+      ])
+    } as unknown as ReturnType<typeof getDatabase>)
+
+    const element = (await Page({
+      searchParams: Promise.resolve({
+        client_id: 'client-id',
+        scope: 'read',
+        redirect_uri: 'https://app.example/callback',
+        response_type: 'code' as const,
+        sig: 'signed',
+        exp: '9999999999'
+      })
+    })) as ReactElement
+
+    const authorizeCard = (element.props as { children: ReactElement }).children
+    const props = authorizeCard.props as {
+      actors: { id: string }[]
+      currentActorId: string
+    }
+    expect(props.actors.map((actor) => actor.id)).toEqual([
+      'https://activities.local/users/llun'
+    ])
+    expect(props.currentActorId).toBe('https://activities.local/users/llun')
+  })
+})

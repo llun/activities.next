@@ -117,7 +117,13 @@ const lint = (files: Record<string, string>): string[] =>
             files: ['app/api/**/route.ts'],
             rules: {
               'agents/api-response-helpers': 'error',
-              'agents/zod-safe-parse': 'error'
+              'agents/zod-safe-parse': 'error',
+              'agents/no-direct-cookie-session': [
+                'error',
+                {
+                  allowFiles: ['app/api/v1/accounts/sessions/route.ts']
+                }
+              ]
             }
           },
           {
@@ -228,6 +234,78 @@ describe('agents oxlint plugin', () => {
       })
     ).toEqual([
       'lib/components/app/legacy/Legacy.tsx:1 agents(no-component-fetch)'
+    ])
+  })
+
+  it('flags a direct cookie-session read in an API route except allow-listed files', () => {
+    // A route that reads the cookie session by hand must apply the same
+    // suspended/disabled/unconfirmed checks the shared guards do, or it becomes
+    // a way around them. The allow-list is the frozen set of routes that must
+    // keep working for a blocked account on purpose, or that need the session
+    // token itself.
+    expect(
+      lint({
+        'app/api/x/route.ts': [
+          "import { getServerAuthSession } from '@/lib/services/auth/getSession'",
+          'export const GET = async () => {',
+          '  const session = await getServerAuthSession()',
+          '  return session',
+          '}'
+        ].join('\n'),
+        'app/api/v1/accounts/sessions/route.ts': [
+          "import { getServerAuthSession } from '@/lib/services/auth/getSession'",
+          'export const DELETE = async () => getServerAuthSession()'
+        ].join('\n'),
+        // The rule is scoped to API route files: lib code reads the session
+        // freely.
+        'lib/services/other.ts': [
+          "import { getServerAuthSession } from '@/lib/services/auth/getSession'",
+          'export const read = () => getServerAuthSession()'
+        ].join('\n')
+      })
+    ).toEqual(['app/api/x/route.ts:1 agents(no-direct-cookie-session)'])
+  })
+
+  it('flags renamed and namespace imports of the cookie-session reader', () => {
+    // A `callee.name` selector cannot see either spelling, so the rule reports
+    // the import itself.
+    expect(
+      lint({
+        'app/api/renamed/route.ts': [
+          "import { getServerAuthSession as readSession } from '@/lib/services/auth/getSession'",
+          'export const GET = async () => readSession()'
+        ].join('\n'),
+        'app/api/namespace/route.ts': [
+          "import * as session from '@/lib/services/auth/getSession'",
+          'export const GET = async () => session.getServerAuthSession()'
+        ].join('\n')
+      })
+    ).toEqual([
+      'app/api/namespace/route.ts:1 agents(no-direct-cookie-session)',
+      'app/api/renamed/route.ts:1 agents(no-direct-cookie-session)'
+    ])
+  })
+
+  it('flags a direct actor-session import in an API route', () => {
+    expect(
+      lint({
+        'app/api/actor/route.ts': [
+          "import { getActorFromSession } from '@/lib/utils/getActorFromSession'",
+          'export const GET = async () => getActorFromSession()'
+        ].join('\n'),
+        'app/api/account/route.ts': [
+          "import { getAccountFromSession as readAccount } from '@/lib/utils/getActorFromSession'",
+          'export const GET = async () => readAccount()'
+        ].join('\n'),
+        // Importing a type from that module is not a cookie read.
+        'app/api/other/route.ts': [
+          "import { AuthSession } from '@/lib/utils/getActorFromSession'",
+          'export type S = AuthSession'
+        ].join('\n')
+      })
+    ).toEqual([
+      'app/api/account/route.ts:1 agents(no-direct-cookie-session)',
+      'app/api/actor/route.ts:1 agents(no-direct-cookie-session)'
     ])
   })
 
@@ -476,6 +554,32 @@ describe('repo lint configuration', () => {
     ).toEqual([
       'lib/services/fitness-files/localFile.ts:3 agents(no-storage-path-builder)',
       'lib/services/medias/localFile.ts:3 agents(no-storage-path-builder)'
+    ])
+  })
+
+  it('wires the direct cookie-session rule to routes and server actions with its frozen exception', () => {
+    const readsSession = [
+      "import { getServerAuthSession } from '@/lib/services/auth/getSession'",
+      'export const GET = async () => getServerAuthSession()'
+    ].join('\n')
+
+    expect(
+      lintWithRepoConfig(MAIN_CONFIG, '.', {
+        'app/api/v1/example/route.ts': readsSession,
+        // The documented exception: the sessions route needs the token itself.
+        'app/api/v1/accounts/sessions/route.ts': readsSession,
+        // Widened coverage: a non-route file under app/api and a server action.
+        'app/api/v1/example/helper.ts': readsSession,
+        'app/(timeline)/admin/example/actions.ts': readsSession,
+        // Tests are exempted by the rule itself.
+        'app/api/v1/example/route.test.ts': readsSession,
+        // The rule is scoped to app/ route and action files.
+        'lib/services/example.ts': readsSession
+      })
+    ).toEqual([
+      'app/(timeline)/admin/example/actions.ts:1 agents(no-direct-cookie-session)',
+      'app/api/v1/example/helper.ts:1 agents(no-direct-cookie-session)',
+      'app/api/v1/example/route.ts:1 agents(no-direct-cookie-session)'
     ])
   })
 

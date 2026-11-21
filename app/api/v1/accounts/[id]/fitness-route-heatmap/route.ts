@@ -4,7 +4,6 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { normalizeRegionParam } from '@/lib/fitness/regions'
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   HeatmapTileSource,
   buildHeatmapTileSource,
@@ -15,12 +14,12 @@ import {
   TrimmedOptionalActivityTypeParam
 } from '@/lib/services/fitness-files/queryParams'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
+import { resolveSessionActor } from '@/lib/services/guards/sessionActor'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
 import { refineHeatmapPeriodKey } from '@/lib/utils/fitnessHeatmapPeriod'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -112,8 +111,8 @@ export const GET = traceApiRoute(
       })
     }
 
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -121,16 +120,15 @@ export const GET = traceApiRoute(
         responseStatusCode: 401
       })
     }
-
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
+    if (resolved.type === 'blocked') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
+    const currentActor = resolved.actor
 
     const { id: encodedAccountId } = await params.params
     if (!encodedAccountId) {
@@ -242,13 +240,21 @@ export const POST = traceApiRoute(
       })
     }
 
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: ERROR_401,
         responseStatusCode: 401
+      })
+    }
+    if (resolved.type === 'blocked') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
 
@@ -263,15 +269,7 @@ export const POST = traceApiRoute(
       })
     }
 
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
+    const currentActor = resolved.actor
 
     const { id: encodedAccountId } = await params.params
     if (!encodedAccountId) {
@@ -437,13 +435,21 @@ export const DELETE = traceApiRoute(
       })
     }
 
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: ERROR_401,
         responseStatusCode: 401
+      })
+    }
+    if (resolved.type === 'blocked') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
 
@@ -458,15 +464,7 @@ export const DELETE = traceApiRoute(
       })
     }
 
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
+    const currentActor = resolved.actor
 
     const { id: encodedAccountId } = await params.params
     if (!encodedAccountId) {

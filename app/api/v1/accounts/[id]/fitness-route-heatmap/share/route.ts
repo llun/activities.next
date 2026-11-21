@@ -4,17 +4,16 @@ import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { normalizeRegionParam } from '@/lib/fitness/regions'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isPyramidVariantHeatmap } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
 import {
   NulFreeString,
   TrimmedOptionalActivityTypeParam
 } from '@/lib/services/fitness-files/queryParams'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
+import { resolveSessionActor } from '@/lib/services/guards/sessionActor'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { refineHeatmapPeriodKey } from '@/lib/utils/fitnessHeatmapPeriod'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
@@ -68,13 +67,21 @@ export const POST = traceApiRoute(
       })
     }
 
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: ERROR_401,
         responseStatusCode: 401
+      })
+    }
+    if (resolved.type === 'blocked') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
 
@@ -89,15 +96,7 @@ export const POST = traceApiRoute(
       })
     }
 
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
+    const currentActor = resolved.actor
 
     const { id: encodedAccountId } = await params.params
     if (!encodedAccountId) {
@@ -248,13 +247,21 @@ export const DELETE = traceApiRoute(
       })
     }
 
-    const session = await getServerAuthSession()
-    if (!session?.user?.email) {
+    const resolved = await resolveSessionActor(database)
+    if (resolved.type === 'unauthenticated') {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
         data: ERROR_401,
         responseStatusCode: 401
+      })
+    }
+    if (resolved.type === 'blocked') {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_403,
+        responseStatusCode: 403
       })
     }
 
@@ -267,15 +274,7 @@ export const DELETE = traceApiRoute(
       })
     }
 
-    const currentActor = await getActorFromSession(database, session)
-    if (!currentActor) {
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_401,
-        responseStatusCode: 401
-      })
-    }
+    const currentActor = resolved.actor
 
     const { id: encodedAccountId } = await params.params
     if (!encodedAccountId) {

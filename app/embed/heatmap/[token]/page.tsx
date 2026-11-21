@@ -12,6 +12,7 @@ import {
   resolveSharedHeatmapRegionBounds,
   toPublicHeatmap
 } from '@/lib/services/fitness-files/publicHeatmap'
+import { isActorModerationBlocked } from '@/lib/services/guards/accountState'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -46,6 +47,11 @@ const Page: FC<PageProps> = async ({ params }) => {
   // it would publish is the whole world under a rectangle's label. See
   // resolveSharedHeatmapRegionBounds.
   if (!resolveSharedHeatmapRegionBounds(heatmap)) notFound()
+
+  // A suspended actor or a disabled account must not keep publishing a share
+  // it created before the moderation action. 404 like a revoked token.
+  const owner = await database.getActorFromId({ id: heatmap.actorId })
+  if (!owner || isActorModerationBlocked(owner)) notFound()
 
   // Flatten the privacy distinction so the public embed shows no hole and no
   // highlight around private locations (see toPublicHeatmap).
