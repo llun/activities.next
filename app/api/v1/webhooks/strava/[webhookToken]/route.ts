@@ -13,13 +13,37 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 type Params = { webhookToken: string }
 
-const StravaWebhookEventSchema = z.object({
-  object_type: z.string(),
-  object_id: z.union([z.string(), z.number()]),
-  aspect_type: z.string(),
-  owner_id: z.number().optional(),
-  event_time: z.number().optional()
-})
+// The webhook token is the endpoint's only credential, so it never reaches a
+// log line. A short hash keeps two events distinguishable without being
+// reversible.
+const getWebhookTokenFingerprint = (webhookToken: string) =>
+  getHashFromString(webhookToken).slice(0, 12)
+
+const StravaWebhookEventSchema = z
+  .object({
+    object_type: z.string(),
+    object_id: z.union([z.string(), z.number()]),
+    aspect_type: z.string(),
+    owner_id: z.number().optional(),
+    event_time: z.number().optional()
+  })
+  .superRefine((event, ctx) => {
+    // Strava sends every athlete's events to the app's one subscription, so an
+    // activity create event without an owner cannot be attributed to a
+    // connection. Requiring it here means the import job never sees one it
+    // cannot check, instead of skipping the check for a missing id.
+    if (
+      event.object_type === 'activity' &&
+      event.aspect_type === 'create' &&
+      event.owner_id === undefined
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['owner_id'],
+        message: 'owner_id is required for activity create events'
+      })
+    }
+  })
 
 export const GET = traceApiRoute(
   'stravaWebhookVerification',
@@ -106,7 +130,7 @@ export const POST = traceApiRoute(
       if (!parsedBody.success) {
         logger.warn({
           message: 'Invalid Strava webhook payload',
-          webhookToken,
+          webhookTokenFingerprint: getWebhookTokenFingerprint(webhookToken),
           error: parsedBody.error.issues
         })
         return apiResponse({
@@ -175,6 +199,10 @@ export const POST = traceApiRoute(
         data: {
           actorId: fitnessSettings.actorId,
           stravaActivityId,
+          // Strava sends every athlete's events to the app's single
+          // subscription, so the event's owner is checked against the
+          // connection's athlete before anything is imported.
+          ownerId: body.owner_id,
           visibility,
           // The one entry point that emails: a single activity arriving
           // unattended, which is the whole reason to tell the user. Retry-all

@@ -202,7 +202,7 @@ const resolveSafeAddresses = async ({
   return addresses
 }
 
-const createFixedDnsLookup = (
+export const createFixedDnsLookup = (
   resolvedAddresses: ResolvedRemoteAddress[]
 ): OptionsInit['dnsLookup'] =>
   ((_hostname: string, optionsOrCallback: unknown, maybeCallback: unknown) => {

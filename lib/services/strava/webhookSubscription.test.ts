@@ -12,6 +12,17 @@ import {
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  })
+
+const textResponse = (body: string, status: number) =>
+  new Response(body, { status })
+
+const emptyResponse = (status: number) => new Response(null, { status })
+
 describe('webhookSubscription', () => {
   const clientId = '12345'
   const clientSecret = 'secret123'
@@ -30,25 +41,19 @@ describe('webhookSubscription', () => {
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z'
       }
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve([subscription])
-      })
+      mockFetch.mockResolvedValueOnce(jsonResponse([subscription]))
 
       const result = await getSubscription(clientId, clientSecret)
 
       expect(result).toEqual(subscription)
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('push_subscriptions'),
-        { method: 'GET' }
+        expect.objectContaining({ method: 'GET' })
       )
     })
 
     it('returns null when no subscription exists', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve([])
-      })
+      mockFetch.mockResolvedValueOnce(jsonResponse([]))
 
       const result = await getSubscription(clientId, clientSecret)
 
@@ -56,11 +61,7 @@ describe('webhookSubscription', () => {
     })
 
     it('throws error on API failure', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: () => Promise.resolve('Unauthorized')
-      })
+      mockFetch.mockResolvedValueOnce(textResponse('Unauthorized', 401))
 
       await expect(getSubscription(clientId, clientSecret)).rejects.toThrow(
         'Failed to get subscription: 401'
@@ -70,10 +71,7 @@ describe('webhookSubscription', () => {
 
   describe('deleteSubscription', () => {
     it('deletes subscription successfully', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 204
-      })
+      mockFetch.mockResolvedValueOnce(emptyResponse(204))
 
       await expect(
         deleteSubscription(clientId, clientSecret, 1)
@@ -81,16 +79,12 @@ describe('webhookSubscription', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('push_subscriptions/1'),
-        { method: 'DELETE' }
+        expect.objectContaining({ method: 'DELETE' })
       )
     })
 
     it('throws error on API failure', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        text: () => Promise.resolve('Not found')
-      })
+      mockFetch.mockResolvedValueOnce(textResponse('Not found', 404))
 
       await expect(
         deleteSubscription(clientId, clientSecret, 999)
@@ -100,10 +94,7 @@ describe('webhookSubscription', () => {
 
   describe('createSubscription', () => {
     it('creates subscription and returns id', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ id: 42 })
-      })
+      mockFetch.mockResolvedValueOnce(jsonResponse({ id: 42 }))
 
       const result = await createSubscription(
         clientId,
@@ -123,14 +114,12 @@ describe('webhookSubscription', () => {
     })
 
     it('throws error with message from API', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        text: () =>
-          Promise.resolve(
-            JSON.stringify({ message: 'Callback URL validation failed' })
-          )
-      })
+      mockFetch.mockResolvedValueOnce(
+        textResponse(
+          JSON.stringify({ message: 'Callback URL validation failed' }),
+          400
+        )
+      )
 
       await expect(
         createSubscription(clientId, clientSecret, callbackUrl, verifyToken)
@@ -138,11 +127,9 @@ describe('webhookSubscription', () => {
     })
 
     it('throws generic error when API returns non-JSON response', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve('Internal server error')
-      })
+      mockFetch.mockResolvedValueOnce(
+        textResponse('Internal server error', 500)
+      )
 
       await expect(
         createSubscription(clientId, clientSecret, callbackUrl, verifyToken)
@@ -159,18 +146,16 @@ describe('webhookSubscription', () => {
     }
 
     it('returns success when subscription already exists with matching URL', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve([
-            {
-              id: 1,
-              callback_url: callbackUrl,
-              created_at: '2025-01-01T00:00:00Z',
-              updated_at: '2025-01-01T00:00:00Z'
-            }
-          ])
-      })
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse([
+          {
+            id: 1,
+            callback_url: callbackUrl,
+            created_at: '2025-01-01T00:00:00Z',
+            updated_at: '2025-01-01T00:00:00Z'
+          }
+        ])
+      )
 
       const result = await ensureWebhookSubscription(params)
 
@@ -180,14 +165,8 @@ describe('webhookSubscription', () => {
 
     it('creates new subscription when none exists', async () => {
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve([])
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ id: 42 })
-        })
+        .mockResolvedValueOnce(jsonResponse([]))
+        .mockResolvedValueOnce(jsonResponse({ id: 42 }))
 
       const result = await ensureWebhookSubscription(params)
 
@@ -197,26 +176,18 @@ describe('webhookSubscription', () => {
 
     it('deletes old subscription and creates new when URL differs', async () => {
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve([
-              {
-                id: 1,
-                callback_url: 'https://old.example.com/webhook',
-                created_at: '2025-01-01T00:00:00Z',
-                updated_at: '2025-01-01T00:00:00Z'
-              }
-            ])
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 204
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ id: 99 })
-        })
+        .mockResolvedValueOnce(
+          jsonResponse([
+            {
+              id: 1,
+              callback_url: 'https://old.example.com/webhook',
+              created_at: '2025-01-01T00:00:00Z',
+              updated_at: '2025-01-01T00:00:00Z'
+            }
+          ])
+        )
+        .mockResolvedValueOnce(emptyResponse(204))
+        .mockResolvedValueOnce(jsonResponse({ id: 99 }))
 
       const result = await ensureWebhookSubscription(params)
 
@@ -231,23 +202,18 @@ describe('webhookSubscription', () => {
       const oldToken = 'old-webhook-token-value'
       const newToken = 'new-webhook-token-value'
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve([
-              {
-                id: 1,
-                callback_url: `https://example.com/api/v1/webhooks/strava/${oldToken}`,
-                created_at: '2025-01-01T00:00:00Z',
-                updated_at: '2025-01-01T00:00:00Z'
-              }
-            ])
-        })
-        .mockResolvedValueOnce({ ok: true, status: 204 })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ id: 99 })
-        })
+        .mockResolvedValueOnce(
+          jsonResponse([
+            {
+              id: 1,
+              callback_url: `https://example.com/api/v1/webhooks/strava/${oldToken}`,
+              created_at: '2025-01-01T00:00:00Z',
+              updated_at: '2025-01-01T00:00:00Z'
+            }
+          ])
+        )
+        .mockResolvedValueOnce(emptyResponse(204))
+        .mockResolvedValueOnce(jsonResponse({ id: 99 }))
 
       await ensureWebhookSubscription({
         ...params,
@@ -267,18 +233,13 @@ describe('webhookSubscription', () => {
 
     it('returns error when subscription creation fails', async () => {
       mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve([])
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 400,
-          text: () =>
-            Promise.resolve(
-              JSON.stringify({ message: 'Callback validation failed' })
-            )
-        })
+        .mockResolvedValueOnce(jsonResponse([]))
+        .mockResolvedValueOnce(
+          textResponse(
+            JSON.stringify({ message: 'Callback validation failed' }),
+            400
+          )
+        )
 
       const result = await ensureWebhookSubscription(params)
 

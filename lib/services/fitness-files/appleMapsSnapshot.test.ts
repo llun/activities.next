@@ -510,4 +510,25 @@ describe('fetchAppleSnapshot', () => {
 
     expect(result).toBeNull()
   })
+
+  // A snapshot is a few hundred kilobytes; a body over the cap is refused
+  // rather than buffered, so a broken or hostile provider cannot exhaust
+  // memory.
+  it('returns null when the snapshot body exceeds the byte cap', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: {
+          'content-type': 'image/png',
+          'content-length': String(5 * 1024 * 1024)
+        }
+      })
+    )
+
+    const result = await fetchAppleSnapshot(
+      { segments: straightRoute, width: 640, height: 480 },
+      fullCredentials
+    )
+
+    expect(result).toBeNull()
+  })
 })

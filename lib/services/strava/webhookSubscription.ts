@@ -1,5 +1,7 @@
 import { logger } from '@/lib/utils/logger'
 
+import { readStravaBody, readStravaJson, stravaFetch } from './http'
+
 export interface StravaSubscription {
   id: number
   callback_url: string
@@ -28,12 +30,12 @@ export async function getSubscription(
   url.searchParams.set('client_id', clientId)
   url.searchParams.set('client_secret', clientSecret)
 
-  const response = await fetch(url.toString(), {
+  const response = await stravaFetch(url.toString(), {
     method: 'GET'
   })
 
   if (!response.ok) {
-    const error = await response.text()
+    const error = await readStravaBody(response, 'Strava subscription')
     logger.error({
       message: 'Failed to get Strava subscription',
       status: response.status,
@@ -42,7 +44,10 @@ export async function getSubscription(
     throw new Error(`Failed to get subscription: ${response.status}`)
   }
 
-  const subscriptions: StravaSubscription[] = await response.json()
+  const subscriptions = await readStravaJson<StravaSubscription[]>(
+    response,
+    'Strava subscription'
+  )
   return subscriptions.length > 0 ? subscriptions[0] : null
 }
 
@@ -60,12 +65,12 @@ export async function deleteSubscription(
   url.searchParams.set('client_id', clientId)
   url.searchParams.set('client_secret', clientSecret)
 
-  const response = await fetch(url.toString(), {
+  const response = await stravaFetch(url.toString(), {
     method: 'DELETE'
   })
 
   if (!response.ok && response.status !== 204) {
-    const error = await response.text()
+    const error = await readStravaBody(response, 'Strava subscription')
     logger.error({
       message: 'Failed to delete Strava subscription',
       status: response.status,
@@ -91,7 +96,7 @@ export async function createSubscription(
   formData.append('callback_url', callbackUrl)
   formData.append('verify_token', verifyToken)
 
-  const response = await fetch(
+  const response = await stravaFetch(
     'https://www.strava.com/api/v3/push_subscriptions',
     {
       method: 'POST',
@@ -103,7 +108,7 @@ export async function createSubscription(
   )
 
   if (!response.ok) {
-    const errorText = await response.text()
+    const errorText = await readStravaBody(response, 'Strava subscription')
     let parsedError: StravaErrorResponse | null = null
 
     try {
@@ -123,7 +128,10 @@ export async function createSubscription(
     )
   }
 
-  const data: CreateSubscriptionResponse = await response.json()
+  const data = await readStravaJson<CreateSubscriptionResponse>(
+    response,
+    'Strava subscription'
+  )
   return data.id
 }
 

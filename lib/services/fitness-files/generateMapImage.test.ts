@@ -129,6 +129,59 @@ describe('generateMapImage', () => {
     expect((global.fetch as jest.Mock).mock.calls[0][0]).toContain('mapbox.com')
   })
 
+  // A provider that accepts the connection and then stalls must not hold the
+  // request open forever, so the Mapbox fetch carries a deadline.
+  it('passes an abort signal to the Mapbox request', async () => {
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'test-mapbox-token'
+    })
+
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(Buffer.from('mapbox-image-binary'), {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' }
+      })
+    ) as unknown as typeof fetch
+
+    await generateMapImage({ coordinates })
+
+    const init = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  // A rendered map is a few hundred kilobytes; a body over the cap is refused
+  // rather than buffered, so the OSM fallback renders instead.
+  it('falls back to OSM when the Mapbox body exceeds the byte cap', async () => {
+    mockGetMapProviderConfig.mockReturnValue({
+      type: 'mapbox',
+      accessToken: 'test-mapbox-token'
+    })
+
+    const tileBuffer = await pngTile()
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (hostnameOf(url) === 'api.mapbox.com') {
+        return new Response(Buffer.from('mapbox-image-binary'), {
+          status: 200,
+          headers: {
+            'Content-Type': 'image/png',
+            'Content-Length': String(5 * 1024 * 1024)
+          }
+        })
+      }
+      return new Response(Buffer.from(tileBuffer), {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' }
+      })
+    }) as unknown as typeof fetch
+
+    const result = await generateMapImage({ coordinates })
+
+    expect(result).toBeDefined()
+    expect(result?.length).toBeGreaterThan(0)
+    expect(result?.toString()).not.toBe('mapbox-image-binary')
+  })
+
   it('falls back to OSM tiles when the Mapbox request fails', async () => {
     mockGetMapProviderConfig.mockReturnValue({
       type: 'mapbox',

@@ -39,6 +39,7 @@ import {
   getStravaActivityStartTimeMs,
   getStravaActivityStreams,
   getStravaActivityUrl,
+  getStravaAthleteId,
   getValidStravaAccessToken
 } from '@/lib/services/strava/activity'
 import { getStravaActivityBatchId } from '@/lib/services/strava/activityBatch'
@@ -61,6 +62,12 @@ const JobData = z.object({
   stravaActivityId: z
     .union([z.string(), z.number()])
     .transform((value) => String(value)),
+  // The Strava athlete the webhook event belongs to. Strava delivers every
+  // athlete's events to the app's one subscription, so the webhook passes it
+  // through and the job refuses an event that is not the connection's athlete.
+  // Absent for the bulk callers (retry-all, the recovery scripts), which
+  // already know which connection they are importing for.
+  ownerId: z.number().optional(),
   stravaAuth: z
     .object({
       appId: z.string(),
@@ -183,6 +190,7 @@ export const importStravaActivityJob = createJobHandle(
       actorId,
       stravaActivityId,
       stravaAuth,
+      ownerId,
       visibility,
       notifyOnComplete: requestedNotifyOnComplete,
       publishSendNote: requestedPublishSendNote,
@@ -212,6 +220,52 @@ export const importStravaActivityJob = createJobHandle(
         message: 'Skipping Strava import because actor or settings are missing',
         actorId,
         stravaActivityId
+      })
+      return
+    }
+
+    // Strava allows one webhook subscription per app, so every athlete's
+    // events arrive at whichever connection registered it. Importing an event
+    // whose owner is not this connection's athlete would file another
+    // athlete's ride under this actor, so it is refused before any fetch.
+    //
+    // A connection made before the athlete id was stored has none to compare
+    // against, and Strava's refresh-token response does not carry one, so it is
+    // fetched once here and stored. If that lookup fails the event is imported
+    // as before rather than dropped: an existing user must not stop importing
+    // because one extra request failed.
+    let connectionAthleteId = fitnessSettings.providerUserId
+    if (ownerId !== undefined && !connectionAthleteId) {
+      try {
+        connectionAthleteId = await getStravaAthleteId({
+          accessToken: fitnessSettings.accessToken ?? ''
+        })
+        await database.updateFitnessSettings({
+          id: fitnessSettings.id,
+          providerUserId: connectionAthleteId
+        })
+      } catch (error) {
+        logger.warn({
+          message:
+            'Failed to look up the Strava athlete for the connection; importing without the owner check',
+          actorId,
+          stravaActivityId,
+          err: toLoggableError(error)
+        })
+      }
+    }
+
+    if (
+      ownerId !== undefined &&
+      connectionAthleteId &&
+      String(ownerId) !== connectionAthleteId
+    ) {
+      logger.warn({
+        message:
+          'Skipping Strava import because the webhook event belongs to another athlete',
+        actorId,
+        stravaActivityId,
+        ownerId
       })
       return
     }

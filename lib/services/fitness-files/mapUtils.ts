@@ -1,5 +1,6 @@
 import sharp from 'sharp'
 
+import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 import {
   MAX_LATITUDE,
   MIN_LATITUDE,
@@ -12,6 +13,12 @@ import {
 } from '@/lib/utils/webMercator'
 
 import { FitnessCoordinate } from './parseFitnessFile'
+
+// A tile is a few tens of kilobytes; the cap only stops a hostile or broken
+// tile server from buffering an unbounded body. The deadline bounds a server
+// that accepts the connection and then stalls.
+const OSM_TILE_TIMEOUT_MS = 10_000
+const OSM_TILE_MAX_BYTES = 1024 * 1024
 
 export type { FitnessCoordinate }
 
@@ -75,7 +82,8 @@ export const fetchOsmTile = async (
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'activities.next/fitness-map'
-    }
+    },
+    signal: AbortSignal.timeout(OSM_TILE_TIMEOUT_MS)
   })
 
   if (!response.ok) {
@@ -84,5 +92,11 @@ export const fetchOsmTile = async (
     )
   }
 
-  return Buffer.from(await response.arrayBuffer())
+  return Buffer.from(
+    await readResponseArrayBufferWithLimit(
+      response,
+      OSM_TILE_MAX_BYTES,
+      'OSM tile'
+    )
+  )
 }

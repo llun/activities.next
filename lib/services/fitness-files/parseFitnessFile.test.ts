@@ -83,6 +83,67 @@ describe('parseFitnessFile', () => {
     expect(parsed.rawActivityType).toBe('Handcycle')
   })
 
+  // GPX/TCX are untrusted uploads. A DOCTYPE-declared entity must stay literal
+  // rather than be expanded, or a tiny file can balloon in memory.
+  it('does not expand DOCTYPE-declared entities in GPX', async () => {
+    const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE gpx [
+  <!ENTITY sport "running">
+]>
+<gpx version="1.1" creator="tests">
+  <trk>
+    <type>&sport;</type>
+    <trkseg>
+      <trkpt lat="37.7749" lon="-122.4194"><time>2026-01-01T10:00:00Z</time></trkpt>
+      <trkpt lat="37.7759" lon="-122.4184"><time>2026-01-01T10:10:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>`
+
+    const parsed = await parseFitnessFile({
+      fileType: 'gpx',
+      buffer: Buffer.from(gpx)
+    })
+
+    // The literal entity survives; it is not expanded to `running`.
+    expect(parsed.rawActivityType).toBe('&sport;')
+    expect(parsed.coordinates).toHaveLength(2)
+  })
+
+  it('does not expand DOCTYPE-declared entities in TCX', async () => {
+    const tcx = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE TrainingCenterDatabase [
+  <!ENTITY sport "Biking">
+]>
+<TrainingCenterDatabase>
+  <Activities>
+    <Activity Sport="&sport;">
+      <Lap>
+        <TotalTimeSeconds>60</TotalTimeSeconds>
+        <DistanceMeters>100</DistanceMeters>
+        <Track>
+          <Trackpoint>
+            <Time>2026-01-01T10:00:00Z</Time>
+            <Position>
+              <LatitudeDegrees>37.7749</LatitudeDegrees>
+              <LongitudeDegrees>-122.4194</LongitudeDegrees>
+            </Position>
+          </Trackpoint>
+        </Track>
+      </Lap>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>`
+
+    const parsed = await parseFitnessFile({
+      fileType: 'tcx',
+      buffer: Buffer.from(tcx)
+    })
+
+    expect(parsed.rawActivityType).toBe('&sport;')
+    expect(parsed.coordinates).toHaveLength(1)
+  })
+
   it('parses TCX data and prefers lap metadata for distance/duration', async () => {
     const tcx = `<?xml version="1.0" encoding="UTF-8"?>
 <TrainingCenterDatabase>

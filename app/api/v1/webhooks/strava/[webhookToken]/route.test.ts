@@ -102,6 +102,7 @@ describe('Strava Webhook API', () => {
         data: {
           actorId: 'actor-1',
           stravaActivityId: '987654',
+          ownerId: 1,
           visibility: 'unlisted',
           // The webhook is the only entry point that opts into the import
           // email. Asserted explicitly so the feature cannot be switched off
@@ -152,6 +153,7 @@ describe('Strava Webhook API', () => {
         data: {
           actorId: 'actor-1',
           stravaActivityId: '13579',
+          ownerId: 1,
           visibility: 'private',
           notifyOnComplete: true,
           publishSendNote: true,
@@ -205,6 +207,7 @@ describe('Strava Webhook API', () => {
         data: {
           actorId: 'actor-1',
           stravaActivityId: '24680',
+          ownerId: 1,
           visibility: 'private',
           notifyOnComplete: true,
           publishSendNote: true,
@@ -237,6 +240,57 @@ describe('Strava Webhook API', () => {
     expect(response.status).toBe(200)
     expect(data.success).toBe(true)
     expect(data.ignored).toBe(true)
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  // The token is the endpoint's only credential. A log line carrying it hands
+  // anyone with log access the ability to post events as Strava.
+  it('never logs the webhook token, only a non-reversible fingerprint', async () => {
+    const request = new NextRequest(
+      'http://llun.test/api/v1/webhooks/strava/token-123',
+      {
+        method: 'POST',
+        body: JSON.stringify({ object_type: 'activity' })
+      }
+    )
+
+    const response = await POST(request, {
+      params: Promise.resolve({ webhookToken: 'token-123' })
+    })
+
+    expect(response.status).toBe(400)
+    const logged = mockLoggerWarn.mock.calls.flat()
+    expect(JSON.stringify(logged)).not.toContain('token-123')
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Invalid Strava webhook payload',
+        webhookTokenFingerprint: expect.any(String)
+      })
+    )
+  })
+
+  // Strava delivers every athlete's events to the app's one subscription, so an
+  // activity create event without an owner cannot be attributed to a
+  // connection. It must be refused, not queued with the check skipped.
+  it('rejects an activity create event without an owner_id', async () => {
+    const request = new NextRequest(
+      'http://llun.test/api/v1/webhooks/strava/token-123',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          object_type: 'activity',
+          object_id: 987654,
+          aspect_type: 'create',
+          event_time: 1_735_689_600
+        })
+      }
+    )
+
+    const response = await POST(request, {
+      params: Promise.resolve({ webhookToken: 'token-123' })
+    })
+
+    expect(response.status).toBe(400)
     expect(mockPublish).not.toHaveBeenCalled()
   })
 })

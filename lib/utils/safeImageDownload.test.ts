@@ -1,6 +1,6 @@
 /** @vitest-size medium */
+import { Readable } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { afterEach } from 'vitest'
 
 import {
   MAX_SAFE_IMAGE_REDIRECTS,
@@ -11,6 +11,17 @@ import {
 } from './safeImageDownload'
 import { DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS } from './safeRemoteFetch'
 import { isUnsafeAddress } from './unsafeAddress'
+
+// The binary download runs through `got` so the validated address can be pinned
+// into the connection; this is the same module mock `safeRemoteFetch.test.ts`
+// uses.
+const mockGotStream = vi.fn()
+vi.mock('got', () => ({
+  __esModule: true,
+  default: {
+    stream: (url: string, options: unknown) => mockGotStream(url, options)
+  }
+}))
 
 // `node:dns/promises` is already mocked globally in `test/setup/vitest.setup.ts`; this
 // just takes a typed handle on that mock.
@@ -286,102 +297,105 @@ describe('getSafeImageDownloadUrl IPv6 literals', () => {
 })
 
 describe('safeImageFetch redirect handling', () => {
-  let fetchMock: ReturnType<typeof vi.fn>
-
   beforeEach(() => {
     vi.mocked(lookup).mockResolvedValue([
       { address: '93.184.216.34', family: 4 }
     ] as never)
-    fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
+    mockGotStream.mockReset()
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
+  const gotResponse = ({
+    status = 200,
+    headers = {},
+    body = [Buffer.from([1, 2, 3])]
+  }: {
+    status?: number
+    headers?: Record<string, string>
+    body?: Buffer[]
+  } = {}) => {
+    const stream = new Readable({ read() {} })
+    process.nextTick(() => {
+      stream.emit('response', { headers, statusCode: status })
+      for (const chunk of body) stream.push(chunk)
+      stream.push(null)
+    })
+    return stream
+  }
 
   const redirectTo = (location: string | null, status = 302) =>
-    new Response(null, {
+    gotResponse({
       status,
-      ...(location ? { headers: { location } } : {})
+      headers: location ? { location } : {}
     })
 
   const imageResponse = () =>
-    new Response(new Uint8Array([1, 2, 3]), {
-      status: 200,
-      headers: { 'content-type': 'image/jpeg' }
-    })
+    gotResponse({ headers: { 'content-type': 'image/jpeg' } })
 
-  // A caller's `signal` is COMBINED with each hop's own timeout, never
-  // substituted for it. Both halves are invisible in a result — the archive
-  // passes the same value for both, so `signal ?? hopTimeout` and dropping
-  // `signal` from the composite each leave every other test in the repo green
-  // while silently removing one of the two bounds.
-  it('aborts a hop when the caller signal fires, keeping the per-hop timeout', async () => {
-    fetchMock.mockResolvedValue(imageResponse())
-    const controller = new AbortController()
-
-    await safeImageFetch('https://images.example/a.jpg', {
-      // Long enough that only the caller's signal can be responsible.
-      timeoutMs: 60_000,
-      signal: controller.signal
-    })
-
-    const signal = fetchMock.mock.calls[0][1].signal as AbortSignal
-    expect(signal.aborted).toBe(false)
-    controller.abort()
-    expect(signal.aborted).toBe(true)
-  })
-
-  it('aborts a hop when the per-hop timeout fires, even with a live caller signal', async () => {
-    fetchMock.mockImplementation(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(() => resolve(imageResponse()), 100)
-        )
-    )
-    // Never aborts on its own, so only the hop timeout can trip the composite.
-    const controller = new AbortController()
-
-    await safeImageFetch('https://images.example/a.jpg', {
-      timeoutMs: 5,
-      signal: controller.signal
-    })
-
-    const signal = fetchMock.mock.calls[0][1].signal as AbortSignal
-    expect(signal.aborted).toBe(true)
-  })
-
-  // The load-bearing option. `fetch` defaults to `redirect: 'follow'`, which
+  // The load-bearing option. A transport that follows redirects by default
   // would carry the request to a target the guard never inspected — so each hop
-  // must be requested in manual mode for the loop below to mean anything.
-  it('requests every hop in manual redirect mode', async () => {
-    fetchMock.mockResolvedValue(imageResponse())
+  // must be requested with redirects disabled for the loop below to mean
+  // anything.
+  it('requests every hop with redirects disabled', async () => {
+    mockGotStream.mockImplementationOnce(() => imageResponse())
 
     await safeImageFetch('https://cdn.example/photo.jpg')
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.any(URL),
-      expect.objectContaining({ redirect: 'manual' })
+    expect(mockGotStream).toHaveBeenCalledWith(
+      'https://cdn.example/photo.jpg',
+      expect.objectContaining({ followRedirect: false, retry: { limit: 0 } })
     )
   })
 
+  // The DNS-rebinding race: the guard resolves the name, and the transport must
+  // connect to THAT address rather than resolving it again. The pinned lookup
+  // is the mechanism, so it has to be wired into the request.
+  it('pins the validated address into the connection', async () => {
+    mockGotStream.mockImplementationOnce(() => imageResponse())
+
+    await safeImageFetch('https://cdn.example/photo.jpg')
+
+    const options = mockGotStream.mock.calls[0][1] as {
+      dnsLookup: (
+        hostname: string,
+        options: { all: boolean },
+        callback: (error: unknown, addresses: unknown) => void
+      ) => void
+    }
+    const addresses = await new Promise((resolve) => {
+      options.dnsLookup('cdn.example', { all: true }, (error, result) =>
+        resolve(error ?? result)
+      )
+    })
+    expect(addresses).toEqual([{ address: '93.184.216.34', family: 4 }])
+  })
+
   it('returns a non-redirect response directly', async () => {
-    fetchMock.mockResolvedValue(imageResponse())
+    mockGotStream.mockImplementationOnce(() => imageResponse())
 
     const response = await safeImageFetch('https://cdn.example/photo.jpg')
     expect(response?.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(mockGotStream).toHaveBeenCalledTimes(1)
+  })
+
+  // A 204/304 carries no body, and `Response` refuses one for those statuses.
+  it('returns a null body for a null-body status', async () => {
+    mockGotStream.mockImplementationOnce(() => gotResponse({ status: 204 }))
+
+    const response = await safeImageFetch('https://cdn.example/photo.jpg')
+    expect(response?.status).toBe(204)
+    expect(response?.body).toBeNull()
   })
 
   it('follows a redirect to another safe host', async () => {
-    fetchMock
-      .mockResolvedValueOnce(redirectTo('https://other.example/real.jpg'))
-      .mockResolvedValueOnce(imageResponse())
+    mockGotStream
+      .mockImplementationOnce(() =>
+        redirectTo('https://other.example/real.jpg')
+      )
+      .mockImplementationOnce(() => imageResponse())
 
     const response = await safeImageFetch('https://cdn.example/photo.jpg')
     expect(response?.status).toBe(200)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(mockGotStream).toHaveBeenCalledTimes(2)
   })
 
   // The whole point: the guard re-runs on the TARGET, so a redirect into the
@@ -404,44 +418,83 @@ describe('safeImageFetch redirect handling', () => {
       location: 'https://metadata.google.internal/x'
     }
   ])('$description', async ({ location }) => {
-    fetchMock.mockResolvedValue(redirectTo(location))
+    mockGotStream.mockImplementationOnce(() => redirectTo(location))
 
     expect(await safeImageFetch('https://cdn.example/photo.jpg')).toBeNull()
     // Only the first hop was ever requested — the target was refused.
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(mockGotStream).toHaveBeenCalledTimes(1)
   })
 
   it('resolves a relative Location against the hop that returned it', async () => {
-    fetchMock
-      .mockResolvedValueOnce(redirectTo('/moved/real.jpg'))
-      .mockResolvedValueOnce(imageResponse())
+    mockGotStream
+      .mockImplementationOnce(() => redirectTo('/moved/real.jpg'))
+      .mockImplementationOnce(() => imageResponse())
 
     const response = await safeImageFetch('https://cdn.example/a/photo.jpg')
     expect(response?.status).toBe(200)
-    expect(String(fetchMock.mock.calls[1][0])).toBe(
+    expect(mockGotStream.mock.calls[1][0]).toBe(
       'https://cdn.example/moved/real.jpg'
     )
   })
 
   it('gives up rather than following an unbounded redirect chain', async () => {
-    fetchMock.mockResolvedValue(redirectTo('https://cdn.example/next.jpg'))
+    mockGotStream.mockImplementation(() =>
+      redirectTo('https://cdn.example/next.jpg')
+    )
 
     expect(await safeImageFetch('https://cdn.example/photo.jpg')).toBeNull()
-    expect(fetchMock).toHaveBeenCalledTimes(MAX_SAFE_IMAGE_REDIRECTS + 1)
+    expect(mockGotStream).toHaveBeenCalledTimes(MAX_SAFE_IMAGE_REDIRECTS + 1)
   })
 
   it('returns null for a redirect carrying no Location', async () => {
-    fetchMock.mockResolvedValue(redirectTo(null))
+    mockGotStream.mockImplementationOnce(() => redirectTo(null))
 
     expect(await safeImageFetch('https://cdn.example/photo.jpg')).toBeNull()
   })
 
   it('refuses a plain http URL at the first hop, without fetching', async () => {
     expect(await safeImageFetch('http://cdn.example/photo.jpg')).toBeNull()
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockGotStream).not.toHaveBeenCalled()
+  })
+
+  // A caller's `signal` is COMBINED with each hop's own timeout, never
+  // substituted for it. Both halves are invisible in a result — the archive
+  // passes the same value for both, so `signal ?? hopTimeout` and dropping
+  // `signal` from the composite each leave every other test in the repo green
+  // while silently removing one of the two bounds.
+  it('aborts a hop when the caller signal fires, keeping the per-hop timeout', async () => {
+    mockGotStream.mockImplementationOnce(() => imageResponse())
+    const controller = new AbortController()
+
+    await safeImageFetch('https://cdn.example/a.jpg', {
+      // Long enough that only the caller's signal can be responsible.
+      timeoutMs: 60_000,
+      signal: controller.signal
+    })
+
+    const signal = (mockGotStream.mock.calls[0][1] as { signal: AbortSignal })
+      .signal
+    expect(signal.aborted).toBe(false)
+    controller.abort()
+    expect(signal.aborted).toBe(true)
+  })
+
+  it('aborts a hop when the per-hop timeout fires, even with a live caller signal', async () => {
+    mockGotStream.mockImplementationOnce(() => imageResponse())
+    // Never aborts on its own, so only the hop timeout can trip the composite.
+    const controller = new AbortController()
+
+    await safeImageFetch('https://cdn.example/a.jpg', {
+      timeoutMs: 5,
+      signal: controller.signal
+    })
+
+    const signal = (mockGotStream.mock.calls[0][1] as { signal: AbortSignal })
+      .signal
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(signal.aborted).toBe(true)
   })
 })
-
 // Three rounds of review each found this guard's address policy disagreeing
 // with `safeRemoteFetch`'s, because it was a hand-rolled second copy. It now
 // delegates to the shared one.

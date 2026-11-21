@@ -6,6 +6,7 @@ import { fetchAppleSnapshot } from '@/lib/services/fitness-files/appleMapsSnapsh
 import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
 import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
 import { logger } from '@/lib/utils/logger'
+import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 
 import type { FitnessCoordinate } from './mapUtils'
 import {
@@ -30,6 +31,11 @@ const DEFAULT_HEIGHT = 600
 const APPLE_SNAPSHOT_WIDTH = 640
 const APPLE_SNAPSHOT_HEIGHT = 480
 const APPLE_SNAPSHOT_SCALE = 2
+// A rendered map is a few hundred kilobytes; the cap only stops a broken
+// provider from buffering an unbounded body, and the deadline bounds a
+// provider that accepts the connection and then stalls.
+const MAPBOX_TIMEOUT_MS = 10_000
+const MAPBOX_MAX_BYTES = 4 * 1024 * 1024
 
 const flattenRouteSegments = (routeSegments: FitnessCoordinate[][]) => {
   return routeSegments.flat()
@@ -298,7 +304,8 @@ export const generateMapImage = async ({
             width,
             height,
             accessToken: mapProvider.accessToken
-          })
+          }),
+          { signal: AbortSignal.timeout(MAPBOX_TIMEOUT_MS) }
         )
 
         if (!response.ok) {
@@ -307,7 +314,13 @@ export const generateMapImage = async ({
           )
         }
 
-        return Buffer.from(await response.arrayBuffer())
+        return Buffer.from(
+          await readResponseArrayBufferWithLimit(
+            response,
+            MAPBOX_MAX_BYTES,
+            'Mapbox map image'
+          )
+        )
       } catch (error) {
         logger.warn({
           message: 'Mapbox map rendering failed; using OSM fallback',
