@@ -358,3 +358,4 @@ CREATE INDEX "remote_signature_schemes_expires_at_idx" on "remote_signature_sche
 CREATE TABLE IF NOT EXISTS "bookmark_folders" ("id" varchar(255) primary key, "actorId" varchar(255) not null references "actors" ("id") on delete cascade, "name" varchar(120) not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null, constraint "bookmark_folders_actor_name_unique" unique ("actorId", "name"));
 CREATE INDEX "bookmark_folders_actor_created" on "bookmark_folders" ("actorId", "createdAt");
 CREATE INDEX "bookmarks_actor_folder_created_id" on "bookmarks" ("actorId", "folderId", "createdAt", "id");
+CREATE INDEX "emailChangeCodeIndex" on "accounts" ("emailChangeCode");

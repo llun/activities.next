@@ -229,6 +229,11 @@ describe('schema invariants', () => {
         'passwordResetCodeIndex',
         { table: 'accounts', unique: false, columns: ['passwordResetCode'] }
       ],
+      // Confirming an email change looks the account up by its code.
+      [
+        'emailChangeCodeIndex',
+        { table: 'accounts', unique: false, columns: ['emailChangeCode'] }
+      ],
       [
         'actors_domain_last_status_at_idx',
         { table: 'actors', unique: false, columns: ['domain', 'lastStatusAt'] }
