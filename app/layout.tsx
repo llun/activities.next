@@ -1,5 +1,6 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import { Suspense } from 'react'
 
 import { InAppHistoryTracker } from '@/lib/components/navigation-history/InAppHistoryTracker'
@@ -82,7 +83,7 @@ export const generateMetadata = async (): Promise<Metadata> => {
   }
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children
 }: Readonly<{
   children: React.ReactNode
@@ -91,6 +92,10 @@ export default function RootLayout({
   if (span) {
     span.setStatus({ code: SpanStatusCode.OK })
   }
+
+  // The per-request nonce proxy.ts puts on the request. Next tags its own
+  // scripts with it; the theme bootstrap below needs it explicitly.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
 
   return (
     // suppressHydrationWarning: the anti-FOUC script below sets the `.dark` class
@@ -101,7 +106,10 @@ export default function RootLayout({
         {/* Apply the persisted theme in <head> so it runs before the body is
             parsed — eliminating any flash of light mode for dark-mode users.
             Runs synchronously ahead of the bundle. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
       </head>
       <body>
         <ThemeProvider>

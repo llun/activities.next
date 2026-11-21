@@ -140,7 +140,19 @@ export const resetContentSecurityPolicyCacheForTests = () => {
 // Builds the policy with a caller-supplied `frame-ancestors` value: `'none'` for
 // the app at large, `*` for the public `/embed/*` widgets that are meant to be
 // embedded on third-party sites.
-const buildContentSecurityPolicy = (frameAncestors: string): string => {
+//
+// `nonce` is the per-request value proxy.ts generates for a document request.
+// With it, `script-src` carries `'nonce-<value>'` and `'strict-dynamic'` and no
+// `'unsafe-inline'`: only scripts Next tags with the nonce (and scripts those
+// create) run. The host sources stay as the CSP2 fallback — a browser that does
+// not understand `'strict-dynamic'` ignores it and falls back to the allowlist.
+// Without a nonce (API responses, the stored-file route, the share-target
+// redirect) the policy is the same minus the nonce and `'strict-dynamic'`; it
+// never allows `'unsafe-inline'` script.
+const buildContentSecurityPolicy = (
+  frameAncestors: string,
+  nonce?: string
+): string => {
   const {
     allowMediaDomains,
     allowRemoteMediaDomains,
@@ -233,7 +245,7 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
   const scriptSources = Array.from(
     new Set([
       "'self'",
-      "'unsafe-inline'",
+      ...(nonce ? [`'nonce-${nonce}'`, "'strict-dynamic'"] : []),
       ...(isDevelopment() ? ["'unsafe-eval'"] : []),
       ...(allowMapboxSources ? ['https://api.mapbox.com'] : []),
       ...(allowFreeMapSources ? MAPLIBRE_CDN_CSP_SOURCES : []),
@@ -265,8 +277,11 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
     `frame-src ${YOUTUBE_EMBED_CSP_SOURCES.join(' ')}`,
     `frame-ancestors ${frameAncestors}`,
     "form-action 'self'",
-    // Next framework hydration still emits inline script/style content here;
-    // nonce wiring can be added separately from runtime origin generation.
+    // Next tags its own hydration scripts with the request nonce, and the app
+    // tags its inline scripts (the theme bootstrap and JSON-LD) with the same
+    // value. `'strict-dynamic'` lets those scripts load the map bundles they
+    // inject; the host sources below are the CSP2 fallback for browsers that
+    // ignore it.
     `script-src ${scriptSources}`,
     `style-src ${styleSources}`,
     // Federated browser media defaults to HTTPS unless an operator narrows it
@@ -284,7 +299,9 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
   return csp
 }
 
-export const getContentSecurityPolicy = () => {
+export const getContentSecurityPolicy = (nonce?: string) => {
+  // A nonce makes the policy unique to the request, so it is never cached.
+  if (nonce) return buildContentSecurityPolicy("'none'", nonce)
   if (cachedContentSecurityPolicy) return cachedContentSecurityPolicy
 
   cachedContentSecurityPolicy = buildContentSecurityPolicy("'none'")
@@ -294,32 +311,37 @@ export const getContentSecurityPolicy = () => {
 // CSP for the public `/embed/*` widgets: identical to the app policy but with
 // `frame-ancestors *` so any site can embed the heatmap iframe. Operators who
 // want to restrict embedding can front the app with their own header rules.
-export const getEmbedContentSecurityPolicy = () => {
+export const getEmbedContentSecurityPolicy = (nonce?: string) => {
+  if (nonce) return buildContentSecurityPolicy('*', nonce)
   if (cachedEmbedContentSecurityPolicy) return cachedEmbedContentSecurityPolicy
 
   cachedEmbedContentSecurityPolicy = buildContentSecurityPolicy('*')
   return cachedEmbedContentSecurityPolicy
 }
 
-export const getContentSecurityPolicyHeader = (): SecurityHeader => ({
+export const getContentSecurityPolicyHeader = (
+  nonce?: string
+): SecurityHeader => ({
   key: 'Content-Security-Policy',
-  value: getContentSecurityPolicy()
+  value: getContentSecurityPolicy(nonce)
 })
 
-export const getEmbedContentSecurityPolicyHeader = (): SecurityHeader => ({
+export const getEmbedContentSecurityPolicyHeader = (
+  nonce?: string
+): SecurityHeader => ({
   key: 'Content-Security-Policy',
-  value: getEmbedContentSecurityPolicy()
+  value: getEmbedContentSecurityPolicy(nonce)
 })
 
 // The policy for `GET /api/v1/files/...`, which serves stored upload bytes from
-// the app's own origin. The app policy allows inline script (Next hydration
-// needs it), so a stored object that a browser renders as a document — an HTML
-// or SVG body, whatever its declared type — would run script as this origin.
-// `sandbox` gives such a document an opaque origin with scripts disabled, and
-// `default-src 'none'` stops it loading anything. Neither affects an `<img>` or
-// `<video>` embedding the file elsewhere: a subresource's own CSP only applies
-// when it is navigated to as a document. Same shape GitHub serves raw user
-// content with.
+// the app's own origin. The app policy allows script only through a per-request
+// nonce, so a stored object that a browser renders as a document — an HTML or
+// SVG body, whatever its declared type — could not run script as this origin
+// anyway; `sandbox` makes that explicit by giving such a document an opaque
+// origin with scripts disabled, and `default-src 'none'` stops it loading
+// anything. Neither affects an `<img>` or `<video>` embedding the file
+// elsewhere: a subresource's own CSP only applies when it is navigated to as a
+// document. Same shape GitHub serves raw user content with.
 export const MEDIA_FILE_CONTENT_SECURITY_POLICY =
   "default-src 'none'; style-src 'unsafe-inline'; sandbox"
 

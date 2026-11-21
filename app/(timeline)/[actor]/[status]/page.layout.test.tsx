@@ -35,6 +35,12 @@ vi.mock('next/navigation', async () => ({
   usePathname: vi.fn(() => '/@alice@example.com/status-1')
 }))
 
+// The page reads the per-request CSP nonce for its JSON-LD blocks; these tests
+// render it directly, so answer with an empty header set.
+vi.mock('next/headers', () => ({
+  headers: vi.fn(async () => new Headers())
+}))
+
 vi.mock('@/lib/config', async () => ({
   getBaseURL: vi.fn(() => 'https://activities.local'),
   getConfig: vi.fn(() => ({

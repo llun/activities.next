@@ -292,3 +292,60 @@ describe('getContentSecurityPolicy frame-ancestors', () => {
     expect(getEmbedContentSecurityPolicy()).toBe(app)
   })
 })
+
+describe('getContentSecurityPolicy nonce', () => {
+  beforeEach(() => {
+    resetContentSecurityPolicyCacheForTests()
+  })
+
+  afterEach(() => {
+    resetContentSecurityPolicyCacheForTests()
+  })
+
+  it('puts the nonce and strict-dynamic in script-src and drops unsafe-inline', () => {
+    const scriptSources = getSourcesFrom(
+      getContentSecurityPolicy('test-nonce-value'),
+      'script-src'
+    )
+
+    expect(scriptSources).toContain("'nonce-test-nonce-value'")
+    expect(scriptSources).toContain("'strict-dynamic'")
+    expect(scriptSources).not.toContain("'unsafe-inline'")
+  })
+
+  it('never allows unsafe-inline script, with or without a nonce', () => {
+    expect(
+      getSourcesFrom(getContentSecurityPolicy(), 'script-src')
+    ).not.toContain("'unsafe-inline'")
+    expect(
+      getSourcesFrom(getContentSecurityPolicy('another-nonce'), 'script-src')
+    ).not.toContain("'unsafe-inline'")
+  })
+
+  it('builds a different policy for each nonce', () => {
+    const first = getContentSecurityPolicy('first-nonce')
+    const second = getContentSecurityPolicy('second-nonce')
+
+    expect(first).not.toBe(second)
+    expect(first).toContain("'nonce-first-nonce'")
+    expect(second).toContain("'nonce-second-nonce'")
+    expect(first).not.toContain('second-nonce')
+  })
+
+  it('carries the nonce into the embed policy too', () => {
+    const scriptSources = getSourcesFrom(
+      getEmbedContentSecurityPolicy('embed-nonce'),
+      'script-src'
+    )
+
+    expect(scriptSources).toContain("'nonce-embed-nonce'")
+    expect(scriptSources).toContain("'strict-dynamic'")
+    expect(scriptSources).not.toContain("'unsafe-inline'")
+  })
+
+  it('keeps unsafe-inline for styles, which the nonce does not cover', () => {
+    expect(
+      getSourcesFrom(getContentSecurityPolicy('style-nonce'), 'style-src')
+    ).toContain("'unsafe-inline'")
+  })
+})

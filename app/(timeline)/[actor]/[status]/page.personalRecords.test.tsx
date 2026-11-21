@@ -16,6 +16,12 @@ import { resolveStatusFromPath } from './resolveStatusFromPath'
 
 // The page reads the sign-ups of the domain it is visited on, which needs a
 // request; these tests render the page directly, so answer for the primary.
+// The page reads the per-request CSP nonce for its JSON-LD blocks; these tests
+// render it directly, so answer with an empty header set.
+vi.mock('next/headers', () => ({
+  headers: vi.fn(async () => new Headers())
+}))
+
 vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
   getVisitedSignUpDomain: vi.fn(async () => ({
     domain: 'test.llun.dev',

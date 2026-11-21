@@ -25,6 +25,12 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { PagedStatusThread } from './PagedStatusThread'
 import Page from './page'
 
+// The page reads the per-request CSP nonce for its JSON-LD blocks; these tests
+// render it directly, so answer with an empty header set.
+vi.mock('next/headers', () => ({
+  headers: vi.fn(async () => new Headers())
+}))
+
 vi.mock('@/lib/services/domains/visitedSignUpDomain', () => ({
   getVisitedSignUpDomain: vi.fn(async () => ({
     domain: 'activities.local',

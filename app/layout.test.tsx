@@ -34,15 +34,21 @@ vi.mock('@/lib/components/theme', () => ({
   ThemeProvider: ({ children }: { children: React.ReactNode }) => children
 }))
 
+// The layout reads the per-request CSP nonce for the theme bootstrap script;
+// these tests render it directly, so answer with an empty header set.
+vi.mock('next/headers', () => ({
+  headers: vi.fn(async () => new Headers())
+}))
+
 describe('RootLayout', () => {
   // The post page's history Back reads what the tracker records, so it has to
   // be mounted above every route group. Without it, every Back falls back to
   // "Back to profile" and nothing else fails.
-  it('mounts the in-app history tracker around every page', () => {
+  it('mounts the in-app history tracker around every page', async () => {
     const markup = renderToStaticMarkup(
-      <RootLayout>
-        <main data-testid="page" />
-      </RootLayout>
+      await RootLayout({
+        children: <main data-testid="page" />
+      })
     )
 
     const body = markup.slice(markup.indexOf('<body'))
@@ -54,11 +60,11 @@ describe('RootLayout', () => {
 describe('RootLayout web vitals', () => {
   // The reporter decides for itself whether it is on (the sample rate is read
   // per request); the layout only has to mount its gate on every page.
-  it('mounts the Web Vitals gate in the body', () => {
+  it('mounts the Web Vitals gate in the body', async () => {
     const markup = renderToStaticMarkup(
-      <RootLayout>
-        <main />
-      </RootLayout>
+      await RootLayout({
+        children: <main />
+      })
     )
 
     expect(markup.slice(markup.indexOf('<body'))).toContain(

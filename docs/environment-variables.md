@@ -406,8 +406,9 @@ the resolver silently falls back to `osm` rather than failing to render. Only pr
 checked, so a malformed private key still selects `apple` and surfaces as a failed token
 mint. When the variable is unset or holds an unknown value the provider is inferred: a
 configured Mapbox token selects `mapbox` for backward compatibility, otherwise `osm`.
-Because the Content-Security-Policy
-is resolved once and cached for the process lifetime, changing the provider (or its
+Because the Content-Security-Policy's origin list
+is resolved once and cached for the process lifetime (only the per-request
+script nonce changes between requests), changing the provider (or its
 credentials) requires restarting the app.
 
 Apple Maps free tier (per Apple Developer Program membership, as published by Apple):

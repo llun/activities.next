@@ -76,6 +76,53 @@ User Action ──→ Service Layer ──→ Queue Job
                                                       └──→ POST to Remote Inbox
 ```
 
+### Security Headers & Content-Security-Policy
+
+Two layers set the browser-facing security headers, and their keys are disjoint:
+
+- **Static headers** (`X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy`) come from `next.config.ts`'s
+  `headers()`, which reads only `lib/utils/http-headers/static.ts`. The
+  `/embed/*` widgets omit `X-Frame-Options` so third-party sites can frame them.
+- **`Content-Security-Policy`** is built per request in `proxy.ts` from
+  `lib/utils/http-headers/csp.ts`, because its sources follow runtime config
+  (storage hostnames, the selected map provider, remote-media allowlists, the
+  photo-editor model origins). `next.config.ts` never sets it.
+
+**Every document request gets a fresh nonce.** `proxy.ts` generates 16 random
+bytes with Web Crypto (`crypto.getRandomValues`, Edge-safe) and base64-encodes
+them. The nonce goes into `script-src` as `'nonce-<value>'` alongside
+`'strict-dynamic'`, and `'unsafe-inline'` is gone from `script-src` entirely.
+The existing host sources (Mapbox, jsDelivr, Apple MapKit) stay as the CSP2
+fallback: a browser that does not understand `'strict-dynamic'` ignores it and
+falls back to the allowlist, while a CSP3 browser ignores the allowlist and
+trusts only the nonce and scripts the nonce-tagged scripts create. `style-src`
+keeps `'unsafe-inline'`: Next and React emit inline styles that carry no nonce,
+and the guide's nonce example only covers styles for CSS-in-JS.
+
+The proxy puts the same nonce on the **request** as `x-nonce` and the full
+policy as the request's `Content-Security-Policy` header. Next parses the
+request CSP for `'nonce-<value>'` and tags its own hydration and bundle scripts
+with it; the app reads `x-nonce` for the inline scripts it renders itself — the
+theme bootstrap in `app/layout.tsx` and the JSON-LD blocks on the status page.
+The response carries the same policy. Non-document responses (API routes, the
+service worker, the share-target redirect) get the policy without a nonce, and
+`GET /api/v1/files/*` keeps its sandboxed `default-src 'none'; …; sandbox`
+policy. Per-route additions (sentinel/`connect-src` lists, map providers, media
+origins, frame rules, report endpoints) are unchanged.
+
+Nonces require dynamic rendering: a static page is built with no request, so it
+cannot carry one. Every page is already dynamic (the root layout reads the
+visited domain and now the nonce), and `yarn build`'s route table shows only
+`robots.txt` as static. `test/proxy.test.ts` checks that the response CSP and
+the forwarded request carry the same nonce, and `lib/utils/http-headers/csp.test.ts`
+checks the builder never emits `'unsafe-inline'` script.
+
+The production policy has no `'unsafe-eval'`, so `lib/client.ts` imports
+`lib/client/zodConfig.ts` first: it sets zod's `jitless`, which skips the
+`new Function('')` probe zod otherwise runs (and the browser reports) when it
+builds its first schema.
+
 ## Directory Structure
 
 ### `app/` — Next.js App Router
