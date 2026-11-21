@@ -8,7 +8,7 @@ import { render, screen, within } from '@testing-library/react'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
-import { StatusNote } from '@/lib/types/domain/status'
+import { Status, StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -73,7 +73,6 @@ const mockGetStatusReplyRefs = vi.fn(
 )
 const mockGetAcceptedOrRequestedFollow = vi.fn()
 const mockGetFitnessSettings = vi.fn(async (): Promise<unknown> => null)
-const mockGetActorFromUsername = vi.fn(async (): Promise<unknown> => null)
 
 vi.mock('@/lib/database', async () => ({
   getDatabase: vi.fn(() => ({
@@ -83,8 +82,14 @@ vi.mock('@/lib/database', async () => ({
     getActorDomainBlocks: mockGetActorDomainBlocks,
     getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
     getFitnessSettings: mockGetFitnessSettings,
-    // Read only by the real resolver, which the off-site Back test runs.
-    getActorFromUsername: mockGetActorFromUsername,
+    // Read by the real resolver (the off-site Back test) and by the page's
+    // path-actor check for a stored row with no hydrated actor.
+    getActorFromUsername: vi.fn(
+      async ({ username, domain }: { username: string; domain: string }) =>
+        username === 'anna' && domain === 'activities.local'
+          ? { id: 'https://activities.local/users/anna' }
+          : null
+    ),
     getStatusFromUrlHash: vi.fn(async () => null),
     getStatusFromPublicId: vi.fn(async () => null),
     // Without this the page's settings read throws and every test logs an
@@ -171,6 +176,16 @@ const buildNote = (overrides: Partial<StatusNote> = {}): StatusNote => ({
   updatedAt: 1,
   ...overrides
 })
+
+const buildAnnounce = (
+  originalStatus: StatusNote,
+  overrides: Partial<StatusNote> = {}
+): Status =>
+  ({
+    ...buildNote({ id: 'boost', ...overrides }),
+    type: 'Announce',
+    originalStatus
+  }) as unknown as Status
 
 // `isFitnessDashboard` keys off a completed fitness file, and that branch is a
 // separate card from the conversation one below — same defect, its own chrome.
@@ -317,32 +332,49 @@ describe('Mobile chrome', () => {
       author: { username: 'Anna', domain: 'Activities.Local' },
       accessibleName: 'Back to profile, Anna Nowak'
     },
+    // A boost renders under the boosted author's path, but the announcer is
+    // someone else, so the Back fallback names the handle from the path.
     {
       description: 'someone else (handle from the path)',
-      author: { username: 'someone', domain: 'elsewhere.example' },
+      boostAuthor: { username: 'someone', domain: 'elsewhere.example' },
       accessibleName: 'Back to profile, @anna@activities.local'
     },
     // The same username on another server is someone else.
     {
       description: 'the same username on another server',
-      author: { username: 'anna', domain: 'elsewhere.example' },
+      boostAuthor: { username: 'anna', domain: 'elsewhere.example' },
       accessibleName: 'Back to profile, @anna@activities.local'
     }
   ])(
     'names the direct-entry Back after $description',
-    async ({ author, accessibleName }) => {
-      const note = buildNote({
+    async ({ author, boostAuthor, accessibleName }) => {
+      const original = buildNote({
         id: 'focused',
         actor: {
-          ...author,
+          username: 'anna',
+          domain: 'activities.local',
           name: 'Anna Nowak'
         } as unknown as StatusNote['actor']
       })
+      const note = boostAuthor
+        ? buildAnnounce(original, {
+            actor: {
+              ...boostAuthor,
+              name: 'Anna Nowak'
+            } as unknown as StatusNote['actor']
+          })
+        : buildNote({
+            id: 'focused',
+            actor: {
+              ...author,
+              name: 'Anna Nowak'
+            } as unknown as StatusNote['actor']
+          })
       mockResolveStatusFromPath.mockResolvedValue({
         pathActor: PATH_ACTOR,
         status: note,
         statusId: note.id,
-        fullStatusId: note.url,
+        fullStatusId: original.url,
         isStatusHash: true
       })
       const element = await Page({
@@ -381,8 +413,13 @@ describe('Back to profile fallback from an untrusted actor segment', () => {
   it.each(['%2F%2Fx%40u%40attacker.example', '%5Cx%40u%40attacker.example'])(
     'stays on this site for %s',
     async (actor) => {
-      const note = buildNote({ id: 'focused' })
-      mockGetActorFromUsername.mockResolvedValueOnce({ id: note.actorId })
+      const note = buildNote({
+        id: 'focused',
+        actor: {
+          username: 'u',
+          domain: 'attacker.example'
+        } as unknown as StatusNote['actor']
+      })
       mockGetStatus.mockResolvedValue(note)
 
       const element = await Page({

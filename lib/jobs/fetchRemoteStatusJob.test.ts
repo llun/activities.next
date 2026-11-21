@@ -2329,6 +2329,22 @@ describe('fetchRemoteStatusJob', () => {
       expect(requested).not.toContain(parent)
     })
 
+    it('does not fetch a status id on this instance', async () => {
+      // A queued id can become local after it was queued (a served domain
+      // added, a host moved here); the job must not ask our own host for it.
+      const localStatusId = `https://${TEST_DOMAIN}/users/test1/statuses/not-stored`
+      const requested = serveChain({ [localStatusId]: null })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: localStatusId }
+      })
+
+      expect(requested).not.toContain(localStatusId)
+      expect(await database.getStatus({ statusId: localStatusId })).toBeNull()
+    })
+
     // The actor allow-list can name remote servers; a missing parent on one
     // is fetched, since only the domains this server serves are "local".
     it('fetches a missing parent on a remote domain the actor allow-list names', async () => {

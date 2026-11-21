@@ -1,8 +1,7 @@
 import { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { profileName } from '@/lib/components/navigation-history/backDestination'
 import {
@@ -21,7 +20,11 @@ import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
 import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import {
+  canFederateWithDomain,
+  isLocalFederationDomain
+} from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getPersonalRecordDurations } from '@/lib/services/fitness-files/personalRecords'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
 import { getTrainingZoneSettings } from '@/lib/services/fitness-files/trainingZoneSettings'
@@ -31,6 +34,10 @@ import {
   canActorReadStatus,
   isStatusPubliclyReadable
 } from '@/lib/services/statusAccess'
+import {
+  fetchEphemeralRemoteStatus,
+  isUrl
+} from '@/lib/services/statuses/fetchEphemeralRemoteStatus'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import {
@@ -61,6 +68,7 @@ import { SignInCallout } from './SignInCallout'
 import { StatusBox } from './StatusBox'
 import { StatusLikes } from './StatusLikes'
 import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
+import { statusMatchesPathActor } from './statusPathActor'
 
 interface Props {
   params: Promise<{ actor: string; status: string }>
@@ -167,6 +175,7 @@ export const generateMetadata = async ({
     : pageUrl
   let shouldNoIndex = isRemoteActorHandle
   const database = getDatabase()
+  let shouldNotFound = false
   if (database) {
     try {
       const resolved = await resolveStatusFromPath({
@@ -174,7 +183,22 @@ export const generateMetadata = async ({
         actorParam: actor,
         statusParam: status
       })
-      if (resolved?.status && isStatusStrictlyPublic(resolved.status)) {
+      if (
+        resolved?.status &&
+        isStatusPubliclyReadable(resolved.status) &&
+        !(await statusMatchesPathActor({
+          database,
+          status: resolved.status,
+          pathActor: resolved.pathActor
+        }))
+      ) {
+        // A status may only be unfurled under the actor its path names, so a
+        // local handle is never paired with foreign content. Only a publicly
+        // readable status may 404 here: a non-public one has to answer exactly
+        // like an unstored one, or the 404 would tell a stranger that a private
+        // status URI is stored and who wrote it.
+        shouldNotFound = true
+      } else if (resolved?.status && isStatusStrictlyPublic(resolved.status)) {
         const actualStatus = getOriginalStatus(resolved.status)
         if (actualStatus) {
           const resolvedCanonical = getCanonicalStatusUrl(actualStatus, pageUrl)
@@ -199,6 +223,7 @@ export const generateMetadata = async ({
       // Best-effort description fallback
     }
   }
+  if (shouldNotFound) notFound()
 
   return {
     title: `${decodedActor} status`,
@@ -217,7 +242,8 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
-  const { host, mediaStorage } = getConfig()
+  const config = getConfig()
+  const { host, mediaStorage } = config
   const mapProvider = getPublicMapProvider()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
@@ -247,35 +273,89 @@ const Page: FC<Props> = async ({ params }) => {
   // them would let any remote note rewrite another status's attachment rows.
   const isStoredStatus = Boolean(status)
 
+  let canFetchRemote = false
   if (!status && !isStatusHash && fullStatusId) {
-    // Server-to-server federation fetches must be signed by the dedicated
-    // headless instance actor, never the viewer's user actor. Instances running
-    // in authorized-fetch ("secure") mode reject unsigned/unverifiable requests,
-    // and the viewer may not have a usable signing actor at all (e.g. a
-    // logged-in account without a local actor, or one whose key is not publicly
-    // resolvable on a multi-domain setup). The instance actor always exists, has
-    // a private key, and is served at a publicly resolvable URL so the remote
-    // can verify the signature; without it, posts on secure-mode instances 404.
-    // Resolution is best-effort: a missing/failed instance actor must degrade to
-    // an unsigned fetch rather than turning a clean 404 into a 500. The failure
-    // is surfaced (not swallowed) so a persistently broken signer stays
-    // diagnosable. getRemoteStatus is shared with search, which intentionally
-    // signs as the requesting user, so only this call site is changed.
-    const signingActor = await getFederationSigningActor(database).catch(
-      (error) => {
-        logger.warn({
-          message:
-            'Failed to resolve federation signing actor for remote status fetch; falling back to an unsigned request',
-          error: error instanceof Error ? error.message : String(error)
+    try {
+      canFetchRemote =
+        isUrl(fullStatusId) &&
+        !(await isLocalFederationDomain(database, fullStatusId)) &&
+        (await canFederateWithDomain(database, fullStatusId))
+
+      if (canFetchRemote) {
+        // Route live fetches through fetchEphemeralRemoteStatus so federation
+        // policy, local-domain refusal, same-origin id/attribution checks, and
+        // public/unlisted audience gating run before hydrating the author.
+        // Anonymous visitors hydrate the author in memory only: this page is a
+        // read-only view and must not record actors, sync counts or queue jobs.
+        status = await fetchEphemeralRemoteStatus({
+          database,
+          statusId: fullStatusId,
+          persistActor: Boolean(session)
         })
-        return undefined
+        statusId = status?.id ?? ''
       }
-    )
-    status = await getRemoteStatus({
-      statusId: fullStatusId,
-      signingActor
-    })
-    statusId = status?.id ?? ''
+    } catch (error) {
+      if (!(error instanceof FederationPolicyUnavailableError)) throw error
+      // The federation policy could not be decided. Skip the live fetch rather
+      // than answer 500: a signed-in viewer sees the loading state and queues
+      // the fetch job below, an anonymous visitor gets a 404. A URL on this
+      // instance is never queued.
+      status = null
+      canFetchRemote = !isOwnInstanceHost(
+        new URL(fullStatusId).host,
+        getServedHostConfig(config)
+      )
+    }
+  }
+
+  if (status) {
+    // Focused-status visibility gate — the single source of truth shared with the
+    // ancestor chain below. `canActorReadStatus` collapses to the public/unlisted
+    // check for logged-out visitors and, for an Announce, recurses into the
+    // boosted status, so a public boost of a followers-only post is rejected
+    // unless the viewer follows the boosted author. It also exact-matches the
+    // author's stored `followersUrl` (rather than a loose `/followers` suffix), so
+    // a remote follower of a followers-only post is no longer misread as a
+    // direct-message non-recipient. Gating here, before the path-actor redirect
+    // and the reply fetch, rejects unreadable statuses for every viewer up front
+    // and keeps a private or direct status's author and canonical id out of the
+    // redirect a viewer who cannot read it would otherwise receive.
+    if (!(await canActorReadStatus({ database, status, currentActor }))) {
+      return notFound()
+    }
+
+    // A status may only render under the actor its path names: its actor id is
+    // compared with the path actor's stored id, or, when the path actor is not
+    // stored, with the verified handle. A mismatch redirects to the canonical
+    // path (or 404s when none can be built), so a local name is never paired
+    // with foreign content.
+    if (!(await statusMatchesPathActor({ database, status, pathActor }))) {
+      // A live fetch that answers with a different id than the one requested can
+      // answer the same way from the path a redirect would send the viewer to,
+      // so two inconsistent remote aliases would loop. 404 instead of
+      // redirecting; a stored row's id is stable, so its redirect cannot.
+      if (!isStoredStatus && status.id !== fullStatusId) {
+        return notFound()
+      }
+      const canonicalPath = getStatusDetailPath(status)
+      if (canonicalPath) {
+        // A redirect to the path the viewer is already on would loop: the same
+        // request resolves the same way and redirects again. That happens when
+        // the path names the status's own author but the stored row for that
+        // handle is another actor (a stale row or a case-variant twin), so the
+        // canonical path is the current one. 404 instead of redirecting.
+        const canonicalSegments = canonicalPath.split('/').filter(Boolean)
+        if (
+          canonicalSegments.length === 2 &&
+          decodePathParam(canonicalSegments[0]) === decodePathParam(actor) &&
+          decodePathParam(canonicalSegments[1]) === decodePathParam(statusParam)
+        ) {
+          return notFound()
+        }
+        redirect(canonicalPath)
+      }
+      return notFound()
+    }
 
     // A live-fetched remote status carries no replies (`fromNote` sets
     // `replies: []`) and its thread is not in our database yet, so a signed-in
@@ -283,7 +363,7 @@ const Page: FC<Props> = async ({ params }) => {
     // status plus its reply thread. Because the job persists the focused status,
     // later views resolve it from the database and skip this branch entirely —
     // bounding repeat fetches for popular posts.
-    if (status && status.type === StatusType.enum.Note && session) {
+    if (!isStoredStatus && status.type === StatusType.enum.Note && session) {
       // A queue failure (service down, rate limited) must not 500 the page —
       // the live-fetched status is still renderable, so log and continue.
       try {
@@ -312,7 +392,7 @@ const Page: FC<Props> = async ({ params }) => {
   // `fullStatusId` means there is nothing to fetch — a local path or a stored
   // candidate the path actor does not own — so fall through to the 404 instead
   // of queueing a job for an empty id and showing the loading state forever.
-  if (!status && session && !isStatusHash && fullStatusId) {
+  if (!status && session && !isStatusHash && fullStatusId && canFetchRemote) {
     const queue = getQueue()
     // Queue the fetch job with a deterministic ID to avoid duplicates. As above,
     // an inline NoQueue run is kept to the focused note's direct replies so the
@@ -346,24 +426,14 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  // Focused-status visibility gate — the single source of truth shared with the
-  // ancestor chain below. `canActorReadStatus` collapses to the public/unlisted
-  // check for logged-out visitors and, for an Announce, recurses into the
-  // boosted status, so a public boost of a followers-only post is rejected
-  // unless the viewer follows the boosted author. It also exact-matches the
-  // author's stored `followersUrl` (rather than a loose `/followers` suffix), so
-  // a remote follower of a followers-only post is no longer misread as a
-  // direct-message non-recipient. Gating here, before the reply fetch, rejects
-  // unreadable statuses for every viewer up front.
-  if (!(await canActorReadStatus({ database, status, currentActor }))) {
-    return notFound()
-  }
-
   const actualStatus = getOriginalStatus(status)
   if (actualStatus && actualStatus.type === StatusType.enum.Note) {
+    // Only a signed-in view may write the enrichment back: an anonymous view is
+    // read-only, so it gets the in-memory result without a database to persist
+    // into.
     await enrichStatusAttachments(
       actualStatus,
-      isStoredStatus ? database : undefined
+      isStoredStatus && session ? database : undefined
     )
   }
 

@@ -8,17 +8,29 @@ const {
   mockIsLocalFederationDomain,
   mockCanFederateWithDomain,
   mockGetFederationSigningActorSafe,
-  mockRecordRemoteActorBestEffort
+  mockRecordRemoteActorBestEffort,
+  mockGetActorPerson,
+  mockConfirmActorHandle
 } = vi.hoisted(() => ({
   mockGetNote: vi.fn(),
   mockIsLocalFederationDomain: vi.fn(),
   mockCanFederateWithDomain: vi.fn(),
   mockGetFederationSigningActorSafe: vi.fn(),
-  mockRecordRemoteActorBestEffort: vi.fn()
+  mockRecordRemoteActorBestEffort: vi.fn(),
+  mockGetActorPerson: vi.fn(),
+  mockConfirmActorHandle: vi.fn()
 }))
 
 vi.mock('@/lib/activities', () => ({
   getNote: mockGetNote
+}))
+
+vi.mock('@/lib/activities/getActorPerson', () => ({
+  getActorPerson: mockGetActorPerson
+}))
+
+vi.mock('@/lib/activities/confirmActorHandle', () => ({
+  confirmActorHandle: mockConfirmActorHandle
 }))
 
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
@@ -37,8 +49,32 @@ vi.mock('@/lib/services/actors/refreshRemoteActor', () => ({
 const statusUrl = 'https://toot.io/users/devstorm/statuses/117434164364383111'
 const authorId = 'https://toot.io/users/devstorm'
 const signingActor = { id: 'https://local.test/actor' } as Actor
-const author = { id: authorId } as Actor
+const author = {
+  id: authorId,
+  username: 'devstorm',
+  domain: 'toot.io',
+  name: 'Dev Storm',
+  followersUrl: `${authorId}/followers`,
+  inboxUrl: `${authorId}/inbox`,
+  sharedInboxUrl: 'https://toot.io/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 1,
+  updatedAt: 1,
+  publicKey: 'public-key'
+} as Actor
 const viewer = { id: 'https://local.test/users/me' } as Actor
+const person = {
+  id: authorId,
+  type: 'Person',
+  preferredUsername: 'devstorm',
+  name: 'Dev Storm',
+  inbox: `${authorId}/inbox`,
+  followers: `${authorId}/followers`,
+  published: '2020-01-01T00:00:00Z'
+}
 
 const makeNote = (overrides: Record<string, unknown> = {}) => ({
   id: statusUrl,
@@ -67,7 +103,9 @@ describe('fetchEphemeralRemoteStatus', () => {
       mockCanFederateWithDomain,
       mockGetFederationSigningActorSafe,
       mockRecordRemoteActorBestEffort,
-      mockGetActorFromId
+      mockGetActorFromId,
+      mockGetActorPerson,
+      mockConfirmActorHandle
     ]) {
       mock.mockReset()
     }
@@ -88,7 +126,13 @@ describe('fetchEphemeralRemoteStatus', () => {
     })
     expect(status).toMatchObject({
       id: statusUrl,
-      actorId: authorId
+      actorId: authorId,
+      actor: {
+        id: authorId,
+        username: 'devstorm',
+        domain: 'toot.io',
+        name: 'Dev Storm'
+      }
     })
     expect(mockRecordRemoteActorBestEffort).not.toHaveBeenCalled()
   })
@@ -174,6 +218,8 @@ describe('fetchEphemeralRemoteStatus', () => {
   ])('returns null for a $description note', async ({ to, cc }) => {
     mockGetNote.mockResolvedValue(makeNote({ to, cc }))
     expect(await fetchStatus()).toBeNull()
+    expect(mockGetActorFromId).not.toHaveBeenCalled()
+    expect(mockRecordRemoteActorBestEffort).not.toHaveBeenCalled()
   })
 
   it('records a missing author with the instance signer', async () => {
@@ -192,5 +238,113 @@ describe('fetchEphemeralRemoteStatus', () => {
     mockGetActorFromId.mockResolvedValue(undefined)
     mockRecordRemoteActorBestEffort.mockResolvedValue(null)
     expect(await fetchStatus()).toBeNull()
+  })
+
+  it('hydrates a missing author in memory without writing when persistActor is false', async () => {
+    mockGetActorFromId.mockResolvedValue(undefined)
+    mockGetActorPerson.mockResolvedValue(person)
+    mockConfirmActorHandle.mockResolvedValue({
+      username: 'devstorm',
+      domain: 'toot.io'
+    })
+
+    const status = await fetchEphemeralRemoteStatus({
+      database,
+      statusId: statusUrl,
+      persistActor: false
+    })
+
+    expect(status).toMatchObject({
+      id: statusUrl,
+      actorId: authorId,
+      actor: {
+        id: authorId,
+        username: 'devstorm',
+        domain: 'toot.io',
+        name: 'Dev Storm'
+      }
+    })
+    expect(mockGetActorPerson).toHaveBeenCalledWith({
+      actorId: authorId,
+      signingActor
+    })
+    expect(mockConfirmActorHandle).toHaveBeenCalledWith({
+      database,
+      actorId: authorId,
+      username: 'devstorm',
+      webfinger: undefined
+    })
+    // No actor row, no collection sync, no profile-link job.
+    expect(mockRecordRemoteActorBestEffort).not.toHaveBeenCalled()
+  })
+
+  it('still records a missing author when persistActor is true', async () => {
+    mockGetActorFromId.mockResolvedValue(undefined)
+    mockRecordRemoteActorBestEffort.mockResolvedValue(author)
+
+    expect(
+      await fetchEphemeralRemoteStatus({
+        database,
+        statusId: statusUrl,
+        persistActor: true
+      })
+    ).toMatchObject({ id: statusUrl })
+    expect(mockRecordRemoteActorBestEffort).toHaveBeenCalledWith({
+      actorId: authorId,
+      database,
+      signingActor
+    })
+    expect(mockGetActorPerson).not.toHaveBeenCalled()
+  })
+
+  it('returns null when the in-memory author is on another origin', async () => {
+    mockGetActorFromId.mockResolvedValue(undefined)
+    mockGetActorPerson.mockResolvedValue({
+      ...person,
+      id: 'https://evil.example/users/devstorm'
+    })
+
+    expect(
+      await fetchEphemeralRemoteStatus({
+        database,
+        statusId: statusUrl,
+        persistActor: false
+      })
+    ).toBeNull()
+    expect(mockConfirmActorHandle).not.toHaveBeenCalled()
+  })
+
+  it('returns null when the in-memory author handle does not confirm', async () => {
+    mockGetActorFromId.mockResolvedValue(undefined)
+    mockGetActorPerson.mockResolvedValue(person)
+    mockConfirmActorHandle.mockResolvedValue(null)
+
+    expect(
+      await fetchEphemeralRemoteStatus({
+        database,
+        statusId: statusUrl,
+        persistActor: false
+      })
+    ).toBeNull()
+  })
+
+  it('canonicalises a same-origin alias attributedTo to the resolved actor id', async () => {
+    const aliasActorId = 'https://toot.io/@devstorm'
+    mockGetNote.mockResolvedValue(makeNote({ attributedTo: aliasActorId }))
+    mockGetActorFromId.mockResolvedValue(undefined)
+    mockGetActorPerson.mockResolvedValue(person)
+    mockConfirmActorHandle.mockResolvedValue({
+      username: 'devstorm',
+      domain: 'toot.io'
+    })
+
+    const status = await fetchEphemeralRemoteStatus({
+      database,
+      statusId: statusUrl,
+      persistActor: false
+    })
+
+    expect(status?.actorId).toBe(authorId)
+    expect(status?.actor?.id).toBe(authorId)
   })
 })

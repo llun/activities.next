@@ -125,6 +125,26 @@ describe('GET /api/oembed', () => {
     })
   })
 
+  it('returns 404 when the status author does not match the path actor', async () => {
+    mockDatabase.getStatus.mockResolvedValue(
+      buildNote({
+        actorId: 'https://llun.test/users/other',
+        actor: {
+          ...TEST_ACTOR,
+          id: 'https://llun.test/users/other',
+          username: 'other'
+        }
+      })
+    )
+
+    const response = await GET(
+      request({ url: 'https://llun.test/@test1@llun.test/status-1' }),
+      params
+    )
+
+    expect(response.status).toBe(404)
+  })
+
   it('returns 404 for a status that is not publicly readable', async () => {
     mockDatabase.getStatus.mockResolvedValue(
       buildNote({ to: [TEST_ACTOR.followersUrl], cc: [] })

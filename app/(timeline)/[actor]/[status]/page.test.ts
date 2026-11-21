@@ -1,5 +1,11 @@
 import { generateMetadata } from './page'
 
+vi.mock('next/navigation', () => ({
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND')
+  })
+}))
+
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(),
   getBaseURL: vi.fn().mockReturnValue('https://llun.test')
@@ -47,6 +53,9 @@ vi.mock('./resolveStatusFromPath', () => ({
       return segment
     }
   },
+  // The path actor is not stored in these tests, so the path-actor check falls
+  // back to the handle the status carries.
+  getActorFromUsernameCached: vi.fn(async () => null),
   resolveStatusFromPath: vi.fn()
 }))
 
@@ -75,6 +84,7 @@ describe('generateMetadata', () => {
     const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
     vi.mocked(getDatabase).mockReturnValueOnce({} as never)
     vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+      pathActor: { username: 'test1', domain: 'llun.test' },
       status: {
         id: 'https://llun.test/users/test1/statuses/status-1',
         publicId: '01955555-5555-7555-8555-555555555555',
@@ -123,6 +133,7 @@ describe('generateMetadata', () => {
     } as never)
     vi.mocked(getDatabase).mockReturnValueOnce({} as never)
     vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+      pathActor: { username: 'test1', domain: 'second.example' },
       status: {
         id: 'http://localhost:3000/users/test1/statuses/status-2',
         publicId: '01955555-5555-7555-8555-555555555556',
@@ -178,6 +189,7 @@ describe('generateMetadata', () => {
     const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
     vi.mocked(getDatabase).mockReturnValueOnce({} as never)
     vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+      pathActor: { username: 'alice', domain: 'remote.example' },
       status: {
         id: 'https://remote.example/users/alice/statuses/99',
         url: 'https://remote.example/@alice/99',
@@ -238,12 +250,15 @@ describe('generateMetadata', () => {
     const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
     vi.mocked(getDatabase).mockReturnValueOnce({} as never)
     vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+      pathActor: { username: 'test1', domain: 'llun.test' },
       status: {
         id: 'status-unlisted',
         type: 'Note',
         text: '<p>Unlisted quiet post content</p>',
         summary: '',
         actor: {
+          username: 'test1',
+          domain: 'llun.test',
           followersUrl: 'https://llun.test/users/test1/followers'
         },
         to: ['https://llun.test/users/test1/followers'],
@@ -271,12 +286,15 @@ describe('generateMetadata', () => {
     const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
     vi.mocked(getDatabase).mockReturnValueOnce({} as never)
     vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+      pathActor: { username: 'test1', domain: 'llun.test' },
       status: {
         id: 'status-followers',
         type: 'Note',
         text: '<p>Followers-only content</p>',
         summary: '',
         actor: {
+          username: 'test1',
+          domain: 'llun.test',
           followersUrl: 'https://llun.test/users/test1/followers'
         },
         to: ['https://llun.test/users/test1/followers'],
@@ -304,8 +322,10 @@ describe('generateMetadata', () => {
     const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
     vi.mocked(getDatabase).mockReturnValueOnce({} as never)
     vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+      pathActor: { username: 'test1', domain: 'llun.test' },
       status: {
         id: 'status-2',
+        actor: { username: 'test1', domain: 'llun.test' },
         type: 'Note',
         text: '<p>Secret direct message content</p>',
         summary: '',
@@ -325,6 +345,71 @@ describe('generateMetadata', () => {
       "View @test1@llun.test's post on Acme Social"
     )
     expect(metadata.description).not.toContain('Secret direct message content')
+    expect(metadata.robots).toEqual({ index: false, follow: false })
+    expect(metadata.alternates?.canonical).toBeUndefined()
+  })
+
+  it('refuses metadata for a status whose author does not match the path actor', async () => {
+    const { getDatabase } = await import('@/lib/database')
+    const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
+    vi.mocked(getDatabase).mockReturnValueOnce({} as never)
+    vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+      pathActor: { username: 'test1', domain: 'llun.test' },
+      status: {
+        id: 'https://remote.example/users/alice/statuses/99',
+        actorId: 'https://remote.example/users/alice',
+        actor: { username: 'alice', domain: 'remote.example' },
+        isLocalActor: false,
+        type: 'Note',
+        text: '<p>Foreign note</p>',
+        summary: '',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      }
+    } as never)
+
+    await expect(
+      generateMetadata({
+        params: Promise.resolve({
+          actor: '@test1@llun.test',
+          status: '99'
+        })
+      })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('answers a stored non-public status under another actor path like an unstored one', async () => {
+    // A 404 here would tell a stranger that a private status URI is stored and
+    // who wrote it, so the mismatch must only 404 a publicly readable status.
+    const { getDatabase } = await import('@/lib/database')
+    const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
+    vi.mocked(getDatabase).mockReturnValueOnce({} as never)
+    vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+      pathActor: { username: 'test1', domain: 'llun.test' },
+      status: {
+        id: 'https://llun.test/users/test2/statuses/secret',
+        actorId: 'https://llun.test/users/test2',
+        actor: { username: 'test2', domain: 'llun.test' },
+        isLocalActor: true,
+        type: 'Note',
+        text: '<p>Secret followers-only post</p>',
+        summary: '',
+        to: ['https://llun.test/users/test2/followers'],
+        cc: []
+      }
+    } as never)
+
+    const metadata = await generateMetadata({
+      params: Promise.resolve({
+        actor: '@test1@llun.test',
+        status: 'secret'
+      })
+    })
+
+    expect(metadata.description).toBe(
+      "View @test1@llun.test's post on Acme Social"
+    )
+    expect(metadata.description).not.toContain('Secret followers-only post')
     expect(metadata.robots).toEqual({ index: false, follow: false })
     expect(metadata.alternates?.canonical).toBeUndefined()
   })
