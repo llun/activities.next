@@ -1,0 +1,79 @@
+app/api/v1/accounts/email/route.test.ts
+  s_0303642889c22e::t_52906b39594b9b 3,59-60,98-102,113,115
+app/api/v1/accounts/email/route.ts
+  s_0303642889c22e::t_db66ec92e05aa1 41
+app/api/v1/accounts/handle/route.test.ts
+  s_0303642889c22e::t_bf0181bd30aefa 4,15-20,138,152-153
+app/api/v1/accounts/handle/route.ts
+  s_0303642889c22e::t_921888729fa515 120-122
+app/api/v1/accounts/migration/route.test.ts
+  s_0303642889c22e::t_1b7f7353aff7cc 5,25-30,232,246-247
+app/api/v1/accounts/migration/route.ts
+  s_0303642889c22e::t_0fb22795a527a3 93-95
+app/api/v1/accounts/password/reset/request/route.test.ts
+  s_0303642889c22e::t_4b0d9cfb71be5a 4,69-72,81-85,113,115,130,133
+app/api/v1/accounts/password/reset/request/route.ts
+  s_0303642889c22e::t_c519d20ff6774a 73
+app/api/v1/accounts/password/reset/route.test.ts
+  s_0303642889c22e::t_322e90e6fb0dfa 4,23-26,35-39,48,50,63,66
+app/api/v1/accounts/password/reset/route.ts
+  s_0303642889c22e::t_61c2b39f53a7c8 42
+app/api/v1/accounts/password/route.test.ts
+  s_0303642889c22e::t_f4017cb8491343 3,39-43,82-86,96,98
+app/api/v1/accounts/password/route.ts
+  s_0303642889c22e::t_1394d2912ace43 34-36
+app/api/v1/accounts/route.test.ts
+  s_0303642889c22e::t_77f4795a5b1100 7,95,97,107,203,208,211,491,545-549
+app/api/v1/accounts/route.ts
+  s_0303642889c22e::t_2a884321e0a93f 310
+app/api/v1/emails/confirmations/route.test.ts
+  s_0303642889c22e::t_a199d71a36ed33 6,79-80,137-141,159,161,191,194,818,820
+app/api/v1/emails/confirmations/route.ts
+  s_0303642889c22e::t_79cf7c1801be36 78
+docs/architecture.md
+  s_0303642889c22e::t_6f19a1693b3338 180-181
+docs/environment-variables.md
+  s_0303642889c22e::t_96aa9553ff789b 139-140
+docs/mastodon-api-compatibility.md
+  s_0303642889c22e::t_57f5d35ea69dc9 431-432
+lib/database/domains/rateLimit/queries.ts
+  s_0303642889c22e::t_248b9daa359ab5 1-115
+lib/database/domains/rateLimit/rateLimit.test.ts
+  s_0303642889c22e::t_f47f8882ff1d03 1-156
+lib/database/domains/rateLimit/types.ts
+  s_0303642889c22e::t_d80e988ab22c69 1-48
+lib/database/getSQLDatabase.ts
+  s_0303642889c22e::t_24858f828004ce 53,176
+lib/database/testing/inMemoryRateLimit.ts
+  s_0303642889c22e::t_42407953b9b1e5 1-38
+lib/database/types.ts
+  s_0303642889c22e::t_214cd9cf245e06 25,105
+lib/services/auth/auth.ts
+  s_0303642889c22e::t_4c5bb368e83cba 221,228
+lib/services/auth/rateLimit.test.ts
+  s_0303642889c22e::t_a409dcc8f46e46 65,141,398,460
+lib/services/auth/routeRateLimits.test.ts
+  s_0303642889c22e::t_4b999186bd84f1 1-2,5,7-14,16,18,23-24,26-32,35-61,74,76-80,82-85,90-91,93-147,149-170,174-207,210
+lib/services/auth/routeRateLimits.ts
+  s_0303642889c22e::t_11d56ea3bf89b8 1-17,22-25,29-30,37-41,51-87,90-92,94,96-98,104,111-117,120-125,128,130,133-139,141-146,150-155,158-163,166-171
+lib/services/auth/sessionJoins.test.ts
+  s_0303642889c22e::t_4d020cfa5c61db 39-42,78-80
+lib/services/auth/sessionRefresh.test.ts
+  s_0303642889c22e::t_2b97d5eef389d0 33-36,106-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f839a848fbc382ea0a3efdf079ea6a1775ed02c4",
+  "prompts": {},
+  "sessions": {
+    "s_0303642889c22e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9e80880-6d1c-448c-bf09-ce18b6ac927f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
