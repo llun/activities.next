@@ -736,4 +736,45 @@ describe('createPollJob', () => {
 
     await expect(database.getStatus({ statusId: localId })).resolves.toBeNull()
   })
+
+  it('stores the poll id as url when the poll names a url on another origin', async () => {
+    const question = {
+      ...MockActivityPubQuestion({
+        id: 'https://somewhere.test/actors/pollcreator/questions/forged-url'
+      }),
+      url: 'https://victim.example/users/bob/statuses/1'
+    }
+
+    await createPollJob(database, {
+      id: 'poll-forged-url',
+      name: CREATE_POLL_JOB_NAME,
+      data: question,
+      verifiedSenderActorId: question.attributedTo
+    })
+
+    const status = (await database.getStatus({
+      statusId: question.id
+    })) as StatusNote
+    expect(status.url).toEqual(question.id)
+  })
+
+  it('keeps a url on the poll id origin', async () => {
+    const question = MockActivityPubQuestion({
+      id: 'https://somewhere.test/actors/pollcreator/questions/same-origin-url'
+    })
+    const sameOriginUrl =
+      'https://somewhere.test/@pollcreator/questions/same-origin-url'
+
+    await createPollJob(database, {
+      id: 'poll-same-origin-url',
+      name: CREATE_POLL_JOB_NAME,
+      data: { ...question, url: sameOriginUrl },
+      verifiedSenderActorId: question.attributedTo
+    })
+
+    const status = (await database.getStatus({
+      statusId: question.id
+    })) as StatusNote
+    expect(status.url).toEqual(sameOriginUrl)
+  })
 })

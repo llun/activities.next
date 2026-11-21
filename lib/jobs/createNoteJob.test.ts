@@ -897,4 +897,77 @@ describe('createNoteJob', () => {
 
     await expect(database.getStatus({ statusId: localId })).resolves.toBeNull()
   })
+
+  it('stores the note id as url when the note names a url on another origin', async () => {
+    const note = {
+      ...MockMastodonActivityPubNote({
+        id: `${FRIEND_ACTOR_ID}/statuses/forged-url`,
+        from: FRIEND_ACTOR_ID,
+        content: '<p>Forged url</p>'
+      }),
+      url: 'https://victim.example/users/bob/statuses/1'
+    }
+
+    await createNoteJob(database, {
+      id: 'note-forged-url',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note,
+      verifiedSenderActorId: FRIEND_ACTOR_ID
+    })
+
+    const status = (await database.getStatus({
+      statusId: note.id
+    })) as StatusNote
+    expect(status.url).toEqual(note.id)
+  })
+
+  it('keeps a url on the note id origin', async () => {
+    const note = MockMastodonActivityPubNote({
+      id: `${FRIEND_ACTOR_ID}/statuses/same-origin-url`,
+      from: FRIEND_ACTOR_ID,
+      content: '<p>Same-origin url</p>'
+    })
+    const sameOriginUrl = `${FRIEND_ACTOR_ID}/@friend/same-origin-url`
+
+    await createNoteJob(database, {
+      id: 'note-same-origin-url',
+      name: CREATE_NOTE_JOB_NAME,
+      data: { ...note, url: sameOriginUrl },
+      verifiedSenderActorId: FRIEND_ACTOR_ID
+    })
+
+    const status = (await database.getStatus({
+      statusId: note.id
+    })) as StatusNote
+    expect(status.url).toEqual(sameOriginUrl)
+  })
+
+  it('does not let a forged url pre-empt another status', async () => {
+    const victimUrl = 'https://victim.example/users/bob/statuses/1'
+    const note = {
+      ...MockMastodonActivityPubNote({
+        id: `${FRIEND_ACTOR_ID}/statuses/forged-url-sink`,
+        from: FRIEND_ACTOR_ID,
+        content: '<p>Forged url sink</p>'
+      }),
+      url: victimUrl
+    }
+
+    await createNoteJob(database, {
+      id: 'note-forged-url-sink',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note,
+      verifiedSenderActorId: FRIEND_ACTOR_ID
+    })
+
+    // The url lookup is the shared sink parent backfill and search resolve a
+    // permalink through; the forged note must not answer for the victim's url.
+    await expect(
+      database.getStatusFromUrl({ url: victimUrl })
+    ).resolves.toBeNull()
+    const status = (await database.getStatus({
+      statusId: note.id
+    })) as StatusNote
+    expect(status.url).toEqual(note.id)
+  })
 })

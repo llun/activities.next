@@ -132,6 +132,69 @@ describe('fetchRemoteStatusJob', () => {
     expect(status?.type).toBe(StatusType.enum.Note)
   })
 
+  it('stores the note id as url when the fetched note names a url on another origin', async () => {
+    const STATUS_ID = `${REMOTE_STATUS_ID}/forged-url`
+    mockRemoteServers(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+      if (req.url === STATUS_ID) {
+        return activityJson({
+          id: STATUS_ID,
+          type: 'Note',
+          attributedTo: REMOTE_ACTOR_ID,
+          content: 'Hello World',
+          url: 'https://victim.example/users/bob/statuses/1',
+          to: [PUBLIC_STREAM],
+          cc: [],
+          published: new Date().toISOString()
+        })
+      }
+      return activityJson({})
+    })
+
+    await fetchRemoteStatusJob(database, {
+      id: 'job-forged-url',
+      name: FETCH_REMOTE_STATUS_JOB_NAME,
+      data: { statusId: STATUS_ID }
+    })
+
+    const status = (await database.getStatus({
+      statusId: STATUS_ID
+    })) as StatusNote
+    expect(status.url).toBe(STATUS_ID)
+  })
+
+  it('keeps a url on the fetched note id origin', async () => {
+    const STATUS_ID = `${REMOTE_STATUS_ID}/same-origin-url`
+    const SAME_ORIGIN_URL = 'https://mastodon.social/@testUser/123456789'
+    mockRemoteServers(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+      if (req.url === STATUS_ID) {
+        return activityJson({
+          id: STATUS_ID,
+          type: 'Note',
+          attributedTo: REMOTE_ACTOR_ID,
+          content: 'Hello World',
+          url: SAME_ORIGIN_URL,
+          to: [PUBLIC_STREAM],
+          cc: [],
+          published: new Date().toISOString()
+        })
+      }
+      return activityJson({})
+    })
+
+    await fetchRemoteStatusJob(database, {
+      id: 'job-same-origin-url',
+      name: FETCH_REMOTE_STATUS_JOB_NAME,
+      data: { statusId: STATUS_ID }
+    })
+
+    const status = (await database.getStatus({
+      statusId: STATUS_ID
+    })) as StatusNote
+    expect(status.url).toBe(SAME_ORIGIN_URL)
+  })
+
   it.each([true, false])(
     'stores the sensitive flag %s from the fetched note',
     async (sensitive) => {

@@ -18,6 +18,7 @@ import { PollChoice } from '@/lib/types/domain/pollChoice'
 import { StatusFitnessFile } from '@/lib/types/domain/statusFitnessFile'
 import { Tag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 
 export { StatusFitnessFile }
@@ -268,14 +269,14 @@ const getActorIdFromAttributedTo = (
 // or array of Link objects (some ActivityPub implementations like Mastodon return arrays)
 // Note: The TypeScript schema types url as string | null | undefined, but some
 // implementations like Mastodon/ruby.social actually send arrays
-const getUrlFromNote = (note: BaseNote): string => {
+const getCandidateUrlFromNote = (note: BaseNote): string | undefined => {
   // A Funkwhale Audio leads with its audio file; its status url is the page.
-  if (note.type === 'Audio') return getStatusUrl(note) ?? note.id
+  if (note.type === 'Audio') return getStatusUrl(note)
   const noteUrl = note.url as unknown
   // Only an http(s) url may become the status `url`: it is served to clients
   // as a link target, and a remote note can put `javascript:` here.
   if (typeof noteUrl === 'string') {
-    return isHttpUrl(noteUrl) ? noteUrl : note.id
+    return isHttpUrl(noteUrl) ? noteUrl : undefined
   }
   if (Array.isArray(noteUrl)) {
     const firstUrl = noteUrl.find(
@@ -296,7 +297,18 @@ const getUrlFromNote = (note: BaseNote): string => {
       return linkWithHref.href
     }
   }
-  return note.id
+  return undefined
+}
+
+const getUrlFromNote = (note: BaseNote): string => {
+  const candidate = getCandidateUrlFromNote(note)
+  // A note's `url` is its identity on the surfaces that resolve a status by
+  // url (reply threading, parent backfill, search permalinks), so a peer may
+  // only name a url on its own origin. A cross-origin url would let the note
+  // pre-empt another status; fall back to the note's own id.
+  return candidate && isSameActivityPubOrigin(candidate, note.id)
+    ? candidate
+    : note.id
 }
 
 export const fromNote = (note: BaseNote): StatusNote => {

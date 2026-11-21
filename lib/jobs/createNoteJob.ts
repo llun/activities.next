@@ -133,6 +133,11 @@ export const createNoteJob = createJobHandle(
     const summary = getSummary(note)
     const language = getLanguage(note)
     const actorId = normalizeActorId(note.attributedTo) ?? note.attributedTo
+    // A note's `url` is its identity on the surfaces that resolve a status by
+    // url (reply threading, parent backfill, search permalinks), so a peer may
+    // only name a url on its own origin. A cross-origin url would let a signed
+    // note pre-empt another status; fall back to the note's own id.
+    const statusUrl = getStatusUrl(note)
 
     const publishedAt = new Date(note.published).getTime()
 
@@ -147,7 +152,10 @@ export const createNoteJob = createJobHandle(
     await recordActorIfNeeded({ actorId, database })
     const createResult = await database.createNoteWithResult({
       id: note.id,
-      url: getStatusUrl(note) || note.id,
+      url:
+        statusUrl && isSameActivityPubOrigin(statusUrl, note.id)
+          ? statusUrl
+          : note.id,
 
       actorId,
 

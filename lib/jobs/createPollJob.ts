@@ -83,6 +83,11 @@ export const createPollJob = createJobHandle(
     // content/summary locale maps so polls carry it like notes do, which lets
     // the Translate control appear on polls too.
     const language = getLanguage(question)
+    // A poll's `url` is its identity on the surfaces that resolve a status by
+    // url (reply threading, parent backfill, search permalinks), so a peer may
+    // only name a url on its own origin. A cross-origin url would let a signed
+    // poll pre-empt another status; fall back to the poll's own id.
+    const statusUrl = getUrl(question.url)
     const { choices, pollType, endAt, remoteUpdatedAt } =
       getPollFieldsFromQuestion(
         question,
@@ -104,8 +109,12 @@ export const createPollJob = createJobHandle(
     const createResult = await database.createPollWithResult({
       id: question.id,
       // A peer's `url` is served back to clients as a link, so only an
-      // http(s) value is kept — the same rule createNoteJob applies.
-      url: getUrl(question.url) || question.id,
+      // http(s) value on the poll's own origin is kept — the same rule
+      // createNoteJob applies.
+      url:
+        statusUrl && isSameActivityPubOrigin(statusUrl, question.id)
+          ? statusUrl
+          : question.id,
 
       actorId: question.attributedTo,
 

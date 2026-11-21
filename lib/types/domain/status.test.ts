@@ -44,6 +44,7 @@ describe('Status', () => {
     it('uses the html page, not the audio file, as the url of an Audio', () => {
       const audio = {
         ...MockMastodonActivityPubNote({ content: 'Hello' }),
+        id: 'https://funkwhale.test/objects/1',
         type: 'Audio',
         name: 'Night Drive',
         url: [
@@ -74,6 +75,24 @@ describe('Status', () => {
           ]
         } as unknown as BaseNote).url
       ).toEqual(audio.id)
+    })
+
+    it('falls back to the note id for a url on another origin', () => {
+      const note = {
+        ...MockMastodonActivityPubNote({ content: 'Hello' }),
+        url: 'https://victim.example/users/bob/statuses/1'
+      } as unknown as BaseNote
+
+      expect(fromNote(note).url).toEqual(note.id)
+    })
+
+    it('keeps a url on the note id origin', () => {
+      const note = MockMastodonActivityPubNote({ content: 'Hello' })
+      const sameOriginUrl = `${new URL(note.id).origin}/@alice/1`
+
+      expect(
+        fromNote({ ...note, url: sameOriginUrl } as unknown as BaseNote).url
+      ).toEqual(sameOriginUrl)
     })
 
     it.each([

@@ -141,9 +141,18 @@ const createFetchedStatus = async (
   actorId: string,
   createdAt: number
 ): Promise<{ isNew: boolean }> => {
+  const statusUrl = getUrl(note.url)
   const fields = {
     id: note.id,
-    url: getUrl(note.url) || note.id,
+    // A note's `url` is its identity on the surfaces that resolve a status by
+    // url (reply threading, parent backfill, search permalinks), so a fetched
+    // note may only name a url on its own origin — the same rule the thread
+    // walk applies to `inReplyTo`. A cross-origin url would let the note
+    // pre-empt another status; fall back to the note's own id.
+    url:
+      statusUrl && isSameActivityPubOrigin(statusUrl, note.id)
+        ? statusUrl
+        : note.id,
     actorId,
     text: Array.isArray(note.content)
       ? note.content.join('')
