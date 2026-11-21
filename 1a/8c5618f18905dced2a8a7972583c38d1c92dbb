@@ -1,0 +1,77 @@
+app/(timeline)/account/ChangeEmailForm.test.tsx
+  s_0303642889c22e::t_4b03477af642c9 24-27,42-47,78-83,110-115,133-183,185-190
+app/(timeline)/account/ChangeEmailForm.tsx
+  s_0303642889c22e::t_14d58af784bbf9 14-19,33,38,50-53,60,116,129-143
+app/(timeline)/account/email/page.tsx
+  s_0303642889c22e::t_a2006170de1502 62-65
+app/(timeline)/account/security/ChangePasswordForm.test.tsx
+  s_0303642889c22e::t_766dbe80db364f 106-107,117-161
+app/(timeline)/account/security/ChangePasswordForm.tsx
+  s_0303642889c22e::t_f28df2ccd7672c 9,16,46-50,123-141
+app/(timeline)/account/verify-email/page.test.tsx
+  s_0303642889c22e::t_d6cb3964bacaa6 28-30,40-41,43-75,93,107,119-120,123-125
+app/(timeline)/account/verify-email/page.tsx
+  s_0303642889c22e::t_26bfba1efdde7d 22-24,31-33,52-116
+app/api/v1/accounts/email/route.test.ts
+  s_0303642889c22e::t_b01ffdd67ad693 4,13-20,120,131,165-167,261-263,276-413,433,463-464,504-507,525,534-559
+app/api/v1/accounts/email/route.ts
+  s_0303642889c22e::t_b9231a948d150d 5-10,15,30-33,66,81-113,127-130,139-169,174
+app/api/v1/accounts/email/verify/confirm/route.test.ts
+  s_0303642889c22e::t_568b4ab49a7231 1-87
+app/api/v1/accounts/email/verify/confirm/route.ts
+  s_0303642889c22e::t_1b72767340e251 1-57
+app/api/v1/accounts/email/verify/route.test.ts
+  s_0303642889c22e::t_c8f7ecadaabeec 4,18,106-130
+app/api/v1/accounts/email/verify/route.ts
+  s_0303642889c22e::t_d906af50cc0fb9 3,47-48
+app/api/v1/accounts/password/route.test.ts
+  s_0303642889c22e::t_c48adfef2d9913 203-205,209-258
+app/api/v1/accounts/password/route.ts
+  s_0303642889c22e::t_47ce6fa0abedbd 17-21,63,87-88
+docs/architecture.md
+  s_0303642889c22e::t_f0037c935a7898 1686,1792,3349
+docs/features.md
+  s_0303642889c22e::t_aa199fc97f063f 43
+lib/client/accountSettings.ts
+  s_0303642889c22e::t_b0a722cd0e5aed 42-43,51-52,59,94-95,105-106,113
+lib/database/domains/account/account.test.ts
+  s_0303642889c22e::t_b3a2bb4eacc7a4 523-524
+lib/database/domains/account/accountQueries.test.ts
+  s_0303642889c22e::t_bc076bb864e367 962-963,1225-1226
+lib/database/domains/account/accountRecovery.test.ts
+  s_0303642889c22e::t_241679f9a573b6 1-402
+lib/database/domains/account/accountSessionOAuthForeignKey.test.ts
+  s_0303642889c22e::t_0eff61d829f728 241-242,275-276,278-279
+lib/database/domains/account/credentials.ts
+  s_0303642889c22e::t_f5f6dd4d0dce28 17,20,123-162,257-261,269-271,281-283,296,299-300,308-310,316-318
+lib/database/domains/account/types.ts
+  s_0303642889c22e::t_f0941ab2046d63 117-119
+lib/database/domains/oauth/queries.ts
+  s_0303642889c22e::t_2db7e3f5faf52a 15-16,297-338,348-349
+lib/database/domains/oauth/types.ts
+  s_0303642889c22e::t_1b524d65427b99 27-30,149-155
+lib/services/auth/credentialIdentity.test.ts
+  s_0303642889c22e::t_81976b24d03036 251-252,271-272
+lib/services/email/templates/emailChangeNotice.test.ts
+  s_0303642889c22e::t_45933d513ebd3e 1-60
+lib/services/email/templates/emailChangeNotice.ts
+  s_0303642889c22e::t_24a2e56852ebbf 1-63
+scripts/mock/renderEmailPreviews.ts
+  s_0303642889c22e::t_858b5a71a6fb20 36,155-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1a8c5618f18905dced2a8a7972583c38d1c92dbb",
+  "prompts": {},
+  "sessions": {
+    "s_0303642889c22e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9e80880-6d1c-448c-bf09-ce18b6ac927f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
