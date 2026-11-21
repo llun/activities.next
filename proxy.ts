@@ -68,6 +68,25 @@ export const config = {
 
 const MEDIA_FILE_ROUTE_PREFIX = '/api/v1/files/'
 
+// The request header Next reads the nonce from, and the one the app reads it
+// from (see app/layout.tsx and the status page). Next parses the request's
+// `Content-Security-Policy` for `'nonce-<value>'` and tags its own scripts with
+// it, so both headers carry the same value.
+const NONCE_REQUEST_HEADER = 'x-nonce'
+const CSP_HEADER_NAME = 'Content-Security-Policy'
+
+// A fresh, unpredictable nonce per document request. Web Crypto is available in
+// the Edge runtime (and in Node's test environment), and `btoa` is too, unlike
+// Node's `Buffer`. 16 random bytes give 24 base64 characters, inside the CSP
+// nonce grammar.
+const generateNonce = (): string => {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
 // Compared on a decoded, slash-collapsed form so an escaped or doubled
 // separator cannot reach the files route while dodging its policy. Erring
 // toward the sandboxed policy costs nothing on any other path.
@@ -108,16 +127,41 @@ const hasHostOutsideEnv = (headers: Headers): boolean => {
 
 const HANDLE_REDIRECT_PATH = '/api/handle-redirect'
 
+// The CSP header for a path: the public embed widgets get `frame-ancestors *`,
+// everything else `'none'`. The same value goes on the request (so Next applies
+// the nonce) and on the response.
+const getContentSecurityPolicyHeaderForPath = (
+  pathname: string,
+  nonce?: string
+) =>
+  pathname.startsWith('/embed/')
+    ? getEmbedContentSecurityPolicyHeader(nonce)
+    : getContentSecurityPolicyHeader(nonce)
+
 // The request headers every forwarded branch carries: the client-sent
 // `x-activities-local-handle-*` pair is deleted on EVERY request the proxy
 // runs on, so a value the client set itself never reaches the [actor] layout
 // on a path the proxy does not rewrite (there it would 308 an
 // attacker-chosen same-origin path). Only the branches that rewrite to the
 // profile set the headers, through getProfileRequestHeaders below.
-const forwardedRequestHeaders = (request: NextRequest) => {
+//
+// A document request also carries the nonce and the CSP it belongs to, so Next
+// tags its own scripts and the app can read the same value from `x-nonce`.
+const forwardedRequestHeaders = (
+  request: NextRequest,
+  nonce: string | null
+) => {
   const headers = new Headers(request.headers)
   headers.delete(LOCAL_HANDLE_REDIRECT_PATH_HEADER)
   headers.delete(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER)
+  if (nonce) {
+    headers.set(NONCE_REQUEST_HEADER, nonce)
+    headers.set(
+      CSP_HEADER_NAME,
+      getContentSecurityPolicyHeaderForPath(request.nextUrl.pathname, nonce)
+        .value
+    )
+  }
   return headers
 }
 
@@ -126,22 +170,30 @@ const forwardedRequestHeaders = (request: NextRequest) => {
 // every request header the override list does not name, so building one on
 // every request (inbox POSTs, uploads, every page view) rebuilds the whole
 // header set for nothing; it is built only when the client actually sent a
-// pair to strip. The profile branches always build theirs through
-// getProfileRequestHeaders.
-const forwardedRequestInit = (request: NextRequest) =>
+// pair to strip or the request needs the nonce. The profile branches always
+// build theirs through getProfileRequestHeaders.
+const forwardedRequestInit = (request: NextRequest, nonce: string | null) =>
+  nonce ||
   request.headers.has(LOCAL_HANDLE_REDIRECT_PATH_HEADER) ||
   request.headers.has(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER)
-    ? { request: { headers: forwardedRequestHeaders(request) } }
+    ? { request: { headers: forwardedRequestHeaders(request, nonce) } }
     : undefined
 
-const getProfileRequestHeaders = (request: NextRequest) => {
-  const headers = forwardedRequestHeaders(request)
+const getProfileRequestHeaders = (
+  request: NextRequest,
+  nonce: string | null
+) => {
+  const headers = forwardedRequestHeaders(request, nonce)
   headers.set(LOCAL_HANDLE_REDIRECT_PATH_HEADER, request.nextUrl.pathname)
   headers.set(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER, request.nextUrl.search)
   return headers
 }
 
-const withSecurityHeaders = (response: NextResponse, request: NextRequest) => {
+const withSecurityHeaders = (
+  response: NextResponse,
+  request: NextRequest,
+  nonce: string | null
+) => {
   // The public embed widgets are framable by third-party sites, so they get a
   // CSP with `frame-ancestors *` instead of the default `'none'`. Stored upload
   // bytes get the sandboxed media policy instead of the app's: the header set
@@ -151,9 +203,7 @@ const withSecurityHeaders = (response: NextResponse, request: NextRequest) => {
   const { pathname } = request.nextUrl
   const header = isMediaFileRoutePath(pathname)
     ? getMediaFileContentSecurityPolicyHeader()
-    : pathname.startsWith('/embed/')
-      ? getEmbedContentSecurityPolicyHeader()
-      : getContentSecurityPolicyHeader()
+    : getContentSecurityPolicyHeaderForPath(pathname, nonce ?? undefined)
   if (!response.headers.has(header.key)) {
     response.headers.set(header.key, header.value)
   }
@@ -184,6 +234,15 @@ const isRewrittenApiRoute = (pathname: string): boolean => {
   return pathname === '/inbox' || pathname.startsWith('/users/')
 }
 
+// Requests that can render an HTML document, and so need a nonce. Everything
+// else the proxy runs on is an API/rewrite target, the service worker script,
+// or stored upload bytes, none of which Next renders with a nonce.
+const isDocumentRequest = (pathname: string): boolean =>
+  !pathname.startsWith('/api/') &&
+  !pathname.startsWith('/oauth/') &&
+  !isRewrittenApiRoute(pathname) &&
+  pathname !== '/sw.js'
+
 // The Web Share Target POST (app/manifest.ts). `public/sw.js` answers it on the
 // device; before the worker is installed it reaches app/%5Fshare-target. A
 // multipart one skips the proxy (see the matcher); any other POST passes the
@@ -191,16 +250,24 @@ const isRewrittenApiRoute = (pathname: string): boolean => {
 const SHARE_TARGET_PATH = '/_share-target'
 
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  // One fresh nonce per document request. Next reads it from the request's CSP
+  // header and tags its own scripts with it; the app reads the same value from
+  // `x-nonce`. Non-document responses carry no nonce.
+  const nonce = isDocumentRequest(pathname) ? generateNonce() : null
+
   // One host, never a list. HTTP/1.1 allows a single `Host`, and Next.js both
   // copies it into a missing `X-Forwarded-Host` and reads that header's first
   // entry in its own Server Action origin check, so refuse the request here.
   // This covers the routes the proxy runs on (see `config.matcher`), not the
   // ones it skips, such as a multipart `/api/*` request.
   if (request.headers.get('host')?.includes(',')) {
-    return withSecurityHeaders(new NextResponse(null, { status: 400 }), request)
+    return withSecurityHeaders(
+      new NextResponse(null, { status: 400 }),
+      request,
+      nonce
+    )
   }
-
-  const pathname = request.nextUrl.pathname
 
   // Reject non-existent auth subpaths (e.g. /auth/callback) early with 404
   // so they do not fall through to the dynamic `/[actor]/[status]` route.
@@ -208,7 +275,11 @@ export async function proxy(request: NextRequest) {
     (pathname === '/auth' || pathname.startsWith('/auth/')) &&
     !VALID_AUTH_PAGES.has(pathname)
   ) {
-    return withSecurityHeaders(new NextResponse(null, { status: 404 }), request)
+    return withSecurityHeaders(
+      new NextResponse(null, { status: 404 }),
+      request,
+      nonce
+    )
   }
 
   // Actor routes (/@username, /@username/statusId, etc.) only accept GET and HEAD.
@@ -221,7 +292,8 @@ export async function proxy(request: NextRequest) {
           status: 405,
           headers: { Allow: 'GET, HEAD' }
         }),
-        request
+        request,
+        nonce
       )
     }
   }
@@ -245,7 +317,11 @@ export async function proxy(request: NextRequest) {
     !isRewrittenApiRoute(pathname) &&
     !request.headers.has('next-action')
   ) {
-    return withSecurityHeaders(new NextResponse(null, { status: 404 }), request)
+    return withSecurityHeaders(
+      new NextResponse(null, { status: 404 }),
+      request,
+      nonce
+    )
   }
 
   // Reject mutating methods (PUT, DELETE, PATCH) targeted at non-API routes.
@@ -262,15 +338,17 @@ export async function proxy(request: NextRequest) {
         status: 405,
         headers: { Allow: 'GET, HEAD' }
       }),
-      request
+      request,
+      nonce
     )
   }
 
   if (request.method === 'GET' || request.method === 'HEAD') {
     if (pathname === '/sw.js') {
       const response = withSecurityHeaders(
-        NextResponse.next(forwardedRequestInit(request)),
-        request
+        NextResponse.next(forwardedRequestInit(request, nonce)),
+        request,
+        nonce
       )
       response.headers.set(
         'Cache-Control',
@@ -300,8 +378,9 @@ export async function proxy(request: NextRequest) {
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
         return withSecurityHeaders(
-          NextResponse.rewrite(apiUrl, forwardedRequestInit(request)),
-          request
+          NextResponse.rewrite(apiUrl, forwardedRequestInit(request, nonce)),
+          request,
+          nonce
         )
       }
 
@@ -313,8 +392,9 @@ export async function proxy(request: NextRequest) {
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
         return withSecurityHeaders(
-          NextResponse.rewrite(apiUrl, forwardedRequestInit(request)),
-          request
+          NextResponse.rewrite(apiUrl, forwardedRequestInit(request, nonce)),
+          request,
+          nonce
         )
       }
     }
@@ -326,9 +406,10 @@ export async function proxy(request: NextRequest) {
       if (totalAt === 2) {
         return withSecurityHeaders(
           NextResponse.next({
-            request: { headers: getProfileRequestHeaders(request) }
+            request: { headers: getProfileRequestHeaders(request, nonce) }
           }),
-          request
+          request,
+          nonce
         )
       }
 
@@ -343,8 +424,12 @@ export async function proxy(request: NextRequest) {
           query: request.nextUrl.search
         }).toString()
         return withSecurityHeaders(
-          NextResponse.rewrite(redirectUrl, forwardedRequestInit(request)),
-          request
+          NextResponse.rewrite(
+            redirectUrl,
+            forwardedRequestInit(request, nonce)
+          ),
+          request,
+          nonce
         )
       }
 
@@ -356,20 +441,23 @@ export async function proxy(request: NextRequest) {
       cloneUrl.pathname = `/${pathItems.join('/')}`
       return withSecurityHeaders(
         NextResponse.rewrite(cloneUrl, {
-          request: { headers: getProfileRequestHeaders(request) }
+          request: { headers: getProfileRequestHeaders(request, nonce) }
         }),
-        request
+        request,
+        nonce
       )
     }
 
     return withSecurityHeaders(
-      NextResponse.next(forwardedRequestInit(request)),
-      request
+      NextResponse.next(forwardedRequestInit(request, nonce)),
+      request,
+      nonce
     )
   }
 
   return withSecurityHeaders(
-    NextResponse.next(forwardedRequestInit(request)),
-    request
+    NextResponse.next(forwardedRequestInit(request, nonce)),
+    request,
+    nonce
   )
 }

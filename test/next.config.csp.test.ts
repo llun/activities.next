@@ -86,7 +86,6 @@ describe('next config security hardening', () => {
         // Hugging Face and its CDN.
         expect(scriptSources).toEqual([
           "'self'",
-          "'unsafe-inline'",
           'https://cdn.jsdelivr.net',
           "'wasm-unsafe-eval'"
         ])
@@ -164,7 +163,6 @@ describe('next config security hardening', () => {
 
         expect(scriptSources).toEqual([
           "'self'",
-          "'unsafe-inline'",
           "'unsafe-eval'",
           'https://cdn.jsdelivr.net',
           "'wasm-unsafe-eval'"
@@ -212,7 +210,6 @@ describe('next config security hardening', () => {
         // 'wasm-unsafe-eval'; it is listed once.
         expect(getCspDirectiveSources('script-src')).toEqual([
           "'self'",
-          "'unsafe-inline'",
           'https://cdn.apple-mapkit.com',
           "'wasm-unsafe-eval'"
         ])
@@ -267,7 +264,6 @@ describe('next config security hardening', () => {
         () => {
           expect(getCspDirectiveSources('script-src')).toEqual([
             "'self'",
-            "'unsafe-inline'",
             'https://cdn.jsdelivr.net'
           ])
           expect(getCspDirectiveSources('connect-src')).toEqual([

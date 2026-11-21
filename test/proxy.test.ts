@@ -600,6 +600,69 @@ describe('proxy', () => {
     expect(csp.split('; ')).not.toContain('sandbox')
   })
 
+  // Next reads the nonce from the request's CSP header and tags its own scripts
+  // with it; the app reads the same value from `x-nonce`. Both must match the
+  // nonce in the response header, or the page's inline scripts are blocked.
+  it('puts the same nonce on the response CSP and the forwarded request', async () => {
+    const request = new NextRequest('https://llun.social/', { method: 'GET' })
+
+    const response = await proxy(request)
+    const csp = response?.headers.get('Content-Security-Policy') ?? ''
+    const nonce = csp.match(/'nonce-([^']+)'/)?.[1]
+
+    expect(nonce).toBeTruthy()
+    expect(csp).toContain("'strict-dynamic'")
+    expect(getCspDirectiveSources(csp, 'script-src')).not.toContain(
+      "'unsafe-inline'"
+    )
+    expect(response?.headers.get('x-middleware-request-x-nonce')).toBe(nonce)
+    expect(
+      response?.headers.get('x-middleware-request-content-security-policy')
+    ).toBe(csp)
+  })
+
+  it('generates a fresh nonce for each document request', async () => {
+    const first = await proxy(
+      new NextRequest('https://llun.social/', { method: 'GET' })
+    )
+    const second = await proxy(
+      new NextRequest('https://llun.social/', { method: 'GET' })
+    )
+
+    const firstNonce = first?.headers.get('x-middleware-request-x-nonce')
+    const secondNonce = second?.headers.get('x-middleware-request-x-nonce')
+
+    expect(firstNonce).toBeTruthy()
+    expect(secondNonce).toBeTruthy()
+    expect(firstNonce).not.toBe(secondNonce)
+  })
+
+  it('carries the nonce into the embed policy', async () => {
+    const request = new NextRequest('https://llun.social/embed/heatmap', {
+      method: 'GET'
+    })
+
+    const response = await proxy(request)
+    const csp = response?.headers.get('Content-Security-Policy') ?? ''
+    const nonce = csp.match(/'nonce-([^']+)'/)?.[1]
+
+    expect(csp).toContain('frame-ancestors *')
+    expect(nonce).toBeTruthy()
+    expect(response?.headers.get('x-middleware-request-x-nonce')).toBe(nonce)
+  })
+
+  it('does not put a nonce on a non-document response', async () => {
+    const request = new NextRequest('https://llun.social/api/v1/statuses', {
+      method: 'GET'
+    })
+
+    const response = await proxy(request)
+    const csp = response?.headers.get('Content-Security-Policy') ?? ''
+
+    expect(csp).not.toContain("'nonce-")
+    expect(response?.headers.get('x-middleware-request-x-nonce')).toBeNull()
+  })
+
   it('sets CSP on canonical actor handles that do not need rewriting', async () => {
     const request = new NextRequest('https://llun.social/@alice@example.com', {
       method: 'GET'
@@ -986,13 +1049,33 @@ describe('proxy', () => {
     ).toBeNull()
   })
 
-  // The override is built only when there is a pair to strip: a request that
-  // sent neither local-handle header is forwarded untouched, without the
-  // request-header override Next would apply on every request otherwise.
-  it('forwards a request without local-handle headers untouched', async () => {
+  // A document request always builds the override now, to carry the nonce; the
+  // local-handle pair is still absent from it, so a client-set value is
+  // stripped. A non-document request (an API call) still forwards untouched.
+  it('builds the request override for a document request to carry the nonce', async () => {
     const request = new NextRequest('https://public.example.com/about', {
       headers: { host: 'public.example.com' }
     })
+
+    const response = await proxy(request)
+
+    const overridden = (
+      response?.headers.get('x-middleware-override-headers') ?? ''
+    )
+      .split(',')
+      .map((key) => key.trim())
+    expect(overridden).toContain('x-nonce')
+    expect(overridden).toContain('content-security-policy')
+    expect(overridden).not.toContain('x-activities-local-handle-path')
+  })
+
+  it('forwards a non-document request without a request-header override', async () => {
+    const request = new NextRequest(
+      'https://public.example.com/api/v1/statuses',
+      {
+        headers: { host: 'public.example.com' }
+      }
+    )
 
     const response = await proxy(request)
 

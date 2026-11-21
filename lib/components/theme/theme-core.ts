@@ -112,5 +112,6 @@ export const applyThemeColor = (mode: ThemeMode): void => {
 // the `media` of the theme-color metas that exist yet (never their content); in
 // `system` mode it leaves them alone, and it never adds one. ThemeProvider applies the
 // colour again on mount, for metas that arrive after this script. Allowed by the
-// `script-src 'unsafe-inline'` directive in the app CSP.
+// per-request `script-src 'nonce-…'` directive in the app CSP: the layout tags
+// this script with the nonce proxy.ts puts on the request.
 export const THEME_INIT_SCRIPT = `(function(){try{var k='${THEME_STORAGE_KEY}';var m=localStorage.getItem(k);if(m!=='light'&&m!=='dark'&&m!=='system')m='system';var d=m==='dark'||(m==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light';if(m!=='system'){var c=m==='dark'?'${THEME_COLOR_DARK}':'${THEME_COLOR_LIGHT}';var ms=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<ms.length;i++){var v=ms[i].getAttribute('content');if(v==='${THEME_COLOR_LIGHT}'||v==='${THEME_COLOR_DARK}')ms[i].setAttribute('media',v===c?'all':'not all');}}}catch(e){}})();`

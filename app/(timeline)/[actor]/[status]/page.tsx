@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
@@ -241,6 +242,9 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
+  // The per-request nonce proxy.ts puts on the request, for the JSON-LD blocks
+  // below. Next tags its own scripts with it automatically.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
   const config = getConfig()
   const { host, mediaStorage } = config
   const mapProvider = getPublicMapProvider()
@@ -717,6 +721,7 @@ const Page: FC<Props> = async ({ params }) => {
         {safeJsonLdString ? (
           <script
             type="application/ld+json"
+            nonce={nonce}
             dangerouslySetInnerHTML={{ __html: safeJsonLdString }}
           />
         ) : null}
@@ -833,6 +838,7 @@ const Page: FC<Props> = async ({ params }) => {
       {safeJsonLdString ? (
         <script
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: safeJsonLdString }}
         />
       ) : null}
