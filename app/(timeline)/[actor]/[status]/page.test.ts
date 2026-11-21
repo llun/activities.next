@@ -53,6 +53,9 @@ vi.mock('./resolveStatusFromPath', () => ({
       return segment
     }
   },
+  // The path actor is not stored in these tests, so the path-actor check falls
+  // back to the handle the status carries.
+  getActorFromUsernameCached: vi.fn(async () => null),
   resolveStatusFromPath: vi.fn()
 }))
 
@@ -373,6 +376,42 @@ describe('generateMetadata', () => {
         })
       })
     ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('answers a stored non-public status under another actor path like an unstored one', async () => {
+    // A 404 here would tell a stranger that a private status URI is stored and
+    // who wrote it, so the mismatch must only 404 a publicly readable status.
+    const { getDatabase } = await import('@/lib/database')
+    const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
+    vi.mocked(getDatabase).mockReturnValueOnce({} as never)
+    vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+      pathActor: { username: 'test1', domain: 'llun.test' },
+      status: {
+        id: 'https://llun.test/users/test2/statuses/secret',
+        actorId: 'https://llun.test/users/test2',
+        actor: { username: 'test2', domain: 'llun.test' },
+        isLocalActor: true,
+        type: 'Note',
+        text: '<p>Secret followers-only post</p>',
+        summary: '',
+        to: ['https://llun.test/users/test2/followers'],
+        cc: []
+      }
+    } as never)
+
+    const metadata = await generateMetadata({
+      params: Promise.resolve({
+        actor: '@test1@llun.test',
+        status: 'secret'
+      })
+    })
+
+    expect(metadata.description).toBe(
+      "View @test1@llun.test's post on Acme Social"
+    )
+    expect(metadata.description).not.toContain('Secret followers-only post')
+    expect(metadata.robots).toEqual({ index: false, follow: false })
+    expect(metadata.alternates?.canonical).toBeUndefined()
   })
 
   it('does not throw when the actor route has malformed URI escapes', async () => {

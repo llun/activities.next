@@ -185,6 +185,7 @@ export const generateMetadata = async ({
       })
       if (
         resolved?.status &&
+        isStatusPubliclyReadable(resolved.status) &&
         !(await statusMatchesPathActor({
           database,
           status: resolved.status,
@@ -192,7 +193,10 @@ export const generateMetadata = async ({
         }))
       ) {
         // A status may only be unfurled under the actor its path names, so a
-        // local handle is never paired with foreign content.
+        // local handle is never paired with foreign content. Only a publicly
+        // readable status may 404 here: a non-public one has to answer exactly
+        // like an unstored one, or the 404 would tell a stranger that a private
+        // status URI is stored and who wrote it.
         shouldNotFound = true
       } else if (resolved?.status && isStatusStrictlyPublic(resolved.status)) {
         const actualStatus = getOriginalStatus(resolved.status)
@@ -305,14 +309,49 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   if (status) {
+    // Focused-status visibility gate — the single source of truth shared with the
+    // ancestor chain below. `canActorReadStatus` collapses to the public/unlisted
+    // check for logged-out visitors and, for an Announce, recurses into the
+    // boosted status, so a public boost of a followers-only post is rejected
+    // unless the viewer follows the boosted author. It also exact-matches the
+    // author's stored `followersUrl` (rather than a loose `/followers` suffix), so
+    // a remote follower of a followers-only post is no longer misread as a
+    // direct-message non-recipient. Gating here, before the path-actor redirect
+    // and the reply fetch, rejects unreadable statuses for every viewer up front
+    // and keeps a private or direct status's author and canonical id out of the
+    // redirect a viewer who cannot read it would otherwise receive.
+    if (!(await canActorReadStatus({ database, status, currentActor }))) {
+      return notFound()
+    }
+
     // A status may only render under the actor its path names. A live-fetched
     // status carries its verified author; a stored row may not, so its actor id
     // is compared with the path actor's. A mismatch redirects to the canonical
     // path (or 404s when none can be built), so a local name is never paired
     // with foreign content.
     if (!(await statusMatchesPathActor({ database, status, pathActor }))) {
+      // A live fetch that answers with a different id than the one requested can
+      // answer the same way from the path a redirect would send the viewer to,
+      // so two inconsistent remote aliases would loop. 404 instead of
+      // redirecting; a stored row's id is stable, so its redirect cannot.
+      if (!isStoredStatus && status.id !== fullStatusId) {
+        return notFound()
+      }
       const canonicalPath = getStatusDetailPath(status)
       if (canonicalPath) {
+        // A redirect to the path the viewer is already on would loop: the same
+        // request resolves the same way and redirects again. That happens when
+        // the path names the status's own author but the stored row for that
+        // handle is another actor (a stale row or a case-variant twin), so the
+        // canonical path is the current one. 404 instead of redirecting.
+        const canonicalSegments = canonicalPath.split('/').filter(Boolean)
+        if (
+          canonicalSegments.length === 2 &&
+          decodePathParam(canonicalSegments[0]) === decodePathParam(actor) &&
+          decodePathParam(canonicalSegments[1]) === decodePathParam(statusParam)
+        ) {
+          return notFound()
+        }
         redirect(canonicalPath)
       }
       return notFound()
@@ -387,24 +426,14 @@ const Page: FC<Props> = async ({ params }) => {
     return notFound()
   }
 
-  // Focused-status visibility gate — the single source of truth shared with the
-  // ancestor chain below. `canActorReadStatus` collapses to the public/unlisted
-  // check for logged-out visitors and, for an Announce, recurses into the
-  // boosted status, so a public boost of a followers-only post is rejected
-  // unless the viewer follows the boosted author. It also exact-matches the
-  // author's stored `followersUrl` (rather than a loose `/followers` suffix), so
-  // a remote follower of a followers-only post is no longer misread as a
-  // direct-message non-recipient. Gating here, before the reply fetch, rejects
-  // unreadable statuses for every viewer up front.
-  if (!(await canActorReadStatus({ database, status, currentActor }))) {
-    return notFound()
-  }
-
   const actualStatus = getOriginalStatus(status)
   if (actualStatus && actualStatus.type === StatusType.enum.Note) {
+    // Only a signed-in view may write the enrichment back: an anonymous view is
+    // read-only, so it gets the in-memory result without a database to persist
+    // into.
     await enrichStatusAttachments(
       actualStatus,
-      isStoredStatus ? database : undefined
+      isStoredStatus && session ? database : undefined
     )
   }
 

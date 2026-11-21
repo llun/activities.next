@@ -16,6 +16,7 @@ import {
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
+import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -606,6 +607,139 @@ describe('Page live-fetch security', () => {
     ).rejects.toThrow('NEXT_NOT_FOUND')
 
     expect(PagedStatusThread).not.toHaveBeenCalled()
+  })
+
+  it('404s a private stored status under another actor path without redirecting', async () => {
+    // The redirect would disclose the author and canonical id of a status the
+    // viewer cannot read, so the visibility gate must run before it.
+    const stored = {
+      ...makeRemoteNote(),
+      actorId: REMOTE_AUTHOR_ID,
+      actor: REMOTE_AUTHOR,
+      url: REMOTE_STATUS_ID,
+      text: 'Followers-only post',
+      reply: '',
+      replies: [],
+      edits: [],
+      isLocalActor: false,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      actorAnnounceStatusId: null,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [],
+      tags: [],
+      to: [`${REMOTE_AUTHOR_ID}/followers`],
+      cc: [],
+      createdAt: 1,
+      updatedAt: 1
+    }
+    mockGetStatus.mockResolvedValue(stored)
+
+    await expect(
+      Page({
+        params: Promise.resolve({
+          actor: '@admin@activities.local',
+          status: encodeURIComponent(REMOTE_STATUS_ID)
+        })
+      })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(mockRedirect).not.toHaveBeenCalled()
+    expect(PagedStatusThread).not.toHaveBeenCalled()
+  })
+
+  it('404s a live alias whose id and author both differ from the path instead of redirecting', async () => {
+    // Redirecting would send the viewer to a path that can answer with the
+    // other alias, so two inconsistent remote aliases would loop.
+    mockGetNote.mockResolvedValue(makeRemoteNote() as never)
+
+    await expect(
+      Page({
+        params: Promise.resolve({
+          actor: '@admin@activities.local',
+          status: encodeURIComponent(REMOTE_ALIAS_URL)
+        })
+      })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(mockRedirect).not.toHaveBeenCalled()
+    expect(PagedStatusThread).not.toHaveBeenCalled()
+  })
+
+  it('404s instead of redirecting to the path it is already on', async () => {
+    // The path names the note's own author, but the stored row for that handle
+    // is another actor (a stale row), so the canonical path is the current one
+    // and a redirect would loop forever.
+    mockGetNote.mockResolvedValue(makeRemoteNote() as never)
+    mockGetActorFromUsername.mockImplementation(
+      async ({ username, domain }: { username: string; domain: string }) => {
+        if (username === 'admin' && domain === 'activities.local') {
+          return LOCAL_ADMIN
+        }
+        if (username === 'bob' && domain === 'remote.example') {
+          return {
+            ...REMOTE_AUTHOR,
+            id: 'https://remote.example/users/bob-stale'
+          }
+        }
+        return undefined
+      }
+    )
+
+    await expect(
+      Page({
+        params: Promise.resolve({
+          actor: '@bob@remote.example',
+          status: encodeURIComponent(REMOTE_STATUS_ID)
+        })
+      })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(mockRedirect).not.toHaveBeenCalled()
+    expect(PagedStatusThread).not.toHaveBeenCalled()
+  })
+
+  it('does not hand the database to attachment enrichment on an anonymous view', async () => {
+    const stored = {
+      ...makeRemoteNote(),
+      actorId: REMOTE_AUTHOR_ID,
+      actor: REMOTE_AUTHOR,
+      url: REMOTE_STATUS_ID,
+      text: 'Public post',
+      reply: '',
+      replies: [],
+      edits: [],
+      isLocalActor: false,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      actorAnnounceStatusId: null,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [
+        {
+          id: 'attachment-1',
+          url: 'https://remote.example/media/1.mp4',
+          mediaType: 'video/mp4',
+          playbackType: null
+        }
+      ],
+      tags: [],
+      createdAt: 1,
+      updatedAt: 1
+    }
+    mockGetStatus.mockResolvedValue(stored)
+
+    const element = await Page({
+      params: Promise.resolve({
+        actor: '@bob@remote.example',
+        status: encodeURIComponent(REMOTE_STATUS_ID)
+      })
+    })
+    render(element)
+
+    expect(vi.mocked(enrichStatusAttachments)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(enrichStatusAttachments).mock.calls[0][1]).toBeUndefined()
   })
 
   it('renders a stored boost under the boosted author path', async () => {

@@ -2756,11 +2756,23 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
   `status.actorId` to the resolved actor's id (an alias `attributedTo` on the same origin resolves
   to the canonical one) and content-detected language. On the status page the path-actor check
   covers stored rows too, not just live fetches: a status whose author is not the path actor — an
-  Announce is accepted when either the announcer or the boosted original's actor matches, and a
-  stored row with no hydrated actor is compared by `status.actorId` — redirects to the verified
-  author's canonical status path (`getStatusDetailPath`), while `generateMetadata` on the same page
-  and `/api/oembed` answer 404 instead, so a link unfurl cannot pair a local name with foreign
-  content. A `FederationPolicyUnavailableError` from any of those policy checks is not a 500: the
+  Announce is accepted when either the announcer or the boosted original's actor matches, and the
+  path actor's stored id is compared with the status's `actorId` whenever the path actor resolves,
+  with the WebFinger-confirmed handle as the fallback only when it does not (a handle is
+  case-insensitive and a renamed actor keeps its old one resolving, so the strings alone would
+  accept a case-variant twin's post and reject a rename) — redirects to the verified author's
+  canonical status path (`getStatusDetailPath`), except that a live-fetched status whose id differs
+  from the requested URL answers 404 instead, because two inconsistent remote aliases would
+  otherwise redirect to each other, and a canonical path equal to the one already requested (a
+  stale row or case-variant twin for the handle) answers 404 rather than redirecting to itself.
+  `generateMetadata` on the same page and `/api/oembed` answer 404 instead of redirecting, so a link
+  unfurl cannot pair a local name with foreign content; `generateMetadata` only does so for a
+  publicly readable status, because a non-public one has to answer exactly like an unstored one or
+  the 404 would disclose that a private status URI is stored and who wrote it. The
+  visibility gate (`canActorReadStatus`) runs before that redirect, so an unreadable status 404s
+  without disclosing its author or canonical id, and an anonymous view passes no database to
+  attachment enrichment, so it writes nothing. A `FederationPolicyUnavailableError` from any of
+  those policy checks is not a 500: the
   page skips the live fetch and shows its loading state, queueing the fetch job for a signed-in
   viewer as described above.
 - **The SQL scope is necessary but not sufficient — pair it with `canActorReadStatus`.** The recipients predicate matches a status's own audience and cannot see through a boost: an Announce is public while the status it boosts may not be. Every status-serving path does both (`GET /api/v1/accounts/:id/statuses`, the outbox route's `isStatusPubliclyReadable` pass, and now `getProfileData`).

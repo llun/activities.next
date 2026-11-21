@@ -289,6 +289,10 @@ const fetchRemoteStatus = async (
     deadline = null
   }: { maxFetches?: number; deadline?: number | null } = {}
 ): Promise<FetchRemoteStatusResult | null> => {
+  // A queued id can become local after it was queued (a served domain added, a
+  // host moved here). Asking our own host for it would be a signed request to
+  // ourselves, and the row it names is ours to serve, not to fetch.
+  if (await isLocalDomain(database, statusId)) return null
   if (!(await canFederateWithDomain(database, statusId))) return null
 
   const existing = await database.getStatus({ statusId })

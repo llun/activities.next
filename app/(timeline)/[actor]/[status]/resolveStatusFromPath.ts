@@ -141,7 +141,9 @@ const getStatusForPathActor = (
 // Positional arguments so React `cache()` keys on the database instance and
 // primitive strings within a single request scope (e.g. between
 // `generateMetadata` and `Page`).
-const getActorFromUsernameCached = cache(
+// Shared with `statusPathActor`, so the path actor's stored row is read once per
+// request rather than once per caller.
+export const getActorFromUsernameCached = cache(
   (
     database: Pick<Database, 'getActorFromUsername'>,
     username: string,

@@ -5,6 +5,8 @@ import {
   getOriginalStatus
 } from '@/lib/types/domain/status'
 
+import { getActorFromUsernameCached } from './resolveStatusFromPath'
+
 export interface PathActorHandle {
   username: string
   domain: string
@@ -36,13 +38,40 @@ const candidateActors = (status: Status): StatusActor[] => {
   return candidates
 }
 
+// The stored row for the handle the path names. A domain is case-insensitive,
+// but the actors lookup matches it exactly, so a path spelling it in another
+// case (`@Alice@ACTIVITIES.LOCAL`) would miss the row and fall through to the
+// ledger or folded arms — resolving a case-variant twin, or nothing at all for
+// a stored remote actor. Ask with the lowercased domain first, then the raw
+// spelling only when it differs, for a legacy row stored with mixed case.
+const getPathActorRow = async (
+  database: Pick<Database, 'getActorFromUsername'>,
+  pathActor: PathActorHandle
+) => {
+  const lowerDomain = pathActor.domain.toLowerCase()
+  const row = await getActorFromUsernameCached(
+    database,
+    pathActor.username,
+    lowerDomain
+  )
+  if (row || lowerDomain === pathActor.domain) return row
+  return getActorFromUsernameCached(
+    database,
+    pathActor.username,
+    pathActor.domain
+  )
+}
+
 /**
  * Whether a status may be rendered under the actor named by the page path.
  *
- * A live-fetched status carries its author profile in memory, so the handle is
- * compared directly. A stored row may arrive without its actor hydrated; then
- * the path actor's stored id is compared with the status's actor id instead.
- * An Announce matches when either the announcer or the boosted author does.
+ * The path actor's stored id is the authority whenever it resolves. A handle is
+ * case-insensitive and a renamed actor keeps its old one resolving, so comparing
+ * the strings alone would accept a case-variant twin's post (`Alice` under
+ * `alice`) and reject a renamed actor's post under the handle it gave up. Only
+ * when the path actor is not stored — a remote author hydrated in memory — is
+ * the WebFinger-confirmed handle the only thing left to compare. An Announce
+ * matches when either the announcer or the boosted author does.
  */
 export const statusMatchesPathActor = async ({
   database,
@@ -54,21 +83,11 @@ export const statusMatchesPathActor = async ({
   pathActor: PathActorHandle
 }): Promise<boolean> => {
   const candidates = candidateActors(status)
-  if (
-    candidates.some((candidate) => handleMatches(candidate.actor, pathActor))
-  ) {
-    return true
+  const pathActorRow = await getPathActorRow(database, pathActor)
+  if (pathActorRow) {
+    return candidates.some((candidate) => candidate.actorId === pathActorRow.id)
   }
-  // Every candidate is hydrated and none matched, so no id lookup can change
-  // the answer.
-  if (candidates.every((candidate) => candidate.actor)) return false
-
-  const pathActorRow = await database.getActorFromUsername({
-    username: pathActor.username,
-    domain: pathActor.domain
-  })
-  return (
-    Boolean(pathActorRow) &&
-    candidates.some((candidate) => candidate.actorId === pathActorRow!.id)
+  return candidates.some((candidate) =>
+    handleMatches(candidate.actor, pathActor)
   )
 }
