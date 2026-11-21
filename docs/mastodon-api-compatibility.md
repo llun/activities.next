@@ -2773,8 +2773,8 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
   without disclosing its author or canonical id, and an anonymous view passes no database to
   attachment enrichment, so it writes nothing. A `FederationPolicyUnavailableError` from any of
   those policy checks is not a 500: the
-  page skips the live fetch and shows its loading state, queueing the fetch job for a signed-in
-  viewer as described above.
+  page skips the live fetch; a signed-in viewer sees its loading state and the fetch job is
+  queued as described above, and an anonymous visitor gets a 404.
 - **The SQL scope is necessary but not sufficient — pair it with `canActorReadStatus`.** The recipients predicate matches a status's own audience and cannot see through a boost: an Announce is public while the status it boosts may not be. Every status-serving path does both (`GET /api/v1/accounts/:id/statuses`, the outbox route's `isStatusPubliclyReadable` pass, and now `getProfileData`).
 - **A local profile also serves OTHER actors' statuses: the parents its replies preview.** `getProfileData` and `GET /api/v1/accounts/:id/statuses?format=activities_next` hand the page to `getTimelineContext` with the profile's viewer (`null` when signed out, never omitted: the parameter is required), which keeps a parent only if `filterReadableStatuses` lets that viewer read it, so a signed-out visitor or a stranger never gets a followers-only or direct parent's author, text, id or url (see Reply context in [architecture.md](architecture.md#client-component-patterns)).
 - **One subquery decides both tables.** `actorVisibleStatusIds` (`lib/database/kysely/visibility/actorVisible.ts`) returns the actor's visible status ids, or `null` for the unfiltered mode; `getActorStatuses` filters `statuses.id` by it and `getAttachmentsForActor` filters `attachments.statusId` by it, so an attachment is withheld from exactly the viewers its post is. `actorVisible.test.ts` pins what it selects for every audience. Never scope one without the other — a gallery that outlives its timeline's filter leaks the same posts as image URLs.

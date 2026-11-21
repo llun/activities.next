@@ -296,9 +296,9 @@ const Page: FC<Props> = async ({ params }) => {
       }
     } catch (error) {
       if (!(error instanceof FederationPolicyUnavailableError)) throw error
-      // The federation policy could not be decided. The documented behaviour is
-      // to show the loading state rather than a 500: skip the live fetch and
-      // let a signed-in viewer queue the fetch job below. A URL on this
+      // The federation policy could not be decided. Skip the live fetch rather
+      // than answer 500: a signed-in viewer sees the loading state and queues
+      // the fetch job below, an anonymous visitor gets a 404. A URL on this
       // instance is never queued.
       status = null
       canFetchRemote = !isOwnInstanceHost(
@@ -324,9 +324,9 @@ const Page: FC<Props> = async ({ params }) => {
       return notFound()
     }
 
-    // A status may only render under the actor its path names. A live-fetched
-    // status carries its verified author; a stored row may not, so its actor id
-    // is compared with the path actor's. A mismatch redirects to the canonical
+    // A status may only render under the actor its path names: its actor id is
+    // compared with the path actor's stored id, or, when the path actor is not
+    // stored, with the verified handle. A mismatch redirects to the canonical
     // path (or 404s when none can be built), so a local name is never paired
     // with foreign content.
     if (!(await statusMatchesPathActor({ database, status, pathActor }))) {
