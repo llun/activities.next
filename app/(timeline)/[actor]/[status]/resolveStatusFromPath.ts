@@ -149,19 +149,25 @@ const resolveStatusFromPathCached = cache(
     }
 
     if (!status && !isStatusHash) {
-      status = await database.getStatus({
+      const candidate = await database.getStatus({
         statusId: fullStatusId,
         withReplies: false,
         currentActorId
       })
+      if (candidate && actorIdFromPath) {
+        status = getStatusForPathActor(candidate, actorIdFromPath)
+      }
     }
 
     if (!status && !isStatusHash && !isFullStatusUrl) {
-      status = await database.getStatus({
+      const candidate = await database.getStatus({
         statusId: decodedStatusParam,
         currentActorId,
         withReplies: false
       })
+      if (candidate && actorIdFromPath) {
+        status = getStatusForPathActor(candidate, actorIdFromPath)
+      }
     }
 
     return {

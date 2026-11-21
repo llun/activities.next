@@ -193,7 +193,9 @@ export const getActorStatusFromPathSegment = async (
     statusId: getLocalStatusId({ actorId, statusId: pathSegment }),
     withReplies
   })
-  if (status) return status
+  // Serve only this actor's own statuses — a row stored under this actor's URL
+  // space but owned by another actor must not resolve here.
+  if (status?.actorId === actorId) return status
   if (!isPublicId(pathSegment)) return null
 
   const uriFromPublicId = await getStatusIdByPublicId(db, {

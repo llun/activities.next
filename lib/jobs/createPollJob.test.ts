@@ -703,4 +703,37 @@ describe('createPollJob', () => {
       createPollSpy.mockRestore()
     }
   })
+
+  it('drops a poll whose id is not on the author origin', async () => {
+    const question = MockActivityPubQuestion({
+      id: 'https://victim.example/users/bob/questions/hijack-1'
+    })
+
+    await createPollJob(database, {
+      id: 'poll-cross-origin-id',
+      name: CREATE_POLL_JOB_NAME,
+      data: question,
+      verifiedSenderActorId: question.attributedTo
+    })
+
+    await expect(
+      database.getStatus({ statusId: question.id })
+    ).resolves.toBeNull()
+  })
+
+  it('drops a poll whose id is on a local domain', async () => {
+    const localId = 'https://test.llun.dev/users/alice/questions/local-squat-1'
+    const question = MockActivityPubQuestion({
+      id: localId,
+      from: 'https://test.llun.dev/users/alice'
+    })
+
+    await createPollJob(database, {
+      id: 'poll-local-domain-id',
+      name: CREATE_POLL_JOB_NAME,
+      data: question
+    })
+
+    await expect(database.getStatus({ statusId: localId })).resolves.toBeNull()
+  })
 })

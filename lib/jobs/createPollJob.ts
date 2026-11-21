@@ -10,15 +10,18 @@ import {
   getUrl
 } from '@/lib/activities/note'
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { getPollFieldsFromQuestion } from '@/lib/services/polls/pollChoices'
 import { queueMissingParentFetch } from '@/lib/services/statuses/parentBackfill'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import {
+  isSameActivityPubOrigin,
   normalizeActivityPubContent,
   toRecipientArray
 } from '@/lib/utils/activitypub'
+import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
@@ -42,6 +45,23 @@ export const createPollJob = createJobHandle(
     }
     const question = parseResult.data
     if (!actorMatchesVerifiedSender(question.attributedTo, message)) {
+      return
+    }
+    if (!isSameActivityPubOrigin(question.id, question.attributedTo)) {
+      logger.warn({
+        message: 'Dropping poll whose id is not on the author origin',
+        job: CREATE_POLL_JOB_NAME,
+        statusId: toLoggableUrl(question.id),
+        actorId: toLoggableUrl(question.attributedTo)
+      })
+      return
+    }
+    if (await isLocalDomain(database, question.id)) {
+      logger.warn({
+        message: 'Dropping poll with local-domain id',
+        job: CREATE_POLL_JOB_NAME,
+        statusId: toLoggableUrl(question.id)
+      })
       return
     }
 

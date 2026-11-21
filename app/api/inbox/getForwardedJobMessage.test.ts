@@ -49,4 +49,14 @@ describe('getForwardedJobMessage', () => {
       'verifiedSenderActorId'
     )
   })
+
+  it('drops a forwarded activity whose id is not on the claimed actor origin', () => {
+    const activity = {
+      id: 'https://victim.example/activities/1',
+      actor: base.actor,
+      type: 'Create',
+      object: 'https://writing.example/statuses/1'
+    } as unknown as StatusActivity
+    expect(getForwardedJobMessage(activity)).toBeNull()
+  })
 })

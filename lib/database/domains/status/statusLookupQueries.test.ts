@@ -503,6 +503,16 @@ describe('status lookups', () => {
       })
     ).resolves.toBeNull()
 
+    // A row stored at alice's local status id but owned by another actor must
+    // not resolve under alice's path either.
+    await seedStatus({ id: `${alice}/statuses/squatted`, actorId: bob })
+    await expect(
+      getActorStatusFromPathSegment(db, hydration, {
+        actorId: alice,
+        pathSegment: 'squatted'
+      })
+    ).resolves.toBeNull()
+
     // A segment that is not a publicId, and a publicId nothing has, stop
     // after the local lookup.
     hydrationCalls.length = 0

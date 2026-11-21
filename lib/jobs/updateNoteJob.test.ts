@@ -488,6 +488,7 @@ describe('updateNoteJob', () => {
   it('refreshes the language when the edit carries a contentMap', async () => {
     const note = MockMastodonActivityPubNote({
       id: 'https://somewhere.test/notes/update-language',
+      from: 'https://somewhere.test/actors/test1',
       content: '<p>Hello</p>',
       contentMap: { en: '<p>Hello</p>' }
     })
@@ -518,6 +519,7 @@ describe('updateNoteJob', () => {
   it('preserves the existing language when the edit has no contentMap', async () => {
     const note = MockMastodonActivityPubNote({
       id: 'https://somewhere.test/notes/preserve-language',
+      from: 'https://somewhere.test/actors/test1',
       content: '<p>สวัสดี</p>',
       contentMap: { th: '<p>สวัสดี</p>' }
     })
@@ -549,6 +551,7 @@ describe('updateNoteJob', () => {
   it('re-detects the content language when the edited text changes', async () => {
     const note = MockMastodonActivityPubNote({
       id: `https://somewhere.test/notes/redetect-language-${Date.now()}`,
+      from: 'https://somewhere.test/actors/test1',
       content: '<p>Hello</p>',
       contentMap: { en: '<p>Hello</p>' }
     })
@@ -589,6 +592,7 @@ describe('updateNoteJob', () => {
   it('clears a stale detected language when the edit no longer detects confidently', async () => {
     const note = MockMastodonActivityPubNote({
       id: `https://somewhere.test/notes/clear-detection-${Date.now()}`,
+      from: 'https://somewhere.test/actors/test1',
       content:
         '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>',
       contentMap: {

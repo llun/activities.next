@@ -7,6 +7,10 @@ import {
   DeleteAction,
   UpdateAction
 } from '@/lib/types/activitypub/activities'
+import {
+  extractActivityPubId,
+  isSameActivityPubOrigin
+} from '@/lib/utils/activitypub'
 
 // Activity types worth verifying by origin re-fetch when they arrive FORWARDED
 // (HTTP signer !== activity actor — AP §7.1.2 inbox forwarding). Mastodon
@@ -25,6 +29,8 @@ export const getForwardedJobMessage = (
 ): JobMessage | null => {
   if (!FORWARDABLE_TYPES.includes(activity.type)) return null
   if (!activity.id || typeof activity.id !== 'string') return null
+  const actorId = extractActivityPubId(activity.actor)
+  if (!actorId || !isSameActivityPubOrigin(activity.id, actorId)) return null
   return {
     id: getInboxJobId(activity.id, '#forwarded'),
     name: PROCESS_FORWARDED_ACTIVITY_JOB_NAME,

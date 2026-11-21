@@ -199,7 +199,7 @@ describe('createNoteJob', () => {
       (_, i) => `https://llun.dev/images/ordered-${i}.jpg`
     )
     const note = MockMastodonActivityPubNote({
-      id: 'ordered-attachments-note',
+      id: `${actor1?.id}/statuses/ordered-attachments-note`,
       content: 'Ordered',
       documents: urls.map((url) => MockImageDocument({ url }))
     })
@@ -272,6 +272,7 @@ describe('createNoteJob', () => {
 
   it('get public profile and add non-exist actor to database', async () => {
     const note = MockMastodonActivityPubNote({
+      id: `${FRIEND_ACTOR_ID}/statuses/new-actor`,
       from: FRIEND_ACTOR_ID,
       content: '<p>Hello</p>'
     })
@@ -861,5 +862,39 @@ describe('createNoteJob', () => {
     } finally {
       createNoteSpy.mockRestore()
     }
+  })
+
+  it('drops a note whose id is not on the author origin', async () => {
+    const note = MockMastodonActivityPubNote({
+      id: 'https://victim.example/users/bob/statuses/hijack-1',
+      from: FRIEND_ACTOR_ID,
+      content: '<p>Cross-origin hijack</p>'
+    })
+
+    await createNoteJob(database, {
+      id: 'note-cross-origin-id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note,
+      verifiedSenderActorId: FRIEND_ACTOR_ID
+    })
+
+    await expect(database.getStatus({ statusId: note.id })).resolves.toBeNull()
+  })
+
+  it('drops a note whose id is on a local domain', async () => {
+    const localId = 'https://test.llun.dev/users/alice/statuses/local-squat-1'
+    const note = MockMastodonActivityPubNote({
+      id: localId,
+      from: 'https://test.llun.dev/users/alice',
+      content: '<p>Local-domain squat</p>'
+    })
+
+    await createNoteJob(database, {
+      id: 'note-local-domain-id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    await expect(database.getStatus({ statusId: localId })).resolves.toBeNull()
   })
 })

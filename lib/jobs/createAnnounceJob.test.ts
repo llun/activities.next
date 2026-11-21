@@ -203,7 +203,7 @@ describe('Announce action', () => {
   it('record actor for actor that is not exist locally', async () => {
     const friendId = 'https://somewhere.test/actors/friend'
     const friend2Id = 'https://somewhere.test/actors/friend2'
-    const statusId = stubNoteId()
+    const statusId = `${friendId}/statuses/record-actor-boost`
     const announceStatusId = 'https://somewhere.test/s/friend2/announce-status'
     await createAnnounceJob(database, {
       id: 'id',
@@ -792,7 +792,8 @@ describe('Announce action', () => {
   })
 
   it('preserves authorized private announce of a followers-only status', async () => {
-    const statusId = stubNoteId()
+    const statusId =
+      'https://somewhere.test/actors/friend/statuses/private-boost'
     const targetStatus = await database.createNote({
       id: `${actor1?.id}/statuses/private-note-for-private-boost`,
       url: `${actor1?.id}/statuses/private-note-for-private-boost`,
@@ -827,7 +828,8 @@ describe('Announce action', () => {
   })
 
   it('accepts public announce of an unlisted status', async () => {
-    const statusId = stubNoteId()
+    const statusId =
+      'https://somewhere.test/actors/friend/statuses/public-boost-unlisted'
     const targetStatus = await database.createNote({
       id: `${actor1?.id}/statuses/unlisted-note-for-public-boost`,
       url: `${actor1?.id}/statuses/unlisted-note-for-public-boost`,
@@ -855,7 +857,8 @@ describe('Announce action', () => {
   })
 
   it('rejects without inserting the announce when recordActorIfNeeded hits unavailable federation policy', async () => {
-    const statusId = stubNoteId()
+    const statusId =
+      'https://somewhere.test/actors/friend/statuses/policy-unavailable-boost'
     const targetStatus = await database.createNote({
       id: `${actor1?.id}/statuses/note-for-announce-policy-unavailable`,
       url: `${actor1?.id}/statuses/note-for-announce-policy-unavailable`,
@@ -965,6 +968,41 @@ describe('Announce action', () => {
     )
     await expect(
       database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.toBeNull()
+  })
+
+  it('drops an announce whose own id is not on the announcer origin', async () => {
+    const forgedId = 'https://victim.example/users/bob/statuses/forged-boost'
+    await createAnnounceJob(database, {
+      id: 'id-announce-cross-origin-own-id',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: MockAnnounceStatus({
+        actorId: 'https://somewhere.test/actors/friend',
+        statusId: forgedId,
+        announceStatusId: 'https://somewhere.test/statuses/announce-status'
+      }),
+      verifiedSenderActorId: 'https://somewhere.test/actors/friend'
+    })
+
+    await expect(
+      database.getStatus({ statusId: `${forgedId}/activity` })
+    ).resolves.toBeNull()
+  })
+
+  it('drops an announce whose own id is on a local domain', async () => {
+    const localId = 'https://test.llun.dev/users/alice/statuses/squat-boost'
+    await createAnnounceJob(database, {
+      id: 'id-announce-local-domain-own-id',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: MockAnnounceStatus({
+        actorId: 'https://test.llun.dev/users/alice',
+        statusId: localId,
+        announceStatusId: 'https://somewhere.test/statuses/announce-status'
+      })
+    })
+
+    await expect(
+      database.getStatus({ statusId: `${localId}/activity` })
     ).resolves.toBeNull()
   })
 })

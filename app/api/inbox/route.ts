@@ -4,6 +4,7 @@ import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { ActivityPubVerifySenderGuard } from '@/lib/services/guards/ActivityPubVerifyGuard'
@@ -13,7 +14,11 @@ import {
 } from '@/lib/services/guards/inboxRejectionTrace'
 import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { AnnounceAction } from '@/lib/types/activitypub/activities'
-import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
+import {
+  extractActivityPubId,
+  isSameActivityPubOrigin,
+  normalizeActorId
+} from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -186,7 +191,12 @@ export const POST = traceApiRoute(
           // acknowledged without falling through to the boost path, so it can
           // never create a relay-attributed Announce row.
           if (relay) {
-            if (relay.state === 'accepted' && activity.id) {
+            if (
+              relay.state === 'accepted' &&
+              activity.id &&
+              isSameActivityPubOrigin(activity.id, verifiedSenderActorId) &&
+              !(await isLocalDomain(database, activity.id))
+            ) {
               await publishSurfacingErrors({
                 id: getInboxJobId(activity.id),
                 name: RELAY_ANNOUNCE_JOB_NAME,

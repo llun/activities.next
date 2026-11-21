@@ -6,6 +6,8 @@ import { getNote } from '@/lib/activities'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { dispatchCreateNoteOrPollJob } from '@/lib/jobs/dispatchCreateNoteOrPollJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
+import { actorMatchesVerifiedSender } from '@/lib/jobs/verifiedSender'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
@@ -38,6 +40,26 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       return
     }
     const status = parseResult.data
+    if (!actorMatchesVerifiedSender(status.actor, message)) {
+      return
+    }
+    if (!isSameActivityPubOrigin(status.id, status.actor)) {
+      logger.warn({
+        message: 'Dropping announce whose id is not on the announcer origin',
+        job: CREATE_ANNOUNCE_JOB_NAME,
+        announceId: toLoggableUrl(status.id),
+        actorId: toLoggableUrl(status.actor)
+      })
+      return
+    }
+    if (await isLocalDomain(database, status.id)) {
+      logger.warn({
+        message: 'Dropping announce with local-domain id',
+        job: CREATE_ANNOUNCE_JOB_NAME,
+        announceId: toLoggableUrl(status.id)
+      })
+      return
+    }
 
     let object: string
     if (typeof status.object === 'string') {

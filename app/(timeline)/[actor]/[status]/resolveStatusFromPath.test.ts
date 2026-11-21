@@ -351,6 +351,51 @@ describe('resolveStatusFromPath', () => {
     })
   })
 
+  it('does not resolve a fullStatusId lookup when the stored status belongs to a different actor', async () => {
+    const database = createDatabase()
+    database.getStatus.mockResolvedValueOnce({
+      ...originalStatus,
+      id: 'https://remote.example/users/original/statuses/squatted',
+      actorId: 'https://evil.example/users/mallory'
+    })
+
+    await expect(
+      resolveStatusFromPath({
+        database,
+        actorParam: '@original@remote.example',
+        statusParam: 'squatted'
+      })
+    ).resolves.toEqual({
+      pathActor: ORIGINAL_PATH_ACTOR,
+      fullStatusId: 'https://remote.example/users/original/statuses/squatted',
+      isStatusHash: false,
+      status: null,
+      statusId: ''
+    })
+  })
+
+  it('does not resolve a raw status id fallback when the stored status belongs to a different actor', async () => {
+    const database = createDatabase()
+    database.getStatus.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      ...originalStatus,
+      actorId: 'https://evil.example/users/mallory'
+    })
+
+    await expect(
+      resolveStatusFromPath({
+        database,
+        actorParam: '@original@remote.example',
+        statusParam: '123'
+      })
+    ).resolves.toEqual({
+      pathActor: ORIGINAL_PATH_ACTOR,
+      fullStatusId: 'https://remote.example/users/original/statuses/123',
+      isStatusHash: false,
+      status: null,
+      statusId: ''
+    })
+  })
+
   it('resolves a status minted before rename through both current and old handles', async () => {
     const database = createDatabase()
     const renamedActor = {

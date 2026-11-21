@@ -9,10 +9,10 @@ import {
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { TEST_DOMAIN } from './const'
-import { ACTOR1_ID, seedActor1 } from './seed/actor1'
+import { ACTOR1_ID } from './seed/actor1'
 
 export const stubNoteId = (id = crypto.randomBytes(8).toString('hex')) =>
-  `https://${TEST_DOMAIN}/users/${seedActor1.username}/statuses/${id}`
+  `${ACTOR1_ID}/statuses/${id}`
 
 interface MockNoteParams {
   content: string | string[]
