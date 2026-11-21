@@ -14,6 +14,7 @@ import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
   StatusCode,
@@ -21,6 +22,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const ALLOWED_METHODS: HttpMethod[] = ['GET', 'POST', 'DELETE']
@@ -90,7 +92,22 @@ export const POST = traceApiRoute(
     // The same per-account bucket as the password change route, so the current
     // password cannot be guessed here around that route's limit.
     if (currentActor.account) {
-      const rateLimit = checkPasswordChangeRateLimit(currentActor.account.id)
+      const rateLimit = await checkPasswordChangeRateLimit(
+        currentActor.account.id
+      ).catch((error) => {
+        logger.error(
+          { err: toLoggableError(error) },
+          'Failed to check the account migration rate limit'
+        )
+        return null
+      })
+      if (!rateLimit) {
+        return errorResponse(
+          req,
+          'Internal Server Error',
+          HTTP_STATUS.INTERNAL_SERVER_ERROR
+        )
+      }
       if (!rateLimit.allowed) {
         return apiRateLimitedResponse(
           req,

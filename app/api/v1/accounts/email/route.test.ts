@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { createInMemoryRateLimitDatabase } from '@/lib/database/testing/inMemoryRateLimit'
 import { Database } from '@/lib/database/types'
 import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import {
@@ -64,6 +65,8 @@ type MockDatabase = Pick<
   | 'getActorsForAccount'
   | 'getActorFromId'
   | 'requestEmailChange'
+  | 'consumeRateLimit'
+  | 'deleteRateLimits'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -102,7 +105,11 @@ const actor = {
 }
 
 describe('POST /api/v1/accounts/email', () => {
-  const mockDb: jest.Mocked<MockDatabase> = {
+  const mockDb: jest.Mocked<
+    Omit<MockDatabase, 'consumeRateLimit' | 'deleteRateLimits'>
+  > &
+    ReturnType<typeof createInMemoryRateLimitDatabase> = {
+    ...createInMemoryRateLimitDatabase(),
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
     getActorFromId: vi.fn(),
@@ -113,9 +120,9 @@ describe('POST /api/v1/accounts/email', () => {
     mockDatabase = mockDb
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
     mockGetConfig.mockReturnValue({
       host: 'llun.test',
       secretPhase: 'test-secret',

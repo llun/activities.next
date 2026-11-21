@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { createInMemoryRateLimitDatabase } from '@/lib/database/testing/inMemoryRateLimit'
 import { Database } from '@/lib/database/types'
 import {
   PASSWORD_CHANGE_LIMIT,
@@ -35,7 +36,11 @@ vi.mock('@/lib/config', () => ({
 
 type MockDatabase = Pick<
   Database,
-  'changePassword' | 'getAccountFromEmail' | 'getActorsForAccount'
+  | 'changePassword'
+  | 'getAccountFromEmail'
+  | 'getActorsForAccount'
+  | 'consumeRateLimit'
+  | 'deleteRateLimits'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -74,7 +79,11 @@ const actor = {
 }
 
 describe('POST /api/v1/accounts/password', () => {
-  const mockDb: jest.Mocked<MockDatabase> = {
+  const mockDb: jest.Mocked<
+    Omit<MockDatabase, 'consumeRateLimit' | 'deleteRateLimits'>
+  > &
+    ReturnType<typeof createInMemoryRateLimitDatabase> = {
+    ...createInMemoryRateLimitDatabase(),
     changePassword: vi.fn(),
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn()
@@ -84,9 +93,9 @@ describe('POST /api/v1/accounts/password', () => {
     mockDatabase = mockDb
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

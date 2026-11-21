@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt'
 import { NextRequest } from 'next/server'
 
+import { createInMemoryRateLimitDatabase } from '@/lib/database/testing/inMemoryRateLimit'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { resetRouteRateLimitsForTests } from '@/lib/services/auth/routeRateLimits'
 import { getQueue } from '@/lib/services/queue'
@@ -10,6 +11,12 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HTTP_STATUS } from '@/lib/utils/response'
 
 import { GET, POST } from './route'
+
+const rateLimitHolder = vi.hoisted(() => ({ database: null as unknown }))
+vi.mock('@/lib/database', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/database')>()),
+  getDatabase: () => rateLimitHolder.database
+}))
 
 const PASSWORD = 'correct horse'
 const DAY = 24 * 60 * 60 * 1000
@@ -128,6 +135,7 @@ const historyRow = (
 
 describe('Account handle API route', () => {
   beforeAll(async () => {
+    rateLimitHolder.database = createInMemoryRateLimitDatabase()
     const hash = await bcrypt.hash(PASSWORD, 4)
     mockCurrentActor = Actor.parse({
       ...MockActor({ id: ME }),
@@ -141,8 +149,8 @@ describe('Account handle API route', () => {
     })
   })
 
-  beforeEach(() => {
-    resetRouteRateLimitsForTests()
+  beforeEach(async () => {
+    await resetRouteRateLimitsForTests()
     vi.clearAllMocks()
     storedActor = Actor.parse({
       ...MockActor({ id: ME }),

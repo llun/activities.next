@@ -43,7 +43,18 @@ export const POST = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.FORBIDDEN)
     }
 
-    const rateLimit = checkEmailConfirmationIpRateLimit(req)
+    const rateLimit = await checkEmailConfirmationIpRateLimit(req).catch(
+      (error) => {
+        logger.error(
+          { err: toLoggableError(error) },
+          'Failed to check the email confirmation rate limit'
+        )
+        return null
+      }
+    )
+    if (!rateLimit) {
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    }
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
     }

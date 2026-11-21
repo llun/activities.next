@@ -19,12 +19,16 @@ import { issueAccessToken } from '@/lib/services/oauth/issueAccessToken'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_500,
+  HTTP_STATUS,
+  apiCorsError,
   apiRateLimitedResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 import { CreateAccountRequest } from './types'
@@ -307,7 +311,22 @@ export const POST = traceApiRoute(
 
     // Mastodon's throttle_sign_up_attempts (25 / 5 min per IP), on both the
     // web form and the Bearer API path; counted only behind a trusted proxy.
-    const rateLimit = checkSignUpRateLimit(request)
+    // A limiter database error fails closed: the route answers 500 rather than
+    // letting the request through without a limit.
+    const rateLimit = await checkSignUpRateLimit(request).catch((error) => {
+      logger.error(
+        { err: toLoggableError(error) },
+        'Failed to check the sign-up rate limit'
+      )
+      return null
+    })
+    if (!rateLimit) {
+      return apiCorsError(
+        request,
+        CORS_HEADERS,
+        HTTP_STATUS.INTERNAL_SERVER_ERROR
+      )
+    }
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(
         request,

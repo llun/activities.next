@@ -11,6 +11,7 @@ import {
   SIGN_IN_EMAIL_LIMIT,
   resetRouteRateLimitsForTests
 } from '@/lib/services/auth/routeRateLimits'
+import { logger } from '@/lib/utils/logger'
 
 const HOST = 'test.example.com'
 const SECOND_HOST = 'second.example.com'
@@ -62,7 +63,7 @@ describe('better-auth rate limits', () => {
   beforeEach(async () => {
     process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
     resetTrustProxyIpHeadersConfigCacheForTests()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
     if (holder.testDb) {
       await sql`DELETE FROM "rateLimit"`.execute(holder.testDb.db).catch(() => {
         // Table does not exist before the migration lands.
@@ -138,7 +139,7 @@ describe('better-auth rate limits', () => {
     expect(Number(throttled.headers.get('X-Retry-After'))).toBeGreaterThan(0)
 
     // The per-email limit (tested on its own below) is also at its cap now.
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
     const otherIp = await postAuth(
       '/sign-in/email',
       { email: EMAIL, password: PASSWORD },
@@ -395,8 +396,37 @@ describe('better-auth rate limits', () => {
     if (!db) throw new Error('Test database not initialized')
     const rows = await sql<{
       key: string
-    }>`SELECT "key" FROM "rateLimit"`.execute(db)
+    }>`SELECT "key" FROM "rateLimit" WHERE "key" NOT LIKE 'app:%'`.execute(db)
     expect(rows.rows).toEqual([])
+  })
+
+  it('fails closed with a logged 500 when the sign-in email limiter read fails', async () => {
+    const database = holder.testDb?.database
+    if (!database) throw new Error('Test database not initialized')
+    const failure = new Error('rate limit read failed')
+    const consume = vi
+      .spyOn(database, 'consumeRateLimit')
+      .mockRejectedValueOnce(failure)
+    const log = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+
+    try {
+      const res = await postAuth('/sign-in/email', {
+        email: EMAIL,
+        password: PASSWORD
+      })
+
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({ message: 'Internal Server Error' })
+      expect(log).toHaveBeenCalledWith(
+        { err: failure },
+        'Failed to check the auth rate limit'
+      )
+      // The email never reaches the log.
+      expect(JSON.stringify(log.mock.calls)).not.toContain(EMAIL)
+    } finally {
+      consume.mockRestore()
+      log.mockRestore()
+    }
   })
 
   it('preserves special plugin rate limits (two-factor 3/10s and oauth2/token 20/60s)', async () => {
@@ -457,7 +487,7 @@ describe('better-auth rate limits', () => {
     expect(spoofed.status).toBe(429)
 
     // Multi-hop X-Forwarded-For uses the leftmost hop (matching getTrustedClientIp).
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
     for (let i = 0; i < SIGN_IN_PER_IP_LIMIT; i += 1) {
       const attempt = await postAuth(
         '/sign-in/email',

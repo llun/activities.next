@@ -36,9 +36,10 @@ vi.mock('@/lib/config', () => ({
 
 vi.mock('@/lib/database', () => ({
   getKysely: () => holder.testDb?.db,
-  // Null skips the session-create hook's account gate, which is not what this
-  // test is about; the join contract is exercised either way.
-  getDatabase: () => null
+  // Sign-in now counts its per-email limit in the database, so the hook needs
+  // the real facade; the fixture below is verified and approved so the
+  // session-create gate passes too. The join contract is exercised either way.
+  getDatabase: () => holder.testDb?.database ?? null
 }))
 
 const ACCOUNT_ID = 'account-1'
@@ -74,7 +75,9 @@ describe('session resolution with database joins', () => {
         id: ACCOUNT_ID,
         email: EMAIL,
         name: 'Session Joins',
-        emailVerified: true
+        emailVerified: true,
+        verifiedAt: new Date(),
+        approvedAt: new Date()
       })
       .execute()
     await testDb.db

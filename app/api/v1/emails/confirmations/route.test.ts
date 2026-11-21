@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { createInMemoryRateLimitDatabase } from '@/lib/database/testing/inMemoryRateLimit'
 import { Database } from '@/lib/database/types'
 import {
   EMAIL_CONFIRMATION_ACCOUNT_LIMIT,
@@ -75,6 +76,8 @@ type MockDatabase = Pick<
   | 'repointUnconfirmedAccountEmail'
   | 'requestEmailChange'
   | 'isAccountExists'
+  | 'consumeRateLimit'
+  | 'deleteRateLimits'
 >
 
 let mockDatabase: unknown = null
@@ -131,7 +134,11 @@ const makeRequest = (body?: unknown, headers: Record<string, string> = {}) =>
   })
 
 describe('POST /api/v1/emails/confirmations', () => {
-  const mockDb: jest.Mocked<MockDatabase> = {
+  const mockDb: jest.Mocked<
+    Omit<MockDatabase, 'consumeRateLimit' | 'deleteRateLimits'>
+  > &
+    ReturnType<typeof createInMemoryRateLimitDatabase> = {
+    ...createInMemoryRateLimitDatabase(),
     getAccountFromEmail: vi.fn(),
     getActorsForAccount: vi.fn(),
     getServedDomain: vi.fn(),
@@ -149,9 +156,9 @@ describe('POST /api/v1/emails/confirmations', () => {
     mockDatabase = mockDb
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
     vi.mocked(getResolvedServerSettings).mockResolvedValue(
       settingsWithAllowEmails([])
     )
@@ -181,10 +188,10 @@ describe('POST /api/v1/emails/confirmations', () => {
     setAccount(buildAccount(PENDING_CODE))
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
     resetTrustProxyIpHeadersConfigCacheForTests()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
   })
 
   it('answers 429 past 5 resends per account while another account passes', async () => {
@@ -808,9 +815,9 @@ describe('POST /api/v1/emails/confirmations with a Bearer token', () => {
     await destroyApiDatabase()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
     vi.mocked(getResolvedServerSettings).mockResolvedValue(
       settingsWithAllowEmails([])
     )

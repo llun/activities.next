@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
 
 import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
+import { createInMemoryRateLimitDatabase } from '@/lib/database/testing/inMemoryRateLimit'
 import { Database } from '@/lib/database/types'
 import {
   PASSWORD_RESET_LIMIT,
   resetRouteRateLimitsForTests
 } from '@/lib/services/auth/routeRateLimits'
+import { logger } from '@/lib/utils/logger'
 
 import { POST } from './route'
 
@@ -19,7 +21,10 @@ vi.mock('bcrypt', () => ({
 
 type MockDatabase = Pick<
   Database,
-  'validatePasswordResetCode' | 'resetPasswordWithCode'
+  | 'validatePasswordResetCode'
+  | 'resetPasswordWithCode'
+  | 'consumeRateLimit'
+  | 'deleteRateLimits'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -28,7 +33,11 @@ vi.mock('@/lib/database', () => ({
 }))
 
 describe('POST /api/v1/accounts/password/reset', () => {
-  const mockDb: jest.Mocked<MockDatabase> = {
+  const mockDb: jest.Mocked<
+    Omit<MockDatabase, 'consumeRateLimit' | 'deleteRateLimits'>
+  > &
+    ReturnType<typeof createInMemoryRateLimitDatabase> = {
+    ...createInMemoryRateLimitDatabase(),
     validatePasswordResetCode: vi.fn(),
     resetPasswordWithCode: vi.fn()
   }
@@ -37,9 +46,9 @@ describe('POST /api/v1/accounts/password/reset', () => {
     mockDatabase = mockDb
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
     mockBcryptHash.mockResolvedValue('new-password-hash')
     mockDb.validatePasswordResetCode.mockResolvedValue('account-1')
     mockDb.resetPasswordWithCode.mockResolvedValue({
@@ -52,10 +61,10 @@ describe('POST /api/v1/accounts/password/reset', () => {
     })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
     resetTrustProxyIpHeadersConfigCacheForTests()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
   })
 
   it('answers 429 past 25 requests per trusted client IP while another IP passes', async () => {
@@ -96,6 +105,44 @@ describe('POST /api/v1/accounts/password/reset', () => {
     )
 
     expect((await call('198.51.100.31')).status).toBe(200)
+  })
+
+  it('fails closed with a CORS 500 when the limiter database errors', async () => {
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    resetTrustProxyIpHeadersConfigCacheForTests()
+    const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => logger)
+    vi.spyOn(mockDb, 'consumeRateLimit').mockRejectedValueOnce(
+      new Error('database unavailable')
+    )
+
+    const request = new NextRequest(
+      'http://llun.test/api/v1/accounts/password/reset',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          code: 'valid-code-123',
+          newPassword: 'new-password-123'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://client.llun.test',
+          'x-forwarded-for': '198.51.100.40'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Internal Server Error' })
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      'https://client.llun.test'
+    )
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'Failed to check the password reset rate limit'
+    )
+    expect(mockDb.validatePasswordResetCode).not.toHaveBeenCalled()
   })
 
   it('returns a CORS-aware bad request response for malformed JSON bodies', async () => {

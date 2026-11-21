@@ -47,7 +47,18 @@ export const POST = traceApiRoute(
       })
     }
 
-    const rateLimit = checkEmailChangeRateLimit(currentActor.account.id)
+    const rateLimit = await checkEmailChangeRateLimit(
+      currentActor.account.id
+    ).catch((error) => {
+      logger.error(
+        { err: toLoggableError(error) },
+        'Failed to check the email change rate limit'
+      )
+      return null
+    })
+    if (!rateLimit) {
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    }
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
     }
@@ -97,9 +108,18 @@ export const POST = traceApiRoute(
       // A password account must prove the current password: a hijacked session
       // alone must not be able to move the address (and then reset the
       // password through it).
-      const passwordLimit = checkPasswordChangeRateLimit(
+      const passwordLimit = await checkPasswordChangeRateLimit(
         currentActor.account.id
-      )
+      ).catch((error) => {
+        logger.error(
+          { err: toLoggableError(error) },
+          'Failed to check the password change rate limit'
+        )
+        return null
+      })
+      if (!passwordLimit) {
+        return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      }
       if (!passwordLimit.allowed) {
         return apiRateLimitedResponse(req, passwordLimit.retryAfterSeconds)
       }

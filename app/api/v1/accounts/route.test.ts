@@ -4,6 +4,7 @@ import { GET as verifyCredentials } from '@/app/api/v1/accounts/verify_credentia
 import { DEFAULT_SERVER_SETTINGS } from '@/lib/config/serverSettings'
 import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { createInMemoryRateLimitDatabase } from '@/lib/database/testing/inMemoryRateLimit'
 import { Database } from '@/lib/database/types'
 import { registerAccount } from '@/lib/services/accounts/registerAccount'
 import {
@@ -91,9 +92,9 @@ const mastodonAccount = {
   display_name: 'Alice'
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks()
-  resetRouteRateLimitsForTests()
+  await resetRouteRateLimitsForTests()
   vi.mocked(getResolvedServerSettings).mockResolvedValue(settingsWith(true))
 })
 
@@ -103,6 +104,7 @@ describe('GET /api/v1/accounts', () => {
   beforeEach(() => {
     getActorIdsByPublicIds.mockResolvedValue(new Map<string, string>())
     mockDatabase = {
+      ...createInMemoryRateLimitDatabase(),
       getMastodonActorsFromIds: vi.fn().mockResolvedValue([mastodonAccount]),
       getActorIdsByPublicIds
     }
@@ -198,14 +200,15 @@ describe('GET /api/v1/accounts', () => {
 describe('POST /api/v1/accounts (web form / non-bearer)', () => {
   beforeEach(() => {
     mockDatabase = {
+      ...createInMemoryRateLimitDatabase(),
       getMastodonActorsFromIds: vi.fn().mockResolvedValue([mastodonAccount])
     }
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
     resetTrustProxyIpHeadersConfigCacheForTests()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
   })
 
   it('answers 429 past 25 sign-ups per trusted client IP while another IP passes', async () => {
@@ -485,7 +488,7 @@ describe('POST /api/v1/accounts (web form) on an added domain', () => {
 
   beforeEach(() => {
     getServedDomain.mockReset()
-    mockDatabase = { getServedDomain }
+    mockDatabase = { ...createInMemoryRateLimitDatabase(), getServedDomain }
     setServedDomainsForTests(['run.example'])
   })
 
@@ -539,7 +542,11 @@ describe('POST /api/v1/accounts (web form) on an added domain', () => {
       .fn()
       .mockResolvedValueOnce([])
       .mockResolvedValue([{ domain: 'run.example' }])
-    const database = { getServedDomain, getActiveServedDomains }
+    const database = {
+      ...createInMemoryRateLimitDatabase(),
+      getServedDomain,
+      getActiveServedDomains
+    }
     mockDatabase = database
     await refreshServedDomains(database as unknown as Database)
     getServedDomain.mockResolvedValue(runExampleRow(false))

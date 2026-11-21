@@ -70,7 +70,18 @@ export const POST = traceApiRoute(
       return internalServerErrorResponse(request)
     }
 
-    const rateLimit = checkPasswordResetRequestRateLimit(request)
+    const rateLimit = await checkPasswordResetRequestRateLimit(request).catch(
+      (error) => {
+        logger.error(
+          { err: toLoggableError(error) },
+          'Failed to check the password reset request rate limit'
+        )
+        return null
+      }
+    )
+    if (!rateLimit) {
+      return internalServerErrorResponse(request)
+    }
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(
         request,

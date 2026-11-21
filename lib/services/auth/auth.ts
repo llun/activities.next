@@ -20,9 +20,11 @@ import {
   checkSignInEmailRateLimit
 } from '@/lib/services/auth/routeRateLimits'
 import { getActiveServedDomainNames } from '@/lib/services/domains/servedDomainSnapshot'
+import type { WindowCounterResult } from '@/lib/services/gallery/lookups/rateLimit'
 import { UsableScopes } from '@/lib/types/database/operations'
 import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
 import { logger } from '@/lib/utils/logger'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { canCreateSessionForAccount } from './canCreateSessionForAccount'
 import { ConsentSession, resolveConsentReferenceId } from './consentReferenceId'
@@ -186,10 +188,10 @@ const buildKnownEndpointPathMatcher = (
 }
 
 // Mastodon's `throttle_login_attempts/email`, 25 per hour per normalised
-// email, in process and independent of any trusted IP. Runs after better-auth's
-// own `ip|path` limiter (which answers first when it trips) and answers the
-// same way it does: 429, `{ message }` body and `X-Retry-After`. Never log the
-// email here.
+// email, in the `rateLimit` table and independent of any trusted IP. Runs after
+// better-auth's own `ip|path` limiter (which answers first when it trips) and
+// answers the same way it does: 429, `{ message }` body and `X-Retry-After`.
+// Never log the email here.
 // Two-factor endpoints that check the session user's current password: they
 // share the app's password-change account bucket, so a session cannot guess the
 // password here around that route's limit (the plugin's own per-IP rule is off
@@ -210,6 +212,25 @@ const tooManyRequests = (retryAfterSeconds: number) => {
   )
 }
 
+// A limiter database error fails closed: log it (never the email) and answer
+// the 500 better-auth's own limiter would, instead of letting a raw error
+// escape as an empty, unlogged response.
+const checkRateLimitOrFailClosed = async (
+  check: () => Promise<WindowCounterResult>
+): Promise<WindowCounterResult> => {
+  try {
+    return await check()
+  } catch (error) {
+    logger.error(
+      { err: toLoggableError(error) },
+      'Failed to check the auth rate limit'
+    )
+    throw new APIError('INTERNAL_SERVER_ERROR', {
+      message: 'Internal Server Error'
+    })
+  }
+}
+
 const signInEmailRateLimitHook = createAuthMiddleware(async (ctx) => {
   if (PASSWORD_CHALLENGE_PATHS.has(ctx.path)) {
     // The user id is the account id (`account.fields.userId: 'accountId'`), the
@@ -218,14 +239,18 @@ const signInEmailRateLimitHook = createAuthMiddleware(async (ctx) => {
     // it must be the one its own middleware would have read.
     const session = await getSessionFromCtx(ctx)
     if (!session) return
-    const result = checkPasswordChangeRateLimit(session.user.id)
+    const result = await checkRateLimitOrFailClosed(() =>
+      checkPasswordChangeRateLimit(session.user.id)
+    )
     if (!result.allowed) throw tooManyRequests(result.retryAfterSeconds)
     return
   }
   if (ctx.path !== '/sign-in/email') return
   const email = (ctx.body as { email?: unknown } | undefined)?.email
   if (typeof email !== 'string') return
-  const result = checkSignInEmailRateLimit(email)
+  const result = await checkRateLimitOrFailClosed(() =>
+    checkSignInEmailRateLimit(email)
+  )
   if (!result.allowed) throw tooManyRequests(result.retryAfterSeconds)
 })
 

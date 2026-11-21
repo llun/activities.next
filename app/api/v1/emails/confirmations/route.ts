@@ -24,6 +24,7 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
+  apiCorsError,
   apiRateLimitedResponse,
   apiResponse,
   defaultOptions
@@ -75,7 +76,23 @@ export const POST = traceApiRoute(
         })
       }
 
-      const rateLimit = checkEmailConfirmationRateLimit(req, account.id)
+      const rateLimit = await checkEmailConfirmationRateLimit(
+        req,
+        account.id
+      ).catch((error) => {
+        logger.error(
+          { err: toLoggableError(error) },
+          'Failed to check the email confirmation rate limit'
+        )
+        return null
+      })
+      if (!rateLimit) {
+        return apiCorsError(
+          req,
+          CORS_HEADERS,
+          HTTP_STATUS.INTERNAL_SERVER_ERROR
+        )
+      }
       if (!rateLimit.allowed) {
         return apiRateLimitedResponse(
           req,
