@@ -84,8 +84,9 @@ export const PUBLIC_ROUTE_JS_BUDGETS: Record<string, RouteBudget> = {
   // queue (offline-disabled actions, the reply box hand-off, drain triggers).
   '/[actor]/[status]': { gzipBytes: kib(522), rawBytes: kib(1595) },
   '/tags/[tag]': { gzipBytes: kib(506), rawBytes: kib(1560) },
-  '/[actor]/followers': { gzipBytes: kib(398), rawBytes: kib(1247) },
-  '/[actor]/following': { gzipBytes: kib(398), rawBytes: kib(1247) },
+  // Raw +1 KiB: fromNote's same-origin url check (status.ts) is in this bundle.
+  '/[actor]/followers': { gzipBytes: kib(398), rawBytes: kib(1248) },
+  '/[actor]/following': { gzipBytes: kib(398), rawBytes: kib(1248) },
   '/[actor]/albums/[id]': { gzipBytes: kib(392), rawBytes: kib(1244) }
 }
 
