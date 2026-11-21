@@ -43,7 +43,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The context budget diffs a pull request's merge commit against
           # its first parent, the base branch.
@@ -53,7 +53,7 @@ jobs:
           command -v corepack >/dev/null || npm install -g corepack@0.36.0
           corepack enable
       - name: Use Node.js 26
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: yarn
@@ -75,13 +75,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Enable corepack
         run: |
           command -v corepack >/dev/null || npm install -g corepack@0.36.0
           corepack enable
       - name: Use Node.js 26
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: yarn
@@ -96,20 +96,20 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Enable corepack
         run: |
           command -v corepack >/dev/null || npm install -g corepack@0.36.0
           corepack enable
       - name: Use Node.js 26
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: yarn
       - name: Install dependencies
         uses: ./.github/actions/install
       - name: Cache Next.js build
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .next/cache
           key: ${{ runner.os }}-nextjs-v1-${{ hashFiles('yarn.lock') }}-${{ hashFiles('next.config.ts', 'tsconfig*.json', 'postcss.config.mjs', 'package.json', '.yarnrc.yml') }}-${{ hashFiles('app/**', 'lib/**', 'public/**', 'packages/**', 'proxy.ts', 'instrumentation.ts') }}
@@ -147,13 +147,13 @@ jobs:
         shard: [1, 2, 3, 4]
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Enable corepack
         run: |
           command -v corepack >/dev/null || npm install -g corepack@0.36.0
           corepack enable
       - name: Use Node.js 26
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: yarn
@@ -226,13 +226,13 @@ jobs:
           --health-retries 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Enable corepack
         run: |
           command -v corepack >/dev/null || npm install -g corepack@0.36.0
           corepack enable
       - name: Use Node.js 26
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: yarn
@@ -421,13 +421,13 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Enable corepack
         run: |
           command -v corepack >/dev/null || npm install -g corepack@0.36.0
           corepack enable
       - name: Use Node.js 26
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: yarn
@@ -451,13 +451,13 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Enable corepack
         run: |
           command -v corepack >/dev/null || npm install -g corepack@0.36.0
           corepack enable
       - name: Use Node.js 26
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: yarn
