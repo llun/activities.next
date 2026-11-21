@@ -307,7 +307,7 @@ export const POST = traceApiRoute(
 
     // Mastodon's throttle_sign_up_attempts (25 / 5 min per IP), on both the
     // web form and the Bearer API path; counted only behind a trusted proxy.
-    const rateLimit = checkSignUpRateLimit(request)
+    const rateLimit = await checkSignUpRateLimit(request)
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(
         request,

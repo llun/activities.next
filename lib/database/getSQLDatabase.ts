@@ -50,6 +50,7 @@ import { notificationQueries } from '@/lib/database/domains/notification/queries
 import { oauthQueries } from '@/lib/database/domains/oauth/queries'
 import { pushSubscriptionQueries } from '@/lib/database/domains/pushSubscription/queries'
 import { queueJobQueries } from '@/lib/database/domains/queueJob/queries'
+import { rateLimitQueries } from '@/lib/database/domains/rateLimit/queries'
 import { relayQueries } from '@/lib/database/domains/relay/queries'
 import { remoteSignatureSchemeQueries } from '@/lib/database/domains/remoteSignatureScheme/queries'
 import { reportQueries } from '@/lib/database/domains/report/queries'
@@ -172,6 +173,7 @@ export const getSQLDatabase = (
     ...bindDb(kysely, notificationQueries),
     ...bindDb(kysely, pushSubscriptionQueries),
     ...bindDb(kysely, queueJobQueries),
+    ...bindDb(kysely, rateLimitQueries),
     ...bindDb(kysely, relayQueries),
     ...bindDb(kysely, remoteSignatureSchemeQueries),
     ...bindDb(kysely, reportQueries),

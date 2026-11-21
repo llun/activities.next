@@ -35,7 +35,9 @@ export const POST = traceApiRoute(
       })
     }
 
-    const rateLimit = checkPasswordChangeRateLimit(currentActor.account.id)
+    const rateLimit = await checkPasswordChangeRateLimit(
+      currentActor.account.id
+    )
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
     }

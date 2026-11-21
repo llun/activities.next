@@ -428,8 +428,8 @@ a string>`, which returns an empty page, so that poller never detects new
   The web sign-up form needs it only when the domain it is on has a terms of
   service or privacy policy. Mastodon also stores when a user agreed; this
   server does not. Both paths share Mastodon's `throttle_sign_up_attempts`
-  limit, 25 per 5 minutes per trusted client IP, in process (`429` with
-  `Retry-After`); the credential routes `POST /api/v1/accounts/password`,
+  limit, 25 per 5 minutes per trusted client IP, in the `rateLimit` table
+  (shared across instances; `429` with `Retry-After`); the credential routes `POST /api/v1/accounts/password`,
   `POST /api/v1/accounts/email`, `POST /api/v1/emails/confirmations` and
   `POST /api/v1/accounts/password/reset[/request]` carry their own per-account
   and per-IP buckets (see "Better-auth" in `docs/architecture.md`).

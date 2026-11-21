@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt'
 import { NextRequest } from 'next/server'
 
 import { getActorPerson } from '@/lib/activities/getActorPerson'
+import { createInMemoryRateLimitDatabase } from '@/lib/database/testing/inMemoryRateLimit'
 import {
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
   SEND_MOVE_JOB_NAME
@@ -20,6 +21,12 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HTTP_STATUS } from '@/lib/utils/response'
 
 import { DELETE, GET, POST } from './route'
+
+const rateLimitHolder = vi.hoisted(() => ({ database: null as unknown }))
+vi.mock('@/lib/database', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/database')>()),
+  getDatabase: () => rateLimitHolder.database
+}))
 
 const PASSWORD = 'correct horse'
 const DAY = 24 * 60 * 60 * 1000
@@ -222,6 +229,7 @@ const goodBody = {
 
 describe('Account migration API route', () => {
   beforeAll(async () => {
+    rateLimitHolder.database = createInMemoryRateLimitDatabase()
     const hash = await bcrypt.hash(PASSWORD, 4)
     mockCurrentActor = Actor.parse({
       ...MockActor({ id: ME }),
@@ -235,8 +243,8 @@ describe('Account migration API route', () => {
     })
   })
 
-  beforeEach(() => {
-    resetRouteRateLimitsForTests()
+  beforeEach(async () => {
+    await resetRouteRateLimitsForTests()
     vi.clearAllMocks()
     migrations.length = 0
     scheduledStatuses.length = 0

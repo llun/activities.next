@@ -218,14 +218,14 @@ const signInEmailRateLimitHook = createAuthMiddleware(async (ctx) => {
     // it must be the one its own middleware would have read.
     const session = await getSessionFromCtx(ctx)
     if (!session) return
-    const result = checkPasswordChangeRateLimit(session.user.id)
+    const result = await checkPasswordChangeRateLimit(session.user.id)
     if (!result.allowed) throw tooManyRequests(result.retryAfterSeconds)
     return
   }
   if (ctx.path !== '/sign-in/email') return
   const email = (ctx.body as { email?: unknown } | undefined)?.email
   if (typeof email !== 'string') return
-  const result = checkSignInEmailRateLimit(email)
+  const result = await checkSignInEmailRateLimit(email)
   if (!result.allowed) throw tooManyRequests(result.retryAfterSeconds)
 })
 

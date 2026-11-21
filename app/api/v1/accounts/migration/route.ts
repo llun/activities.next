@@ -90,7 +90,9 @@ export const POST = traceApiRoute(
     // The same per-account bucket as the password change route, so the current
     // password cannot be guessed here around that route's limit.
     if (currentActor.account) {
-      const rateLimit = checkPasswordChangeRateLimit(currentActor.account.id)
+      const rateLimit = await checkPasswordChangeRateLimit(
+        currentActor.account.id
+      )
       if (!rateLimit.allowed) {
         return apiRateLimitedResponse(
           req,

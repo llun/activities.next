@@ -30,9 +30,10 @@ vi.mock('@/lib/config', () => ({
 
 vi.mock('@/lib/database', () => ({
   getKysely: () => holder.testDb?.db,
-  // Null skips the session-create hook's account gate, which is not what this
-  // test is about.
-  getDatabase: () => null
+  // Sign-in now counts its per-email limit in the database, so the hook needs
+  // the real facade; the fixture below is verified and approved so the
+  // session-create gate passes too.
+  getDatabase: () => holder.testDb?.database ?? null
 }))
 
 vi.mock('next/headers', () => ({
@@ -102,7 +103,9 @@ describe('session refresh', () => {
         id: ACCOUNT_ID,
         email: EMAIL,
         name: 'Session Refresh',
-        emailVerified: true
+        emailVerified: true,
+        verifiedAt: new Date(),
+        approvedAt: new Date()
       })
       .execute()
     await db()

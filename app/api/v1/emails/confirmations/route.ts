@@ -75,7 +75,7 @@ export const POST = traceApiRoute(
         })
       }
 
-      const rateLimit = checkEmailConfirmationRateLimit(req, account.id)
+      const rateLimit = await checkEmailConfirmationRateLimit(req, account.id)
       if (!rateLimit.allowed) {
         return apiRateLimitedResponse(
           req,

@@ -47,7 +47,7 @@ export const POST = traceApiRoute(
       })
     }
 
-    const rateLimit = checkEmailChangeRateLimit(currentActor.account.id)
+    const rateLimit = await checkEmailChangeRateLimit(currentActor.account.id)
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
     }

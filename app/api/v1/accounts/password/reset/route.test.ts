@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { resetTrustProxyIpHeadersConfigCacheForTests } from '@/lib/config/trustProxyIpHeaders'
+import { createInMemoryRateLimitDatabase } from '@/lib/database/testing/inMemoryRateLimit'
 import { Database } from '@/lib/database/types'
 import {
   PASSWORD_RESET_LIMIT,
@@ -19,7 +20,10 @@ vi.mock('bcrypt', () => ({
 
 type MockDatabase = Pick<
   Database,
-  'validatePasswordResetCode' | 'resetPasswordWithCode'
+  | 'validatePasswordResetCode'
+  | 'resetPasswordWithCode'
+  | 'consumeRateLimit'
+  | 'deleteRateLimits'
 >
 
 let mockDatabase: MockDatabase | null = null
@@ -28,7 +32,11 @@ vi.mock('@/lib/database', () => ({
 }))
 
 describe('POST /api/v1/accounts/password/reset', () => {
-  const mockDb: jest.Mocked<MockDatabase> = {
+  const mockDb: jest.Mocked<
+    Omit<MockDatabase, 'consumeRateLimit' | 'deleteRateLimits'>
+  > &
+    ReturnType<typeof createInMemoryRateLimitDatabase> = {
+    ...createInMemoryRateLimitDatabase(),
     validatePasswordResetCode: vi.fn(),
     resetPasswordWithCode: vi.fn()
   }
@@ -37,9 +45,9 @@ describe('POST /api/v1/accounts/password/reset', () => {
     mockDatabase = mockDb
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
     mockBcryptHash.mockResolvedValue('new-password-hash')
     mockDb.validatePasswordResetCode.mockResolvedValue('account-1')
     mockDb.resetPasswordWithCode.mockResolvedValue({
@@ -52,10 +60,10 @@ describe('POST /api/v1/accounts/password/reset', () => {
     })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
     resetTrustProxyIpHeadersConfigCacheForTests()
-    resetRouteRateLimitsForTests()
+    await resetRouteRateLimitsForTests()
   })
 
   it('answers 429 past 25 requests per trusted client IP while another IP passes', async () => {

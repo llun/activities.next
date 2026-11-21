@@ -22,6 +22,7 @@ import {
 } from '@/lib/database/domains/gallery/types'
 import { ImportLockDatabase } from '@/lib/database/domains/importLock/types'
 import { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
+import { RateLimitDatabase } from '@/lib/database/domains/rateLimit/types'
 import { RemoteSignatureSchemeDatabase } from '@/lib/database/domains/remoteSignatureScheme/types'
 import { ServedDomainDatabase } from '@/lib/database/domains/servedDomain/types'
 import { StravaArchiveImportDatabase } from '@/lib/database/domains/stravaArchiveImport/types'
@@ -101,6 +102,7 @@ export type Database = AccountDatabase &
   GalleryMediaDatabase &
   GalleryLookupCacheDatabase &
   ImportLockDatabase &
+  RateLimitDatabase &
   StravaArchiveImportDatabase &
   WahooImportDatabase &
   BulkImportDatabase &

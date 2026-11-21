@@ -70,7 +70,7 @@ export const POST = traceApiRoute(
       return internalServerErrorResponse(request)
     }
 
-    const rateLimit = checkPasswordResetRequestRateLimit(request)
+    const rateLimit = await checkPasswordResetRequestRateLimit(request)
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(
         request,
