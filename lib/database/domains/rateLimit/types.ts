@@ -1,6 +1,12 @@
 // Parameter and result types of the rate-limit domain: the shared fixed-window
 // counters kept in better-auth's `rateLimit` table.
 
+// Every row the app's own limits write starts with this prefix. It keeps them
+// out of better-auth's `ip|path` keys, and the auth adapter's prune for the
+// `rateLimit` model skips these rows so better-auth's unfiltered expiry delete
+// cannot take them.
+export const APP_RATE_LIMIT_KEY_PREFIX = 'app:'
+
 export interface ConsumeRateLimitParams {
   // The row key. Callers prefix their own namespace (`app:<bucket>:<digest>`)
   // so they never collide with better-auth's `ip|path` rows.

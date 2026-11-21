@@ -4,8 +4,9 @@
 // The counters live in better-auth's `rateLimit` table, so every server
 // instance shares them and a scale event does not reset them. Keys are
 // `app:<bucket>:<digest>`: the prefix keeps them out of better-auth's `ip|path`
-// namespace (and out of its prune), and the digest keeps raw emails, IPs and
-// account ids out of the table.
+// namespace, the window-end `lastRequest` keeps a live row out of better-auth's
+// unfiltered expiry prune (the auth adapter also skips `app:` rows there), and
+// the digest keeps raw emails, IPs and account ids out of the table.
 //
 // Per-IP buckets exist only behind a trusted proxy header
 // (`getTrustedClientRateLimitKey`, IPv6 collapsed to its /64); without one the
@@ -27,6 +28,7 @@ import { NextRequest } from 'next/server'
 import { createHash } from 'node:crypto'
 
 import { getDatabase } from '@/lib/database'
+import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import type { WindowCounterResult } from '@/lib/services/gallery/lookups/rateLimit'
 import { getTrustedClientRateLimitKey } from '@/lib/utils/getTrustedClientIp'
 
@@ -37,8 +39,9 @@ const ONE_HOUR_MS = 60 * 60_000
 
 // Every row this module writes starts with this prefix. It keeps the app's
 // buckets out of better-auth's `ip|path` keys and lets the cleanup delete only
-// its own expired rows.
-export const APP_RATE_LIMIT_KEY_PREFIX = 'app:'
+// its own expired rows. The auth adapter's prune for the `rateLimit` model also
+// skips these rows, so better-auth's unfiltered expiry delete cannot take them.
+export { APP_RATE_LIMIT_KEY_PREFIX }
 
 export const SIGN_IN_EMAIL_LIMIT = 25
 export const PASSWORD_RESET_LIMIT = 25
@@ -86,16 +89,17 @@ const consumeValue = (
   windowMs: number
 ) => consumeDigest(bucket, digest(value), limit, windowMs)
 
-const consumeByIp = (
+// `async` so a synchronous throw from `getTrustedClientRateLimitKey` (an
+// invalid `ACTIVITIES_TRUST_PROXY_IP_HEADER`) becomes a rejection the call
+// sites' `.catch` sees, instead of escaping before it is attached.
+const consumeByIp = async (
   bucket: string,
   limit: number,
   windowMs: number,
   req: NextRequest | Request
 ): Promise<WindowCounterResult> => {
   const key = getTrustedClientRateLimitKey(req)
-  return key
-    ? consumeValue(bucket, key, limit, windowMs)
-    : Promise.resolve({ allowed: true })
+  return key ? consumeValue(bucket, key, limit, windowMs) : { allowed: true }
 }
 
 // Fixed-size key that holds no address: SHA-256 of the trimmed, lower-cased
@@ -116,7 +120,7 @@ export const checkSignInEmailRateLimit = (
     ONE_HOUR_MS
   )
 
-export const checkPasswordResetRequestRateLimit = (req: NextRequest) =>
+export const checkPasswordResetRequestRateLimit = async (req: NextRequest) =>
   consumeByIp(
     'password-reset-request-ip',
     PASSWORD_RESET_LIMIT,
@@ -124,7 +128,7 @@ export const checkPasswordResetRequestRateLimit = (req: NextRequest) =>
     req
   )
 
-export const checkPasswordResetRateLimit = (req: NextRequest) =>
+export const checkPasswordResetRateLimit = async (req: NextRequest) =>
   consumeByIp('password-reset-ip', PASSWORD_RESET_LIMIT, FIVE_MINUTES_MS, req)
 
 export const checkEmailConfirmationRateLimit = async (
@@ -168,7 +172,7 @@ export const checkPasswordChangeRateLimit = (accountId: string) =>
     TEN_MINUTES_MS
   )
 
-export const checkSignUpRateLimit = (req: NextRequest) =>
+export const checkSignUpRateLimit = async (req: NextRequest) =>
   consumeByIp('sign-up-ip', SIGN_UP_LIMIT, FIVE_MINUTES_MS, req)
 
 export const resetRouteRateLimitsForTests = async () => {

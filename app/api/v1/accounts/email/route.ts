@@ -47,7 +47,18 @@ export const POST = traceApiRoute(
       })
     }
 
-    const rateLimit = await checkEmailChangeRateLimit(currentActor.account.id)
+    const rateLimit = await checkEmailChangeRateLimit(
+      currentActor.account.id
+    ).catch((error) => {
+      logger.error(
+        { err: toLoggableError(error) },
+        'Failed to check the email change rate limit'
+      )
+      return null
+    })
+    if (!rateLimit) {
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    }
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
     }

@@ -503,6 +503,16 @@ describe('kyselyAdapter storage', () => {
         lastRequest: initialLastRequest - 2_000_000
       }
     })
+    // The app's own counters share the table under the `app:` prefix; the
+    // unfiltered prune must leave them to the app's own cleanup.
+    await adapter.create({
+      model: 'rateLimit',
+      data: {
+        key: 'app:sign-in-email:expired',
+        count: 5,
+        lastRequest: initialLastRequest - 2_000_000
+      }
+    })
     const deleted = await adapter.deleteMany({
       model: 'rateLimit',
       where: [
@@ -516,5 +526,11 @@ describe('kyselyAdapter storage', () => {
       where: [{ field: 'key', value: key }]
     })
     expect(remaining).toHaveLength(1)
+
+    const appRows = await adapter.findMany({
+      model: 'rateLimit',
+      where: [{ field: 'key', value: 'app:sign-in-email:expired' }]
+    })
+    expect(appRows).toHaveLength(1)
   })
 })

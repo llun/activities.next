@@ -14,6 +14,8 @@ import {
   PASSWORD_CHANGE_LIMIT,
   SIGN_IN_EMAIL_LIMIT,
   checkPasswordChangeRateLimit,
+  checkPasswordResetRateLimit,
+  checkPasswordResetRequestRateLimit,
   checkSignInEmailRateLimit,
   checkSignUpRateLimit,
   resetRouteRateLimitsForTests,
@@ -179,6 +181,34 @@ describe('route rate limits', () => {
       )
     ).toMatchObject({ allowed: false })
   })
+
+  it.each([
+    { name: 'sign-up', check: checkSignUpRateLimit },
+    {
+      name: 'password reset request',
+      check: checkPasswordResetRequestRateLimit
+    },
+    { name: 'password reset', check: checkPasswordResetRateLimit }
+  ])(
+    'rejects instead of throwing synchronously when the trusted-IP config is invalid ($name)',
+    async ({ check }) => {
+      mockTrust.mockReturnValue(true)
+      mockHeader.mockImplementation(() => {
+        throw new Error(
+          'ACTIVITIES_TRUST_PROXY_IP_HEADER must be one of cf-connecting-ip, x-real-ip, x-forwarded-for, fly-client-ip, true-client-ip'
+        )
+      })
+
+      // The call sites attach `.catch` to the returned promise; a synchronous
+      // throw would escape before it and answer an unlogged 500.
+      const caught = await check(request()).catch((error: unknown) => error)
+
+      expect(caught).toBeInstanceOf(Error)
+      expect((caught as Error).message).toContain(
+        'ACTIVITIES_TRUST_PROXY_IP_HEADER'
+      )
+    }
+  )
 
   it('resets its own rows without touching better-auth rows', async () => {
     await checkPasswordChangeRateLimit('account-1')

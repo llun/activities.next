@@ -119,7 +119,20 @@ export const POST = traceApiRoute(
     if (currentActor.account) {
       const rateLimit = await checkPasswordChangeRateLimit(
         currentActor.account.id
-      )
+      ).catch((error) => {
+        logger.error(
+          { err: toLoggableError(error) },
+          'Failed to check the handle change rate limit'
+        )
+        return null
+      })
+      if (!rateLimit) {
+        return errorResponse(
+          req,
+          'Internal Server Error',
+          HTTP_STATUS.INTERNAL_SERVER_ERROR
+        )
+      }
       if (!rateLimit.allowed) {
         return apiRateLimitedResponse(
           req,

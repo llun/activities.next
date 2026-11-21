@@ -111,6 +111,101 @@ describe('rateLimit domain', () => {
     expect(results.filter((result) => !result.allowed)).toHaveLength(15)
   })
 
+  it('gives each row its own id so a first-hit race cannot collide on the primary key', async () => {
+    await consume('uuid')
+    const row = await db
+      .selectFrom('rateLimit')
+      .select(['id', 'key'])
+      .where('key', '=', `${KEY_PREFIX}test:uuid`)
+      .executeTakeFirstOrThrow()
+    expect(row.id).not.toBe(row.key)
+    expect(row.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    )
+  })
+
+  it('admits concurrent first hits on a fresh key without a primary-key collision', async () => {
+    const params = {
+      key: `${KEY_PREFIX}test:fresh`,
+      keyPrefix: KEY_PREFIX,
+      limit: 100,
+      windowMs: 1_000,
+      now: 1_000
+    }
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () => database.consumeRateLimit(params))
+    )
+    expect(results.every((result) => result.allowed)).toBe(true)
+  })
+
+  it('reads the clock once per consume', async () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(5_000)
+    try {
+      await database.consumeRateLimit({
+        key: `${KEY_PREFIX}test:clock`,
+        keyPrefix: KEY_PREFIX,
+        limit: 3,
+        windowMs: 1_000
+      })
+      expect(nowSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
+  it('prunes expired rows opportunistically while serving hits', async () => {
+    const now = 10_000
+    await db
+      .insertInto('rateLimit')
+      .values([
+        {
+          id: 'app:expired',
+          key: 'app:expired',
+          count: 1,
+          lastRequest: now - 1
+        },
+        { id: 'app:live', key: 'app:live', count: 1, lastRequest: now + 60_000 }
+      ])
+      .execute()
+
+    // The cleanup runs on every hundredth consume; a hundred consumes always
+    // cross it once, whatever the random starting offset.
+    for (let i = 0; i < 100; i += 1) {
+      await consume(`cleanup-${i}`, { now })
+    }
+
+    const keys = (await db.selectFrom('rateLimit').select('key').execute()).map(
+      (row) => row.key
+    )
+    expect(keys).not.toContain('app:expired')
+    expect(keys).toContain('app:live')
+  })
+
+  it('repeats the expiry predicate on the bounded delete itself', async () => {
+    const now = 10_000
+    await db
+      .insertInto('rateLimit')
+      .values({ id: 'app:old', key: 'app:old', count: 1, lastRequest: now - 1 })
+      .execute()
+
+    const queries = await testDb.captureQueries(() =>
+      database.deleteRateLimits({
+        keyPrefix: KEY_PREFIX,
+        before: now,
+        limit: 5
+      })
+    )
+    const deleteStatement = queries.find((query) =>
+      /^\s*delete\s+from/i.test(query.sql)
+    )
+    expect(deleteStatement).toBeDefined()
+    // One predicate in the candidate subquery, one on the DELETE itself: a row
+    // renewed between the two must not be deleted.
+    expect(deleteStatement?.sql.match(/"lastRequest"\s*</g) ?? []).toHaveLength(
+      2
+    )
+  })
+
   it('deletes only its own expired rows, bounded by the batch size', async () => {
     const now = 10_000
     await db

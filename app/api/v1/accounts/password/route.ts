@@ -10,6 +10,7 @@ import {
   apiRateLimitedResponse,
   apiResponse
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const PasswordChangeRequest = z.object({
@@ -37,7 +38,16 @@ export const POST = traceApiRoute(
 
     const rateLimit = await checkPasswordChangeRateLimit(
       currentActor.account.id
-    )
+    ).catch((error) => {
+      logger.error(
+        { err: toLoggableError(error) },
+        'Failed to check the password change rate limit'
+      )
+      return null
+    })
+    if (!rateLimit) {
+      return apiErrorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+    }
     if (!rateLimit.allowed) {
       return apiRateLimitedResponse(req, rateLimit.retryAfterSeconds)
     }

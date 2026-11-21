@@ -15,6 +15,7 @@ import {
 
 import { deleteSessionsWithTokenDetach } from '@/lib/database/domains/account/sessions'
 import { recordWeeklyLoginSafely } from '@/lib/database/domains/instanceActivity/queries'
+import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { getDialectName } from '@/lib/database/kysely/dialect'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
@@ -492,6 +493,15 @@ const applyDeferredJoins = async (
 }
 
 const SESSIONS_TABLE = 'sessions'
+const RATE_LIMIT_TABLE = 'rateLimit'
+
+// better-auth prunes its `rateLimit` rows with an unfiltered
+// `DELETE ... WHERE lastRequest < cutoff`. The app's own counters share that
+// table under the `app:` prefix, so the adapter's delete for this model skips
+// them: better-auth's rows are still pruned, the app's are left to its own
+// bounded cleanup.
+const appRateLimitExclusion = (tableName: string) =>
+  sql<SqlBool>`${sql.ref(`${tableName}.key`)} not like ${`${APP_RATE_LIMIT_KEY_PREFIX}%`}`
 
 // Deleting a session whose grants minted OAuth tokens fails on PostgreSQL's
 // `oauthAccessToken`/`oauthRefreshToken` `sessionId` foreign keys, so detach
@@ -765,6 +775,9 @@ export const kyselyAdapter = (
           if (hasWhere(where)) {
             query = query.where((eb) => buildWhere(eb, tableName, where))
           }
+          if (tableName === RATE_LIMIT_TABLE) {
+            query = query.where(appRateLimitExclusion(tableName))
+          }
           await query.execute()
         },
 
@@ -776,6 +789,9 @@ export const kyselyAdapter = (
           let query = db.deleteFrom(tableName)
           if (hasWhere(where)) {
             query = query.where((eb) => buildWhere(eb, tableName, where))
+          }
+          if (tableName === RATE_LIMIT_TABLE) {
+            query = query.where(appRateLimitExclusion(tableName))
           }
           const result = await query.executeTakeFirst()
           return Number(result.numDeletedRows)
