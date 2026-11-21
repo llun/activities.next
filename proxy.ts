@@ -17,6 +17,7 @@ import {
   getEmbedContentSecurityPolicyHeader,
   getMediaFileContentSecurityPolicyHeader
 } from '@/lib/utils/http-headers/csp'
+import { getStrictTransportSecurityHeader } from '@/lib/utils/http-headers/hsts'
 import {
   LOCAL_HANDLE_REDIRECT_PATH_HEADER,
   LOCAL_HANDLE_REDIRECT_SEARCH_HEADER
@@ -140,10 +141,7 @@ const getProfileRequestHeaders = (request: NextRequest) => {
   return headers
 }
 
-const withContentSecurityPolicy = (
-  response: NextResponse,
-  request: NextRequest
-) => {
+const withSecurityHeaders = (response: NextResponse, request: NextRequest) => {
   // The public embed widgets are framable by third-party sites, so they get a
   // CSP with `frame-ancestors *` instead of the default `'none'`. Stored upload
   // bytes get the sandboxed media policy instead of the app's: the header set
@@ -158,6 +156,14 @@ const withContentSecurityPolicy = (
       : getContentSecurityPolicyHeader()
   if (!response.headers.has(header.key)) {
     response.headers.set(header.key, header.value)
+  }
+
+  // HSTS only on HTTPS responses. `request.nextUrl.protocol` is Next's own
+  // answer, built from `x-forwarded-proto` (or the socket's TLS state), so a
+  // TLS-terminating proxy is covered without reading the header here.
+  const hsts = getStrictTransportSecurityHeader(request)
+  if (hsts && !response.headers.has(hsts.key)) {
+    response.headers.set(hsts.key, hsts.value)
   }
 
   return response
@@ -191,10 +197,7 @@ export async function proxy(request: NextRequest) {
   // This covers the routes the proxy runs on (see `config.matcher`), not the
   // ones it skips, such as a multipart `/api/*` request.
   if (request.headers.get('host')?.includes(',')) {
-    return withContentSecurityPolicy(
-      new NextResponse(null, { status: 400 }),
-      request
-    )
+    return withSecurityHeaders(new NextResponse(null, { status: 400 }), request)
   }
 
   const pathname = request.nextUrl.pathname
@@ -205,10 +208,7 @@ export async function proxy(request: NextRequest) {
     (pathname === '/auth' || pathname.startsWith('/auth/')) &&
     !VALID_AUTH_PAGES.has(pathname)
   ) {
-    return withContentSecurityPolicy(
-      new NextResponse(null, { status: 404 }),
-      request
-    )
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }), request)
   }
 
   // Actor routes (/@username, /@username/statusId, etc.) only accept GET and HEAD.
@@ -216,7 +216,7 @@ export async function proxy(request: NextRequest) {
   // treat POST as an unregistered Server Action (which throws 500).
   if (pathname.startsWith('/@')) {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return withContentSecurityPolicy(
+      return withSecurityHeaders(
         new NextResponse(null, {
           status: 405,
           headers: { Allow: 'GET, HEAD' }
@@ -245,10 +245,7 @@ export async function proxy(request: NextRequest) {
     !isRewrittenApiRoute(pathname) &&
     !request.headers.has('next-action')
   ) {
-    return withContentSecurityPolicy(
-      new NextResponse(null, { status: 404 }),
-      request
-    )
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }), request)
   }
 
   // Reject mutating methods (PUT, DELETE, PATCH) targeted at non-API routes.
@@ -260,7 +257,7 @@ export async function proxy(request: NextRequest) {
     !pathname.startsWith('/oauth/') &&
     !isRewrittenApiRoute(pathname)
   ) {
-    return withContentSecurityPolicy(
+    return withSecurityHeaders(
       new NextResponse(null, {
         status: 405,
         headers: { Allow: 'GET, HEAD' }
@@ -271,7 +268,7 @@ export async function proxy(request: NextRequest) {
 
   if (request.method === 'GET' || request.method === 'HEAD') {
     if (pathname === '/sw.js') {
-      const response = withContentSecurityPolicy(
+      const response = withSecurityHeaders(
         NextResponse.next(forwardedRequestInit(request)),
         request
       )
@@ -302,7 +299,7 @@ export async function proxy(request: NextRequest) {
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}`
-        return withContentSecurityPolicy(
+        return withSecurityHeaders(
           NextResponse.rewrite(apiUrl, forwardedRequestInit(request)),
           request
         )
@@ -315,7 +312,7 @@ export async function proxy(request: NextRequest) {
         )
         const apiUrl = request.nextUrl.clone()
         apiUrl.pathname = `/api/users/${matches?.groups?.username}/statuses/${matches?.groups?.statusId}`
-        return withContentSecurityPolicy(
+        return withSecurityHeaders(
           NextResponse.rewrite(apiUrl, forwardedRequestInit(request)),
           request
         )
@@ -327,7 +324,7 @@ export async function proxy(request: NextRequest) {
       const pathname = request.nextUrl.pathname
       const totalAt = pathname.split('@').length - 1
       if (totalAt === 2) {
-        return withContentSecurityPolicy(
+        return withSecurityHeaders(
           NextResponse.next({
             request: { headers: getProfileRequestHeaders(request) }
           }),
@@ -345,7 +342,7 @@ export async function proxy(request: NextRequest) {
           path: pathname,
           query: request.nextUrl.search
         }).toString()
-        return withContentSecurityPolicy(
+        return withSecurityHeaders(
           NextResponse.rewrite(redirectUrl, forwardedRequestInit(request)),
           request
         )
@@ -357,7 +354,7 @@ export async function proxy(request: NextRequest) {
 
       const cloneUrl = request.nextUrl.clone()
       cloneUrl.pathname = `/${pathItems.join('/')}`
-      return withContentSecurityPolicy(
+      return withSecurityHeaders(
         NextResponse.rewrite(cloneUrl, {
           request: { headers: getProfileRequestHeaders(request) }
         }),
@@ -365,13 +362,13 @@ export async function proxy(request: NextRequest) {
       )
     }
 
-    return withContentSecurityPolicy(
+    return withSecurityHeaders(
       NextResponse.next(forwardedRequestInit(request)),
       request
     )
   }
 
-  return withContentSecurityPolicy(
+  return withSecurityHeaders(
     NextResponse.next(forwardedRequestInit(request)),
     request
   )

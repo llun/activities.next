@@ -613,6 +613,62 @@ describe('proxy', () => {
     )
   })
 
+  describe('Strict-Transport-Security', () => {
+    const HSTS = 'max-age=31536000'
+
+    it('sets the one-year header on HTTPS document responses', async () => {
+      const request = new NextRequest('https://llun.social/', {
+        method: 'GET'
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.headers.get('Strict-Transport-Security')).toBe(HSTS)
+    })
+
+    it('sets it on HTTPS API responses', async () => {
+      const request = new NextRequest('https://llun.social/api/v1/instance', {
+        method: 'GET'
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.headers.get('Strict-Transport-Security')).toBe(HSTS)
+    })
+
+    it('sets it on the proxy own HTTPS 404 responses', async () => {
+      const request = new NextRequest('https://llun.social/auth/callback', {
+        method: 'GET'
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.status).toBe(404)
+      expect(response?.headers.get('Strict-Transport-Security')).toBe(HSTS)
+    })
+
+    it('omits it on plain-HTTP responses', async () => {
+      const request = new NextRequest('http://llun.social/', {
+        method: 'GET'
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.headers.get('Strict-Transport-Security')).toBeNull()
+    })
+
+    it.each(['http://localhost:3000/', 'https://localhost:3000/'])(
+      'omits it on localhost development responses (%s)',
+      async (url: string) => {
+        const request = new NextRequest(url, { method: 'GET' })
+
+        const response = await proxy(request)
+
+        expect(response?.headers.get('Strict-Transport-Security')).toBeNull()
+      }
+    )
+  })
+
   it('returns 404 for unknown auth routes', async () => {
     for (const method of ['GET', 'POST']) {
       const request = new NextRequest('https://llun.social/auth/callback', {

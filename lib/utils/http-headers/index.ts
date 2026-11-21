@@ -9,8 +9,9 @@
  *
  * 2. Middleware (proxy.ts) — adds Content-Security-Policy per-request so
  *    runtime config (storage hostnames, the selected fitness map provider and
- *    its origins) is reflected. Uses an idempotent guard: does not set the
- *    header if already present.
+ *    its origins) is reflected, and Strict-Transport-Security on HTTPS
+ *    responses only. Uses an idempotent guard: does not set a header if
+ *    already present.
  *
  * 3. Route handlers (lib/utils/response.ts apiResponse / defaultOptions) —
  *    adds the four Access-Control-* CORS headers per-request, derived from
@@ -37,3 +38,10 @@ export {
   getContentSecurityPolicyHeader,
   getSecurityHeaders
 } from './csp'
+
+// Strict-Transport-Security (per-request, middleware layer)
+export {
+  STRICT_TRANSPORT_SECURITY_HEADER,
+  STRICT_TRANSPORT_SECURITY_MAX_AGE_SECONDS,
+  getStrictTransportSecurityHeader
+} from './hsts'
