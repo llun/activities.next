@@ -5,9 +5,12 @@
 import '@testing-library/jest-dom'
 import { render } from '@testing-library/react'
 
-import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
+import { getNote } from '@/lib/activities'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import {
+  canFederateWithDomain,
+  isLocalFederationDomain
+} from '@/lib/services/federation/domainPolicy'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
@@ -37,6 +40,9 @@ vi.mock('next/navigation', async () => ({
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND')
   }),
+  redirect: vi.fn((url: string) => {
+    throw new Error(`NEXT_REDIRECT:${url}`)
+  }),
   useRouter: vi.fn(() => ({
     back: vi.fn(),
     push: vi.fn(),
@@ -59,6 +65,8 @@ vi.mock('@/lib/config', async () => ({
 const mockGetStatus = vi.fn()
 const mockGetStatusReplies = vi.fn()
 const mockGetActorDomainBlocks = vi.fn(async () => [])
+const mockGetFederationSigningActor = vi.fn()
+const mockGetActorFromId = vi.fn()
 // getStatusContext walks the reply tree through getStatusReplyRefs; derive the
 // tree from whatever getStatusReplies is set to return.
 const mockGetStatusReplyRefs = vi.fn(
@@ -89,16 +97,23 @@ vi.mock('@/lib/database', async () => ({
     getStatus: mockGetStatus,
     getStatusReplies: mockGetStatusReplies,
     getStatusReplyRefs: mockGetStatusReplyRefs,
-    getActorDomainBlocks: mockGetActorDomainBlocks
+    getActorDomainBlocks: mockGetActorDomainBlocks,
+    getFederationSigningActor: mockGetFederationSigningActor,
+    getActorFromId: mockGetActorFromId
   }))
 }))
 
-vi.mock('@/lib/activities/getRemoteStatus', async () => ({
-  getRemoteStatus: vi.fn()
+vi.mock('@/lib/activities', async () => ({
+  getNote: vi.fn()
 }))
 
-vi.mock('@/lib/services/federation/getFederationSigningActor', async () => ({
-  getFederationSigningActor: vi.fn()
+vi.mock('@/lib/services/federation/domainPolicy', async () => ({
+  isLocalFederationDomain: vi.fn(),
+  canFederateWithDomain: vi.fn()
+}))
+
+vi.mock('@/lib/services/actors/refreshRemoteActor', async () => ({
+  recordRemoteActorBestEffort: vi.fn(async () => null)
 }))
 
 vi.mock('@/lib/services/medias/animationMetadata', async () => ({
@@ -159,14 +174,43 @@ const PATH_ACTOR = {
   username: 'gemeenteamsterdam',
   domain: 'social.amsterdam.nl'
 }
-const mockGetRemoteStatus = vi.mocked(getRemoteStatus)
-const mockGetFederationSigningActor = vi.mocked(getFederationSigningActor)
+const mockGetNote = vi.mocked(getNote)
+const mockIsLocalFederationDomain = vi.mocked(isLocalFederationDomain)
+const mockCanFederateWithDomain = vi.mocked(canFederateWithDomain)
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
 const mockGetActorFromSession = vi.mocked(getActorFromSession)
 const mockGetQueue = vi.mocked(getQueue)
 
 const REMOTE_STATUS_URL =
   'https://social.amsterdam.nl/users/gemeenteamsterdam/statuses/123'
+const REMOTE_ACTOR_ID = 'https://social.amsterdam.nl/users/gemeenteamsterdam'
+
+const REMOTE_AUTHOR = {
+  id: REMOTE_ACTOR_ID,
+  username: 'gemeenteamsterdam',
+  domain: 'social.amsterdam.nl',
+  name: 'Gemeente Amsterdam',
+  followersUrl: `${REMOTE_ACTOR_ID}/followers`,
+  inboxUrl: `${REMOTE_ACTOR_ID}/inbox`,
+  sharedInboxUrl: 'https://social.amsterdam.nl/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 1,
+  updatedAt: 1,
+  publicKey: 'remote-public-key'
+} as unknown as Actor
+
+const buildRemoteActivityPubNote = () => ({
+  id: REMOTE_STATUS_URL,
+  type: 'Note',
+  attributedTo: REMOTE_ACTOR_ID,
+  content: '<p>body</p>',
+  published: '2026-01-01T00:00:00Z',
+  to: [ACTIVITY_STREAM_PUBLIC],
+  cc: []
+})
 
 // The dedicated headless instance actor used to sign server-to-server
 // federation fetches — never the viewer's user actor.
@@ -254,7 +298,10 @@ describe('Page remote-status fetch signing', () => {
       fullStatusId: REMOTE_STATUS_URL,
       isStatusHash: false
     })
-    mockGetRemoteStatus.mockResolvedValue(buildRemoteNote())
+    mockIsLocalFederationDomain.mockResolvedValue(false)
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockGetActorFromId.mockResolvedValue(REMOTE_AUTHOR)
+    mockGetNote.mockResolvedValue(buildRemoteActivityPubNote() as never)
   })
 
   it('signs the remote status fetch with the instance actor, not the viewer', async () => {
@@ -266,10 +313,8 @@ describe('Page remote-status fetch signing', () => {
 
     await renderRemoteStatusPage()
 
-    expect(mockGetFederationSigningActor).toHaveBeenCalledWith(
-      expect.anything()
-    )
-    expect(mockGetRemoteStatus).toHaveBeenCalledWith({
+    expect(mockGetFederationSigningActor).toHaveBeenCalled()
+    expect(mockGetNote).toHaveBeenCalledWith({
       statusId: REMOTE_STATUS_URL,
       signingActor: instanceActor
     })
@@ -285,7 +330,7 @@ describe('Page remote-status fetch signing', () => {
 
     await renderRemoteStatusPage()
 
-    const call = mockGetRemoteStatus.mock.calls[0][0]
+    const call = mockGetNote.mock.calls[0][0]
     expect(call.statusId).toBe(REMOTE_STATUS_URL)
     expect(call.signingActor).toBeUndefined()
     // The failure is surfaced (not silently swallowed) so a persistently broken
@@ -301,7 +346,7 @@ describe('Page remote-status fetch signing', () => {
 
     await renderRemoteStatusPage()
 
-    const call = mockGetRemoteStatus.mock.calls[0][0]
+    const call = mockGetNote.mock.calls[0][0]
     expect(call.statusId).toBe(REMOTE_STATUS_URL)
     expect(call.signingActor).toBeUndefined()
     expect(logger.warn).not.toHaveBeenCalled()
@@ -329,7 +374,7 @@ describe('Page remote-status fetch signing', () => {
 
     await renderRemoteStatusPage()
 
-    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
+    expect(mockGetNote).not.toHaveBeenCalled()
     expect(vi.mocked(enrichStatusAttachments).mock.calls[0][1]).toBeDefined()
   })
 
@@ -359,7 +404,7 @@ describe('Page remote-status fetch signing', () => {
     // The status is not stored and the live fetch found nothing, so the page
     // queues the fetch job. A queue failure must not 500 the page: the loading
     // state is still the right answer.
-    mockGetRemoteStatus.mockResolvedValue(null)
+    mockGetNote.mockResolvedValue(null)
     mockGetQueue.mockReturnValue({
       publish: vi.fn().mockRejectedValue(new Error('queue down')),
       runsInline: false

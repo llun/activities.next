@@ -37,7 +37,22 @@ vi.mock('@/lib/services/actors/refreshRemoteActor', () => ({
 const statusUrl = 'https://toot.io/users/devstorm/statuses/117434164364383111'
 const authorId = 'https://toot.io/users/devstorm'
 const signingActor = { id: 'https://local.test/actor' } as Actor
-const author = { id: authorId } as Actor
+const author = {
+  id: authorId,
+  username: 'devstorm',
+  domain: 'toot.io',
+  name: 'Dev Storm',
+  followersUrl: `${authorId}/followers`,
+  inboxUrl: `${authorId}/inbox`,
+  sharedInboxUrl: 'https://toot.io/inbox',
+  followingCount: 0,
+  followersCount: 0,
+  statusCount: 0,
+  lastStatusAt: null,
+  createdAt: 1,
+  updatedAt: 1,
+  publicKey: 'public-key'
+} as Actor
 const viewer = { id: 'https://local.test/users/me' } as Actor
 
 const makeNote = (overrides: Record<string, unknown> = {}) => ({
@@ -88,7 +103,13 @@ describe('fetchEphemeralRemoteStatus', () => {
     })
     expect(status).toMatchObject({
       id: statusUrl,
-      actorId: authorId
+      actorId: authorId,
+      actor: {
+        id: authorId,
+        username: 'devstorm',
+        domain: 'toot.io',
+        name: 'Dev Storm'
+      }
     })
     expect(mockRecordRemoteActorBestEffort).not.toHaveBeenCalled()
   })
@@ -174,6 +195,8 @@ describe('fetchEphemeralRemoteStatus', () => {
   ])('returns null for a $description note', async ({ to, cc }) => {
     mockGetNote.mockResolvedValue(makeNote({ to, cc }))
     expect(await fetchStatus()).toBeNull()
+    expect(mockGetActorFromId).not.toHaveBeenCalled()
+    expect(mockRecordRemoteActorBestEffort).not.toHaveBeenCalled()
   })
 
   it('records a missing author with the instance signer', async () => {

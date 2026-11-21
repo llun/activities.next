@@ -1,8 +1,7 @@
 import { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { profileName } from '@/lib/components/navigation-history/backDestination'
 import {
@@ -21,7 +20,10 @@ import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
 import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
 import { getVisitedSignUpDomain } from '@/lib/services/domains/visitedSignUpDomain'
-import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import {
+  canFederateWithDomain,
+  isLocalFederationDomain
+} from '@/lib/services/federation/domainPolicy'
 import { getPersonalRecordDurations } from '@/lib/services/fitness-files/personalRecords'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
 import { getTrainingZoneSettings } from '@/lib/services/fitness-files/trainingZoneSettings'
@@ -31,6 +33,10 @@ import {
   canActorReadStatus,
   isStatusPubliclyReadable
 } from '@/lib/services/statusAccess'
+import {
+  fetchEphemeralRemoteStatus,
+  isUrl
+} from '@/lib/services/statuses/fetchEphemeralRemoteStatus'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import {
@@ -247,35 +253,42 @@ const Page: FC<Props> = async ({ params }) => {
   // them would let any remote note rewrite another status's attachment rows.
   const isStoredStatus = Boolean(status)
 
+  let canFetchRemote = false
   if (!status && !isStatusHash && fullStatusId) {
-    // Server-to-server federation fetches must be signed by the dedicated
-    // headless instance actor, never the viewer's user actor. Instances running
-    // in authorized-fetch ("secure") mode reject unsigned/unverifiable requests,
-    // and the viewer may not have a usable signing actor at all (e.g. a
-    // logged-in account without a local actor, or one whose key is not publicly
-    // resolvable on a multi-domain setup). The instance actor always exists, has
-    // a private key, and is served at a publicly resolvable URL so the remote
-    // can verify the signature; without it, posts on secure-mode instances 404.
-    // Resolution is best-effort: a missing/failed instance actor must degrade to
-    // an unsigned fetch rather than turning a clean 404 into a 500. The failure
-    // is surfaced (not swallowed) so a persistently broken signer stays
-    // diagnosable. getRemoteStatus is shared with search, which intentionally
-    // signs as the requesting user, so only this call site is changed.
-    const signingActor = await getFederationSigningActor(database).catch(
-      (error) => {
-        logger.warn({
-          message:
-            'Failed to resolve federation signing actor for remote status fetch; falling back to an unsigned request',
-          error: error instanceof Error ? error.message : String(error)
-        })
-        return undefined
+    canFetchRemote =
+      isUrl(fullStatusId) &&
+      !(await isLocalFederationDomain(database, fullStatusId)) &&
+      (await canFederateWithDomain(database, fullStatusId))
+
+    if (canFetchRemote) {
+      // Route live fetches through fetchEphemeralRemoteStatus so federation
+      // policy, local-domain refusal, same-origin id/attribution checks, and
+      // public/unlisted audience gating run before hydrating the author.
+      status = await fetchEphemeralRemoteStatus({
+        database,
+        statusId: fullStatusId
+      })
+      statusId = status?.id ?? ''
+    }
+
+    if (status) {
+      if (!status.actor) {
+        return notFound()
       }
-    )
-    status = await getRemoteStatus({
-      statusId: fullStatusId,
-      signingActor
-    })
-    statusId = status?.id ?? ''
+
+      const matchesPathActor =
+        status.actor.username.toLowerCase() ===
+          pathActor.username.toLowerCase() &&
+        status.actor.domain.toLowerCase() === pathActor.domain.toLowerCase()
+
+      if (!matchesPathActor) {
+        const canonicalPath = getStatusDetailPath(status)
+        if (canonicalPath) {
+          redirect(canonicalPath)
+        }
+        return notFound()
+      }
+    }
 
     // A live-fetched remote status carries no replies (`fromNote` sets
     // `replies: []`) and its thread is not in our database yet, so a signed-in
@@ -312,7 +325,7 @@ const Page: FC<Props> = async ({ params }) => {
   // `fullStatusId` means there is nothing to fetch — a local path or a stored
   // candidate the path actor does not own — so fall through to the 404 instead
   // of queueing a job for an empty id and showing the loading state forever.
-  if (!status && session && !isStatusHash && fullStatusId) {
+  if (!status && session && !isStatusHash && fullStatusId && canFetchRemote) {
     const queue = getQueue()
     // Queue the fetch job with a deterministic ID to avoid duplicates. As above,
     // an inline NoQueue run is kept to the focused note's direct replies so the

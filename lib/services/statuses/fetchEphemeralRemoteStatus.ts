@@ -7,7 +7,9 @@ import {
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
+import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
+import { getActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, fromNote } from '@/lib/types/domain/status'
 import {
   isSameActivityPubOrigin,
@@ -31,10 +33,10 @@ export type FetchEphemeralRemoteStatusParams = {
 }
 
 /**
- * Fetch an unstored remote status live so a read-only action (translate) can
- * serve it, WITHOUT persisting it. Remote profile pages render the actor's
- * live outbox, whose statuses are never stored, so their ids miss the
- * database.
+ * Fetch an unstored remote status live so read-only surfaces (the status page
+ * and translate) can serve it, WITHOUT persisting it. Remote profile pages
+ * render the actor's live outbox, whose statuses are never stored, so their ids
+ * miss the database.
  *
  * Guards follow "A Fetched Document's Own `id` Is Not Evidence" in
  * docs/mastodon-api-compatibility.md and mirror
@@ -46,10 +48,10 @@ export type FetchEphemeralRemoteStatusParams = {
  * - only public or unlisted notes are returned.
  *
  * The note is fetched with `getNote` rather than `getRemoteStatus` so the
- * author's server is not contacted before the attribution check passes. The
- * author's actor row is recorded (as search-with-resolve does) because the
- * Mastodon serializer reads the account from the database; the status itself
- * is never stored.
+ * author's server is not contacted before the attribution and visibility checks
+ * pass. Once verified, the author's actor row is recorded (as
+ * search-with-resolve does) and attached as `status.actor` alongside
+ * content-detected language; the status itself is never stored.
  */
 export const fetchEphemeralRemoteStatus = async ({
   database,
@@ -129,6 +131,10 @@ export const fetchEphemeralRemoteStatus = async ({
       signingActor
     }))
   if (!actor) return null
+
+  status.actor = getActorProfile(actor)
+  status.detectedLanguage =
+    (await detectLanguageFromHtml(status.text))?.language ?? null
 
   return status
 }
