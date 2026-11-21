@@ -1,0 +1,31 @@
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts
+  s_0303642889c22e::t_70d8c63f14905e 91-102,124-126,166-170,173-181
+  s_0303642889c22e::t_c5ad1ae48ad2c8 63-71,78,83-90,182-188,200-214,228,248,259,268,274-277
+app/api/oembed/route.test.ts
+  s_0303642889c22e::t_55f1e8ce306bec 62-65
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.test.ts
+  s_0303642889c22e::t_c20d114aca87d7 733,754-756,763-777,794-796,798-799,810,827-829,831-832,843,859-861,863-864,876,888,891-893,895-896,907,920-922,924-925,936,943
+  s_0303642889c22e::t_575a602ed31ed6 370-372,394,513,779-793,797,800-809,811,814-826,830,833-842,844-858,862,865-875,877-887,889-890,894,897-906,908-911,913-914,918-919,923,926-935,937-942,970
+app/(timeline)/[actor]/[status]/page.tsx
+  s_0303642889c22e::t_776ca4ef241a65 311-315
+docs/mastodon-api-compatibility.md
+  s_0303642889c22e::t_cbbcf046f2321d 1857,2133
+lib/database/kysely/usernameMatch.ts
+  s_0303642889c22e::t_4505e702fe215a 39-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac6f10e94658a7dd7b08f231582621b0a070b418",
+  "prompts": {},
+  "sessions": {
+    "s_0303642889c22e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9e80880-6d1c-448c-bf09-ce18b6ac927f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
