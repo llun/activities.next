@@ -198,6 +198,46 @@ describe('account recovery', () => {
     return passwordResetCode
   }
 
+  // The rows better-auth's two-factor plugin writes for an account: a
+  // pending second step, its attempt counter, and a trusted device.
+  const seedTwoFactorState = async (accountId: string, suffix: string) => {
+    const expiresAt = new Date(Date.now() + 600_000)
+    const challenge = `2fa-${suffix}`
+    await db
+      .insertInto('verification')
+      .values([
+        {
+          id: crypto.randomUUID(),
+          identifier: challenge,
+          value: accountId,
+          expiresAt
+        },
+        {
+          id: crypto.randomUUID(),
+          identifier: `2fa-attempts-${challenge}`,
+          value: '0',
+          expiresAt
+        },
+        {
+          id: crypto.randomUUID(),
+          identifier: `trust-device-${suffix}`,
+          value: accountId,
+          expiresAt
+        }
+      ])
+      .execute()
+  }
+
+  const accountVerificationIdentifiers = async (accountId: string) =>
+    (
+      await db
+        .selectFrom('verification')
+        .select('identifier')
+        .where('value', '=', accountId)
+        .orderBy('identifier')
+        .execute()
+    ).map((row) => row.identifier)
+
   describe('resetPasswordWithCode', () => {
     it("revokes every actor's access and refresh tokens, leaving other accounts and app-only tokens", async () => {
       const target = await createAccount('reset-target')
@@ -276,6 +316,26 @@ describe('account recovery', () => {
         access: ['app-access-reset-app'],
         refresh: []
       })
+    })
+
+    it("drops the account's pending two-factor step and trusted devices", async () => {
+      const target = await createAccount('reset-2fa')
+      const other = await createAccount('reset-2fa-other')
+      await seedTwoFactorState(target.accountId, 'reset-target')
+      await seedTwoFactorState(other.accountId, 'reset-other')
+
+      const passwordResetCode = await requestReset(target.email)
+      await database.resetPasswordWithCode({
+        passwordResetCode,
+        newPasswordHash: 'reset-hash'
+      })
+
+      expect(await accountVerificationIdentifiers(target.accountId)).toEqual([])
+      // Another account's sign-in state is untouched.
+      expect(await accountVerificationIdentifiers(other.accountId)).toEqual([
+        '2fa-reset-other',
+        'trust-device-reset-other'
+      ])
     })
 
     it('clears a pending email change', async () => {
@@ -383,6 +443,22 @@ describe('account recovery', () => {
         access: ['access-change-keep'],
         refresh: ['refresh-change-keep']
       })
+    })
+
+    it('drops a pending two-factor step but keeps trusted devices', async () => {
+      const target = await createAccount('change-2fa')
+      await seedTwoFactorState(target.accountId, 'change-target')
+
+      await database.changePassword({
+        accountId: target.accountId,
+        newPasswordHash: 'changed-hash',
+        signOutApps: false,
+        expectedPasswordHash: TEST_PASSWORD_HASH
+      })
+
+      expect(await accountVerificationIdentifiers(target.accountId)).toEqual([
+        'trust-device-change-target'
+      ])
     })
 
     it('clears a pending email change', async () => {

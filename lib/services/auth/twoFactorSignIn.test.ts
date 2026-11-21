@@ -95,6 +95,14 @@ const splitSetCookies = (header: string): string[] => {
 describe('two-factor sign-in flow', () => {
   // A cookie jar that mirrors a browser across the sequential auth requests.
   const jar: Record<string, string> = {}
+  // The current TOTP code, set once the first test has enabled 2FA. The tests
+  // in this block run as a group, in order, on the same account: each later
+  // test starts from the trusted device and password the one before left, so
+  // running one alone (`-t`, `it.only`) fails with "2FA is not enabled yet".
+  let code: () => Promise<string> = async () => {
+    throw new Error('2FA is not enabled yet')
+  }
+  let password = PASSWORD
 
   const absorb = (response: Response) => {
     const header = response.headers.get('set-cookie')
@@ -178,7 +186,7 @@ describe('two-factor sign-in flow', () => {
     const rawSecret = new TextDecoder().decode(
       base32.decode(new URL(totpURI).searchParams.get('secret') as string)
     )
-    const code = () => createOTP(rawSecret, { period: 30, digits: 6 }).totp()
+    code = () => createOTP(rawSecret, { period: 30, digits: 6 }).totp()
 
     // Verifying a first code finishes enabling 2FA.
     const finishEnable = await post('/two-factor/verify-totp', {
@@ -211,5 +219,115 @@ describe('two-factor sign-in flow', () => {
     })
     expect(verify.status).toBe(200)
     expect(verify.json.token).toBeTruthy()
+  })
+
+  // Keep only the trusted-device cookie, like a browser whose session ended.
+  const keepOnlyTrustedDevice = () => {
+    const trusted = Object.keys(jar).filter((name) =>
+      name.endsWith('trust_device')
+    )
+    expect(trusted).toHaveLength(1)
+    for (const name of Object.keys(jar)) {
+      if (!trusted.includes(name)) delete jar[name]
+    }
+  }
+
+  const resetPassword = async (newPassword: string) => {
+    const database = holder.testDb!.database
+    const passwordResetCode = `reset-${newPassword}`
+    expect(
+      await database.requestPasswordReset({ email: EMAIL, passwordResetCode })
+    ).toBe(true)
+    const account = await database.resetPasswordWithCode({
+      passwordResetCode,
+      newPasswordHash: await bcrypt.hash(newPassword, TEST_BCRYPT_COST)
+    })
+    expect(account).not.toBeNull()
+    password = newPassword
+  }
+
+  const changePassword = async (newPassword: string) => {
+    const testDb = holder.testDb!
+    const account = await testDb.db
+      .selectFrom('accounts')
+      .select(['id', 'passwordHash'])
+      .where('email', '=', EMAIL)
+      .executeTakeFirstOrThrow()
+    expect(account.passwordHash).toBeTruthy()
+    expect(
+      await testDb.database.changePassword({
+        accountId: account.id,
+        newPasswordHash: await bcrypt.hash(newPassword, TEST_BCRYPT_COST),
+        expectedPasswordHash: account.passwordHash ?? '',
+        signOutApps: false
+      })
+    ).toBe(true)
+    password = newPassword
+  }
+
+  it('asks a trusted device for the second factor again after a password reset', async () => {
+    keepOnlyTrustedDevice()
+    // The device the first test trusted skips the second step.
+    const trustedSignIn = await post('/sign-in/email', {
+      email: EMAIL,
+      password
+    })
+    expect(trustedSignIn.status).toBe(200)
+    expect(trustedSignIn.json.twoFactorRedirect).toBeUndefined()
+
+    keepOnlyTrustedDevice()
+    await resetPassword('reset-password-1')
+
+    const afterReset = await post('/sign-in/email', { email: EMAIL, password })
+    expect(afterReset.status).toBe(200)
+    expect(afterReset.json.twoFactorRedirect).toBe(true)
+  })
+
+  it('refuses a second step started before a password reset', async () => {
+    for (const name of Object.keys(jar)) delete jar[name]
+    const challenge = await post('/sign-in/email', { email: EMAIL, password })
+    expect(challenge.json.twoFactorRedirect).toBe(true)
+
+    await resetPassword('reset-password-2')
+
+    const verify = await post('/two-factor/verify-totp', { code: await code() })
+    expect(verify.status).toBe(401)
+    expect(verify.json.token).toBeUndefined()
+  })
+
+  it('refuses a pending second step but keeps trusted devices after a password change', async () => {
+    // Trust this device again.
+    for (const name of Object.keys(jar)) delete jar[name]
+    const trustChallenge = await post('/sign-in/email', {
+      email: EMAIL,
+      password
+    })
+    expect(trustChallenge.json.twoFactorRedirect).toBe(true)
+    const trust = await post('/two-factor/verify-totp', {
+      code: await code(),
+      trustDevice: true
+    })
+    expect(trust.status).toBe(200)
+    keepOnlyTrustedDevice()
+    const trustedJar = { ...jar }
+
+    // A second browser starts a sign-in and stops at the second step.
+    for (const name of Object.keys(jar)) delete jar[name]
+    const challenge = await post('/sign-in/email', { email: EMAIL, password })
+    expect(challenge.json.twoFactorRedirect).toBe(true)
+
+    await changePassword('changed-password-1')
+
+    const verify = await post('/two-factor/verify-totp', { code: await code() })
+    expect(verify.status).toBe(401)
+
+    for (const name of Object.keys(jar)) delete jar[name]
+    Object.assign(jar, trustedJar)
+    const trustedSignIn = await post('/sign-in/email', {
+      email: EMAIL,
+      password
+    })
+    expect(trustedSignIn.status).toBe(200)
+    expect(trustedSignIn.json.twoFactorRedirect).toBeUndefined()
   })
 })

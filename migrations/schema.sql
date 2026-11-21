@@ -2284,6 +2284,8 @@ CREATE INDEX domain_federation_rules_type_idx ON public.domain_federation_rules 
 
 CREATE INDEX domains_status_idx ON public.domains USING btree (status);
 
+CREATE INDEX "emailChangeCodeIndex" ON public.accounts USING btree ("emailChangeCode");
+
 CREATE INDEX featured_tags_name ON public.featured_tags USING btree ("nameNormalized");
 
 CREATE INDEX federated_timeline_status_actor_id ON public.federated_timeline USING btree ("statusActorId");

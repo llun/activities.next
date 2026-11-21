@@ -53,6 +53,29 @@ const upsertCredentialProvider = (
     )
     .execute()
 
+// better-auth's two-factor plugin keeps its sign-in state in `verification`,
+// keyed by the account id in `value`: a pending challenge (`2fa-<random>`,
+// minutes) that a correct password leaves for the second step, and
+// trusted-device records (`trust-device-<random>`, weeks) that let a correct
+// password skip the second step. Neither is a session, so the session wipe
+// leaves them behind. The challenge's attempt counter (`2fa-attempts-…`)
+// holds a count rather than the account id and is useless without it.
+const deleteTwoFactorSignInState = (
+  db: Db,
+  accountId: string,
+  { trustedDevices }: { trustedDevices: boolean }
+) =>
+  db
+    .deleteFrom('verification')
+    .where('value', '=', accountId)
+    .where((eb) =>
+      eb.or([
+        eb('identifier', 'like', '2fa-%'),
+        ...(trustedDevices ? [eb('identifier', 'like', 'trust-device-%')] : [])
+      ])
+    )
+    .execute()
+
 // Note: Multiple email change requests will overwrite previous pending changes.
 // The most recent request invalidates any previous verification codes.
 export const requestEmailChange = async (
@@ -299,6 +322,12 @@ export const resetPasswordWithCode = async (
       eb('accountId', '=', targetAccountId)
     )
     await revokeAccountOAuthTokens(trx, { accountId: targetAccountId })
+    // A reset assumes the old password is known to someone else: a second
+    // step they started with it must not complete afterwards, and a device
+    // they had marked trusted must ask for the second factor again.
+    await deleteTwoFactorSignInState(trx, targetAccountId, {
+      trustedDevices: true
+    })
     return targetAccountId
   })
 
@@ -351,6 +380,11 @@ export const changePassword = async (
     if (signOutApps) {
       await revokeAccountOAuthTokens(trx, { accountId })
     }
+    // A second step started with the old password must not complete. Trusted
+    // devices stay, even when the change answers the old-address notice: a
+    // trusted device skips only the second step, so it is useless without the
+    // new password, and trusting it took the second factor in the first place.
+    await deleteTwoFactorSignInState(trx, accountId, { trustedDevices: false })
     return true
   })
 }
