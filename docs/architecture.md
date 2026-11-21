@@ -118,6 +118,11 @@ visited domain and now the nonce), and `yarn build`'s route table shows only
 the forwarded request carry the same nonce, and `lib/utils/http-headers/csp.test.ts`
 checks the builder never emits `'unsafe-inline'` script.
 
+The production policy has no `'unsafe-eval'`, so `lib/client.ts` imports
+`lib/client/zodConfig.ts` first: it sets zod's `jitless`, which skips the
+`new Function('')` probe zod otherwise runs (and the browser reports) when it
+builds its first schema.
+
 ## Directory Structure
 
 ### `app/` — Next.js App Router

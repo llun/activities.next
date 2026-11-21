@@ -2,6 +2,9 @@
 // Activities.next API Client Facade
 // Re-exports domain-specific client modules from ./client/*
 // ============================================================================
+// Must stay first: it configures zod before any re-exported module builds a
+// schema (see the file).
+import './client/zodConfig'
 
 // --- Accounts & Preferences ---
 export * from './client/accountMigration'
