@@ -170,30 +170,6 @@ export const POST = traceApiRoute(
         domain
       )
 
-      // Tell the OLD address, so its owner learns about a change they did not
-      // ask for. A failure here must not fail the request: the change is
-      // already pending and the new address still gets its link.
-      try {
-        const notice = buildEmailChangeNoticeEmail({
-          recipientEmail: currentActor.account.email,
-          newEmail,
-          contactEmail,
-          brand
-        })
-        await sendMail({
-          from,
-          to: [currentActor.account.email],
-          subject: notice.subject,
-          content: { text: notice.text, html: notice.html }
-        })
-      } catch (error) {
-        logger.error({
-          message: 'Failed to send email change notice to the old address',
-          accountId: currentActor.account.id,
-          err: toLoggableError(error)
-        })
-      }
-
       // Send verification email
       try {
         const email = buildChangeEmail({
@@ -220,6 +196,31 @@ export const POST = traceApiRoute(
           allowedMethods: [],
           data: { error: 'Failed to send verification email' },
           responseStatusCode: 500
+        })
+      }
+
+      // Then tell the OLD address, so its owner learns about a change they did
+      // not ask for. It goes second so it never claims a link that failed to
+      // send, and a failure here must not fail the request: the change is
+      // pending and the new address already has its link.
+      try {
+        const notice = buildEmailChangeNoticeEmail({
+          recipientEmail: currentActor.account.email,
+          newEmail,
+          contactEmail,
+          brand
+        })
+        await sendMail({
+          from,
+          to: [currentActor.account.email],
+          subject: notice.subject,
+          content: { text: notice.text, html: notice.html }
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to send email change notice to the old address',
+          accountId: currentActor.account.id,
+          err: toLoggableError(error)
         })
       }
 

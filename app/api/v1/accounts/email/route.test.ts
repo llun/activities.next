@@ -271,9 +271,9 @@ describe('POST /api/v1/accounts/email', () => {
     const response = await POST(request, { params: Promise.resolve({}) })
 
     expect(response.status).toBe(200)
-    // The notice to the old address goes first, then the verification link.
+    // The verification link goes first, then the notice to the old address.
     expect(mockSendMail).toHaveBeenCalledTimes(2)
-    const message = mockSendMail.mock.calls[1][0]
+    const message = mockSendMail.mock.calls[0][0]
     expect(message.to).toEqual(['new-email@llun.test'])
     expect(message.subject).toBe('Verify your new email address')
     // The code is generated inside the route, so match the link shape rather
@@ -302,7 +302,7 @@ describe('POST /api/v1/accounts/email', () => {
     const response = await POST(request, { params: Promise.resolve({}) })
 
     expect(response.status).toBe(200)
-    const notice = mockSendMail.mock.calls[0][0]
+    const notice = mockSendMail.mock.calls[1][0]
     expect(notice.to).toEqual([seedActor1.email])
     expect(notice.subject).toBe('An email change was requested')
     expect(notice.content.text).toContain('n***@llun.test')
@@ -326,7 +326,7 @@ describe('POST /api/v1/accounts/email', () => {
 
     expect(response.status).toBe(200)
     const stored = mockDb.requestEmailChange.mock.calls[0][0].emailChangeCode
-    const link = mockSendMail.mock.calls[1][0].content.text as string
+    const link = mockSendMail.mock.calls[0][0].content.text as string
     const raw = /code=([^\s]+)/.exec(link)?.[1]
     expect(raw).toBeTruthy()
     expect(stored).not.toBe(raw)
@@ -523,7 +523,7 @@ describe('POST /api/v1/accounts/email', () => {
 
       expect(response.status).toBe(200)
       // The notice to the old address is first; the verification link second.
-      expect(mockSendMail.mock.calls[1][0].content.text).toContain(expected)
+      expect(mockSendMail.mock.calls[0][0].content.text).toContain(expected)
     }
   )
 
@@ -566,10 +566,9 @@ describe('POST /api/v1/accounts/email', () => {
 
   it('returns an error and logs the delivery failure after storing a pending change', async () => {
     const deliveryError = new Error('SMTP failure')
-    // The notice to the old address succeeds; the verification link fails.
-    mockSendMail
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(deliveryError)
+    // The verification link is sent first and fails, so the old address is
+    // never told a link went out.
+    mockSendMail.mockRejectedValueOnce(deliveryError)
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
@@ -590,7 +589,8 @@ describe('POST /api/v1/accounts/email', () => {
       error: 'Failed to send verification email'
     })
     expect(mockDb.requestEmailChange).toHaveBeenCalledTimes(1)
-    expect(mockSendMail).toHaveBeenCalledTimes(2)
+    expect(mockSendMail).toHaveBeenCalledTimes(1)
+    expect(mockSendMail.mock.calls[0][0].to).toEqual(['new-email@llun.test'])
     expect(mockLoggerError).toHaveBeenCalledWith({
       message: 'Failed to send email change verification email',
       accountId: account.id,
@@ -602,8 +602,8 @@ describe('POST /api/v1/accounts/email', () => {
   it('still sends the verification link when the old-address notice fails', async () => {
     const noticeError = new Error('SMTP failure')
     mockSendMail
-      .mockRejectedValueOnce(noticeError)
       .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(noticeError)
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',

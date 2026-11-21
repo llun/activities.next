@@ -322,6 +322,9 @@ export const changePassword = async (
     // The write matches the password hash the caller verified, so a password
     // reset that lands between the check and this write makes it match nothing
     // instead of overwriting the reset's hash.
+    // It also cancels a pending email change: the old-address
+    // notice tells its owner to change their password, and this is what makes
+    // that stop a change they did not ask for.
     const result = await trx
       .updateTable('accounts')
       .set({
