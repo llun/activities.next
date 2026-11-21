@@ -1,0 +1,47 @@
+docs/architecture.md
+  s_0303642889c22e::t_f07099b7291bc7 79-120
+app/(timeline)/[actor]/[status]/page.layout.test.tsx
+  s_0303642889c22e::t_7e892beb4ceced 38-43
+app/(timeline)/[actor]/[status]/page.live-fetch.test.tsx
+  s_0303642889c22e::t_125039b9ba2fcf 28-33
+app/(timeline)/[actor]/[status]/page.personalRecords.test.tsx
+  s_0303642889c22e::t_5c51a34e635ce0 19-24
+app/(timeline)/[actor]/[status]/page.remote-signing.test.tsx
+  s_0303642889c22e::t_4fd893cb79800a 29-34
+app/(timeline)/[actor]/[status]/page.tsx
+  s_0303642889c22e::t_777013129e8972 2,245-247,724,841
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_0303642889c22e::t_0e9e6c98fa0092 24-29
+app/layout.test.tsx
+  s_0303642889c22e::t_82518518696fd7 37-42,47,49-51,63,65-67
+app/layout.tsx
+  s_0303642889c22e::t_24aa231af93363 3,86,96-99,109-112
+docs/environment-variables.md
+  s_0303642889c22e::t_51305f9ada2588 409-411
+lib/components/theme/theme-core.ts
+  s_0303642889c22e::t_32bdb9611816a5 115-116
+lib/utils/http-headers/csp.test.ts
+  s_0303642889c22e::t_73c0512f0bbe86 295-351
+lib/utils/http-headers/csp.ts
+  s_0303642889c22e::t_47e7132079b75b 143-155,248,280-284,302-304,314-315,322-324,326,329-331,333,337-344
+proxy.ts
+  s_0303642889c22e::t_3eecb6357618d6 71-89,130-140,147-153,157-164,173-176,179,182-186,194-195,206,237-245,253-258,267-268,280-281,295-296,322-323,341-342,349-351,381-383,395-397,409,411-412,427-432,444,446-447,452-454,459-461
+test/proxy.test.ts
+  s_0303642889c22e::t_9340250e13e37b 603-665,1052-1055,1062-1081
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d257196978a003b6516211ab80c9249fe34a9a6",
+  "prompts": {},
+  "sessions": {
+    "s_0303642889c22e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9e80880-6d1c-448c-bf09-ce18b6ac927f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
