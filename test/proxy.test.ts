@@ -663,6 +663,63 @@ describe('proxy', () => {
     expect(response?.headers.get('x-middleware-request-x-nonce')).toBeNull()
   })
 
+  it('gives the OAuth consent page a nonce, but not the OAuth JSON endpoints', async () => {
+    const page = await proxy(
+      new NextRequest(
+        'https://llun.social/oauth/authorize?client_id=c&response_type=code',
+        { method: 'GET' }
+      )
+    )
+    const pageCsp = page?.headers.get('Content-Security-Policy') ?? ''
+    expect(pageCsp).toContain("'nonce-")
+    expect(page?.headers.get('x-middleware-request-x-nonce')).toBeTruthy()
+
+    for (const path of ['/oauth/token', '/oauth/revoke', '/oauth/userinfo']) {
+      const response = await proxy(
+        new NextRequest(`https://llun.social${path}`, { method: 'POST' })
+      )
+      expect(response?.headers.get('x-middleware-request-x-nonce')).toBeNull()
+    }
+  })
+
+  it('never forwards a client-supplied nonce or request CSP', async () => {
+    for (const url of [
+      'https://llun.social/api/v1/statuses',
+      'https://llun.social/'
+    ]) {
+      const response = await proxy(
+        new NextRequest(url, {
+          method: 'GET',
+          headers: {
+            'x-nonce': 'attacker',
+            'Content-Security-Policy': "script-src 'nonce-attacker'"
+          }
+        })
+      )
+      const forwardedNonce = response?.headers.get(
+        'x-middleware-request-x-nonce'
+      )
+      const kept = (
+        response?.headers.get('x-middleware-override-headers') ?? ''
+      ).split(',')
+      expect(forwardedNonce).not.toBe('attacker')
+      expect(
+        response?.headers.get('x-middleware-request-content-security-policy') ??
+          ''
+      ).not.toContain('attacker')
+      // Forwarding the request untouched would pass the client's headers on,
+      // so the proxy must rebuild them; then they are either the proxy's own
+      // nonce or gone.
+      expect(
+        response?.headers.get('x-middleware-override-headers')
+      ).not.toBeNull()
+      if (!forwardedNonce) {
+        expect(kept).not.toContain('x-nonce')
+        expect(kept).not.toContain('content-security-policy')
+      }
+    }
+  })
+
   it('sets CSP on canonical actor handles that do not need rewriting', async () => {
     const request = new NextRequest('https://llun.social/@alice@example.com', {
       method: 'GET'

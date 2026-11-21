@@ -154,6 +154,9 @@ const forwardedRequestHeaders = (
   const headers = new Headers(request.headers)
   headers.delete(LOCAL_HANDLE_REDIRECT_PATH_HEADER)
   headers.delete(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER)
+  // A client must never choose the nonce Next stamps on scripts.
+  headers.delete(NONCE_REQUEST_HEADER)
+  headers.delete(CSP_HEADER_NAME)
   if (nonce) {
     headers.set(NONCE_REQUEST_HEADER, nonce)
     headers.set(
@@ -175,7 +178,9 @@ const forwardedRequestHeaders = (
 const forwardedRequestInit = (request: NextRequest, nonce: string | null) =>
   nonce ||
   request.headers.has(LOCAL_HANDLE_REDIRECT_PATH_HEADER) ||
-  request.headers.has(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER)
+  request.headers.has(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER) ||
+  request.headers.has(NONCE_REQUEST_HEADER) ||
+  request.headers.has(CSP_HEADER_NAME)
     ? { request: { headers: forwardedRequestHeaders(request, nonce) } }
     : undefined
 
@@ -237,9 +242,17 @@ const isRewrittenApiRoute = (pathname: string): boolean => {
 // Requests that can render an HTML document, and so need a nonce. Everything
 // else the proxy runs on is an API/rewrite target, the service worker script,
 // or stored upload bytes, none of which Next renders with a nonce.
+// The OAuth endpoints that answer JSON; `/oauth/authorize` is a page and needs
+// the nonce like any other document.
+const OAUTH_API_PATHS = new Set([
+  '/oauth/token',
+  '/oauth/revoke',
+  '/oauth/userinfo'
+])
+
 const isDocumentRequest = (pathname: string): boolean =>
   !pathname.startsWith('/api/') &&
-  !pathname.startsWith('/oauth/') &&
+  !OAUTH_API_PATHS.has(pathname) &&
   !isRewrittenApiRoute(pathname) &&
   pathname !== '/sw.js'
 
