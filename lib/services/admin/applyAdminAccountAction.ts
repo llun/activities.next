@@ -23,9 +23,11 @@ export type ApplyAdminAccountActionResult =
 
 // Applies a moderation action to an account/actor per the local-vs-remote
 // matrix (Decision 2): suspend/silence/sensitize work on remote actors too;
-// disable/enable/approve/reject are local-account-only (remote → 422). Every
-// applied action appends a moderation_actions audit row; a linked report_id is
-// resolved. `destroy` is handled by the DELETE route, not here.
+// disable/enable/approve/reject are local-account-only (remote → 422). The
+// state change, the session wipe, the moderation_actions audit row and the
+// linked report's resolution commit together in one transaction; only the
+// export-file cleanup a reject needs runs after it. `destroy` is handled by
+// the DELETE route, not here.
 export const applyAdminAccountAction = async ({
   database,
   record,
@@ -47,91 +49,38 @@ export const applyAdminAccountAction = async ({
       error: 'Cannot approve or reject a remote account'
     }
   }
-
-  switch (action) {
-    case 'suspend':
-      await database.setActorSuspended({ actorId: actor.id, suspended: true })
-      if (account) {
-        await database.deleteAllAccountSessions({ accountId: account.id })
-      }
-      break
-    case 'unsuspend':
-      // Mastodon 422s an unsuspend of a not-currently-suspended account.
-      if (!actor.suspendedAt) {
-        return {
-          ok: false,
-          status: 422,
-          error: 'Account is not currently suspended'
-        }
-      }
-      await database.setActorSuspended({ actorId: actor.id, suspended: false })
-      break
-    case 'silence':
-      await database.setActorSilenced({ actorId: actor.id, silenced: true })
-      break
-    case 'unsilence':
-      await database.setActorSilenced({ actorId: actor.id, silenced: false })
-      break
-    case 'sensitive':
-      await database.setActorSensitized({ actorId: actor.id, sensitized: true })
-      break
-    case 'unsensitive':
-      await database.setActorSensitized({
-        actorId: actor.id,
-        sensitized: false
-      })
-      break
-    case 'disable':
-      await database.setAccountDisabled({
-        accountId: account!.id,
-        disabled: true
-      })
-      await database.deleteAllAccountSessions({ accountId: account!.id })
-      break
-    case 'enable':
-      await database.setAccountDisabled({
-        accountId: account!.id,
-        disabled: false
-      })
-      break
-    case 'approve':
-      await database.approveAccount({ accountId: account!.id })
-      break
-    case 'reject': {
-      const archives = await listAccountArchives(database, account!.id)
-      const rejected = await database.rejectPendingAccount({
-        accountId: account!.id
-      })
-      if (rejected) await deleteAccountArchiveFiles(archives)
-      if (!rejected) {
-        return {
-          ok: false,
-          status: 422,
-          error: 'Account is not pending approval'
-        }
-      }
-      break
+  // Mastodon 422s an unsuspend of a not-currently-suspended account.
+  if (action === 'unsuspend' && !actor.suspendedAt) {
+    return {
+      ok: false,
+      status: 422,
+      error: 'Account is not currently suspended'
     }
-    case 'none':
-      break
   }
 
-  await database.createModerationAction({
+  // reject deletes the account's export rows in the transaction below, so the
+  // files they point at are listed first and removed only after it commits.
+  const archives =
+    action === 'reject' ? await listAccountArchives(database, account!.id) : []
+
+  const { applied } = await database.applyModerationAction({
     targetActorId: actor.id,
+    accountId: account?.id ?? null,
+    action,
     moderatorAccountId: moderator.accountId ?? '',
     moderatorActorId: moderator.actorId,
-    action,
     reportId,
     text
   })
-
-  if (reportId) {
-    await database.setReportResolution({
-      reportId,
-      resolved: true,
-      actionTakenByActorId: moderator.actorId
-    })
+  if (!applied) {
+    return {
+      ok: false,
+      status: 422,
+      error: 'Account is not pending approval'
+    }
   }
+
+  if (action === 'reject') await deleteAccountArchiveFiles(archives)
 
   return { ok: true }
 }

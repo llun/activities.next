@@ -523,6 +523,8 @@ export type {
   AdminAccountDatabase,
   AdminAccountIp,
   AdminAccountRecord,
+  ApplyModerationActionOutcome,
+  ApplyModerationActionParams,
   ApproveAccountParams,
   CreateModerationActionParams,
   DeleteAllAccountSessionsParams,
