@@ -21,6 +21,8 @@ package-lock.json
 # misc
 .DS_Store
 *.pem
+# Test-only self-signed certificate for the pinned-lookup HTTP/2 test
+!lib/utils/__fixtures__/pinnedLookup/*.pem
 .idea
 uploads
 scripts/*.js

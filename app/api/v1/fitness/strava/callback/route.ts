@@ -2,6 +2,11 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import {
+  readStravaBody,
+  readStravaJson,
+  stravaFetch
+} from '@/lib/services/strava/http'
 import { ensureWebhookSubscription } from '@/lib/services/strava/webhookSubscription'
 import { logger } from '@/lib/utils/logger'
 import { timingSafeStringEqual } from '@/lib/utils/timingSafeStringEqual'
@@ -107,21 +112,27 @@ export const GET = traceApiRoute(
     }
 
     try {
-      const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          client_id: fitnessSettings.clientId,
-          client_secret: fitnessSettings.clientSecret,
-          code,
-          grant_type: 'authorization_code'
-        })
-      })
+      const tokenResponse = await stravaFetch(
+        'https://www.strava.com/oauth/token',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            client_id: fitnessSettings.clientId,
+            client_secret: fitnessSettings.clientSecret,
+            code,
+            grant_type: 'authorization_code'
+          })
+        }
+      )
 
       if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.text()
+        const errorData = await readStravaBody(
+          tokenResponse,
+          'Strava token exchange'
+        )
         logger.error({
           message: 'Strava token exchange failed',
           status: tokenResponse.status,
@@ -130,7 +141,10 @@ export const GET = traceApiRoute(
         return redirectToStravaSettings({ error: 'token_exchange_failed' })
       }
 
-      const tokenData: StravaTokenResponse = await tokenResponse.json()
+      const tokenData = await readStravaJson<StravaTokenResponse>(
+        tokenResponse,
+        'Strava token exchange'
+      )
 
       // Ensure webhook subscription exists
       const webhookResult = await ensureWebhookSubscription({
@@ -160,7 +174,12 @@ export const GET = traceApiRoute(
         id: fitnessSettings.id,
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
-        tokenExpiresAt: tokenData.expires_at * 1000
+        tokenExpiresAt: tokenData.expires_at * 1000,
+        // The athlete this connection belongs to. Strava's single app-wide
+        // webhook subscription delivers every athlete's events to this
+        // callback, so the import job compares the event's owner against this
+        // id and refuses another athlete's activity.
+        providerUserId: String(tokenData.athlete.id)
       })
 
       logger.info({

@@ -342,6 +342,131 @@ describe('rejectPendingAccount', () => {
     ])
   })
 
+  it('deletes a pending account whose session minted OAuth tokens', async () => {
+    const target = await newAccount('reject-oauth')
+    await patchAccount(target.accountId, { approvedAt: null })
+    const token = `reject-oauth-${target.accountId}`
+    await addSession(target.accountId, token)
+    const session = await db()
+      .selectFrom('sessions')
+      .select('id')
+      .where('token', '=', token)
+      .executeTakeFirstOrThrow()
+    const { accessId, refreshId } = await addOAuthTokensForSession(
+      target.accountId,
+      session.id
+    )
+
+    // A bare session delete throws on PostgreSQL (23503) here, and so does the
+    // account delete while the tokens still reference it through `userId`; the
+    // rejection detaches the sessions and drops the grants first.
+    expect(
+      await database.rejectPendingAccount({ accountId: target.accountId })
+    ).toBe(true)
+
+    expect(await sessionCount(target.accountId)).toBe(0)
+    expect(
+      await db()
+        .selectFrom('oauthAccessToken')
+        .select('id')
+        .where('id', '=', accessId)
+        .executeTakeFirst()
+    ).toBeUndefined()
+    expect(
+      await db()
+        .selectFrom('oauthRefreshToken')
+        .select('id')
+        .where('id', '=', refreshId)
+        .executeTakeFirst()
+    ).toBeUndefined()
+  })
+
+  // `revokeAccountOAuthTokens` also matches grants by `referenceId` against a
+  // subquery over the account's `actors` rows. Deleting the actors first left
+  // that subquery empty, so a grant whose `userId` was missing survived the
+  // rejection. The revocation has to run while the actors still exist.
+  it('revokes grants matched only by actor reference before deleting the actors', async () => {
+    const target = await newAccount('reject-reference')
+    await patchAccount(target.accountId, { approvedAt: null })
+    const clientId = `client-${crypto.randomUUID()}`
+    await db()
+      .insertInto('oauthClient')
+      .values({ id: crypto.randomUUID(), clientId, redirectUris: '[]' })
+      .execute()
+    const accessId = crypto.randomUUID()
+    await db()
+      .insertInto('oauthAccessToken')
+      .values({
+        id: accessId,
+        token: `access-${crypto.randomUUID()}`,
+        clientId,
+        userId: null,
+        referenceId: target.actorId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+        scopes: 'read'
+      })
+      .execute()
+    const consentId = crypto.randomUUID()
+    await db()
+      .insertInto('oauthConsent')
+      .values({
+        id: consentId,
+        clientId,
+        userId: null,
+        referenceId: target.actorId,
+        scopes: 'read'
+      })
+      .execute()
+
+    expect(
+      await database.rejectPendingAccount({ accountId: target.accountId })
+    ).toBe(true)
+
+    expect(
+      await db()
+        .selectFrom('oauthAccessToken')
+        .select('id')
+        .where('id', '=', accessId)
+        .executeTakeFirst()
+    ).toBeUndefined()
+    expect(
+      await db()
+        .selectFrom('oauthConsent')
+        .select('id')
+        .where('id', '=', consentId)
+        .executeTakeFirst()
+    ).toBeUndefined()
+  })
+
+  // `oauthClient.userId` references `accounts.id` with no ON DELETE action, so
+  // an account that registered an app could not be deleted at all on
+  // PostgreSQL. The rejection detaches the client instead of deleting it.
+  it('detaches an OAuth client the account registered before deleting it', async () => {
+    const target = await newAccount('reject-client')
+    await patchAccount(target.accountId, { approvedAt: null })
+    const clientRowId = crypto.randomUUID()
+    await db()
+      .insertInto('oauthClient')
+      .values({
+        id: clientRowId,
+        clientId: `client-${crypto.randomUUID()}`,
+        redirectUris: '[]',
+        userId: target.accountId
+      })
+      .execute()
+
+    expect(
+      await database.rejectPendingAccount({ accountId: target.accountId })
+    ).toBe(true)
+
+    const client = await db()
+      .selectFrom('oauthClient')
+      .select(['id', 'userId'])
+      .where('id', '=', clientRowId)
+      .executeTakeFirstOrThrow()
+    expect(client.userId).toBeNull()
+  })
+
   it('refuses an approved account and keeps it whole', async () => {
     const target = await newAccount('reject-approved')
     expect(

@@ -5,8 +5,9 @@ import { createPollVoteJob } from '@/lib/jobs/createPollVoteJob'
 import { CREATE_POLL_VOTE_JOB_NAME } from '@/lib/jobs/names'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_FOLLOWER_URL, seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusPoll } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -14,6 +15,8 @@ enableFetchMocks()
 
 const VOTER_ACTOR_ID = 'https://somewhere.test/actors/voter'
 const VOTER2_ACTOR_ID = 'https://somewhere.test/actors/voter2'
+const NON_FOLLOWER_ACTOR_ID = 'https://somewhere.test/actors/nonfollower'
+const FOLLOWER_ACTOR_ID = 'https://somewhere.test/actors/follower'
 
 describe('createPollVoteJob', () => {
   const { database, prepare } = createTestDatabase()
@@ -224,6 +227,193 @@ describe('createPollVoteJob', () => {
         data: voteNote
       })
     ).resolves.toBeUndefined()
+  })
+
+  it('ignores votes for a remote poll', async () => {
+    const remoteActorId = 'https://remote.test/users/poller'
+    await database.createActor({
+      actorId: remoteActorId,
+      username: 'poller',
+      domain: 'remote.test',
+      publicKey: 'fake-public-key',
+      privateKey: '',
+      inboxUrl: `${remoteActorId}/inbox`,
+      sharedInboxUrl: 'https://remote.test/inbox',
+      followersUrl: `${remoteActorId}/followers`,
+      createdAt: Date.now()
+    })
+    const remotePoll = (await database.createPoll({
+      id: `${remoteActorId}/polls/1`,
+      url: `${remoteActorId}/polls/1`,
+      actorId: remoteActorId,
+      text: 'Remote poll',
+      summary: '',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      reply: '',
+      choices: ['Yes', 'No'],
+      pollType: 'oneOf',
+      endAt: Date.now() + 24 * 60 * 60 * 1000,
+      createdAt: Date.now()
+    })) as StatusPoll
+
+    const voteNote = createVoteNote({
+      from: VOTER_ACTOR_ID,
+      inReplyTo: remotePoll.id,
+      name: 'Yes'
+    })
+
+    await createPollVoteJob(database, {
+      id: 'id',
+      name: CREATE_POLL_VOTE_JOB_NAME,
+      data: voteNote
+    })
+
+    const updatedPoll = (await database.getStatus({
+      statusId: remotePoll.id
+    })) as StatusPoll
+    expect(updatedPoll.choices.every((c) => c.totalVotes === 0)).toBe(true)
+  })
+
+  it('ignores votes for a followers-only poll from a non-follower', async () => {
+    const followersOnlyPoll = (await database.createPoll({
+      id: `${actor1?.id}/polls/followers-${Date.now()}`,
+      url: `${actor1?.id}/polls/followers`,
+      actorId: actor1?.id || '',
+      text: 'Followers only poll',
+      summary: '',
+      to: [ACTOR1_FOLLOWER_URL],
+      cc: [],
+      reply: '',
+      choices: ['Yes', 'No'],
+      pollType: 'oneOf',
+      endAt: Date.now() + 24 * 60 * 60 * 1000,
+      createdAt: Date.now()
+    })) as StatusPoll
+
+    // The voter exists but does not follow actor1, so the poll is not theirs
+    // to see.
+    await database.createActor({
+      actorId: NON_FOLLOWER_ACTOR_ID,
+      username: 'nonfollower',
+      domain: 'somewhere.test',
+      publicKey: 'fake-public-key',
+      privateKey: '',
+      inboxUrl: `${NON_FOLLOWER_ACTOR_ID}/inbox`,
+      sharedInboxUrl: 'https://somewhere.test/inbox',
+      followersUrl: `${NON_FOLLOWER_ACTOR_ID}/followers`,
+      createdAt: Date.now()
+    })
+
+    const voteNote = createVoteNote({
+      from: NON_FOLLOWER_ACTOR_ID,
+      inReplyTo: followersOnlyPoll.id,
+      name: 'Yes'
+    })
+
+    await createPollVoteJob(database, {
+      id: 'id',
+      name: CREATE_POLL_VOTE_JOB_NAME,
+      data: voteNote
+    })
+
+    const updatedPoll = (await database.getStatus({
+      statusId: followersOnlyPoll.id
+    })) as StatusPoll
+    expect(updatedPoll.choices.every((c) => c.totalVotes === 0)).toBe(true)
+  })
+
+  it('accepts votes for a followers-only poll from a follower', async () => {
+    const followersOnlyPoll = (await database.createPoll({
+      id: `${actor1?.id}/polls/followers-ok-${Date.now()}`,
+      url: `${actor1?.id}/polls/followers-ok`,
+      actorId: actor1?.id || '',
+      text: 'Followers only poll',
+      summary: '',
+      to: [ACTOR1_FOLLOWER_URL],
+      cc: [],
+      reply: '',
+      choices: ['Yes', 'No'],
+      pollType: 'oneOf',
+      endAt: Date.now() + 24 * 60 * 60 * 1000,
+      createdAt: Date.now()
+    })) as StatusPoll
+
+    await database.createActor({
+      actorId: FOLLOWER_ACTOR_ID,
+      username: 'follower',
+      domain: 'somewhere.test',
+      publicKey: 'fake-public-key',
+      privateKey: '',
+      inboxUrl: `${FOLLOWER_ACTOR_ID}/inbox`,
+      sharedInboxUrl: 'https://somewhere.test/inbox',
+      followersUrl: `${FOLLOWER_ACTOR_ID}/followers`,
+      createdAt: Date.now()
+    })
+    await database.createFollow({
+      actorId: FOLLOWER_ACTOR_ID,
+      targetActorId: actor1?.id || '',
+      status: FollowStatus.enum.Accepted,
+      inbox: `${FOLLOWER_ACTOR_ID}/inbox`,
+      sharedInbox: 'https://somewhere.test/inbox'
+    })
+
+    const voteNote = createVoteNote({
+      from: FOLLOWER_ACTOR_ID,
+      inReplyTo: followersOnlyPoll.id,
+      name: 'Yes'
+    })
+
+    await createPollVoteJob(database, {
+      id: 'id',
+      name: CREATE_POLL_VOTE_JOB_NAME,
+      data: voteNote
+    })
+
+    const updatedPoll = (await database.getStatus({
+      statusId: followersOnlyPoll.id
+    })) as StatusPoll
+    expect(updatedPoll.choices[0].totalVotes).toEqual(1)
+  })
+
+  // A direct poll names its audience in `to`/`cc`. A voter who is one of those
+  // recipients is in the audience whether or not this instance has stored an
+  // actors row for them yet — the row is only written after the vote is
+  // accepted. Resolving them to a null actor and refusing the vote dropped
+  // every first-time voter on a direct poll.
+  it('accepts a vote from an explicit recipient with no stored actor row', async () => {
+    const directVoterId = `https://somewhere.test/actors/direct-voter-${Date.now()}`
+    const directPoll = (await database.createPoll({
+      id: `${actor1?.id}/polls/direct-${Date.now()}`,
+      url: `${actor1?.id}/polls/direct`,
+      actorId: actor1?.id || '',
+      text: 'Direct poll',
+      summary: '',
+      to: [directVoterId],
+      cc: [],
+      reply: '',
+      choices: ['Yes', 'No'],
+      pollType: 'oneOf',
+      endAt: Date.now() + 24 * 60 * 60 * 1000,
+      createdAt: Date.now()
+    })) as StatusPoll
+
+    expect(await database.getActorFromId({ id: directVoterId })).toBeNull()
+
+    await createPollVoteJob(database, {
+      id: 'id',
+      name: CREATE_POLL_VOTE_JOB_NAME,
+      data: createVoteNote({
+        from: directVoterId,
+        inReplyTo: directPoll.id,
+        name: 'Yes'
+      })
+    })
+
+    const updatedPoll = (await database.getStatus({
+      statusId: directPoll.id
+    })) as StatusPoll
+    expect(updatedPoll.choices[0].totalVotes).toEqual(1)
   })
 
   it('ignores vote for invalid choice', async () => {

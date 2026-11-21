@@ -12,6 +12,7 @@ import {
   getStravaActivity,
   getStravaActivityPhotos,
   getStravaActivityStreams,
+  getStravaAthleteId,
   getValidStravaAccessToken
 } from '@/lib/services/strava/activity'
 import { addStatusToTimelines } from '@/lib/services/timelines'
@@ -47,6 +48,9 @@ export const mockGetValidStravaAccessToken =
   getValidStravaAccessToken as jest.MockedFunction<
     typeof getValidStravaAccessToken
   >
+export const mockGetStravaAthleteId = getStravaAthleteId as jest.MockedFunction<
+  typeof getStravaAthleteId
+>
 export const mockGetQueue = getQueue as jest.MockedFunction<typeof getQueue>
 export const mockAddStatusToTimelines =
   addStatusToTimelines as jest.MockedFunction<typeof addStatusToTimelines>
@@ -194,7 +198,12 @@ export const resetStravaImportMocks = (database: jest.Mocked<MockDatabase>) => {
   database.assignFitnessFileGearIfUnset.mockResolvedValue(true)
   database.findFitnessGearByDeviceKey.mockReset().mockResolvedValue(null)
 
-  mockGetValidStravaAccessToken.mockResolvedValue('access-token')
+  // Deliberately different from the stored `access-token` in the settings
+  // above: the job must use the refreshed token for every request it makes
+  // after the refresh, and a mock that returned the stored value would hide a
+  // call that still reads `fitnessSettings.accessToken`.
+  mockGetValidStravaAccessToken.mockResolvedValue('refreshed-access-token')
+  mockGetStravaAthleteId.mockResolvedValue('111')
   mockBuildTcxFromStravaStreams.mockReturnValue(null)
   mockGetStravaActivity.mockResolvedValue({
     id: 123,

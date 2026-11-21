@@ -10,13 +10,24 @@ import {
   getStravaActivityStartTimeMs,
   getStravaActivityStreams,
   getStravaActivityUrl,
+  getStravaAthleteId,
   getStravaUpload,
   getValidStravaAccessToken,
   isSupportedStravaPhotoMimeType
 } from './activity'
+import { STRAVA_MAX_RESPONSE_BYTES } from './http'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  })
+
+const textResponse = (body: string, status: number) =>
+  new Response(body, { status })
 
 describe('getStravaUpload', () => {
   beforeEach(() => {
@@ -24,17 +35,15 @@ describe('getStravaUpload', () => {
   })
 
   it('returns upload data when Strava returns 200', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          id: 67890,
-          activity_id: 123,
-          external_id: 'garmin.fit',
-          error: null,
-          status: 'Your activity is ready.'
-        })
-    })
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        id: 67890,
+        activity_id: 123,
+        external_id: 'garmin.fit',
+        error: null,
+        status: 'Your activity is ready.'
+      })
+    )
 
     const result = await getStravaUpload({
       uploadId: 67890,
@@ -55,11 +64,7 @@ describe('getStravaUpload', () => {
   })
 
   it('returns null when upload is not found (404)', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: () => Promise.resolve('Not Found')
-    })
+    mockFetch.mockResolvedValueOnce(textResponse('Not Found', 404))
 
     const result = await getStravaUpload({
       uploadId: 99999,
@@ -70,11 +75,7 @@ describe('getStravaUpload', () => {
   })
 
   it('returns null when upload check is unauthorized (401)', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 401,
-      text: () => Promise.resolve('Authorization Error')
-    })
+    mockFetch.mockResolvedValueOnce(textResponse('Authorization Error', 401))
 
     const result = await getStravaUpload({
       uploadId: 67890,
@@ -85,11 +86,7 @@ describe('getStravaUpload', () => {
   })
 
   it('throws when Strava returns a non-404 non-401 error', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      text: () => Promise.resolve('Internal Server Error')
-    })
+    mockFetch.mockResolvedValueOnce(textResponse('Internal Server Error', 500))
 
     await expect(
       getStravaUpload({ uploadId: 67890, accessToken: 'access-token' })
@@ -103,22 +100,20 @@ describe('getStravaActivityStreams', () => {
   })
 
   it('returns stream set when Strava returns 200', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          latlng: {
-            type: 'latlng',
-            data: [
-              [37.7749, -122.4194],
-              [37.775, -122.4195]
-            ]
-          },
-          altitude: { type: 'altitude', data: [50.0, 51.2] },
-          time: { type: 'time', data: [0, 10] },
-          distance: { type: 'distance', data: [0, 13.5] }
-        })
-    })
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        latlng: {
+          type: 'latlng',
+          data: [
+            [37.7749, -122.4194],
+            [37.775, -122.4195]
+          ]
+        },
+        altitude: { type: 'altitude', data: [50.0, 51.2] },
+        time: { type: 'time', data: [0, 10] },
+        distance: { type: 'distance', data: [0, 13.5] }
+      })
+    )
 
     const result = await getStravaActivityStreams({
       activityId: '123',
@@ -135,11 +130,7 @@ describe('getStravaActivityStreams', () => {
   })
 
   it('returns null when activity has no streams (404)', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: () => Promise.resolve('Not Found')
-    })
+    mockFetch.mockResolvedValueOnce(textResponse('Not Found', 404))
 
     const result = await getStravaActivityStreams({
       activityId: '999',
@@ -150,11 +141,7 @@ describe('getStravaActivityStreams', () => {
   })
 
   it('throws when Strava returns a non-404 error', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 503,
-      text: () => Promise.resolve('Service Unavailable')
-    })
+    mockFetch.mockResolvedValueOnce(textResponse('Service Unavailable', 503))
 
     await expect(
       getStravaActivityStreams({
@@ -162,6 +149,25 @@ describe('getStravaActivityStreams', () => {
         accessToken: 'access-token'
       })
     ).rejects.toThrow('503')
+  })
+
+  // Eleven series at one sample per second: a long activity's streams body is
+  // over the 2 MiB default cap, and refusing it failed the whole import on
+  // every retry. The streams endpoint gets its own, larger cap.
+  it('accepts a full-resolution stream set larger than the default cap', async () => {
+    const data = Array.from({ length: 400_000 }, (_, index) => index)
+    const payload = { time: { type: 'time', data } }
+    expect(JSON.stringify(payload).length).toBeGreaterThan(
+      STRAVA_MAX_RESPONSE_BYTES
+    )
+    mockFetch.mockResolvedValueOnce(jsonResponse(payload))
+
+    const result = await getStravaActivityStreams({
+      activityId: '123',
+      accessToken: 'access-token'
+    })
+
+    expect(result?.time?.data).toHaveLength(data.length)
   })
 })
 
@@ -541,12 +547,6 @@ describe('getStravaActivityUrl', () => {
   })
 })
 
-const jsonResponse = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  })
-
 describe('getStravaActivityStartTimeMs', () => {
   it('parses start_date into epoch milliseconds', () => {
     expect(
@@ -615,7 +615,10 @@ describe('getStravaActivity', () => {
     expect(result).toEqual({ id: 42, name: 'Ride' })
     expect(mockFetch).toHaveBeenCalledWith(
       'https://www.strava.com/api/v3/activities/a%2Fb%2042',
-      { method: 'GET', headers: { Authorization: 'Bearer token-1' } }
+      expect.objectContaining({
+        method: 'GET',
+        headers: { Authorization: 'Bearer token-1' }
+      })
     )
   })
 
@@ -647,6 +650,21 @@ describe('getStravaActivity', () => {
       getStravaActivity({ activityId: '1', accessToken: 't' })
     ).rejects.toThrow(message)
   })
+
+  // Activity detail embeds segment efforts, laps and splits, which grow with
+  // the number of segments a long ride covers, so it gets a larger cap than
+  // the small endpoints.
+  it('accepts an activity detail larger than the default cap', async () => {
+    const description = 'x'.repeat(STRAVA_MAX_RESPONSE_BYTES + 1)
+    mockFetch.mockResolvedValueOnce(jsonResponse({ id: 42, description }))
+
+    const result = await getStravaActivity({
+      activityId: '42',
+      accessToken: 't'
+    })
+
+    expect(result.description).toHaveLength(description.length)
+  })
 })
 
 describe('getStravaActivityPhotos', () => {
@@ -666,7 +684,10 @@ describe('getStravaActivityPhotos', () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       'https://www.strava.com/api/v3/activities/99/photos?size=2048',
-      { method: 'GET', headers: { Authorization: 'Bearer tok' } }
+      expect.objectContaining({
+        method: 'GET',
+        headers: { Authorization: 'Bearer tok' }
+      })
     )
   })
 
@@ -885,6 +906,30 @@ describe('getValidStravaAccessToken', () => {
     })
   })
 
+  // Strava's refresh-token response carries no athlete, so the refresh must not
+  // pretend to learn one: the athlete id is fetched separately by
+  // `getStravaAthleteId` and stored by the import job.
+  it('does not store an athlete id from the refresh response', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        access_token: 'new-access',
+        refresh_token: 'refresh-2',
+        expires_at: 1_800_000_000
+      })
+    )
+
+    await expect(getToken({ tokenExpiresAt: NOW + 30_000 })).resolves.toBe(
+      'new-access'
+    )
+
+    expect(updateFitnessSettings).toHaveBeenCalledWith({
+      id: 'settings-1',
+      accessToken: 'new-access',
+      refreshToken: 'refresh-2',
+      tokenExpiresAt: 1_800_000_000_000
+    })
+  })
+
   it.each([
     ['refresh token', { refreshToken: undefined }],
     ['client id', { clientId: undefined }],
@@ -928,5 +973,36 @@ describe('getValidStravaAccessToken', () => {
 
     await expect(getToken()).rejects.toThrow('socket hang up')
     expect(updateFitnessSettings).not.toHaveBeenCalled()
+  })
+})
+
+describe('getStravaAthleteId', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('returns the athlete id as a string from GET /athlete', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ id: 4242 }))
+
+    await expect(
+      getStravaAthleteId({ accessToken: 'access-token' })
+    ).resolves.toBe('4242')
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://www.strava.com/api/v3/athlete',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer access-token'
+        })
+      })
+    )
+  })
+
+  it('throws with the Strava detail when the lookup is refused', async () => {
+    mockFetch.mockResolvedValueOnce(textResponse('Authorization Error', 401))
+
+    await expect(
+      getStravaAthleteId({ accessToken: 'expired-token' })
+    ).rejects.toThrow('Failed to fetch Strava athlete (401)')
   })
 })

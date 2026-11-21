@@ -35,6 +35,7 @@ vi.mock('@/lib/services/strava/activity', async () => {
     getStravaActivity: vi.fn(),
     getStravaActivityPhotos: vi.fn(),
     getStravaActivityStreams: vi.fn(),
+    getStravaAthleteId: vi.fn(),
     getValidStravaAccessToken: vi.fn()
   }
 })

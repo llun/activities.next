@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import { ROUTE_COLOR } from '@/lib/fitness/routeColor'
 import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 import { encodePolyline } from '@/lib/utils/polyline'
+import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 
 // Apple Web Snapshots endpoint. The full URL carries the team/key identifiers
 // and an ES256 signature, so it MUST only ever be fetched server-side (same
@@ -61,6 +62,9 @@ export const APPLE_SNAPSHOT_MAX_DIMENSION = 640
 
 // Bound the upstream fetch so a slow provider cannot hold the request open.
 const SNAPSHOT_FETCH_TIMEOUT_MS = 5000
+// A 640x640 snapshot at scale 3 is well under a megabyte; the cap only stops a
+// broken or hostile provider from buffering an unbounded body.
+const SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024
 
 export type AppleSnapshotScale = 1 | 2 | 3
 
@@ -358,7 +362,13 @@ export const fetchAppleSnapshot = async (
       return null
     }
 
-    return Buffer.from(await upstream.arrayBuffer())
+    return Buffer.from(
+      await readResponseArrayBufferWithLimit(
+        upstream,
+        SNAPSHOT_MAX_BYTES,
+        'Apple snapshot'
+      )
+    )
   } catch {
     return null
   }

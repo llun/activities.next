@@ -18,6 +18,7 @@ import {
   mockGetStravaActivity,
   mockGetStravaActivityPhotos,
   mockGetStravaActivityStreams,
+  mockGetStravaAthleteId,
   mockGetValidStravaAccessToken,
   mockImportFitnessFiles,
   mockSaveFitnessFile,
@@ -50,6 +51,7 @@ vi.mock('@/lib/services/strava/activity', async () => {
     getStravaActivity: vi.fn(),
     getStravaActivityPhotos: vi.fn(),
     getStravaActivityStreams: vi.fn(),
+    getStravaAthleteId: vi.fn(),
     getValidStravaAccessToken: vi.fn()
   }
 })
@@ -1047,5 +1049,149 @@ describe('importStravaActivityJob', () => {
 
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
     expect(mockImportFitnessFiles).not.toHaveBeenCalled()
+  })
+
+  // Strava allows one webhook subscription per app, so every athlete's events
+  // arrive at whichever connection registered it. Importing an event whose
+  // owner is another athlete would file that ride under this actor.
+  it('skips a webhook event whose owner is not the connected athlete', async () => {
+    database.getFitnessSettings.mockResolvedValue({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      providerUserId: '999',
+      defaultVisibility: Visibility.enum.public,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    } as never)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-owner-mismatch',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        ownerId: 111
+      }
+    })
+
+    expect(mockGetStravaActivity).not.toHaveBeenCalled()
+    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
+    expect(mockImportFitnessFiles).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          'Skipping Strava import because the webhook event belongs to another athlete',
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        ownerId: 111
+      })
+    )
+  })
+
+  it('imports a webhook event whose owner matches the connected athlete', async () => {
+    database.getFitnessSettings.mockResolvedValue({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      providerUserId: '111',
+      defaultVisibility: Visibility.enum.public,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    } as never)
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-owner-match',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        ownerId: 111
+      }
+    })
+
+    expect(mockGetStravaActivity).toHaveBeenCalled()
+    expect(mockImportFitnessFiles).toHaveBeenCalledTimes(1)
+  })
+
+  // A connection made before the athlete id was stored has none to compare
+  // against, and Strava's refresh-token response does not carry one. The job
+  // asks Strava once, stores the answer, and only then applies the check.
+  //
+  // The lookup must use the REFRESHED token, not the stored one: Strava access
+  // tokens last six hours, so the stored token is expired for almost every
+  // existing connection and the lookup would 401 on every import. The mock
+  // returns a different value from the stored `access-token` so this assertion
+  // fails if the lookup goes back to reading `fitnessSettings.accessToken`.
+  it('backfills the athlete id for an older connection, then refuses another athlete', async () => {
+    database.getFitnessSettings.mockResolvedValue({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      defaultVisibility: Visibility.enum.public,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    } as never)
+    mockGetStravaAthleteId.mockResolvedValueOnce('111')
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-owner-backfill',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        ownerId: 999
+      }
+    })
+
+    expect(mockGetStravaAthleteId).toHaveBeenCalledWith({
+      accessToken: 'refreshed-access-token'
+    })
+    expect(database.updateFitnessSettings).toHaveBeenCalledWith({
+      id: 'fitness-settings-1',
+      providerUserId: '111'
+    })
+    expect(mockGetStravaActivity).not.toHaveBeenCalled()
+    expect(mockImportFitnessFiles).not.toHaveBeenCalled()
+  })
+
+  // The lookup is an extra request, not a precondition: an existing user must
+  // keep importing when it fails, exactly as before the check existed.
+  it('imports when the athlete lookup fails, keeping the old behaviour', async () => {
+    database.getFitnessSettings.mockResolvedValue({
+      id: 'fitness-settings-1',
+      actorId: 'actor-1',
+      serviceType: 'strava',
+      accessToken: 'access-token',
+      defaultVisibility: Visibility.enum.public,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    } as never)
+    mockGetStravaAthleteId.mockRejectedValueOnce(new Error('Strava is down'))
+
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-owner-lookup-failed',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        ownerId: 999
+      }
+    })
+
+    expect(database.updateFitnessSettings).not.toHaveBeenCalled()
+    expect(mockGetStravaActivity).toHaveBeenCalled()
+    expect(mockImportFitnessFiles).toHaveBeenCalledTimes(1)
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          'Failed to look up the Strava athlete for the connection; importing without the owner check',
+        actorId: 'actor-1',
+        stravaActivityId: '123'
+      })
+    )
   })
 })

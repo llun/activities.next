@@ -40,7 +40,12 @@ const XML_OPTIONS = {
   attributeNamePrefix: '',
   ignoreAttributes: false,
   parseTagValue: true,
-  trimValues: true
+  trimValues: true,
+  // GPX/TCX are untrusted uploads. Expanding DOCTYPE-declared entities lets a
+  // small file balloon in memory (billion laughs) and is never needed: the
+  // fields this parser reads are numbers, timestamps and short labels, and a
+  // literal `&amp;` in a track name is harmless.
+  processEntities: false
 }
 
 const NumberLikeSchema = z.union([z.number(), z.string()])

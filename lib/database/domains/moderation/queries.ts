@@ -23,6 +23,7 @@ import type {
   SetActorSuspendedParams,
   SetReportResolutionParams
 } from '@/lib/database/domains/moderation/types'
+import { revokeAccountOAuthTokens } from '@/lib/database/domains/oauth/queries'
 import { deleteActorSearchDocument } from '@/lib/database/domains/search/accounts'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 
@@ -108,6 +109,31 @@ export const rejectPendingAccount = (
     for (const { id } of actors) {
       await deleteActorSearchDocument(trx, { id })
     }
+    // `oauthAccessToken.sessionId` and `oauthRefreshToken.sessionId` are
+    // foreign keys into `sessions.id` with no ON DELETE action, so a bare
+    // delete throws on PostgreSQL (23503) for a session that minted OAuth
+    // tokens. The helper detaches the tokens first, in this transaction.
+    await deleteSessionsWithTokenDetach(trx, (eb) =>
+      eb('accountId', '=', accountId)
+    )
+    // The account's OAuth grants reference `accounts.id` through `userId` with
+    // no ON DELETE action either, so they must go before the account row or
+    // PostgreSQL refuses that delete too. A never-approved sign-up has none in
+    // practice, but the rejection must not depend on that.
+    //
+    // This runs BEFORE the actors are deleted: the helper's `referenceId` arm
+    // is a subquery over `actors` for this account, so deleting the actors
+    // first would leave a grant whose `userId` is null but whose actor is gone
+    // behind.
+    await revokeAccountOAuthTokens(trx, { accountId })
+    // An OAuth client the account registered references `accounts.id` through
+    // `userId` with no ON DELETE action. Detach it rather than delete it: the
+    // client is an app registration other grants may still name.
+    await trx
+      .updateTable('oauthClient')
+      .set({ userId: null })
+      .where('userId', '=', accountId)
+      .execute()
     // A never-approved account never federated, so its handles carry no
     // history a remote server could still point at: the rows go with the
     // actors and the usernames become free again. (Unlike deleteActorData,
@@ -139,10 +165,6 @@ export const rejectPendingAccount = (
     // the account's other storage (an unapproved account has none).
     await trx
       .deleteFrom('account_archives')
-      .where('accountId', '=', accountId)
-      .execute()
-    await trx
-      .deleteFrom('sessions')
       .where('accountId', '=', accountId)
       .execute()
     await trx.deleteFrom('accounts').where('id', '=', accountId).execute()

@@ -9,6 +9,14 @@ import {
 } from '@/lib/utils/fitness'
 import { logger } from '@/lib/utils/logger'
 
+import {
+  STRAVA_MAX_ACTIVITY_RESPONSE_BYTES,
+  STRAVA_MAX_STREAMS_RESPONSE_BYTES,
+  readStravaBody,
+  readStravaJson,
+  stravaFetch
+} from './http'
+
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3'
 const STRAVA_OAUTH_TOKEN_URL = 'https://www.strava.com/oauth/token'
 const STRAVA_TOKEN_REFRESH_BUFFER_MS = 60_000
@@ -59,6 +67,9 @@ export interface StravaUpload {
   status?: string | null
 }
 
+// Strava's refresh-token response carries only the tokens and their expiry —
+// no athlete. The athlete id the webhook owner check compares against is
+// fetched separately (`getStravaAthleteId`) and stored on the connection.
 interface StravaTokenRefreshResponse {
   access_token: string
   refresh_token: string
@@ -76,7 +87,9 @@ export interface StravaActivityPhoto {
 }
 
 const getStravaErrorDetail = async (response: Response) => {
-  const body = await response.text().catch(() => '')
+  const body = await readStravaBody(response, 'Strava error response').catch(
+    () => ''
+  )
   if (!body) {
     return response.statusText || 'Unknown Strava error'
   }
@@ -260,7 +273,7 @@ export const getStravaActivityPhotos = async ({
     })
   }
 
-  const response = await fetch(
+  const response = await stravaFetch(
     `${STRAVA_API_BASE}/activities/${encodeURIComponent(activityId)}/photos?size=2048`,
     {
       method: 'GET',
@@ -269,7 +282,10 @@ export const getStravaActivityPhotos = async ({
   )
 
   if (response.ok) {
-    const payload = (await response.json()) as unknown
+    const payload = await readStravaJson<unknown>(
+      response,
+      'Strava activity photos'
+    )
     if (Array.isArray(payload)) {
       photoCandidates.push(
         ...payload
@@ -310,7 +326,7 @@ export const getStravaUpload = async ({
   uploadId: number
   accessToken: string
 }): Promise<StravaUpload | null> => {
-  const response = await fetch(
+  const response = await stravaFetch(
     `${STRAVA_API_BASE}/uploads/${encodeURIComponent(uploadId)}`,
     {
       method: 'GET',
@@ -319,7 +335,7 @@ export const getStravaUpload = async ({
   )
 
   if (response.ok) {
-    return (await response.json()) as StravaUpload
+    return await readStravaJson<StravaUpload>(response, 'Strava upload')
   }
 
   if (response.status === 404) {
@@ -343,7 +359,7 @@ export const getStravaActivity = async ({
   activityId: string
   accessToken: string
 }): Promise<StravaActivity> => {
-  const response = await fetch(
+  const response = await stravaFetch(
     `${STRAVA_API_BASE}/activities/${encodeURIComponent(activityId)}`,
     {
       method: 'GET',
@@ -358,7 +374,11 @@ export const getStravaActivity = async ({
     )
   }
 
-  return (await response.json()) as StravaActivity
+  return await readStravaJson<StravaActivity>(
+    response,
+    'Strava activity',
+    STRAVA_MAX_ACTIVITY_RESPONSE_BYTES
+  )
 }
 
 export const getValidStravaAccessToken = async ({
@@ -394,7 +414,7 @@ export const getValidStravaAccessToken = async ({
     return accessToken
   }
 
-  const response = await fetch(STRAVA_OAUTH_TOKEN_URL, {
+  const response = await stravaFetch(STRAVA_OAUTH_TOKEN_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -418,7 +438,10 @@ export const getValidStravaAccessToken = async ({
     return accessToken
   }
 
-  const tokenData = (await response.json()) as StravaTokenRefreshResponse
+  const tokenData = await readStravaJson<StravaTokenRefreshResponse>(
+    response,
+    'Strava token refresh'
+  )
 
   await database.updateFitnessSettings({
     id: fitnessSettings.id,
@@ -428,6 +451,35 @@ export const getValidStravaAccessToken = async ({
   })
 
   return tokenData.access_token
+}
+
+/**
+ * The Strava athlete a connection belongs to, as the id the webhook owner check
+ * compares against. Strava's refresh-token response does not carry it, so a
+ * connection made before the id was stored has to ask for it once.
+ */
+export const getStravaAthleteId = async ({
+  accessToken
+}: {
+  accessToken: string
+}): Promise<string> => {
+  const response = await stravaFetch(`${STRAVA_API_BASE}/athlete`, {
+    method: 'GET',
+    headers: getStravaAuthHeaders(accessToken)
+  })
+
+  if (!response.ok) {
+    const detail = await getStravaErrorDetail(response)
+    throw new Error(
+      `Failed to fetch Strava athlete (${response.status}): ${detail}`
+    )
+  }
+
+  const athlete = await readStravaJson<{ id: number }>(
+    response,
+    'Strava athlete'
+  )
+  return String(athlete.id)
 }
 
 export const isSupportedStravaPhotoMimeType = (contentType: string) => {
@@ -460,7 +512,7 @@ export const getStravaActivityStreams = async ({
   activityId: string
   accessToken: string
 }): Promise<StravaStreamSet | null> => {
-  const response = await fetch(
+  const response = await stravaFetch(
     `${STRAVA_API_BASE}/activities/${encodeURIComponent(activityId)}/streams?keys=time,latlng,altitude,distance,heartrate,watts,velocity_smooth,cadence,temp,moving,grade_smooth&key_by_type=true`,
     {
       method: 'GET',
@@ -469,7 +521,11 @@ export const getStravaActivityStreams = async ({
   )
 
   if (response.ok) {
-    return (await response.json()) as StravaStreamSet
+    return await readStravaJson<StravaStreamSet>(
+      response,
+      'Strava activity streams',
+      STRAVA_MAX_STREAMS_RESPONSE_BYTES
+    )
   }
 
   if (response.status === 404) {
