@@ -461,7 +461,8 @@ describe('Page live-fetch security', () => {
     await expect(
       Page({
         params: Promise.resolve({
-          actor: '@admin@activities.local',
+          // A remote path: a local one never live-fetches (resolveStatusFromPath).
+          actor: '@alice@remote.example',
           status: encodeURIComponent(REMOTE_STATUS_ID)
         })
       })
@@ -537,7 +538,7 @@ describe('Page live-fetch security', () => {
     expect(mockGetActorPerson).not.toHaveBeenCalled()
   })
 
-  it('redirects a stored status rendered under another actor path', async () => {
+  it('404s a stored status rendered under another actor path', async () => {
     const stored = {
       ...makeRemoteNote(),
       actorId: REMOTE_AUTHOR_ID,
@@ -559,7 +560,6 @@ describe('Page live-fetch security', () => {
       updatedAt: 1
     }
     mockGetStatus.mockResolvedValue(stored)
-    const expectedCanonicalPath = `/@bob@remote.example/${encodeURIComponent(REMOTE_STATUS_ID)}`
 
     await expect(
       Page({
@@ -568,9 +568,12 @@ describe('Page live-fetch security', () => {
           status: encodeURIComponent(REMOTE_STATUS_ID)
         })
       })
-    ).rejects.toThrow(`NEXT_REDIRECT:${expectedCanonicalPath}`)
+    ).rejects.toThrow('NEXT_NOT_FOUND')
 
-    expect(mockRedirect).toHaveBeenCalledWith(expectedCanonicalPath)
+    // resolveStatusFromPath refuses the candidate and offers nothing to fetch,
+    // so the page answers 404 without revealing the canonical path.
+    expect(mockRedirect).not.toHaveBeenCalled()
+    expect(mockGetNote).not.toHaveBeenCalled()
     expect(PagedStatusThread).not.toHaveBeenCalled()
   })
 
