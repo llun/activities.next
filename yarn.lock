@@ -3683,7 +3683,7 @@ __metadata:
     csv-parse: "npm:^7.0.3"
     date-fns: "npm:^4.4.0"
     dotenv-flow: "npm:^4.1.0"
-    eld: "npm:^2.1.0"
+    eld: "npm:^2.1.1"
     exifr: "npm:^7.1.3"
     fake-indexeddb: "npm:^6.2.7"
     fast-xml-parser: "npm:^5.12.0"
@@ -4455,10 +4455,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eld@npm:^2.1.0":
-  version: 2.1.0
-  resolution: "eld@npm:2.1.0"
-  checksum: 10c0/f98f55cf823f638b135cad65ae40821c7f9ac68a4d900422657d6d8efccbf96282c37e9b2b5401f751b98a55eecc40626ccfbbab69730228fce85c60d6dcf4a4
+"eld@npm:^2.1.1":
+  version: 2.1.1
+  resolution: "eld@npm:2.1.1"
+  checksum: 10c0/8dae66c0f856dd63f74372b615daa26891282c817941473a555be9d9fdb45fa8fd92b8d0421a07e6242218b76e4b7e7b33489cd8476ac9581326a37e0412cac6
   languageName: node
   linkType: hard
 
