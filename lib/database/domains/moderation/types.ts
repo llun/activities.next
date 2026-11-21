@@ -63,6 +63,21 @@ export type CreateModerationActionParams = {
   text?: string
 }
 export type DeleteAllAccountSessionsParams = { accountId: string }
+export type ApplyModerationActionParams = {
+  targetActorId: string
+  // The local account behind the actor; null for a remote actor.
+  accountId?: string | null
+  action: ModerationActionType
+  moderatorAccountId: string
+  moderatorActorId?: string | null
+  reportId?: string | null
+  text?: string
+}
+export type ApplyModerationActionOutcome = {
+  // false when the action's precondition no longer holds (a reject of an
+  // already-approved account); nothing was written in that case.
+  applied: boolean
+}
 export type SetReportResolutionParams = {
   reportId: string
   // true → mark action_taken with the timestamp and moderator; false → reopen
@@ -95,9 +110,17 @@ export interface ModerationDatabase {
     params: CreateModerationActionParams
   ): Promise<ModerationAction>
   // Revoke every better-auth session for the account (used by disable/suspend).
+  // FK-safe: the sessions' OAuth tokens are detached first.
   deleteAllAccountSessions(
     params: DeleteAllAccountSessionsParams
   ): Promise<void>
+  // Apply a moderation action, its session wipe (suspend/disable), its audit
+  // row and the linked report's resolution in one transaction. `applied` is
+  // false when the action's precondition no longer holds, in which case
+  // nothing was written.
+  applyModerationAction(
+    params: ApplyModerationActionParams
+  ): Promise<ApplyModerationActionOutcome>
   // Resolve/reopen a report's action-taken workflow columns. Returns true when
   // a matching report row was updated. Shared by the account action endpoint
   // (resolve on moderation) and the admin reports API.

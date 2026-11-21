@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { deleteSessionsWithTokenDetach } from '@/lib/database/domains/account/sessions'
 import {
   getAdminAccount,
   getAdminAccountRecords,
@@ -7,6 +8,8 @@ import {
   getSessionIpsForAccounts
 } from '@/lib/database/domains/moderation/adminAccounts'
 import type {
+  ApplyModerationActionOutcome,
+  ApplyModerationActionParams,
   ApproveAccountParams,
   CreateModerationActionParams,
   DeleteAllAccountSessionsParams,
@@ -210,7 +213,13 @@ export const deleteAllAccountSessions = async (
   db: Db,
   { accountId }: DeleteAllAccountSessionsParams
 ): Promise<void> => {
-  await db.deleteFrom('sessions').where('accountId', '=', accountId).execute()
+  // `oauthAccessToken.sessionId` and `oauthRefreshToken.sessionId` are foreign
+  // keys into `sessions.id` with no ON DELETE action, so a bare delete throws
+  // on PostgreSQL (23503) for a session that minted OAuth tokens. The helper
+  // detaches the tokens first, in the caller's transaction when there is one.
+  await deleteSessionsWithTokenDetach(db, (eb) =>
+    eb('accountId', '=', accountId)
+  )
 }
 
 export const setReportResolution = async (
@@ -239,6 +248,109 @@ export const setReportResolution = async (
   return Number(result.numUpdatedRows) > 0
 }
 
+/**
+ * Applies a moderation action and everything that must land with it — the
+ * actor/account state change, the session wipe for suspend/disable, the
+ * `moderation_actions` audit row and the linked report's resolution — in one
+ * transaction. A failure at any step rolls the whole action back, so an admin
+ * never sees a 500 with the flag already committed and the audit trail missing.
+ *
+ * The caller runs side effects that cannot be transactional (deleting an
+ * account's export files) after this resolves.
+ */
+export const applyModerationAction = (
+  db: Db,
+  {
+    targetActorId,
+    accountId = null,
+    action,
+    moderatorAccountId,
+    moderatorActorId = null,
+    reportId = null,
+    text = ''
+  }: ApplyModerationActionParams
+): Promise<ApplyModerationActionOutcome> =>
+  inTransaction(db, async (trx) => {
+    switch (action) {
+      case 'suspend':
+        await setActorSuspended(trx, {
+          actorId: targetActorId,
+          suspended: true
+        })
+        if (accountId) {
+          await deleteAllAccountSessions(trx, { accountId })
+        }
+        break
+      case 'unsuspend':
+        await setActorSuspended(trx, {
+          actorId: targetActorId,
+          suspended: false
+        })
+        break
+      case 'silence':
+        await setActorSilenced(trx, { actorId: targetActorId, silenced: true })
+        break
+      case 'unsilence':
+        await setActorSilenced(trx, { actorId: targetActorId, silenced: false })
+        break
+      case 'sensitive':
+        await setActorSensitized(trx, {
+          actorId: targetActorId,
+          sensitized: true
+        })
+        break
+      case 'unsensitive':
+        await setActorSensitized(trx, {
+          actorId: targetActorId,
+          sensitized: false
+        })
+        break
+      case 'disable':
+        await setAccountDisabled(trx, { accountId: accountId!, disabled: true })
+        await deleteAllAccountSessions(trx, { accountId: accountId! })
+        break
+      case 'enable':
+        await setAccountDisabled(trx, {
+          accountId: accountId!,
+          disabled: false
+        })
+        break
+      case 'approve':
+        await approveAccount(trx, { accountId: accountId! })
+        break
+      case 'reject': {
+        const rejected = await rejectPendingAccount(trx, {
+          accountId: accountId!
+        })
+        // An already-approved account is left untouched, and no audit row or
+        // report resolution is written for an action that did not apply.
+        if (!rejected) return { applied: false }
+        break
+      }
+      case 'none':
+        break
+    }
+
+    await createModerationAction(trx, {
+      targetActorId,
+      moderatorAccountId,
+      moderatorActorId,
+      action,
+      reportId,
+      text
+    })
+
+    if (reportId) {
+      await setReportResolution(trx, {
+        reportId,
+        resolved: true,
+        actionTakenByActorId: moderatorActorId
+      })
+    }
+
+    return { applied: true }
+  })
+
 // The facade getSQLDatabase binds with bindDb().
 export const moderationQueries = {
   setActorSuspended,
@@ -250,6 +362,7 @@ export const moderationQueries = {
   getModerationStatesForActors,
   createModerationAction,
   deleteAllAccountSessions,
+  applyModerationAction,
   setReportResolution,
   getAdminAccounts,
   getAdminAccount,

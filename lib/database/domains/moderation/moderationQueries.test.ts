@@ -110,6 +110,47 @@ const sessionCount = async (accountId: string) =>
       .execute()
   ).length
 
+// The OAuth access + refresh token pair better-auth writes when a client app
+// is authorised. Both rows carry a `sessionId` FK into `sessions.id`.
+const addOAuthTokensForSession = async (
+  accountId: string,
+  sessionId: string
+) => {
+  const clientId = `client-${crypto.randomUUID()}`
+  await db()
+    .insertInto('oauthClient')
+    .values({ id: crypto.randomUUID(), clientId, redirectUris: '[]' })
+    .execute()
+  const refreshId = crypto.randomUUID()
+  await db()
+    .insertInto('oauthRefreshToken')
+    .values({
+      id: refreshId,
+      token: `refresh-${crypto.randomUUID()}`,
+      clientId,
+      userId: accountId,
+      sessionId,
+      expiresAt: new Date(Date.now() + 3_600_000),
+      scopes: 'read'
+    })
+    .execute()
+  const accessId = crypto.randomUUID()
+  await db()
+    .insertInto('oauthAccessToken')
+    .values({
+      id: accessId,
+      token: `access-${crypto.randomUUID()}`,
+      clientId,
+      userId: accountId,
+      sessionId,
+      refreshId,
+      expiresAt: new Date(Date.now() + 3_600_000),
+      scopes: 'read'
+    })
+    .execute()
+  return { accessId, refreshId }
+}
+
 describe('actor and account state', () => {
   it.each([
     {
@@ -466,6 +507,39 @@ describe('deleteAllAccountSessions', () => {
 
     expect(await sessionCount(target.accountId)).toBe(0)
     expect(await sessionCount(neighbour.accountId)).toBe(1)
+  })
+
+  it('detaches OAuth tokens before deleting a session that minted them', async () => {
+    const target = await newAccount('wipe-oauth')
+    const token = `wipe-oauth-${target.accountId}`
+    await addSession(target.accountId, token)
+    const session = await db()
+      .selectFrom('sessions')
+      .select('id')
+      .where('token', '=', token)
+      .executeTakeFirstOrThrow()
+    const { accessId, refreshId } = await addOAuthTokensForSession(
+      target.accountId,
+      session.id
+    )
+
+    // A bare delete throws on PostgreSQL (23503) here; the helper detaches the
+    // tokens first so the session can be revoked.
+    await database.deleteAllAccountSessions({ accountId: target.accountId })
+
+    expect(await sessionCount(target.accountId)).toBe(0)
+    const access = await db()
+      .selectFrom('oauthAccessToken')
+      .select('sessionId')
+      .where('id', '=', accessId)
+      .executeTakeFirstOrThrow()
+    const refresh = await db()
+      .selectFrom('oauthRefreshToken')
+      .select('sessionId')
+      .where('id', '=', refreshId)
+      .executeTakeFirstOrThrow()
+    expect(access.sessionId).toBeNull()
+    expect(refresh.sessionId).toBeNull()
   })
 })
 
