@@ -122,7 +122,7 @@ export const POST = traceApiRoute(
         if (!saved) {
           logger.info(
             { accountId: account.id },
-            'Password reset not issued: a code was issued within the cooldown'
+            'Password reset not issued: a code was issued within the cooldown or the address changed'
           )
           return passwordResetSuccessResponse(request)
         }

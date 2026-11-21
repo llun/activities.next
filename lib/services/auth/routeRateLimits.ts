@@ -112,6 +112,12 @@ export const checkEmailConfirmationRateLimit = (
   return consumeByIp(emailConfirmationByIp, req)
 }
 
+// The per-IP half alone, for the code-based email-change confirmation: it has
+// no account to key on (the link may be opened signed out), so the code is the
+// credential and the address is the only bucket.
+export const checkEmailConfirmationIpRateLimit = (req: NextRequest) =>
+  consumeByIp(emailConfirmationByIp, req)
+
 export const checkEmailChangeRateLimit = (accountId: string) =>
   emailChangeByAccount.consume(accountId)
 

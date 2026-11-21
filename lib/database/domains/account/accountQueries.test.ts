@@ -694,13 +694,15 @@ describe('email change', () => {
     await database.requestEmailChange({
       accountId: neighbour.accountId,
       newEmail: `next-n-${neighbour.email}`,
-      emailChangeCode: `email-n-${neighbour.accountId}`
+      emailChangeCode: `email-n-${neighbour.accountId}`,
+      expectedPasswordHash: `hash-${neighbour.username}`
     })
     const code = `email-t-${target.accountId}`
     await database.requestEmailChange({
       accountId: target.accountId,
       newEmail: `Next-T-${target.email}`.toUpperCase(),
-      emailChangeCode: code
+      emailChangeCode: code,
+      expectedPasswordHash: `hash-${target.username}`
     })
     const neighbourBefore = await accountRow(neighbour.accountId)
     expect(neighbourBefore.emailChangeCode).toBe(
@@ -733,12 +735,14 @@ describe('email change', () => {
     await database.requestEmailChange({
       accountId: neighbour.accountId,
       newEmail: `next-${neighbour.email}`,
-      emailChangeCode: neighbourCode
+      emailChangeCode: neighbourCode,
+      expectedPasswordHash: `hash-${neighbour.username}`
     })
     await database.requestEmailChange({
       accountId: target.accountId,
       newEmail: `next-${target.email}`,
-      emailChangeCode: `email-x-t-${target.accountId}`
+      emailChangeCode: `email-x-t-${target.accountId}`,
+      expectedPasswordHash: `hash-${target.username}`
     })
 
     // The account id pins the lookup: the neighbour's code is not the target's.
@@ -768,7 +772,8 @@ describe('email change', () => {
     await database.requestEmailChange({
       accountId: target.accountId,
       newEmail: `next-${target.email}`,
-      emailChangeCode: `email-ttl-${target.accountId}`
+      emailChangeCode: `email-ttl-${target.accountId}`,
+      expectedPasswordHash: `hash-${target.username}`
     })
     const after = Date.now()
     const day = 24 * 60 * 60 * 1000
@@ -783,7 +788,8 @@ describe('email change', () => {
     await database.requestEmailChange({
       accountId: target.accountId,
       newEmail: target.email,
-      emailChangeCode: code
+      emailChangeCode: code,
+      expectedPasswordHash: `hash-${target.username}`
     })
     expect(
       (
@@ -960,7 +966,8 @@ describe('password reset', () => {
     await database.changePassword({
       accountId: target.accountId,
       newPasswordHash: 'changed',
-      signOutApps: false
+      signOutApps: false,
+      expectedPasswordHash: `hash-${target.username}`
     })
 
     expect(await accountRow(target.accountId)).toMatchObject({
@@ -1223,7 +1230,8 @@ describe('transactions', () => {
         database.changePassword({
           accountId: target.accountId,
           newPasswordHash: 'never',
-          signOutApps: false
+          signOutApps: false,
+          expectedPasswordHash: `hash-${target.username}`
         })
       ).rejects.toThrow()
     } finally {

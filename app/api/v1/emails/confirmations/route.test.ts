@@ -174,7 +174,7 @@ describe('POST /api/v1/emails/confirmations', () => {
         email
       })
     )
-    mockDb.requestEmailChange.mockResolvedValue(undefined)
+    mockDb.requestEmailChange.mockResolvedValue(true)
     mockDb.isAccountExists.mockResolvedValue(false)
     mockDb.getServedDomain.mockReset()
     mockDb.getServedDomain.mockResolvedValue(null)

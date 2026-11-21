@@ -39,7 +39,11 @@ export const getRemoteFollowUrl = async ({
 
 export interface RequestEmailChangeParams {
   newEmail: string
-  /** Required when the account has a password; omitted for passkey-only accounts. */
+  /**
+   * The account's current password. Always required: an account without a
+   * password cannot change its address (the route refuses it), so the form
+   * only renders for a password account.
+   */
   currentPassword?: string
 }
 

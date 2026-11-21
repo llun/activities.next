@@ -88,6 +88,11 @@ export type RequestEmailChangeParams = {
   accountId: string
   newEmail: string
   emailChangeCode: string
+  // The password hash the caller verified before asking for the change. The
+  // write matches it too (compare-and-swap), so a password reset that lands
+  // between the check and the write makes this match nothing instead of
+  // overwriting the reset's hash.
+  expectedPasswordHash: string
 }
 export type VerifyEmailChangeParams = {
   accountId?: string
@@ -114,6 +119,11 @@ export type ResetPasswordWithCodeParams = {
 export type ChangePasswordParams = {
   accountId: string
   newPasswordHash: string
+  // The password hash the caller verified before asking for the change. The
+  // write matches it too (compare-and-swap), so a password reset that lands
+  // between the check and the write makes this match nothing instead of
+  // overwriting the reset's hash.
+  expectedPasswordHash: string
   // Revoke every user-delegated OAuth token the account holds, across all of
   // its actors, in the same transaction. Sessions are always revoked.
   signOutApps: boolean
@@ -198,7 +208,9 @@ export interface AccountDatabase {
   getActorsForAccount(params: GetActorsForAccountParams): Promise<Actor[]>
   setDefaultActor(params: SetDefaultActorParams): Promise<void>
 
-  requestEmailChange(params: RequestEmailChangeParams): Promise<void>
+  // False when the account's password hash no longer matches the one the
+  // caller verified (a concurrent reset won), so nothing was written.
+  requestEmailChange(params: RequestEmailChangeParams): Promise<boolean>
   verifyEmailChange(params: VerifyEmailChangeParams): Promise<Account | null>
   requestPasswordReset(params: RequestPasswordResetParams): Promise<boolean>
   validatePasswordResetCode(
@@ -207,7 +219,9 @@ export interface AccountDatabase {
   resetPasswordWithCode(
     params: ResetPasswordWithCodeParams
   ): Promise<Account | null>
-  changePassword(params: ChangePasswordParams): Promise<void>
+  // False when the account's password hash no longer matches the one the
+  // caller verified (a concurrent reset won), so nothing was written.
+  changePassword(params: ChangePasswordParams): Promise<boolean>
   repointUnconfirmedAccountEmail(
     params: RepointUnconfirmedAccountEmailParams
   ): Promise<Account | null>

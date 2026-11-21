@@ -92,7 +92,7 @@ describe('POST /api/v1/accounts/password', () => {
     })
     mockBcryptCompare.mockResolvedValue(true)
     mockBcryptHash.mockResolvedValue('new-password-hash')
-    mockDb.changePassword.mockResolvedValue(undefined)
+    mockDb.changePassword.mockResolvedValue(true)
     mockDb.getAccountFromEmail.mockResolvedValue(account)
     mockDb.getActorsForAccount.mockResolvedValue([actor])
   })
@@ -201,6 +201,7 @@ describe('POST /api/v1/accounts/password', () => {
     expect(mockDb.changePassword).toHaveBeenCalledWith({
       accountId: account.id,
       newPasswordHash: 'new-password-hash',
+      expectedPasswordHash: 'password-hash',
       // Omitted in the body: signing connected apps out is the default.
       signOutApps: true
     })
@@ -229,6 +230,7 @@ describe('POST /api/v1/accounts/password', () => {
     expect(mockDb.changePassword).toHaveBeenCalledWith({
       accountId: account.id,
       newPasswordHash: 'new-password-hash',
+      expectedPasswordHash: 'password-hash',
       signOutApps: false
     })
   })
@@ -254,6 +256,35 @@ describe('POST /api/v1/accounts/password', () => {
 
     expect(response.status).toBe(422)
     expect(mockDb.changePassword).not.toHaveBeenCalled()
+  })
+
+  it('returns 409 when the password changed mid-request', async () => {
+    // The write is a compare-and-swap on the verified hash: a reset that
+    // landed in between makes it match nothing.
+    mockDb.changePassword.mockResolvedValue(false)
+
+    const request = new NextRequest(
+      'http://llun.test/api/v1/accounts/password',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: 'current-password',
+          newPassword: 'new-password'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'Your password changed while this request was in progress. Please try again.'
+    })
   })
 
   it('returns 403 when actor is suspended', async () => {

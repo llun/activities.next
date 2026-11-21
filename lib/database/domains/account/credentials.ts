@@ -57,10 +57,18 @@ const upsertCredentialProvider = (
 // The most recent request invalidates any previous verification codes.
 export const requestEmailChange = async (
   db: Db,
-  { accountId, newEmail, emailChangeCode }: RequestEmailChangeParams
-): Promise<void> => {
+  {
+    accountId,
+    newEmail,
+    emailChangeCode,
+    expectedPasswordHash
+  }: RequestEmailChangeParams
+): Promise<boolean> => {
   const currentTime = new Date()
-  await db
+  // The write matches the password hash the caller verified, so a password
+  // reset that lands between the check and this write makes it match nothing
+  // instead of overwriting the reset's hash.
+  const result = await db
     .updateTable('accounts')
     .set({
       emailChangePending: normalizeEmail(newEmail),
@@ -71,7 +79,9 @@ export const requestEmailChange = async (
       updatedAt: currentTime
     })
     .where('id', '=', accountId)
-    .execute()
+    .where('passwordHash', '=', expectedPasswordHash)
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows) === 1
 }
 
 export const verifyEmailChange = async (
@@ -198,6 +208,10 @@ export const requestPasswordReset = async (
       updatedAt: currentTime
     })
     .where('id', '=', account.id)
+    // The address is part of the predicate too: a concurrent email change
+    // between the lookup above and this write must not leave a usable code on
+    // the old mailbox.
+    .where('email', '=', normalizeEmail(email))
     .$if(cooldownMs !== undefined, (query) =>
       // A fresh code expires PASSWORD_RESET_CODE_TTL_MS after it is issued, so
       // "issued at least cooldownMs ago" is "expires no later than
@@ -278,12 +292,13 @@ export const resetPasswordWithCode = async (
     if (Number(result.numUpdatedRows) === 0) return null
 
     await upsertCredentialProvider(trx, targetAccountId, newPasswordHash, now)
-    // Tokens first: `deleteSessionsWithTokenDetach` only detaches them, and a
-    // reset must end them, not leave them working.
-    await revokeAccountOAuthTokens(trx, { accountId: targetAccountId })
+    // Sessions first: a concurrent OAuth exchange can only mint a token bound
+    // to a session that still exists, so deleting the sessions before the
+    // sweep leaves no window in which a fresh token survives it.
     await deleteSessionsWithTokenDetach(trx, (eb) =>
       eb('accountId', '=', targetAccountId)
     )
+    await revokeAccountOAuthTokens(trx, { accountId: targetAccountId })
     return targetAccountId
   })
 
@@ -293,13 +308,21 @@ export const resetPasswordWithCode = async (
 
 export const changePassword = async (
   db: Db,
-  { accountId, newPasswordHash, signOutApps }: ChangePasswordParams
-): Promise<void> => {
+  {
+    accountId,
+    newPasswordHash,
+    expectedPasswordHash,
+    signOutApps
+  }: ChangePasswordParams
+): Promise<boolean> => {
   const currentTime = new Date()
   // The new hash, the credential row, the optional connected-app revocation
   // and the session wipe commit together.
-  await inTransaction(db, async (trx) => {
-    await trx
+  return inTransaction(db, async (trx) => {
+    // The write matches the password hash the caller verified, so a password
+    // reset that lands between the check and this write makes it match nothing
+    // instead of overwriting the reset's hash.
+    const result = await trx
       .updateTable('accounts')
       .set({
         passwordHash: newPasswordHash,
@@ -311,14 +334,21 @@ export const changePassword = async (
         updatedAt: currentTime
       })
       .where('id', '=', accountId)
-      .execute()
+      .where('passwordHash', '=', expectedPasswordHash)
+      .executeTakeFirst()
+    if (Number(result.numUpdatedRows) === 0) return false
+
     await upsertCredentialProvider(trx, accountId, newPasswordHash, currentTime)
-    if (signOutApps) {
-      await revokeAccountOAuthTokens(trx, { accountId })
-    }
+    // Sessions first: a concurrent OAuth exchange can only mint a token bound
+    // to a session that still exists, so deleting the sessions before the
+    // sweep leaves no window in which a fresh token survives it.
     await deleteSessionsWithTokenDetach(trx, (eb) =>
       eb('accountId', '=', accountId)
     )
+    if (signOutApps) {
+      await revokeAccountOAuthTokens(trx, { accountId })
+    }
+    return true
   })
 }
 

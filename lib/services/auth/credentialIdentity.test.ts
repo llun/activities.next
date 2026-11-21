@@ -245,11 +245,13 @@ describe('credential identity', () => {
 
   it('lets changePassword update an existing identity without an issuer', async () => {
     const { accountId, email } = await register('change-password')
+    const current = await database().getAccountFromId({ id: accountId })
 
     await database().changePassword({
       accountId,
       newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST),
-      signOutApps: false
+      signOutApps: false,
+      expectedPasswordHash: current?.passwordHash ?? ''
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -264,12 +266,14 @@ describe('credential identity', () => {
 
   it('lets changePassword recreate a missing identity', async () => {
     const { accountId, email } = await register('change-missing-provider')
+    const current = await database().getAccountFromId({ id: accountId })
     await deleteCredentialRow(accountId)
 
     await database().changePassword({
       accountId,
       newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST),
-      signOutApps: false
+      signOutApps: false,
+      expectedPasswordHash: current?.passwordHash ?? ''
     })
 
     expect(await credentialRow(accountId)).toMatchObject({

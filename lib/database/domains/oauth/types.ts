@@ -146,10 +146,10 @@ export interface OAuthDatabase {
   revokeAccountConnectedApp(
     params: RevokeAccountConnectedAppParams
   ): Promise<void>
-  // Revoke every user-delegated OAuth token the account holds, across all of
-  // its actors, without touching its consents or any app (client_credentials)
-  // token. Used by account recovery: a password reset or a password change
-  // that signs connected apps out.
+  // Revoke every user-delegated OAuth grant the account holds, across all of
+  // its actors: the access and refresh tokens and the consent rows, without
+  // touching any app (client_credentials) token. Used by account recovery: a
+  // password reset or a password change that signs connected apps out.
   revokeAccountOAuthTokens(
     params: RevokeAccountOAuthTokensParams
   ): Promise<void>

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { FC, ReactNode, useState } from 'react'
 
 import { requestEmailChange } from '@/lib/client'
@@ -12,9 +13,9 @@ import { Input } from '@/lib/components/ui/input'
 interface Props {
   currentEmail: string
   /**
-   * Whether the account has a password. A password account must prove it
-   * before the address can move; a passkey- or OAuth-only account has none to
-   * prove and keeps the session-only request.
+   * Whether the account has a password. An account without one cannot change
+   * its address: the new mailbox alone would confirm the change, so a stolen
+   * session could take over recovery. It must set a password first.
    */
   requiresPassword: boolean
   /** Rows shown above the change rows in the same box, such as the current email. */
@@ -47,10 +48,7 @@ export const ChangeEmailForm: FC<Props> = ({
     setIsLoading(true)
 
     try {
-      await requestEmailChange({
-        newEmail,
-        ...(requiresPassword ? { currentPassword } : {})
-      })
+      await requestEmailChange({ newEmail, currentPassword })
 
       setMessage(
         'Verification email sent! Please check your inbox and click the verification link.'
@@ -67,6 +65,23 @@ export const ChangeEmailForm: FC<Props> = ({
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (!requiresPassword) {
+    return (
+      <Frame form>
+        {children}
+        <FormRow label="Change email address">
+          <p className="text-sm">
+            Changing your email address needs a password. Use{' '}
+            <Link href="/auth/forgot-password" className="underline">
+              Forgot password
+            </Link>{' '}
+            to set one; the link is sent to your current address.
+          </p>
+        </FormRow>
+      </Frame>
+    )
   }
 
   if (!isChanging) {
@@ -126,21 +141,22 @@ export const ChangeEmailForm: FC<Props> = ({
         }
       >
         {children}
-        {requiresPassword && (
-          <FormRow
-            label="Current password"
-            htmlFor="currentPassword"
-            hint="Confirms it is you before the address can change."
-          >
+        <FormRow
+          label="Current password"
+          htmlFor="currentPassword"
+          hint="Confirms it is you before the address can change."
+        >
+          {({ describedBy }) => (
             <Input
               type="password"
               id="currentPassword"
+              aria-describedby={describedBy}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               required
             />
-          </FormRow>
-        )}
+          )}
+        </FormRow>
         <FormRow
           label="New email address"
           htmlFor="newEmail"

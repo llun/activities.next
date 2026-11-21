@@ -81,12 +81,26 @@ export const POST = traceApiRoute(
       // Hash new password
       const newPasswordHash = await hashPassword(newPassword)
 
-      // Update password
-      await database.changePassword({
+      // Update password. The write matches the hash verified above, so a reset
+      // that landed in between makes it match nothing: report the conflict
+      // instead of overwriting the reset's password.
+      const changed = await database.changePassword({
         accountId: currentActor.account.id,
         newPasswordHash,
+        expectedPasswordHash: currentActor.account.passwordHash,
         signOutApps
       })
+      if (!changed) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: {
+            error:
+              'Your password changed while this request was in progress. Please try again.'
+          },
+          responseStatusCode: 409
+        })
+      }
 
       return apiResponse({
         req,

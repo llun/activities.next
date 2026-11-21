@@ -239,9 +239,10 @@ describe('account sessions that minted OAuth tokens (foreign keys enforced)', ()
       sqlDatabase.changePassword({
         accountId,
         newPasswordHash: 'changed_password_hash',
-        signOutApps: false
+        signOutApps: false,
+        expectedPasswordHash: TEST_PASSWORD_HASH
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toBeTrue()
 
     expect(await sqlDatabase.getAccountAllSessions({ accountId })).toHaveLength(
       0

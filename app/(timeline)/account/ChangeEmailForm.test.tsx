@@ -21,10 +21,7 @@ describe('ChangeEmailForm', () => {
 
   it('renders the form with method="post" (defense-in-depth against a native GET submit)', () => {
     const { container } = render(
-      <ChangeEmailForm
-        currentEmail="user@example.com"
-        requiresPassword={false}
-      />
+      <ChangeEmailForm currentEmail="user@example.com" requiresPassword />
     )
 
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
@@ -34,19 +31,36 @@ describe('ChangeEmailForm', () => {
     expect(form).toHaveAttribute('method', 'post')
   })
 
-  it('submits valid email and shows success message on successful request', async () => {
-    mockRequestEmailChange.mockResolvedValueOnce({
-      message: 'Verification email sent'
-    })
-
+  it('explains that a password is needed instead of showing the form for a passwordless account', () => {
     render(
       <ChangeEmailForm
         currentEmail="user@example.com"
         requiresPassword={false}
       />
     )
+
+    expect(
+      screen.getByText(/changing your email address needs a password/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /forgot password/i })
+    ).toHaveAttribute('href', '/auth/forgot-password')
+    expect(
+      screen.queryByRole('button', { name: /change email/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('submits valid email and shows success message on successful request', async () => {
+    mockRequestEmailChange.mockResolvedValueOnce({
+      message: 'Verification email sent'
+    })
+
+    render(<ChangeEmailForm currentEmail="user@example.com" requiresPassword />)
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
 
+    fireEvent.change(screen.getByLabelText(/current password/i), {
+      target: { value: 'my-password' }
+    })
     const input = screen.getByLabelText(/new email address/i)
     fireEvent.change(input, { target: { value: 'new@example.com' } })
 
@@ -57,7 +71,8 @@ describe('ChangeEmailForm', () => {
 
     await waitFor(() => {
       expect(mockRequestEmailChange).toHaveBeenCalledWith({
-        newEmail: 'new@example.com'
+        newEmail: 'new@example.com',
+        currentPassword: 'my-password'
       })
       expect(
         screen.getByText(/verification email sent! please check your inbox/i)
@@ -75,14 +90,12 @@ describe('ChangeEmailForm', () => {
       new Error('Email already in use')
     )
 
-    render(
-      <ChangeEmailForm
-        currentEmail="user@example.com"
-        requiresPassword={false}
-      />
-    )
+    render(<ChangeEmailForm currentEmail="user@example.com" requiresPassword />)
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
 
+    fireEvent.change(screen.getByLabelText(/current password/i), {
+      target: { value: 'my-password' }
+    })
     const input = screen.getByLabelText(/new email address/i)
     fireEvent.change(input, { target: { value: 'existing@example.com' } })
 
@@ -107,14 +120,12 @@ describe('ChangeEmailForm', () => {
   it('shows fallback error on network or non-Error failure', async () => {
     mockRequestEmailChange.mockRejectedValueOnce('network error string')
 
-    render(
-      <ChangeEmailForm
-        currentEmail="user@example.com"
-        requiresPassword={false}
-      />
-    )
+    render(<ChangeEmailForm currentEmail="user@example.com" requiresPassword />)
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
 
+    fireEvent.change(screen.getByLabelText(/current password/i), {
+      target: { value: 'my-password' }
+    })
     const input = screen.getByLabelText(/new email address/i)
     fireEvent.change(input, { target: { value: 'another@example.com' } })
 
@@ -130,16 +141,16 @@ describe('ChangeEmailForm', () => {
     })
   })
 
-  it('hides the current-password row for an account without a password', () => {
-    render(
-      <ChangeEmailForm
-        currentEmail="user@example.com"
-        requiresPassword={false}
-      />
-    )
+  it('links the current-password hint to its input', () => {
+    render(<ChangeEmailForm currentEmail="user@example.com" requiresPassword />)
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
 
-    expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument()
+    const input = screen.getByLabelText(/current password/i)
+    const describedBy = input.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)).toHaveTextContent(
+      'Confirms it is you before the address can change.'
+    )
   })
 
   it('asks for the current password and sends it when the account has one', async () => {
@@ -182,12 +193,7 @@ describe('ChangeEmailForm', () => {
   })
 
   it('resets form state when clicking cancel', () => {
-    render(
-      <ChangeEmailForm
-        currentEmail="user@example.com"
-        requiresPassword={false}
-      />
-    )
+    render(<ChangeEmailForm currentEmail="user@example.com" requiresPassword />)
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
 
     const input = screen.getByLabelText(/new email address/i)

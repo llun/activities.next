@@ -28,8 +28,8 @@ const EmailChangeRequest = z.object({
   // Normalized to lowercase so the "already in use" check and the stored
   // pending email compare against the canonical form. See normalizeEmail.
   newEmail: z.string().trim().toLowerCase().email().max(255),
-  // Required when the account has a password (see the handler); a passkey- or
-  // OAuth-only account has none to prove.
+  // Always required: an account without a password cannot change its address
+  // (see the handler), so every request proves the current password.
   currentPassword: z.string().min(1).optional()
 })
 
@@ -78,37 +78,50 @@ export const POST = traceApiRoute(
         })
       }
 
+      // An account without a password cannot change its address: the new
+      // mailbox alone would confirm the change, so a stolen session could take
+      // over recovery. It must set a password first through "Forgot password",
+      // which mails the current address.
+      if (!currentActor.account.passwordHash) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: {
+            error:
+              'Set a password before changing your email address. Use "Forgot password" to set one; the link is sent to your current address.'
+          },
+          responseStatusCode: 400
+        })
+      }
+
       // A password account must prove the current password: a hijacked session
       // alone must not be able to move the address (and then reset the
-      // password through it). A passkey- or OAuth-only account has no password
-      // to prove, so it keeps the session-only behaviour.
-      if (currentActor.account.passwordHash) {
-        const passwordLimit = checkPasswordChangeRateLimit(
-          currentActor.account.id
-        )
-        if (!passwordLimit.allowed) {
-          return apiRateLimitedResponse(req, passwordLimit.retryAfterSeconds)
-        }
-        if (!currentPassword) {
-          return apiResponse({
-            req,
-            allowedMethods: [],
-            data: { error: 'Current password is required' },
-            responseStatusCode: 400
-          })
-        }
-        const isPasswordCorrect = await comparePassword(
-          currentPassword,
-          currentActor.account.passwordHash
-        )
-        if (!isPasswordCorrect) {
-          return apiResponse({
-            req,
-            allowedMethods: [],
-            data: { error: 'Current password is incorrect' },
-            responseStatusCode: 400
-          })
-        }
+      // password through it).
+      const passwordLimit = checkPasswordChangeRateLimit(
+        currentActor.account.id
+      )
+      if (!passwordLimit.allowed) {
+        return apiRateLimitedResponse(req, passwordLimit.retryAfterSeconds)
+      }
+      if (!currentPassword) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Current password is required' },
+          responseStatusCode: 400
+        })
+      }
+      const isPasswordCorrect = await comparePassword(
+        currentPassword,
+        currentActor.account.passwordHash
+      )
+      if (!isPasswordCorrect) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: { error: 'Current password is incorrect' },
+          responseStatusCode: 400
+        })
       }
 
       // Check if email is already in use
@@ -129,12 +142,26 @@ export const POST = traceApiRoute(
       const rawEmailChangeCode = crypto.randomBytes(32).toString('base64url')
       const emailChangeCode = hashPasswordResetCode(rawEmailChangeCode)
 
-      // Store the pending email change
-      await database.requestEmailChange({
+      // Store the pending email change. The write matches the password hash
+      // verified above, so a reset that landed in between makes it match
+      // nothing: report the conflict and send no mail.
+      const saved = await database.requestEmailChange({
         accountId: currentActor.account.id,
         newEmail,
-        emailChangeCode
+        emailChangeCode,
+        expectedPasswordHash: currentActor.account.passwordHash
       })
+      if (!saved) {
+        return apiResponse({
+          req,
+          allowedMethods: [],
+          data: {
+            error:
+              'Your password changed while this request was in progress. Please try again.'
+          },
+          responseStatusCode: 409
+        })
+      }
 
       // Linked on the account's actor domain when this server answers on it.
       const domain = getServedLinkDomain(currentActor.domain)

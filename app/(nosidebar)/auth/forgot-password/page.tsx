@@ -1,12 +1,9 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
 import { AuthCard, AuthCardFooter } from '@/app/(nosidebar)/AuthCard'
 import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
-import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
 import { RequestPasswordResetForm } from './RequestPasswordResetForm'
 
@@ -16,14 +13,6 @@ export const metadata: Metadata = {
 }
 
 const Page: FC = async () => {
-  const database = getDatabase()
-  if (!database) throw new Error('Database is not available')
-
-  const session = await getServerAuthSession()
-  if (session && session.user) {
-    return redirect('/')
-  }
-
   return (
     <AuthCard
       logoSrc={getAuthLogoSrc()}

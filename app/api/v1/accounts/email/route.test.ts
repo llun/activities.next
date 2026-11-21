@@ -83,6 +83,7 @@ const account = {
   defaultActorId: ACTOR1_ID,
   twoFactorEnabled: false,
   emailVerified: true,
+  passwordHash: 'password-hash',
   createdAt: Date.now(),
   updatedAt: Date.now()
 }
@@ -132,7 +133,7 @@ describe('POST /api/v1/accounts/email', () => {
     mockDb.getAccountFromEmail.mockResolvedValue(account)
     mockDb.getActorsForAccount.mockResolvedValue([actor])
     mockDb.getActorFromId.mockResolvedValue(actor)
-    mockDb.requestEmailChange.mockResolvedValue(undefined)
+    mockDb.requestEmailChange.mockResolvedValue(true)
   })
 
   afterEach(() => {
@@ -145,7 +146,10 @@ describe('POST /api/v1/accounts/email', () => {
       POST(
         new NextRequest('http://llun.test/api/v1/accounts/email', {
           method: 'POST',
-          body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+          body: JSON.stringify({
+            newEmail: 'new-email@llun.test',
+            currentPassword: 'right-password'
+          }),
           headers: {
             'Content-Type': 'application/json',
             Origin: 'https://llun.test'
@@ -195,7 +199,10 @@ describe('POST /api/v1/accounts/email', () => {
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -230,7 +237,10 @@ describe('POST /api/v1/accounts/email', () => {
   it('normalizes the requested new email to lowercase before storing it', async () => {
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'New.Address@LLUN.test' }),
+      body: JSON.stringify({
+        newEmail: 'New.Address@LLUN.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -248,7 +258,10 @@ describe('POST /api/v1/accounts/email', () => {
   it('sends the verification email to the new address', async () => {
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -276,7 +289,10 @@ describe('POST /api/v1/accounts/email', () => {
   it('notifies the old address with the new one masked', async () => {
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -296,7 +312,10 @@ describe('POST /api/v1/accounts/email', () => {
   it('stores only the HMAC of the code, never the raw code from the link', async () => {
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -393,11 +412,19 @@ describe('POST /api/v1/accounts/email', () => {
     expect(mockDb.requestEmailChange).toHaveBeenCalled()
   })
 
-  it('keeps the session-only request for an account without a password', async () => {
-    // The default `account` fixture has no passwordHash (passkey/OAuth-only).
+  it('refuses an account without a password and points it at the reset flow', async () => {
+    // A passkey/OAuth-only account has no password to prove, so the new
+    // mailbox alone would confirm the change: refuse it instead.
+    mockDb.getActorsForAccount.mockResolvedValue([
+      { ...actor, account: { ...account, passwordHash: null } }
+    ])
+
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -406,9 +433,41 @@ describe('POST /api/v1/accounts/email', () => {
 
     const response = await POST(request, { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'Set a password before changing your email address. Use "Forgot password" to set one; the link is sent to your current address.'
+    })
     expect(mockBcryptCompare).not.toHaveBeenCalled()
-    expect(mockDb.requestEmailChange).toHaveBeenCalled()
+    expect(mockDb.requestEmailChange).not.toHaveBeenCalled()
+    expect(mockSendMail).not.toHaveBeenCalled()
+  })
+
+  it('returns 409 and sends no mail when the password changed mid-request', async () => {
+    // The write is a compare-and-swap on the verified hash: a reset that
+    // landed in between makes it match nothing.
+    mockDb.requestEmailChange.mockResolvedValue(false)
+
+    const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
+      method: 'POST',
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://llun.test'
+      }
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error:
+        'Your password changed while this request was in progress. Please try again.'
+    })
+    expect(mockSendMail).not.toHaveBeenCalled()
   })
 
   // The link opens on the account's actor domain when auth trusts that host
@@ -449,7 +508,10 @@ describe('POST /api/v1/accounts/email', () => {
         'http://llun.test/api/v1/accounts/email',
         {
           method: 'POST',
-          body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+          body: JSON.stringify({
+            newEmail: 'new-email@llun.test',
+            currentPassword: 'right-password'
+          }),
           headers: {
             'Content-Type': 'application/json',
             Origin: 'https://llun.test'
@@ -480,7 +542,10 @@ describe('POST /api/v1/accounts/email', () => {
         'http://llun.test/api/v1/accounts/email',
         {
           method: 'POST',
-          body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+          body: JSON.stringify({
+            newEmail: 'new-email@llun.test',
+            currentPassword: 'right-password'
+          }),
           headers: {
             'Content-Type': 'application/json',
             Origin: 'https://llun.test'
@@ -508,7 +573,10 @@ describe('POST /api/v1/accounts/email', () => {
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -539,7 +607,10 @@ describe('POST /api/v1/accounts/email', () => {
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -569,7 +640,10 @@ describe('POST /api/v1/accounts/email', () => {
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'Taken@LLUN.test' }),
+      body: JSON.stringify({
+        newEmail: 'Taken@LLUN.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -595,7 +669,10 @@ describe('POST /api/v1/accounts/email', () => {
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -616,7 +693,10 @@ describe('POST /api/v1/accounts/email', () => {
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
@@ -644,7 +724,10 @@ describe('POST /api/v1/accounts/email', () => {
 
     const request = new NextRequest('http://llun.test/api/v1/accounts/email', {
       method: 'POST',
-      body: JSON.stringify({ newEmail: 'new-email@llun.test' }),
+      body: JSON.stringify({
+        newEmail: 'new-email@llun.test',
+        currentPassword: 'right-password'
+      }),
       headers: {
         'Content-Type': 'application/json',
         Origin: 'https://llun.test'
