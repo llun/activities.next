@@ -99,7 +99,10 @@ vi.mock('@/lib/database', async () => ({
     getStatusReplyRefs: mockGetStatusReplyRefs,
     getActorDomainBlocks: mockGetActorDomainBlocks,
     getFederationSigningActor: mockGetFederationSigningActor,
-    getActorFromId: mockGetActorFromId
+    getActorFromId: mockGetActorFromId,
+    getActorFromUsername: vi.fn(async () => ({
+      id: 'https://social.amsterdam.nl/users/gemeenteamsterdam'
+    }))
   }))
 }))
 

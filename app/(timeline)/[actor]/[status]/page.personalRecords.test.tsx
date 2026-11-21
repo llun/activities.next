@@ -80,7 +80,12 @@ vi.mock('@/lib/database', async () => ({
     getActorDomainBlocks: mockGetActorDomainBlocks,
     getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
     // Read only by the real resolver, which the off-site Back test runs.
-    getActorFromUsername: vi.fn(async () => null),
+    getActorFromUsername: vi.fn(
+      async ({ username, domain }: { username: string; domain: string }) =>
+        username === 'anna' && domain === 'activities.local'
+          ? { id: 'https://activities.local/users/anna' }
+          : null
+    ),
     getStatusFromUrlHash: vi.fn(async () => null),
     getStatusFromPublicId: vi.fn(async () => null),
     // Without this the page's settings read throws and every test logs an

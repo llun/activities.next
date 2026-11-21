@@ -4,6 +4,7 @@ import {
   decodePathParam,
   resolveStatusFromPath
 } from '@/app/(timeline)/[actor]/[status]/resolveStatusFromPath'
+import { statusMatchesPathActor } from '@/app/(timeline)/[actor]/[status]/statusPathActor'
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServedDomains } from '@/lib/services/auth/servedDomains'
@@ -99,7 +100,18 @@ export const GET = traceApiRoute('getOEmbed', async (req) => {
     statusParam: target.statusParam
   })
   const status = resolved?.status
-  if (!status || !isStatusPubliclyReadable(status)) {
+  if (!status || !resolved || !isStatusPubliclyReadable(status)) {
+    return apiCorsError(req, CORS_HEADERS, 404)
+  }
+  // A status may only be embedded under the actor its path names, so a local
+  // handle is never paired with foreign content.
+  if (
+    !(await statusMatchesPathActor({
+      database,
+      status,
+      pathActor: resolved.pathActor
+    }))
+  ) {
     return apiCorsError(req, CORS_HEADERS, 404)
   }
 

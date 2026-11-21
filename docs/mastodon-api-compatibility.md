@@ -2734,7 +2734,35 @@ Post media layout rules (strip, grid, crops, captions, composer tiles) live in [
     further call sites (inbox handling, status create/edit, search, polls), most with no request
     scope at all, so it is left for its own change.
 - **A REMOTE actor's live outbox is filtered to public and unlisted notes by `getActorPosts` itself.** The remote profile page and `GET /api/v1/accounts/:id/remote-statuses` fetch it signed by the shared instance actor, which follows some remote actors, and a server that filters its outbox by signer (Mastodon does) can hand that follower its followers-only and direct notes. Any local viewer would then read what the remote only authorised the instance actor to see, so `getActorPosts` drops every Create note — fetched, embedded, or resolved from a stored row — that `isPublicOrUnlisted` rejects, and every Announce whose ORIGINAL it rejects, whether that original was stored or fetched (a remote may boost its own followers-only post).
-- **Live-outbox statuses are never persisted, so a status action or page that only reads must not assume a row.** `POST /api/v1/statuses/:id/translate` and the public status page (`app/(timeline)/[actor]/[status]/page.tsx`) read the stored row first and, when there is one, decide on it alone (`canActorReadStatus`, 404 if unreadable, no network call). Only an id with no row falls back to `fetchEphemeralRemoteStatus` (`lib/services/statuses/fetchEphemeralRemoteStatus.ts`), which fetches the note live with the instance signer and returns it **without storing it**: it refuses non-URL ids, local domains and domains the federation policy rejects (request URL and author), requires the fetched `id` to be same-origin with the requested URL and the author same-origin with that `id` (see [A Fetched Document's Own `id` Is Not Evidence](#agents-a-fetched-document-s-own-id-is-not-evidence)), and serves only public or unlisted notes. It uses `getNote` rather than `getRemoteStatus` so the author's server is not contacted before the attribution and visibility checks pass, then records the author's actor row (`recordRemoteActorBestEffort`, as search-with-resolve does) and attaches `status.actor` and content-detected language. On the status page, if the verified author differs from the path actor, the page redirects to the verified author's canonical status path (`getStatusDetailPath`) instead of rendering under the wrong actor.
+- **Live-outbox statuses are never persisted, so a status action or page that only reads must not
+  assume a row.** `POST /api/v1/statuses/:id/translate` and the public status page
+  (`app/(timeline)/[actor]/[status]/page.tsx`) read the stored row first and, when there is one,
+  decide on it alone (`canActorReadStatus`, 404 if unreadable, no network call). Only an id with no
+  row falls back to `fetchEphemeralRemoteStatus`
+  (`lib/services/statuses/fetchEphemeralRemoteStatus.ts`), which fetches the note live with the
+  instance signer and returns it **without storing it**: it refuses non-URL ids, local domains and
+  domains the federation policy rejects (request URL and author), requires the fetched `id` to be
+  same-origin with the requested URL and the author same-origin with that `id` (see [A Fetched
+  Document's Own `id` Is Not Evidence](#agents-a-fetched-document-s-own-id-is-not-evidence)), and
+  serves only public or unlisted notes. It uses `getNote` rather than `getRemoteStatus` so the
+  author's server is not contacted before the attribution and visibility checks pass, then resolves
+  the author. With `persistActor` (the default, which the translate route keeps) it records the
+  author's actor row (`recordRemoteActorBestEffort`, as search-with-resolve does); with
+  `persistActor: false` — what the status page passes for an anonymous visitor — it hydrates the
+  author in memory only, through the same `getActorPerson`/`getActorProfileFromPerson` pair
+  `getRemoteStatus` used, gated by the same origin and federation-policy checks and the read-only
+  `confirmActorHandle`, so a visitor who is only reading writes no actor row, syncs no collection
+  counts and queues no `VerifyProfileLinksJob`. Either way it attaches `status.actor`, canonicalises
+  `status.actorId` to the resolved actor's id (an alias `attributedTo` on the same origin resolves
+  to the canonical one) and content-detected language. On the status page the path-actor check
+  covers stored rows too, not just live fetches: a status whose author is not the path actor — an
+  Announce is accepted when either the announcer or the boosted original's actor matches, and a
+  stored row with no hydrated actor is compared by `status.actorId` — redirects to the verified
+  author's canonical status path (`getStatusDetailPath`), while `generateMetadata` on the same page
+  and `/api/oembed` answer 404 instead, so a link unfurl cannot pair a local name with foreign
+  content. A `FederationPolicyUnavailableError` from any of those policy checks is not a 500: the
+  page skips the live fetch and shows its loading state, queueing the fetch job for a signed-in
+  viewer as described above.
 - **The SQL scope is necessary but not sufficient — pair it with `canActorReadStatus`.** The recipients predicate matches a status's own audience and cannot see through a boost: an Announce is public while the status it boosts may not be. Every status-serving path does both (`GET /api/v1/accounts/:id/statuses`, the outbox route's `isStatusPubliclyReadable` pass, and now `getProfileData`).
 - **A local profile also serves OTHER actors' statuses: the parents its replies preview.** `getProfileData` and `GET /api/v1/accounts/:id/statuses?format=activities_next` hand the page to `getTimelineContext` with the profile's viewer (`null` when signed out, never omitted: the parameter is required), which keeps a parent only if `filterReadableStatuses` lets that viewer read it, so a signed-out visitor or a stranger never gets a followers-only or direct parent's author, text, id or url (see Reply context in [architecture.md](architecture.md#client-component-patterns)).
 - **One subquery decides both tables.** `actorVisibleStatusIds` (`lib/database/kysely/visibility/actorVisible.ts`) returns the actor's visible status ids, or `null` for the unfiltered mode; `getActorStatuses` filters `statuses.id` by it and `getAttachmentsForActor` filters `attachments.statusId` by it, so an attachment is withheld from exactly the viewers its post is. `actorVisible.test.ts` pins what it selects for every audience. Never scope one without the other — a gallery that outlives its timeline's filter leaks the same posts as image URLs.

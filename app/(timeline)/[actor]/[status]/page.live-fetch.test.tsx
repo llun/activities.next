@@ -7,12 +7,15 @@ import { render } from '@testing-library/react'
 import { notFound, redirect } from 'next/navigation'
 
 import { getNote } from '@/lib/activities'
+import { confirmActorHandle } from '@/lib/activities/confirmActorHandle'
+import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { recordRemoteActorBestEffort } from '@/lib/services/actors/refreshRemoteActor'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import {
   canFederateWithDomain,
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -85,6 +88,14 @@ vi.mock('@/lib/activities', async () => ({
   getNote: vi.fn()
 }))
 
+vi.mock('@/lib/activities/getActorPerson', async () => ({
+  getActorPerson: vi.fn()
+}))
+
+vi.mock('@/lib/activities/confirmActorHandle', async () => ({
+  confirmActorHandle: vi.fn()
+}))
+
 vi.mock('@/lib/services/federation/domainPolicy', async () => ({
   isLocalFederationDomain: vi.fn(),
   canFederateWithDomain: vi.fn()
@@ -135,6 +146,8 @@ vi.mock('./PagedStatusThread', async () => ({
 }))
 
 const mockGetNote = vi.mocked(getNote)
+const mockGetActorPerson = vi.mocked(getActorPerson)
+const mockConfirmActorHandle = vi.mocked(confirmActorHandle)
 const mockIsLocalFederationDomain = vi.mocked(isLocalFederationDomain)
 const mockCanFederateWithDomain = vi.mocked(canFederateWithDomain)
 const mockRecordRemoteActorBestEffort = vi.mocked(recordRemoteActorBestEffort)
@@ -181,6 +194,16 @@ const REMOTE_AUTHOR = {
   updatedAt: 1,
   publicKey: 'bob-public-key'
 } as unknown as Actor
+
+const REMOTE_PERSON = {
+  id: REMOTE_AUTHOR_ID,
+  type: 'Person',
+  preferredUsername: 'bob',
+  name: 'Bob Remote',
+  inbox: `${REMOTE_AUTHOR_ID}/inbox`,
+  followers: `${REMOTE_AUTHOR_ID}/followers`,
+  published: '2020-01-01T00:00:00Z'
+}
 
 const INSTANCE_ACTOR = {
   id: 'https://activities.local/users/__instance__',
@@ -230,6 +253,11 @@ describe('Page live-fetch security', () => {
     mockGetStatusReplyRefs.mockResolvedValue([])
     mockGetFederationSigningActor.mockResolvedValue(INSTANCE_ACTOR)
     mockRecordRemoteActorBestEffort.mockResolvedValue(null)
+    mockGetActorPerson.mockResolvedValue(REMOTE_PERSON as never)
+    mockConfirmActorHandle.mockResolvedValue({
+      username: 'bob',
+      domain: 'remote.example'
+    })
     mockIsLocalFederationDomain.mockImplementation(
       async (_db, value: string) => {
         try {
@@ -440,6 +468,232 @@ describe('Page live-fetch security', () => {
 
     expect(mockRedirect).toHaveBeenCalledWith(expectedCanonicalPath)
     expect(PagedStatusThread).not.toHaveBeenCalled()
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  it('hydrates the author in memory for a logged-out visitor without writing', async () => {
+    mockGetNote.mockResolvedValue(makeRemoteNote() as never)
+    // The author is not stored, so the read-only path must hydrate it.
+    mockGetActorFromId.mockImplementation(async ({ id }: { id: string }) =>
+      id === LOCAL_ADMIN_ID ? LOCAL_ADMIN : undefined
+    )
+
+    const element = await Page({
+      params: Promise.resolve({
+        actor: '@bob@remote.example',
+        status: encodeURIComponent(REMOTE_STATUS_ID)
+      })
+    })
+    render(element)
+
+    expect(mockGetActorPerson).toHaveBeenCalledWith({
+      actorId: REMOTE_AUTHOR_ID,
+      signingActor: INSTANCE_ACTOR
+    })
+    expect(mockConfirmActorHandle).toHaveBeenCalledWith({
+      database: expect.anything(),
+      actorId: REMOTE_AUTHOR_ID,
+      username: 'bob',
+      webfinger: undefined
+    })
+    // No actor row, no collection sync, no profile-link job, no fetch job.
+    expect(mockRecordRemoteActorBestEffort).not.toHaveBeenCalled()
+    expect(mockPublish).not.toHaveBeenCalled()
+    expect(vi.mocked(PagedStatusThread).mock.calls[0][0]).toMatchObject({
+      status: expect.objectContaining({
+        id: REMOTE_STATUS_ID,
+        actorId: REMOTE_AUTHOR_ID,
+        actor: expect.objectContaining({
+          username: 'bob',
+          domain: 'remote.example'
+        })
+      })
+    })
+  })
+
+  it('records the author for a signed-in viewer', async () => {
+    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetActorFromSession.mockResolvedValue(LOCAL_ADMIN)
+    mockGetNote.mockResolvedValue(makeRemoteNote() as never)
+    mockGetActorFromId.mockImplementation(async ({ id }: { id: string }) =>
+      id === LOCAL_ADMIN_ID ? LOCAL_ADMIN : undefined
+    )
+    mockRecordRemoteActorBestEffort.mockResolvedValue(REMOTE_AUTHOR)
+
+    const element = await Page({
+      params: Promise.resolve({
+        actor: '@bob@remote.example',
+        status: encodeURIComponent(REMOTE_STATUS_ID)
+      })
+    })
+    render(element)
+
+    expect(mockRecordRemoteActorBestEffort).toHaveBeenCalledWith({
+      actorId: REMOTE_AUTHOR_ID,
+      database: expect.anything(),
+      signingActor: INSTANCE_ACTOR
+    })
+    expect(mockGetActorPerson).not.toHaveBeenCalled()
+  })
+
+  it('redirects a stored status rendered under another actor path', async () => {
+    const stored = {
+      ...makeRemoteNote(),
+      actorId: REMOTE_AUTHOR_ID,
+      actor: REMOTE_AUTHOR,
+      url: REMOTE_STATUS_ID,
+      text: 'Legitimate remote post',
+      reply: '',
+      replies: [],
+      edits: [],
+      isLocalActor: false,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      actorAnnounceStatusId: null,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [],
+      tags: [],
+      createdAt: 1,
+      updatedAt: 1
+    }
+    mockGetStatus.mockResolvedValue(stored)
+    const expectedCanonicalPath = `/@bob@remote.example/${encodeURIComponent(REMOTE_STATUS_ID)}`
+
+    await expect(
+      Page({
+        params: Promise.resolve({
+          actor: '@admin@activities.local',
+          status: encodeURIComponent(REMOTE_STATUS_ID)
+        })
+      })
+    ).rejects.toThrow(`NEXT_REDIRECT:${expectedCanonicalPath}`)
+
+    expect(mockRedirect).toHaveBeenCalledWith(expectedCanonicalPath)
+    expect(PagedStatusThread).not.toHaveBeenCalled()
+  })
+
+  it('refuses a stored status with no hydrated actor under another actor path', async () => {
+    const stored = {
+      ...makeRemoteNote(),
+      actorId: REMOTE_AUTHOR_ID,
+      actor: null,
+      url: REMOTE_STATUS_ID,
+      text: 'Legitimate remote post',
+      reply: '',
+      replies: [],
+      edits: [],
+      isLocalActor: false,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      actorAnnounceStatusId: null,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [],
+      tags: [],
+      createdAt: 1,
+      updatedAt: 1
+    }
+    mockGetStatus.mockResolvedValue(stored)
+
+    await expect(
+      Page({
+        params: Promise.resolve({
+          actor: '@admin@activities.local',
+          status: encodeURIComponent(REMOTE_STATUS_ID)
+        })
+      })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+
+    expect(PagedStatusThread).not.toHaveBeenCalled()
+  })
+
+  it('renders a stored boost under the boosted author path', async () => {
+    const original = {
+      ...makeRemoteNote(),
+      actorId: REMOTE_AUTHOR_ID,
+      actor: REMOTE_AUTHOR,
+      url: REMOTE_STATUS_ID,
+      text: 'Legitimate remote post',
+      reply: '',
+      replies: [],
+      edits: [],
+      isLocalActor: false,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      actorAnnounceStatusId: null,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [],
+      tags: [],
+      createdAt: 1,
+      updatedAt: 1
+    }
+    const announce = {
+      id: 'https://activities.local/users/admin/statuses/boost',
+      type: 'Announce',
+      actorId: LOCAL_ADMIN_ID,
+      actor: LOCAL_ADMIN,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      createdAt: 1,
+      updatedAt: 1,
+      originalStatus: original
+    }
+    mockGetStatus.mockResolvedValue(announce)
+
+    const element = await Page({
+      params: Promise.resolve({
+        actor: '@bob@remote.example',
+        status: encodeURIComponent(REMOTE_STATUS_ID)
+      })
+    })
+    render(element)
+
+    expect(mockRedirect).not.toHaveBeenCalled()
+    expect(PagedStatusThread).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the loading state instead of a 500 when federation policy is unavailable', async () => {
+    mockGetServerAuthSession.mockResolvedValue({} as never)
+    mockGetActorFromSession.mockResolvedValue(LOCAL_ADMIN)
+    mockIsLocalFederationDomain.mockRejectedValue(
+      new FederationPolicyUnavailableError()
+    )
+
+    await expect(
+      Page({
+        params: Promise.resolve({
+          actor: '@bob@remote.example',
+          status: encodeURIComponent(REMOTE_STATUS_ID)
+        })
+      })
+    ).resolves.toBeDefined()
+
+    expect(mockGetNote).not.toHaveBeenCalled()
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: `fetch-remote-status-${REMOTE_STATUS_ID}`
+      })
+    )
+  })
+
+  it('returns notFound when federation policy is unavailable for a logged-out visitor', async () => {
+    mockIsLocalFederationDomain.mockRejectedValue(
+      new FederationPolicyUnavailableError()
+    )
+
+    await expect(
+      Page({
+        params: Promise.resolve({
+          actor: '@bob@remote.example',
+          status: encodeURIComponent(REMOTE_STATUS_ID)
+        })
+      })
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+
     expect(mockPublish).not.toHaveBeenCalled()
   })
 })

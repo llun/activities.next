@@ -89,7 +89,19 @@ vi.mock('@/lib/database', async () => ({
     getStatusReplyRefs: mockGetStatusReplyRefs,
     getActorDomainBlocks: mockGetActorDomainBlocks,
     getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
-    getFitnessSettings: vi.fn(async () => null)
+    getFitnessSettings: vi.fn(async () => null),
+    getActorFromUsername: vi.fn(
+      async ({ username, domain }: { username: string; domain: string }) => {
+        if (domain !== 'activities.local') return null
+        if (username === 'anna') {
+          return { id: 'https://activities.local/users/anna' }
+        }
+        if (username === 'bob') {
+          return { id: 'https://activities.local/users/bob' }
+        }
+        return null
+      }
+    )
   }))
 }))
 
@@ -210,10 +222,10 @@ const buildViewer = (): Actor =>
     updatedAt: 1
   }) as unknown as Actor
 
-const renderPage = async () => {
+const renderPage = async (actor = '@anna@activities.local') => {
   const element = await Page({
     params: Promise.resolve({
-      actor: '@anna@activities.local',
+      actor,
       status: 'hash'
     })
   })
@@ -662,7 +674,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
-      pathActor: PATH_ACTOR,
+      pathActor: { username: 'remote', domain: 'remote.example' },
       status: focused,
       statusId: 'remote-followers-only',
       fullStatusId: focused.url,
@@ -672,7 +684,7 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
       status: FollowStatus.enum.Accepted
     })
 
-    await renderPage()
+    await renderPage('@remote@remote.example')
 
     expect(
       screen.getByTestId('status-remote-followers-only')
@@ -707,14 +719,14 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
     })
 
     mockResolveStatusFromPath.mockResolvedValue({
-      pathActor: PATH_ACTOR,
+      pathActor: { username: 'bob', domain: 'activities.local' },
       status: focused,
       statusId: 'focused-dm-to-viewer',
       fullStatusId: focused.url,
       isStatusHash: true
     })
 
-    await renderPage()
+    await renderPage('@bob@activities.local')
 
     expect(
       screen.getByTestId('status-focused-dm-to-viewer')

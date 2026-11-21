@@ -24,6 +24,7 @@ import {
   canFederateWithDomain,
   isLocalFederationDomain
 } from '@/lib/services/federation/domainPolicy'
+import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getPersonalRecordDurations } from '@/lib/services/fitness-files/personalRecords'
 import { getStatusFitnessFiles } from '@/lib/services/fitness-files/statusFitnessFiles'
 import { getTrainingZoneSettings } from '@/lib/services/fitness-files/trainingZoneSettings'
@@ -67,6 +68,7 @@ import { SignInCallout } from './SignInCallout'
 import { StatusBox } from './StatusBox'
 import { StatusLikes } from './StatusLikes'
 import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
+import { statusMatchesPathActor } from './statusPathActor'
 
 interface Props {
   params: Promise<{ actor: string; status: string }>
@@ -173,6 +175,7 @@ export const generateMetadata = async ({
     : pageUrl
   let shouldNoIndex = isRemoteActorHandle
   const database = getDatabase()
+  let shouldNotFound = false
   if (database) {
     try {
       const resolved = await resolveStatusFromPath({
@@ -180,7 +183,18 @@ export const generateMetadata = async ({
         actorParam: actor,
         statusParam: status
       })
-      if (resolved?.status && isStatusStrictlyPublic(resolved.status)) {
+      if (
+        resolved?.status &&
+        !(await statusMatchesPathActor({
+          database,
+          status: resolved.status,
+          pathActor: resolved.pathActor
+        }))
+      ) {
+        // A status may only be unfurled under the actor its path names, so a
+        // local handle is never paired with foreign content.
+        shouldNotFound = true
+      } else if (resolved?.status && isStatusStrictlyPublic(resolved.status)) {
         const actualStatus = getOriginalStatus(resolved.status)
         if (actualStatus) {
           const resolvedCanonical = getCanonicalStatusUrl(actualStatus, pageUrl)
@@ -205,6 +219,7 @@ export const generateMetadata = async ({
       // Best-effort description fallback
     }
   }
+  if (shouldNotFound) notFound()
 
   return {
     title: `${decodedActor} status`,
@@ -223,7 +238,8 @@ export const generateMetadata = async ({
 }
 
 const Page: FC<Props> = async ({ params }) => {
-  const { host, mediaStorage } = getConfig()
+  const config = getConfig()
+  const { host, mediaStorage } = config
   const mapProvider = getPublicMapProvider()
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
@@ -255,39 +271,51 @@ const Page: FC<Props> = async ({ params }) => {
 
   let canFetchRemote = false
   if (!status && !isStatusHash && fullStatusId) {
-    canFetchRemote =
-      isUrl(fullStatusId) &&
-      !(await isLocalFederationDomain(database, fullStatusId)) &&
-      (await canFederateWithDomain(database, fullStatusId))
+    try {
+      canFetchRemote =
+        isUrl(fullStatusId) &&
+        !(await isLocalFederationDomain(database, fullStatusId)) &&
+        (await canFederateWithDomain(database, fullStatusId))
 
-    if (canFetchRemote) {
-      // Route live fetches through fetchEphemeralRemoteStatus so federation
-      // policy, local-domain refusal, same-origin id/attribution checks, and
-      // public/unlisted audience gating run before hydrating the author.
-      status = await fetchEphemeralRemoteStatus({
-        database,
-        statusId: fullStatusId
-      })
-      statusId = status?.id ?? ''
+      if (canFetchRemote) {
+        // Route live fetches through fetchEphemeralRemoteStatus so federation
+        // policy, local-domain refusal, same-origin id/attribution checks, and
+        // public/unlisted audience gating run before hydrating the author.
+        // Anonymous visitors hydrate the author in memory only: this page is a
+        // read-only view and must not record actors, sync counts or queue jobs.
+        status = await fetchEphemeralRemoteStatus({
+          database,
+          statusId: fullStatusId,
+          persistActor: Boolean(session)
+        })
+        statusId = status?.id ?? ''
+      }
+    } catch (error) {
+      if (!(error instanceof FederationPolicyUnavailableError)) throw error
+      // The federation policy could not be decided. The documented behaviour is
+      // to show the loading state rather than a 500: skip the live fetch and
+      // let a signed-in viewer queue the fetch job below. A URL on this
+      // instance is never queued.
+      status = null
+      canFetchRemote = !isOwnInstanceHost(
+        new URL(fullStatusId).host,
+        getServedHostConfig(config)
+      )
     }
+  }
 
-    if (status) {
-      if (!status.actor) {
-        return notFound()
+  if (status) {
+    // A status may only render under the actor its path names. A live-fetched
+    // status carries its verified author; a stored row may not, so its actor id
+    // is compared with the path actor's. A mismatch redirects to the canonical
+    // path (or 404s when none can be built), so a local name is never paired
+    // with foreign content.
+    if (!(await statusMatchesPathActor({ database, status, pathActor }))) {
+      const canonicalPath = getStatusDetailPath(status)
+      if (canonicalPath) {
+        redirect(canonicalPath)
       }
-
-      const matchesPathActor =
-        status.actor.username.toLowerCase() ===
-          pathActor.username.toLowerCase() &&
-        status.actor.domain.toLowerCase() === pathActor.domain.toLowerCase()
-
-      if (!matchesPathActor) {
-        const canonicalPath = getStatusDetailPath(status)
-        if (canonicalPath) {
-          redirect(canonicalPath)
-        }
-        return notFound()
-      }
+      return notFound()
     }
 
     // A live-fetched remote status carries no replies (`fromNote` sets
@@ -296,7 +324,7 @@ const Page: FC<Props> = async ({ params }) => {
     // status plus its reply thread. Because the job persists the focused status,
     // later views resolve it from the database and skip this branch entirely —
     // bounding repeat fetches for popular posts.
-    if (status && status.type === StatusType.enum.Note && session) {
+    if (!isStoredStatus && status.type === StatusType.enum.Note && session) {
       // A queue failure (service down, rate limited) must not 500 the page —
       // the live-fetched status is still renderable, so log and continue.
       try {
