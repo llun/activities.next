@@ -73,6 +73,7 @@ const mockGetStatusReplyRefs = vi.fn(
 )
 const mockGetAcceptedOrRequestedFollow = vi.fn()
 const mockGetFitnessSettings = vi.fn(async (): Promise<unknown> => null)
+const mockGetActorFromUsername = vi.fn(async (): Promise<unknown> => null)
 
 vi.mock('@/lib/database', async () => ({
   getDatabase: vi.fn(() => ({
@@ -83,7 +84,7 @@ vi.mock('@/lib/database', async () => ({
     getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
     getFitnessSettings: mockGetFitnessSettings,
     // Read only by the real resolver, which the off-site Back test runs.
-    getActorFromUsername: vi.fn(async () => null),
+    getActorFromUsername: mockGetActorFromUsername,
     getStatusFromUrlHash: vi.fn(async () => null),
     getStatusFromPublicId: vi.fn(async () => null),
     // Without this the page's settings read throws and every test logs an
@@ -381,6 +382,7 @@ describe('Back to profile fallback from an untrusted actor segment', () => {
     'stays on this site for %s',
     async (actor) => {
       const note = buildNote({ id: 'focused' })
+      mockGetActorFromUsername.mockResolvedValueOnce({ id: note.actorId })
       mockGetStatus.mockResolvedValue(note)
 
       const element = await Page({

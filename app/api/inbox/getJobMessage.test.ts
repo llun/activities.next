@@ -2,6 +2,7 @@ import { compactActivityPub } from '@/lib/activities/jsonld'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
+  CREATE_POLL_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
   LIKE_JOB_NAME,
@@ -9,7 +10,8 @@ import {
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
   RECEIVE_FLAG_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
-  UPDATE_NOTE_JOB_NAME
+  UPDATE_NOTE_JOB_NAME,
+  UPDATE_POLL_JOB_NAME
 } from '@/lib/jobs/names'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -326,14 +328,33 @@ describe('getJobMessage', () => {
     })
   })
 
-  it('cannot reserve the queue key a local status delete publishes under', () => {
+  it('cannot reserve the queue key a status delete publishes under', () => {
     // deleteStatus publishes its Tombstone fan-out as
-    // getHashFromString(`${statusId}#delete`); a remote activity whose id is
-    // exactly that preimage must land on a different key.
+    // getHashFromString(`${statusId}#delete`). A cross-origin local status id
+    // is rejected outright, and even a same-origin activity whose id is that
+    // preimage must land on a different key.
     const localStatusId = 'https://llun.test/users/llun/statuses/1'
+    expect(
+      getJobMessage(
+        {
+          id: `${localStatusId}#delete`,
+          type: 'Create',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://remote.test/users/alice/statuses/squat',
+            type: 'Note',
+            attributedTo: verifiedSenderActorId,
+            content: 'squatting'
+          }
+        } as never,
+        verifiedSenderActorId
+      )
+    ).toBeNull()
+
+    const sameOriginStatusId = 'https://remote.test/users/alice/statuses/1'
     const result = getJobMessage(
       {
-        id: `${localStatusId}#delete`,
+        id: `${sameOriginStatusId}#delete`,
         type: 'Create',
         actor: verifiedSenderActorId,
         object: {
@@ -347,7 +368,9 @@ describe('getJobMessage', () => {
     )
 
     expect(result?.id).toBeDefined()
-    expect(result?.id).not.toBe(getHashFromString(`${localStatusId}#delete`))
+    expect(result?.id).not.toBe(
+      getHashFromString(`${sameOriginStatusId}#delete`)
+    )
   })
 
   it('accepts Create Note activities when the inline actor object id matches the verified sender', () => {
@@ -450,6 +473,194 @@ describe('getJobMessage', () => {
     )
 
     expect(result).toBeNull()
+  })
+
+  describe('origin binding for direct inbox activities', () => {
+    it.each([
+      {
+        title: 'Create(Note) with a cross-origin object id',
+        activity: {
+          id: 'https://remote.test/activities/create-cross-origin-note',
+          type: 'Create',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://victim.example/users/bob/statuses/1',
+            type: 'Note',
+            attributedTo: verifiedSenderActorId,
+            content: 'Hijack'
+          }
+        }
+      },
+      {
+        title: 'Create(Note) with a local-domain object id',
+        activity: {
+          id: 'https://remote.test/activities/create-local-note',
+          type: 'Create',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://test.llun.dev/users/alice/statuses/squat',
+            type: 'Note',
+            attributedTo: verifiedSenderActorId,
+            content: 'Local squat'
+          }
+        }
+      },
+      {
+        title: 'Create(Note) with a cross-origin activity id',
+        activity: {
+          id: 'https://victim.example/activities/create-1',
+          type: 'Create',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://remote.test/users/alice/statuses/1',
+            type: 'Note',
+            attributedTo: verifiedSenderActorId,
+            content: 'Forged activity id'
+          }
+        }
+      },
+      {
+        title: 'Create(Question) with a cross-origin object id',
+        activity: {
+          id: 'https://remote.test/activities/create-cross-origin-poll',
+          type: 'Create',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://victim.example/users/bob/statuses/poll-1',
+            type: 'Question',
+            attributedTo: verifiedSenderActorId,
+            content: 'Hijack poll'
+          }
+        }
+      },
+      {
+        title: 'Create(Question) with a local-domain object id',
+        activity: {
+          id: 'https://remote.test/activities/create-local-poll',
+          type: 'Create',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://test.llun.dev/users/alice/statuses/poll-squat',
+            type: 'Question',
+            attributedTo: verifiedSenderActorId,
+            content: 'Local poll squat'
+          }
+        }
+      },
+      {
+        title: 'Update(Note) with a cross-origin object id',
+        activity: {
+          id: 'https://remote.test/activities/update-cross-origin-note',
+          type: 'Update',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://victim.example/users/bob/statuses/1',
+            type: 'Note',
+            attributedTo: verifiedSenderActorId,
+            content: 'Hijack edit'
+          }
+        }
+      },
+      {
+        title: 'Update(Question) with a cross-origin object id',
+        activity: {
+          id: 'https://remote.test/activities/update-cross-origin-poll',
+          type: 'Update',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://victim.example/users/bob/statuses/poll-1',
+            type: 'Question',
+            attributedTo: verifiedSenderActorId,
+            content: 'Hijack poll edit'
+          }
+        }
+      },
+      {
+        title: 'Announce with a cross-origin own activity id',
+        activity: {
+          id: 'https://victim.example/users/bob/statuses/announce-1',
+          type: 'Announce',
+          actor: verifiedSenderActorId,
+          object: 'https://other.example/users/carol/statuses/1'
+        }
+      },
+      {
+        title: 'Announce with a local-domain own activity id',
+        activity: {
+          id: 'https://test.llun.dev/users/alice/statuses/announce-squat',
+          type: 'Announce',
+          actor: verifiedSenderActorId,
+          object: 'https://other.example/users/carol/statuses/1'
+        }
+      }
+    ])('rejects $title', ({ activity }) => {
+      expect(getJobMessage(activity as never, verifiedSenderActorId)).toBeNull()
+    })
+
+    it.each([
+      {
+        title: 'same-origin Create(Note)',
+        expectedJob: CREATE_NOTE_JOB_NAME,
+        activity: {
+          id: 'https://remote.test/activities/create-note-ok',
+          type: 'Create',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://remote.test/users/alice/statuses/ok-1',
+            type: 'Note',
+            attributedTo: verifiedSenderActorId,
+            content: 'Hello'
+          }
+        }
+      },
+      {
+        title: 'same-origin Create(Question)',
+        expectedJob: CREATE_POLL_JOB_NAME,
+        activity: {
+          id: 'https://remote.test/activities/create-poll-ok',
+          type: 'Create',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://remote.test/users/alice/statuses/poll-ok-1',
+            type: 'Question',
+            attributedTo: verifiedSenderActorId,
+            content: 'Pick one'
+          }
+        }
+      },
+      {
+        title: 'same-origin Update(Question)',
+        expectedJob: UPDATE_POLL_JOB_NAME,
+        activity: {
+          id: 'https://remote.test/activities/update-poll-ok',
+          type: 'Update',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://remote.test/users/alice/statuses/poll-ok-1',
+            type: 'Question',
+            attributedTo: verifiedSenderActorId,
+            content: 'Pick one updated'
+          }
+        }
+      },
+      {
+        title: 'same-origin Announce boosting a cross-origin object',
+        expectedJob: CREATE_ANNOUNCE_JOB_NAME,
+        activity: {
+          id: 'https://remote.test/users/alice/statuses/announce-ok-1',
+          type: 'Announce',
+          actor: verifiedSenderActorId,
+          object: 'https://other.example/users/carol/statuses/99'
+        }
+      }
+    ])('accepts $title', ({ activity, expectedJob }) => {
+      expect(
+        getJobMessage(activity as never, verifiedSenderActorId)
+      ).toMatchObject({
+        name: expectedJob,
+        verifiedSenderActorId
+      })
+    })
   })
 
   describe('actor profile updates', () => {

@@ -47,7 +47,11 @@ import {
   Reject,
   Undo
 } from '@/lib/types/activitypub'
-import { actorIdsMatch, extractActivityPubId } from '@/lib/utils/activitypub'
+import {
+  actorIdsMatch,
+  extractActivityPubId,
+  isSameActivityPubOrigin
+} from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -768,6 +772,23 @@ export const POST = traceApiRoute(
                 })
               }
               case 'QuoteRequest': {
+                if (
+                  !isSameActivityPubOrigin(
+                    activity.id,
+                    context.verifiedSenderActorId
+                  )
+                ) {
+                  logAcceptedWithoutSideEffects({
+                    activity,
+                    reason: 'cross-origin QuoteRequest activity id'
+                  })
+                  return apiResponse({
+                    req,
+                    allowedMethods: CORS_HEADERS,
+                    data: DEFAULT_202,
+                    responseStatusCode: 202
+                  })
+                }
                 // Defer to the shared quote-request handler via the queue so the
                 // authorship-verifying fetch runs in the worker rather than
                 // inline in the inbox response (mirrors the shared-inbox path).

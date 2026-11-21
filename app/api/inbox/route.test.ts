@@ -548,6 +548,49 @@ describe('POST /api/inbox', () => {
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
+  it('acknowledges with 202 without queueing when a direct Create Note claims a cross-origin or local object id', async () => {
+    const actor = 'https://allowed.test/users/a'
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockVerifiedSenderActorId = actor
+    mockActivityBody = {
+      id: `${actor}/activities/create-squat`,
+      type: 'Create',
+      actor,
+      object: {
+        id: 'https://test.llun.dev/users/alice/statuses/squat',
+        type: 'Note',
+        attributedTo: actor,
+        content: 'Local squat'
+      }
+    }
+
+    const response = await POST(createRequest(actor), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
+  it('acknowledges with 202 without queueing when a direct Announce claims a cross-origin activity id', async () => {
+    const actor = 'https://allowed.test/users/a'
+    mockCanFederateWithDomain.mockResolvedValue(true)
+    mockVerifiedSenderActorId = actor
+    mockActivityBody = {
+      id: 'https://victim.test/users/bob/statuses/forged-boost',
+      type: 'Announce',
+      actor,
+      object: 'https://other.test/users/carol/statuses/1'
+    }
+
+    const response = await POST(createRequest(actor), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(202)
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
   it('acknowledges with 202 without queueing when activity type is unsupported', async () => {
     const actor = 'https://allowed.test/users/a'
     mockCanFederateWithDomain.mockResolvedValue(true)

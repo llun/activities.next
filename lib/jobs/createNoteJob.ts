@@ -16,6 +16,7 @@ import {
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
 import { createRemoteAttachments } from '@/lib/jobs/noteAttachments'
+import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import {
   getForwardActivityJobMessages,
   getForwardingTargetLocalActorIds,
@@ -45,11 +46,13 @@ import {
 import { CreateAction } from '@/lib/types/activitypub/activities'
 import { StatusType } from '@/lib/types/domain/status'
 import {
+  isSameActivityPubOrigin,
   normalizeActivityPubContent,
   normalizeActorId,
   toRecipientArray
 } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
@@ -88,6 +91,23 @@ export const createNoteJob = createJobHandle(
     if (!actorMatchesVerifiedSender(note.attributedTo, message)) {
       return
     }
+    if (!isSameActivityPubOrigin(note.id, note.attributedTo)) {
+      logger.warn({
+        message: 'Dropping note whose id is not on the author origin',
+        job: CREATE_NOTE_JOB_NAME,
+        statusId: toLoggableUrl(note.id),
+        actorId: toLoggableUrl(note.attributedTo)
+      })
+      return
+    }
+    if (await isLocalDomain(database, note.id)) {
+      logger.warn({
+        message: 'Dropping note with local-domain id',
+        job: CREATE_NOTE_JOB_NAME,
+        statusId: toLoggableUrl(note.id)
+      })
+      return
+    }
 
     const existingStatus = await database.getStatus({
       statusId: note.id,
@@ -113,6 +133,11 @@ export const createNoteJob = createJobHandle(
     const summary = getSummary(note)
     const language = getLanguage(note)
     const actorId = normalizeActorId(note.attributedTo) ?? note.attributedTo
+    // A note's `url` is its identity on the surfaces that resolve a status by
+    // url (reply threading, parent backfill, search permalinks), so a peer may
+    // only name a url on its own origin. A cross-origin url would let a signed
+    // note pre-empt another status; fall back to the note's own id.
+    const statusUrl = getStatusUrl(note)
 
     const publishedAt = new Date(note.published).getTime()
 
@@ -127,7 +152,10 @@ export const createNoteJob = createJobHandle(
     await recordActorIfNeeded({ actorId, database })
     const createResult = await database.createNoteWithResult({
       id: note.id,
-      url: getStatusUrl(note) || note.id,
+      url:
+        statusUrl && isSameActivityPubOrigin(statusUrl, note.id)
+          ? statusUrl
+          : note.id,
 
       actorId,
 

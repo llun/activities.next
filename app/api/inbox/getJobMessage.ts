@@ -152,6 +152,18 @@ const bindObjectToSender = <T extends Record<string, unknown>>(
   )
   if (!normalizedVerifiedSenderActorId) return null
 
+  // A direct Create/Update may only claim an object id on the signer's own
+  // origin (Mastodon's `invalid_origin?(object_uri)`): otherwise a remote
+  // actor could pre-empt another server's not-yet-seen status id or squat
+  // under a local actor's status URL space.
+  const objectId = extractActivityPubId(object.id)
+  if (
+    !objectId ||
+    !isSameActivityPubOrigin(objectId, normalizedVerifiedSenderActorId)
+  ) {
+    return null
+  }
+
   const authorIds = extractActivityPubIds(object.attributedTo)
   const objectActorIds = extractActivityPubIds(object.actor)
   if (authorIds.length === 0 && objectActorIds.length === 0) return null
@@ -232,7 +244,11 @@ export const getJobMessage = (
   activity: StatusActivity,
   verifiedSenderActorId: string
 ) => {
-  if (!activity.id || typeof activity.id !== 'string') {
+  if (
+    !activity.id ||
+    typeof activity.id !== 'string' ||
+    !isSameActivityPubOrigin(activity.id, verifiedSenderActorId)
+  ) {
     return null
   }
 
