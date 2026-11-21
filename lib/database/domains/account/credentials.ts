@@ -381,7 +381,9 @@ export const changePassword = async (
       await revokeAccountOAuthTokens(trx, { accountId })
     }
     // A second step started with the old password must not complete. Trusted
-    // devices stay: the owner is signed in and changing the password by choice.
+    // devices stay, even when the change answers the old-address notice: a
+    // trusted device skips only the second step, so it is useless without the
+    // new password, and trusting it took the second factor in the first place.
     await deleteTwoFactorSignInState(trx, accountId, { trustedDevices: false })
     return true
   })
