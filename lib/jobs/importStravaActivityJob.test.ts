@@ -1119,6 +1119,12 @@ describe('importStravaActivityJob', () => {
   // A connection made before the athlete id was stored has none to compare
   // against, and Strava's refresh-token response does not carry one. The job
   // asks Strava once, stores the answer, and only then applies the check.
+  //
+  // The lookup must use the REFRESHED token, not the stored one: Strava access
+  // tokens last six hours, so the stored token is expired for almost every
+  // existing connection and the lookup would 401 on every import. The mock
+  // returns a different value from the stored `access-token` so this assertion
+  // fails if the lookup goes back to reading `fitnessSettings.accessToken`.
   it('backfills the athlete id for an older connection, then refuses another athlete', async () => {
     database.getFitnessSettings.mockResolvedValue({
       id: 'fitness-settings-1',
@@ -1142,7 +1148,7 @@ describe('importStravaActivityJob', () => {
     })
 
     expect(mockGetStravaAthleteId).toHaveBeenCalledWith({
-      accessToken: 'access-token'
+      accessToken: 'refreshed-access-token'
     })
     expect(database.updateFitnessSettings).toHaveBeenCalledWith({
       id: 'fitness-settings-1',

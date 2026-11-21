@@ -15,6 +15,7 @@ import {
   getValidStravaAccessToken,
   isSupportedStravaPhotoMimeType
 } from './activity'
+import { STRAVA_MAX_RESPONSE_BYTES } from './http'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch
@@ -148,6 +149,25 @@ describe('getStravaActivityStreams', () => {
         accessToken: 'access-token'
       })
     ).rejects.toThrow('503')
+  })
+
+  // Eleven series at one sample per second: a long activity's streams body is
+  // over the 2 MiB default cap, and refusing it failed the whole import on
+  // every retry. The streams endpoint gets its own, larger cap.
+  it('accepts a full-resolution stream set larger than the default cap', async () => {
+    const data = Array.from({ length: 400_000 }, (_, index) => index)
+    const payload = { time: { type: 'time', data } }
+    expect(JSON.stringify(payload).length).toBeGreaterThan(
+      STRAVA_MAX_RESPONSE_BYTES
+    )
+    mockFetch.mockResolvedValueOnce(jsonResponse(payload))
+
+    const result = await getStravaActivityStreams({
+      activityId: '123',
+      accessToken: 'access-token'
+    })
+
+    expect(result?.time?.data).toHaveLength(data.length)
   })
 })
 
@@ -629,6 +649,21 @@ describe('getStravaActivity', () => {
     await expect(
       getStravaActivity({ activityId: '1', accessToken: 't' })
     ).rejects.toThrow(message)
+  })
+
+  // Activity detail embeds segment efforts, laps and splits, which grow with
+  // the number of segments a long ride covers, so it gets a larger cap than
+  // the small endpoints.
+  it('accepts an activity detail larger than the default cap', async () => {
+    const description = 'x'.repeat(STRAVA_MAX_RESPONSE_BYTES + 1)
+    mockFetch.mockResolvedValueOnce(jsonResponse({ id: 42, description }))
+
+    const result = await getStravaActivity({
+      activityId: '42',
+      accessToken: 't'
+    })
+
+    expect(result.description).toHaveLength(description.length)
   })
 })
 

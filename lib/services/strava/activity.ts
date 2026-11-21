@@ -9,7 +9,13 @@ import {
 } from '@/lib/utils/fitness'
 import { logger } from '@/lib/utils/logger'
 
-import { readStravaBody, readStravaJson, stravaFetch } from './http'
+import {
+  STRAVA_MAX_ACTIVITY_RESPONSE_BYTES,
+  STRAVA_MAX_STREAMS_RESPONSE_BYTES,
+  readStravaBody,
+  readStravaJson,
+  stravaFetch
+} from './http'
 
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3'
 const STRAVA_OAUTH_TOKEN_URL = 'https://www.strava.com/oauth/token'
@@ -368,7 +374,11 @@ export const getStravaActivity = async ({
     )
   }
 
-  return await readStravaJson<StravaActivity>(response, 'Strava activity')
+  return await readStravaJson<StravaActivity>(
+    response,
+    'Strava activity',
+    STRAVA_MAX_ACTIVITY_RESPONSE_BYTES
+  )
 }
 
 export const getValidStravaAccessToken = async ({
@@ -513,7 +523,8 @@ export const getStravaActivityStreams = async ({
   if (response.ok) {
     return await readStravaJson<StravaStreamSet>(
       response,
-      'Strava activity streams'
+      'Strava activity streams',
+      STRAVA_MAX_STREAMS_RESPONSE_BYTES
     )
   }
 

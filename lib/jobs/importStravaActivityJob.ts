@@ -224,22 +224,41 @@ export const importStravaActivityJob = createJobHandle(
       return
     }
 
+    const moved = isMovedActor(actor)
+    const notifyOnComplete = requestedNotifyOnComplete && !moved
+    const publishSendNote = requestedPublishSendNote && !moved
+
+    const accessToken = await getValidStravaAccessToken({
+      database,
+      fitnessSettings
+    })
+    if (!accessToken) {
+      logger.warn({
+        message: 'Skipping Strava import because access token is missing',
+        actorId,
+        stravaActivityId
+      })
+      return
+    }
+
     // Strava allows one webhook subscription per app, so every athlete's
     // events arrive at whichever connection registered it. Importing an event
     // whose owner is not this connection's athlete would file another
-    // athlete's ride under this actor, so it is refused before any fetch.
+    // athlete's ride under this actor, so it is refused before the activity is
+    // fetched.
     //
     // A connection made before the athlete id was stored has none to compare
     // against, and Strava's refresh-token response does not carry one, so it is
-    // fetched once here and stored. If that lookup fails the event is imported
-    // as before rather than dropped: an existing user must not stop importing
+    // fetched once here and stored. The lookup runs after the refresh above and
+    // uses the refreshed token: Strava access tokens last six hours, so the
+    // stored one is expired for almost every existing connection and the
+    // lookup would 401 on every import. If it fails the event is imported as
+    // before rather than dropped: an existing user must not stop importing
     // because one extra request failed.
     let connectionAthleteId = fitnessSettings.providerUserId
     if (ownerId !== undefined && !connectionAthleteId) {
       try {
-        connectionAthleteId = await getStravaAthleteId({
-          accessToken: fitnessSettings.accessToken ?? ''
-        })
+        connectionAthleteId = await getStravaAthleteId({ accessToken })
         await database.updateFitnessSettings({
           id: fitnessSettings.id,
           providerUserId: connectionAthleteId
@@ -266,23 +285,6 @@ export const importStravaActivityJob = createJobHandle(
         actorId,
         stravaActivityId,
         ownerId
-      })
-      return
-    }
-
-    const moved = isMovedActor(actor)
-    const notifyOnComplete = requestedNotifyOnComplete && !moved
-    const publishSendNote = requestedPublishSendNote && !moved
-
-    const accessToken = await getValidStravaAccessToken({
-      database,
-      fitnessSettings
-    })
-    if (!accessToken) {
-      logger.warn({
-        message: 'Skipping Strava import because access token is missing',
-        actorId,
-        stravaActivityId
       })
       return
     }
