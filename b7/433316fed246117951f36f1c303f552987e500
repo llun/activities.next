@@ -1,0 +1,99 @@
+.gitignore
+  s_0303642889c22e::t_8c34c32863d110 24-25
+app/api/v1/fitness/strava/callback/route.ts
+  s_0303642889c22e::t_84014a45a72ace 5-9,115-129,132-135,144-147,177-182
+app/api/v1/webhooks/strava/[webhookToken]/route.test.ts
+  s_0303642889c22e::t_10292021002d33 105,156,210,245-295
+app/api/v1/webhooks/strava/[webhookToken]/route.ts
+  s_0303642889c22e::t_7d77f3ed541cd4 16-46,133,202-205
+docs/architecture.md
+  s_0303642889c22e::t_714ff66b3e0f26 1419
+docs/fitness-file-storage.md
+  s_0303642889c22e::t_6f3cbf58c5947e 485
+docs/maintenance.md
+  s_0303642889c22e::t_e71c8cd78a91c2 1247,1375
+lib/database/domains/moderation/moderationQueries.test.ts
+  s_0303642889c22e::t_f33570701cf32b 345-469
+lib/database/domains/moderation/queries.ts
+  s_0303642889c22e::t_f9aa58298ce09a 26,112-136
+lib/jobs/createPollVoteJob.test.ts
+  s_0303642889c22e::t_c3ce46024ff232 8,10,18-19,232-418
+lib/jobs/createPollVoteJob.ts
+  s_0303642889c22e::t_c6d2c8fd256769 5,59-85
+lib/jobs/importStravaActivityJob.deferredPublish.test.ts
+  s_0303642889c22e::t_d62d1569bef318 46
+lib/jobs/importStravaActivityJob.gearDevice.test.ts
+  s_0303642889c22e::t_9917d9e2bc751f 38
+lib/jobs/importStravaActivityJob.mapRegeneration.test.ts
+  s_0303642889c22e::t_4c680730d7323a 40
+lib/jobs/importStravaActivityJob.notifications.test.ts
+  s_0303642889c22e::t_c7c3e5888e4051 39
+lib/jobs/importStravaActivityJob.photoRecheck.test.ts
+  s_0303642889c22e::t_334aa0fc71db45 43
+lib/jobs/importStravaActivityJob.test.ts
+  s_0303642889c22e::t_becc5380fc54cd 21,54,1053-1190
+lib/jobs/importStravaActivityJob.testUtils.ts
+  s_0303642889c22e::t_0edaededb84568 15,51-53,202
+lib/jobs/importStravaActivityJob.ts
+  s_0303642889c22e::t_641f633756c931 42,65-70,193,227-272
+lib/jobs/recheckStravaActivityPhotosJob.test.ts
+  s_0303642889c22e::t_0565b341a8e95e 48
+lib/services/fitness-files/appleMapsSnapshot.test.ts
+  s_0303642889c22e::t_7c114e90664788 513-533
+lib/services/fitness-files/appleMapsSnapshot.ts
+  s_0303642889c22e::t_9ac77092adf891 6,65-67,365-371
+lib/services/fitness-files/generateMapImage.test.ts
+  s_0303642889c22e::t_49f7e0efc657e1 132-184
+lib/services/fitness-files/generateMapImage.ts
+  s_0303642889c22e::t_288ed470a455f3 9,34-38,307-308,317-323
+lib/services/fitness-files/mapUtils.test.ts
+  s_0303642889c22e::t_433147d0d23080 1-44
+lib/services/fitness-files/mapUtils.ts
+  s_0303642889c22e::t_04108ba0f71743 3,17-22,85-86,95-101
+lib/services/fitness-files/parseFitnessFile.test.ts
+  s_0303642889c22e::t_eaf6ed0b564514 86-146
+lib/services/fitness-files/parseFitnessFile.ts
+  s_0303642889c22e::t_e69d8e54fed8d1 43-48
+lib/services/strava/activity.test.ts
+  s_0303642889c22e::t_76bdacb785f684 13,22-30,37-45,66,77,88,102-115,132,143,598-601,652-655,874-897,943-973
+lib/services/strava/activity.ts
+  s_0303642889c22e::t_ed73fc13c9ff7d 12-13,64-66,84-86,270,279-282,323,332,356,371,407,431-434,446-474,505,514-517
+lib/services/strava/http.test.ts
+  s_0303642889c22e::t_0a17b7031b7cfd 1-65
+lib/services/strava/http.ts
+  s_0303642889c22e::t_ea42bb17fe2373 1-32
+lib/services/strava/webhookSubscription.test.ts
+  s_0303642889c22e::t_a2bfec73829b68 15-25,44,51,56,64,74,82,87,97,117-122,130-132,149-158,168-169,179-190,205-216,236-242
+lib/services/strava/webhookSubscription.ts
+  s_0303642889c22e::t_40ac2783c797db 3-4,33,38,47-50,68,73,99,111,131-134
+lib/utils/__fixtures__/pinnedLookup/cert.pem
+  s_0303642889c22e::t_4d545c42944126 1-20
+lib/utils/__fixtures__/pinnedLookup/key.pem
+  s_0303642889c22e::t_cb8c23c0ca59f5 1-28
+lib/utils/safeImageDownload.status.test.ts
+  s_0303642889c22e::t_36fd0122720644 1-72
+lib/utils/safeImageDownload.test.ts
+  s_0303642889c22e::t_c93ebb5ffb69ef 2,15-25,304,307-323,326,328,332,334-339,341,343-345,349-353,357-369,373,377-386,390-394,398,421,425,429-431,435,441-443,446,450,457,460-497
+lib/utils/safeImageDownload.ts
+  s_0303642889c22e::t_9d625b513c0317 1,4,6-9,19-22,29-32,53-57,59-67,69-71,92-98,115-139,142-212,217-218,244-245,248-251,260
+lib/utils/safeRemoteFetch.pinnedLookup.test.ts
+  s_0303642889c22e::t_eb3320dd7db372 1-111
+lib/utils/safeRemoteFetch.ts
+  s_0303642889c22e::t_dc8e1c67b47fd7 205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7433316fed246117951f36f1c303f552987e500",
+  "prompts": {},
+  "sessions": {
+    "s_0303642889c22e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9e80880-6d1c-448c-bf09-ce18b6ac927f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
