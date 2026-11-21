@@ -1,0 +1,29 @@
+docs/architecture.md
+  s_0303642889c22e::t_18e0a5f9fcf0e8 3396-3403
+lib/utils/http-headers/hsts.test.ts
+  s_0303642889c22e::t_2ba4814bdcc010 1-38
+lib/utils/http-headers/hsts.ts
+  s_0303642889c22e::t_8e67650188c9d1 1-40
+lib/utils/http-headers/index.ts
+  s_0303642889c22e::t_9ff946e10bf946 12-14,41-47
+proxy.ts
+  s_0303642889c22e::t_f6697cefd53de9 20,144,161-168,200,211,219,248,260,271,302,315,327,345,357,365,371
+test/proxy.test.ts
+  s_0303642889c22e::t_d85cf052aa8fef 616-671
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a75f2934ea01a1645a88b28c65ed31701e9ac28",
+  "prompts": {},
+  "sessions": {
+    "s_0303642889c22e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9e80880-6d1c-448c-bf09-ce18b6ac927f",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
