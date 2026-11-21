@@ -96,7 +96,9 @@ describe('two-factor sign-in flow', () => {
   // A cookie jar that mirrors a browser across the sequential auth requests.
   const jar: Record<string, string> = {}
   // The current TOTP code, set once the first test has enabled 2FA. The tests
-  // below run in order on the same account.
+  // in this block run as a group, in order, on the same account: each later
+  // test starts from the trusted device and password the one before left, so
+  // running one alone (`-t`, `it.only`) fails with "2FA is not enabled yet".
   let code: () => Promise<string> = async () => {
     throw new Error('2FA is not enabled yet')
   }
