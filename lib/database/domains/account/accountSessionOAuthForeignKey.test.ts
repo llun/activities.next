@@ -238,7 +238,8 @@ describe('account sessions that minted OAuth tokens (foreign keys enforced)', ()
     await expect(
       sqlDatabase.changePassword({
         accountId,
-        newPasswordHash: 'changed_password_hash'
+        newPasswordHash: 'changed_password_hash',
+        signOutApps: false
       })
     ).resolves.toBeUndefined()
 
@@ -271,9 +272,11 @@ describe('account sessions that minted OAuth tokens (foreign keys enforced)', ()
     expect(await sqlDatabase.getAccountAllSessions({ accountId })).toHaveLength(
       0
     )
+    // A reset ends the connected apps' tokens outright rather than detaching
+    // them, so the rows are gone (and the FK cannot be violated).
     expect(await getTokenSessionIds(accessId, refreshId)).toEqual({
-      access: null,
-      refresh: null
+      access: undefined,
+      refresh: undefined
     })
   })
 

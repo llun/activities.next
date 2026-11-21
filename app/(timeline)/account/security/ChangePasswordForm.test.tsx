@@ -103,7 +103,8 @@ describe('ChangePasswordForm', () => {
     await waitFor(() => {
       expect(mockChangeAccountPassword).toHaveBeenCalledWith({
         currentPassword: 'old-secret-123',
-        newPassword: 'brand-new-secret-123'
+        newPassword: 'brand-new-secret-123',
+        signOutApps: true
       })
       expect(screen.getByText('Saved')).toBeInTheDocument()
     })
@@ -111,6 +112,51 @@ describe('ChangePasswordForm', () => {
     expect(currentInput).toHaveValue('')
     expect(newInput).toHaveValue('')
     expect(confirmInput).toHaveValue('')
+  })
+
+  it('ticks "Sign out connected apps" by default', () => {
+    render(<ChangePasswordForm />)
+
+    expect(
+      screen.getByRole('checkbox', { name: /sign out connected apps/i })
+    ).toBeChecked()
+    expect(
+      screen.getByText(
+        "Revokes access for apps you've authorized, such as mobile clients."
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('sends signOutApps: false when the owner unticks the box', async () => {
+    mockChangeAccountPassword.mockResolvedValueOnce({
+      success: true,
+      message: 'Password changed successfully'
+    })
+
+    render(<ChangePasswordForm />)
+
+    fireEvent.change(screen.getByLabelText(/^current password/i), {
+      target: { value: 'old-secret-123' }
+    })
+    fireEvent.change(screen.getByLabelText(/^new password/i), {
+      target: { value: 'brand-new-secret-123' }
+    })
+    fireEvent.change(screen.getByLabelText(/^confirm new password/i), {
+      target: { value: 'brand-new-secret-123' }
+    })
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /sign out connected apps/i })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(mockChangeAccountPassword).toHaveBeenCalledWith({
+        currentPassword: 'old-secret-123',
+        newPassword: 'brand-new-secret-123',
+        signOutApps: false
+      })
+    })
   })
 
   it('displays API error when current password is incorrect and re-enables submit button', async () => {

@@ -11,6 +11,12 @@ import { Input } from '@/lib/components/ui/input'
 
 interface Props {
   currentEmail: string
+  /**
+   * Whether the account has a password. A password account must prove it
+   * before the address can move; a passkey- or OAuth-only account has none to
+   * prove and keeps the session-only request.
+   */
+  requiresPassword: boolean
   /** Rows shown above the change rows in the same box, such as the current email. */
   children?: ReactNode
 }
@@ -24,10 +30,12 @@ interface Props {
  */
 export const ChangeEmailForm: FC<Props> = ({
   currentEmail: _currentEmail,
+  requiresPassword,
   children
 }) => {
   const [isChanging, setIsChanging] = useState(false)
   const [newEmail, setNewEmail] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -39,13 +47,17 @@ export const ChangeEmailForm: FC<Props> = ({
     setIsLoading(true)
 
     try {
-      await requestEmailChange({ newEmail })
+      await requestEmailChange({
+        newEmail,
+        ...(requiresPassword ? { currentPassword } : {})
+      })
 
       setMessage(
         'Verification email sent! Please check your inbox and click the verification link.'
       )
       setIsChanging(false)
       setNewEmail('')
+      setCurrentPassword('')
     } catch (err) {
       setError(
         err instanceof Error
@@ -101,6 +113,7 @@ export const ChangeEmailForm: FC<Props> = ({
                 setIsChanging(false)
                 setError('')
                 setNewEmail('')
+                setCurrentPassword('')
               }}
               disabled={isLoading}
             >
@@ -113,6 +126,21 @@ export const ChangeEmailForm: FC<Props> = ({
         }
       >
         {children}
+        {requiresPassword && (
+          <FormRow
+            label="Current password"
+            htmlFor="currentPassword"
+            hint="Confirms it is you before the address can change."
+          >
+            <Input
+              type="password"
+              id="currentPassword"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+            />
+          </FormRow>
+        )}
         <FormRow
           label="New email address"
           htmlFor="newEmail"

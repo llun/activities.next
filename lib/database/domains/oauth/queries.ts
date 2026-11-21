@@ -12,7 +12,8 @@ import type {
   GetOAuthAccessTokenByHashParams,
   IsOAuthClientPKCERequiredParams,
   OAuthAccessTokenRecord,
-  RevokeAccountConnectedAppParams
+  RevokeAccountConnectedAppParams,
+  RevokeAccountOAuthTokensParams
 } from '@/lib/database/domains/oauth/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { DB } from '@/lib/database/kysely/db'
@@ -293,6 +294,48 @@ export const revokeAccountConnectedApp = (
       .execute()
   })
 
+export const revokeAccountOAuthTokens = (
+  db: Db,
+  { accountId }: RevokeAccountOAuthTokensParams
+): Promise<void> =>
+  // Account recovery: every user-delegated token the account holds must stop
+  // working, whichever actor it was issued for. Tokens are keyed by `userId`
+  // (the account), so that arm covers all of them; the `referenceId` arm also
+  // catches a token whose `userId` is missing but whose actor belongs to this
+  // account. App (`client_credentials`) tokens have neither a user nor an
+  // actor, so they are left alone, as are other accounts' tokens.
+  inTransaction(db, async (trx) => {
+    const actorIds = (
+      await trx
+        .selectFrom('actors')
+        .select('id')
+        .where('accountId', '=', accountId)
+        .execute()
+    )
+      .map((row) => row.id)
+      .filter((id): id is string => Boolean(id))
+
+    const accessScope = (eb: ExpressionBuilder<DB, 'oauthAccessToken'>) =>
+      actorIds.length > 0
+        ? eb.or([
+            eb('userId', '=', accountId),
+            eb('referenceId', 'in', actorIds)
+          ])
+        : eb('userId', '=', accountId)
+    const refreshScope = (eb: ExpressionBuilder<DB, 'oauthRefreshToken'>) =>
+      actorIds.length > 0
+        ? eb.or([
+            eb('userId', '=', accountId),
+            eb('referenceId', 'in', actorIds)
+          ])
+        : eb('userId', '=', accountId)
+
+    // Delete access tokens before refresh tokens: oauthAccessToken.refreshId
+    // is a FK into oauthRefreshToken, so the children must go first.
+    await trx.deleteFrom('oauthAccessToken').where(accessScope).execute()
+    await trx.deleteFrom('oauthRefreshToken').where(refreshScope).execute()
+  })
+
 export const oauthQueries = {
   getClientFromId,
   getOAuthAccessTokenByHash,
@@ -302,5 +345,6 @@ export const oauthQueries = {
   createOAuthAccessToken,
   extendOAuthAccessToken,
   getAccountConnectedApps,
-  revokeAccountConnectedApp
+  revokeAccountConnectedApp,
+  revokeAccountOAuthTokens
 }

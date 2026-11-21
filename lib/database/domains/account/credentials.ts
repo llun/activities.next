@@ -14,8 +14,10 @@ import type {
   ValidatePasswordResetCodeParams,
   VerifyEmailChangeParams
 } from '@/lib/database/domains/account/types'
+import { revokeAccountOAuthTokens } from '@/lib/database/domains/oauth/queries'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { timestampValue } from '@/lib/database/kysely/dialect'
+import { inSavepoint } from '@/lib/database/kysely/savepoint'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import type { Account } from '@/lib/types/domain/account'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
@@ -118,26 +120,46 @@ export const verifyEmailChange = async (
     .executeTakeFirst()
   if (conflicting) return null
 
-  try {
-    await db
-      .updateTable('accounts')
-      .set({
-        email: normalizedEmail,
-        emailVerifiedAt: now,
-        emailChangePending: null,
-        emailChangeCode: null,
-        emailChangeCodeExpiresAt: null,
-        updatedAt: now
-      })
-      .where('id', '=', account.id)
-      .execute()
-  } catch (error) {
-    // Pre-check covers the common case; a concurrent claim can still race onto
-    // the unique constraint between the check and the update. Map that to the
-    // same graceful null rather than a 500.
-    if (isUniqueConstraintError(error)) return null
-    throw error
-  }
+  // The write is bound to the code, the pending address and the expiry it was
+  // read with, so a concurrent replacement (a newer request) makes this match
+  // nothing instead of promoting an address the code no longer belongs to.
+  // The pending password-reset state is cleared in the same statement: the
+  // address that could receive a reset link has just changed.
+  const updated = await inTransaction(db, async (trx) => {
+    try {
+      return await inSavepoint(trx, () =>
+        trx
+          .updateTable('accounts')
+          .set({
+            email: normalizedEmail,
+            emailVerifiedAt: now,
+            emailChangePending: null,
+            emailChangeCode: null,
+            emailChangeCodeExpiresAt: null,
+            passwordResetCode: null,
+            passwordResetCodeExpiresAt: null,
+            updatedAt: now
+          })
+          .where('id', '=', account.id)
+          .where('emailChangeCode', '=', emailChangeCode)
+          .where('emailChangePending', '=', pendingEmail)
+          .where((eb) =>
+            eb.or([
+              eb('emailChangeCodeExpiresAt', 'is', null),
+              eb('emailChangeCodeExpiresAt', '>=', timestampValue(now))
+            ])
+          )
+          .executeTakeFirst()
+      )
+    } catch (error) {
+      // Pre-check covers the common case; a concurrent claim can still race
+      // onto the unique constraint between the check and the update. Map that
+      // to the same graceful null rather than a 500.
+      if (isUniqueConstraintError(error)) return null
+      throw error
+    }
+  })
+  if (!updated || Number(updated.numUpdatedRows) === 0) return null
 
   return getAccountFromId(db, { id: account.id })
 }
@@ -232,8 +254,11 @@ export const resetPasswordWithCode = async (
     )?.id
   if (!targetAccountId) return null
 
-  // The code is consumed, the credential row moves to the new password and
-  // every session of the account is revoked together or not at all.
+  // The code is consumed, the credential row moves to the new password, every
+  // connected app's tokens are revoked and every session of the account is
+  // revoked together or not at all. A pending email change is cleared too: the
+  // recovery flow proves control of the current address, so an address change
+  // requested before it must not survive it.
   const updatedAccountId = await inTransaction(db, async (trx) => {
     const result = await trx
       .updateTable('accounts')
@@ -241,6 +266,9 @@ export const resetPasswordWithCode = async (
         passwordHash: newPasswordHash,
         passwordResetCode: null,
         passwordResetCodeExpiresAt: null,
+        emailChangePending: null,
+        emailChangeCode: null,
+        emailChangeCodeExpiresAt: null,
         updatedAt: now
       })
       .where('id', '=', targetAccountId)
@@ -250,6 +278,9 @@ export const resetPasswordWithCode = async (
     if (Number(result.numUpdatedRows) === 0) return null
 
     await upsertCredentialProvider(trx, targetAccountId, newPasswordHash, now)
+    // Tokens first: `deleteSessionsWithTokenDetach` only detaches them, and a
+    // reset must end them, not leave them working.
+    await revokeAccountOAuthTokens(trx, { accountId: targetAccountId })
     await deleteSessionsWithTokenDetach(trx, (eb) =>
       eb('accountId', '=', targetAccountId)
     )
@@ -262,10 +293,11 @@ export const resetPasswordWithCode = async (
 
 export const changePassword = async (
   db: Db,
-  { accountId, newPasswordHash }: ChangePasswordParams
+  { accountId, newPasswordHash, signOutApps }: ChangePasswordParams
 ): Promise<void> => {
   const currentTime = new Date()
-  // The new hash, the credential row and the session wipe commit together.
+  // The new hash, the credential row, the optional connected-app revocation
+  // and the session wipe commit together.
   await inTransaction(db, async (trx) => {
     await trx
       .updateTable('accounts')
@@ -273,11 +305,17 @@ export const changePassword = async (
         passwordHash: newPasswordHash,
         passwordResetCode: null,
         passwordResetCodeExpiresAt: null,
+        emailChangePending: null,
+        emailChangeCode: null,
+        emailChangeCodeExpiresAt: null,
         updatedAt: currentTime
       })
       .where('id', '=', accountId)
       .execute()
     await upsertCredentialProvider(trx, accountId, newPasswordHash, currentTime)
+    if (signOutApps) {
+      await revokeAccountOAuthTokens(trx, { accountId })
+    }
     await deleteSessionsWithTokenDetach(trx, (eb) =>
       eb('accountId', '=', accountId)
     )

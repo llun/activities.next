@@ -59,7 +59,10 @@ const Page = async ({
         title="Email address"
         description="Used for sign-in and account notifications."
       >
-        <ChangeEmailForm currentEmail={account.email}>
+        <ChangeEmailForm
+          currentEmail={account.email}
+          requiresPassword={Boolean(account.passwordHash)}
+        >
           <FormRow label="Current email" htmlFor="currentEmail">
             <div className="flex items-center gap-2">
               <Input id="currentEmail" value={account.email} disabled />

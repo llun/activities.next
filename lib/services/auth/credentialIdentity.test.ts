@@ -248,7 +248,8 @@ describe('credential identity', () => {
 
     await database().changePassword({
       accountId,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST),
+      signOutApps: false
     })
 
     expect(await credentialRow(accountId)).toMatchObject({
@@ -267,7 +268,8 @@ describe('credential identity', () => {
 
     await database().changePassword({
       accountId,
-      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST)
+      newPasswordHash: await bcrypt.hash(NEW_PASSWORD, TEST_BCRYPT_COST),
+      signOutApps: false
     })
 
     expect(await credentialRow(accountId)).toMatchObject({

@@ -24,6 +24,10 @@ export type RevokeAccountConnectedAppParams = {
   actorId: string | null
 }
 
+export type RevokeAccountOAuthTokensParams = {
+  accountId: string
+}
+
 export type ExtendOAuthAccessTokenParams = {
   // SHA-256 base64url hash of the bearer token, the same value OAuthGuard looks
   // it up by.
@@ -141,5 +145,12 @@ export interface OAuthDatabase {
   // access/refresh token issued for that client + actor.
   revokeAccountConnectedApp(
     params: RevokeAccountConnectedAppParams
+  ): Promise<void>
+  // Revoke every user-delegated OAuth token the account holds, across all of
+  // its actors, without touching its consents or any app (client_credentials)
+  // token. Used by account recovery: a password reset or a password change
+  // that signs connected apps out.
+  revokeAccountOAuthTokens(
+    params: RevokeAccountOAuthTokensParams
   ): Promise<void>
 }

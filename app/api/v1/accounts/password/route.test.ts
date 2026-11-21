@@ -200,8 +200,60 @@ describe('POST /api/v1/accounts/password', () => {
     })
     expect(mockDb.changePassword).toHaveBeenCalledWith({
       accountId: account.id,
-      newPasswordHash: 'new-password-hash'
+      newPasswordHash: 'new-password-hash',
+      // Omitted in the body: signing connected apps out is the default.
+      signOutApps: true
     })
+  })
+
+  it('passes signOutApps: false through when the owner keeps their apps', async () => {
+    const request = new NextRequest(
+      'http://llun.test/api/v1/accounts/password',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: 'current-password',
+          newPassword: 'new-password',
+          signOutApps: false
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.changePassword).toHaveBeenCalledWith({
+      accountId: account.id,
+      newPasswordHash: 'new-password-hash',
+      signOutApps: false
+    })
+  })
+
+  it('returns 422 when signOutApps is not a boolean', async () => {
+    const request = new NextRequest(
+      'http://llun.test/api/v1/accounts/password',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: 'current-password',
+          newPassword: 'new-password',
+          signOutApps: 'yes'
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }
+    )
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(422)
+    expect(mockDb.changePassword).not.toHaveBeenCalled()
   })
 
   it('returns 403 when actor is suspended', async () => {

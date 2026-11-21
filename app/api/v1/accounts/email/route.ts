@@ -2,11 +2,17 @@ import crypto from 'crypto'
 import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
-import { checkEmailChangeRateLimit } from '@/lib/services/auth/routeRateLimits'
+import { comparePassword } from '@/lib/services/auth/passwordHash'
+import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
+import {
+  checkEmailChangeRateLimit,
+  checkPasswordChangeRateLimit
+} from '@/lib/services/auth/routeRateLimits'
 import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
 import { buildChangeEmail } from '@/lib/services/email/templates/changeEmail'
+import { buildEmailChangeNoticeEmail } from '@/lib/services/email/templates/emailChangeNotice'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -21,7 +27,10 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 const EmailChangeRequest = z.object({
   // Normalized to lowercase so the "already in use" check and the stored
   // pending email compare against the canonical form. See normalizeEmail.
-  newEmail: z.string().trim().toLowerCase().email().max(255)
+  newEmail: z.string().trim().toLowerCase().email().max(255),
+  // Required when the account has a password (see the handler); a passkey- or
+  // OAuth-only account has none to prove.
+  currentPassword: z.string().min(1).optional()
 })
 
 export const POST = traceApiRoute(
@@ -54,7 +63,7 @@ export const POST = traceApiRoute(
     if (!parsed.success) {
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
-    const { newEmail } = parsed.data
+    const { newEmail, currentPassword } = parsed.data
 
     try {
       const config = getConfig()
@@ -67,6 +76,39 @@ export const POST = traceApiRoute(
           },
           responseStatusCode: 500
         })
+      }
+
+      // A password account must prove the current password: a hijacked session
+      // alone must not be able to move the address (and then reset the
+      // password through it). A passkey- or OAuth-only account has no password
+      // to prove, so it keeps the session-only behaviour.
+      if (currentActor.account.passwordHash) {
+        const passwordLimit = checkPasswordChangeRateLimit(
+          currentActor.account.id
+        )
+        if (!passwordLimit.allowed) {
+          return apiRateLimitedResponse(req, passwordLimit.retryAfterSeconds)
+        }
+        if (!currentPassword) {
+          return apiResponse({
+            req,
+            allowedMethods: [],
+            data: { error: 'Current password is required' },
+            responseStatusCode: 400
+          })
+        }
+        const isPasswordCorrect = await comparePassword(
+          currentPassword,
+          currentActor.account.passwordHash
+        )
+        if (!isPasswordCorrect) {
+          return apiResponse({
+            req,
+            allowedMethods: [],
+            data: { error: 'Current password is incorrect' },
+            responseStatusCode: 400
+          })
+        }
       }
 
       // Check if email is already in use
@@ -82,8 +124,10 @@ export const POST = traceApiRoute(
         })
       }
 
-      // Generate verification code
-      const emailChangeCode = crypto.randomBytes(32).toString('base64url')
+      // The link carries the raw code; the database stores only its HMAC, the
+      // same way a password reset code is stored.
+      const rawEmailChangeCode = crypto.randomBytes(32).toString('base64url')
+      const emailChangeCode = hashPasswordResetCode(rawEmailChangeCode)
 
       // Store the pending email change
       await database.requestEmailChange({
@@ -92,14 +136,42 @@ export const POST = traceApiRoute(
         emailChangeCode
       })
 
+      // Linked on the account's actor domain when this server answers on it.
+      const domain = getServedLinkDomain(currentActor.domain)
+      const { brand, from, contactEmail } = await resolveEmailIdentity(
+        database,
+        domain
+      )
+
+      // Tell the OLD address, so its owner learns about a change they did not
+      // ask for. A failure here must not fail the request: the change is
+      // already pending and the new address still gets its link.
+      try {
+        const notice = buildEmailChangeNoticeEmail({
+          recipientEmail: currentActor.account.email,
+          newEmail,
+          contactEmail,
+          brand
+        })
+        await sendMail({
+          from,
+          to: [currentActor.account.email],
+          subject: notice.subject,
+          content: { text: notice.text, html: notice.html }
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to send email change notice to the old address',
+          accountId: currentActor.account.id,
+          err: toLoggableError(error)
+        })
+      }
+
       // Send verification email
       try {
-        // Linked on the account's actor domain when this server answers on it.
-        const domain = getServedLinkDomain(currentActor.domain)
-        const { brand, from } = await resolveEmailIdentity(database, domain)
         const email = buildChangeEmail({
           recipientEmail: newEmail,
-          emailChangeCode,
+          emailChangeCode: rawEmailChangeCode,
           domain,
           brand
         })

@@ -114,6 +114,9 @@ export type ResetPasswordWithCodeParams = {
 export type ChangePasswordParams = {
   accountId: string
   newPasswordHash: string
+  // Revoke every user-delegated OAuth token the account holds, across all of
+  // its actors, in the same transaction. Sessions are always revoked.
+  signOutApps: boolean
 }
 export type RepointUnconfirmedAccountEmailParams = {
   accountId: string

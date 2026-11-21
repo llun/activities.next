@@ -959,7 +959,8 @@ describe('password reset', () => {
 
     await database.changePassword({
       accountId: target.accountId,
-      newPasswordHash: 'changed'
+      newPasswordHash: 'changed',
+      signOutApps: false
     })
 
     expect(await accountRow(target.accountId)).toMatchObject({
@@ -1221,7 +1222,8 @@ describe('transactions', () => {
       await expect(
         database.changePassword({
           accountId: target.accountId,
-          newPasswordHash: 'never'
+          newPasswordHash: 'never',
+          signOutApps: false
         })
       ).rejects.toThrow()
     } finally {

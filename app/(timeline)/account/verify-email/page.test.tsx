@@ -25,8 +25,9 @@ vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>
 }))
 
-const renderPage = async (code?: string | string[]) =>
-  render(await Page({ searchParams: Promise.resolve({ code }) }))
+const renderPage = async (
+  params: Record<string, string | string[] | undefined>
+) => render(await Page({ searchParams: Promise.resolve(params) }))
 
 const signedIn = { id: 'actor-1', account: { id: 'acct-1' } }
 
@@ -36,19 +37,47 @@ describe('/account/verify-email', () => {
     getActorFromSession.mockResolvedValue(null)
   })
 
-  it('confirms the change in a success alert and sends a signed-out visitor to sign in', async () => {
-    verifyEmailChange.mockResolvedValue({ email: 'new@llun.test' })
+  it('is read-only: opening the link never applies the change', async () => {
+    await renderPage({ code: 'good-code' })
 
-    await renderPage('good-code')
+    expect(verifyEmailChange).not.toHaveBeenCalled()
+  })
 
-    expect(verifyEmailChange).toHaveBeenCalledWith({
-      emailChangeCode: 'good-code'
-    })
+  it('shows a confirm button that POSTs the code to the confirm route', async () => {
+    const { container } = render(
+      await Page({ searchParams: Promise.resolve({ code: 'good-code' }) })
+    )
+
+    const form = container.querySelector('form')
+    expect(form).not.toBeNull()
+    expect(form).toHaveAttribute('method', 'post')
+    expect(form).toHaveAttribute(
+      'action',
+      '/api/v1/accounts/email/verify/confirm'
+    )
+    expect(form?.querySelector('input[name="code"]')).toHaveValue('good-code')
+    expect(
+      screen.getByRole('button', { name: 'Confirm email change' })
+    ).toBeInTheDocument()
+  })
+
+  it('uses the first code when the link repeats the parameter', async () => {
+    const { container } = render(
+      await Page({
+        searchParams: Promise.resolve({ code: ['first', 'second'] })
+      })
+    )
+
+    expect(container.querySelector('input[name="code"]')).toHaveValue('first')
+  })
+
+  it('reports a verified change in a success alert and sends a signed-out visitor to sign in', async () => {
+    await renderPage({ status: 'verified' })
+
     const alert = screen
       .getByText('Email verified')
       .closest('[data-slot="alert"]') as HTMLElement
     expect(alert).toHaveAttribute('data-tone', 'success')
-    expect(alert).toHaveTextContent('changed to new@llun.test')
     expect(
       screen.getByText('Please sign in with your new email address.')
     ).toBeInTheDocument()
@@ -59,10 +88,9 @@ describe('/account/verify-email', () => {
   })
 
   it('sends a signed-in visitor back to their account, with no sign-in prompt', async () => {
-    verifyEmailChange.mockResolvedValue({ email: 'new@llun.test' })
     getActorFromSession.mockResolvedValue(signedIn)
 
-    await renderPage('good-code')
+    await renderPage({ status: 'verified' })
 
     expect(screen.getByText('Email verified')).toBeInTheDocument()
     expect(
@@ -74,10 +102,9 @@ describe('/account/verify-email', () => {
   })
 
   it('reports an invalid or expired link as an error, with the same destination rule', async () => {
-    verifyEmailChange.mockResolvedValue(null)
     getActorFromSession.mockResolvedValue(signedIn)
 
-    await renderPage('stale-code')
+    await renderPage({ status: 'invalid' })
 
     const alert = screen
       .getByText('Verification failed')
@@ -89,21 +116,13 @@ describe('/account/verify-email', () => {
     ).toBeVisible()
   })
 
-  it('fails without asking the database when there is no code', async () => {
-    await renderPage(undefined)
+  it('asks for a link when opened with no code and no status', async () => {
+    await renderPage({})
 
     expect(verifyEmailChange).not.toHaveBeenCalled()
-    expect(screen.getByText('Verification failed')).toBeInTheDocument()
+    expect(
+      screen.getByText('Open the link from your email')
+    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sign in' })).toBeVisible()
-  })
-
-  it('uses the first code when the link repeats the parameter', async () => {
-    verifyEmailChange.mockResolvedValue({ email: 'new@llun.test' })
-
-    await renderPage(['first', 'second'])
-
-    expect(verifyEmailChange).toHaveBeenCalledWith({
-      emailChangeCode: 'first'
-    })
   })
 })

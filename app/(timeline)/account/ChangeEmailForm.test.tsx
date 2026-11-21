@@ -21,7 +21,10 @@ describe('ChangeEmailForm', () => {
 
   it('renders the form with method="post" (defense-in-depth against a native GET submit)', () => {
     const { container } = render(
-      <ChangeEmailForm currentEmail="user@example.com" />
+      <ChangeEmailForm
+        currentEmail="user@example.com"
+        requiresPassword={false}
+      />
     )
 
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
@@ -36,7 +39,12 @@ describe('ChangeEmailForm', () => {
       message: 'Verification email sent'
     })
 
-    render(<ChangeEmailForm currentEmail="user@example.com" />)
+    render(
+      <ChangeEmailForm
+        currentEmail="user@example.com"
+        requiresPassword={false}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
 
     const input = screen.getByLabelText(/new email address/i)
@@ -67,7 +75,12 @@ describe('ChangeEmailForm', () => {
       new Error('Email already in use')
     )
 
-    render(<ChangeEmailForm currentEmail="user@example.com" />)
+    render(
+      <ChangeEmailForm
+        currentEmail="user@example.com"
+        requiresPassword={false}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
 
     const input = screen.getByLabelText(/new email address/i)
@@ -94,7 +107,12 @@ describe('ChangeEmailForm', () => {
   it('shows fallback error on network or non-Error failure', async () => {
     mockRequestEmailChange.mockRejectedValueOnce('network error string')
 
-    render(<ChangeEmailForm currentEmail="user@example.com" />)
+    render(
+      <ChangeEmailForm
+        currentEmail="user@example.com"
+        requiresPassword={false}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
 
     const input = screen.getByLabelText(/new email address/i)
@@ -112,8 +130,64 @@ describe('ChangeEmailForm', () => {
     })
   })
 
+  it('hides the current-password row for an account without a password', () => {
+    render(
+      <ChangeEmailForm
+        currentEmail="user@example.com"
+        requiresPassword={false}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /change email/i }))
+
+    expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument()
+  })
+
+  it('asks for the current password and sends it when the account has one', async () => {
+    mockRequestEmailChange.mockResolvedValueOnce({
+      message: 'Verification email sent'
+    })
+
+    render(<ChangeEmailForm currentEmail="user@example.com" requiresPassword />)
+    fireEvent.click(screen.getByRole('button', { name: /change email/i }))
+
+    fireEvent.change(screen.getByLabelText(/current password/i), {
+      target: { value: 'my-password' }
+    })
+    fireEvent.change(screen.getByLabelText(/new email address/i), {
+      target: { value: 'new@example.com' }
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: /send verification email/i })
+    )
+
+    await waitFor(() => {
+      expect(mockRequestEmailChange).toHaveBeenCalledWith({
+        newEmail: 'new@example.com',
+        currentPassword: 'my-password'
+      })
+    })
+  })
+
+  it('clears the password field when clicking cancel', () => {
+    render(<ChangeEmailForm currentEmail="user@example.com" requiresPassword />)
+    fireEvent.click(screen.getByRole('button', { name: /change email/i }))
+
+    fireEvent.change(screen.getByLabelText(/current password/i), {
+      target: { value: 'draft-password' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: /change email/i }))
+
+    expect(screen.getByLabelText(/current password/i)).toHaveValue('')
+  })
+
   it('resets form state when clicking cancel', () => {
-    render(<ChangeEmailForm currentEmail="user@example.com" />)
+    render(
+      <ChangeEmailForm
+        currentEmail="user@example.com"
+        requiresPassword={false}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /change email/i }))
 
     const input = screen.getByLabelText(/new email address/i)

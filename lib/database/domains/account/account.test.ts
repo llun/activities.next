@@ -520,7 +520,8 @@ describe('AccountDatabase', () => {
 
         await database.changePassword({
           accountId,
-          newPasswordHash: 'updated_hash'
+          newPasswordHash: 'updated_hash',
+          signOutApps: false
         })
 
         const account = await database.getAccountFromId({ id: accountId })

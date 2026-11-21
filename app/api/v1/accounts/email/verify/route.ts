@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -43,7 +44,8 @@ export const POST = traceApiRoute(
     try {
       const updatedAccount = await database.verifyEmailChange({
         accountId: currentActor.account.id,
-        emailChangeCode
+        // The link carries the raw code; the row stores its HMAC.
+        emailChangeCode: hashPasswordResetCode(emailChangeCode)
       })
 
       if (!updatedAccount) {

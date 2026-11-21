@@ -19,30 +19,18 @@ interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
+const first = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : value
+
 const Page: FC<Props> = async ({ searchParams }) => {
   const database = getDatabase()
   if (!database) {
     throw new Error('Database is not available')
   }
 
-  const { code } = await searchParams
-  const verificationCode = Array.isArray(code) ? code[0] : code
-
-  let isSuccess = false
-  let newEmail = ''
-
-  if (verificationCode) {
-    // Try to verify the email change without requiring authentication
-    // The database method will find the account by the verification code
-    const updatedAccount = await database.verifyEmailChange({
-      emailChangeCode: verificationCode
-    })
-
-    if (updatedAccount) {
-      isSuccess = true
-      newEmail = updatedAccount.email
-    }
-  }
+  const params = await searchParams
+  const verificationCode = first(params.code)
+  const status = first(params.status)
 
   // Check if user is logged in to provide better navigation
   const session = await getServerAuthSession()
@@ -61,29 +49,71 @@ const Page: FC<Props> = async ({ searchParams }) => {
       />
 
       <Section title="Email change">
-        <Alert
-          tone={isSuccess ? 'success' : 'error'}
-          title={isSuccess ? 'Email verified' : 'Verification failed'}
-          action={
-            <Button asChild>
-              <Link href={destination.href}>{destination.label}</Link>
-            </Button>
-          }
-        >
-          {isSuccess ? (
-            <>
-              Your email has been successfully changed to {newEmail}. You can
-              now use your new email address to sign in.
-              {!isLoggedIn ? (
-                <span className="text-foreground mt-1 block font-medium">
-                  Please sign in with your new email address.
-                </span>
-              ) : null}
-            </>
-          ) : (
-            'The verification link is invalid or has expired. Please request a new email change from your account settings.'
-          )}
-        </Alert>
+        {status === 'verified' ? (
+          <Alert
+            tone="success"
+            title="Email verified"
+            action={
+              <Button asChild>
+                <Link href={destination.href}>{destination.label}</Link>
+              </Button>
+            }
+          >
+            Your email address has been changed. You can now use your new email
+            address to sign in.
+            {!isLoggedIn ? (
+              <span className="text-foreground mt-1 block font-medium">
+                Please sign in with your new email address.
+              </span>
+            ) : null}
+          </Alert>
+        ) : status === 'invalid' ? (
+          <Alert
+            tone="error"
+            title="Verification failed"
+            action={
+              <Button asChild>
+                <Link href={destination.href}>{destination.label}</Link>
+              </Button>
+            }
+          >
+            The verification link is invalid or has expired. Please request a
+            new email change from your account settings.
+          </Alert>
+        ) : verificationCode ? (
+          // GET is read-only: the change is applied by the POST this button
+          // sends, so a mail scanner that opens the link cannot consume it.
+          <Alert
+            tone="info"
+            live={false}
+            title="Confirm email change"
+            action={
+              <form
+                method="post"
+                action="/api/v1/accounts/email/verify/confirm"
+              >
+                <input type="hidden" name="code" value={verificationCode} />
+                <Button type="submit">Confirm email change</Button>
+              </form>
+            }
+          >
+            Press confirm to apply the change to your email address.
+          </Alert>
+        ) : (
+          <Alert
+            tone="info"
+            live={false}
+            title="Open the link from your email"
+            action={
+              <Button asChild>
+                <Link href={destination.href}>{destination.label}</Link>
+              </Button>
+            }
+          >
+            This page confirms an email change. Open the verification link we
+            sent to the new address to continue.
+          </Alert>
+        )}
       </Section>
     </div>
   )
