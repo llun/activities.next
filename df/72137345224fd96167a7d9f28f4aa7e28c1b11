@@ -1,0 +1,21 @@
+app/(timeline)/[actor]/[status]/page.tsx
+  s_0303642889c22e::t_518a84f0d6ad1a 299-301,327-329
+docs/mastodon-api-compatibility.md
+  s_0303642889c22e::t_aa039fd467f256 2776-2777
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "df72137345224fd96167a7d9f28f4aa7e28c1b11",
+  "prompts": {},
+  "sessions": {
+    "s_0303642889c22e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b9e80880-6d1c-448c-bf09-ce18b6ac927f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
