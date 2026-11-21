@@ -309,6 +309,44 @@ describe('agents oxlint plugin', () => {
     ])
   })
 
+  it('flags relative and dynamic imports of the cookie-session readers', () => {
+    // The `@/` alias is not the only spelling that reaches these modules: a
+    // relative specifier resolves to the same file, and `import()` reads it
+    // without any specifiers to inspect.
+    expect(
+      lint({
+        'app/api/relative/route.ts': [
+          "import { getServerAuthSession } from '../../lib/services/auth/getSession'",
+          'export const GET = async () => getServerAuthSession()'
+        ].join('\n'),
+        'app/api/relative-actor/route.ts': [
+          "import { getActorFromSession } from '../../lib/utils/getActorFromSession'",
+          'export const GET = async () => getActorFromSession()'
+        ].join('\n'),
+        'app/api/dynamic/route.ts': [
+          'export const GET = async () => {',
+          "  const { getServerAuthSession } = await import('@/lib/services/auth/getSession')",
+          '  return getServerAuthSession()',
+          '}'
+        ].join('\n'),
+        'app/api/dynamic-relative/route.ts': [
+          'export const GET = async () =>',
+          "  (await import('../../lib/utils/getActorFromSession')).getActorFromSession()"
+        ].join('\n'),
+        // A relative import of an unrelated module is not a cookie read.
+        'app/api/other/route.ts': [
+          "import { helper } from '../../lib/utils/other'",
+          'export const GET = async () => helper()'
+        ].join('\n')
+      })
+    ).toEqual([
+      'app/api/dynamic-relative/route.ts:2 agents(no-direct-cookie-session)',
+      'app/api/dynamic/route.ts:2 agents(no-direct-cookie-session)',
+      'app/api/relative-actor/route.ts:1 agents(no-direct-cookie-session)',
+      'app/api/relative/route.ts:1 agents(no-direct-cookie-session)'
+    ])
+  })
+
   // Every spelling below defeated a version of the raw-text scan this rule
   // replaced: a renamed import and a destructured `const { resolve } = path`
   // beat alias tracking, `path['resolve']` beat a substring ban, and

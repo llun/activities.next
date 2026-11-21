@@ -155,11 +155,15 @@ export const AdminApiGuard =
       return handle(req, {
         database,
         params: context.params,
-        // Cookie-session admin: the account has no actor of its own, so use its
-        // default actor id (null when unset — the actor-requiring handlers 422).
+        // Cookie-session admin: name the actor the session actually resolves to,
+        // not `accounts.defaultActorId`. The default may be suspended while
+        // another actor on the account is usable, and `getActorFromSession`
+        // (above) already picked the usable one — recording the default would
+        // attribute the moderation action to a suspended identity. Null when the
+        // account has no actor at all (the actor-requiring handlers 422).
         moderator: {
           accountId: admin.id,
-          actorId: admin.defaultActorId ?? null
+          actorId: currentActor?.id ?? admin.defaultActorId ?? null
         }
       })
     }

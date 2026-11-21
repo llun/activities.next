@@ -19,10 +19,9 @@ import {
 import { PageHeader } from '@/lib/components/page-header'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
-import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { Actor, ActorProfile } from '@/lib/types/domain/actor'
 import { Follow } from '@/lib/types/domain/follow'
-import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export type FollowListDirection = 'followers' | 'following'
 
@@ -111,9 +110,12 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
   const database = getDatabase()
   if (!database) throw new Error('Database is not available')
 
-  const session = await getServerAuthSession()
-  const isLoggedIn = Boolean(session?.user?.email)
-  const currentActor = await getActorFromSession(database, session)
+  // A suspended actor or a disabled/unconfirmed account is treated exactly like
+  // an anonymous visitor: `isLoggedIn` gates the signed remote-profile fetch and
+  // the actor save inside getProfileIdentity, and a credential must never let a
+  // blocked session drive them.
+  const currentActor = await resolveOptionalSessionActor(database)
+  const isLoggedIn = Boolean(currentActor)
   const { actor } = await params
   const decodedActorHandle = decodeURIComponent(actor)
   const parts = decodedActorHandle.split('@').slice(1)

@@ -205,6 +205,7 @@ describe('[actor] following page', () => {
   })
 
   it('renders PageHeader when user is logged in', async () => {
+    mockGetActorFromSession.mockResolvedValue({ id: 'actor-1' } as never)
     mockGetServerAuthSession.mockResolvedValue({
       user: { email: 'user@llun.test' }
     } as never)

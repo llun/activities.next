@@ -120,8 +120,11 @@ const Page: FC<Props> = async ({ searchParams }) => {
   //
   // Only usable actors are offered: a suspended or deleting actor cannot act,
   // and `actors/switch` refuses it, so listing it would present a choice that
-  // fails with a server error. `currentActorId` is usable by construction
-  // (getActorFromSession prefers one), so it is always in this list.
+  // fails with a server error. `currentActorId` is normally in this list, but
+  // not always: when every actor on the account is unusable, `selectAccountActor`
+  // still resolves one — so the session keeps an identity and every guarded
+  // route answers 403 rather than the session silently losing it — and that
+  // actor is filtered out here.
   const accountActors = await database.getActorsForAccount({
     accountId: actor.account.id
   })

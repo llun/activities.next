@@ -65,6 +65,10 @@ export const resolveConsentReferenceId = async ({
       message: 'Failed to resolve the OAuth consent actor reference',
       error: e
     })
-    return undefined
+    // The lookup failed, not the session: keep the actor the session already
+    // names. Returning undefined here would mint the grant for no actor, and
+    // `OAuthGuard` would then fall back to the account's default actor — a
+    // different identity than the one the user consented for.
+    return session.actorId ?? undefined
   }
 }

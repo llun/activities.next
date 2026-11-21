@@ -1006,6 +1006,10 @@ describe('[actor] page moved banner', () => {
     mockGetProfileData.mockResolvedValue(
       profile(person('https://new.example/users/may'))
     )
+    // Signed in means a usable session actor, not merely a session cookie.
+    mockGetActorFromSession.mockResolvedValue({
+      id: 'https://llun.social/users/viewer'
+    } as never)
 
     await renderPage()
 

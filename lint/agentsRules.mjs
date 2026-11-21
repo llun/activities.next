@@ -527,18 +527,41 @@ export default {
           'getAccountFromSession'
         ])
 
+        // A relative specifier (`../../lib/services/auth/getSession`) reaches
+        // the same module as the `@/` alias, so match the path suffix too —
+        // otherwise the alias is the only spelling the rule sees. Only a
+        // relative specifier is suffix-matched: `@/lib/...` is compared whole.
+        const isModule = (source, modulePath) =>
+          source === modulePath ||
+          (source.startsWith('.') && source.endsWith(modulePath))
+        const isSessionModule = (source) =>
+          isModule(source, SESSION_MODULE) ||
+          isModule(source, '/lib/services/auth/getSession')
+        const isActorSessionModule = (source) =>
+          isModule(source, ACTOR_SESSION_MODULE) ||
+          isModule(source, '/lib/utils/getActorFromSession')
+
+        const reportSession = (node) =>
+          context.report({
+            node,
+            message:
+              'Do not read the cookie session directly in an API route or server action — use AuthenticatedGuard, or resolveSessionActor/resolveOptionalSessionActor/resolveSessionAccount/resolveSessionAdmin from @/lib/services/guards/sessionActor, so a suspended, disabled or unconfirmed account is refused (docs/architecture.md → An Unconfirmed Account May Not Act).'
+          })
+        const reportActorSession = (node) =>
+          context.report({
+            node,
+            message:
+              'Do not resolve the cookie session actor directly in an API route or server action — use resolveSessionActor/resolveOptionalSessionActor/resolveSessionAccount/resolveSessionAdmin from @/lib/services/guards/sessionActor, so a suspended, disabled or unconfirmed account is refused (docs/architecture.md → An Unconfirmed Account May Not Act).'
+          })
+
         return {
           ImportDeclaration(node) {
             const source = node.source.value
-            if (source === SESSION_MODULE) {
-              context.report({
-                node,
-                message:
-                  'Do not read the cookie session directly in an API route or server action — use AuthenticatedGuard, or resolveSessionActor/resolveOptionalSessionActor/resolveSessionAccount/resolveSessionAdmin from @/lib/services/guards/sessionActor, so a suspended, disabled or unconfirmed account is refused (docs/architecture.md → An Unconfirmed Account May Not Act).'
-              })
+            if (isSessionModule(source)) {
+              reportSession(node)
               return
             }
-            if (source !== ACTOR_SESSION_MODULE) return
+            if (!isActorSessionModule(source)) return
 
             const readsCookie = node.specifiers.some((specifier) => {
               if (specifier.type === 'ImportNamespaceSpecifier') return true
@@ -547,11 +570,24 @@ export default {
             })
             if (!readsCookie) return
 
-            context.report({
-              node,
-              message:
-                'Do not resolve the cookie session actor directly in an API route or server action — use resolveSessionActor/resolveOptionalSessionActor/resolveSessionAccount/resolveSessionAdmin from @/lib/services/guards/sessionActor, so a suspended, disabled or unconfirmed account is refused (docs/architecture.md → An Unconfirmed Account May Not Act).'
-            })
+            reportActorSession(node)
+          },
+          // `await import('@/lib/services/auth/getSession')` is the same read
+          // as a static import, and a dynamic one has no specifiers to inspect
+          // — the whole module is the namespace, so any import of it counts.
+          ImportExpression(node) {
+            const source = node.source
+            if (
+              source?.type !== 'Literal' ||
+              typeof source.value !== 'string'
+            ) {
+              return
+            }
+            if (isSessionModule(source.value)) {
+              reportSession(node)
+              return
+            }
+            if (isActorSessionModule(source.value)) reportActorSession(node)
           }
         }
       }

@@ -115,4 +115,23 @@ describe('resolveConsentReferenceId', () => {
       })
     ).toBeUndefined()
   })
+
+  it('keeps the session actor when the lookup fails', async () => {
+    // The lookup failed, not the session. Returning undefined would mint the
+    // grant for no actor, and OAuthGuard would then act as the account's
+    // default actor — a different identity than the one consented for.
+    const database = {
+      getAccountFromId: vi
+        .fn()
+        .mockRejectedValue(new Error('database is down')),
+      getActorsForAccount: vi.fn().mockResolvedValue([])
+    } as unknown as Database
+
+    expect(
+      await resolveConsentReferenceId({
+        database,
+        session: { userId: ACCOUNT_ID, actorId: SECOND_ACTOR }
+      })
+    ).toEqual(SECOND_ACTOR)
+  })
 })
