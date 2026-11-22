@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -22,9 +23,18 @@ import {
   saveOfflineScrollAnchor,
   saveOfflineTimeline
 } from '@/lib/client/offline'
-import { reconcileCachedStatuses } from '@/lib/client/statuses'
+import {
+  PENDING_LINK_PREVIEW_POLL_DELAYS_MS,
+  resetPendingLinkPreviewsForTesting,
+  syncPendingLinkPreviewForStatus
+} from '@/lib/client/pendingLinkPreviews'
+import {
+  getStatusIfReadable,
+  reconcileCachedStatuses
+} from '@/lib/client/statuses'
 import { Timeline } from '@/lib/services/timelines/types'
 import { createDeferred } from '@/lib/testing/deferred'
+import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 
 import { MainPageTimeline } from './MainPageTimeline'
 import {
@@ -71,12 +81,19 @@ vi.mock('@/lib/client/offline', async () => {
 
 vi.mock('@/lib/client/health', () => ({ checkServerHealth: vi.fn() }))
 
-vi.mock('@/lib/client/statuses', () => ({
-  reconcileCachedStatuses: vi.fn().mockResolvedValue({
-    statuses: [],
-    removedStatusIds: []
-  })
-}))
+vi.mock('@/lib/client/statuses', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/client/statuses')>(
+    '@/lib/client/statuses'
+  )
+  return {
+    ...actual,
+    reconcileCachedStatuses: vi.fn().mockResolvedValue({
+      statuses: [],
+      removedStatusIds: []
+    }),
+    getStatusIfReadable: vi.fn().mockResolvedValue(null)
+  }
+})
 
 vi.mock('@/lib/components/announcements/useAnnouncements', () => ({
   useAnnouncements: () => ({ hasAnnouncements: true })
@@ -1700,6 +1717,137 @@ describe('MainPageTimeline', () => {
       expect(
         container.querySelector('[data-slot="post-list-skeleton"]')
       ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('pending link preview resolution subscription', () => {
+    afterEach(() => {
+      resetPendingLinkPreviewsForTesting()
+      vi.useRealTimers()
+    })
+
+    it('patches matching timeline segments in place when async link preview resolves and ignores mismatched text', async () => {
+      const targetId = 'https://activities.local/users/llun/s/pending-preview'
+      const post = createStatus(targetId, {
+        text: 'Read https://example.com/slow-article',
+        updatedAt: FIXED_CURRENT_TIME
+      })
+
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[post]}
+        />
+      )
+
+      // Wait for initial offline hydration before switching to fake timers
+      await waitFor(() =>
+        expect(screen.getByTestId(`post-${targetId}`)).toBeInTheDocument()
+      )
+
+      vi.useFakeTimers()
+      vi.mocked(saveOfflineTimeline).mockClear()
+      vi.mocked(getStatusIfReadable).mockResolvedValueOnce({
+        id: 'pending-preview',
+        uri: targetId,
+        card: {
+          url: 'https://example.com/slow-article',
+          title: 'Resolved Timeline Article',
+          description: 'Popped in via subscription',
+          type: 'link',
+          author_name: '',
+          author_url: '',
+          provider_name: 'Example',
+          provider_url: '',
+          html: '',
+          width: 800,
+          height: 400,
+          image: null,
+          embed_url: '',
+          blurhash: null
+        }
+      } as unknown as MastodonStatus)
+
+      syncPendingLinkPreviewForStatus(post as never)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(
+          PENDING_LINK_PREVIEW_POLL_DELAYS_MS[0]
+        )
+      })
+
+      expect(saveOfflineTimeline).toHaveBeenCalled()
+      const lastSave = vi.mocked(saveOfflineTimeline).mock.calls.at(-1)?.[0]
+      expect(lastSave?.segments[0]?.statuses[0]).toMatchObject({
+        id: targetId,
+        linkPreview: {
+          url: 'https://example.com/slow-article',
+          title: 'Resolved Timeline Article'
+        }
+      })
+
+      // Now verify an edited status with different text does not accept a stale poll resolution
+      vi.useRealTimers()
+      resetPendingLinkPreviewsForTesting()
+      const stalePost = createStatus(
+        'https://activities.local/users/llun/s/edited-before-resolve',
+        {
+          text: 'Updated text with no link',
+          updatedAt: FIXED_CURRENT_TIME + 1_000
+        }
+      )
+      render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[stalePost]}
+        />
+      )
+      await waitFor(() =>
+        expect(screen.getByTestId(`post-${stalePost.id}`)).toBeInTheDocument()
+      )
+
+      vi.useFakeTimers()
+      vi.mocked(saveOfflineTimeline).mockClear()
+      vi.mocked(getStatusIfReadable).mockResolvedValueOnce({
+        id: 'edited-before-resolve',
+        uri: stalePost.id,
+        card: {
+          url: 'https://example.com/old',
+          title: 'Stale Old Card',
+          description: '',
+          type: 'link',
+          author_name: '',
+          author_url: '',
+          provider_name: 'Example',
+          provider_url: '',
+          html: '',
+          width: 100,
+          height: 100,
+          image: null,
+          embed_url: '',
+          blurhash: null
+        }
+      } as unknown as MastodonStatus)
+
+      syncPendingLinkPreviewForStatus({
+        ...stalePost,
+        text: 'Old text https://example.com/old',
+        updatedAt: FIXED_CURRENT_TIME
+      } as never)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(
+          PENDING_LINK_PREVIEW_POLL_DELAYS_MS[0]
+        )
+      })
+
+      const staleSaved = vi.mocked(saveOfflineTimeline).mock.calls.at(-1)?.[0]
+        ?.segments[0]?.statuses[0]
+      expect(staleSaved).not.toHaveProperty('linkPreview')
     })
   })
 })

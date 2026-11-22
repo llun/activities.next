@@ -11,9 +11,15 @@ const MAX_RESOLVED_CACHE_ENTRIES = 64
 const HTTP_URL_PATTERN = /https?:\/\/\S+/i
 const TERMINAL_POLL_STATUS_CODES = new Set([401, 403, 410])
 
+export type ResolvedLinkPreviewEntry = {
+  linkPreview: StatusLinkPreview
+  text: string
+  updatedAt: number
+}
+
 type GlobalLinkPreviewListener = (
   statusId: string,
-  linkPreview: StatusLinkPreview
+  resolved: ResolvedLinkPreviewEntry
 ) => void
 
 type ActivePollEntry = {
@@ -22,7 +28,7 @@ type ActivePollEntry = {
   timer: ReturnType<typeof setTimeout> | null
 }
 
-const resolvedPreviews = new Map<string, StatusLinkPreview>()
+const resolvedPreviews = new Map<string, ResolvedLinkPreviewEntry>()
 const activePolls = new Map<string, ActivePollEntry>()
 const statusListeners = new Map<string, Set<() => void>>()
 const globalListeners = new Set<GlobalLinkPreviewListener>()
@@ -38,16 +44,16 @@ const notifyStatusListeners = (statusId: string) => {
 
 const notifyGlobalListeners = (
   statusId: string,
-  linkPreview: StatusLinkPreview
+  resolved: ResolvedLinkPreviewEntry
 ) => {
   for (const listener of [...globalListeners]) {
-    listener(statusId, linkPreview)
+    listener(statusId, resolved)
   }
 }
 
 const cacheResolvedPreview = (
   statusId: string,
-  linkPreview: StatusLinkPreview
+  resolved: ResolvedLinkPreviewEntry
 ) => {
   if (resolvedPreviews.has(statusId)) {
     resolvedPreviews.delete(statusId)
@@ -57,7 +63,7 @@ const cacheResolvedPreview = (
     if (oldestKey === undefined) break
     resolvedPreviews.delete(oldestKey)
   }
-  resolvedPreviews.set(statusId, linkPreview)
+  resolvedPreviews.set(statusId, resolved)
 }
 
 const waitForDelay = (
@@ -111,10 +117,16 @@ export const subscribeStatusLinkPreview = (
   }
 }
 
-/** Return the referentially stable resolved preview snapshot for `statusId`, or `null`. */
+/** Return the referentially stable resolved preview entry for `statusId`, or `null`. */
+export const getResolvedLinkPreviewEntry = (
+  statusId: string
+): ResolvedLinkPreviewEntry | null => resolvedPreviews.get(statusId) ?? null
+
+/** Return the resolved preview card for `statusId`, or `null`. */
 export const getResolvedLinkPreviewSnapshot = (
   statusId: string
-): StatusLinkPreview | null => resolvedPreviews.get(statusId) ?? null
+): StatusLinkPreview | null =>
+  resolvedPreviews.get(statusId)?.linkPreview ?? null
 
 /** Subscribe to every resolved link preview across all statuses. */
 export const subscribeAnyLinkPreviewResolved = (
@@ -193,11 +205,33 @@ export const syncPendingLinkPreviewForStatus = (status: StatusNote) => {
           if (!isCurrent()) return
           if (!mastodonStatus) return
 
-          const resolved = toStatusLinkPreviewFromCard(mastodonStatus.card)
-          if (resolved) {
-            cacheResolvedPreview(status.id, resolved)
+          // Stop if the status was edited elsewhere (different text or newer revision).
+          if (
+            typeof mastodonStatus.text === 'string' &&
+            mastodonStatus.text !== status.text
+          ) {
+            return
+          }
+          const serverUpdatedAt = mastodonStatus.edited_at
+            ? Date.parse(mastodonStatus.edited_at)
+            : Number.NaN
+          if (
+            Number.isFinite(serverUpdatedAt) &&
+            serverUpdatedAt > status.updatedAt
+          ) {
+            return
+          }
+
+          const resolvedCard = toStatusLinkPreviewFromCard(mastodonStatus.card)
+          if (resolvedCard) {
+            const resolvedEntry: ResolvedLinkPreviewEntry = {
+              linkPreview: resolvedCard,
+              text: status.text,
+              updatedAt: status.updatedAt
+            }
+            cacheResolvedPreview(status.id, resolvedEntry)
             notifyStatusListeners(status.id)
-            notifyGlobalListeners(status.id, resolved)
+            notifyGlobalListeners(status.id, resolvedEntry)
             return
           }
         } catch (error) {

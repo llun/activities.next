@@ -379,20 +379,25 @@ describe('syncStatusLinkPreview', () => {
   })
 
   describe('inline link preview resolution', () => {
-    it('links and returns a cache hit immediately without enqueueing or re-checking status', async () => {
+    it('re-verifies status and links a cache hit immediately without enqueueing', async () => {
+      const status = makeStatus()
       const record = makePreviewRecord()
       mockedFetchInline.mockResolvedValueOnce({
         record,
         fromCache: true,
         timedOut: false
       })
+      getStatus.mockResolvedValueOnce(status)
 
       const result = await syncStatusLinkPreview({
         database,
-        status: makeStatus()
+        status
       })
 
-      expect(getStatus).not.toHaveBeenCalled()
+      expect(getStatus).toHaveBeenCalledWith({
+        statusId: status.id,
+        withReplies: false
+      })
       expect(linkStatusLinkPreview).toHaveBeenCalledWith({
         statusId: 'https://llun.test/users/me/statuses/1',
         urlHash: record.urlHash
@@ -414,6 +419,25 @@ describe('syncStatusLinkPreview', () => {
         },
         pending: false
       })
+    })
+
+    it('skips linking on a cache hit when the status was edited or deleted concurrently', async () => {
+      const status = makeStatus()
+      const record = makePreviewRecord()
+      mockedFetchInline.mockResolvedValueOnce({
+        record,
+        fromCache: true,
+        timedOut: false
+      })
+      getStatus.mockResolvedValueOnce(
+        makeStatus({ text: 'Edited to remove the link' })
+      )
+
+      const result = await syncStatusLinkPreview({ database, status })
+
+      expect(linkStatusLinkPreview).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+      expect(result).toEqual({ linkPreview: null, pending: false })
     })
 
     it('re-verifies current status URL after an inline HTTP fetch before linking', async () => {

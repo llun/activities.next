@@ -655,5 +655,19 @@ describe('fetchLinkPreview', () => {
       expect(result.timedOut).toBe(true)
       expect(result.record?.title).toBe('A good article')
     })
+
+    it('returns empty cache hit without HTTP when URL cannot be normalized', async () => {
+      const result = await fetchLinkPreviewInline({
+        database,
+        url: 'ftp://example.com/resource'
+      })
+
+      expect(mockedFetch).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        record: null,
+        fromCache: true,
+        timedOut: false
+      })
+    })
   })
 })

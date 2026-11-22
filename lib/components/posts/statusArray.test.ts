@@ -633,17 +633,15 @@ describe('reconcileStatusesMetadata', () => {
 
       const current = [editedFresh]
 
-      const res1 = reconcileStatusesMetadata(current, [cachedOldWithPreview])
-      expect(res1).toBe(current)
-      expect((res1[0] as StatusNote).linkPreview).toBeUndefined()
-
-      const res2 = reconcileStatusesMetadata(current, [sameTimeMismatchText])
-      expect(res2).toBe(current)
-      expect((res2[0] as StatusNote).linkPreview).toBeUndefined()
-
-      const res3 = reconcileStatusesMetadata(current, [sameTextOlderRevision])
-      expect(res3).toBe(current)
-      expect((res3[0] as StatusNote).linkPreview).toBeUndefined()
+      expect(reconcileStatusesMetadata(current, [cachedOldWithPreview])).toBe(
+        current
+      )
+      expect(reconcileStatusesMetadata(current, [sameTimeMismatchText])).toBe(
+        current
+      )
+      expect(reconcileStatusesMetadata(current, [sameTextOlderRevision])).toBe(
+        current
+      )
 
       // Already-populated linkPreview is preserved without cloning
       const alreadyHasCard = createNoteStatus(id, {
@@ -652,10 +650,9 @@ describe('reconcileStatusesMetadata', () => {
         linkPreview: samplePreview
       })
       const withCardList = [alreadyHasCard]
-      const untouched = reconcileStatusesMetadata(withCardList, [
-        cachedOldWithPreview
-      ])
-      expect(untouched).toBe(withCardList)
+      expect(
+        reconcileStatusesMetadata(withCardList, [cachedOldWithPreview])
+      ).toBe(withCardList)
     })
   })
 })

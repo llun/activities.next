@@ -4,7 +4,7 @@ import { Activity, ExternalLink } from 'lucide-react'
 import { FC, useSyncExternalStore } from 'react'
 
 import {
-  getResolvedLinkPreviewSnapshot,
+  getResolvedLinkPreviewEntry,
   subscribeStatusLinkPreview
 } from '@/lib/client/pendingLinkPreviews'
 import { Alert } from '@/lib/components/surface/Alert'
@@ -86,10 +86,10 @@ interface PostBodyProps {
 
 const getEmptyLinkPreviewSnapshot = () => null
 
-const useResolvedLinkPreview = (statusId: string) =>
+const useResolvedLinkPreviewEntry = (statusId: string) =>
   useSyncExternalStore(
     (listener) => subscribeStatusLinkPreview(statusId, listener),
-    () => getResolvedLinkPreviewSnapshot(statusId),
+    () => getResolvedLinkPreviewEntry(statusId),
     getEmptyLinkPreviewSnapshot
   )
 
@@ -110,8 +110,15 @@ export const PostBody: FC<PostBodyProps> = ({
   prioritizeMedia = false
 }) => {
   const actualStatus = getActualStatus(status)
-  const resolvedLinkPreview = useResolvedLinkPreview(actualStatus.id)
-  const effectiveLinkPreview = actualStatus.linkPreview ?? resolvedLinkPreview
+  const resolvedEntry = useResolvedLinkPreviewEntry(actualStatus.id)
+  const matchingResolvedPreview =
+    resolvedEntry &&
+    resolvedEntry.text === actualStatus.text &&
+    resolvedEntry.updatedAt >= actualStatus.updatedAt
+      ? resolvedEntry.linkPreview
+      : null
+  const effectiveLinkPreview =
+    actualStatus.linkPreview ?? matchingResolvedPreview
   const processedAndCleanedText = cleanClassName(
     processStatusText(host, actualStatus),
     {

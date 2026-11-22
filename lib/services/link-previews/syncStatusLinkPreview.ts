@@ -127,22 +127,21 @@ export const syncStatusLinkPreview = async ({
     if (status.isLocalActor && !runsInline) {
       const inline = await fetchLinkPreviewInline({ database, url })
       if (inline.record) {
-        if (!inline.fromCache) {
-          // Verify the status still points to this URL before linking after HTTP I/O.
-          const latestStatus = await database.getStatus({
-            statusId: status.id,
-            withReplies: false
-          })
-          const latestUrl =
-            latestStatus && latestStatus.type !== StatusType.enum.Announce
-              ? await resolveStatusPreviewUrl({
-                  database,
-                  status: latestStatus
-                })
-              : null
-          if (latestUrl !== url) {
-            return { linkPreview: null, pending: false }
-          }
+        // Re-verify the status still points to this URL (handles concurrent edits
+        // or deletes on both cache hits and HTTP fetches) before linking.
+        const latestStatus = await database.getStatus({
+          statusId: status.id,
+          withReplies: false
+        })
+        const latestUrl =
+          latestStatus && latestStatus.type !== StatusType.enum.Announce
+            ? await resolveStatusPreviewUrl({
+                database,
+                status: latestStatus
+              })
+            : null
+        if (latestUrl !== url) {
+          return { linkPreview: null, pending: false }
         }
         await database.linkStatusLinkPreview({
           statusId: status.id,

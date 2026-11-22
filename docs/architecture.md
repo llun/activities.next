@@ -2100,8 +2100,8 @@ legacy shape left to copy.
   and body reads through `safeRemoteFetch`'s `signal`, keeping `got`'s internal
   hop timeout slightly above that deadline so an abort throws `AbortError` and
   hands off to `FetchLinkPreviewJob` instead of writing a 1-hour failure row. On
-  non-cached inline success, `syncStatusLinkPreview` re-reads the status and
-  verifies `resolveStatusPreviewUrl` still matches before calling
+  inline success, `syncStatusLinkPreview` re-reads the status and verifies
+  `resolveStatusPreviewUrl` still matches before calling
   `linkStatusLinkPreview`.
 - **Client link-preview polling clears stale resolved state on every edit.**
   `syncPendingLinkPreviewForStatus` in `lib/client/pendingLinkPreviews.ts` always

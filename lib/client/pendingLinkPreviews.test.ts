@@ -2,6 +2,7 @@ import { ApiRequestError } from '@/lib/client/http'
 import {
   PENDING_LINK_PREVIEW_POLL_DELAYS_MS,
   clearPendingLinkPreview,
+  getResolvedLinkPreviewEntry,
   getResolvedLinkPreviewSnapshot,
   resetPendingLinkPreviewsForTesting,
   subscribeAnyLinkPreviewResolved,
@@ -210,8 +211,17 @@ describe('pendingLinkPreviews', () => {
       title: 'Slow Article',
       siteName: 'Example'
     })
+    expect(getResolvedLinkPreviewEntry(status.id)).toEqual({
+      linkPreview: snapshot,
+      text: status.text,
+      updatedAt: status.updatedAt
+    })
     expect(statusListener).toHaveBeenCalledTimes(1)
-    expect(globalListener).toHaveBeenCalledWith(status.id, snapshot)
+    expect(globalListener).toHaveBeenCalledWith(status.id, {
+      linkPreview: snapshot,
+      text: status.text,
+      updatedAt: status.updatedAt
+    })
 
     // Stops polling once resolved
     await vi.advanceTimersByTimeAsync(30_000)
@@ -320,5 +330,47 @@ describe('pendingLinkPreviews', () => {
         'https://llun.test/users/alice/statuses/65'
       )?.title
     ).toBe('Title 65')
+  })
+
+  it('stops without caching or notifying if server status reflects a newer edit elsewhere', async () => {
+    const status = makeNote({
+      text: 'Original https://example.com/slow',
+      updatedAt: 2_000
+    })
+    const statusListener = vi.fn()
+    const globalListener = vi.fn()
+    subscribeStatusLinkPreview(status.id, statusListener)
+    subscribeAnyLinkPreviewResolved(globalListener)
+
+    // 1. Server returns changed text -> stops immediately
+    mockedGetStatusIfReadable.mockResolvedValueOnce({
+      ...makeMastodonStatus(makeCard('https://example.com/slow', 'Stale')),
+      text: 'Edited remotely without link'
+    } as MastodonStatus)
+
+    syncPendingLinkPreviewForStatus(status)
+    await vi.advanceTimersByTimeAsync(PENDING_LINK_PREVIEW_POLL_DELAYS_MS[0])
+    await vi.advanceTimersByTimeAsync(20_000)
+
+    expect(mockedGetStatusIfReadable).toHaveBeenCalledTimes(1)
+    expect(getResolvedLinkPreviewSnapshot(status.id)).toBeNull()
+    expect(statusListener).not.toHaveBeenCalled()
+    expect(globalListener).not.toHaveBeenCalled()
+
+    // 2. Server returns newer edited_at -> stops immediately
+    mockedGetStatusIfReadable.mockReset()
+    mockedGetStatusIfReadable.mockResolvedValueOnce({
+      ...makeMastodonStatus(makeCard('https://example.com/slow', 'Stale')),
+      edited_at: new Date(status.updatedAt + 5_000).toISOString()
+    } as MastodonStatus)
+
+    syncPendingLinkPreviewForStatus(status)
+    await vi.advanceTimersByTimeAsync(PENDING_LINK_PREVIEW_POLL_DELAYS_MS[0])
+    await vi.advanceTimersByTimeAsync(20_000)
+
+    expect(mockedGetStatusIfReadable).toHaveBeenCalledTimes(1)
+    expect(getResolvedLinkPreviewSnapshot(status.id)).toBeNull()
+    expect(statusListener).not.toHaveBeenCalled()
+    expect(globalListener).not.toHaveBeenCalled()
   })
 })

@@ -606,5 +606,87 @@ describe('Post', () => {
 
       expect(screen.getByText('Async OpenGraph Title')).toBeInTheDocument()
     })
+
+    it('ignores a cached resolved preview when post text or updatedAt advances elsewhere', async () => {
+      vi.useFakeTimers()
+
+      const originalStatus: StatusNote = {
+        ...status,
+        id: 'https://activities.local/users/llun/statuses/remote-edited',
+        text: 'Watch https://example.com/original',
+        summary: null,
+        updatedAt: 2_000
+      }
+
+      const { rerender } = render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={originalStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      mockedGetStatusIfReadable.mockResolvedValueOnce({
+        id: 'remote-edited',
+        uri: originalStatus.id,
+        card: {
+          url: 'https://example.com/original',
+          title: 'Original Pre-Edit Card',
+          description: '',
+          type: 'link',
+          author_name: '',
+          author_url: '',
+          provider_name: 'Example',
+          provider_url: '',
+          html: '',
+          width: 600,
+          height: 315,
+          image: null,
+          embed_url: '',
+          blurhash: null
+        }
+      } as unknown as MastodonStatus)
+
+      syncPendingLinkPreviewForStatus(originalStatus)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(
+          PENDING_LINK_PREVIEW_POLL_DELAYS_MS[0]
+        )
+      })
+      expect(screen.getByText('Original Pre-Edit Card')).toBeInTheDocument()
+
+      // Simulated update from another tab/device changes text without clearing local store
+      rerender(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...originalStatus,
+            text: 'Edited elsewhere with no link'
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+      expect(
+        screen.queryByText('Original Pre-Edit Card')
+      ).not.toBeInTheDocument()
+
+      // Or newer updatedAt on the status also suppresses the stale cached card
+      rerender(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...originalStatus,
+            updatedAt: 5_000
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+      expect(
+        screen.queryByText('Original Pre-Edit Card')
+      ).not.toBeInTheDocument()
+    })
   })
 })

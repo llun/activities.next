@@ -604,7 +604,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   ])
 
   useEffect(() => {
-    return subscribeAnyLinkPreviewResolved((statusId, linkPreview) => {
+    return subscribeAnyLinkPreviewResolved((statusId, resolved) => {
       setSegments((currentSegments) => {
         let hasSegmentChanges = false
         const nextSegments = currentSegments.map((seg) => {
@@ -612,7 +612,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             seg.statuses,
             statusId,
             (target) =>
-              target.linkPreview ? target : { ...target, linkPreview }
+              !target.linkPreview &&
+              target.text === resolved.text &&
+              resolved.updatedAt >= target.updatedAt
+                ? { ...target, linkPreview: resolved.linkPreview }
+                : target
           )
           if (updatedStatuses === seg.statuses) return seg
           hasSegmentChanges = true
