@@ -177,6 +177,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
         actorId={currentActor.id}
         currentTime={currentTime}
         selectedActivityType={activityType}
+        activityQuery={activityQuery}
         earliestActivityTime={earliestActivityTime}
       />
 

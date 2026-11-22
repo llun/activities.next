@@ -16,7 +16,8 @@ import type { DB, Db } from '@/lib/database/kysely'
 import { inIntegerList, timestampValue } from '@/lib/database/kysely/dialect'
 import {
   galleryMediaIdRef,
-  galleryMediaScope
+  galleryMediaScope,
+  postedGalleryAttachment
 } from '@/lib/database/kysely/visibility/galleryMedia'
 import type { GalleryAudience } from '@/lib/services/gallery/galleryAudience'
 import {
@@ -45,64 +46,119 @@ export const parseDateBound = (
   return { year, month, day }
 }
 
-// The ids of the actor's media that hold every word of `query`, each word in
-// any searchable field, folded as post search folds (lowercase, accents and
-// compatibility forms removed). `undefined` when the query has no word (no
-// filter), `null` when nothing matches. Matching runs in JavaScript over the
-// actor's own media so it folds the same on SQLite and PostgreSQL; the place
-// name is searched only for the owner, the one viewer who always sees it.
-// shortcut: reads every media row of the actor per search; fine for the
-// per-account counts galleries hold, move to an index if accounts grow far
-// past tens of thousands of photos.
-const galleryQueryMatchIds = async (
+type GalleryQueryCandidate = {
+  id: number | string
+  altText: string | null
+  subjectName: string | null
+  subjectScientificName: string | null
+  subjectCategory: string | null
+  subjectTaxonPath: string | null
+  placeName: string | null
+}
+
+// The rows a search reads. The owner searches every media row of theirs, with
+// its own alt text and place name. Anyone else searches only the media posted
+// on a status they may read, by the alt text of those posts (the attachment's
+// `name`, what they are shown; never the media row's, which the owner may have
+// changed since) and never by place: a hidden location, a threatened species'
+// place or a precision that withholds the name must not be findable.
+const galleryQueryCandidates = async (
   db: Db,
   actorId: string,
-  query: string,
-  isOwner: boolean
-): Promise<number[] | null | undefined> => {
-  const words = getSearchTokens(query)
-  if (words.length === 0) return undefined
-  const rows = await db
-    .selectFrom('medias')
+  audience: GalleryAudience
+): Promise<GalleryQueryCandidate[]> => {
+  if (audience?.kind === 'owner') {
+    return db
+      .selectFrom('medias')
+      .select([
+        'medias.id',
+        'medias.description as altText',
+        'medias.subjectName',
+        'medias.subjectScientificName',
+        'medias.subjectCategory',
+        'medias.subjectTaxonPath',
+        'medias.placeName'
+      ])
+      .where('medias.actorId', '=', actorId)
+      .execute()
+  }
+  return db
+    .selectFrom('attachments as gallery_attachments')
+    .innerJoin('medias', (join) =>
+      join.on('gallery_attachments.mediaId', '=', galleryMediaIdRef)
+    )
+    .innerJoin(
+      'statuses as gallery_statuses',
+      'gallery_statuses.id',
+      'gallery_attachments.statusId'
+    )
     .select([
       'medias.id',
-      'medias.description',
+      'gallery_attachments.name as altText',
       'medias.subjectName',
       'medias.subjectScientificName',
       'medias.subjectCategory',
       'medias.subjectTaxonPath',
-      'medias.placeName'
+      sql<null>`null`.as('placeName')
     ])
     .where('medias.actorId', '=', actorId)
+    .where('medias.inGallery', '=', true)
+    .where(postedGalleryAttachment(db, actorId, audience))
     .execute()
-  const ids = rows
-    .filter((row) => {
-      const category = row.subjectCategory
-        ? foldSearchText(row.subjectCategory)
-        : ''
-      const text = foldSearchText(
-        [
-          row.description,
-          row.subjectName,
-          row.subjectScientificName,
-          ...(parseTaxonPath(row.subjectTaxonPath) ?? []),
-          isOwner ? row.placeName : null
-        ]
-          .filter((value): value is string => Boolean(value))
-          .join(' ')
-      )
-      // A group is matched by its prefix or a plural ("bir", "birds" and
-      // "fishes" find their group; "birdhouse" does not).
-      return words.every(
-        (word) =>
-          text.includes(word) ||
-          (category !== '' &&
-            (category.startsWith(word) ||
-              (word.startsWith(category) &&
-                word.length - category.length <= 2)))
-      )
-    })
-    .map((row) => Number(row.id))
+}
+
+// The words a group answers to besides its prefix and its regular plural.
+const GROUP_IRREGULAR_PLURALS: Record<string, string> = { fungus: 'fungi' }
+
+// The ids of the actor's media that hold every word of `query`, each word in
+// any searchable field, folded as post search folds (lowercase, accents and
+// compatibility forms removed). `undefined` when the query has no word (no
+// filter), `null` when nothing matches. Matching runs in JavaScript over
+// `galleryQueryCandidates` so it folds the same on SQLite and PostgreSQL.
+// shortcut: reads the actor's media rows per search; fine for the per-account
+// counts galleries hold, move to an index if accounts grow far past tens of
+// thousands of photos.
+const galleryQueryMatchIds = async (
+  db: Db,
+  actorId: string,
+  query: string,
+  audience: GalleryAudience
+): Promise<number[] | null | undefined> => {
+  const words = getSearchTokens(query)
+  if (words.length === 0) return undefined
+  // A media posted more than once has a row per attachment; its text is all of
+  // them together.
+  const texts = new Map<number, { text: string[]; category: string }>()
+  for (const row of await galleryQueryCandidates(db, actorId, audience)) {
+    const id = Number(row.id)
+    const entry = texts.get(id) ?? {
+      text: [
+        row.subjectName,
+        row.subjectScientificName,
+        ...(parseTaxonPath(row.subjectTaxonPath) ?? []),
+        row.placeName
+      ].filter((value): value is string => Boolean(value)),
+      category: row.subjectCategory ? foldSearchText(row.subjectCategory) : ''
+    }
+    if (row.altText) entry.text.push(row.altText)
+    texts.set(id, entry)
+  }
+  const ids: number[] = []
+  for (const [id, { text, category }] of texts) {
+    const folded = foldSearchText(text.join(' '))
+    const irregular = GROUP_IRREGULAR_PLURALS[category]
+    // A group is matched by its prefix or a plural ("bir", "birds", "fishes"
+    // and "fungi" find their group; "birdhouse" does not).
+    const matches = words.every(
+      (word) =>
+        folded.includes(word) ||
+        (category !== '' &&
+          (category.startsWith(word) ||
+            word === irregular ||
+            (word.startsWith(category) && word.length - category.length <= 2)))
+    )
+    if (matches) ids.push(id)
+  }
   return ids.length > 0 ? ids : null
 }
 
@@ -200,12 +256,7 @@ export const galleryMediaFilter = async (
   }
 
   if (filters?.query !== undefined) {
-    const ids = await galleryQueryMatchIds(
-      db,
-      actorId,
-      filters.query,
-      audience?.kind === 'owner'
-    )
+    const ids = await galleryQueryMatchIds(db, actorId, filters.query, audience)
     if (ids === null) return false
     if (ids !== undefined) conditions.push(inIntegerList(db, 'medias.id', ids))
   }

@@ -1384,6 +1384,12 @@ describe('gallery media filters and ordering', () => {
       })
       await seedAttachment(byMammal, statusId, actorId)
 
+      const byFungus = await seedMedia(actorId, {
+        subjectCategory: 'fungus',
+        subjectName: 'Fly Agaric'
+      })
+      await seedAttachment(byFungus, statusId, actorId)
+
       // Another actor's media with the same alt text must never match.
       await seedMedia(otherActorId, {
         description: 'Fog rolling over basalt cliffs at dawn'
@@ -1406,12 +1412,14 @@ describe('gallery media filters and ordering', () => {
       // Category stem: plural "birds" matches category "bird".
       expect(await search('birds')).toEqual([bySpecies])
       expect(await search('mammals')).toEqual([byMammal])
+      // Fungi is the irregular plural of the fungus group.
+      expect(await search('fungi')).toEqual([byFungus])
       // A longer word that only starts with a group is not that group.
       expect(await search('birdhouse')).toEqual([])
 
       // Whitespace or punctuation with no words leaves the list unfiltered.
       expect((await search('   ---  ')).sort()).toEqual(
-        [byAlt, bySpecies, byMammal].sort()
+        [byAlt, bySpecies, byMammal, byFungus].sort()
       )
     })
 
@@ -1479,7 +1487,21 @@ describe('gallery media filters and ordering', () => {
         subjectName: 'Reeds',
         placeName: 'Somewhere Else'
       })
-      await seedAttachment(altMatch, statusId, actorId)
+      // A visitor searches the alt text the post shows them.
+      await seedAttachment(altMatch, statusId, actorId, {
+        name: 'Sunrise over Camargue reeds'
+      })
+
+      // The owner rewrote this photo's alt text after posting it: a visitor
+      // still sees (and searches) the post's, never the media row's.
+      const rewritten = await seedMedia(actorId, {
+        description: 'Camargue nest, keep this quiet',
+        subjectCategory: 'bird',
+        subjectName: 'Flamingo'
+      })
+      await seedAttachment(rewritten, statusId, actorId, {
+        name: 'Pink birds in the shallows'
+      })
 
       const ownerResults = await database.getGalleryMedia({
         actorId,
@@ -1488,7 +1510,7 @@ describe('gallery media filters and ordering', () => {
         filters: { query: 'camargue' }
       })
       expect(ownerResults.map((r) => r.media.id).sort()).toEqual(
-        [placeOnlyMatch, altMatch].sort()
+        [placeOnlyMatch, altMatch, rewritten].sort()
       )
       expect(
         await database.countGalleryMedia({
@@ -1496,7 +1518,7 @@ describe('gallery media filters and ordering', () => {
           audience: OWNER_GALLERY_AUDIENCE,
           filters: { query: 'camargue' }
         })
-      ).toEqual({ total: 2, inAlbum: null })
+      ).toEqual({ total: 3, inAlbum: null })
 
       const visitorResults = await database.getGalleryMedia({
         actorId,
@@ -1512,6 +1534,18 @@ describe('gallery media filters and ordering', () => {
           filters: { query: 'camargue' }
         })
       ).toEqual({ total: 1, inAlbum: null })
+
+      // The post's alt text finds the rewritten photo for a visitor.
+      expect(
+        (
+          await database.getGalleryMedia({
+            actorId,
+            audience: PUBLIC_GALLERY_AUDIENCE,
+            limit: 10,
+            filters: { query: 'pink shallows' }
+          })
+        ).map((r) => r.media.id)
+      ).toEqual([rewritten])
 
       // A query matching only placeName returns nothing for a visitor.
       expect(

@@ -61,6 +61,15 @@ describe('getActivityFilterHref', () => {
   ])('$description', ({ activityType, isSelected, expected }) => {
     expect(getActivityFilterHref(activityType, isSelected)).toBe(expected)
   })
+
+  it('keeps the search words when applying or clearing the filter', () => {
+    expect(getActivityFilterHref('ride', false, ' gravel loop ')).toBe(
+      '/fitness?activity=ride&q=gravel%20loop'
+    )
+    expect(getActivityFilterHref('ride', true, 'gravel')).toBe(
+      '/fitness?q=gravel'
+    )
+  })
 })
 
 describe('resolveActivityTypeFilter', () => {

@@ -463,7 +463,7 @@ describe('ProfileGalleryTab', () => {
   })
 
   describe('Photo search', () => {
-    it('debounces typing, writes ?q=, passes q to the grid, renders the filter empty state, and clears for visitors', async () => {
+    it('debounces typing, passes q to the grid, shows the empty state, and clears for visitors', async () => {
       renderTab({ isCurrentUser: false })
       await screen.findByRole('region', { name: 'Birds' })
 
@@ -476,19 +476,16 @@ describe('ProfileGalleryTab', () => {
       act(() => {
         vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 1)
       })
-      expect(mockReplace).not.toHaveBeenCalled()
       expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
 
       act(() => {
         vi.advanceTimersByTime(1)
       })
-      expect(mockReplace).toHaveBeenCalledWith(
-        '/@llun@llun.test?q=kingfisher',
-        { scroll: false }
-      )
       expect(screen.getByTestId('paged-grid')).toHaveTextContent(
         'subject=;category=;q=kingfisher'
       )
+      // Profile tabs have no URL of their own, so the search stays out of it.
+      expect(mockReplace).not.toHaveBeenCalled()
       expect(screen.getByText('No matching photos')).toBeInTheDocument()
       expect(
         screen.getByText('No photos match “kingfisher”.')
@@ -499,16 +496,15 @@ describe('ProfileGalleryTab', () => {
       fireEvent.click(
         screen.getAllByRole('button', { name: 'Clear search' })[0]
       )
-
-      expect(mockReplace).toHaveBeenCalledWith('/@llun@llun.test', {
-        scroll: false
-      })
       expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
+      expect(input).toHaveValue('')
     })
 
     it('clears the search from the empty state Clear search button', () => {
-      mockSearchParams.current = new URLSearchParams('q=heron')
       renderTab({ isCurrentUser: false })
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      fireEvent.change(input, { target: { value: 'heron' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
 
       expect(screen.getByTestId('paged-grid')).toHaveTextContent('q=heron')
       const clearButtons = screen.getAllByRole('button', {
@@ -517,12 +513,44 @@ describe('ProfileGalleryTab', () => {
       expect(clearButtons).toHaveLength(2)
       fireEvent.click(clearButtons[1])
 
-      expect(mockReplace).toHaveBeenCalledWith('/@llun@llun.test', {
-        scroll: false
+      expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
+      expect(input).toHaveValue('')
+    })
+
+    it('hides the search on the life list and drops it when a subject opened there is closed', async () => {
+      getGalleryLifeListMock.mockResolvedValue({
+        total: 1,
+        byCategory: { bird: 1 },
+        entries: [
+          buildLifeListEntry('sci:alcedo atthis', { name: 'Common Kingfisher' })
+        ],
+        truncated: false
       })
+      renderTab()
+      await screen.findByRole('region', { name: 'Birds' })
+      await openSubview('Life list')
       expect(
-        screen.getByRole('searchbox', { name: 'Search photos' })
-      ).toHaveValue('')
+        screen.queryByRole('searchbox', { name: 'Search photos' })
+      ).not.toBeInTheDocument()
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Common Kingfisher' })
+      )
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      fireEvent.change(input, { target: { value: 'perch' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(screen.getByTestId('paged-grid')).toHaveTextContent(
+        'subject=sci:alcedo atthis;category=;q=perch'
+      )
+
+      // Closing the subject goes back to the life list, not a search grid.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Back to all subjects' })
+      )
+      expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('searchbox', { name: 'Search photos' })
+      ).not.toBeInTheDocument()
     })
   })
 })

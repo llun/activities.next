@@ -112,6 +112,8 @@ interface Props {
    * row that reads as selected can never disagree.
    */
   selectedActivityType?: string
+  /** The page's `?q=` words, kept when a row toggles `?activity=`. */
+  activityQuery?: string
   /** The actor's earliest countable activity (epoch ms), for the year chooser. */
   earliestActivityTime?: number | null
 }
@@ -215,6 +217,7 @@ function FitnessOverview({
   actorId,
   currentTime,
   selectedActivityType,
+  activityQuery,
   earliestActivityTime = null,
   timeZone
 }: Props & { timeZone: string }) {
@@ -867,6 +870,7 @@ function FitnessOverview({
         <ActivityTypeBreakdown
           summary={shown?.summary ?? []}
           selectedActivityType={selectedActivityType}
+          activityQuery={activityQuery}
           loading={loading}
         />
       )}

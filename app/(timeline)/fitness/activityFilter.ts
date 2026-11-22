@@ -69,11 +69,20 @@ export const resolveActivityTypeFilter = (
  */
 export const getActivityFilterHref = (
   activityType: string,
-  isSelected: boolean
-): string =>
-  isSelected
-    ? FITNESS_OVERVIEW_PATH
-    : `${FITNESS_OVERVIEW_PATH}?${ACTIVITY_FILTER_PARAM}=${encodeURIComponent(activityType)}`
+  isSelected: boolean,
+  query?: string
+): string => {
+  const trimmed = query?.trim()
+  const params = [
+    ...(isSelected
+      ? []
+      : [`${ACTIVITY_FILTER_PARAM}=${encodeURIComponent(activityType)}`]),
+    ...(trimmed ? [`${SEARCH_QUERY_PARAM}=${encodeURIComponent(trimmed)}`] : [])
+  ]
+  return params.length > 0
+    ? `${FITNESS_OVERVIEW_PATH}?${params.join('&')}`
+    : FITNESS_OVERVIEW_PATH
+}
 
 /** Where the chip beside "Recent activities" goes: the unfiltered overview. */
 export const CLEAR_ACTIVITY_FILTER_HREF = FITNESS_OVERVIEW_PATH

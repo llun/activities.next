@@ -11,8 +11,8 @@ import {
   X
 } from 'lucide-react'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { FC, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { FC, useEffect, useState } from 'react'
 
 import { GalleryAlbumCard } from '@/app/(timeline)/gallery/albums/GalleryAlbumCard'
 import {
@@ -321,12 +321,6 @@ export const ProfileGalleryTab: FC<Props> = ({
   isCurrentUser = false,
   mapProvider
 }) => {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const urlQuery =
-    searchParams.get('q')?.trim().slice(0, MAX_SEARCH_QUERY_LENGTH) || ''
-
   // An album opens at `/<handle>/albums/<id>`, which needs the handle.
   const subviews = handle
     ? offeredSubviews
@@ -337,17 +331,10 @@ export const ProfileGalleryTab: FC<Props> = ({
     label: string
   } | null>(null)
   const [category, setCategory] = useState<MediaSubjectCategory | null>(null)
-  const [searchQuery, setSearchQuery] = useState(urlQuery)
-  const prevUrlQueryRef = useRef(urlQuery)
-  const lastCommittedQueryRef = useRef(urlQuery)
-
-  useEffect(() => {
-    if (urlQuery === prevUrlQueryRef.current) return
-    prevUrlQueryRef.current = urlQuery
-    if (urlQuery === lastCommittedQueryRef.current) return
-    lastCommittedQueryRef.current = urlQuery
-    setSearchQuery(urlQuery)
-  }, [urlQuery])
+  // Local state, not `?q=`: the profile's tabs have no URL of their own, so a
+  // search in the address bar could neither reopen this tab nor follow the
+  // reader to another one.
+  const [searchQuery, setSearchQuery] = useState('')
 
   if (subviews.length === 0) {
     return null
@@ -358,28 +345,17 @@ export const ProfileGalleryTab: FC<Props> = ({
     ? view
     : (subviews[0] ?? 'subjects')
 
-  const updateSearchQuery = (nextQuery: string) => {
-    const normalized = nextQuery.trim().slice(0, MAX_SEARCH_QUERY_LENGTH)
-    setSearchQuery(normalized)
-    if (normalized === lastCommittedQueryRef.current) return
-    lastCommittedQueryRef.current = normalized
-    const params = new URLSearchParams(searchParams.toString())
-    if (normalized) {
-      params.set('q', normalized)
-    } else {
-      params.delete('q')
-    }
-    const nextQs = params.toString()
-    router.replace(nextQs ? `${pathname}?${nextQs}` : pathname, {
-      scroll: false
-    })
-  }
+  // Search narrows the photo grids only: Subjects and Recent, and a subject's
+  // photos opened from any subview.
+  const isSearchView = activeView === 'recent' || activeView === 'subjects'
+  const updateSearchQuery = (nextQuery: string) =>
+    setSearchQuery(nextQuery.trim().slice(0, MAX_SEARCH_QUERY_LENGTH))
 
   const changeView = (next: GallerySubview) => {
     setView(next)
     setSubject(null)
     setCategory(null)
-    if (searchQuery) updateSearchQuery('')
+    setSearchQuery('')
   }
 
   const selectSubject = (key: string, label: string) =>
@@ -391,11 +367,7 @@ export const ProfileGalleryTab: FC<Props> = ({
     setView('recent')
   }
 
-  const showSearch =
-    activeView === 'recent' ||
-    activeView === 'subjects' ||
-    subject !== null ||
-    Boolean(searchQuery)
+  const showSearch = isSearchView || subject !== null
 
   // Not GalleryMediaFilterEmpty: nothing under gallery/filters/ may load on
   // profile pages (docs/architecture.md, gallery filter bundle confinement).
@@ -425,7 +397,11 @@ export const ProfileGalleryTab: FC<Props> = ({
           <FilterChip
             label={subject.label}
             clearLabel="Back to all subjects"
-            onClear={() => setSubject(null)}
+            onClear={() => {
+              setSubject(null)
+              // Back to a subview search does not narrow (the life list).
+              if (!isSearchView) setSearchQuery('')
+            }}
           />
           <GalleryPagedGrid
             key={
@@ -441,7 +417,7 @@ export const ProfileGalleryTab: FC<Props> = ({
         </div>
       )
     }
-    if (searchQuery) {
+    if (searchQuery && isSearchView) {
       return (
         <div className="space-y-4">
           {category ? (
