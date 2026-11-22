@@ -1,0 +1,21 @@
+lib/database/domains/search/searchStatusQueries.test.ts
+  s_17b6192f00c988::t_2d794765d3fe4c 613,753-970
+lib/database/domains/search/statusReindexHooks.test.ts
+  s_17b6192f00c988::t_585ba8d0c4b876 1,7,170-296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88f7904432f0c256d8516cea33c0ca8e1d355f3e",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
