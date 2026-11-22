@@ -2,6 +2,7 @@ import {
   type Expression,
   type RawBuilder,
   type SelectQueryBuilder,
+  type SqlBool,
   SqliteAdapter,
   sql
 } from 'kysely'
@@ -76,6 +77,23 @@ export const jsonText = (
     string | null
   >`${sql.ref(column)}::jsonb${sql.join(objects, sql``)} ->> ${sql.lit(path[path.length - 1])}`
 }
+
+// A `host[:port]` column without its port, lowercased: what federation rules
+// key on (normalizeDomain drops the port). substr/instr on SQLite,
+// split_part on PostgreSQL. shortcut: a bracketed IPv6 host is cut at its
+// first colon and so never matches; filterSearchStatuses re-checks those.
+export const hostnameOf = (db: Db, column: string) =>
+  getDialectName(db) === 'sqlite'
+    ? sql<string>`lower(case when instr(${sql.ref(column)}, ':') > 0 then substr(${sql.ref(column)}, 1, instr(${sql.ref(column)}, ':') - 1) else ${sql.ref(column)} end)`
+    : sql<string>`lower(split_part(${sql.ref(column)}, ':', 1))`
+
+// Whether a boolean property of a JSON column is `true` (a missing or false
+// one is not): `json_extract` reads JSON true as 1 on SQLite, `->>` as 'true'
+// on PostgreSQL. `key` is spliced in as a literal, so it must be a fixed name.
+export const jsonFlagIsTrue = (db: Db, column: string, key: string) =>
+  getDialectName(db) === 'sqlite'
+    ? sql<SqlBool>`json_extract(${sql.ref(column)}, ${sql.lit(`$.${key}`)}) = 1`
+    : sql<SqlBool>`(${sql.ref(column)}::jsonb ->> ${sql.lit(key)}) = 'true'`
 
 // The hashtag name in `column` (a qualified tags.nameNormalized reference)
 // with its leading `#`s stripped and lowercased, so a tag stored as `name` and

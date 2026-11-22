@@ -419,6 +419,13 @@ export const getActorsForAccount = async (
         ? { headerImageUrl: settings.headerImageUrl }
         : null),
       manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
+      // The settings pages read these off the session actor, as getActor does.
+      ...(settings.discoverable !== undefined
+        ? { discoverable: settings.discoverable }
+        : null),
+      ...(settings.indexable !== undefined
+        ? { indexable: settings.indexable }
+        : null),
       // The cookie-session actor must carry the move pointer too, or the
       // posting entry points cannot refuse a moved account.
       ...(settings.movedTo ? { movedTo: settings.movedTo } : null),

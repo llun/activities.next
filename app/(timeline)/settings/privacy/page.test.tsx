@@ -146,7 +146,38 @@ describe('/settings/privacy', () => {
     const formData = new FormData(form)
     expect(formData.get('returnTo')).toBe('/settings/privacy')
     expect(formData.get('manuallyApprovesFollowers_marker')).toBe('true')
+    expect(formData.get('indexable_marker')).toBe('true')
     expect(formData.get('postLineLimit')).toBeNull()
+  })
+
+  it('renders Search group and Include my public posts in search results switch unchecked by default', async () => {
+    render(await Page())
+
+    const group = screen.getByRole('group', { name: 'Search' })
+    expect(group).toHaveTextContent(
+      'Whether your posts can be found by the words in them.'
+    )
+    const switchElement = within(group).getByLabelText(
+      'Include my public posts in search results'
+    )
+    expect(switchElement).toBeInTheDocument()
+    expect(switchElement).not.toBeChecked()
+    expect(switchElement).toHaveAttribute('id', 'indexableInput')
+    const form = switchElement.closest('form') as HTMLFormElement
+    expect(new FormData(form).get('indexable_marker')).toBe('true')
+  })
+
+  it('renders search indexable switch as checked when actor.indexable is true', async () => {
+    vi.mocked(getActorFromSession).mockResolvedValueOnce({
+      ...ACTOR,
+      indexable: true
+    } as never)
+    render(await Page())
+
+    const switchElement = screen.getByLabelText(
+      'Include my public posts in search results'
+    )
+    expect(switchElement).toBeChecked()
   })
 
   it('links to Fitness and Gallery privacy', async () => {

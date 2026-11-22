@@ -15,6 +15,7 @@ const mockGetMastodonActorsFromIds = vi.fn()
 const mockSearchHashtags = vi.fn()
 const mockSearchStatusIds = vi.fn()
 const mockGetStatusesByIds = vi.fn()
+const mockGetDomainBlocksForDomains = vi.fn()
 const mockGetActorFromId = vi.fn()
 const mockGetActorFromUsername = vi.fn()
 const mockIsCurrentActorFollowing = vi.fn()
@@ -70,6 +71,8 @@ vi.mock('@/lib/database', () => ({
     searchHashtags: mockSearchHashtags,
     searchStatusIds: mockSearchStatusIds,
     getStatusesByIds: mockGetStatusesByIds,
+    getActorDomainBlocks: async () => [],
+    getDomainBlocksForDomains: mockGetDomainBlocksForDomains,
     getActorFromId: mockGetActorFromId,
     getActorFromUsername: mockGetActorFromUsername,
     isCurrentActorFollowing: mockIsCurrentActorFollowing,
@@ -157,6 +160,7 @@ const accountPublicId = (actorId: string) =>
 
 describe('GET /api/v2/search', () => {
   beforeEach(() => {
+    mockGetDomainBlocksForDomains.mockResolvedValue({})
     vi.clearAllMocks()
     delete process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS
     resetTrustProxyIpHeadersConfigCacheForTests()
@@ -304,7 +308,7 @@ describe('GET /api/v2/search', () => {
         phrases: [],
         excluded: [],
         filters: [],
-        scope: 'library',
+        scope: 'all',
         plainText: 'trail',
         hasOperators: false
       },
@@ -594,6 +598,43 @@ describe('GET /api/v2/search', () => {
         }
       ],
       oauthActor.id
+    )
+  })
+
+  it('drops a resolved status from an instance-blocked domain, alone or before indexed results', async () => {
+    const statusUrl = 'http://blocked.test/users/eve/statuses/resolved'
+    const resolvedStatus = {
+      id: 'https://blocked.test/users/eve/statuses/resolved',
+      type: 'Note',
+      actorId: 'https://blocked.test/users/eve'
+    }
+    mockGetStatus.mockResolvedValue(resolvedStatus)
+    mockGetDomainBlocksForDomains.mockResolvedValue({
+      'blocked.test': { severity: 'suspend' }
+    })
+    const request = () =>
+      GET(
+        new NextRequest(
+          `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=true&format=activities_next`,
+          { headers: { Authorization: 'Bearer read-search-token' } }
+        ),
+        context
+      )
+
+    mockSearchStatusIds.mockResolvedValue([])
+    const alone = await (await request()).json()
+    expect(alone.statuses).toEqual([])
+
+    const indexed = {
+      id: 'https://remote.test/users/alice/statuses/indexed',
+      type: 'Note',
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockSearchStatusIds.mockResolvedValue([indexed.id])
+    mockGetStatusesByIds.mockResolvedValue([indexed])
+    const withIndexed = await (await request()).json()
+    expect(withIndexed.statuses.map((item: { id: string }) => item.id)).toEqual(
+      [indexed.id]
     )
   })
 
@@ -986,6 +1027,37 @@ describe('GET /api/v2/search', () => {
       ],
       oauthActor.id
     )
+  })
+
+  it('drops a public-only result from an instance-blocked domain after hydration', async () => {
+    const blockedId = 'https://blocked.test/users/eve/statuses/1'
+    const keptId = 'https://remote.test/users/alice/statuses/2'
+    mockSearchStatusIds.mockResolvedValue([blockedId, keptId])
+    mockGetStatusesByIds.mockResolvedValue([
+      {
+        id: blockedId,
+        type: 'Note',
+        actorId: 'https://blocked.test/users/eve'
+      },
+      { id: keptId, type: 'Note', actorId: 'https://remote.test/users/alice' }
+    ])
+    mockGetDomainBlocksForDomains.mockResolvedValue({
+      'blocked.test': { severity: 'suspend' }
+    })
+
+    const response = await GET(
+      new NextRequest(
+        'https://llun.test/api/v2/search?q=trail&type=statuses&format=activities_next',
+        { headers: { Authorization: 'Bearer read-search-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.statuses.map((item: { id: string }) => item.id)).toEqual([
+      keptId
+    ])
   })
 
   it('over-fetches indexed statuses before post-hydration filtering', async () => {
@@ -2053,7 +2125,7 @@ describe('GET /api/v2/search', () => {
             phrases: [],
             excluded: [],
             filters: [{ type: 'from', value: { kind: 'me' }, negated: false }],
-            scope: 'library',
+            scope: 'all',
             plainText: 'cats',
             hasOperators: true
           }

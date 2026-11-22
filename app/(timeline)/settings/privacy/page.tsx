@@ -44,7 +44,7 @@ const Page = async () => {
     <div className="space-y-6">
       <PageHeader
         title="Privacy"
-        description="Who can follow you. Blocks, mutes and filters are next to this in the list."
+        description="Who can follow you and find your posts. Blocks, mutes and filters are next to this in the list."
       />
 
       <form action="/api/v1/accounts/profile" method="post">
@@ -72,6 +72,29 @@ const Page = async () => {
                     name="manuallyApprovesFollowers"
                     aria-describedby={describedBy}
                     defaultChecked={profile.manuallyApprovesFollowers ?? true}
+                  />
+                </>
+              )}
+            </FormRow>
+          </FormGroup>
+          <FormGroup
+            title="Search"
+            description="Whether your posts can be found by the words in them."
+          >
+            <FormRow
+              label="Include my public posts in search results"
+              htmlFor="indexableInput"
+              hint="When on, people signed in here can find your public posts by their words, and other servers that honour this setting may too. Unlisted, followers-only and direct posts never appear."
+              inline
+            >
+              {({ describedBy }) => (
+                <>
+                  <input type="hidden" name="indexable_marker" value="true" />
+                  <Switch
+                    id="indexableInput"
+                    name="indexable"
+                    aria-describedby={describedBy}
+                    defaultChecked={actor.indexable === true}
                   />
                 </>
               )}

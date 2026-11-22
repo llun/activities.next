@@ -85,6 +85,10 @@ const SEARCH_OPERATORS: { example: string; description: string }[] = [
     example: 'after:2026-01-31',
     description: 'By UTC date; also before: and during:'
   },
+  {
+    example: 'in:library',
+    description: 'Only posts you wrote, liked, bookmarked or were mentioned in'
+  },
   { example: '"exact phrase"', description: 'Words in this order' },
   { example: '-word', description: 'Leave out a word, phrase or operator' }
 ]

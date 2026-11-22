@@ -25,6 +25,8 @@ export type CreateActorParams = {
   iconUrl?: string
   headerImageUrl?: string
   manuallyApprovesFollowers?: boolean
+  // Mastodon's opt-in to full-text search of the actor's public posts.
+  indexable?: boolean
   // Mastodon profile metadata fields. A field keeps the verification of a
   // stored field that has the same value (see carryOverFieldVerification), a
   // changed value starts unverified, and any `verifiedAt` passed in is ignored.

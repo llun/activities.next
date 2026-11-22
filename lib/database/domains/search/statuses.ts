@@ -20,6 +20,8 @@ import type { DB, Db } from '@/lib/database/kysely'
 import {
   fullTextQueryMatch,
   fullTextRank,
+  hostnameOf,
+  jsonFlagIsTrue,
   timestampValue
 } from '@/lib/database/kysely/dialect'
 import {
@@ -681,6 +683,92 @@ export const rankSearchCandidates = (candidates: RankedCandidate[]) => {
     .map(({ candidate }) => candidate.entityId)
 }
 
+// A public post (Public in `to`; not unlisted, followers-only or direct) whose
+// author opted in to search, read from the author's row at query time so an
+// opt-out hides their posts at once and an opt-in includes the old ones. The
+// author must not be being deleted, suspended or silenced, nor muted by the
+// viewer (while the mute lasts), nor on a domain the viewer blocks or the
+// instance suspends or silences. Blocks both ways apply to every result; the
+// search route then re-checks domains with the federation policy's own
+// matching (filterSearchStatuses), which also sees the host of the author's id.
+const indexablePublicPost = (
+  db: Db,
+  eb: ExpressionBuilder<DB, 'search_documents' | 'statuses'>,
+  viewerId: string,
+  now: number
+): Expression<SqlBool> =>
+  eb.and([
+    eb.exists(
+      eb
+        .selectFrom('recipients as public_recipients')
+        .select(sql.lit(1).as('one'))
+        .whereRef('public_recipients.statusId', '=', 'statuses.id')
+        .where('public_recipients.type', '=', 'to')
+        .where('public_recipients.actorId', 'in', PUBLIC_ACTIVITY_RECIPIENTS)
+    ),
+    eb.exists(
+      eb
+        .selectFrom('actors as search_authors')
+        .select(sql.lit(1).as('one'))
+        .whereRef('search_authors.id', '=', 'statuses.actorId')
+        .where(jsonFlagIsTrue(db, 'search_authors.settings', 'indexable'))
+        .where('search_authors.deletionStatus', 'is', null)
+        .where('search_authors.suspendedAt', 'is', null)
+        .where('search_authors.silencedAt', 'is', null)
+        // Done in the query too (not only by filterSearchStatuses after it),
+        // so a busy blocked domain cannot fill a page and push the rest out.
+        .where((author) =>
+          author.not(
+            author.exists(
+              author
+                .selectFrom('actor_domain_blocks')
+                .select(sql.lit(1).as('one'))
+                .where('actor_domain_blocks.actorId', '=', viewerId)
+                .where(
+                  sql<SqlBool>`lower(${sql.ref('actor_domain_blocks.domain')}) = lower(${sql.ref('search_authors.domain')})`
+                )
+            )
+          )
+        )
+        .where((author) =>
+          author.not(
+            author.exists(
+              author
+                .selectFrom('domain_federation_rules')
+                .select(sql.lit(1).as('one'))
+                .where('domain_federation_rules.type', '=', 'block')
+                .where('domain_federation_rules.severity', 'in', [
+                  'suspend',
+                  'silence'
+                ])
+                // As domainMatchesRule: `*`, the domain itself, or a `*.parent`
+                // rule's subdomains, on the host without its port. A `noop`
+                // exception under a wildcard is not honoured here, which
+                // hides rather than shows.
+                .where(
+                  sql<SqlBool>`(${sql.ref('domain_federation_rules.domain')} = '*' or ${hostnameOf(db, 'search_authors.domain')} = lower(${sql.ref('domain_federation_rules.domain')}) or (${sql.ref('domain_federation_rules.domain')} like '*.%' and length(${hostnameOf(db, 'search_authors.domain')}) > length(${sql.ref('domain_federation_rules.domain')}) - 1 and substr(${hostnameOf(db, 'search_authors.domain')}, length(${hostnameOf(db, 'search_authors.domain')}) - length(${sql.ref('domain_federation_rules.domain')}) + 2) = lower(substr(${sql.ref('domain_federation_rules.domain')}, 2))))`
+                )
+            )
+          )
+        )
+    ),
+    eb.not(
+      eb.exists(
+        eb
+          .selectFrom('mutes as search_mutes')
+          .select(sql.lit(1).as('one'))
+          .where('search_mutes.actorId', '=', viewerId)
+          .whereRef('search_mutes.targetActorId', '=', 'statuses.actorId')
+          .where((active) =>
+            active.or([
+              active('search_mutes.endsAt', 'is', null),
+              active('search_mutes.endsAt', '>=', now)
+            ])
+          )
+      )
+    )
+  ])
+
 export const searchStatusIds = async (
   db: Db,
   {
@@ -758,11 +846,14 @@ export const searchStatusIds = async (
   if (accountId) query = query.where('statuses.actorId', '=', accountId)
   query = query
     .where((eb) => potentiallyReadableStatus(db, eb, viewerId))
-    // Search finds only statuses the viewer wrote, liked, bookmarked or was
-    // mentioned in: their library. `in:all` searches the same library until
-    // opt-in public search adds the posts their authors made searchable.
+    // Search finds the statuses the viewer wrote, liked, bookmarked or was
+    // mentioned in (their library) and, unless the query says `in:library`,
+    // the public posts of authors who opted in to search (`indexable`).
     .where((eb) =>
       eb.or([
+        ...(parsed.scope === 'all'
+          ? [indexablePublicPost(db, eb, viewerId, Date.now())]
+          : []),
         eb('statuses.actorId', '=', viewerId),
         eb.exists(
           eb

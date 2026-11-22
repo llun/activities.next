@@ -24,6 +24,7 @@ import {
   resolveActorIdParam,
   resolveStatusIdParam
 } from '@/lib/services/mastodon/resolveClientId'
+import { filterSearchStatuses } from '@/lib/services/search/filterSearchStatuses'
 import {
   type ParsedSearchQuery,
   parseSearchQuery
@@ -662,7 +663,15 @@ const searchStatuses = async ({
     .slice(0, resolvedStatus ? indexedLimit - 1 : indexedLimit)
 
   if (ids.length === 0) {
-    return resolvedStatus ? [resolvedStatus] : []
+    return resolvedStatus
+      ? filterSearchStatuses({
+          database,
+          viewerId: currentActor.id,
+          viewerUsername: currentActor.username,
+          viewerDomain: currentActor.domain,
+          statuses: [resolvedStatus]
+        })
+      : []
   }
 
   const statuses = await database.getStatusesByIds({
@@ -675,9 +684,17 @@ const searchStatuses = async ({
     statuses,
     ids
   })
-  return [resolvedStatus, ...orderedStatuses]
-    .filter((status): status is Status => Boolean(status))
-    .slice(0, limit)
+  return (
+    await filterSearchStatuses({
+      database,
+      viewerId: currentActor.id,
+      viewerUsername: currentActor.username,
+      viewerDomain: currentActor.domain,
+      statuses: [resolvedStatus, ...orderedStatuses].filter(
+        (status): status is Status => Boolean(status)
+      )
+    })
+  ).slice(0, limit)
 }
 
 const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) => {

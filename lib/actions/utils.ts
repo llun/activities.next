@@ -139,6 +139,9 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
     ...(headerImageUrl ? { headerImageUrl } : {}),
     // ActivityStreams treats an absent flag as "does not require approval".
     manuallyApprovesFollowers: person.manuallyApprovesFollowers ?? false,
+    // Mastodon's opt-in to full-text search of the actor's public posts; an
+    // absent flag is "no", so a refresh that drops it opts the actor out.
+    indexable: person.indexable === true,
     fields: getActorProfileFields(person),
     // An off-origin `followers` (another account's id, say) is replaced by the
     // conventional path, so a refresh also repairs a row stored before this
