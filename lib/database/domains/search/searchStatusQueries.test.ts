@@ -517,6 +517,101 @@ describe('status search queries', () => {
         ).resolves.toEqual([])
       })
 
+      it('reads a from: domain as a host, with a port or in Unicode', async () => {
+        const viewer = await addActor('sqop-host-viewer')
+        const portAuthorId = actorIdOf('sqop-port', 'port.test:8443')
+        await createSearchActor(database, {
+          id: portAuthorId,
+          username: 'sqop-port',
+          domain: 'port.test:8443'
+        })
+        const idnAuthorId = actorIdOf('sqop-idn', 'xn--mnchen-3ya.test')
+        await createSearchActor(database, {
+          id: idnAuthorId,
+          username: 'sqop-idn',
+          domain: 'xn--mnchen-3ya.test'
+        })
+        const portPost = await indexedStatus({
+          id: statusIdOf(portAuthorId, 'port'),
+          actorId: portAuthorId,
+          createdAt: 20,
+          text: 'sqophost port',
+          to: [PUBLIC]
+        })
+        const idnPost = await indexedStatus({
+          id: statusIdOf(idnAuthorId, 'idn'),
+          actorId: idnAuthorId,
+          createdAt: 10,
+          text: 'sqophost idn',
+          to: [PUBLIC]
+        })
+        for (const statusId of [portPost, idnPost]) await like(viewer, statusId)
+
+        await expect(
+          search({
+            q: 'sqophost from:sqop-port@port.test:8443',
+            currentActorId: viewer
+          })
+        ).resolves.toEqual([portPost])
+        await expect(
+          search({
+            q: 'sqophost from:sqop-idn@MÜNCHEN.test',
+            currentActorId: viewer
+          })
+        ).resolves.toEqual([idnPost])
+      })
+
+      it('reads a bare from:username on the viewer domain when the caller gives none', async () => {
+        const viewer = await addActor('sqop-bare-viewer')
+        const author = await addActor('sqop-bare-author')
+        const post = await indexedStatus({
+          id: statusIdOf(author, 'bare'),
+          actorId: author,
+          createdAt: 10,
+          text: 'sqopbare words',
+          to: [PUBLIC]
+        })
+        await like(viewer, post)
+
+        await expect(
+          database.searchStatusIds({
+            q: 'from:sqop-bare-author',
+            limit: 50,
+            currentActorId: viewer
+          })
+        ).resolves.toEqual([post])
+      })
+
+      it('finds a post with no text by operators alone', async () => {
+        const viewer = await addActor('sqop-captionless-viewer')
+        const post = await indexedStatus({
+          id: statusIdOf(viewer, 'captionless'),
+          actorId: viewer,
+          createdAt: 10,
+          text: '',
+          to: [PUBLIC]
+        })
+        await db
+          .insertInto('attachments')
+          .values({
+            id: `${post}/attachments/photo`,
+            actorId: viewer,
+            statusId: post,
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: `https://${DOMAIN}/media/captionless.jpg`,
+            name: '',
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          })
+          .execute()
+        await database.indexStatusSearchDocument({ statusId: post })
+
+        await expect(
+          search({ q: 'from:me has:media', currentActorId: viewer })
+        ).resolves.toEqual([post])
+      })
+
       it('filters by has:image, video, audio, media, poll, link and embed', async () => {
         const viewer = await addActor('sqop-has-viewer')
         const makePost = (slug: string, createdAt: number, type = 'Note') =>
@@ -1210,7 +1305,7 @@ describe('status search queries', () => {
       expect(document?.updatedAt).toBeGreaterThan(1000)
     })
 
-    it('drops the document of a missing, empty or non-searchable status', async () => {
+    it('drops the document of a missing or non-searchable status and empties an empty one', async () => {
       const author = await addActor('sqdrop-author')
       const announce = await seedStatus(db, {
         id: statusIdOf(author, 'announce'),
@@ -1241,10 +1336,15 @@ describe('status search queries', () => {
         documentText: 'stale'
       })
 
-      for (const statusId of [announce, empty, missing]) {
+      for (const statusId of [announce, missing]) {
         await database.indexStatusSearchDocument({ statusId })
         expect(await readSearchDocument(db, 'status', statusId)).toBeUndefined()
       }
+      // An empty Note keeps an empty document, so operators alone find it.
+      await database.indexStatusSearchDocument({ statusId: empty })
+      expect(await readSearchDocument(db, 'status', empty)).toMatchObject({
+        documentText: ''
+      })
       expect(await readSearchDocument(db, 'hashtag', missing)).toBeDefined()
     })
 

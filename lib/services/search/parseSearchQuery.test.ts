@@ -534,4 +534,30 @@ describe('parseSearchQuery', () => {
       ['bye', 'bye', 'now']
     ])
   })
+
+  it('reads a from: domain as a host', () => {
+    expect(parseSearchQuery('from:a@MÜNCHEN.de').filters).toEqual([
+      {
+        type: 'from',
+        value: { kind: 'handle', username: 'a', domain: 'xn--mnchen-3ya.de' },
+        negated: false
+      }
+    ])
+    expect(parseSearchQuery('from:a@localhost:3000').filters).toEqual([
+      {
+        type: 'from',
+        value: { kind: 'handle', username: 'a', domain: 'localhost:3000' },
+        negated: false
+      }
+    ])
+    expect(parseSearchQuery('from:a@exa/mple').filters).toEqual([])
+  })
+
+  it('counts in: towards the token cap', () => {
+    const words = Array.from(
+      { length: MAX_SEARCH_QUERY_TOKENS },
+      (_, index) => `w${index}`
+    ).join(' ')
+    expect(parseSearchQuery(`${words} in:all`).scope).toBe('library')
+  })
 })

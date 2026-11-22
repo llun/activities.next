@@ -305,14 +305,20 @@ const reindexStatusSearchDocuments = async (
   )
 
   for (const status of statuses) {
-    const documentText = SEARCHABLE_STATUS_TYPES.includes(status.type)
-      ? getStatusDocumentText(status, extraTextByStatusId.get(status.id))
-      : ''
-    if (!documentText) {
+    if (!SEARCHABLE_STATUS_TYPES.includes(status.type)) {
       statusIdsToDelete.push(status.id)
       continue
     }
-    candidates.push({ status, documentText })
+    // A Note or Poll with no text at all (a captionless photo) still gets a
+    // document: no word finds it, but operators alone (`from:me has:media`)
+    // must.
+    candidates.push({
+      status,
+      documentText: getStatusDocumentText(
+        status,
+        extraTextByStatusId.get(status.id)
+      )
+    })
   }
 
   const recipientIdsByStatusId = await getStatusRecipientIdsByStatusId(
@@ -678,10 +684,26 @@ export const searchStatusIds = async (
   if (hasText || parsed.excluded.length > 0) {
     query = fullTextQueryMatch(db, query, parsed)
   }
-  const filterContext = {
-    viewerId,
-    localDomain: (localDomain ?? currentActorDomain)?.toLowerCase() ?? null
+  // A bare `from:username` names an account on this domain; a caller that gave
+  // no domain gets the viewer's own.
+  let fromDomain = (localDomain ?? currentActorDomain)?.toLowerCase() ?? null
+  if (
+    !fromDomain &&
+    parsed.filters.some(
+      (filter) =>
+        filter.type === 'from' &&
+        filter.value.kind === 'handle' &&
+        filter.value.domain === null
+    )
+  ) {
+    const viewer = await db
+      .selectFrom('actors')
+      .select('domain')
+      .where('id', '=', viewerId)
+      .executeTakeFirst()
+    fromDomain = viewer?.domain?.toLowerCase() ?? null
   }
+  const filterContext = { viewerId, localDomain: fromDomain }
   for (const filter of parsed.filters) {
     query = query.where((eb) => {
       const condition = statusSearchFilter(eb, filter, filterContext)

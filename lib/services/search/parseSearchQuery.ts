@@ -1,4 +1,5 @@
 import { getSearchWords } from '@/lib/database/domains/search/rows'
+import { parseBareDomain } from '@/lib/utils/accountHandle'
 import { MAX_SEARCH_QUERY_TOKENS } from '@/lib/utils/searchQueryLimits'
 
 // Mastodon's search operators for post search. A query is read once into the
@@ -56,9 +57,10 @@ export interface ParsedSearchQuery {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-// A username, or a `user@domain` handle, with an optional leading `@`.
-const HANDLE_PATTERN =
-  /^@?([\p{L}\p{N}_.-]+)(?:@([\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*))?$/u
+// A username, or a `user@domain` handle, with an optional leading `@`. The
+// domain is read as a host (punycoded, with a non-default port), the form
+// actors.domain stores.
+const HANDLE_PATTERN = /^@?([\p{L}\p{N}_.-]+)(?:@([^@\s]+))?$/u
 const LANGUAGE_PATTERN = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 
@@ -80,11 +82,11 @@ const parseFrom = (value: string): SearchFromValue | null => {
   if (value.toLowerCase() === 'me') return { kind: 'me' }
   const match = HANDLE_PATTERN.exec(value)
   if (!match) return null
-  return {
-    kind: 'handle',
-    username: match[1],
-    domain: match[2]?.toLowerCase() ?? null
+  if (match[2] === undefined) {
+    return { kind: 'handle', username: match[1], domain: null }
   }
+  const domain = parseBareDomain(match[2], { requireDot: false })
+  return domain ? { kind: 'handle', username: match[1], domain } : null
 }
 
 type Operator =
@@ -202,7 +204,7 @@ export const parseSearchQuery = (query: string): ParsedSearchQuery => {
     }
     if (operator?.kind === 'scope' && !negated) {
       hasOperators = true
-      scope = operator.scope
+      if (take(1)) scope = operator.scope
       continue
     }
     if (negated) hasOperators = true
