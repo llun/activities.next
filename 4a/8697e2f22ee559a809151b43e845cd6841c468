@@ -1,0 +1,23 @@
+scripts/maintenance/setupSemanticSearch.ts
+  s_17b6192f00c988::t_fb0a2485e3cb71 1-80
+package.json
+  s_17b6192f00c988::t_fb0a2485e3cb71 23-24
+scripts/maintenance/backfillSemanticSearch.ts
+  s_17b6192f00c988::t_fb0a2485e3cb71 1-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a8697e2f22ee559a809151b43e845cd6841c468",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
