@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import type { Updateable } from 'kysely'
+import type { NotNull, Updateable } from 'kysely'
 
 import {
   buildProcessingStatusUpdate,
@@ -14,6 +14,7 @@ import type {
   UpdateFitnessFileActivityData
 } from '@/lib/database/domains/fitnessFile/types'
 import { assignFitnessFileGearIfUnset } from '@/lib/database/domains/fitnessGear/queries'
+import { indexStatusSearchDocumentsByIds } from '@/lib/database/domains/search/statuses'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import {
   decreaseCounterValue,
@@ -21,6 +22,7 @@ import {
 } from '@/lib/database/kysely/counter'
 import { incrementBucket } from '@/lib/database/kysely/counterBucket'
 import type { EpochMs, FitnessFiles } from '@/lib/database/kysely/db'
+import { selectInChunks } from '@/lib/database/kysely/inList'
 import { CounterKey } from '@/lib/database/utils/counter'
 import type {
   FitnessFile,
@@ -194,7 +196,31 @@ export const updateFitnessFileStatus = async (
     .where('id', '=', fitnessFileId)
     .executeTakeFirst()
 
-  return Number(result.numUpdatedRows) > 0
+  const updated = Number(result.numUpdatedRows) > 0
+  // The status's search text holds its activity's type and title.
+  if (updated) await indexStatusSearchDocumentsByIds(db, [statusId])
+  return updated
+}
+
+// A finished processing run has written the activity type the status's search
+// text holds.
+const indexCompletedFitnessStatuses = async (
+  db: Db,
+  fitnessFileIds: string[]
+) => {
+  const rows = await selectInChunks(db, fitnessFileIds, (chunk) =>
+    db
+      .selectFrom('fitness_files')
+      .select('statusId')
+      .where('id', 'in', chunk)
+      .where('statusId', 'is not', null)
+      .$narrowType<{ statusId: NotNull }>()
+      .execute()
+  )
+  await indexStatusSearchDocumentsByIds(
+    db,
+    rows.map((row) => row.statusId)
+  )
 }
 
 export const updateFitnessFileProcessingStatus = async (
@@ -209,7 +235,11 @@ export const updateFitnessFileProcessingStatus = async (
     .where('id', '=', fitnessFileId)
     .executeTakeFirst()
 
-  return Number(result.numUpdatedRows) > 0
+  const updated = Number(result.numUpdatedRows) > 0
+  if (updated && processingStatus === 'completed') {
+    await indexCompletedFitnessStatuses(db, [fitnessFileId])
+  }
+  return updated
 }
 
 export const updateFitnessFilesProcessingStatus = async (
@@ -235,6 +265,9 @@ export const updateFitnessFilesProcessingStatus = async (
     .where('deletedAt', 'is', null)
     .executeTakeFirst()
 
+  if (processingStatus === 'completed' && Number(result.numUpdatedRows) > 0) {
+    await indexCompletedFitnessStatuses(db, fitnessFileIds)
+  }
   return Number(result.numUpdatedRows)
 }
 

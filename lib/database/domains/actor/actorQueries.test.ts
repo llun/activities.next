@@ -737,7 +737,7 @@ describe('updateActor', () => {
       iconUrl: 'https://img.test/new.png'
     })
     expect(await actorRow(neighbour)).toEqual(neighbourBefore)
-    expect((await searchDocument(target))?.documentText).toContain('New name')
+    expect((await searchDocument(target))?.documentText).toContain('new name')
     expect(await database.updateActor({ actorId: `${target}-x` })).toBeNull()
   })
 

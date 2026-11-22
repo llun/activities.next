@@ -12,7 +12,7 @@ import { StatusType } from '@/lib/types/domain/status'
 describe('SearchDatabase document filtering', () => {
   it('tokenizes Unicode search text', () => {
     expect(getSearchTokens('  Café 東京 runner_1  ')).toEqual([
-      'café',
+      'cafe',
       '東京',
       'runner_1'
     ])
@@ -136,7 +136,7 @@ describe('SearchDatabase document filtering', () => {
           .where('entityId', '=', statusId)
           .executeTakeFirst()
       ).resolves.toMatchObject({
-        documentText: 'Preloaded trail run Morning effort',
+        documentText: 'preloaded trail run morning effort',
         actorId: 'https://remote.test/users/alice',
         visibility: 'direct'
       })

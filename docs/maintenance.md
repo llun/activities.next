@@ -477,6 +477,8 @@ Use the reported last id examined as the next `--after-id`, so permanently ambig
 
 The `rebuildSearchIndex.ts` script rebuilds full-text search indexes for accounts, hashtags, and statuses. It scans records, regenerates search tokens and searchable text, and updates the search documents table in batches.
 
+A status's searchable text is its text and content warning plus what the post shows every reader: each attachment's alt text (not the route map's fixed label), the species name, scientific name and group (`subjectName`, `subjectScientificName`, `subjectCategory`) of each attached photo, the poll options, and the activity type and title of the recording the post shows. A photo's place, coordinates and anything else its owner can withhold from viewers are never indexed. Every document's text, and every query token, is lowercased with its compatibility forms folded and its Latin, Greek and Cyrillic accents removed (`foldSearchText` in `lib/database/domains/search/rows.ts`), so PostgreSQL's `'simple'` configuration matches `cafe` to `café` as SQLite's FTS5 does; Thai, kana and Hangul are left whole. A status is re-indexed when its attachments are written or edited, when an attached photo's species changes, and when its activity is linked or finishes processing. Posts indexed before these rules hold only their text until this script runs over them.
+
 You can run it directly or via the convenience package script:
 
 ```bash

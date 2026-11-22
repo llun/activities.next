@@ -694,7 +694,7 @@ describe('createNote', () => {
     expect(await searchDocumentOf(id)).toEqual({
       entityId: id,
       actorId: local,
-      documentText: expect.stringContaining('Hello'),
+      documentText: expect.stringContaining('hello'),
       entityCreatedAt: createdAt
     })
 
@@ -1213,7 +1213,7 @@ describe('createPoll', () => {
     expect(await lastStatusAtOf(local)).toBe(now - 1_000)
     expect(await searchDocumentOf(id)).toMatchObject({
       entityId: id,
-      documentText: expect.stringContaining('Which?'),
+      documentText: expect.stringContaining('which?'),
       entityCreatedAt: now - 1_000
     })
     expect(result.isNew).toBe(true)

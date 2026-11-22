@@ -402,7 +402,7 @@ describe('the actor search document', () => {
     await expect(readDocument('account', actorId)).resolves.toMatchObject({
       id: `account:${actorId}`,
       documentText:
-        'zqindex zqindex@acct.test @zqindex@acct.test Index Name About Index',
+        'zqindex zqindex@acct.test @zqindex@acct.test index name about index',
       actorId,
       visibility: null,
       entityCreatedAt: 1,

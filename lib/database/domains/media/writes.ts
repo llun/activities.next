@@ -47,6 +47,7 @@ import type {
   UpdateMediaParams,
   UpdateMediaResult
 } from '@/lib/database/domains/media/types'
+import { indexStatusSearchDocumentsByIds } from '@/lib/database/domains/search/statuses'
 import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
 import {
   decreaseCounterValue,
@@ -313,6 +314,13 @@ const deleteMediaById = async (
 
 // The `medias` columns a create or an update writes, as Kysely takes them.
 type MediaColumns = Updateable<Medias>
+
+// The subject columns a status's search text holds.
+const SEARCHED_SUBJECT_COLUMNS = [
+  'subjectName',
+  'subjectScientificName',
+  'subjectCategory'
+] as const
 
 // Maps the details an update or create may write to `medias` columns. Presence
 // semantics: only keys present in `details` produce a column, so a partial
@@ -791,6 +799,8 @@ export const replaceRemoteAttachmentsForStatus = async (
       await insertAttachment(trx, { ...attachment, statusId })
     }
   })
+  // The status's search text holds its attachments' alt text.
+  await indexStatusSearchDocumentsByIds(db, [statusId])
 }
 
 export const updateMedia = async (
@@ -809,88 +819,125 @@ export const updateMedia = async (
   const id = toMediaRowId(mediaId)
   if (id === null) return null
 
-  return inTransaction(db, async (trx): Promise<UpdateMediaResult | null> => {
-    // The whole row, locked on PostgreSQL when details are written: the
-    // lookup resets below are decided against what is stored, so a
-    // concurrent lookup write cannot slip in between this read and the
-    // update.
-    const ownedQuery = trx
-      .selectFrom('medias')
-      .innerJoin('actors', 'medias.actorId', 'actors.id')
-      .select(MEDIA_SELECT)
-      .select('medias.createdAt as mediaCreatedAt')
-      .where('medias.id', '=', id)
-      .where('actors.accountId', '=', accountId)
-      .$if(Boolean(actorId), (qb) => qb.where('medias.actorId', '=', actorId!))
-      .limit(1)
-    const ownedRow = await (
-      details ? forUpdate(trx, ownedQuery, 'medias') : ownedQuery
-    ).executeTakeFirst()
-    if (!ownedRow) return null
-    const owned = asMediaRow(ownedRow)
+  let subjectChanged = false
+  const result = await inTransaction(
+    db,
+    async (trx): Promise<UpdateMediaResult | null> => {
+      // The whole row, locked on PostgreSQL when details are written: the
+      // lookup resets below are decided against what is stored, so a
+      // concurrent lookup write cannot slip in between this read and the
+      // update.
+      const ownedQuery = trx
+        .selectFrom('medias')
+        .innerJoin('actors', 'medias.actorId', 'actors.id')
+        .select(MEDIA_SELECT)
+        .select('medias.createdAt as mediaCreatedAt')
+        .where('medias.id', '=', id)
+        .where('actors.accountId', '=', accountId)
+        .$if(Boolean(actorId), (qb) =>
+          qb.where('medias.actorId', '=', actorId!)
+        )
+        .limit(1)
+      const ownedRow = await (
+        details ? forUpdate(trx, ownedQuery, 'medias') : ownedQuery
+      ).executeTakeFirst()
+      if (!ownedRow) return null
+      const owned = asMediaRow(ownedRow)
 
-    // Only touch fields the caller actually provided so a partial update can't
-    // blank out existing metadata (e.g. a description-only update must not
-    // clear focus, and a focus-only update must not clear the description).
-    const updates: MediaColumns = { updatedAt: new Date() }
+      // Only touch fields the caller actually provided so a partial update can't
+      // blank out existing metadata (e.g. a description-only update must not
+      // clear focus, and a focus-only update must not clear the description).
+      const updates: MediaColumns = { updatedAt: new Date() }
 
-    if (description !== undefined) {
-      updates.description = description
-    }
-    if (focus !== undefined) {
-      updates.focusX = focus.x
-      updates.focusY = focus.y
-    }
-    if (blurhash !== undefined) {
-      updates.blurhash = blurhash
-    }
-
-    const detailsColumns = getDetailsColumns(details, parseMediaDetails(owned))
-    Object.assign(updates, detailsColumns)
-    const sortAt = resolveSortAtUpdate(detailsColumns, ownedRow.mediaCreatedAt)
-    if (sortAt !== undefined) {
-      updates.sortAt = sortAt
-    }
-
-    let thumbnailUsageDelta = 0
-    let replacedThumbnailPath: string | null = null
-    if (thumbnail !== undefined) {
-      // The path being overwritten, read inside the transaction — the caller
-      // deletes exactly this file, immune to a concurrent thumbnail update.
-      if (owned.thumbnail && owned.thumbnail !== thumbnail.path) {
-        replacedThumbnailPath = owned.thumbnail
+      if (description !== undefined) {
+        updates.description = description
       }
-      updates.thumbnail = thumbnail.path
-      updates.thumbnailBytes = thumbnail.bytes
-      updates.thumbnailMimeType = thumbnail.mimeType
-      updates.thumbnailMetaData = JSON.stringify(thumbnail.metaData)
-      thumbnailUsageDelta =
-        thumbnail.bytes - parseCounterValue(owned.thumbnailBytes)
-    }
+      if (focus !== undefined) {
+        updates.focusX = focus.x
+        updates.focusY = focus.y
+      }
+      if (blurhash !== undefined) {
+        updates.blurhash = blurhash
+      }
 
-    await trx.updateTable('medias').set(updates).where('id', '=', id).execute()
-
-    // Replacing a thumbnail changes stored bytes; keep the per-account usage
-    // counter (read by getStorageUsageForAccount / quota checks) in sync.
-    if (thumbnailUsageDelta > 0) {
-      await increaseCounterValue(
-        trx,
-        CounterKey.mediaUsage(accountId),
-        thumbnailUsageDelta
+      const detailsColumns = getDetailsColumns(
+        details,
+        parseMediaDetails(owned)
       )
-    } else if (thumbnailUsageDelta < 0) {
-      await decreaseCounterValue(
-        trx,
-        CounterKey.mediaUsage(accountId),
-        -thumbnailUsageDelta
+      Object.assign(updates, detailsColumns)
+      subjectChanged = SEARCHED_SUBJECT_COLUMNS.some(
+        (column) =>
+          detailsColumns[column] !== undefined &&
+          (detailsColumns[column] ?? null) !== (owned[column] ?? null)
       )
+      const sortAt = resolveSortAtUpdate(
+        detailsColumns,
+        ownedRow.mediaCreatedAt
+      )
+      if (sortAt !== undefined) {
+        updates.sortAt = sortAt
+      }
+
+      let thumbnailUsageDelta = 0
+      let replacedThumbnailPath: string | null = null
+      if (thumbnail !== undefined) {
+        // The path being overwritten, read inside the transaction — the caller
+        // deletes exactly this file, immune to a concurrent thumbnail update.
+        if (owned.thumbnail && owned.thumbnail !== thumbnail.path) {
+          replacedThumbnailPath = owned.thumbnail
+        }
+        updates.thumbnail = thumbnail.path
+        updates.thumbnailBytes = thumbnail.bytes
+        updates.thumbnailMimeType = thumbnail.mimeType
+        updates.thumbnailMetaData = JSON.stringify(thumbnail.metaData)
+        thumbnailUsageDelta =
+          thumbnail.bytes - parseCounterValue(owned.thumbnailBytes)
+      }
+
+      await trx
+        .updateTable('medias')
+        .set(updates)
+        .where('id', '=', id)
+        .execute()
+
+      // Replacing a thumbnail changes stored bytes; keep the per-account usage
+      // counter (read by getStorageUsageForAccount / quota checks) in sync.
+      if (thumbnailUsageDelta > 0) {
+        await increaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(accountId),
+          thumbnailUsageDelta
+        )
+      } else if (thumbnailUsageDelta < 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(accountId),
+          -thumbnailUsageDelta
+        )
+      }
+
+      const data = await selectMediaRow(trx, id)
+      if (!data) return null
+
+      return { media: parseMediaRow(data), replacedThumbnailPath }
     }
+  )
 
-    const data = await selectMediaRow(trx, id)
-    if (!data) return null
-
-    return { media: parseMediaRow(data), replacedThumbnailPath }
-  })
+  // A posted photo's species is part of its statuses' search text.
+  if (result && subjectChanged) {
+    const statuses = await db
+      .selectFrom('attachments')
+      .select('statusId')
+      .where('mediaId', '=', id)
+      .where('statusId', 'is not', null)
+      .$narrowType<{ statusId: NotNull }>()
+      .execute()
+    await indexStatusSearchDocumentsByIds(
+      db,
+      statuses.map((row) => row.statusId)
+    )
+  }
+  return result
 }
 
 export const deleteAttachmentsByIds = async (

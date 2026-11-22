@@ -27,9 +27,15 @@ import {
   potentiallyReadableStatus
 } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { parseStatusContent } from '@/lib/database/utils/parseStatusContent'
+import {
+  formatActivityTypeLabel,
+  getActivityPresentation
+} from '@/lib/services/fitness-files/activityPresentation'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
+import { logger } from '@/lib/utils/logger'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 // A status as the search index reads it. Callers inside a transaction hand
 // over the row they just wrote, with `createdAt` a Date.
@@ -65,17 +71,106 @@ const selectSearchStatuses = (db: Db) =>
     .select(STATUS_COLUMNS)
     .$narrowType<{ actorId: NotNull; type: NotNull; createdAt: NotNull }>()
 
-const getStatusDocumentText = (status: StatusSearchRow) => {
+const getStatusDocumentText = (
+  status: StatusSearchRow,
+  extraText: string[] = []
+) => {
   const content = parseStatusContent(status.content)
-  if (!content) return ''
-  if (typeof content === 'string')
-    return normalizeSearchText(htmlToPlainText(content))
+  const text =
+    typeof content === 'string'
+      ? htmlToPlainText(content)
+      : content
+        ? [content.text, content.summary]
+            .map((value) => (typeof value === 'string' ? value : ''))
+            .map(htmlToPlainText)
+            .join(' ')
+        : ''
+  return normalizeSearchText([text, ...extraText].join(' '))
+}
 
-  const text = typeof content.text === 'string' ? content.text : ''
-  const summary = typeof content.summary === 'string' ? content.summary : ''
-  return normalizeSearchText(
-    [htmlToPlainText(text), htmlToPlainText(summary)].join(' ')
+// What else a status shows every reader, beside its text: the alt text of each
+// attachment, the species a posted photo names, the poll's options, and the
+// type and title of the activity the post shows (the first non-deleted
+// recording, primary first, as hydration picks it). Never a photo's place or
+// anything else its owner may withhold from viewers (hidden locations,
+// threatened species' places); the subject itself is public, as
+// `toSubjectEntity` serves it. The route map attachment is skipped: its alt
+// text is a fixed label.
+const getStatusExtraTextByStatusId = async (db: Db, statusIds: string[]) => {
+  const extraTextByStatusId = new Map<string, string[]>()
+  if (statusIds.length === 0) return extraTextByStatusId
+  const append = (statusId: string | null, values: (string | null)[]) => {
+    if (!statusId) return
+    const texts = extraTextByStatusId.get(statusId) ?? []
+    for (const value of values) if (value) texts.push(value)
+    extraTextByStatusId.set(statusId, texts)
+  }
+
+  // One after another: inside a transaction they share one connection.
+  const attachments = await selectInChunks(
+    db,
+    statusIds,
+    (chunk) =>
+      db
+        .selectFrom('attachments')
+        .leftJoin('medias', 'medias.id', 'attachments.mediaId')
+        .select([
+          'attachments.statusId',
+          'attachments.name',
+          'medias.subjectName',
+          'medias.subjectScientificName',
+          'medias.subjectCategory'
+        ])
+        .where('attachments.statusId', 'in', chunk)
+        .where('attachments.isRouteMap', '=', false)
+        .orderBy('attachments.createdAt', 'asc')
+        .orderBy('attachments.id', 'asc')
+        .execute(),
+    1
   )
+  const choices = await selectInChunks(db, statusIds, (chunk) =>
+    db
+      .selectFrom('poll_choices')
+      .select(['statusId', 'title'])
+      .where('statusId', 'in', chunk)
+      .orderBy('choiceId', 'asc')
+      .execute()
+  )
+  const fitnessFiles = await selectInChunks(db, statusIds, (chunk) =>
+    db
+      .selectFrom('fitness_files')
+      .select(['statusId', 'activityType', 'description'])
+      .where('statusId', 'in', chunk)
+      .where('deletedAt', 'is', null)
+      .orderBy('isPrimary', 'desc')
+      .orderBy('activityStartTime', 'asc')
+      .execute()
+  )
+
+  for (const row of attachments) {
+    append(row.statusId, [
+      row.name,
+      row.subjectName,
+      row.subjectScientificName,
+      row.subjectCategory
+    ])
+  }
+  for (const row of choices) append(row.statusId, [row.title])
+  const seenFitnessStatusIds = new Set<string>()
+  for (const row of fitnessFiles) {
+    if (!row.statusId || seenFitnessStatusIds.has(row.statusId)) continue
+    seenFitnessStatusIds.add(row.statusId)
+    append(row.statusId, [
+      ...(row.activityType
+        ? [
+            formatActivityTypeLabel(row.activityType),
+            getActivityPresentation(row.activityType).label
+          ]
+        : []),
+      row.description
+    ])
+  }
+  return extraTextByStatusId
 }
 
 const getStatusVisibilityFromRecipientIds = (recipientIds: string[]) => {
@@ -131,10 +226,17 @@ const reindexStatusSearchDocuments = async (
   const currentTime = new Date()
   const statusIdsToDelete: string[] = []
   const candidates: { status: StatusSearchRow; documentText: string }[] = []
+  const extraTextByStatusId = await getStatusExtraTextByStatusId(db, [
+    ...new Set(
+      statuses
+        .filter((status) => SEARCHABLE_STATUS_TYPES.includes(status.type))
+        .map((status) => status.id)
+    )
+  ])
 
   for (const status of statuses) {
     const documentText = SEARCHABLE_STATUS_TYPES.includes(status.type)
-      ? getStatusDocumentText(status)
+      ? getStatusDocumentText(status, extraTextByStatusId.get(status.id))
       : ''
     if (!documentText) {
       statusIdsToDelete.push(status.id)
@@ -202,6 +304,28 @@ export const indexStatusSearchDocument = async (
   }
 
   await reindexStatusSearchDocuments(db, [status])
+}
+
+// Refreshes the documents of the statuses that still exist, in one batch, after
+// a change to something a status shows besides its own row (an attachment, a
+// photo's species, its activity). Best-effort: the change has committed, and a
+// stale document is what `yarn search:reindex` rebuilds.
+export const indexStatusSearchDocumentsByIds = async (
+  db: Db,
+  statusIds: string[]
+): Promise<void> => {
+  try {
+    const rows = await selectInChunks(db, [...new Set(statusIds)], (chunk) =>
+      selectSearchStatuses(db).where('id', 'in', chunk).execute()
+    )
+    await reindexStatusSearchDocuments(db, rows)
+  } catch (error) {
+    logger.error({
+      message: 'Failed to refresh status search documents',
+      statusIds: statusIds.slice(0, 20),
+      err: toLoggableError(error)
+    })
+  }
 }
 
 export const deleteStatusSearchDocument = (
