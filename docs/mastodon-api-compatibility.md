@@ -329,6 +329,20 @@ product or security decision, not a gap to be closed.
   - The Mastodon route (`GET /api/v1/statuses/:id/context`) returns only
     `{ ancestors, descendants }`; neither flag is exposed there.
 
+### Search operators
+
+Post search (`GET /api/v2/search` with `type=statuses` or no type, and the web Search page) reads Mastodon's operators (`parseSearchQuery` in `lib/services/search/parseSearchQuery.ts`):
+
+- `from:me`, `from:user` (an account on the requested domain), `from:@user@domain` or `from:user@domain`, matched case-insensitively, with the domain read as a host (punycoded, a non-default port kept, as `actors.domain` stores it);
+- `has:media` (an image, video or audio attachment, a fitness post's route map included), `has:image`, `has:video`, `has:audio`, `has:poll`, `has:link` (the post has the link its preview card is made for) and `has:embed` (that card was fetched);
+- `is:reply` and `is:sensitive` (marked sensitive or carrying a content warning);
+- `language:<code>`, the language the post declares, else the one detected from its text;
+- `before:`, `after:` and `during:` with a `YYYY-MM-DD` date, read as a UTC day: `before:` is earlier than that day, `after:` is later than it, `during:` is within it;
+- `in:library` (the default) and `in:all`; both search the viewer's library, the posts they wrote, liked, bookmarked or were mentioned in, where Mastodon's `in:all` also searches public posts;
+- `"an exact phrase"`, and `-` before a word, a phrase or an operator to leave it out (`-is:reply`, `-has:media`).
+
+Operator names are case-insensitive. An unknown operator, or one with a value it does not take (`foo:bar`, `before:yesterday`), is searched as plain words, as Mastodon does. A query of operators alone (`from:me has:media`) returns the matching posts, a post with no text among them (every Note and Poll has a search document, empty when it has no text; `yarn search:reindex` adds them for older posts); one of exclusions alone matches nothing. Excluded words match whole words, while searched words match as prefixes. Words, phrase words and operators together count towards the query's token cap (`lib/utils/searchQueryLimits.ts`). The accounts and hashtags results search the plain words only, and are empty when a query holds no plain words. A query with an operator is never resolved as a remote URL.
+
 ### Media
 
 - **Image uploads accept JPEG, PNG, WebP, GIF and AVIF** on both synchronous

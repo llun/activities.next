@@ -114,35 +114,90 @@ export const utcDay = (
     : sql<string>`to_char(${target} at time zone 'UTC', 'YYYY-MM-DD')`
 }
 
-// Keeps the `search_documents` rows whose documentText contains every token as
-// a word prefix. `query` must select from `search_documents` and `tokens` must
-// be non-empty and made of letters, digits and underscores (getSearchTokens()
-// guarantees both): they are written into the match syntax, not escaped.
+// What a full-text match asks of a document's text: every term as a word
+// prefix, every phrase as consecutive whole words, and none of the excluded
+// words or phrases. Every token must be non-empty and made of letters, digits
+// and underscores (getSearchWords() and getSearchTokens() guarantee it): tokens
+// are written into the match syntax, not escaped, and nothing else the user
+// typed ever is.
+export type FullTextQuery = {
+  terms: string[]
+  phrases: string[][]
+  excluded: string[][]
+}
+
+// Keeps the `search_documents` rows whose documentText matches the
+// FullTextQuery. `query` must select from `search_documents`, and the
+// FullTextQuery must hold at least one term, phrase or excluded entry; with no
+// term or phrase it only drops the rows that hold an excluded one.
 //
 // SQLite matches through the FTS5 table search_documents_fts, joined on its
-// rowid. PostgreSQL matches the same to_tsvector('simple', "documentText")
-// expression its GIN index is built on, so the index is used.
+// rowid, and drops excluded rows with a second FTS5 match. PostgreSQL matches
+// the same to_tsvector('simple', "documentText") expression its GIN index is
+// built on, and drops excluded rows with a separate NOT: an exclusion the
+// 'simple' parser reads as no lexeme (`_`) makes an empty tsquery, which
+// matches nothing, so inside the positive tsquery it would drop every row.
+export const fullTextQueryMatch = <TB extends keyof DB, O>(
+  db: Db,
+  query: SelectQueryBuilder<DB, TB, O>,
+  { terms, phrases, excluded }: FullTextQuery
+) => {
+  if (getDialectName(db) === 'sqlite') {
+    const ftsPhrase = (tokens: string[]) => `"${tokens.join(' ')}"`
+    const positive = [
+      ...terms.map((token) => `${token}*`),
+      ...phrases.map(ftsPhrase)
+    ].join(' ')
+    const negative = excluded.map(ftsPhrase).join(' OR ')
+    return query
+      .$if(positive.length > 0, (qb) =>
+        qb
+          .innerJoin('search_documents_fts', (join) =>
+            join.on(
+              sql<boolean>`search_documents_fts.rowid = search_documents.rowid`
+            )
+          )
+          .where(sql<boolean>`search_documents_fts match ${positive}`)
+      )
+      .$if(negative.length > 0, (qb) =>
+        qb.where(
+          sql<boolean>`search_documents.rowid not in (select rowid from search_documents_fts where search_documents_fts match ${negative})`
+        )
+      )
+  }
+
+  // A phrase goes through phraseto_tsquery, which reads the words with the
+  // same parser as to_tsvector: a token it skips (`_`) is skipped on both
+  // sides instead of widening the phrase's word distance.
+  const phrase = (tokens: string[]) =>
+    sql`phraseto_tsquery('simple', ${tokens.join(' ')})`
+  const positive = [
+    ...(terms.length > 0
+      ? [
+          sql`to_tsquery('simple', ${terms.map((token) => `${token}:*`).join(' & ')})`
+        ]
+      : []),
+    ...phrases.map(phrase)
+  ]
+  const negative = excluded.map(phrase)
+  const vector = sql`to_tsvector('simple', ${sql.ref('documentText')})`
+  const combine = (queries: RawBuilder<unknown>[], operator: string) =>
+    queries.length === 1
+      ? queries[0]
+      : sql`(${sql.join(queries, sql.raw(` ${operator} `))})`
+  return query
+    .$if(positive.length > 0, (qb) =>
+      qb.where(sql<boolean>`${vector} @@ ${combine(positive, '&&')}`)
+    )
+    .$if(negative.length > 0, (qb) =>
+      qb.where(sql<boolean>`not (${vector} @@ ${combine(negative, '||')})`)
+    )
+}
+
+// Keeps the `search_documents` rows whose documentText contains every token as
+// a word prefix (see fullTextQueryMatch).
 export const fullTextMatch = <TB extends keyof DB, O>(
   db: Db,
   query: SelectQueryBuilder<DB, TB, O>,
   tokens: string[]
-) => {
-  const isSqlite = getDialectName(db) === 'sqlite'
-  const ftsQuery = tokens.map((token) => `${token}*`).join(' ')
-  const tsQuery = tokens.map((token) => `${token}:*`).join(' & ')
-  return query
-    .$if(isSqlite, (qb) =>
-      qb
-        .innerJoin('search_documents_fts', (join) =>
-          join.on(
-            sql<boolean>`search_documents_fts.rowid = search_documents.rowid`
-          )
-        )
-        .where(sql<boolean>`search_documents_fts match ${ftsQuery}`)
-    )
-    .$if(!isSqlite, (qb) =>
-      qb.where(
-        sql<boolean>`to_tsvector('simple', ${sql.ref('documentText')}) @@ to_tsquery('simple', ${tsQuery})`
-      )
-    )
-}
+) => fullTextQueryMatch(db, query, { terms: tokens, phrases: [], excluded: [] })

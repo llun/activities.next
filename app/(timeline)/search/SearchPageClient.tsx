@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ChangeEvent,
   FormEvent,
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -61,6 +62,45 @@ const tabs: { value: SearchTab; label: string }[] = [
   { value: 'statuses', label: 'Posts' },
   { value: 'hashtags', label: 'Hashtags' }
 ]
+
+const OPERATOR_CODE_CLASS =
+  'bg-background rounded-sm border px-1 font-mono text-xs text-foreground'
+
+// The post search operators the server reads (parseSearchQuery), for the
+// before-you-search hint.
+const SEARCH_OPERATORS: { example: string; description: string }[] = [
+  { example: 'from:me', description: 'Your posts; also from:user@domain' },
+  {
+    example: 'has:media',
+    description: 'With media; also image, video, audio, poll, link or embed'
+  },
+  { example: 'is:reply', description: 'Replies; also is:sensitive' },
+  { example: 'language:th', description: 'Posts in a language' },
+  {
+    example: 'after:2026-01-31',
+    description: 'By UTC date; also before: and during:'
+  },
+  { example: '"exact phrase"', description: 'Words in this order' },
+  { example: '-word', description: 'Leave out a word, phrase or operator' }
+]
+
+const SearchOperatorList = () => (
+  <details className="mt-2">
+    <summary className="text-foreground cursor-pointer font-medium">
+      Search operators
+    </summary>
+    <dl className="mt-2 grid grid-cols-1 gap-x-3 sm:grid-cols-[auto_1fr] sm:gap-y-1">
+      {SEARCH_OPERATORS.map(({ example, description }) => (
+        <Fragment key={example}>
+          <dt>
+            <code className={OPERATOR_CODE_CLASS}>{example}</code>
+          </dt>
+          <dd className="mb-1.5 sm:mb-0">{description}</dd>
+        </Fragment>
+      ))}
+    </dl>
+  </details>
+)
 
 const emptySearchResult = (): SearchResult => ({
   accounts: [],
@@ -600,7 +640,12 @@ export const SearchPageClient = ({
         <SearchSkeleton posts={activeTab === 'statuses'} />
       ) : !submittedQuery.trim() ? (
         <EmptyState icon={SearchIcon} titleAs="h2" title="No search yet">
-          Enter a query to start.
+          <p>
+            Enter a query to start. Narrow posts with operators such as{' '}
+            <code className={OPERATOR_CODE_CLASS}>from:me</code> or{' '}
+            <code className={OPERATOR_CODE_CLASS}>has:media</code>.
+          </p>
+          <SearchOperatorList />
         </EmptyState>
       ) : hasVisibleResults ? (
         renderTypedResults()

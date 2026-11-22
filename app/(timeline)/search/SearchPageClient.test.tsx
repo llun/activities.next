@@ -8,7 +8,8 @@ import {
   fireEvent,
   render,
   screen,
-  waitFor
+  waitFor,
+  within
 } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -832,5 +833,30 @@ describe('SearchPageClient', () => {
     await waitFor(() => {
       expect(screen.queryByText('First Result')).not.toBeInTheDocument()
     })
+  })
+
+  it('shows the operator hint and Search operators disclosure in the empty state', async () => {
+    await act(async () => {
+      renderSearchPage()
+    })
+
+    expect(
+      screen.getByRole('heading', { name: 'No search yet' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Narrow posts with operators such as/i)
+    ).toBeInTheDocument()
+
+    const summary = screen.getByText('Search operators')
+    const disclosure = summary.closest('details')
+    expect(disclosure).not.toBeNull()
+    expect(
+      within(disclosure as HTMLElement).getByText('from:me')
+    ).toBeInTheDocument()
+    expect(
+      within(disclosure as HTMLElement).getByText(
+        'Your posts; also from:user@domain'
+      )
+    ).toBeInTheDocument()
   })
 })

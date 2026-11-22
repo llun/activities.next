@@ -439,6 +439,775 @@ describe('status search queries', () => {
         .execute()
       await expect(page({ minId: s2 })).resolves.toEqual([a50, s4, s3a])
     })
+
+    describe('search operators', () => {
+      it('filters by from:me, from:user@domain (case-insensitive), bare from:user via localDomain, and returns [] for unknown handles', async () => {
+        const viewer = await addActor('sqop-from-viewer')
+        const localAuthor = await addActor('sqop-from-local')
+        const remoteDomain = 'remote-from.test'
+        const remoteAuthorId = actorIdOf('SqOp-From-Remote', remoteDomain)
+        await createSearchActor(database, {
+          id: remoteAuthorId,
+          username: 'SqOp-From-Remote',
+          domain: remoteDomain
+        })
+        // Same username as localAuthor on a different domain, to prove
+        // bare `from:user` pins to `localDomain`.
+        const remoteSameNameId = actorIdOf('sqop-from-local', remoteDomain)
+        await createSearchActor(database, {
+          id: remoteSameNameId,
+          username: 'sqop-from-local',
+          domain: remoteDomain
+        })
+
+        const ownPost = await indexedStatus({
+          id: statusIdOf(viewer, 'own'),
+          actorId: viewer,
+          createdAt: 40,
+          text: 'sqopfrom hello',
+          to: [PUBLIC]
+        })
+        const localPost = await indexedStatus({
+          id: statusIdOf(localAuthor, 'local'),
+          actorId: localAuthor,
+          createdAt: 30,
+          text: 'sqopfrom hello',
+          to: [PUBLIC]
+        })
+        const remotePost = await indexedStatus({
+          id: statusIdOf(remoteAuthorId, 'remote'),
+          actorId: remoteAuthorId,
+          createdAt: 20,
+          text: 'sqopfrom hello',
+          to: [PUBLIC]
+        })
+        const remoteSameNamePost = await indexedStatus({
+          id: statusIdOf(remoteSameNameId, 'remote-same'),
+          actorId: remoteSameNameId,
+          createdAt: 10,
+          text: 'sqopfrom hello',
+          to: [PUBLIC]
+        })
+        await like(viewer, localPost)
+        await like(viewer, remotePost)
+        await like(viewer, remoteSameNamePost)
+
+        await expect(
+          search({ q: 'from:me sqopfrom', currentActorId: viewer })
+        ).resolves.toEqual([ownPost])
+        await expect(
+          search({
+            q: `from:@sqop-from-remote@${remoteDomain.toUpperCase()} sqopfrom`,
+            currentActorId: viewer
+          })
+        ).resolves.toEqual([remotePost])
+        await expect(
+          search({
+            q: 'from:SQOP-FROM-LOCAL sqopfrom',
+            currentActorId: viewer,
+            localDomain: DOMAIN
+          })
+        ).resolves.toEqual([localPost])
+        await expect(
+          search({
+            q: 'from:nobody@nowhere.test sqopfrom',
+            currentActorId: viewer,
+            localDomain: DOMAIN
+          })
+        ).resolves.toEqual([])
+      })
+
+      it('reads a from: domain as a host, with a port or in Unicode', async () => {
+        const viewer = await addActor('sqop-host-viewer')
+        const portAuthorId = actorIdOf('sqop-port', 'port.test:8443')
+        await createSearchActor(database, {
+          id: portAuthorId,
+          username: 'sqop-port',
+          domain: 'port.test:8443'
+        })
+        const idnAuthorId = actorIdOf('sqop-idn', 'xn--mnchen-3ya.test')
+        await createSearchActor(database, {
+          id: idnAuthorId,
+          username: 'sqop-idn',
+          domain: 'xn--mnchen-3ya.test'
+        })
+        const portPost = await indexedStatus({
+          id: statusIdOf(portAuthorId, 'port'),
+          actorId: portAuthorId,
+          createdAt: 20,
+          text: 'sqophost port',
+          to: [PUBLIC]
+        })
+        const idnPost = await indexedStatus({
+          id: statusIdOf(idnAuthorId, 'idn'),
+          actorId: idnAuthorId,
+          createdAt: 10,
+          text: 'sqophost idn',
+          to: [PUBLIC]
+        })
+        for (const statusId of [portPost, idnPost]) await like(viewer, statusId)
+
+        await expect(
+          search({
+            q: 'sqophost from:sqop-port@port.test:8443',
+            currentActorId: viewer
+          })
+        ).resolves.toEqual([portPost])
+        await expect(
+          search({
+            q: 'sqophost from:sqop-idn@MÜNCHEN.test',
+            currentActorId: viewer
+          })
+        ).resolves.toEqual([idnPost])
+      })
+
+      it('reads a bare from:username on the viewer domain when the caller gives none', async () => {
+        const viewer = await addActor('sqop-bare-viewer')
+        const author = await addActor('sqop-bare-author')
+        const post = await indexedStatus({
+          id: statusIdOf(author, 'bare'),
+          actorId: author,
+          createdAt: 10,
+          text: 'sqopbare words',
+          to: [PUBLIC]
+        })
+        await like(viewer, post)
+
+        await expect(
+          database.searchStatusIds({
+            q: 'from:sqop-bare-author',
+            limit: 50,
+            currentActorId: viewer
+          })
+        ).resolves.toEqual([post])
+      })
+
+      it('finds a post with no text by operators alone', async () => {
+        const viewer = await addActor('sqop-captionless-viewer')
+        const post = await indexedStatus({
+          id: statusIdOf(viewer, 'captionless'),
+          actorId: viewer,
+          createdAt: 10,
+          text: '',
+          to: [PUBLIC]
+        })
+        await db
+          .insertInto('attachments')
+          .values({
+            id: `${post}/attachments/photo`,
+            actorId: viewer,
+            statusId: post,
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: `https://${DOMAIN}/media/captionless.jpg`,
+            name: '',
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          })
+          .execute()
+        await database.indexStatusSearchDocument({ statusId: post })
+
+        await expect(
+          search({ q: 'from:me has:media', currentActorId: viewer })
+        ).resolves.toEqual([post])
+      })
+
+      it('filters by has:image, video, audio, media, poll, link and embed', async () => {
+        const viewer = await addActor('sqop-has-viewer')
+        const makePost = (slug: string, createdAt: number, type = 'Note') =>
+          indexedStatus({
+            id: statusIdOf(viewer, slug),
+            actorId: viewer,
+            type,
+            createdAt,
+            text: `sqophas ${slug}`,
+            to: [PUBLIC]
+          })
+        const attach = (statusId: string, slug: string, mediaType: string) =>
+          db
+            .insertInto('attachments')
+            .values({
+              id: `${statusId}/att/${slug}`,
+              actorId: viewer,
+              statusId,
+              type: 'Document',
+              mediaType,
+              url: `https://${DOMAIN}/media/${slug}`,
+              name: slug,
+              createdAt: new Date(1),
+              updatedAt: new Date(1)
+            })
+            .execute()
+
+        const imagePost = await makePost('image', 70)
+        const videoPost = await makePost('video', 60)
+        const audioPost = await makePost('audio', 50)
+        const docPost = await makePost('doc', 45)
+        const pollPost = await makePost('poll', 40, 'Poll')
+        const completedLinkPost = await makePost('link-ok', 30)
+        const failedLinkPost = await makePost('link-fail', 20)
+        await makePost('plain', 10)
+
+        await attach(imagePost, 'photo', 'IMAGE/JPEG')
+        await attach(videoPost, 'clip', 'video/mp4')
+        await attach(audioPost, 'track', 'audio/mpeg')
+        await attach(docPost, 'pdf', 'application/pdf')
+
+        const completedHash = 'sqop-has-hash-completed'
+        const failedHash = 'sqop-has-hash-failed'
+        await db
+          .insertInto('link_previews')
+          .values([
+            {
+              urlHash: completedHash,
+              url: 'https://example.test/completed',
+              fetchStatus: 'completed',
+              title: 'Completed card',
+              createdAt: new Date(1),
+              updatedAt: new Date(1)
+            },
+            {
+              urlHash: failedHash,
+              url: 'https://example.test/failed',
+              fetchStatus: 'failed',
+              error: 'timeout',
+              createdAt: new Date(1),
+              updatedAt: new Date(1)
+            }
+          ])
+          .execute()
+        await db
+          .insertInto('status_link_previews')
+          .values([
+            {
+              statusId: completedLinkPost,
+              urlHash: completedHash,
+              createdAt: new Date(1),
+              updatedAt: new Date(1)
+            },
+            {
+              statusId: failedLinkPost,
+              urlHash: failedHash,
+              createdAt: new Date(1),
+              updatedAt: new Date(1)
+            }
+          ])
+          .execute()
+
+        await expect(
+          search({ q: 'has:image', currentActorId: viewer })
+        ).resolves.toEqual([imagePost])
+        await expect(
+          search({ q: 'has:video', currentActorId: viewer })
+        ).resolves.toEqual([videoPost])
+        await expect(
+          search({ q: 'has:audio', currentActorId: viewer })
+        ).resolves.toEqual([audioPost])
+        await expect(
+          search({ q: 'has:media', currentActorId: viewer })
+        ).resolves.toEqual([imagePost, videoPost, audioPost])
+        await expect(
+          search({ q: 'has:poll', currentActorId: viewer })
+        ).resolves.toEqual([pollPost])
+        await expect(
+          search({ q: 'has:link', currentActorId: viewer })
+        ).resolves.toEqual([completedLinkPost, failedLinkPost])
+        await expect(
+          search({ q: 'has:embed', currentActorId: viewer })
+        ).resolves.toEqual([completedLinkPost])
+      })
+
+      it('filters by is:reply', async () => {
+        const viewer = await addActor('sqop-reply-viewer')
+        const replyPost = await indexedStatus({
+          id: statusIdOf(viewer, 'reply'),
+          actorId: viewer,
+          createdAt: 30,
+          text: 'sqopreply child',
+          reply: statusIdOf(viewer, 'root'),
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(viewer, 'empty-reply'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqopreply top',
+          reply: '',
+          to: [PUBLIC]
+        })
+        const nullReplyPost = await indexedStatus({
+          id: statusIdOf(viewer, 'null-reply'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopreply null',
+          to: [PUBLIC]
+        })
+        await db
+          .updateTable('statuses')
+          .set({ reply: null })
+          .where('id', '=', nullReplyPost)
+          .execute()
+
+        await expect(
+          search({ q: 'is:reply', currentActorId: viewer })
+        ).resolves.toEqual([replyPost])
+      })
+
+      it('filters by is:sensitive for sensitive flag or non-empty summary', async () => {
+        const viewer = await addActor('sqop-sens-viewer')
+        const sensitiveFlag = await indexedStatus({
+          id: statusIdOf(viewer, 'flag'),
+          actorId: viewer,
+          createdAt: 40,
+          text: JSON.stringify({
+            text: '<p>sqopsens flag</p>',
+            summary: '',
+            sensitive: true
+          }),
+          to: [PUBLIC]
+        })
+        const withSummary = await indexedStatus({
+          id: statusIdOf(viewer, 'summary'),
+          actorId: viewer,
+          createdAt: 30,
+          text: JSON.stringify({
+            text: '<p>sqopsens body</p>',
+            summary: 'Spoilers',
+            sensitive: false
+          }),
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(viewer, 'empty-summary'),
+          actorId: viewer,
+          createdAt: 20,
+          text: JSON.stringify({
+            text: '<p>sqopsens plain json</p>',
+            summary: '',
+            sensitive: false
+          }),
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(viewer, 'plain'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopsens plain text',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'is:sensitive', currentActorId: viewer })
+        ).resolves.toEqual([sensitiveFlag, withSummary])
+      })
+
+      it('filters by language using declared content JSON and falling back to detected language', async () => {
+        const viewer = await addActor('sqop-lang-viewer')
+        const declaredThai = await indexedStatus({
+          id: statusIdOf(viewer, 'declared-th'),
+          actorId: viewer,
+          createdAt: 40,
+          text: JSON.stringify({
+            text: '<p>sqoplang sawasdee</p>',
+            language: 'TH'
+          }),
+          to: [PUBLIC]
+        })
+        const detectedThai = await indexedStatus({
+          id: statusIdOf(viewer, 'detected-th'),
+          actorId: viewer,
+          createdAt: 30,
+          text: JSON.stringify({
+            text: '<p>sqoplang detected</p>',
+            language: null
+          }),
+          to: [PUBLIC]
+        })
+        const declaredEnglishWithThaiDetection = await indexedStatus({
+          id: statusIdOf(viewer, 'declared-en'),
+          actorId: viewer,
+          createdAt: 20,
+          text: JSON.stringify({
+            text: '<p>sqoplang english</p>',
+            language: 'en'
+          }),
+          to: [PUBLIC]
+        })
+        await db
+          .insertInto('status_detected_languages')
+          .values([
+            {
+              statusId: detectedThai,
+              language: 'th',
+              confidence: 0.98,
+              createdAt: new Date(1),
+              updatedAt: new Date(1)
+            },
+            {
+              statusId: declaredEnglishWithThaiDetection,
+              language: 'th',
+              confidence: 0.9,
+              createdAt: new Date(1),
+              updatedAt: new Date(1)
+            }
+          ])
+          .execute()
+
+        await expect(
+          search({ q: 'language:th', currentActorId: viewer })
+        ).resolves.toEqual([declaredThai, detectedThai])
+        await expect(
+          search({ q: 'language:en', currentActorId: viewer })
+        ).resolves.toEqual([declaredEnglishWithThaiDetection])
+      })
+
+      it('falls back to the detected language when the declared one is empty', async () => {
+        const viewer = await addActor('sqop-lang-empty-viewer')
+        const emptyDeclared = await indexedStatus({
+          id: statusIdOf(viewer, 'empty-declared'),
+          actorId: viewer,
+          createdAt: 10,
+          text: JSON.stringify({ text: '<p>sqoplangempty</p>', language: '' }),
+          to: [PUBLIC]
+        })
+        await db
+          .insertInto('status_detected_languages')
+          .values({
+            statusId: emptyDeclared,
+            language: 'th',
+            confidence: 0.9,
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          })
+          .execute()
+
+        await expect(
+          search({ q: 'sqoplangempty language:th', currentActorId: viewer })
+        ).resolves.toEqual([emptyDeclared])
+      })
+
+      it('keeps a status with no content blob under a negated content filter', async () => {
+        const viewer = await addActor('sqop-null-content-viewer')
+        const statusId = await indexedStatus({
+          id: statusIdOf(viewer, 'null-content'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopnullcontent',
+          to: [PUBLIC]
+        })
+        await db
+          .updateTable('statuses')
+          .set({ content: null })
+          .where('id', '=', statusId)
+          .execute()
+
+        await expect(
+          search({ q: 'sqopnullcontent -is:sensitive', currentActorId: viewer })
+        ).resolves.toEqual([statusId])
+        await expect(
+          search({ q: 'sqopnullcontent -language:en', currentActorId: viewer })
+        ).resolves.toEqual([statusId])
+      })
+
+      it('enforces exact UTC day boundaries for before, after and during', async () => {
+        const viewer = await addActor('sqop-date-viewer')
+        const dayBefore = await indexedStatus({
+          id: statusIdOf(viewer, 'day-before'),
+          actorId: viewer,
+          createdAt: Date.UTC(2026, 2, 14, 23, 59, 59, 999),
+          text: 'sqopdate before',
+          to: [PUBLIC]
+        })
+        const dayStart = await indexedStatus({
+          id: statusIdOf(viewer, 'day-start'),
+          actorId: viewer,
+          createdAt: Date.UTC(2026, 2, 15, 0, 0, 0, 0),
+          text: 'sqopdate start',
+          to: [PUBLIC]
+        })
+        const dayEnd = await indexedStatus({
+          id: statusIdOf(viewer, 'day-end'),
+          actorId: viewer,
+          createdAt: Date.UTC(2026, 2, 15, 23, 59, 59, 999),
+          text: 'sqopdate end',
+          to: [PUBLIC]
+        })
+        const nextDay = await indexedStatus({
+          id: statusIdOf(viewer, 'next-day'),
+          actorId: viewer,
+          createdAt: Date.UTC(2026, 2, 16, 0, 0, 0, 0),
+          text: 'sqopdate after',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'before:2026-03-15', currentActorId: viewer })
+        ).resolves.toEqual([dayBefore])
+        await expect(
+          search({ q: 'during:2026-03-15', currentActorId: viewer })
+        ).resolves.toEqual([dayEnd, dayStart])
+        await expect(
+          search({ q: 'after:2026-03-15', currentActorId: viewer })
+        ).resolves.toEqual([nextDay])
+      })
+
+      it('negates filters with -has:media and -is:reply', async () => {
+        const viewer = await addActor('sqop-neg-viewer')
+        const mediaReply = await indexedStatus({
+          id: statusIdOf(viewer, 'media-reply'),
+          actorId: viewer,
+          createdAt: 30,
+          text: 'sqopneg media reply',
+          reply: statusIdOf(viewer, 'parent'),
+          to: [PUBLIC]
+        })
+        const plainTop = await indexedStatus({
+          id: statusIdOf(viewer, 'plain-top'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqopneg plain top',
+          reply: '',
+          to: [PUBLIC]
+        })
+        const nullReplyTop = await indexedStatus({
+          id: statusIdOf(viewer, 'null-reply-top'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopneg null reply',
+          to: [PUBLIC]
+        })
+        await db
+          .updateTable('statuses')
+          .set({ reply: null })
+          .where('id', '=', nullReplyTop)
+          .execute()
+        await db
+          .insertInto('attachments')
+          .values({
+            id: `${mediaReply}/att/photo`,
+            actorId: viewer,
+            statusId: mediaReply,
+            type: 'Document',
+            mediaType: 'image/png',
+            url: `https://${DOMAIN}/media/neg.png`,
+            name: 'photo',
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          })
+          .execute()
+
+        await expect(
+          search({ q: '-has:media', currentActorId: viewer })
+        ).resolves.toEqual([plainTop, nullReplyTop])
+        await expect(
+          search({ q: '-is:reply', currentActorId: viewer })
+        ).resolves.toEqual([plainTop, nullReplyTop])
+      })
+
+      it('matches consecutive phrases and excludes words and phrases', async () => {
+        const viewer = await addActor('sqop-phrase-viewer')
+        const exact = await indexedStatus({
+          id: statusIdOf(viewer, 'exact'),
+          actorId: viewer,
+          createdAt: 30,
+          text: 'grey heron at dawn',
+          to: [PUBLIC]
+        })
+        const reversed = await indexedStatus({
+          id: statusIdOf(viewer, 'reversed'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'heron grey at dusk',
+          to: [PUBLIC]
+        })
+        const separated = await indexedStatus({
+          id: statusIdOf(viewer, 'separated'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'grey coastal heron at dawn',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: '"grey heron"', currentActorId: viewer })
+        ).resolves.toEqual([exact])
+        await expect(
+          search({ q: 'heron -coastal', currentActorId: viewer })
+        ).resolves.toEqual([exact, reversed])
+        await expect(
+          search({ q: 'heron -"grey heron"', currentActorId: viewer })
+        ).resolves.toEqual([reversed, separated])
+      })
+
+      it('skips a token that is no word inside a phrase on both backends', async () => {
+        const viewer = await addActor('sqop-phrase-gap-viewer')
+        const together = await indexedStatus({
+          id: statusIdOf(viewer, 'together'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqopgap grey heron',
+          to: [PUBLIC]
+        })
+        const apart = await indexedStatus({
+          id: statusIdOf(viewer, 'apart'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopgap grey x heron',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqopgap "grey _ heron"', currentActorId: viewer })
+        ).resolves.toEqual([together])
+        await expect(
+          search({ q: 'sqopgap -"grey _ heron"', currentActorId: viewer })
+        ).resolves.toEqual([apart])
+      })
+
+      it('keeps repeated words in a phrase', async () => {
+        const viewer = await addActor('sqop-repeat-viewer')
+        const repeated = await indexedStatus({
+          id: statusIdOf(viewer, 'repeated'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqoprepeat bye bye now',
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(viewer, 'single'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqoprepeat bye now',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqoprepeat "bye bye"', currentActorId: viewer })
+        ).resolves.toEqual([repeated])
+      })
+
+      it('returns matches for operators-only queries and [] for exclusions-only queries', async () => {
+        const viewer = await addActor('sqop-only-viewer')
+        const first = await indexedStatus({
+          id: statusIdOf(viewer, 'first'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqoponly alpha',
+          to: [PUBLIC]
+        })
+        const second = await indexedStatus({
+          id: statusIdOf(viewer, 'second'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqoponly beta',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'from:me', currentActorId: viewer })
+        ).resolves.toEqual([first, second])
+        await expect(
+          search({ q: 'from:me -alpha', currentActorId: viewer })
+        ).resolves.toEqual([second])
+        await expect(
+          search({ q: '-alpha', currentActorId: viewer })
+        ).resolves.toEqual([])
+        await expect(
+          search({ q: '-"sqoponly alpha"', currentActorId: viewer })
+        ).resolves.toEqual([])
+      })
+
+      it('still enforces library scope when operators are present', async () => {
+        const viewer = await addActor('sqop-lib-viewer')
+        const stranger = await addActor('sqop-lib-stranger')
+        const strangerPost = await indexedStatus({
+          id: statusIdOf(stranger, 'photo'),
+          actorId: stranger,
+          createdAt: 20,
+          text: 'sqoplib public photo',
+          to: [PUBLIC]
+        })
+        await db
+          .insertInto('attachments')
+          .values({
+            id: `${strangerPost}/att/photo`,
+            actorId: stranger,
+            statusId: strangerPost,
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: `https://${DOMAIN}/media/stranger.jpg`,
+            name: 'stranger photo',
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          })
+          .execute()
+
+        await expect(
+          search({
+            q: `from:sqop-lib-stranger@${DOMAIN}`,
+            currentActorId: viewer
+          })
+        ).resolves.toEqual([])
+        await expect(
+          search({ q: 'in:all has:image', currentActorId: viewer })
+        ).resolves.toEqual([])
+
+        await like(viewer, strangerPost)
+        await expect(
+          search({
+            q: `from:sqop-lib-stranger@${DOMAIN} has:image`,
+            currentActorId: viewer
+          })
+        ).resolves.toEqual([strangerPost])
+      })
+
+      it('keeps matching rows when an excluded token has no lexeme', async () => {
+        const viewer = await addActor('sqop-nolex-viewer')
+        const first = await indexedStatus({
+          id: statusIdOf(viewer, 'first'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqopnolex alpha',
+          to: [PUBLIC]
+        })
+        const second = await indexedStatus({
+          id: statusIdOf(viewer, 'second'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopnolex beta',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'from:me -_', currentActorId: viewer })
+        ).resolves.toEqual([first, second])
+      })
+
+      it('excludes whole words while matching positive terms by prefix', async () => {
+        const viewer = await addActor('sqop-whole-viewer')
+        const cats = await indexedStatus({
+          id: statusIdOf(viewer, 'cats'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqopwhole cats here',
+          to: [PUBLIC]
+        })
+        const cat = await indexedStatus({
+          id: statusIdOf(viewer, 'cat'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopwhole cat here',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqopwhole -cat', currentActorId: viewer })
+        ).resolves.toEqual([cats])
+        await expect(
+          search({ q: 'sqopwhole cat', currentActorId: viewer })
+        ).resolves.toEqual([cats, cat])
+      })
+    })
   })
 
   describe('status search documents', () => {
@@ -536,7 +1305,7 @@ describe('status search queries', () => {
       expect(document?.updatedAt).toBeGreaterThan(1000)
     })
 
-    it('drops the document of a missing, empty or non-searchable status', async () => {
+    it('drops the document of a missing or non-searchable status and empties an empty one', async () => {
       const author = await addActor('sqdrop-author')
       const announce = await seedStatus(db, {
         id: statusIdOf(author, 'announce'),
@@ -567,10 +1336,15 @@ describe('status search queries', () => {
         documentText: 'stale'
       })
 
-      for (const statusId of [announce, empty, missing]) {
+      for (const statusId of [announce, missing]) {
         await database.indexStatusSearchDocument({ statusId })
         expect(await readSearchDocument(db, 'status', statusId)).toBeUndefined()
       }
+      // An empty Note keeps an empty document, so operators alone find it.
+      await database.indexStatusSearchDocument({ statusId: empty })
+      expect(await readSearchDocument(db, 'status', empty)).toMatchObject({
+        documentText: ''
+      })
       expect(await readSearchDocument(db, 'hashtag', missing)).toBeDefined()
     })
 

@@ -1,4 +1,5 @@
 import { getSearchDocumentId } from '@/lib/database/domains/search/rows'
+import { deleteStatusSearchDocumentsByStatusIds } from '@/lib/database/domains/search/statuses'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   createSearchActor,
@@ -261,7 +262,7 @@ describe('SearchDatabase statuses', () => {
     }
   })
 
-  it('deletes stale status search documents in SQLite-safe batches', async () => {
+  it('rewrites and deletes status search documents in SQLite-safe batches', async () => {
     const testDb = createTestDatabase()
     const { database, db } = testDb
     const actorId = 'https://remote.test/users/alice'
@@ -320,6 +321,19 @@ describe('SearchDatabase statuses', () => {
         database.reindexSearchStatuses({ limit: statusCount + 1 })
       ).resolves.toEqual({ indexed: statusCount, nextCursor: null })
 
+      // Empty Notes keep an empty document, so operators alone find them.
+      const emptied = await db
+        .selectFrom('search_documents')
+        .select((eb) => eb.fn.countAll<number>().as('count'))
+        .where('entityType', '=', 'status')
+        .where('documentText', '=', '')
+        .executeTakeFirst()
+      expect(Number(emptied?.count ?? 0)).toBe(statusCount)
+
+      await deleteStatusSearchDocumentsByStatusIds(
+        db,
+        statuses.map((status) => status.id)
+      )
       const countRow = await db
         .selectFrom('search_documents')
         .select((eb) => eb.fn.countAll<number>().as('count'))
