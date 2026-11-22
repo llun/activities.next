@@ -190,7 +190,11 @@ product or security decision, not a gap to be closed.
 - **A status's `card` is populated.** When a status contains a link, the server
   fetches that page once, extracts its OpenGraph/Twitter-card metadata and
   serves it as the [PreviewCard](https://docs.joinmastodon.org/entities/PreviewCard/)
-  in `Status.card`. Two fields are always empty, deliberately: `html` and
+  in `Status.card`. On local `POST /api/v1/statuses` and `PUT /api/v1/statuses/:id`,
+  fresh cache hits and fast hosts within the bounded inline fetch deadline
+  return the resolved `card` immediately in the response (and edits that replace
+  or remove the link clear stale `card: null` immediately), while slower hosts
+  fall back asynchronously to a background job. Two fields are always empty, deliberately: `html` and
   `embed_url` (this server does not consume oEmbed, and emitting remote-authored
   markup for clients to inject buys nothing), and `blurhash` is null because
   thumbnails are served from the origin rather than stored locally. The

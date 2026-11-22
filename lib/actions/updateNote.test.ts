@@ -3,7 +3,10 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  FETCH_LINK_PREVIEW_JOB_NAME,
+  SEND_UPDATE_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
@@ -40,6 +43,23 @@ vi.mock('@/lib/services/timelines', () => ({
 vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
   sendNotificationAlerts: vi.fn()
 }))
+
+const mockFetchLinkPreviewInline = vi.fn().mockResolvedValue({
+  record: null,
+  fromCache: false,
+  timedOut: true
+})
+
+vi.mock('@/lib/services/link-previews/fetchLinkPreview', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/link-previews/fetchLinkPreview')
+  >('@/lib/services/link-previews/fetchLinkPreview')
+  return {
+    ...actual,
+    fetchLinkPreviewInline: (...args: unknown[]) =>
+      mockFetchLinkPreviewInline(...args)
+  }
+})
 
 describe('Update note action', () => {
   const { database, prepare } = createTestDatabase()
@@ -1258,6 +1278,124 @@ describe('Update note action', () => {
         } finally {
           createTagSpy.mockRestore()
         }
+      })
+
+      it('adds, replaces, and strips linkPreview cleanly across inline and slow edits', async () => {
+        if (!actor1) fail('Actor1 is required')
+
+        const url1 = 'https://example.com/first-post'
+        const record1 = await database.upsertLinkPreview({
+          urlHash: getHashFromString(url1),
+          url: url1,
+          type: 'link',
+          title: 'First Link',
+          description: null,
+          siteName: 'Example',
+          authorName: null,
+          authorUrl: null,
+          imageUrl: null,
+          imageWidth: null,
+          imageHeight: null,
+          publishedAt: null,
+          fetchStatus: 'completed',
+          error: null
+        })
+
+        const url2 = 'https://example.com/second-post'
+        const record2 = await database.upsertLinkPreview({
+          urlHash: getHashFromString(url2),
+          url: url2,
+          type: 'link',
+          title: 'Second Link',
+          description: null,
+          siteName: 'Example',
+          authorName: null,
+          authorUrl: null,
+          imageUrl: null,
+          imageWidth: null,
+          imageHeight: null,
+          publishedAt: null,
+          fetchStatus: 'completed',
+          error: null
+        })
+
+        // Start linkless
+        const created = (await createNoteFromUserInput({
+          text: 'Initial linkless draft',
+          currentActor: actor1,
+          database
+        })) as StatusNote
+        expect(created.linkPreview).toBeUndefined()
+
+        // Edit adds URL1 (resolves inline)
+        mockFetchLinkPreviewInline.mockResolvedValueOnce({
+          record: record1,
+          fromCache: false,
+          timedOut: false
+        })
+        const added = (await updateNoteFromUserInput({
+          statusId: created.id,
+          currentActor: actor1,
+          database,
+          text: `Now linking ${url1}`
+        })) as StatusNote
+        expect(added.linkPreview?.title).toBe('First Link')
+
+        // Edit replaces with URL2 (resolves inline)
+        mockFetchLinkPreviewInline.mockResolvedValueOnce({
+          record: record2,
+          fromCache: false,
+          timedOut: false
+        })
+        const replaced = (await updateNoteFromUserInput({
+          statusId: created.id,
+          currentActor: actor1,
+          database,
+          text: `Updated link ${url2}`
+        })) as StatusNote
+        expect(replaced.linkPreview?.title).toBe('Second Link')
+
+        // Edit switches to slow URL3 (times out inline -> strips old card & enqueues job)
+        const slowUrl = 'https://example.com/slow-post'
+        vi.mocked(getQueue().publish).mockClear()
+        mockFetchLinkPreviewInline.mockResolvedValueOnce({
+          record: null,
+          fromCache: false,
+          timedOut: true
+        })
+        const switchedToSlow = (await updateNoteFromUserInput({
+          statusId: created.id,
+          currentActor: actor1,
+          database,
+          text: `Slow link ${slowUrl}`
+        })) as StatusNote
+        expect(switchedToSlow.linkPreview).toBeUndefined()
+        expect(vi.mocked(getQueue().publish)).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: FETCH_LINK_PREVIEW_JOB_NAME,
+            data: { statusId: created.id, url: slowUrl }
+          })
+        )
+
+        // Edit adds back URL1 then removes all links -> card must be cleared
+        mockFetchLinkPreviewInline.mockResolvedValueOnce({
+          record: record1,
+          fromCache: false,
+          timedOut: false
+        })
+        await updateNoteFromUserInput({
+          statusId: created.id,
+          currentActor: actor1,
+          database,
+          text: `Restored ${url1}`
+        })
+        const stripped = (await updateNoteFromUserInput({
+          statusId: created.id,
+          currentActor: actor1,
+          database,
+          text: 'Links removed completely'
+        })) as StatusNote
+        expect(stripped.linkPreview).toBeUndefined()
       })
     })
   })

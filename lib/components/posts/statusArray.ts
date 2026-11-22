@@ -1,6 +1,7 @@
 import { Attachment, PlaybackType } from '@/lib/types/domain/attachment'
 import {
   Status,
+  StatusLinkPreview,
   StatusNote,
   StatusPoll,
   StatusType,
@@ -119,9 +120,20 @@ export const reconcileStatusesMetadata = (
     string,
     { playbackType?: PlaybackType | null; thumbnailUrl?: string | null }
   >()
+  const linkPreviewById = new Map<
+    string,
+    { linkPreview: StatusLinkPreview; text: string; updatedAt: number }
+  >()
 
   for (const status of incomingStatuses) {
     const original = getOriginalStatus(status)
+    if (original.linkPreview && typeof original.text === 'string') {
+      linkPreviewById.set(original.id, {
+        linkPreview: original.linkPreview,
+        text: original.text,
+        updatedAt: original.updatedAt
+      })
+    }
     if (!('attachments' in original) || !Array.isArray(original.attachments)) {
       continue
     }
@@ -137,7 +149,7 @@ export const reconcileStatusesMetadata = (
     }
   }
 
-  if (byId.size === 0 && byUrl.size === 0) {
+  if (byId.size === 0 && byUrl.size === 0 && linkPreviewById.size === 0) {
     return currentStatuses
   }
 
@@ -182,44 +194,50 @@ export const reconcileStatusesMetadata = (
     return hasAttChanges ? reconciledAtts : attachments
   }
 
+  const reconcileTarget = (
+    target: StatusNote | StatusPoll
+  ): StatusNote | StatusPoll => {
+    let nextTarget = target
+    if (Array.isArray(target.attachments) && target.attachments.length > 0) {
+      const nextAttachments = reconcileAttachmentList(target.attachments)
+      if (nextAttachments !== target.attachments) {
+        nextTarget = { ...nextTarget, attachments: nextAttachments }
+      }
+    }
+    if (!target.linkPreview) {
+      const candidate = linkPreviewById.get(target.id)
+      if (
+        candidate &&
+        candidate.text === target.text &&
+        candidate.updatedAt >= target.updatedAt
+      ) {
+        nextTarget = { ...nextTarget, linkPreview: candidate.linkPreview }
+      }
+    }
+    return nextTarget
+  }
+
   let hasChanges = false
   const updated = currentStatuses.map((item) => {
     if (item.type === StatusType.enum.Announce) {
       const original = item.originalStatus
-      if (
-        original.type !== StatusType.enum.Announce &&
-        'attachments' in original &&
-        Array.isArray(original.attachments) &&
-        original.attachments.length > 0
-      ) {
-        const nextAttachments = reconcileAttachmentList(original.attachments)
-        if (nextAttachments !== original.attachments) {
+      if (original.type !== StatusType.enum.Announce) {
+        const reconciledOriginal = reconcileTarget(original)
+        if (reconciledOriginal !== original) {
           hasChanges = true
           return {
             ...item,
-            originalStatus: {
-              ...original,
-              attachments: nextAttachments
-            }
+            originalStatus: reconciledOriginal
           }
         }
       }
       return item
     }
 
-    if (
-      'attachments' in item &&
-      Array.isArray(item.attachments) &&
-      item.attachments.length > 0
-    ) {
-      const nextAttachments = reconcileAttachmentList(item.attachments)
-      if (nextAttachments !== item.attachments) {
-        hasChanges = true
-        return {
-          ...item,
-          attachments: nextAttachments
-        }
-      }
+    const reconciled = reconcileTarget(item)
+    if (reconciled !== item) {
+      hasChanges = true
+      return reconciled
     }
 
     return item

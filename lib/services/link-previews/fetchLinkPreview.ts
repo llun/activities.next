@@ -7,6 +7,7 @@ import {
 import { LinkPreviewRecord } from '@/lib/types/database/operations'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
+import { isAbortError } from '@/lib/utils/isAbortError'
 import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -36,6 +37,11 @@ export const LINK_PREVIEW_CONNECT_TIMEOUT_MS = 2_500
 export const LINK_PREVIEW_READ_TIMEOUT_MS = 2_500
 export const LINK_PREVIEW_TIMEOUT_MS =
   LINK_PREVIEW_CONNECT_TIMEOUT_MS + LINK_PREVIEW_READ_TIMEOUT_MS
+
+// Wall-clock deadline for an inline preview fetch during a local post/edit.
+// Aborting past this budget does not write a failure row so FetchLinkPreviewJob
+// can retry in the background.
+export const LINK_PREVIEW_INLINE_BUDGET_MS = 2_500
 
 // One redirect, not the default three. Link shorteners and `example.com` →
 // `www.example.com` need a hop; chains beyond that are rare enough that losing
@@ -109,7 +115,10 @@ const parseContentType = (raw: string | undefined) => {
   }
 }
 
-const isFresh = (record: LinkPreviewRecord, currentTime: number): boolean => {
+export const isFreshLinkPreview = (
+  record: LinkPreviewRecord,
+  currentTime: number
+): boolean => {
   const age = currentTime - record.updatedAt
   if (record.fetchStatus === 'completed') {
     return age < LINK_PREVIEW_REFRESH_TTL_MS
@@ -123,6 +132,126 @@ const isFresh = (record: LinkPreviewRecord, currentTime: number): boolean => {
 export type FetchLinkPreviewParams = {
   database: Database
   url: string
+}
+
+export type InlineLinkPreviewResult = {
+  record: LinkPreviewRecord | null
+  fromCache: boolean
+  timedOut: boolean
+}
+
+const fetchAndStoreLinkPreview = async ({
+  connectTimeoutInMilliseconds,
+  database,
+  normalizedUrl,
+  readTimeoutInMilliseconds,
+  signal,
+  urlHash
+}: {
+  connectTimeoutInMilliseconds: number
+  database: Database
+  normalizedUrl: string
+  readTimeoutInMilliseconds: number
+  signal?: AbortSignal
+  urlHash: string
+}): Promise<LinkPreviewRecord> => {
+  const response = await safeRemoteFetch({
+    url: normalizedUrl,
+    headers: REQUEST_HEADERS,
+    maxBodyBytes: LINK_PREVIEW_MAX_BODY_BYTES,
+    maxRedirects: LINK_PREVIEW_MAX_REDIRECTS,
+    connectTimeoutInMilliseconds,
+    readTimeoutInMilliseconds,
+    onBodyTooLarge: 'truncate',
+    ...(signal ? { signal } : {})
+  })
+
+  if (response.statusCode !== 200) {
+    throw new LinkPreviewFetchError(`ERR_HTTP_${response.statusCode}`)
+  }
+
+  const { mimeType, charset } = parseContentType(
+    getHeaderValue(response.headers, 'content-type')
+  )
+  if (!mimeType || !ACCEPTED_CONTENT_TYPES.includes(mimeType)) {
+    throw new LinkPreviewFetchError('ERR_UNSUPPORTED_CONTENT_TYPE')
+  }
+  // `safeRemoteFetch` decodes the body as UTF-8, so a page that declares an
+  // INCOMPATIBLE encoding would be parsed into mojibake and stored that way.
+  // Storing a broken title is worse than storing no card; decoding these
+  // properly needs a bytes-level fetch and is deliberately left out of v1.
+  // The header is only half of it: HTML5 pages routinely send a bare
+  // `text/html` and declare the encoding in `<meta charset>` instead, which
+  // is the common non-UTF-8 case the header check alone waves through.
+  const declaredCharset = charset ?? getDeclaredCharset(response.body)
+  if (declaredCharset && !UTF8_COMPATIBLE_CHARSETS.has(declaredCharset)) {
+    throw new LinkPreviewFetchError('ERR_UNSUPPORTED_CHARSET')
+  }
+
+  // Relative URLs in the metadata resolve against where the redirect chain
+  // actually ended, not where we started.
+  const metadata = parseOpenGraphMetadata(response.body, response.url)
+  if (!metadata) {
+    throw new LinkPreviewFetchError('ERR_NO_METADATA')
+  }
+
+  // The card carries the url the content actually came from, not the one the
+  // post linked. Those differ across a redirect, and the card displays its
+  // domain as "where this link goes" — so keeping the requested url would let
+  // any open redirector on a trusted host badge an attacker's title, image
+  // and description with that trusted domain. The cache stays keyed on the
+  // requested url, so a shortener still resolves without a second fetch.
+  // Falling back to the requested url here would re-open the very hole this
+  // closes: `normalizePreviewUrl` refuses anything over the length cap, and
+  // nothing bounds a `Location` header — so an open redirector whose target
+  // is padded past the cap would get the attacker's title, image and
+  // description badged with the redirector's trusted domain. If we cannot
+  // establish where the content came from, we do not claim to know.
+  const resolvedUrl = normalizePreviewUrl(response.url)
+  if (!resolvedUrl) {
+    throw new LinkPreviewFetchError('ERR_UNRESOLVABLE_FINAL_URL')
+  }
+
+  return database.upsertLinkPreview({
+    urlHash,
+    url: resolvedUrl,
+    ...metadata,
+    fetchStatus: 'completed',
+    error: null
+  })
+}
+
+const recordFailureAndPreserveCard = async ({
+  database,
+  error,
+  normalizedUrl,
+  urlHash
+}: {
+  database: Database
+  error: unknown
+  normalizedUrl: string
+  urlHash: string
+}): Promise<LinkPreviewRecord | null> => {
+  const code = getErrorCode(error)
+  logger.warn({
+    message: 'linkPreview: failed to fetch preview card',
+    url: normalizedUrl,
+    error: code,
+    err: toLoggableError(error)
+  })
+  // Recorded rather than merely logged: this row is the negative cache that
+  // keeps the next post mentioning this URL from re-contacting a host that
+  // just failed. It deliberately does NOT go through `upsertLinkPreview` —
+  // that would blank a card this URL already has, which is shared by every
+  // status linking the page.
+  await database.recordLinkPreviewFailure({
+    urlHash,
+    url: normalizedUrl,
+    error: code
+  })
+  // A refresh that failed over a card that still works keeps serving it.
+  const preserved = await database.getLinkPreview({ urlHash })
+  return preserved?.fetchStatus === 'completed' ? preserved : null
 }
 
 /**
@@ -143,94 +272,93 @@ export const fetchLinkPreview = async ({
 
   const urlHash = getHashFromString(normalizedUrl)
   const existing = await database.getLinkPreview({ urlHash })
-  if (existing && isFresh(existing, Date.now())) {
+  if (existing && isFreshLinkPreview(existing, Date.now())) {
     return existing.fetchStatus === 'completed' ? existing : null
   }
 
   try {
-    const response = await safeRemoteFetch({
-      url: normalizedUrl,
-      headers: REQUEST_HEADERS,
-      maxBodyBytes: LINK_PREVIEW_MAX_BODY_BYTES,
-      maxRedirects: LINK_PREVIEW_MAX_REDIRECTS,
+    return await fetchAndStoreLinkPreview({
       connectTimeoutInMilliseconds: LINK_PREVIEW_CONNECT_TIMEOUT_MS,
+      database,
+      normalizedUrl,
       readTimeoutInMilliseconds: LINK_PREVIEW_READ_TIMEOUT_MS,
-      onBodyTooLarge: 'truncate'
-    })
-
-    if (response.statusCode !== 200) {
-      throw new LinkPreviewFetchError(`ERR_HTTP_${response.statusCode}`)
-    }
-
-    const { mimeType, charset } = parseContentType(
-      getHeaderValue(response.headers, 'content-type')
-    )
-    if (!mimeType || !ACCEPTED_CONTENT_TYPES.includes(mimeType)) {
-      throw new LinkPreviewFetchError('ERR_UNSUPPORTED_CONTENT_TYPE')
-    }
-    // `safeRemoteFetch` decodes the body as UTF-8, so a page that declares an
-    // INCOMPATIBLE encoding would be parsed into mojibake and stored that way.
-    // Storing a broken title is worse than storing no card; decoding these
-    // properly needs a bytes-level fetch and is deliberately left out of v1.
-    // The header is only half of it: HTML5 pages routinely send a bare
-    // `text/html` and declare the encoding in `<meta charset>` instead, which
-    // is the common non-UTF-8 case the header check alone waves through.
-    const declaredCharset = charset ?? getDeclaredCharset(response.body)
-    if (declaredCharset && !UTF8_COMPATIBLE_CHARSETS.has(declaredCharset)) {
-      throw new LinkPreviewFetchError('ERR_UNSUPPORTED_CHARSET')
-    }
-
-    // Relative URLs in the metadata resolve against where the redirect chain
-    // actually ended, not where we started.
-    const metadata = parseOpenGraphMetadata(response.body, response.url)
-    if (!metadata) {
-      throw new LinkPreviewFetchError('ERR_NO_METADATA')
-    }
-
-    // The card carries the url the content actually came from, not the one the
-    // post linked. Those differ across a redirect, and the card displays its
-    // domain as "where this link goes" — so keeping the requested url would let
-    // any open redirector on a trusted host badge an attacker's title, image
-    // and description with that trusted domain. The cache stays keyed on the
-    // requested url, so a shortener still resolves without a second fetch.
-    // Falling back to the requested url here would re-open the very hole this
-    // closes: `normalizePreviewUrl` refuses anything over the length cap, and
-    // nothing bounds a `Location` header — so an open redirector whose target
-    // is padded past the cap would get the attacker's title, image and
-    // description badged with the redirector's trusted domain. If we cannot
-    // establish where the content came from, we do not claim to know.
-    const resolvedUrl = normalizePreviewUrl(response.url)
-    if (!resolvedUrl) {
-      throw new LinkPreviewFetchError('ERR_UNRESOLVABLE_FINAL_URL')
-    }
-
-    return await database.upsertLinkPreview({
-      urlHash,
-      url: resolvedUrl,
-      ...metadata,
-      fetchStatus: 'completed',
-      error: null
+      urlHash
     })
   } catch (error) {
-    const code = getErrorCode(error)
-    logger.warn({
-      message: 'linkPreview: failed to fetch preview card',
-      url: normalizedUrl,
-      error: code,
-      err: toLoggableError(error)
+    return recordFailureAndPreserveCard({
+      database,
+      error,
+      normalizedUrl,
+      urlHash
     })
-    // Recorded rather than merely logged: this row is the negative cache that
-    // keeps the next post mentioning this URL from re-contacting a host that
-    // just failed. It deliberately does NOT go through `upsertLinkPreview` —
-    // that would blank a card this URL already has, which is shared by every
-    // status linking the page.
-    await database.recordLinkPreviewFailure({
-      urlHash,
-      url: normalizedUrl,
-      error: code
+  }
+}
+
+/**
+ * Resolve a preview card inline within a bounded wall-clock budget for local
+ * post creates and edits. Fresh cache hits return without HTTP; inline aborts
+ * return `timedOut: true` without writing a negative-cache failure row so a
+ * background job can still finish fetching.
+ */
+export const fetchLinkPreviewInline = async ({
+  budgetMs = LINK_PREVIEW_INLINE_BUDGET_MS,
+  database,
+  url
+}: FetchLinkPreviewParams & {
+  budgetMs?: number
+}): Promise<InlineLinkPreviewResult> => {
+  const normalizedUrl = normalizePreviewUrl(url)
+  if (!normalizedUrl) {
+    return { record: null, fromCache: true, timedOut: false }
+  }
+
+  const urlHash = getHashFromString(normalizedUrl)
+  const existing = await database.getLinkPreview({ urlHash })
+  if (existing && isFreshLinkPreview(existing, Date.now())) {
+    return {
+      record: existing.fetchStatus === 'completed' ? existing : null,
+      fromCache: true,
+      timedOut: false
+    }
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), budgetMs)
+  const hopTimeoutMs = Math.max(LINK_PREVIEW_CONNECT_TIMEOUT_MS, budgetMs) + 500
+
+  try {
+    const record = await fetchAndStoreLinkPreview({
+      connectTimeoutInMilliseconds: hopTimeoutMs,
+      database,
+      normalizedUrl,
+      readTimeoutInMilliseconds: hopTimeoutMs,
+      signal: controller.signal,
+      urlHash
     })
-    // A refresh that failed over a card that still works keeps serving it.
-    const preserved = await database.getLinkPreview({ urlHash })
-    return preserved?.fetchStatus === 'completed' ? preserved : null
+    return { record, fromCache: false, timedOut: false }
+  } catch (error) {
+    if (isAbortError(error) || controller.signal.aborted) {
+      logger.info({
+        message: 'linkPreview: inline fetch exceeded budget, deferring to job',
+        url: normalizedUrl,
+        budgetMs
+      })
+      const preserved = await database.getLinkPreview({ urlHash })
+      return {
+        record: preserved?.fetchStatus === 'completed' ? preserved : null,
+        fromCache: false,
+        timedOut: true
+      }
+    }
+
+    const record = await recordFailureAndPreserveCard({
+      database,
+      error,
+      normalizedUrl,
+      urlHash
+    })
+    return { record, fromCache: false, timedOut: false }
+  } finally {
+    clearTimeout(timer)
   }
 }

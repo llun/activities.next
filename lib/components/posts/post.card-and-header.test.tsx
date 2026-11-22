@@ -2,10 +2,17 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { ReactNode } from 'react'
 
+import {
+  PENDING_LINK_PREVIEW_POLL_DELAYS_MS,
+  resetPendingLinkPreviewsForTesting,
+  syncPendingLinkPreviewForStatus
+} from '@/lib/client/pendingLinkPreviews'
+import { getStatusIfReadable } from '@/lib/client/statuses'
 import { StatusNote } from '@/lib/types/domain/status'
+import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 
 import { Post } from './post'
 import { boostedStatus, currentTime, status } from './post.testUtils'
@@ -55,9 +62,27 @@ vi.mock('@/lib/client', () => ({
   getStatusById: vi.fn().mockResolvedValue(null)
 }))
 
+vi.mock('@/lib/client/statuses', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/client/statuses')>(
+    '@/lib/client/statuses'
+  )
+  return {
+    ...actual,
+    getStatusIfReadable: vi.fn().mockResolvedValue(null)
+  }
+})
+
+const mockedGetStatusIfReadable = vi.mocked(getStatusIfReadable)
+
 describe('Post', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetPendingLinkPreviewsForTesting()
+  })
+
+  afterEach(() => {
+    resetPendingLinkPreviewsForTesting()
+    vi.useRealTimers()
   })
 
   describe('link preview card', () => {
@@ -459,6 +484,209 @@ describe('Post', () => {
 
       fireEvent.click(mentionLink)
       expect(onParentClick).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('pending link preview subscription in PostBody', () => {
+    it('renders YouTube and OpenGraph cards in place as async polling resolves, and clears them on edit', async () => {
+      vi.useFakeTimers()
+
+      const youtubeUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+      const slowStatus: StatusNote = {
+        ...status,
+        id: 'https://activities.local/users/llun/statuses/slow-yt',
+        text: `Watch ${youtubeUrl}`,
+        summary: null
+      }
+
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={slowStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      expect(
+        screen.queryByRole('button', { name: 'Play video: Inline YT' })
+      ).not.toBeInTheDocument()
+
+      mockedGetStatusIfReadable.mockResolvedValueOnce({
+        id: 'slow-yt',
+        uri: slowStatus.id,
+        card: {
+          url: youtubeUrl,
+          title: 'Inline YT',
+          description: 'YT desc',
+          type: 'video',
+          author_name: '',
+          author_url: '',
+          provider_name: 'YouTube',
+          provider_url: '',
+          html: '',
+          width: 480,
+          height: 360,
+          image: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+          embed_url: '',
+          blurhash: null
+        }
+      } as unknown as MastodonStatus)
+
+      syncPendingLinkPreviewForStatus(slowStatus)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(
+          PENDING_LINK_PREVIEW_POLL_DELAYS_MS[0]
+        )
+      })
+
+      expect(
+        screen.getByRole('button', { name: 'Play video: Inline YT' })
+      ).toBeInTheDocument()
+
+      // Editing to remove the link drops the resolved card immediately
+      act(() => {
+        syncPendingLinkPreviewForStatus({
+          ...slowStatus,
+          text: 'Removed the video link'
+        })
+      })
+
+      expect(
+        screen.queryByRole('button', { name: 'Play video: Inline YT' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('renders OpenGraph StandardLinkPreviewCard once resolved asynchronously', async () => {
+      vi.useFakeTimers()
+
+      const articleStatus: StatusNote = {
+        ...status,
+        id: 'https://activities.local/users/llun/statuses/slow-og',
+        text: 'Read https://example.com/slow-post',
+        summary: null
+      }
+
+      render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={articleStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      mockedGetStatusIfReadable.mockResolvedValueOnce({
+        id: 'slow-og',
+        uri: articleStatus.id,
+        card: {
+          url: 'https://example.com/slow-post',
+          title: 'Async OpenGraph Title',
+          description: 'Async summary',
+          type: 'link',
+          author_name: '',
+          author_url: '',
+          provider_name: 'Example',
+          provider_url: '',
+          html: '',
+          width: 600,
+          height: 315,
+          image: 'https://example.com/og.png',
+          embed_url: '',
+          blurhash: null
+        }
+      } as unknown as MastodonStatus)
+
+      syncPendingLinkPreviewForStatus(articleStatus)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(
+          PENDING_LINK_PREVIEW_POLL_DELAYS_MS[0]
+        )
+      })
+
+      expect(screen.getByText('Async OpenGraph Title')).toBeInTheDocument()
+    })
+
+    it('ignores a cached resolved preview when post text or updatedAt advances elsewhere', async () => {
+      vi.useFakeTimers()
+
+      const originalStatus: StatusNote = {
+        ...status,
+        id: 'https://activities.local/users/llun/statuses/remote-edited',
+        text: 'Watch https://example.com/original',
+        summary: null,
+        updatedAt: 2_000
+      }
+
+      const { rerender } = render(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={originalStatus}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      mockedGetStatusIfReadable.mockResolvedValueOnce({
+        id: 'remote-edited',
+        uri: originalStatus.id,
+        card: {
+          url: 'https://example.com/original',
+          title: 'Original Pre-Edit Card',
+          description: '',
+          type: 'link',
+          author_name: '',
+          author_url: '',
+          provider_name: 'Example',
+          provider_url: '',
+          html: '',
+          width: 600,
+          height: 315,
+          image: null,
+          embed_url: '',
+          blurhash: null
+        }
+      } as unknown as MastodonStatus)
+
+      syncPendingLinkPreviewForStatus(originalStatus)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(
+          PENDING_LINK_PREVIEW_POLL_DELAYS_MS[0]
+        )
+      })
+      expect(screen.getByText('Original Pre-Edit Card')).toBeInTheDocument()
+
+      // Simulated update from another tab/device changes text without clearing local store
+      rerender(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...originalStatus,
+            text: 'Edited elsewhere with no link'
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+      expect(
+        screen.queryByText('Original Pre-Edit Card')
+      ).not.toBeInTheDocument()
+
+      // Or newer updatedAt on the status also suppresses the stale cached card
+      rerender(
+        <Post
+          host="activities.local"
+          currentTime={currentTime}
+          status={{
+            ...originalStatus,
+            updatedAt: 5_000
+          }}
+          onShowAttachment={vi.fn()}
+        />
+      )
+      expect(
+        screen.queryByText('Original Pre-Edit Card')
+      ).not.toBeInTheDocument()
     })
   })
 })

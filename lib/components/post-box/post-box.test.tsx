@@ -18,6 +18,7 @@ import {
   DRAFT_LOCKED_NOTICE,
   SESSION_EXPIRED_NOTICE
 } from '@/lib/client/http'
+import { syncPendingLinkPreviewForStatus } from '@/lib/client/pendingLinkPreviews'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -52,6 +53,16 @@ vi.mock('@/lib/client', () => ({
   uploadAttachment: vi.fn(),
   uploadFitnessFile: vi.fn()
 }))
+
+vi.mock('@/lib/client/pendingLinkPreviews', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/client/pendingLinkPreviews')
+  >('@/lib/client/pendingLinkPreviews')
+  return {
+    ...actual,
+    syncPendingLinkPreviewForStatus: vi.fn()
+  }
+})
 
 vi.mock('@/lib/utils/resizeImage', () => ({
   resizeImage: vi.fn((file) => Promise.resolve(file))
@@ -1340,5 +1351,39 @@ describe('PostBox idempotency key', () => {
       screen.queryByRole('button', { name: 'Remove media late.png' })
     ).not.toBeInTheDocument()
     expect(uploadAttachmentMock).not.toHaveBeenCalled()
+  })
+
+  it('syncs pending link preview tracking after creating a note', async () => {
+    const mockedSyncPreview = vi.mocked(syncPendingLinkPreviewForStatus)
+    mockedSyncPreview.mockClear()
+    const createdStatus = {
+      ...editStatus,
+      id: 'https://activities.local/users/llun/statuses/new-link-post',
+      type: StatusType.enum.Note,
+      text: 'Check https://example.com/slow'
+    }
+    createNoteMock.mockResolvedValueOnce({
+      status: createdStatus,
+      attachments: []
+    })
+    const onPostCreated = vi.fn()
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        onDiscardReply={vi.fn()}
+        onPostCreated={onPostCreated}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'Check https://example.com/slow' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => expect(onPostCreated).toHaveBeenCalledTimes(1))
+    expect(mockedSyncPreview).toHaveBeenCalledWith(createdStatus)
   })
 })

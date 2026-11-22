@@ -17,6 +17,7 @@ import { reportRequestFailure } from '@/lib/client/connection'
 import type { DraftRecord } from '@/lib/client/drafts'
 import { replyBoxFingerprint } from '@/lib/client/drafts/submitRequest'
 import { DRAFT_LOCKED_NOTICE, classifyFailedPost } from '@/lib/client/http'
+import { syncPendingLinkPreviewForStatus } from '@/lib/client/pendingLinkPreviews'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { DraftSaveStatus } from '@/lib/components/post-box/DraftSaveStatus'
@@ -55,7 +56,11 @@ import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
-import { Status, getOriginalStatus } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
@@ -612,6 +617,9 @@ export const StatusReplyBox: FC<Props> = ({
       submitIdempotencyRef.current = null
       setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
+      if (status.type === StatusType.enum.Note) {
+        syncPendingLinkPreviewForStatus(status)
+      }
       // The posted reply owns the media now: drop the draft and its bytes only.
       void composerDraft.release()
       onPostCreated(status, storedAttachments)

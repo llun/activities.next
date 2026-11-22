@@ -17,6 +17,7 @@ import {
   DRAFT_LOCKED_NOTICE,
   SESSION_EXPIRED_NOTICE
 } from '@/lib/client/http'
+import { syncPendingLinkPreviewForStatus } from '@/lib/client/pendingLinkPreviews'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -30,6 +31,16 @@ vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
   uploadAttachment: vi.fn()
 }))
+
+vi.mock('@/lib/client/pendingLinkPreviews', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/client/pendingLinkPreviews')
+  >('@/lib/client/pendingLinkPreviews')
+  return {
+    ...actual,
+    syncPendingLinkPreviewForStatus: vi.fn()
+  }
+})
 
 vi.mock('@/lib/utils/resizeImage')
 
@@ -1015,5 +1026,41 @@ describe('StatusReplyBox automatic vertical growth', () => {
     } finally {
       globalThis.CSS = originalCSS
     }
+  })
+
+  it('syncs pending link preview tracking after creating a reply', async () => {
+    const mockedSyncPreview = vi.mocked(syncPendingLinkPreviewForStatus)
+    mockedSyncPreview.mockClear()
+    const createdReply: StatusNote = {
+      ...replyStatus,
+      id: 'https://activities.local/users/llun/statuses/reply-link-1',
+      reply: replyStatus.id,
+      text: 'Replying with https://example.com/slow'
+    }
+    createNoteMock.mockResolvedValueOnce({
+      status: createdReply,
+      attachments: []
+    })
+    const onPostCreated = vi.fn()
+
+    render(
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={replyStatus}
+        onCancel={vi.fn()}
+        onPostCreated={onPostCreated}
+      />
+    )
+
+    const textarea = screen.getByPlaceholderText(
+      `Reply to ${replyStatus.actor?.name}...`
+    )
+    fireEvent.change(textarea, {
+      target: { value: 'Replying with https://example.com/slow' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => expect(onPostCreated).toHaveBeenCalledTimes(1))
+    expect(mockedSyncPreview).toHaveBeenCalledWith(createdReply)
   })
 })

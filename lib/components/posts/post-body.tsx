@@ -1,8 +1,12 @@
 'use client'
 
 import { Activity, ExternalLink } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useSyncExternalStore } from 'react'
 
+import {
+  getResolvedLinkPreviewEntry,
+  subscribeStatusLinkPreview
+} from '@/lib/client/pendingLinkPreviews'
 import { Alert } from '@/lib/components/surface/Alert'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
 import type { Actor } from '@/lib/types/database'
@@ -80,6 +84,15 @@ interface PostBodyProps {
   prioritizeMedia?: boolean
 }
 
+const getEmptyLinkPreviewSnapshot = () => null
+
+const useResolvedLinkPreviewEntry = (statusId: string) =>
+  useSyncExternalStore(
+    (listener) => subscribeStatusLinkPreview(statusId, listener),
+    () => getResolvedLinkPreviewEntry(statusId),
+    getEmptyLinkPreviewSnapshot
+  )
+
 /**
  * Everything a post shows under its header: the content (behind its content
  * warning), a fitness activity, poll, media, link preview and quote card. Must
@@ -97,6 +110,15 @@ export const PostBody: FC<PostBodyProps> = ({
   prioritizeMedia = false
 }) => {
   const actualStatus = getActualStatus(status)
+  const resolvedEntry = useResolvedLinkPreviewEntry(actualStatus.id)
+  const matchingResolvedPreview =
+    resolvedEntry &&
+    resolvedEntry.text === actualStatus.text &&
+    resolvedEntry.updatedAt >= actualStatus.updatedAt
+      ? resolvedEntry.linkPreview
+      : null
+  const effectiveLinkPreview =
+    actualStatus.linkPreview ?? matchingResolvedPreview
   const processedAndCleanedText = cleanClassName(
     processStatusText(host, actualStatus),
     {
@@ -357,11 +379,11 @@ export const PostBody: FC<PostBodyProps> = ({
           the attachments for the same reason: `Attachments` skips anything
           `Media` renders as nothing, so a bare `.length` would yield the card
           to a PDF that puts no block on screen to yield to. */}
-      {actualStatus.linkPreview &&
+      {effectiveLinkPreview &&
       !actualStatus.quote &&
       !fitnessFile &&
       !actualStatus.attachments.some(isRenderableAttachment) ? (
-        <LinkPreviewCard linkPreview={actualStatus.linkPreview} />
+        <LinkPreviewCard linkPreview={effectiveLinkPreview} />
       ) : null}
       {actualStatus.quote ? (
         <QuoteCard quote={actualStatus.quote} currentTime={currentTime} />

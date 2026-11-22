@@ -1,11 +1,17 @@
 import { Database } from '@/lib/database/types'
 import { FETCH_LINK_PREVIEW_JOB_NAME } from '@/lib/jobs/names'
+import { fetchLinkPreviewInline } from '@/lib/services/link-previews/fetchLinkPreview'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
+import { LinkPreviewRecord } from '@/lib/types/database/operations'
 import { Status } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 const publish = vi.fn()
 const runsInline = { value: false }
+
+vi.mock('@/lib/services/link-previews/fetchLinkPreview', () => ({
+  fetchLinkPreviewInline: vi.fn()
+}))
 
 vi.mock('@/lib/services/queue', () => ({
   getQueue: () => ({
@@ -38,12 +44,37 @@ const getStatus = vi.fn().mockResolvedValue(null)
 // worse, a "was not called" one passes for the wrong reason.
 const getTags = vi.fn().mockResolvedValue([])
 const getStatusLinkPreviews = vi.fn().mockResolvedValue(new Map())
+const linkStatusLinkPreview = vi.fn().mockResolvedValue(undefined)
+const mockedFetchInline = vi.mocked(fetchLinkPreviewInline)
 const database = {
   deleteStatusLinkPreview,
   getStatus,
   getTags,
-  getStatusLinkPreviews
+  getStatusLinkPreviews,
+  linkStatusLinkPreview
 } as unknown as Database
+
+const makePreviewRecord = (
+  overrides: Partial<LinkPreviewRecord> = {}
+): LinkPreviewRecord => ({
+  urlHash: getHashFromString('https://example.com/article'),
+  url: 'https://example.com/article',
+  type: 'link',
+  title: 'Example Article',
+  description: 'Summary',
+  siteName: 'Example',
+  authorName: null,
+  authorUrl: null,
+  imageUrl: 'https://cdn.example.com/card.jpg',
+  imageWidth: 1200,
+  imageHeight: 630,
+  publishedAt: null,
+  fetchStatus: 'completed',
+  error: null,
+  createdAt: 1_000,
+  updatedAt: 1_000,
+  ...overrides
+})
 
 const makeStatus = (overrides: Partial<Status> = {}): Status =>
   ({
@@ -65,6 +96,13 @@ describe('syncStatusLinkPreview', () => {
     getStatus.mockResolvedValue(null)
     getStatusLinkPreviews.mockReset()
     getStatusLinkPreviews.mockResolvedValue(new Map())
+    linkStatusLinkPreview.mockReset()
+    mockedFetchInline.mockReset()
+    mockedFetchInline.mockResolvedValue({
+      record: null,
+      fromCache: false,
+      timedOut: true
+    })
     runsInline.value = false
     resolvedSettings.network.linkPreviews = true
   })
@@ -257,7 +295,7 @@ describe('syncStatusLinkPreview', () => {
 
     await expect(
       syncStatusLinkPreview({ database, status: makeStatus() })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ linkPreview: null, pending: false })
   })
 
   it('never throws when reading settings fails', async () => {
@@ -270,7 +308,7 @@ describe('syncStatusLinkPreview', () => {
 
     await expect(
       syncStatusLinkPreview({ database, status: makeStatus() })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ linkPreview: null, pending: false })
     expect(publish).not.toHaveBeenCalled()
   })
 
@@ -338,5 +376,189 @@ describe('syncStatusLinkPreview', () => {
     publish.mockReset()
     await syncStatusLinkPreview({ database, status: statusRev3 })
     expect(publish.mock.calls[0][0].id).toBe(jobA2Id)
+  })
+
+  describe('inline link preview resolution', () => {
+    it('re-verifies status and links a cache hit immediately without enqueueing', async () => {
+      const status = makeStatus()
+      const record = makePreviewRecord()
+      mockedFetchInline.mockResolvedValueOnce({
+        record,
+        fromCache: true,
+        timedOut: false
+      })
+      getStatus.mockResolvedValueOnce(status)
+
+      const result = await syncStatusLinkPreview({
+        database,
+        status
+      })
+
+      expect(getStatus).toHaveBeenCalledWith({
+        statusId: status.id,
+        withReplies: false
+      })
+      expect(linkStatusLinkPreview).toHaveBeenCalledWith({
+        statusId: 'https://llun.test/users/me/statuses/1',
+        urlHash: record.urlHash
+      })
+      expect(publish).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        linkPreview: {
+          url: record.url,
+          title: record.title,
+          description: record.description,
+          type: record.type,
+          siteName: record.siteName,
+          authorName: null,
+          authorUrl: null,
+          imageUrl: record.imageUrl,
+          imageWidth: record.imageWidth,
+          imageHeight: record.imageHeight,
+          publishedAt: null
+        },
+        pending: false
+      })
+    })
+
+    it('skips linking on a cache hit when the status was edited or deleted concurrently', async () => {
+      const status = makeStatus()
+      const record = makePreviewRecord()
+      mockedFetchInline.mockResolvedValueOnce({
+        record,
+        fromCache: true,
+        timedOut: false
+      })
+      getStatus.mockResolvedValueOnce(
+        makeStatus({ text: 'Edited to remove the link' })
+      )
+
+      const result = await syncStatusLinkPreview({ database, status })
+
+      expect(linkStatusLinkPreview).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+      expect(result).toEqual({ linkPreview: null, pending: false })
+    })
+
+    it('re-verifies current status URL after an inline HTTP fetch before linking', async () => {
+      const status = makeStatus()
+      const record = makePreviewRecord()
+      mockedFetchInline.mockResolvedValueOnce({
+        record,
+        fromCache: false,
+        timedOut: false
+      })
+      getStatus.mockResolvedValueOnce(status)
+
+      const result = await syncStatusLinkPreview({ database, status })
+
+      expect(getStatus).toHaveBeenCalledWith({
+        statusId: status.id,
+        withReplies: false
+      })
+      expect(linkStatusLinkPreview).toHaveBeenCalledWith({
+        statusId: status.id,
+        urlHash: record.urlHash
+      })
+      expect(publish).not.toHaveBeenCalled()
+      expect(result.pending).toBe(false)
+      expect(result.linkPreview?.title).toBe('Example Article')
+    })
+
+    it('skips linking when status was edited or deleted mid-fetch', async () => {
+      const status = makeStatus()
+      const record = makePreviewRecord()
+      mockedFetchInline.mockResolvedValueOnce({
+        record,
+        fromCache: false,
+        timedOut: false
+      })
+      getStatus.mockResolvedValueOnce(
+        makeStatus({ text: 'Edited to https://example.com/different' })
+      )
+
+      const result = await syncStatusLinkPreview({ database, status })
+
+      expect(linkStatusLinkPreview).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+      expect(result).toEqual({ linkPreview: null, pending: false })
+    })
+
+    it('skips enqueueing when inline fetch hit negative cache or failed in budget', async () => {
+      mockedFetchInline.mockResolvedValueOnce({
+        record: null,
+        fromCache: false,
+        timedOut: false
+      })
+
+      const result = await syncStatusLinkPreview({
+        database,
+        status: makeStatus()
+      })
+
+      expect(linkStatusLinkPreview).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+      expect(result).toEqual({ linkPreview: null, pending: false })
+    })
+
+    it('links preserved expired card and schedules refresh when inline refresh times out', async () => {
+      const status = makeStatus()
+      const record = makePreviewRecord()
+      mockedFetchInline.mockResolvedValueOnce({
+        record,
+        fromCache: false,
+        timedOut: true
+      })
+      getStatus.mockResolvedValueOnce(status)
+
+      const result = await syncStatusLinkPreview({ database, status })
+
+      expect(linkStatusLinkPreview).toHaveBeenCalledWith({
+        statusId: status.id,
+        urlHash: record.urlHash
+      })
+      expect(publish).toHaveBeenCalledTimes(1)
+      expect(result).toEqual({
+        linkPreview: expect.objectContaining({ title: 'Example Article' }),
+        pending: false
+      })
+    })
+
+    it('returns an existing matching completed card when fetching is turned off', async () => {
+      resolvedSettings.network.linkPreviews = false
+      const record = makePreviewRecord()
+      getStatusLinkPreviews.mockResolvedValueOnce(
+        new Map([['https://llun.test/users/me/statuses/1', record]])
+      )
+
+      const result = await syncStatusLinkPreview({
+        database,
+        status: makeStatus()
+      })
+
+      expect(mockedFetchInline).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        linkPreview: expect.objectContaining({ title: 'Example Article' }),
+        pending: false
+      })
+    })
+
+    it('reads back the linked card after inline queue execution', async () => {
+      runsInline.value = true
+      const status = makeStatus()
+      const record = makePreviewRecord()
+      getStatusLinkPreviews
+        .mockResolvedValueOnce(new Map())
+        .mockResolvedValueOnce(new Map([[status.id, record]]))
+
+      const result = await syncStatusLinkPreview({ database, status })
+
+      expect(mockedFetchInline).not.toHaveBeenCalled()
+      expect(publish).toHaveBeenCalledTimes(1)
+      expect(result).toEqual({
+        linkPreview: expect.objectContaining({ title: 'Example Article' }),
+        pending: false
+      })
+    })
   })
 })
