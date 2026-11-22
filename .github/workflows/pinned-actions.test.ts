@@ -13,19 +13,20 @@ function yamlFiles(dir: string): string[] {
 }
 
 describe('third-party actions', () => {
-  // A tag can be repointed at different code (tj-actions, Trivy, actions-cool);
-  // a full commit SHA cannot. Local `./` actions live in this repository.
-  it('are pinned to a full commit SHA with a version comment', () => {
-    const unpinned: string[] = []
+  // Actions use their version tag (`@v7`), not a commit SHA: the tag may move
+  // to a newer release, which is accepted. Local `./` actions live in this
+  // repository.
+  it('use a version tag, not a commit SHA', () => {
+    const untagged: string[] = []
     for (const file of yamlFiles(GITHUB_DIR)) {
       for (const line of readFileSync(file, 'utf8').split('\n')) {
         const match = line.match(/^\s*(?:-\s+)?uses:\s*(\S+)(.*)$/)
         if (!match || match[1].startsWith('./')) continue
-        if (!/@[0-9a-f]{40}$/.test(match[1]) || !/^\s+#\s+v\d/.test(match[2])) {
-          unpinned.push(`${file.slice(GITHUB_DIR.length + 1)}: ${line.trim()}`)
+        if (!/@v\d+(\.\d+)*$/.test(match[1])) {
+          untagged.push(`${file.slice(GITHUB_DIR.length + 1)}: ${line.trim()}`)
         }
       }
     }
-    expect(unpinned).toEqual([])
+    expect(untagged).toEqual([])
   })
 })

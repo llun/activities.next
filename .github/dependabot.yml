@@ -98,7 +98,7 @@ updates:
       interval: 'weekly'
     cooldown:
       default-days: 8
-    # Actions are pinned to commit SHAs; one grouped PR moves them all.
+    # Actions use major version tags; one grouped PR moves them all.
     groups:
       actions:
         patterns:
