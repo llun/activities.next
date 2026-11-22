@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout selection script
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           sparse-checkout: .github/scripts
           persist-credentials: false
@@ -43,7 +43,7 @@ jobs:
       # than skipping the day.
       - name: Select newest green main commit
         id: select
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: actions/github-script@v9
         env:
           LOOKBACK_COMMITS: '30'
         with:
@@ -125,7 +125,7 @@ jobs:
       # Actions: write only: it can start workflows there but cannot push code itself.
       - name: Dispatch sync workflow
         if: steps.select.outputs.ready == 'true'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: actions/github-script@v9
         env:
           MAIN_SHA: ${{ steps.select.outputs.main_sha }}
         with:

@@ -39,7 +39,7 @@ jobs:
       EVENT: ${{ github.event.workflow_run.event }}
     steps:
       - name: Checkout the classifier (from main, never the PR)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           sparse-checkout: .github/scripts
           persist-credentials: false
