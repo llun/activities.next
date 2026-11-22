@@ -1145,8 +1145,14 @@ export const createNoteFromUserInput = async ({
           })
         ])
 
+        // The status's search text holds its attachments' alt text and
+        // species; linking a fitness file indexes the status itself.
         if (fitnessFile) {
           await database.updateFitnessFileStatus(fitnessFile.id, statusId)
+        } else if (ownedAttachments.length > 0) {
+          await runBestEffortStep(statusId, 'search index', () =>
+            database.indexStatusSearchDocument({ statusId })
+          )
         }
 
         const hydratedStatus = (await database.getStatus({

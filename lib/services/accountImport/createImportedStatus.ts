@@ -311,6 +311,20 @@ export const createImportedStatus = async (
       input.attachments,
       input.published
     )
+    // The status's search text holds its attachments' alt text and species.
+    // Best-effort: `yarn search:reindex` rebuilds it, so it never costs the
+    // status.
+    if (input.attachments.length > 0) {
+      await database
+        .indexStatusSearchDocument({ statusId })
+        .catch((indexError: unknown) => {
+          logger.error({
+            message: 'Could not index an imported status for search',
+            statusId,
+            err: toArchiveLoggableError(indexError)
+          })
+        })
+    }
     await appendStatusHistory(database, actor, statusId, input.edits)
 
     if (input.pinned) await database.pinStatus({ actorId: actor.id, statusId })

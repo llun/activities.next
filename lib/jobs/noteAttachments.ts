@@ -132,7 +132,20 @@ export const createRemoteAttachments = async ({
   note: BaseNote
 }) => {
   const attachments = await buildRemoteAttachments({ statusId, note })
+  if (attachments.length === 0) return
   await Promise.all(
     attachments.map((attachment) => database.createAttachment(attachment))
   )
+  // After every insert: the status's search text holds their alt text, and
+  // indexing each insert as it lands would race the others. Best-effort, as
+  // `yarn search:reindex` rebuilds it.
+  await database
+    .indexStatusSearchDocument({ statusId })
+    .catch((error: unknown) => {
+      logger.error({
+        message: 'Failed to index remote status attachments for search',
+        statusId,
+        err: toLoggableError(error)
+      })
+    })
 }

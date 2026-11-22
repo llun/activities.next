@@ -1,7 +1,6 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
-import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import {
   down,
   up
@@ -28,17 +27,23 @@ const createMedia = async (original: string) => {
   return id
 }
 
+// A bare statuses row: the test runs on the schema before this migration, and
+// the app's createNote indexes the status for search, which reads
+// `attachments.isRouteMap`.
 const createStatus = async (label: string) => {
   const statusId = `${ACTOR1_ID}/statuses/backfill-${label}`
-  await database.createNote({
-    id: statusId,
-    url: statusId,
-    actorId: ACTOR1_ID,
-    text: label,
-    summary: null,
-    to: [ACTIVITY_STREAM_PUBLIC],
-    cc: []
-  })
+  await testDb.db
+    .insertInto('statuses')
+    .values({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      type: 'Note',
+      content: JSON.stringify({ text: label, summary: null }),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+    .execute()
   return statusId
 }
 

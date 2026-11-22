@@ -462,7 +462,7 @@ describe('status search queries', () => {
 
       expect(await readSearchDocument(db, 'status', target)).toMatchObject({
         id: `status:${target}`,
-        documentText: 'Target words',
+        documentText: 'target words',
         actorId: author,
         visibility: 'direct',
         entityCreatedAt: 7
@@ -597,6 +597,484 @@ describe('status search queries', () => {
       expect(await readSearchDocument(db, 'status', ids[2])).toBeDefined()
       expect(await readSearchDocument(db, 'hashtag', ids[0])).toBeDefined()
     })
+
+    it('indexes attachment alt text, media subject, poll choices and the primary fitness file', async () => {
+      const author = await addActor('sqextras-author')
+      const statusId = await seedStatus(db, {
+        id: statusIdOf(author, 'extras'),
+        actorId: author,
+        type: 'Poll',
+        createdAt: 1,
+        text: 'sqextras base',
+        to: [PUBLIC]
+      })
+      const media = await db
+        .insertInto('medias')
+        .values({
+          actorId: author,
+          subjectName: 'Grey Heron',
+          subjectScientificName: 'Ardea cinerea',
+          subjectCategory: 'bird',
+          placeName: 'Secret Marsh',
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+      await db
+        .insertInto('attachments')
+        .values([
+          {
+            id: `${statusId}/attachments/photo`,
+            actorId: author,
+            statusId,
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: `https://${DOMAIN}/media/photo.jpg`,
+            name: 'Heron at dawn',
+            mediaId: media.id,
+            isRouteMap: false,
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          },
+          {
+            id: `${statusId}/attachments/route`,
+            actorId: author,
+            statusId,
+            type: 'Document',
+            mediaType: 'image/png',
+            url: `https://${DOMAIN}/media/route.png`,
+            name: 'Route map label',
+            isRouteMap: true,
+            createdAt: new Date(2),
+            updatedAt: new Date(2)
+          }
+        ])
+        .execute()
+      await db
+        .insertInto('poll_choices')
+        .values([
+          {
+            statusId,
+            title: 'Red',
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          },
+          {
+            statusId,
+            title: 'Green',
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          }
+        ])
+        .execute()
+      await db
+        .insertInto('fitness_files')
+        .values([
+          {
+            id: `${statusId}/fitness/primary`,
+            actorId: author,
+            statusId,
+            path: 'fitness/primary.fit',
+            fileName: 'primary.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 100,
+            activityType: 'trail_run',
+            description: 'Muddy ridge',
+            isPrimary: true,
+            activityStartTime: new Date(10),
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          },
+          {
+            id: `${statusId}/fitness/secondary`,
+            actorId: author,
+            statusId,
+            path: 'fitness/secondary.fit',
+            fileName: 'secondary.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 100,
+            activityType: 'ride',
+            description: 'Road spin',
+            isPrimary: false,
+            activityStartTime: new Date(20),
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          },
+          {
+            // Primary and earliest, so only the deletedAt filter keeps it out.
+            id: `${statusId}/fitness/deleted`,
+            actorId: author,
+            statusId,
+            path: 'fitness/deleted.fit',
+            fileName: 'deleted.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 100,
+            activityType: 'swim',
+            description: 'Deleted swim',
+            isPrimary: true,
+            activityStartTime: new Date(5),
+            deletedAt: new Date(2),
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          }
+        ])
+        .execute()
+
+      await database.indexStatusSearchDocument({ statusId })
+
+      const documentText = (await readSearchDocument(db, 'status', statusId))
+        ?.documentText
+      expect(documentText).toContain('heron at dawn')
+      expect(documentText).toContain('grey heron')
+      expect(documentText).toContain('ardea cinerea')
+      expect(documentText).toContain('bird')
+      expect(documentText).toContain('red')
+      expect(documentText).toContain('green')
+      // The primary fitness file's type, as both labels, and its description.
+      expect(documentText).toContain('trail run')
+      expect(documentText).toContain('trail running')
+      expect(documentText).toContain('muddy ridge')
+      // A route map's fixed label and a photo's place are never indexed.
+      expect(documentText).not.toContain('route map label')
+      expect(documentText).not.toContain('secret marsh')
+      // Only the primary fitness file is read.
+      expect(documentText).not.toContain('road spin')
+      expect(documentText).not.toContain('cycling')
+      // A deleted fitness file is never read, even when it is primary.
+      expect(documentText).not.toContain('deleted swim')
+      expect(documentText).not.toContain('swimming')
+    })
+
+    it('indexes a media subject only when the media belongs to the attachment actor', async () => {
+      const author = await addActor('sqextras-foreign-author')
+      const other = await addActor('sqextras-foreign-other')
+      const statusId = await seedStatus(db, {
+        id: statusIdOf(author, 'foreign-media'),
+        actorId: author,
+        createdAt: 1,
+        text: 'foreign media base'
+      })
+      const media = await db
+        .insertInto('medias')
+        .values({
+          actorId: other,
+          subjectName: 'Osprey',
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+      await db
+        .insertInto('attachments')
+        .values({
+          id: `${statusId}/attachments/foreign`,
+          actorId: author,
+          statusId,
+          type: 'Document',
+          mediaType: 'image/jpeg',
+          url: `https://${DOMAIN}/media/foreign.jpg`,
+          name: 'Foreign alt',
+          mediaId: media.id,
+          isRouteMap: false,
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .execute()
+
+      await database.indexStatusSearchDocument({ statusId })
+
+      const documentText = (await readSearchDocument(db, 'status', statusId))
+        ?.documentText
+      // The attachment's own alt text is still the author's to index.
+      expect(documentText).toContain('foreign alt')
+      // The media's subject is not: another actor owns it.
+      expect(documentText).not.toContain('osprey')
+    })
+
+    it('indexes a media subject when another actor of the same account attached it', async () => {
+      const accountId = 'sqextras-shared-account'
+      await db.insertInto('accounts').values({ id: accountId }).execute()
+      const author = actorIdOf('sqextras-shared-author')
+      const sibling = actorIdOf('sqextras-shared-sibling')
+      await db
+        .insertInto('actors')
+        .values([
+          {
+            id: author,
+            username: 'sqextras-shared-author',
+            domain: DOMAIN,
+            accountId,
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          },
+          {
+            id: sibling,
+            username: 'sqextras-shared-sibling',
+            domain: DOMAIN,
+            accountId,
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          }
+        ])
+        .execute()
+      const statusId = await seedStatus(db, {
+        id: statusIdOf(author, 'shared-media'),
+        actorId: author,
+        createdAt: 1,
+        text: 'shared media base'
+      })
+      const media = await db
+        .insertInto('medias')
+        .values({
+          actorId: sibling,
+          subjectName: 'Kingfisher',
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+      await db
+        .insertInto('attachments')
+        .values({
+          id: `${statusId}/attachments/shared`,
+          actorId: author,
+          statusId,
+          type: 'Document',
+          mediaType: 'image/jpeg',
+          url: `https://${DOMAIN}/media/shared.jpg`,
+          name: 'Shared alt',
+          mediaId: media.id,
+          isRouteMap: false,
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .execute()
+
+      await database.indexStatusSearchDocument({ statusId })
+
+      const documentText = (await readSearchDocument(db, 'status', statusId))
+        ?.documentText
+      expect(documentText).toContain('shared alt')
+      expect(documentText).toContain('kingfisher')
+    })
+
+    it('does not index a remote fitness-file attachment', async () => {
+      const author = await addActor('sqextras-fitness-attachment')
+      const statusId = await seedStatus(db, {
+        id: statusIdOf(author, 'fitness-attachment'),
+        actorId: author,
+        createdAt: 1,
+        text: 'fitness attachment base'
+      })
+      await db
+        .insertInto('attachments')
+        .values([
+          {
+            id: `${statusId}/attachments/photo`,
+            actorId: author,
+            statusId,
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: `https://${DOMAIN}/media/sunrise.jpg`,
+            name: 'Sunrise alt',
+            isRouteMap: false,
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          },
+          {
+            // A remote note's activity file rides along as an attachment the
+            // post never shows.
+            id: `${statusId}/attachments/fitness`,
+            actorId: author,
+            statusId,
+            type: 'Document',
+            mediaType: 'application/vnd.ant.fit',
+            url: 'https://remote.test/media/morning.fit',
+            name: 'morning.fit',
+            isRouteMap: false,
+            createdAt: new Date(2),
+            updatedAt: new Date(2)
+          },
+          {
+            // A photo the post shows, whose alt text names a route file.
+            id: `${statusId}/attachments/screenshot`,
+            actorId: author,
+            statusId,
+            type: 'Document',
+            mediaType: 'image/png',
+            url: `https://${DOMAIN}/media/screenshot.png`,
+            name: 'Import error for loop.gpx',
+            isRouteMap: false,
+            createdAt: new Date(3),
+            updatedAt: new Date(3)
+          }
+        ])
+        .execute()
+
+      await database.indexStatusSearchDocument({ statusId })
+
+      const documentText = (await readSearchDocument(db, 'status', statusId))
+        ?.documentText
+      expect(documentText).toContain('sunrise alt')
+      expect(documentText).not.toContain('morning')
+      expect(documentText).toContain('import error for loop.gpx')
+    })
+
+    it('indexes the earliest-created fitness file when primary and start time tie', async () => {
+      const author = await addActor('sqextras-fitness-tie')
+      const statusId = await seedStatus(db, {
+        id: statusIdOf(author, 'fitness-tie'),
+        actorId: author,
+        createdAt: 1,
+        text: 'fitness tie base'
+      })
+      await db
+        .insertInto('fitness_files')
+        .values([
+          {
+            // Inserted first, but created later: createdAt is the tie-break.
+            id: `${statusId}/fitness/later`,
+            actorId: author,
+            statusId,
+            path: 'fitness/later.fit',
+            fileName: 'later.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 100,
+            activityType: 'ride',
+            description: 'Later ride',
+            isPrimary: false,
+            activityStartTime: null,
+            createdAt: new Date(2),
+            updatedAt: new Date(2)
+          },
+          {
+            id: `${statusId}/fitness/earlier`,
+            actorId: author,
+            statusId,
+            path: 'fitness/earlier.fit',
+            fileName: 'earlier.fit',
+            fileType: 'fit',
+            mimeType: 'application/vnd.ant.fit',
+            bytes: 100,
+            activityType: 'run',
+            description: 'Earlier run',
+            isPrimary: false,
+            activityStartTime: null,
+            createdAt: new Date(1),
+            updatedAt: new Date(1)
+          }
+        ])
+        .execute()
+
+      await database.indexStatusSearchDocument({ statusId })
+
+      const documentText = (await readSearchDocument(db, 'status', statusId))
+        ?.documentText
+      expect(documentText).toContain('running')
+      expect(documentText).toContain('earlier run')
+      expect(documentText).not.toContain('cycling')
+      expect(documentText).not.toContain('later ride')
+    })
+
+    it('reads poll choices for a Poll only', async () => {
+      const author = await addActor('sqnote-choices-author')
+      const statusId = await seedStatus(db, {
+        id: statusIdOf(author, 'note-choices'),
+        actorId: author,
+        createdAt: 1,
+        text: 'note with stray choice'
+      })
+      await db
+        .insertInto('poll_choices')
+        .values({
+          statusId,
+          title: 'Stray',
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .execute()
+
+      await database.indexStatusSearchDocument({ statusId })
+
+      expect(
+        (await readSearchDocument(db, 'status', statusId))?.documentText
+      ).toBe('note with stray choice')
+    })
+
+    it('indexes a status with no text but an attachment alt text', async () => {
+      const author = await addActor('sqalt-author')
+      const statusId = await seedStatus(db, {
+        id: statusIdOf(author, 'alt-only'),
+        actorId: author,
+        createdAt: 1,
+        text: ''
+      })
+      await db
+        .insertInto('attachments')
+        .values({
+          id: `${statusId}/attachments/alt`,
+          actorId: author,
+          statusId,
+          type: 'Document',
+          mediaType: 'image/jpeg',
+          url: `https://${DOMAIN}/media/alt.jpg`,
+          name: 'Only alt text',
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .execute()
+
+      await database.indexStatusSearchDocument({ statusId })
+
+      expect(await readSearchDocument(db, 'status', statusId)).toMatchObject({
+        documentText: 'only alt text'
+      })
+    })
+
+    it('finds accented text by its folded form and vice versa', async () => {
+      const viewer = await addActor('sqfold-viewer')
+      const accented = await indexedStatus({
+        id: statusIdOf(viewer, 'accented'),
+        actorId: viewer,
+        createdAt: 1,
+        text: 'Café au lait',
+        to: [PUBLIC]
+      })
+      const plain = await indexedStatus({
+        id: statusIdOf(viewer, 'plain'),
+        actorId: viewer,
+        createdAt: 2,
+        text: 'cafe',
+        to: [PUBLIC]
+      })
+
+      await expect(
+        search({ q: 'cafe', currentActorId: viewer })
+      ).resolves.toEqual([plain, accented])
+      await expect(
+        search({ q: 'café', currentActorId: viewer })
+      ).resolves.toEqual([plain, accented])
+    })
+
+    it('treats stylised NOT, AND and OR as words, not query syntax', async () => {
+      const viewer = await addActor('sqstyled-viewer')
+      const status = await indexedStatus({
+        id: statusIdOf(viewer, 'styled'),
+        actorId: viewer,
+        createdAt: 1,
+        text: 'not and or',
+        to: [PUBLIC]
+      })
+
+      await expect(
+        search({ q: '𝐍𝐎𝐓 𝐀𝐍𝐃 𝐎𝐑', currentActorId: viewer })
+      ).resolves.toEqual([status])
+    })
   })
 })
 
@@ -723,5 +1201,73 @@ describe('reindexSearchStatuses', () => {
         database.reindexSearchStatuses({ afterId, limit: 10 })
       ).resolves.toEqual({ indexed: 0, nextCursor: null })
     }
+  })
+})
+
+// Reindexing scans every status, so these run on their own database.
+describe('reindexSearchStatuses extras', () => {
+  const testDb = createTestDatabase()
+  const { database, db } = testDb
+  const author = actorIdOf('sqreindex-extras')
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await database.migrate()
+    await createSearchActor(database, {
+      id: author,
+      username: 'sqreindex-extras',
+      domain: DOMAIN
+    })
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  it('gives each status its own attachment alt text', async () => {
+    const first = await seedStatus(db, {
+      id: statusIdOf(author, 'first'),
+      actorId: author,
+      createdAt: 1,
+      text: 'first base',
+      to: [PUBLIC]
+    })
+    const second = await seedStatus(db, {
+      id: statusIdOf(author, 'second'),
+      actorId: author,
+      createdAt: 2,
+      text: 'second base',
+      to: [PUBLIC]
+    })
+    for (const [statusId, name] of [
+      [first, 'First alt'],
+      [second, 'Second alt']
+    ] as const) {
+      await db
+        .insertInto('attachments')
+        .values({
+          id: `${statusId}/attachments/alt`,
+          actorId: author,
+          statusId,
+          type: 'Document',
+          mediaType: 'image/jpeg',
+          url: `https://${DOMAIN}/media/${name}.jpg`,
+          name,
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .execute()
+    }
+
+    await expect(
+      database.reindexSearchStatuses({ limit: 10 })
+    ).resolves.toEqual({ indexed: 2, nextCursor: null })
+
+    const firstDocument = await readSearchDocument(db, 'status', first)
+    const secondDocument = await readSearchDocument(db, 'status', second)
+    expect(firstDocument?.documentText).toContain('first alt')
+    expect(firstDocument?.documentText).not.toContain('second alt')
+    expect(secondDocument?.documentText).toContain('second alt')
+    expect(secondDocument?.documentText).not.toContain('first alt')
   })
 })

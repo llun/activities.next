@@ -14,8 +14,27 @@ export const getSearchDocumentId = ({
   entityId: string
 }) => `${entityType}:${entityId}`
 
+// Lowercased, compatibility forms folded (ﬁ → fi, full-width → ASCII) and the
+// Latin, Greek and Cyrillic accents dropped, so `cafe` finds `café` on
+// PostgreSQL's 'simple' config as it does on SQLite's FTS5 unicode61. Only the
+// Combining Diacritical Marks block goes: Thai and Lao vowels and tone marks and the
+// kana voicing marks are part of the letter, and NFC puts Hangul syllables and
+// voiced kana back together. Document text and query tokens are both folded.
+export const foldSearchText = (value: string) =>
+  value
+    .normalize('NFKD')
+    // After NFKD, which can yield capitals from characters with no case
+    // (𝐍𝐎𝐓, ™): an uppercase NOT, AND or OR token is FTS5 query syntax.
+    .toLowerCase()
+    .replace(/[\u0300-\u036f]/g, '')
+    // NFKD splits Thai and Lao SARA AM (ำ, ຳ) into a combining NIKHAHIT and
+    // SARA AA, which NFC does not rejoin: put the vowel back whole.
+    .replace(/\u0e4d\u0e32/g, '\u0e33')
+    .replace(/\u0ecd\u0eb2/g, '\u0eb3')
+    .normalize('NFC')
+
 export const normalizeSearchText = (value: string) =>
-  value.replace(/\s+/g, ' ').trim()
+  foldSearchText(value).replace(/\s+/g, ' ').trim()
 
 // At most MAX_SEARCH_QUERY_TOKENS distinct tokens, each cut to
 // MAX_SEARCH_TOKEN_LENGTH characters: the tokens are ANDed into the database
@@ -24,9 +43,7 @@ export const normalizeSearchText = (value: string) =>
 export const getSearchTokens = (value: string): string[] =>
   Array.from(
     new Set(
-      value
-        .trim()
-        .toLowerCase()
+      foldSearchText(value.trim())
         .match(/[\p{L}\p{N}_]+/gu)
         ?.map((token) => token.slice(0, MAX_SEARCH_TOKEN_LENGTH))
         .filter((token) => token.length > 0) ?? []
