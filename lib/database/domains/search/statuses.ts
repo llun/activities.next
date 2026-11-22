@@ -31,7 +31,11 @@ import {
   formatActivityTypeLabel,
   getActivityPresentation
 } from '@/lib/services/fitness-files/activityPresentation'
-import { isFitnessAttachment } from '@/lib/types/domain/attachment'
+import {
+  isAudibleAttachment,
+  isFitnessAttachment,
+  isVisualAttachment
+} from '@/lib/types/domain/attachment'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
@@ -180,13 +184,17 @@ const getStatusExtraTextByStatusId = async (db: Db, statusIds: string[]) => {
 
   for (const row of attachments) {
     // A remote note's activity file rides along as an attachment the post
-    // never shows.
+    // never shows. `isFitnessAttachment` also matches on the alt text, so a
+    // photo or clip the post does show is never skipped by it.
+    const attachment = {
+      mediaType: row.mediaType ?? '',
+      url: row.url ?? '',
+      name: row.name ?? ''
+    }
     if (
-      isFitnessAttachment({
-        mediaType: row.mediaType ?? '',
-        url: row.url ?? '',
-        name: row.name ?? ''
-      })
+      !isVisualAttachment(attachment) &&
+      !isAudibleAttachment(attachment) &&
+      isFitnessAttachment(attachment)
     ) {
       continue
     }

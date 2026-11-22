@@ -899,6 +899,19 @@ describe('status search queries', () => {
             isRouteMap: false,
             createdAt: new Date(2),
             updatedAt: new Date(2)
+          },
+          {
+            // A photo the post shows, whose alt text names a route file.
+            id: `${statusId}/attachments/screenshot`,
+            actorId: author,
+            statusId,
+            type: 'Document',
+            mediaType: 'image/png',
+            url: `https://${DOMAIN}/media/screenshot.png`,
+            name: 'Import error for loop.gpx',
+            isRouteMap: false,
+            createdAt: new Date(3),
+            updatedAt: new Date(3)
           }
         ])
         .execute()
@@ -909,6 +922,7 @@ describe('status search queries', () => {
         ?.documentText
       expect(documentText).toContain('sunrise alt')
       expect(documentText).not.toContain('morning')
+      expect(documentText).toContain('import error for loop.gpx')
     })
 
     it('indexes the earliest-created fitness file when primary and start time tie', async () => {
