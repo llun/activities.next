@@ -166,32 +166,65 @@ export const fullTextQueryMatch = <TB extends keyof DB, O>(
       )
   }
 
-  // A phrase goes through phraseto_tsquery, which reads the words with the
-  // same parser as to_tsvector: a token it skips (`_`) is skipped on both
-  // sides instead of widening the phrase's word distance.
-  const phrase = (tokens: string[]) =>
-    sql`phraseto_tsquery('simple', ${tokens.join(' ')})`
-  const positive = [
-    ...(terms.length > 0
-      ? [
-          sql`to_tsquery('simple', ${terms.map((token) => `${token}:*`).join(' & ')})`
-        ]
-      : []),
-    ...phrases.map(phrase)
-  ]
-  const negative = excluded.map(phrase)
-  const vector = sql`to_tsvector('simple', ${sql.ref('documentText')})`
-  const combine = (queries: RawBuilder<unknown>[], operator: string) =>
-    queries.length === 1
-      ? queries[0]
-      : sql`(${sql.join(queries, sql.raw(` ${operator} `))})`
+  const positive = positiveTsQuery(terms, phrases)
+  const negative = combineTsQueries(excluded.map(phraseTsQuery), '||')
   return query
-    .$if(positive.length > 0, (qb) =>
-      qb.where(sql<boolean>`${vector} @@ ${combine(positive, '&&')}`)
+    .$if(positive !== null, (qb) =>
+      qb.where(sql<boolean>`${TS_VECTOR} @@ ${positive}`)
     )
-    .$if(negative.length > 0, (qb) =>
-      qb.where(sql<boolean>`not (${vector} @@ ${combine(negative, '||')})`)
+    .$if(negative !== null, (qb) =>
+      qb.where(sql<boolean>`not (${TS_VECTOR} @@ ${negative})`)
     )
+}
+
+const TS_VECTOR = sql`to_tsvector('simple', ${sql.ref('documentText')})`
+
+// A phrase goes through phraseto_tsquery, which reads the words with the same
+// parser as to_tsvector: a token it skips (`_`) is skipped on both sides
+// instead of widening the phrase's word distance.
+const phraseTsQuery = (tokens: string[]) =>
+  sql`phraseto_tsquery('simple', ${tokens.join(' ')})`
+
+const combineTsQueries = (
+  queries: RawBuilder<unknown>[],
+  operator: '&&' | '||'
+): RawBuilder<unknown> | null => {
+  if (queries.length === 0) return null
+  return queries.length === 1
+    ? queries[0]
+    : sql`(${sql.join(queries, sql.raw(` ${operator} `))})`
+}
+
+// The tsquery of the words (as prefixes) and phrases a document must hold.
+const positiveTsQuery = (terms: string[], phrases: string[][]) =>
+  combineTsQueries(
+    [
+      ...(terms.length > 0
+        ? [
+            sql`to_tsquery('simple', ${terms.map((token) => `${token}:*`).join(' & ')})`
+          ]
+        : []),
+      ...phrases.map(phraseTsQuery)
+    ],
+    '&&'
+  )
+
+// How well a document matched, higher is better, for a query that went through
+// fullTextQueryMatch with at least one term or phrase: SQLite's
+// bm25(search_documents_fts) (negated, as bm25 is lower-is-better), PostgreSQL's
+// ts_rank_cd over the same to_tsvector expression and tsquery the match used.
+// The two scales differ; a caller compares scores only within one result set.
+export const fullTextRank = (
+  db: Db,
+  { terms, phrases }: Pick<FullTextQuery, 'terms' | 'phrases'>
+) => {
+  if (getDialectName(db) === 'sqlite') {
+    return sql<number>`-bm25(search_documents_fts)`
+  }
+  const positive = positiveTsQuery(terms, phrases)
+  return positive
+    ? sql<number>`ts_rank_cd(${TS_VECTOR}, ${positive})`
+    : sql<number>`0`
 }
 
 // Keeps the `search_documents` rows whose documentText contains every token as

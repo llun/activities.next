@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { ephemeralStatusFromNote } from '@/lib/activities/getRemoteStatus'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
+import type { SearchStatusSort } from '@/lib/database/domains/search/types'
 import { Database } from '@/lib/database/types'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import {
@@ -88,8 +89,17 @@ const SearchFormatParam = z
     value === 'activities_next' ? value : undefined
   )
 
+// Not a Mastodon parameter: the web app asks for `relevance`. Anything else,
+// including a missing value, is Mastodon's newest-first order.
+const SearchSortParam = z
+  .string()
+  .transform((value): SearchStatusSort =>
+    value === 'relevance' ? 'relevance' : 'latest'
+  )
+
 const SearchParams = z.object({
   q: z.string().max(MAX_SEARCH_QUERY_LENGTH),
+  sort: SearchSortParam.optional(),
   type: SearchTypeParam.optional(),
   // The app search UI still consumes Mastodon-shaped accounts and hashtags;
   // this format flag only keeps statuses in the app's domain shape.
@@ -624,6 +634,7 @@ const searchStatuses = async ({
     database.searchStatusIds({
       q: query,
       parsedQuery,
+      sort: params.sort ?? 'latest',
       localDomain: accessDomain,
       limit: indexedLimit,
       offset,

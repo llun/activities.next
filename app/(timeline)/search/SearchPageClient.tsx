@@ -14,7 +14,12 @@ import {
   useState
 } from 'react'
 
-import { SearchResult, SearchType, search as searchClient } from '@/lib/client'
+import {
+  SearchResult,
+  SearchSort,
+  SearchType,
+  search as searchClient
+} from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
@@ -121,15 +126,42 @@ const getSearchType = (tab: SearchTab): SearchType | undefined =>
 const getSearchLimit = (tab: SearchTab) =>
   tab === 'all' ? ALL_SEARCH_LIMIT : SEARCH_LIMIT
 
-const getSearchPath = (query: string, tab: SearchTab) => {
+const getSearchPath = (
+  query: string,
+  tab: SearchTab,
+  sort: SearchSort | null = null
+) => {
   const trimmedQuery = query.trim()
   if (!trimmedQuery) return '/search'
 
   const params = new URLSearchParams({ q: trimmedQuery })
   const type = getSearchType(tab)
   if (type) params.set('type', type)
+  if (sort) params.set('sort', sort)
   return `/search?${params.toString()}`
 }
+
+const SEARCH_SORTS: { value: SearchSort; label: string }[] = [
+  { value: 'relevance', label: 'Top' },
+  { value: 'latest', label: 'Latest' }
+]
+
+const getSearchSort = (value: string | null): SearchSort | null =>
+  value === 'relevance' || value === 'latest' ? value : null
+
+// Whether the query holds a word to rank by, not only operators (`from:me`) or
+// exclusions (`-word`). A rough reading of parseSearchQuery on the server,
+// which ranks nothing without a word: it only picks the default order and
+// whether the Top / Latest control shows.
+const OPERATOR_NAME_PATTERN =
+  /^(?:from|has|is|language|before|after|during|in):\S+$/i
+const hasSearchWords = (query: string) =>
+  (query.match(/-?"[^"]*"?|\S+/g) ?? []).some(
+    (chunk) =>
+      !chunk.startsWith('-') &&
+      !OPERATOR_NAME_PATTERN.test(chunk) &&
+      /[\p{L}\p{N}]/u.test(chunk)
+  )
 
 const hasResults = (results: SearchResult) =>
   results.accounts.length > 0 ||
@@ -348,6 +380,14 @@ export const SearchPageClient = ({
   const [activeTab, setActiveTab] = useState<SearchTab>(() =>
     getSearchTab(searchParams.get('type'))
   )
+  // The order the reader picked, kept in `?sort=`, applies while the query has
+  // a word to rank by (the control shows only then); without a pick, Top.
+  // Without a word, Latest.
+  const [sortParam, setSortParam] = useState<SearchSort | null>(() =>
+    getSearchSort(searchParams.get('sort'))
+  )
+  const canRank = hasSearchWords(submittedQuery)
+  const sort: SearchSort = canRank ? (sortParam ?? 'relevance') : 'latest'
   const [results, setResults] = useState<SearchResult>(emptySearchResult)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -379,6 +419,7 @@ export const SearchPageClient = ({
     }
     setSubmittedQueryValue(nextQuery)
     setActiveTab(nextTab)
+    setSortParam(getSearchSort(searchParams.get('sort')))
   }, [searchParams, setSubmittedQueryValue])
 
   useEffect(() => {
@@ -410,6 +451,7 @@ export const SearchPageClient = ({
       limit: getSearchLimit(activeTab),
       offset: activeTab === 'all' ? undefined : 0,
       resolve: true,
+      sort,
       signal: abortController.signal
     })
       .then((nextResults) => {
@@ -438,17 +480,20 @@ export const SearchPageClient = ({
     return () => {
       abortController.abort()
     }
-  }, [activeTab, submittedQuery, retryCount])
+  }, [activeTab, submittedQuery, retryCount, sort])
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const query = inputValue.trim()
     const nextTab = query ? activeTab : 'all'
     const previousSubmittedQuery = submittedQueryRef.current
-    if (!query) setInputValue('')
+    if (!query) {
+      setInputValue('')
+      setSortParam(null)
+    }
     setSubmittedQueryValue(query)
     setActiveTab(nextTab)
-    const nextPath = getSearchPath(query, nextTab)
+    const nextPath = getSearchPath(query, nextTab, query ? sortParam : null)
     if (query && query !== previousSubmittedQuery) {
       router.push(nextPath)
     } else {
@@ -466,13 +511,22 @@ export const SearchPageClient = ({
     abortControllerRef.current = null
     setSubmittedQueryValue('')
     setActiveTab('all')
+    setSortParam(null)
     if (searchParams.toString()) router.replace('/search')
   }
 
   const onTabChange = (value: string) => {
     const nextTab = getSearchTab(value)
     setActiveTab(nextTab)
-    router.replace(getSearchPath(submittedQuery, nextTab))
+    router.replace(getSearchPath(submittedQuery, nextTab, sortParam))
+  }
+
+  // Re-runs the search in the new order from its first page.
+  const onSortChange = (value: string) => {
+    const nextSort = getSearchSort(value)
+    if (!nextSort) return
+    setSortParam(nextSort)
+    router.replace(getSearchPath(submittedQuery, activeTab, nextSort))
   }
 
   const loadMore = async () => {
@@ -495,6 +549,7 @@ export const SearchPageClient = ({
         limit: SEARCH_LIMIT,
         offset: getTabResultCount(results, activeTab),
         resolve: true,
+        sort,
         signal: abortController.signal
       })
       if (requestIdRef.current !== requestId) return
@@ -558,6 +613,18 @@ export const SearchPageClient = ({
 
   // The All tab names each kind of result with its own section; a typed tab is
   // already named by the tab, so it draws the one list.
+  // Beside the tabs, which stay mounted while a search runs, so focus stays on
+  // it after a switch; inside the results it would unmount with them.
+  const sortControl = (
+    <SegmentedControl
+      aria-label="Sort posts"
+      size="sm"
+      items={SEARCH_SORTS}
+      value={sort}
+      onValueChange={onSortChange}
+    />
+  )
+
   const renderAllResults = () => {
     if (!hasResults(results)) return null
 
@@ -617,12 +684,17 @@ export const SearchPageClient = ({
         </Button>
       </form>
 
-      <SegmentedControl
-        aria-label="Search in"
-        items={tabs}
-        value={activeTab}
-        onValueChange={onTabChange}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SegmentedControl
+          aria-label="Search in"
+          items={tabs}
+          value={activeTab}
+          onValueChange={onTabChange}
+        />
+        {canRank &&
+          (activeTab === 'all' || activeTab === 'statuses') &&
+          sortControl}
+      </div>
 
       {/* Before a query is typed, surface the top trending hashtags. The block
           self-hides when the server has no qualifying trends, falling back to

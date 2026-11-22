@@ -343,6 +343,10 @@ Post search (`GET /api/v2/search` with `type=statuses` or no type, and the web S
 
 Operator names are case-insensitive. An unknown operator, or one with a value it does not take (`foo:bar`, `before:yesterday`), is searched as plain words, as Mastodon does. A query of operators alone (`from:me has:media`) returns the matching posts, a post with no text among them (every Note and Poll has a search document, empty when it has no text; `yarn search:reindex` adds them for older posts); one of exclusions alone matches nothing. Excluded words match whole words, while searched words match as prefixes. Words, phrase words and operators together count towards the query's token cap (`lib/utils/searchQueryLimits.ts`). The accounts and hashtags results search the plain words only, and are empty when a query holds no plain words. A query with an operator is never resolved as a remote URL.
 
+### Post search order
+
+`GET /api/v2/search` returns posts newest first, as Mastodon does, and pages them with `max_id`/`min_id` or `offset`. A non-Mastodon `sort` parameter changes that: `sort=relevance` (what the web Search page's Top sends) ranks the matches; any other value, or none, is newest first. Relevance ranks only the newest 500 matches (`RELEVANCE_CANDIDATE_LIMIT` in `lib/database/domains/search/statuses.ts`), so its cost stays bounded however many posts match, at the price that an older post past those 500 is not ranked. Each match's text score (SQLite `bm25` over the FTS5 table, PostgreSQL `ts_rank_cd` over the same `to_tsvector('simple', …)` and tsquery the match uses) is divided by `1 + age / 30`, the age in days counted from the newest candidate; the blend is a product, so recency weighs the same against either database's score scale. Ties go to the newer post, then the larger id. A ranked search pages with `offset` only (`max_id` and `min_id` are ignored), and a query with no word or phrase (operators only) is returned newest first.
+
 ### Media
 
 - **Image uploads accept JPEG, PNG, WebP, GIF and AVIF** on both synchronous

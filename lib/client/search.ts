@@ -3,6 +3,8 @@ import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { Tag } from '@/lib/types/mastodon/tag'
 
 export type SearchType = 'accounts' | 'statuses' | 'hashtags'
+// How posts are ordered: best match blended with recency, or newest first.
+export type SearchSort = 'relevance' | 'latest'
 
 export interface SearchResult<TStatus = Status> {
   accounts: MastodonAccount[]
@@ -16,6 +18,7 @@ export interface SearchParams {
   limit?: number
   offset?: number
   resolve?: boolean
+  sort?: SearchSort
   signal?: AbortSignal
 }
 
@@ -66,6 +69,7 @@ export const search = async ({
   limit,
   offset,
   resolve = true,
+  sort,
   signal
 }: SearchParams): Promise<SearchResult> => {
   const params = new URLSearchParams({
@@ -76,6 +80,7 @@ export const search = async ({
   if (type) params.set('type', type)
   if (limit !== undefined) params.set('limit', `${limit}`)
   if (offset !== undefined) params.set('offset', `${offset}`)
+  if (sort) params.set('sort', sort)
 
   const response = await fetch(`/api/v2/search?${params.toString()}`, {
     method: 'GET',
