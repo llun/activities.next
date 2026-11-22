@@ -56,33 +56,23 @@ type GalleryQueryCandidate = {
   placeName: string | null
 }
 
-// The rows a search reads. The owner searches every media row of theirs, with
-// its own alt text and place name. Anyone else searches only the media posted
-// on a status they may read, by the alt text of those posts (the attachment's
-// `name`, what they are shown; never the media row's, which the owner may have
-// changed since) and never by place: a hidden location, a threatened species'
-// place or a precision that withholds the name must not be findable.
+// The rows a search reads. Everyone searches the media posted on a status they
+// may read, by the alt text of those posts (the attachment's `name`, what they
+// are shown). The owner also searches every media row of theirs, with its own
+// alt text and place name. Anyone else never searches the media row's alt text
+// (the owner may have changed it since) nor the place: a hidden location, a
+// threatened species' place or a precision that withholds the name must not be
+// findable.
 const galleryQueryCandidates = async (
   db: Db,
   actorId: string,
   audience: GalleryAudience
 ): Promise<GalleryQueryCandidate[]> => {
-  if (audience?.kind === 'owner') {
-    return db
-      .selectFrom('medias')
-      .select([
-        'medias.id',
-        'medias.description as altText',
-        'medias.subjectName',
-        'medias.subjectScientificName',
-        'medias.subjectCategory',
-        'medias.subjectTaxonPath',
-        'medias.placeName'
-      ])
-      .where('medias.actorId', '=', actorId)
-      .execute()
-  }
-  return db
+  const isOwner = audience?.kind === 'owner'
+  // The alt text of the posts the audience may read, which is what a posted
+  // photo's tile shows (an import or the composer may leave the media row's
+  // own empty or different).
+  const posted = await db
     .selectFrom('attachments as gallery_attachments')
     .innerJoin('medias', (join) =>
       join.on('gallery_attachments.mediaId', '=', galleryMediaIdRef)
@@ -102,9 +92,24 @@ const galleryQueryCandidates = async (
       sql<null>`null`.as('placeName')
     ])
     .where('medias.actorId', '=', actorId)
-    .where('medias.inGallery', '=', true)
+    .$if(!isOwner, (query) => query.where('medias.inGallery', '=', true))
     .where(postedGalleryAttachment(db, actorId, audience))
     .execute()
+  if (!isOwner) return posted
+  const own = await db
+    .selectFrom('medias')
+    .select([
+      'medias.id',
+      'medias.description as altText',
+      'medias.subjectName',
+      'medias.subjectScientificName',
+      'medias.subjectCategory',
+      'medias.subjectTaxonPath',
+      'medias.placeName'
+    ])
+    .where('medias.actorId', '=', actorId)
+    .execute()
+  return [...own, ...posted]
 }
 
 // The words a group answers to besides its prefix and its regular plural.

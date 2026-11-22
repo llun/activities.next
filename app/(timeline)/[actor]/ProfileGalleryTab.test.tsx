@@ -517,6 +517,25 @@ describe('ProfileGalleryTab', () => {
       expect(input).toHaveValue('')
     })
 
+    it('drops a draft still waiting out its debounce when the subview changes', async () => {
+      renderTab()
+      await screen.findByRole('region', { name: 'Birds' })
+      fireEvent.change(
+        screen.getByRole('searchbox', { name: 'Search photos' }),
+        { target: { value: 'king' } }
+      )
+      await openSubview('Recent')
+
+      vi.useFakeTimers()
+      act(() => {
+        vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS)
+      })
+      expect(
+        screen.getByRole('searchbox', { name: 'Search photos' })
+      ).toHaveValue('')
+      expect(screen.getByTestId('paged-grid')).not.toHaveTextContent('q=king')
+    })
+
     it('hides the search on the life list and drops it when a subject opened there is closed', async () => {
       getGalleryLifeListMock.mockResolvedValue({
         total: 1,

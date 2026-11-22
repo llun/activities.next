@@ -1535,6 +1535,18 @@ describe('gallery media filters and ordering', () => {
         })
       ).toEqual({ total: 1, inAlbum: null })
 
+      // The owner also finds a photo by the alt text its post shows.
+      expect(
+        (
+          await database.getGalleryMedia({
+            actorId,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 10,
+            filters: { query: 'pink shallows' }
+          })
+        ).map((r) => r.media.id)
+      ).toEqual([rewritten])
+
       // The post's alt text finds the rewritten photo for a visitor.
       expect(
         (

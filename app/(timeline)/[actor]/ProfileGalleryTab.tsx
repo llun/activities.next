@@ -513,6 +513,9 @@ export const ProfileGalleryTab: FC<Props> = ({
       </div>
       {showSearch ? (
         <DebouncedSearchInput
+          // A new subview starts a new search: remounting drops a draft
+          // still waiting out its debounce.
+          key={activeView}
           value={searchQuery}
           onSearchChange={updateSearchQuery}
           ariaLabel="Search photos"
