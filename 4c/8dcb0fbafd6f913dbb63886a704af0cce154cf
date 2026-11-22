@@ -1,0 +1,54 @@
+docs/architecture.md
+  h_580a04e334fef4 1480
+docs/environment-variables.md
+  h_580a04e334fef4 247-278
+lib/config/index.test.ts
+  h_580a04e334fef4 309-346
+lib/config/index.ts
+  h_580a04e334fef4 30-33,76,165
+lib/config/searchEmbeddings.test.ts
+  h_580a04e334fef4 1-251
+lib/config/searchEmbeddings.ts
+  h_580a04e334fef4 1-207
+lib/services/search/semantic/fixtures/geminiEmbeddingsResponse.json
+  h_580a04e334fef4 1-10
+lib/services/search/semantic/fixtures/geminiErrorResponse.json
+  h_580a04e334fef4 1-7
+lib/services/search/semantic/fixtures/openaiEmbeddingsResponse.json
+  h_580a04e334fef4 1-20
+lib/services/search/semantic/fixtures/openaiErrorResponse.json
+  h_580a04e334fef4 1-8
+lib/services/search/semantic/gemini.test.ts
+  h_580a04e334fef4 1-337
+lib/services/search/semantic/gemini.ts
+  h_580a04e334fef4 1-153
+lib/services/search/semantic/index.test.ts
+  h_580a04e334fef4 1-109
+lib/services/search/semantic/index.ts
+  h_580a04e334fef4 1-43
+lib/services/search/semantic/openai.test.ts
+  h_580a04e334fef4 1-319
+lib/services/search/semantic/openai.ts
+  h_580a04e334fef4 1-144
+lib/services/search/semantic/shared.ts
+  h_580a04e334fef4 1-141
+lib/services/search/semantic/types.ts
+  h_580a04e334fef4 1-39
+lib/utils/safeRemoteFetch.test.ts
+  h_580a04e334fef4 1138-1310
+lib/utils/safeRemoteFetch.ts
+  h_580a04e334fef4 122-125,216,218-223,225-229,250,254,263-268,270-274,625,629,632,669,686
+test/next.config.test.ts
+  h_580a04e334fef4 32-43,73-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c8dcb0fbafd6f913dbb63886a704af0cce154cf",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
