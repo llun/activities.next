@@ -862,7 +862,6 @@ describe('SearchPageClient', () => {
 
   describe('post sort control', () => {
     it('shows the Sort posts control on All and Posts tabs for word queries and hides it on Profiles and Hashtags', async () => {
-      // On All it sits on the Posts section, so it needs a post to show.
       mockSearch.mockResolvedValue({
         ...emptySearchResult(),
         statuses: [searchStatus('sort-1')]
@@ -870,9 +869,8 @@ describe('SearchPageClient', () => {
 
       renderSearchPage('q=trail')
 
-      const sortGroup = await screen.findByRole('radiogroup', {
-        name: 'Sort posts'
-      })
+      await screen.findByText('sort-1')
+      const sortGroup = screen.getByRole('radiogroup', { name: 'Sort posts' })
       expect(
         within(sortGroup).getByRole('radio', { name: 'Top' })
       ).toHaveAttribute('aria-checked', 'true')
@@ -1015,8 +1013,9 @@ describe('SearchPageClient', () => {
 
       renderSearchPage('q=trail')
 
+      await screen.findByText('sort-focus-1')
       const latest = within(
-        await screen.findByRole('radiogroup', { name: 'Sort posts' })
+        screen.getByRole('radiogroup', { name: 'Sort posts' })
       ).getByRole('radio', { name: 'Latest' })
       latest.focus()
       fireEvent.click(latest)
@@ -1026,6 +1025,8 @@ describe('SearchPageClient', () => {
           expect.objectContaining({ sort: 'latest' })
         )
       })
+      // Through the reload: the results are gone, then back.
+      await screen.findByText('sort-focus-1')
       expect(document.activeElement).toBe(
         within(
           screen.getByRole('radiogroup', { name: 'Sort posts' })
@@ -1064,6 +1065,21 @@ describe('SearchPageClient', () => {
       expect(
         screen.queryByRole('radiogroup', { name: 'Sort posts' })
       ).not.toBeInTheDocument()
+    })
+
+    it('sends Latest for a query without words even when Top was picked', async () => {
+      mockSearch.mockResolvedValue(emptySearchResult())
+
+      renderSearchPage('q=from%3Ame&sort=relevance&type=statuses')
+
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenCalledWith(
+          expect.objectContaining({ q: 'from:me', sort: 'latest' })
+        )
+      })
+      expect(mockSearch).not.toHaveBeenCalledWith(
+        expect.objectContaining({ sort: 'relevance' })
+      )
     })
   })
 })

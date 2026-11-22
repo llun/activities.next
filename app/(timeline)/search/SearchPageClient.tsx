@@ -380,13 +380,14 @@ export const SearchPageClient = ({
   const [activeTab, setActiveTab] = useState<SearchTab>(() =>
     getSearchTab(searchParams.get('type'))
   )
-  // The order the reader picked, kept in `?sort=`; without one, Top when the
-  // query has a word to rank by, else Latest.
+  // The order the reader picked, kept in `?sort=`, applies while the query has
+  // a word to rank by (the control shows only then); without a pick, Top.
+  // Without a word, Latest.
   const [sortParam, setSortParam] = useState<SearchSort | null>(() =>
     getSearchSort(searchParams.get('sort'))
   )
   const canRank = hasSearchWords(submittedQuery)
-  const sort: SearchSort = sortParam ?? (canRank ? 'relevance' : 'latest')
+  const sort: SearchSort = canRank ? (sortParam ?? 'relevance') : 'latest'
   const [results, setResults] = useState<SearchResult>(emptySearchResult)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -486,10 +487,13 @@ export const SearchPageClient = ({
     const query = inputValue.trim()
     const nextTab = query ? activeTab : 'all'
     const previousSubmittedQuery = submittedQueryRef.current
-    if (!query) setInputValue('')
+    if (!query) {
+      setInputValue('')
+      setSortParam(null)
+    }
     setSubmittedQueryValue(query)
     setActiveTab(nextTab)
-    const nextPath = getSearchPath(query, nextTab, sortParam)
+    const nextPath = getSearchPath(query, nextTab, query ? sortParam : null)
     if (query && query !== previousSubmittedQuery) {
       router.push(nextPath)
     } else {
@@ -507,6 +511,7 @@ export const SearchPageClient = ({
     abortControllerRef.current = null
     setSubmittedQueryValue('')
     setActiveTab('all')
+    setSortParam(null)
     if (searchParams.toString()) router.replace('/search')
   }
 
