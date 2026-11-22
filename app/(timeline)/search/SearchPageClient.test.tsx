@@ -882,16 +882,19 @@ describe('SearchPageClient', () => {
       expect(
         screen.getByRole('radiogroup', { name: 'Sort posts' })
       ).toBeInTheDocument()
+      await screen.findByText('sort-1')
 
       selectTab('Profiles')
       expect(
         screen.queryByRole('radiogroup', { name: 'Sort posts' })
       ).not.toBeInTheDocument()
+      await screen.findByText('No results found')
 
       selectTab('Hashtags')
       expect(
         screen.queryByRole('radiogroup', { name: 'Sort posts' })
       ).not.toBeInTheDocument()
+      await screen.findByText('No results found')
     })
 
     it('hides the Sort posts control and defaults to latest for operators-only queries', async () => {
@@ -1080,6 +1083,31 @@ describe('SearchPageClient', () => {
       expect(mockSearch).not.toHaveBeenCalledWith(
         expect.objectContaining({ sort: 'relevance' })
       )
+    })
+
+    it('forgets the picked order when the query is cleared', async () => {
+      mockSearch.mockResolvedValue(emptySearchResult())
+
+      renderSearchPage('q=trail&sort=latest')
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenCalledWith(
+          expect.objectContaining({ q: 'trail', sort: 'latest' })
+        )
+      })
+
+      const searchbox = screen.getByRole('searchbox', { name: 'Search' })
+      fireEvent.change(searchbox, { target: { value: '' } })
+      fireEvent.change(searchbox, { target: { value: 'cycling' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+
+      await waitFor(() => {
+        expect(push).toHaveBeenCalledWith('/search?q=cycling')
+      })
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenLastCalledWith(
+          expect.objectContaining({ q: 'cycling', sort: 'relevance' })
+        )
+      })
     })
   })
 })
