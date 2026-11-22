@@ -1157,6 +1157,20 @@ null }` files the status into one of the viewer's folders, or unfiles it with
   serves the FEP-044f `QuoteAuthorization` object for an approved quote; it 404s
   once the quote is revoked (the edge is no longer `accepted`).
 
+### Search operators
+
+Post search (`GET /api/v2/search` with `type=statuses` or no type, and the web Search page) reads Mastodon's operators (`parseSearchQuery` in `lib/services/search/parseSearchQuery.ts`):
+
+- `from:me`, `from:user` (a local account), `from:@user@domain` or `from:user@domain`, matched case-insensitively;
+- `has:media` (an image, video or audio attachment, a fitness post's route map included), `has:image`, `has:video`, `has:audio`, `has:poll`, `has:link` (the post has the link its preview card is made for) and `has:embed` (that card was fetched);
+- `is:reply` and `is:sensitive` (marked sensitive or carrying a content warning);
+- `language:<code>`, the language the post declares, else the one detected from its text;
+- `before:`, `after:` and `during:` with a `YYYY-MM-DD` date, read as a UTC day: `before:` is earlier than that day, `after:` is later than it, `during:` is within it;
+- `in:library` (the default) and `in:all`, which until opt-in public search exists searches the same library: the posts the viewer wrote, liked, bookmarked or was mentioned in;
+- `"an exact phrase"`, and `-` before a word, a phrase or an operator to leave it out (`-is:reply`, `-has:media`).
+
+Operator names are case-insensitive. An unknown operator, or one with a value it does not take (`foo:bar`, `before:yesterday`), is searched as plain words, as Mastodon does. A query of operators alone (`from:me has:media`) returns the matching posts; one of exclusions alone matches nothing. Words, phrase words and operators together count towards the query's token cap (`lib/utils/searchQueryLimits.ts`). The accounts and hashtags results search the plain words only, and are empty when a query holds no plain words. A query with an operator is never resolved as a remote URL.
+
 ### Bluesky accounts via Bridgy Fed
 
 Bluesky accounts that have opted into [Bridgy Fed](https://fed.brid.gy/)

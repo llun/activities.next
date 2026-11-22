@@ -36,19 +36,19 @@ export const foldSearchText = (value: string) =>
 export const normalizeSearchText = (value: string) =>
   foldSearchText(value).replace(/\s+/g, ' ').trim()
 
+// The folded words of `value` in order, repeats kept (a phrase needs them),
+// each cut to MAX_SEARCH_TOKEN_LENGTH characters.
+export const getSearchWords = (value: string): string[] =>
+  foldSearchText(value.trim())
+    .match(/[\p{L}\p{N}_]+/gu)
+    ?.map((token) => token.slice(0, MAX_SEARCH_TOKEN_LENGTH)) ?? []
+
 // At most MAX_SEARCH_QUERY_TOKENS distinct tokens, each cut to
 // MAX_SEARCH_TOKEN_LENGTH characters: the tokens are ANDed into the database
 // query, so keeping the first few still narrows results while an attacker can't
 // make the database parse thousands of terms.
 export const getSearchTokens = (value: string): string[] =>
-  Array.from(
-    new Set(
-      foldSearchText(value.trim())
-        .match(/[\p{L}\p{N}_]+/gu)
-        ?.map((token) => token.slice(0, MAX_SEARCH_TOKEN_LENGTH))
-        .filter((token) => token.length > 0) ?? []
-    )
-  ).slice(0, MAX_SEARCH_QUERY_TOKENS)
+  Array.from(new Set(getSearchWords(value))).slice(0, MAX_SEARCH_QUERY_TOKENS)
 
 // Escapes `\`, `%` and `_` for a LIKE pattern written with `escape '\'`.
 export const escapeLikePattern = (value: string) =>

@@ -23,6 +23,10 @@ import {
   resolveActorIdParam,
   resolveStatusIdParam
 } from '@/lib/services/mastodon/resolveClientId'
+import {
+  type ParsedSearchQuery,
+  parseSearchQuery
+} from '@/lib/services/search/parseSearchQuery'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getReadableStatusAndFetchedNoteForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
@@ -578,17 +582,21 @@ const searchStatuses = async ({
   currentActor,
   params,
   query,
+  parsedQuery,
   limit,
   offset,
-  signingActor
+  signingActor,
+  accessDomain
 }: {
   database: Database
   currentActor: Actor
   params: ParsedSearchParams
   query: string
+  parsedQuery: ParsedSearchQuery
   limit: number
   offset: number
   signingActor?: Actor
+  accessDomain: string
 }) => {
   const indexedLimit = limit * 2
   // account_id/max_id/min_id must be resolved to real ids before they reach
@@ -601,7 +609,8 @@ const searchStatuses = async ({
     resolveSearchStatusId(database, params.min_id)
   ])
   const [resolvedStatus, indexedIds] = await Promise.all([
-    offset === 0
+    // A URL to resolve is the whole query, never one with operators.
+    offset === 0 && !parsedQuery.hasOperators
       ? getResolvedStatus({
           database,
           currentActor,
@@ -612,6 +621,8 @@ const searchStatuses = async ({
       : Promise.resolve(null),
     database.searchStatusIds({
       q: query,
+      parsedQuery,
+      localDomain: accessDomain,
       limit: indexedLimit,
       offset,
       currentActorId: currentActor.id,
@@ -718,8 +729,17 @@ export const GET = traceApiRoute(
         })
       }
 
-      const includeAccounts = !params.type || params.type === 'accounts'
-      const includeHashtags = !params.type || params.type === 'hashtags'
+      // Post search reads Mastodon's operators (from:, has:, "phrases",
+      // -exclusions); accounts and hashtags search the plain words alone, and
+      // nothing when a query is all operators.
+      const parsedQuery = parseSearchQuery(query)
+      const plainQuery = parsedQuery.hasOperators
+        ? parsedQuery.plainText.trim()
+        : query
+      const includeAccounts =
+        (!params.type || params.type === 'accounts') && plainQuery.length > 0
+      const includeHashtags =
+        (!params.type || params.type === 'hashtags') && plainQuery.length > 0
       const includeStatuses =
         Boolean(currentActor) && (!params.type || params.type === 'statuses')
 
@@ -751,7 +771,7 @@ export const GET = traceApiRoute(
               database,
               currentActor,
               params,
-              query,
+              query: plainQuery,
               limit,
               offset,
               signingActor,
@@ -762,7 +782,7 @@ export const GET = traceApiRoute(
           ? searchHashtags({
               database,
               params,
-              query,
+              query: plainQuery,
               limit,
               offset
             })
@@ -773,9 +793,11 @@ export const GET = traceApiRoute(
               currentActor,
               params,
               query,
+              parsedQuery,
               limit,
               offset,
-              signingActor
+              signingActor,
+              accessDomain
             })
           : []
       ])

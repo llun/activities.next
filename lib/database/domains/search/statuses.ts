@@ -1,9 +1,12 @@
-import { type NotNull, sql } from 'kysely'
-
 import {
-  deleteSearchDocument,
-  matchDocumentText
-} from '@/lib/database/domains/search/documents'
+  type Expression,
+  type ExpressionBuilder,
+  type NotNull,
+  type SqlBool,
+  sql
+} from 'kysely'
+
+import { deleteSearchDocument } from '@/lib/database/domains/search/documents'
 import {
   getSearchDocumentId,
   normalizeSearchText
@@ -13,8 +16,11 @@ import type {
   ReindexSearchDocumentsResult,
   SearchStatusesParams
 } from '@/lib/database/domains/search/types'
-import type { Db } from '@/lib/database/kysely'
-import { timestampValue } from '@/lib/database/kysely/dialect'
+import type { DB, Db } from '@/lib/database/kysely'
+import {
+  fullTextQueryMatch,
+  timestampValue
+} from '@/lib/database/kysely/dialect'
 import {
   chunkArray,
   getWhereInBatchSize,
@@ -31,6 +37,11 @@ import {
   formatActivityTypeLabel,
   getActivityPresentation
 } from '@/lib/services/fitness-files/activityPresentation'
+import {
+  type SearchFilter,
+  getSearchDayEnd,
+  parseSearchQuery
+} from '@/lib/services/search/parseSearchQuery'
 import {
   isAudibleAttachment,
   isFitnessAttachment,
@@ -476,20 +487,178 @@ const getMentionSearchValues = async (
   return normalizeMentionValues(handleValues(actor.username, actor.domain))
 }
 
+// One search operator as a condition on the candidate status. `from:` reads
+// handles case-insensitively, as account search does: a bare username is a
+// local account on `localDomain`.
+const statusSearchFilter = (
+  eb: ExpressionBuilder<DB, 'search_documents' | 'statuses'>,
+  filter: SearchFilter,
+  { viewerId, localDomain }: { viewerId: string; localDomain: string | null }
+): Expression<SqlBool> => {
+  const attachmentOfType = (mediaTypes: string[]) =>
+    eb.exists(
+      eb
+        .selectFrom('attachments')
+        .select(sql.lit(1).as('one'))
+        .whereRef('attachments.statusId', '=', 'statuses.id')
+        .where((attachment) =>
+          attachment.or(
+            mediaTypes.map((mediaType) =>
+              attachment(
+                attachment.fn<string>('lower', ['attachments.mediaType']),
+                'like',
+                `${mediaType}/%`
+              )
+            )
+          )
+        )
+    )
+  const createdAt = sql.ref<number>('search_documents.entityCreatedAt')
+  // The status blob is the JSON.stringify of a fixed shape, so a key and its
+  // value appear as `"key":value` exactly once, and the same characters inside
+  // a string value are escaped (`\"key\":`) and cannot match.
+  // A status with no blob reads as an empty one, so a negated filter keeps it.
+  const content = sql<string>`coalesce(${sql.ref('statuses.content')}, '')`
+
+  switch (filter.type) {
+    case 'from': {
+      const { value } = filter
+      if (value.kind === 'me') return eb('statuses.actorId', '=', viewerId)
+      const domain = value.domain ?? localDomain
+      if (!domain) return sql<SqlBool>`1 = 0`
+      return eb(
+        'statuses.actorId',
+        'in',
+        eb
+          .selectFrom('actors')
+          .select('actors.id')
+          .where((actor) =>
+            actor.and([
+              actor(
+                actor.fn<string>('lower', ['actors.username']),
+                '=',
+                value.username.toLowerCase()
+              ),
+              actor(actor.fn<string>('lower', ['actors.domain']), '=', domain)
+            ])
+          )
+      )
+    }
+    case 'has':
+      switch (filter.value) {
+        case 'media':
+          return attachmentOfType(['image', 'video', 'audio'])
+        case 'image':
+        case 'video':
+        case 'audio':
+          return attachmentOfType([filter.value])
+        case 'poll':
+          return eb('statuses.type', '=', StatusType.enum.Poll)
+        case 'link':
+        case 'embed':
+          // A link is the one the post's preview card was made for; an embed is
+          // a link whose card was fetched.
+          return eb.exists(
+            eb
+              .selectFrom('status_link_previews')
+              .select(sql.lit(1).as('one'))
+              .whereRef('status_link_previews.statusId', '=', 'statuses.id')
+              .$if(filter.value === 'embed', (qb) =>
+                qb
+                  .innerJoin(
+                    'link_previews',
+                    'link_previews.urlHash',
+                    'status_link_previews.urlHash'
+                  )
+                  .where('link_previews.fetchStatus', '=', 'completed')
+              )
+          )
+      }
+      break
+    case 'is':
+      if (filter.value === 'reply') {
+        return eb.and([
+          eb('statuses.reply', 'is not', null),
+          eb('statuses.reply', '<>', '')
+        ])
+      }
+      // Sensitive, or carrying a content warning.
+      return eb.or([
+        eb(content, 'like', '%"sensitive":true%'),
+        eb.and([
+          eb(content, 'like', '%"summary":"%'),
+          eb(content, 'not like', '%"summary":""%')
+        ])
+      ])
+    case 'language':
+      // The language the post declares, else the one detected from its text.
+      return eb.or([
+        eb(
+          eb.fn<string>('lower', [content]),
+          'like',
+          `%"language":"${filter.value}"%`
+        ),
+        eb.and([
+          eb.or([
+            eb(content, 'not like', '%"language":"%'),
+            eb(content, 'like', '%"language":""%')
+          ]),
+          eb.exists(
+            eb
+              .selectFrom('status_detected_languages')
+              .select(sql.lit(1).as('one'))
+              .whereRef(
+                'status_detected_languages.statusId',
+                '=',
+                'statuses.id'
+              )
+              .where((detected) =>
+                detected(
+                  detected.fn<string>('lower', [
+                    'status_detected_languages.language'
+                  ]),
+                  '=',
+                  filter.value
+                )
+              )
+          )
+        ])
+      ])
+    case 'before':
+      return eb(createdAt, '<', timestampValue(filter.value))
+    case 'after':
+      return eb(createdAt, '>=', timestampValue(getSearchDayEnd(filter.value)))
+    case 'during':
+      return eb.and([
+        eb(createdAt, '>=', timestampValue(filter.value)),
+        eb(createdAt, '<', timestampValue(getSearchDayEnd(filter.value)))
+      ])
+  }
+  return sql<SqlBool>`1 = 0`
+}
+
 export const searchStatusIds = async (
   db: Db,
   {
     q,
+    parsedQuery,
     limit,
     offset = 0,
     currentActorId,
     currentActorUsername,
     currentActorDomain,
+    localDomain,
     accountId,
     minId,
     maxId
   }: SearchStatusesParams
 ): Promise<string[]> => {
+  const parsed = parsedQuery ?? parseSearchQuery(q)
+  const hasText = parsed.terms.length > 0 || parsed.phrases.length > 0
+  // A search needs a word, a phrase or an operator: exclusions alone, or
+  // nothing searchable at all, match nothing.
+  if (!hasText && parsed.filters.length === 0) return []
+
   const viewerId = normalizeActorId(currentActorId) ?? currentActorId
   const mentionValues = await getMentionSearchValues(db, {
     currentActorId,
@@ -506,12 +675,25 @@ export const searchStatusIds = async (
     .select('search_documents.entityId')
     .where('search_documents.entityType', '=', 'status')
     .where('statuses.type', 'in', SEARCHABLE_STATUS_TYPES)
-  query = matchDocumentText(db, query, q)
+  if (hasText || parsed.excluded.length > 0) {
+    query = fullTextQueryMatch(db, query, parsed)
+  }
+  const filterContext = {
+    viewerId,
+    localDomain: (localDomain ?? currentActorDomain)?.toLowerCase() ?? null
+  }
+  for (const filter of parsed.filters) {
+    query = query.where((eb) => {
+      const condition = statusSearchFilter(eb, filter, filterContext)
+      return filter.negated ? eb.not(condition) : condition
+    })
+  }
   if (accountId) query = query.where('statuses.actorId', '=', accountId)
   query = query
     .where((eb) => potentiallyReadableStatus(db, eb, viewerId))
     // Search finds only statuses the viewer wrote, liked, bookmarked or was
-    // mentioned in.
+    // mentioned in: their library. `in:all` searches the same library until
+    // opt-in public search adds the posts their authors made searchable.
     .where((eb) =>
       eb.or([
         eb('statuses.actorId', '=', viewerId),

@@ -3,6 +3,8 @@
 // re-exports them, so existing imports keep working.
 import { z } from 'zod'
 
+import type { ParsedSearchQuery } from '@/lib/services/search/parseSearchQuery'
+
 export const SearchDocumentEntityType = z.enum(['account', 'status', 'hashtag'])
 export type SearchDocumentEntityType = z.infer<typeof SearchDocumentEntityType>
 
@@ -74,11 +76,16 @@ export type SearchHashtag = {
 
 export type SearchStatusesParams = {
   q: string
+  // `q` already read by parseSearchQuery, so a caller that parsed it does not
+  // parse it again.
+  parsedQuery?: ParsedSearchQuery
   limit: number
   offset?: number
   currentActorId: string
   currentActorUsername?: string | null
   currentActorDomain?: string | null
+  // The domain a bare `from:username` names; the viewer's own when absent.
+  localDomain?: string | null
   accountId?: string | null
   minId?: string | null
   maxId?: string | null
