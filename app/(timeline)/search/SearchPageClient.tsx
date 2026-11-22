@@ -153,11 +153,13 @@ const getSearchSort = (value: string | null): SearchSort | null =>
 // exclusions (`-word`). A rough reading of parseSearchQuery on the server,
 // which ranks nothing without a word: it only picks the default order and
 // whether the Top / Latest control shows.
+const OPERATOR_NAME_PATTERN =
+  /^(?:from|has|is|language|before|after|during|in):\S+$/i
 const hasSearchWords = (query: string) =>
-  (query.match(/"[^"]*"?|\S+/g) ?? []).some(
+  (query.match(/-?"[^"]*"?|\S+/g) ?? []).some(
     (chunk) =>
       !chunk.startsWith('-') &&
-      !/^[a-z]+:\S+$/i.test(chunk) &&
+      !OPERATOR_NAME_PATTERN.test(chunk) &&
       /[\p{L}\p{N}]/u.test(chunk)
   )
 
@@ -606,6 +608,18 @@ export const SearchPageClient = ({
 
   // The All tab names each kind of result with its own section; a typed tab is
   // already named by the tab, so it draws the one list.
+  // On the Posts tab it sits beside the tabs; on All, on the Posts section, as
+  // it orders only the posts.
+  const sortControl = (
+    <SegmentedControl
+      aria-label="Sort posts"
+      size="sm"
+      items={SEARCH_SORTS}
+      value={sort}
+      onValueChange={onSortChange}
+    />
+  )
+
   const renderAllResults = () => {
     if (!hasResults(results)) return null
 
@@ -615,7 +629,9 @@ export const SearchPageClient = ({
           <Section title="Profiles">{renderAccounts(results.accounts)}</Section>
         )}
         {results.statuses.length > 0 && (
-          <Section title="Posts">{renderPosts(results.statuses)}</Section>
+          <Section title="Posts" actions={canRank ? sortControl : undefined}>
+            {renderPosts(results.statuses)}
+          </Section>
         )}
         {results.hashtags.length > 0 && (
           <Section title="Hashtags">{renderHashtags(results.hashtags)}</Section>
@@ -672,15 +688,7 @@ export const SearchPageClient = ({
           value={activeTab}
           onValueChange={onTabChange}
         />
-        {canRank && (activeTab === 'all' || activeTab === 'statuses') && (
-          <SegmentedControl
-            aria-label="Sort posts"
-            size="sm"
-            items={SEARCH_SORTS}
-            value={sort}
-            onValueChange={onSortChange}
-          />
-        )}
+        {canRank && activeTab === 'statuses' && sortControl}
       </div>
 
       {/* Before a query is typed, surface the top trending hashtags. The block

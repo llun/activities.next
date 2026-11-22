@@ -862,7 +862,11 @@ describe('SearchPageClient', () => {
 
   describe('post sort control', () => {
     it('shows the Sort posts control on All and Posts tabs for word queries and hides it on Profiles and Hashtags', async () => {
-      mockSearch.mockResolvedValue(emptySearchResult())
+      // On All it sits on the Posts section, so it needs a post to show.
+      mockSearch.mockResolvedValue({
+        ...emptySearchResult(),
+        statuses: [searchStatus('sort-1')]
+      })
 
       renderSearchPage('q=trail')
 
@@ -977,7 +981,10 @@ describe('SearchPageClient', () => {
     })
 
     it('honours ?sort=latest from the URL for word queries', async () => {
-      mockSearch.mockResolvedValueOnce(emptySearchResult())
+      mockSearch.mockResolvedValueOnce({
+        ...emptySearchResult(),
+        statuses: [searchStatus('sort-latest-1')]
+      })
 
       renderSearchPage('q=trail&sort=latest')
 
@@ -989,13 +996,49 @@ describe('SearchPageClient', () => {
           })
         )
       })
-      const sortGroup = screen.getByRole('radiogroup', { name: 'Sort posts' })
+      const sortGroup = await screen.findByRole('radiogroup', {
+        name: 'Sort posts'
+      })
       expect(
         within(sortGroup).getByRole('radio', { name: 'Latest' })
       ).toHaveAttribute('aria-checked', 'true')
       expect(
         within(sortGroup).getByRole('radio', { name: 'Top' })
       ).toHaveAttribute('aria-checked', 'false')
+    })
+
+    it('puts the Sort posts control on the Posts section of All', async () => {
+      mockSearch.mockResolvedValue({
+        ...emptySearchResult(),
+        statuses: [searchStatus('sort-section-1')]
+      })
+
+      renderSearchPage('q=trail')
+
+      const postsSection = (
+        await screen.findByRole('heading', { name: 'Posts' })
+      ).closest('section') as HTMLElement
+      expect(
+        within(postsSection).getByRole('radiogroup', { name: 'Sort posts' })
+      ).toBeInTheDocument()
+    })
+
+    it('treats an excluded phrase and known operators as no words', async () => {
+      mockSearch.mockResolvedValue({
+        ...emptySearchResult(),
+        statuses: [searchStatus('sort-excluded-1')]
+      })
+
+      renderSearchPage('q=from%3Ame+-%22hello+world%22&type=statuses')
+
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenCalledWith(
+          expect.objectContaining({ sort: 'latest' })
+        )
+      })
+      expect(
+        screen.queryByRole('radiogroup', { name: 'Sort posts' })
+      ).not.toBeInTheDocument()
     })
   })
 })

@@ -654,17 +654,17 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 type RankedCandidate = { entityId: string; createdAt: number; score: number }
 
-// Orders candidates by text score blended with recency. The score is first
-// divided by the best in the set, because SQLite's bm25 and PostgreSQL's
-// ts_rank_cd use different scales; it is then weighted by
-// 1 / (1 + age / RELEVANCE_HALF_WEIGHT_DAYS), the age in days measured from
-// the newest candidate, so the order does not drift with the clock. Ties fall
-// back to newest first, then to the id.
+// Orders candidates by text score blended with recency: score divided by
+// 1 + age / RELEVANCE_HALF_WEIGHT_DAYS, the age in days measured from the
+// newest candidate so the order does not drift with the clock. The blend is a
+// product, so it does not depend on the score's scale: recency weighs the same
+// against SQLite's bm25 as against PostgreSQL's ts_rank_cd, though the two
+// scores are computed differently. Ties, including all-zero scores, fall back
+// to newest first, then to the larger id.
 export const rankSearchCandidates = (candidates: RankedCandidate[]) => {
-  const best = Math.max(0, ...candidates.map((candidate) => candidate.score))
   const newest = Math.max(...candidates.map((candidate) => candidate.createdAt))
   const weight = (candidate: RankedCandidate) =>
-    (best > 0 ? Math.max(0, candidate.score) / best : 1) /
+    Math.max(0, candidate.score) /
     (1 + (newest - candidate.createdAt) / DAY_MS / RELEVANCE_HALF_WEIGHT_DAYS)
   return candidates
     .map((candidate) => ({ candidate, weight: weight(candidate) }))
@@ -851,7 +851,8 @@ export const searchStatusIds = async (
             .where('search_documents.entityId', 'in', chunk),
           { terms: parsed.terms, phrases: parsed.phrases, excluded: [] }
         ).execute(),
-      1
+      // entityType and the FTS5 match string on SQLite.
+      2
     )
     const scoreById = new Map(
       scores.map((row) => [row.entityId, Number(row.score)])
