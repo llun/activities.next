@@ -1,0 +1,35 @@
+app/(timeline)/settings/privacy/loading.tsx
+  s_17b6192f00c988::t_ca56a61f2512ae 5
+lib/database/domains/search/statuses.ts
+  s_17b6192f00c988::t_a1a515cc2bee6a 689-691
+app/api/v2/search/route.test.ts
+  s_17b6192f00c988::t_afd888af3b8338 73-74
+lib/services/search/filterSearchStatuses.test.ts
+  s_17b6192f00c988::t_afd888af3b8338 1-86
+lib/database/domains/search/searchStatusQueries.test.ts
+  s_17b6192f00c988::t_ca56a61f2512ae 2284-2287,2289-2291,2294-2295,2297,2302-2303
+docs/mastodon-api-compatibility.md
+  s_17b6192f00c988::t_69c845bd504335 348
+lib/services/search/filterSearchStatuses.ts
+  s_17b6192f00c988::t_29e8d926f135d6 1-34,36-37,40-51,54-60
+  s_17b6192f00c988::t_54389aa313eaf8 35,38-39
+  s_17b6192f00c988::t_bf7daf95434d26 52-53
+app/api/v2/search/route.ts
+  s_17b6192f00c988::t_bf7daf95434d26 27,669-676
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db6be8f68915c8d38cd1f8ad62cbe677f3413ec6",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
