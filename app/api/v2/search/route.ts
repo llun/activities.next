@@ -663,26 +663,34 @@ const searchStatuses = async ({
     .slice(0, resolvedStatus ? indexedLimit - 1 : indexedLimit)
 
   if (ids.length === 0) {
-    return resolvedStatus ? [resolvedStatus] : []
+    return resolvedStatus
+      ? filterSearchStatuses({
+          database,
+          viewerId: currentActor.id,
+          statuses: [resolvedStatus]
+        })
+      : []
   }
 
-  const statuses = await filterSearchStatuses({
-    database,
-    viewerId: currentActor.id,
-    statuses: await database.getStatusesByIds({
-      statusIds: ids,
-      currentActorId: currentActor.id,
-      visibleToActorId: currentActor.id
-    })
+  const statuses = await database.getStatusesByIds({
+    statusIds: ids,
+    currentActorId: currentActor.id,
+    visibleToActorId: currentActor.id
   })
   const orderedStatuses = await orderStatusesByIds({
     database,
     statuses,
     ids
   })
-  return [resolvedStatus, ...orderedStatuses]
-    .filter((status): status is Status => Boolean(status))
-    .slice(0, limit)
+  return (
+    await filterSearchStatuses({
+      database,
+      viewerId: currentActor.id,
+      statuses: [resolvedStatus, ...orderedStatuses].filter(
+        (status): status is Status => Boolean(status)
+      )
+    })
+  ).slice(0, limit)
 }
 
 const requiresAuthentication = ({ params }: { params: ParsedSearchParams }) => {

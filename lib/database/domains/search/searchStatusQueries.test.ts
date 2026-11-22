@@ -2281,6 +2281,70 @@ describe('status search queries', () => {
         ).resolves.toEqual([visible])
       })
 
+      it('excludes indexable authors on domains the viewer or the instance blocks, with wildcards and ports', async () => {
+        const viewer = await addActor('sqidx-dom-viewer')
+        const authorOn = async (username: string, domain: string) => {
+          const id = actorIdOf(username, domain)
+          await createSearchActor(database, { id, username, domain })
+          await setIndexable(id, true)
+          await indexedStatus({
+            id: statusIdOf(id, 'post'),
+            actorId: id,
+            createdAt: 10,
+            text: `sqidxdom ${username}`,
+            to: [PUBLIC]
+          })
+          return statusIdOf(id, 'post')
+        }
+        await authorOn('userblocked', 'userblocked.test')
+        await authorOn('exact', 'exact-suspended.test')
+        await authorOn('wild', 'node.wild-silenced.test')
+        await authorOn('ported', 'ported.test:8443')
+        const allowed = await authorOn('allowed', 'allowed.test')
+
+        await db
+          .insertInto('actor_domain_blocks')
+          .values({
+            id: 'sqidx-dom-user-block',
+            actorId: viewer,
+            domain: 'userblocked.test'
+          })
+          .execute()
+        await db
+          .insertInto('domain_federation_rules')
+          .values([
+            {
+              id: 'sqidx-dom-rule-exact',
+              domain: 'exact-suspended.test',
+              type: 'block',
+              severity: 'suspend'
+            },
+            {
+              id: 'sqidx-dom-rule-wild',
+              domain: '*.wild-silenced.test',
+              type: 'block',
+              severity: 'silence'
+            },
+            {
+              id: 'sqidx-dom-rule-port',
+              domain: 'ported.test',
+              type: 'block',
+              severity: 'suspend'
+            },
+            {
+              id: 'sqidx-dom-rule-noop',
+              domain: 'allowed.test',
+              type: 'block',
+              severity: 'noop'
+            }
+          ])
+          .execute()
+
+        await expect(
+          search({ q: 'sqidxdom', currentActorId: viewer })
+        ).resolves.toEqual([allowed])
+      })
+
       it('excludes silenced authors from indexable public posts', async () => {
         const viewer = await addActor('sqidx-silenced-viewer')
         const silencedAuthor = await addActor('sqidx-silenced-author')

@@ -83,4 +83,19 @@ describe('filterSearchStatuses', () => {
     })
     expect(db.getDomainBlocksForDomains).not.toHaveBeenCalled()
   })
+
+  it('keeps a post from a silenced domain that mentions the viewer', async () => {
+    const mention = {
+      ...status('mention', 'https://silenced.test/users/m'),
+      tags: [{ type: 'mention', value: VIEWER, name: '@viewer' }]
+    } as unknown as Status
+    const result = await filterSearchStatuses({
+      database: database({
+        rules: { 'silenced.test': { severity: 'silence' } }
+      }),
+      viewerId: VIEWER,
+      statuses: [mention, status('other', 'https://silenced.test/users/o')]
+    })
+    expect(ids(result)).toEqual(['mention'])
+  })
 })

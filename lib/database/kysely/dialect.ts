@@ -78,6 +78,14 @@ export const jsonText = (
   >`${sql.ref(column)}::jsonb${sql.join(objects, sql``)} ->> ${sql.lit(path[path.length - 1])}`
 }
 
+// A `host[:port]` column without its port, lowercased: what federation rules
+// key on (normalizeDomain drops the port). substr/instr on SQLite,
+// split_part on PostgreSQL.
+export const hostnameOf = (db: Db, column: string) =>
+  getDialectName(db) === 'sqlite'
+    ? sql<string>`lower(case when instr(${sql.ref(column)}, ':') > 0 then substr(${sql.ref(column)}, 1, instr(${sql.ref(column)}, ':') - 1) else ${sql.ref(column)} end)`
+    : sql<string>`lower(split_part(${sql.ref(column)}, ':', 1))`
+
 // Whether a boolean property of a JSON column is `true` (a missing or false
 // one is not): `json_extract` reads JSON true as 1 on SQLite, `->>` as 'true'
 // on PostgreSQL. `key` is spliced in as a literal, so it must be a fixed name.

@@ -11,9 +11,13 @@ import { Status } from '@/lib/types/domain/status'
 // handle domain), which SQL would have to copy:
 // - the viewer's user-level domain blocks hide every result from that domain,
 //   as they do on the timelines;
-// - an instance domain block (suspend or silence) hides a post the viewer did
-//   not write, like or bookmark: such a post can only be there as an opted-in
-//   public post, and the public surfaces leave silenced domains out.
+// - an instance domain block (suspend or silence) hides a post outside the
+//   viewer's library: such a post can only be there as an opted-in public post
+//   (or a URL the viewer resolved), and the public surfaces leave silenced
+//   domains out.
+// searchStatusIds already applies the common shapes of both in the query, so
+// pages stay full; this catches what it does not see (the id host of an author
+// stored under another handle domain).
 export const filterSearchStatuses = async ({
   database,
   viewerId,
@@ -32,11 +36,16 @@ export const filterSearchStatuses = async ({
   )
   const domainFiltered = filterDomainBlockedStatuses(blockedDomains, statuses)
 
-  // Search returns Notes and Polls only, which carry the viewer's own flags.
+  // The viewer's library: written, liked, bookmarked or mentioning them. Search
+  // returns Notes and Polls only, which carry the viewer's own flags and tags.
   const isLibrary = (status: Status) =>
     status.actorId === viewerId ||
     ('isActorLiked' in status && Boolean(status.isActorLiked)) ||
-    ('isActorBookmarked' in status && Boolean(status.isActorBookmarked))
+    ('isActorBookmarked' in status && Boolean(status.isActorBookmarked)) ||
+    ('tags' in status &&
+      status.tags.some(
+        (tag) => tag.type === 'mention' && tag.value === viewerId
+      ))
   const publicDomains = [
     ...new Set(
       domainFiltered
