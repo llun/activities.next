@@ -4,6 +4,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 import {
   Status,
   StatusAnnounce,
+  StatusLinkPreview,
   StatusNote,
   StatusPoll,
   StatusType
@@ -555,6 +556,107 @@ describe('reconcileStatusesMetadata', () => {
     expect((reconciled[0] as StatusNote).attachments[0].playbackType).toBe(
       'gifv'
     )
+  })
+
+  describe('linkPreview metadata reconciliation', () => {
+    const samplePreview: StatusLinkPreview = {
+      url: 'https://example.com/article',
+      title: 'Resolved Article',
+      description: 'Description',
+      type: 'link',
+      siteName: 'Example',
+      authorName: null,
+      authorUrl: null,
+      imageUrl: 'https://example.com/hero.jpg',
+      imageWidth: 1200,
+      imageHeight: 630,
+      publishedAt: null
+    }
+
+    it('fills missing linkPreview on a note and Announce.originalStatus when text and revision match', () => {
+      const noteId = 'https://example.com/notes/link-1'
+      const text = 'Check https://example.com/article'
+      const currentNote = createNoteStatus(noteId, { text, updatedAt: now })
+      const announce: StatusAnnounce = {
+        id: 'https://example.com/announces/1',
+        actorId: 'https://example.com/users/booster',
+        actor: null,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: false,
+        createdAt: now,
+        updatedAt: now,
+        type: StatusType.enum.Announce,
+        originalStatus: createNoteStatus(noteId, { text, updatedAt: now })
+      }
+
+      const incoming = createNoteStatus(noteId, {
+        text,
+        updatedAt: now,
+        linkPreview: samplePreview
+      })
+
+      const reconciled = reconcileStatusesMetadata(
+        [currentNote, announce],
+        [incoming]
+      )
+
+      expect((reconciled[0] as StatusNote).linkPreview).toEqual(samplePreview)
+      expect(
+        ((reconciled[1] as StatusAnnounce).originalStatus as StatusNote)
+          .linkPreview
+      ).toEqual(samplePreview)
+    })
+
+    it('keeps existing linkPreview and refuses stale cached previews when text changed or older', () => {
+      const id = 'https://example.com/notes/edited'
+      const editedFresh = createNoteStatus(id, {
+        text: 'Links removed after edit',
+        updatedAt: now + 5_000
+      })
+      const cachedOldWithPreview = createNoteStatus(id, {
+        text: 'Old text https://example.com/article',
+        updatedAt: now,
+        linkPreview: samplePreview
+      })
+      const sameTimeMismatchText = createNoteStatus(id, {
+        text: 'Different https://example.com/other',
+        updatedAt: now + 5_000,
+        linkPreview: samplePreview
+      })
+      const sameTextOlderRevision = createNoteStatus(id, {
+        text: 'Links removed after edit',
+        updatedAt: now,
+        linkPreview: samplePreview
+      })
+
+      const current = [editedFresh]
+
+      const res1 = reconcileStatusesMetadata(current, [cachedOldWithPreview])
+      expect(res1).toBe(current)
+      expect((res1[0] as StatusNote).linkPreview).toBeUndefined()
+
+      const res2 = reconcileStatusesMetadata(current, [sameTimeMismatchText])
+      expect(res2).toBe(current)
+      expect((res2[0] as StatusNote).linkPreview).toBeUndefined()
+
+      const res3 = reconcileStatusesMetadata(current, [sameTextOlderRevision])
+      expect(res3).toBe(current)
+      expect((res3[0] as StatusNote).linkPreview).toBeUndefined()
+
+      // Already-populated linkPreview is preserved without cloning
+      const alreadyHasCard = createNoteStatus(id, {
+        text: 'Old text https://example.com/article',
+        updatedAt: now,
+        linkPreview: samplePreview
+      })
+      const withCardList = [alreadyHasCard]
+      const untouched = reconcileStatusesMetadata(withCardList, [
+        cachedOldWithPreview
+      ])
+      expect(untouched).toBe(withCardList)
+    })
   })
 })
 

@@ -2744,6 +2744,73 @@ describe('POST /api/v1/statuses', () => {
       expect(publish).not.toHaveBeenCalled()
     })
   })
+
+  describe('immediate link preview cards', () => {
+    it('returns Status.card immediately on POST and clears it on PUT when the link is removed', async () => {
+      const youtubeUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+      await database.upsertLinkPreview({
+        urlHash: getHashFromString(youtubeUrl),
+        url: youtubeUrl,
+        type: 'video',
+        title: 'Cached YouTube Video',
+        description: 'Video description',
+        siteName: 'YouTube',
+        authorName: null,
+        authorUrl: null,
+        imageUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+        imageWidth: 480,
+        imageHeight: 360,
+        publishedAt: null,
+        fetchStatus: 'completed',
+        error: null
+      })
+
+      const postRes = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({
+            status: `Check out ${youtubeUrl}`
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(postRes.status).toBe(200)
+      const created = await postRes.json()
+      expect(created.card).toMatchObject({
+        url: youtubeUrl,
+        title: 'Cached YouTube Video',
+        description: 'Video description',
+        type: 'video',
+        provider_name: 'YouTube',
+        image: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+        width: 480,
+        height: 360
+      })
+
+      const putRes = await updateStatus(
+        new NextRequest(`https://llun.test/api/v1/statuses/${created.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            status: 'Edited to remove the link'
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({ id: created.id }) }
+      )
+
+      expect(putRes.status).toBe(200)
+      const updated = await putRes.json()
+      expect(updated.card).toBeNull()
+    })
+  })
 })
 
 describe('GET /api/v1/statuses', () => {

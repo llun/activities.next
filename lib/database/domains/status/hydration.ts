@@ -2,7 +2,10 @@ import { getActorFromId } from '@/lib/database/domains/actor/lookups'
 import { getActorBookmark } from '@/lib/database/domains/bookmark/queries'
 import { parseElevationSeries } from '@/lib/database/domains/fitnessFile/rows'
 import { isActorLikedStatus } from '@/lib/database/domains/like/queries'
-import { getStatusLinkPreviews } from '@/lib/database/domains/linkPreview/queries'
+import {
+  getStatusLinkPreviews,
+  toStatusLinkPreview
+} from '@/lib/database/domains/linkPreview/queries'
 import { getAttachments } from '@/lib/database/domains/media/queries'
 import { coercePollEndAt } from '@/lib/database/domains/status/coercePollEndAt'
 import { getTags } from '@/lib/database/domains/status/hashtags'
@@ -33,7 +36,6 @@ import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
 import { getStatusEditTransitions } from '@/lib/services/statuses/statusEditChanges'
 import type { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
-import type { LinkPreviewRecord } from '@/lib/types/database/operations'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
   QuoteState,
@@ -83,23 +85,7 @@ export type StatusHydrationContext = {
   reactionRollups?: Map<string, StatusReaction[]>
 }
 
-// The stored row carries fetch bookkeeping (status, error, hashes) the UI has
-// no use for; the domain object gets only what a card renders. Only completed
-// cards reach here, so a missing title would be a bug rather than a state —
-// it is coerced rather than trusted so one bad row cannot break a timeline.
-const toStatusLinkPreview = (record: LinkPreviewRecord): StatusLinkPreview => ({
-  url: record.url,
-  title: record.title ?? '',
-  description: record.description,
-  type: record.type,
-  siteName: record.siteName,
-  authorName: record.authorName,
-  authorUrl: record.authorUrl,
-  imageUrl: record.imageUrl,
-  imageWidth: record.imageWidth,
-  imageHeight: record.imageHeight,
-  publishedAt: record.publishedAt
-})
+// `toStatusLinkPreview` lives in `@/lib/database/domains/linkPreview/queries`.
 
 export const getStatusLinkPreviewsForIds = async (
   db: Db,

@@ -2,12 +2,14 @@ import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import {
   LINK_PREVIEW_CONNECT_TIMEOUT_MS,
   LINK_PREVIEW_FAILURE_TTL_MS,
+  LINK_PREVIEW_INLINE_BUDGET_MS,
   LINK_PREVIEW_MAX_BODY_BYTES,
   LINK_PREVIEW_MAX_REDIRECTS,
   LINK_PREVIEW_READ_TIMEOUT_MS,
   LINK_PREVIEW_REFRESH_TTL_MS,
   LINK_PREVIEW_TIMEOUT_MS,
-  fetchLinkPreview
+  fetchLinkPreview,
+  fetchLinkPreviewInline
 } from '@/lib/services/link-previews/fetchLinkPreview'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import {
@@ -493,5 +495,165 @@ describe('fetchLinkPreview', () => {
 
     expect(card?.title).toBe('A good article')
     expect(card?.fetchStatus).toBe('completed')
+  })
+
+  describe('fetchLinkPreviewInline', () => {
+    it('exports the 2.5s default inline budget', () => {
+      expect(LINK_PREVIEW_INLINE_BUDGET_MS).toBe(2_500)
+    })
+
+    it('returns fresh completed cache entries without hitting HTTP', async () => {
+      const url = 'https://example.com/inline-cached'
+      mockedFetch.mockResolvedValueOnce(htmlResponse(PAGE, url))
+      await fetchLinkPreview({ database, url })
+      mockedFetch.mockClear()
+
+      const result = await fetchLinkPreviewInline({ database, url })
+
+      expect(mockedFetch).not.toHaveBeenCalled()
+      expect(result.fromCache).toBe(true)
+      expect(result.timedOut).toBe(false)
+      expect(result.record?.title).toBe('A good article')
+    })
+
+    it('returns null with fromCache: true on fresh negative cache entries', async () => {
+      const url = 'https://example.com/inline-neg-cache'
+      mockedFetch.mockResolvedValueOnce({
+        body: 'not found',
+        bodyTruncated: false,
+        headers: { 'content-type': 'text/html' },
+        statusCode: 404,
+        url
+      })
+      await fetchLinkPreview({ database, url })
+      mockedFetch.mockClear()
+
+      const result = await fetchLinkPreviewInline({ database, url })
+
+      expect(mockedFetch).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        record: null,
+        fromCache: true,
+        timedOut: false
+      })
+    })
+
+    it('fetches and stores a fast page inline within budget', async () => {
+      const url = 'https://example.com/inline-fast'
+      mockedFetch.mockResolvedValueOnce(htmlResponse(PAGE, url))
+
+      const result = await fetchLinkPreviewInline({ database, url })
+
+      expect(mockedFetch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url,
+          connectTimeoutInMilliseconds: LINK_PREVIEW_INLINE_BUDGET_MS + 500,
+          readTimeoutInMilliseconds: LINK_PREVIEW_INLINE_BUDGET_MS + 500,
+          signal: expect.any(AbortSignal)
+        })
+      )
+      expect(result.fromCache).toBe(false)
+      expect(result.timedOut).toBe(false)
+      expect(result.record?.fetchStatus).toBe('completed')
+      expect(result.record?.title).toBe('A good article')
+    })
+
+    it('returns timedOut without writing a failure row when inline budget expires', async () => {
+      const url = 'https://example.com/inline-slow'
+      mockedFetch.mockImplementationOnce(
+        ({ signal }) =>
+          new Promise((_resolve, reject) => {
+            signal?.addEventListener(
+              'abort',
+              () => {
+                const error = new Error('aborted')
+                error.name = 'AbortError'
+                reject(error)
+              },
+              { once: true }
+            )
+          })
+      )
+
+      const result = await fetchLinkPreviewInline({
+        budgetMs: 20,
+        database,
+        url
+      })
+
+      expect(result).toEqual({
+        record: null,
+        fromCache: false,
+        timedOut: true
+      })
+      expect(
+        await database.getLinkPreview({ urlHash: getHashFromString(url) })
+      ).toBeNull()
+
+      // Subsequent background fetch must still attempt HTTP rather than hitting
+      // negative cache.
+      mockedFetch.mockResolvedValueOnce(htmlResponse(PAGE, url))
+      const retry = await fetchLinkPreview({ database, url })
+      expect(retry?.title).toBe('A good article')
+    })
+
+    it('negative-caches non-abort errors within budget', async () => {
+      const url = 'https://example.com/inline-404'
+      mockedFetch.mockResolvedValueOnce({
+        body: 'missing',
+        bodyTruncated: false,
+        headers: { 'content-type': 'text/html' },
+        statusCode: 404,
+        url
+      })
+
+      const result = await fetchLinkPreviewInline({ database, url })
+
+      expect(result).toEqual({
+        record: null,
+        fromCache: false,
+        timedOut: false
+      })
+      const stored = await database.getLinkPreview({
+        urlHash: getHashFromString(url)
+      })
+      expect(stored?.fetchStatus).toBe('failed')
+      expect(stored?.error).toBe('ERR_HTTP_404')
+    })
+
+    it('preserves an expired completed card when inline refresh times out', async () => {
+      const url = 'https://example.com/inline-expired-refresh'
+      mockedFetch.mockResolvedValueOnce(htmlResponse(PAGE, url))
+      await fetchLinkPreview({ database, url })
+      await ageRow(
+        url,
+        new Date(Date.now() - LINK_PREVIEW_REFRESH_TTL_MS - 1000)
+      )
+
+      mockedFetch.mockImplementationOnce(
+        ({ signal }) =>
+          new Promise((_resolve, reject) => {
+            signal?.addEventListener(
+              'abort',
+              () => {
+                const error = new Error('aborted')
+                error.name = 'AbortError'
+                reject(error)
+              },
+              { once: true }
+            )
+          })
+      )
+
+      const result = await fetchLinkPreviewInline({
+        budgetMs: 20,
+        database,
+        url
+      })
+
+      expect(result.fromCache).toBe(false)
+      expect(result.timedOut).toBe(true)
+      expect(result.record?.title).toBe('A good article')
+    })
   })
 })

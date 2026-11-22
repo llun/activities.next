@@ -392,7 +392,19 @@ export const updateNoteFromUserInput = async ({
     // an edit to a post containing a link wait on a third-party fetch before the
     // edit reached timelines or went out to other servers.
     if (text !== undefined) {
-      await syncStatusLinkPreview({ database, status: updatedStatus })
+      const { linkPreview } = await syncStatusLinkPreview({
+        database,
+        status: updatedStatus
+      })
+      if (updatedStatus.type === StatusType.enum.Note) {
+        if (linkPreview) {
+          return { ...updatedStatus, linkPreview }
+        }
+        if (updatedStatus.linkPreview !== undefined) {
+          const { linkPreview: _removed, ...rest } = updatedStatus
+          return rest
+        }
+      }
     }
 
     return updatedStatus

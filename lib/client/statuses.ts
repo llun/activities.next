@@ -7,6 +7,7 @@ import {
   QuoteApprovalPolicy,
   QuoteState,
   Status,
+  StatusLinkPreview,
   StatusNote,
   StatusType,
   getOriginalStatus
@@ -14,6 +15,7 @@ import {
 import { Tag } from '@/lib/types/domain/tag'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 import type { MediaAttachment } from '@/lib/types/mastodon/mediaAttachment'
+import type { PreviewCard as MastodonPreviewCard } from '@/lib/types/mastodon/previewCard'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 import type { StatusReaction as MastodonStatusReaction } from '@/lib/types/mastodon/statusReaction'
 import type { Translation } from '@/lib/types/mastodon/translation'
@@ -28,6 +30,25 @@ const parseTimestamp = (value: unknown, fallback: number) => {
   if (typeof value !== 'string') return fallback
   const timestamp = Date.parse(value)
   return Number.isNaN(timestamp) ? fallback : timestamp
+}
+
+export const toStatusLinkPreviewFromCard = (
+  card: MastodonPreviewCard | null | undefined
+): StatusLinkPreview | undefined => {
+  if (!card) return undefined
+  return {
+    url: card.url,
+    title: card.title,
+    description: card.description || null,
+    type: card.type,
+    siteName: card.provider_name || null,
+    authorName: card.author_name || null,
+    authorUrl: card.author_url || null,
+    imageUrl: card.image || null,
+    imageWidth: card.width || null,
+    imageHeight: card.height || null,
+    publishedAt: null
+  }
 }
 
 const getRecipientsFromVisibility = (
@@ -296,6 +317,7 @@ const toCreatedNoteResult = (
     mastodonStatus.spoiler_text !== undefined
       ? mastodonStatus.spoiler_text
       : (params.contentWarning ?? '')
+  const linkPreview = toStatusLinkPreviewFromCard(mastodonStatus.card)
 
   const status: StatusNote = {
     id: statusId,
@@ -333,6 +355,7 @@ const toCreatedNoteResult = (
       mastodonStatus.pleroma?.emoji_reactions ?? mastodonStatus.reactions ?? [],
     attachments: storedAttachments,
     tags,
+    ...(linkPreview ? { linkPreview } : {}),
     ...(mastodonStatus.fitness ? { fitness: mastodonStatus.fitness } : {}),
     ...(quoteEdge ? { quote: quoteEdge } : {}),
     ...(resolvedQuotePolicy
@@ -445,6 +468,7 @@ export interface UpdateNoteResult {
   content: string
   spoilerText: string
   mediaAttachments: MediaAttachment[]
+  linkPreview?: StatusLinkPreview | null
   status: {
     id: string
     text: string | null
@@ -512,6 +536,7 @@ export const updateNote = async ({
     mediaAttachments: Array.isArray(mastodonStatus.media_attachments)
       ? mastodonStatus.media_attachments
       : [],
+    linkPreview: toStatusLinkPreviewFromCard(mastodonStatus.card) ?? null,
     status: {
       id: mastodonStatus.uri ?? mastodonStatus.id,
       text: mastodonStatus.text ?? null,

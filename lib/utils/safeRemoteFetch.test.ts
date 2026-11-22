@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream'
 
+import { isAbortError } from '@/lib/utils/isAbortError'
 import {
   ResolvedRemoteAddress,
   SafeRemoteFetchTransport,
@@ -998,5 +999,140 @@ describe('safeRemoteFetch', () => {
     expect(observedOptions).toMatchObject({
       http2: true
     })
+  })
+
+  it('rejects immediately when signal is already aborted without resolving host', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    const resolveHost = vi.fn(async () => [SAFE_ADDRESS])
+    const transport = vi.fn<SafeRemoteFetchTransport>(async () => okResponse())
+    const safeRemoteFetch = createSafeRemoteFetch({ resolveHost, transport })
+
+    let caughtError: unknown
+    try {
+      await safeRemoteFetch({
+        signal: controller.signal,
+        url: 'https://safe.example/page'
+      })
+    } catch (error) {
+      caughtError = error
+    }
+
+    expect(isAbortError(caughtError)).toBe(true)
+    expect(resolveHost).not.toHaveBeenCalled()
+    expect(transport).not.toHaveBeenCalled()
+  })
+
+  it('destroys got stream and rejects with AbortError when aborted before response', async () => {
+    const controller = new AbortController()
+    let destroyed = false
+
+    mockGotStream.mockImplementationOnce(() => {
+      const stream = new Readable({
+        read() {},
+        destroy(err, callback) {
+          destroyed = true
+          callback(err)
+        }
+      })
+      queueMicrotask(() => {
+        controller.abort()
+      })
+      return stream
+    })
+
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS]
+    })
+
+    let caughtError: unknown
+    try {
+      await safeRemoteFetch({
+        signal: controller.signal,
+        url: 'https://safe.example/slow'
+      })
+    } catch (error) {
+      caughtError = error
+    }
+
+    expect(isAbortError(caughtError)).toBe(true)
+    expect(destroyed).toBe(true)
+  })
+
+  it('destroys response stream and rejects with AbortError when aborted mid-body', async () => {
+    const controller = new AbortController()
+    let bodyDestroyed = false
+    let pushed = false
+
+    const bodyStream = new Readable({
+      read() {
+        if (pushed) return
+        pushed = true
+        this.push('<html><head>')
+      },
+      destroy(err, callback) {
+        bodyDestroyed = true
+        callback(err)
+      }
+    })
+
+    const transport = vi.fn<SafeRemoteFetchTransport>(async () => {
+      setTimeout(() => controller.abort(), 5)
+      return {
+        statusCode: 200,
+        headers: { 'content-type': 'text/html' },
+        body: bodyStream
+      }
+    })
+
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport
+    })
+
+    let caughtError: unknown
+    try {
+      await safeRemoteFetch({
+        signal: controller.signal,
+        url: 'https://safe.example/streaming'
+      })
+    } catch (error) {
+      caughtError = error
+    }
+
+    expect(isAbortError(caughtError)).toBe(true)
+    expect(bodyDestroyed).toBe(true)
+  })
+
+  it('aborts before following redirect when signal fires during redirect policy', async () => {
+    const controller = new AbortController()
+    const transport = vi.fn<SafeRemoteFetchTransport>(async () => ({
+      statusCode: 302,
+      headers: { location: 'https://other.example/final' },
+      body: streamFrom([''])
+    }))
+
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport
+    })
+
+    let caughtError: unknown
+    try {
+      await safeRemoteFetch({
+        allowCrossHostRedirects: async () => {
+          controller.abort()
+          return true
+        },
+        signal: controller.signal,
+        url: 'https://safe.example/start'
+      })
+    } catch (error) {
+      caughtError = error
+    }
+
+    expect(isAbortError(caughtError)).toBe(true)
+    expect(transport).toHaveBeenCalledTimes(1)
   })
 })

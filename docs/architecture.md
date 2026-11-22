@@ -928,10 +928,22 @@ described above.
 
 ### Link Preview Cards
 
-When a status contains a link, `FetchLinkPreviewJob` fetches that page once,
-extracts its OpenGraph/Twitter-card metadata, and stores it as a preview card
-that both the web UI and the Mastodon API's `Status.card` render.
+When a status contains a link, `syncStatusLinkPreview` resolves its
+OpenGraph/Twitter-card metadata into a preview card that both the web UI and the
+Mastodon API's `Status.card` render.
 
+- For **local creates and edits**, `syncStatusLinkPreview` serves fresh
+  `link_previews` cache hits without HTTP and otherwise runs a bounded 2.5s
+  inline fetch (`fetchLinkPreviewInline`) so fast hosts return `Status.card`
+  immediately in `POST` / `PUT /api/v1/statuses`. Slower hosts abort cleanly at
+  the 2.5s deadline without writing a negative-cache failure row and hand off to
+  `FetchLinkPreviewJob`; under `NoQueue` (`runsInline`), the linked preview is
+  read back right after inline job execution.
+- On the web client, `lib/client/statuses.ts` maps `Status.card` directly onto
+  created and edited statuses. When a slow host defers to the background job,
+  `lib/client/pendingLinkPreviews.ts` silently polls `GET /api/v1/statuses/:id`
+  on a bounded backoff without a loading skeleton, and `PostBody` subscribes via
+  `useSyncExternalStore` to render the card in place as soon as it resolves.
 - Cards are cached **per URL** in `link_previews`, keyed by a sha256 of the
   normalized URL, and `status_link_previews` maps a status to the card it shows.
   A link shared by many posts is fetched once, not once per post.
@@ -2082,6 +2094,21 @@ legacy shape left to copy.
   in-process queue has no scheduler and silently DROPS any message with a
   positive delay, so the delay is only attached when `getQueue().runsInline` is
   false. Attaching it unconditionally does not delay the fetch — it loses it.
+- **Inline local fetches cap wall-clock time via `AbortSignal`, never negative-cache
+  aborts, and re-verify the status URL before linking.** `fetchLinkPreviewInline`
+  enforces `LINK_PREVIEW_INLINE_BUDGET_MS` (2.5s) across DNS, connect, redirects,
+  and body reads through `safeRemoteFetch`'s `signal`, keeping `got`'s internal
+  hop timeout slightly above that deadline so an abort throws `AbortError` and
+  hands off to `FetchLinkPreviewJob` instead of writing a 1-hour failure row. On
+  non-cached inline success, `syncStatusLinkPreview` re-reads the status and
+  verifies `resolveStatusPreviewUrl` still matches before calling
+  `linkStatusLinkPreview`.
+- **Client link-preview polling clears stale resolved state on every edit.**
+  `syncPendingLinkPreviewForStatus` in `lib/client/pendingLinkPreviews.ts` always
+  aborts any active poll and deletes any cached preview for that `statusId`
+  first, so an edit that swaps or removes a link cannot ghost-render a pre-edit
+  card, and `reconcileStatusesMetadata` only backfills missing `linkPreview`
+  entries when both `text` matches and `incoming.updatedAt >= target.updatedAt`.
 - **Extraction runs the WHOLE `processStatusTextContent` and walks its output.**
   Not a rearrangement of its parts — the same function the rendered post, the
   notifications and (with emoji replacement disabled per the client spec) the

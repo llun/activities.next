@@ -253,6 +253,77 @@ describe('client statuses module', () => {
       })
     })
 
+    it('maps card to linkPreview when present and returns null when card is absent', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'status-with-card',
+          uri: 'https://localhost/users/test1/statuses/post-1',
+          content: '<p>https://example.com/a</p>',
+          text: 'https://example.com/a',
+          spoiler_text: '',
+          created_at: '2026-04-26T10:00:00.000Z',
+          edited_at: '2026-04-26T11:00:00.000Z',
+          in_reply_to_id: null,
+          media_attachments: [],
+          card: {
+            url: 'https://example.com/a',
+            title: 'Card Title',
+            description: 'Card Desc',
+            type: 'link',
+            author_name: '',
+            author_url: '',
+            provider_name: 'Example',
+            provider_url: '',
+            html: '',
+            width: 800,
+            height: 400,
+            image: 'https://example.com/thumb.jpg',
+            embed_url: '',
+            blurhash: null
+          }
+        })
+      )
+
+      const updatedWithCard = await updateNote({
+        statusId: 'status-with-card',
+        message: 'https://example.com/a'
+      })
+      expect(updatedWithCard.linkPreview).toEqual({
+        url: 'https://example.com/a',
+        title: 'Card Title',
+        description: 'Card Desc',
+        type: 'link',
+        siteName: 'Example',
+        authorName: null,
+        authorUrl: null,
+        imageUrl: 'https://example.com/thumb.jpg',
+        imageWidth: 800,
+        imageHeight: 400,
+        publishedAt: null
+      })
+
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'status-with-card',
+          uri: 'https://localhost/users/test1/statuses/post-1',
+          content: '<p>Cleared</p>',
+          text: 'Cleared',
+          spoiler_text: '',
+          created_at: '2026-04-26T10:00:00.000Z',
+          edited_at: '2026-04-26T11:05:00.000Z',
+          in_reply_to_id: null,
+          media_attachments: [],
+          card: null
+        })
+      )
+
+      const updatedCleared = await updateNote({
+        statusId: 'status-with-card',
+        message: 'Cleared'
+      })
+      expect(updatedCleared.linkPreview).toBeNull()
+    })
+
     it('throws an update-specific error when updating a note fails', async () => {
       fetchMock.mockResponseOnce('', { status: 500 })
 
@@ -408,6 +479,7 @@ describe('client statuses module', () => {
         expect(result.status.summary).toBe('CW')
         expect(result.status.quoteApprovalPolicy).toBe('followers')
         expect(result.status.fitness?.id).toBe('fit-1')
+        expect(result.status.linkPreview).toBeUndefined()
       }
       expect(result.attachments).toEqual([
         expect.objectContaining({
@@ -418,6 +490,63 @@ describe('client statuses module', () => {
           height: 480
         })
       ])
+    })
+
+    it('populates linkPreview on the created StatusNote when card is present', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: '01950000-0000-7000-8000-000000000002',
+          uri: 'https://llun.test/users/test1/statuses/yt-post',
+          url: 'https://llun.test/@test1/yt-post',
+          created_at: '2026-04-26T10:00:00.000Z',
+          edited_at: null,
+          content: '<p>https://www.youtube.com/watch?v=dQw4w9WgXcQ</p>',
+          text: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          visibility: 'public',
+          media_attachments: [],
+          mentions: [],
+          tags: [],
+          emojis: [],
+          card: {
+            url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            title: 'YouTube Video',
+            description: 'Desc',
+            type: 'video',
+            author_name: 'Channel',
+            author_url: 'https://www.youtube.com/@channel',
+            provider_name: 'YouTube',
+            provider_url: '',
+            html: '',
+            width: 480,
+            height: 360,
+            image: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+            embed_url: '',
+            blurhash: null
+          }
+        })
+      )
+
+      const result = await createNote({
+        message: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        attachments: []
+      })
+
+      expect(result.status.type).toBe('Note')
+      if (result.status.type === 'Note') {
+        expect(result.status.linkPreview).toEqual({
+          url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          title: 'YouTube Video',
+          description: 'Desc',
+          type: 'video',
+          siteName: 'YouTube',
+          authorName: 'Channel',
+          authorUrl: 'https://www.youtube.com/@channel',
+          imageUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+          imageWidth: 480,
+          imageHeight: 360,
+          publishedAt: null
+        })
+      }
     })
 
     it('forwards caller-supplied idempotencyKey header', async () => {

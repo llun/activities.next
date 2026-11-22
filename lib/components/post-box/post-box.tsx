@@ -41,6 +41,7 @@ import {
   classifyFailedPost,
   isPostKeptByServer
 } from '@/lib/client/http'
+import { syncPendingLinkPreviewForStatus } from '@/lib/client/pendingLinkPreviews'
 import { getMediaAttachmentCap } from '@/lib/client/share-target/classify'
 import { stageShareFiles } from '@/lib/client/share-target/shareTargetDb'
 import { DraftsLink } from '@/lib/components/drafts/DraftsLink'
@@ -1372,8 +1373,12 @@ export const PostBox: FC<Props> = ({
         )
         const responseStatusId = responseStatus.id || editStatus.id
         markAttachmentsPosted(attachments)
-        onPostUpdated({
-          ...editStatus,
+        const {
+          linkPreview: _previousLinkPreview,
+          ...editStatusWithoutPreview
+        } = editStatus
+        const updatedStatus: EditableStatus = {
+          ...editStatusWithoutPreview,
           id: responseStatusId,
           text: responseStatus.text ?? message,
           summary: updateResponse.spoilerText.trim() || null,
@@ -1385,9 +1390,16 @@ export const PostBox: FC<Props> = ({
             statusId: responseStatusId,
             updatedAt: responseUpdatedAt
           }),
+          ...(updateResponse.linkPreview
+            ? { linkPreview: updateResponse.linkPreview }
+            : {}),
           createdAt: responseCreatedAt,
           updatedAt: responseUpdatedAt
-        })
+        }
+        if (updatedStatus.type === StatusType.enum.Note) {
+          syncPendingLinkPreviewForStatus(updatedStatus)
+        }
+        onPostUpdated(updatedStatus)
         dispatch(resetExtension())
         resetMediaState()
 
@@ -1475,6 +1487,9 @@ export const PostBox: FC<Props> = ({
       setLockedMessage(null)
       const { status, attachments: storedAttachments } = response
       markAttachmentsPosted(attachments)
+      if (status.type === StatusType.enum.Note) {
+        syncPendingLinkPreviewForStatus(status)
+      }
       // The posted status owns the media now: drop the draft and its bytes only.
       void composerDraft.release()
       onPostCreated(status, storedAttachments)

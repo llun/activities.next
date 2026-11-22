@@ -1,9 +1,15 @@
+import { toStatusLinkPreview } from '@/lib/database/domains/linkPreview/queries'
 import { Database } from '@/lib/database/types'
 import { FETCH_LINK_PREVIEW_JOB_NAME } from '@/lib/jobs/names'
+import { fetchLinkPreviewInline } from '@/lib/services/link-previews/fetchLinkPreview'
 import { resolveStatusPreviewUrl } from '@/lib/services/link-previews/resolveStatusPreviewUrl'
 import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusLinkPreview,
+  StatusType
+} from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -19,9 +25,42 @@ export type SyncStatusLinkPreviewParams = {
   status: Status
 }
 
+export type SyncStatusLinkPreviewResult = {
+  linkPreview: StatusLinkPreview | null
+  pending: boolean
+}
+
+const enqueueFetchLinkPreviewJob = async ({
+  shouldDelay,
+  status,
+  url
+}: {
+  shouldDelay: boolean
+  status: Status
+  url: string
+}) => {
+  const statusRevision = status.updatedAt ?? status.createdAt ?? 0
+  await getQueue().publish({
+    // Stable per (status, revision, url): a redelivered message dedupes, while
+    // an edit pointing somewhere new or returning to a previous URL gets its own job.
+    id: getHashFromString(`${status.id}:${statusRevision}:link-preview:${url}`),
+    name: FETCH_LINK_PREVIEW_JOB_NAME,
+    data: { statusId: status.id, url },
+    // NoQueue has no scheduler and silently drops a delayed message, so the
+    // delay is only ever attached when something can honour it.
+    ...(shouldDelay
+      ? {
+          delaySeconds:
+            1 +
+            Math.floor(Math.random() * (LINK_PREVIEW_REMOTE_JITTER_SECONDS - 1))
+        }
+      : {})
+  })
+}
+
 /**
- * Decide which link (if any) a status should show a card for and enqueue the
- * fetch.
+ * Decide which link (if any) a status should show a card for, resolve it inline
+ * when fast enough for a local author, or enqueue the background fetch.
  *
  * Called wherever a status's text is written: local create and edit, and the
  * inbound federation create and update. Every failure here is swallowed — a
@@ -31,11 +70,13 @@ export type SyncStatusLinkPreviewParams = {
 export const syncStatusLinkPreview = async ({
   database,
   status
-}: SyncStatusLinkPreviewParams): Promise<void> => {
+}: SyncStatusLinkPreviewParams): Promise<SyncStatusLinkPreviewResult> => {
   try {
     // A boost carries no text of its own; the card belongs to the status it
-    // wraps, which was synced when that status was stored.
-    if (status.type === StatusType.enum.Announce) return
+    // wraps, which was resolved when that status was stored.
+    if (status.type === StatusType.enum.Announce) {
+      return { linkPreview: null, pending: false }
+    }
 
     const url = await resolveStatusPreviewUrl({ database, status })
 
@@ -45,7 +86,7 @@ export const syncStatusLinkPreview = async ({
       // FETCHES, and must not also strand a card on a post that no longer
       // links anything.
       await database.deleteStatusLinkPreview({ statusId: status.id })
-      return
+      return { linkPreview: null, pending: false }
     }
 
     // An edit can also SWAP one link for another, which the check above does
@@ -58,41 +99,92 @@ export const syncStatusLinkPreview = async ({
     // url. The card's own `url` is where the content came from after redirects,
     // so comparing that would drop a perfectly good card for any shortened or
     // redirecting link.
+    const urlHash = getHashFromString(url)
     const attached = await database.getStatusLinkPreviews({
       statusIds: [status.id]
     })
-    const attachedHash = attached.get(status.id)?.urlHash
-    if (attachedHash && attachedHash !== getHashFromString(url)) {
+    const attachedPreview = attached.get(status.id)
+    if (attachedPreview && attachedPreview.urlHash !== urlHash) {
       await database.deleteStatusLinkPreview({ statusId: status.id })
     }
 
     const { network } = await getResolvedServerSettings(database)
-    if (!network.linkPreviews) return
+    if (!network.linkPreviews) {
+      if (
+        attachedPreview &&
+        attachedPreview.urlHash === urlHash &&
+        attachedPreview.fetchStatus === 'completed'
+      ) {
+        return {
+          linkPreview: toStatusLinkPreview(attachedPreview),
+          pending: false
+        }
+      }
+      return { linkPreview: null, pending: false }
+    }
 
-    // A remote post reaches many servers at once; a local one has an author
-    // waiting to see the card, and is a single request either way.
-    const shouldDelay = !status.isLocalActor && !getQueue().runsInline
-    const statusRevision = status.updatedAt ?? status.createdAt ?? 0
-    await getQueue().publish({
-      // Stable per (status, revision, url): a redelivered message dedupes, while
-      // an edit pointing somewhere new or returning to a previous URL gets its own job.
-      id: getHashFromString(
-        `${status.id}:${statusRevision}:link-preview:${url}`
-      ),
-      name: FETCH_LINK_PREVIEW_JOB_NAME,
-      data: { statusId: status.id, url },
-      // NoQueue has no scheduler and silently drops a delayed message, so the
-      // delay is only ever attached when something can honour it.
-      ...(shouldDelay
-        ? {
-            delaySeconds:
-              1 +
-              Math.floor(
-                Math.random() * (LINK_PREVIEW_REMOTE_JITTER_SECONDS - 1)
-              )
+    const runsInline = Boolean(getQueue().runsInline)
+    if (status.isLocalActor && !runsInline) {
+      const inline = await fetchLinkPreviewInline({ database, url })
+      if (inline.record) {
+        if (!inline.fromCache) {
+          // Verify the status still points to this URL before linking after HTTP I/O.
+          const latestStatus = await database.getStatus({
+            statusId: status.id,
+            withReplies: false
+          })
+          const latestUrl =
+            latestStatus && latestStatus.type !== StatusType.enum.Announce
+              ? await resolveStatusPreviewUrl({
+                  database,
+                  status: latestStatus
+                })
+              : null
+          if (latestUrl !== url) {
+            return { linkPreview: null, pending: false }
           }
-        : {})
-    })
+        }
+        await database.linkStatusLinkPreview({
+          statusId: status.id,
+          urlHash: inline.record.urlHash
+        })
+        if (inline.timedOut) {
+          await enqueueFetchLinkPreviewJob({
+            shouldDelay: false,
+            status,
+            url
+          })
+        }
+        return {
+          linkPreview: toStatusLinkPreview(inline.record),
+          pending: false
+        }
+      }
+      if (!inline.timedOut) {
+        return { linkPreview: null, pending: false }
+      }
+      await enqueueFetchLinkPreviewJob({ shouldDelay: false, status, url })
+      return { linkPreview: null, pending: true }
+    }
+
+    if (runsInline) {
+      await enqueueFetchLinkPreviewJob({ shouldDelay: false, status, url })
+      const linked = await database.getStatusLinkPreviews({
+        statusIds: [status.id]
+      })
+      const record = linked.get(status.id)
+      return {
+        linkPreview:
+          record && record.fetchStatus === 'completed'
+            ? toStatusLinkPreview(record)
+            : null,
+        pending: false
+      }
+    }
+
+    // A remote post reaches many servers at once; stagger background fetches.
+    await enqueueFetchLinkPreviewJob({ shouldDelay: true, status, url })
+    return { linkPreview: null, pending: true }
   } catch (error) {
     logger.warn({
       message: 'linkPreview: failed to schedule preview card fetch',
@@ -100,5 +192,6 @@ export const syncStatusLinkPreview = async ({
       error: error instanceof Error ? error.message : String(error),
       err: toLoggableError(error)
     })
+    return { linkPreview: null, pending: false }
   }
 }

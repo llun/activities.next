@@ -1238,9 +1238,12 @@ export const createNoteFromUserInput = async ({
     // in-process queue `publish` runs the handler inline — so doing this first
     // made a link post wait on a third-party fetch before it federated. It never
     // throws (see syncStatusLinkPreview).
-    await syncStatusLinkPreview({ database, status })
+    const { linkPreview } = await syncStatusLinkPreview({ database, status })
 
     if (publishError) throw publishError
+    if (linkPreview && status.type === StatusType.enum.Note) {
+      return { ...status, linkPreview }
+    }
     return status
   })
 

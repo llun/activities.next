@@ -68,6 +68,7 @@ export type SafeRemoteFetchTransportRequest = {
   readTimeoutInMilliseconds: number
   resolvedAddress: ResolvedRemoteAddress
   resolvedAddresses: ResolvedRemoteAddress[]
+  signal?: AbortSignal
   url: URL
 }
 
@@ -105,6 +106,7 @@ export type SafeRemoteFetchOptions = {
   method?: SafeRemoteFetchMethod
   onBodyTooLarge?: 'fail' | 'truncate'
   readTimeoutInMilliseconds?: number
+  signal?: AbortSignal
   timeoutInMilliseconds?: number
   url: string
 }
@@ -140,6 +142,62 @@ const createCrossHostRedirectError = () =>
 
 const createResponseTooLargeError = () =>
   new SafeRemoteFetchError('Response body too large', 'ERR_RESPONSE_TOO_LARGE')
+
+const createAbortedError = () => {
+  const error = new Error('The operation was aborted')
+  error.name = 'AbortError'
+  return error
+}
+
+const throwIfAborted = (signal?: AbortSignal) => {
+  if (signal?.aborted) {
+    throw createAbortedError()
+  }
+}
+
+const awaitWithAbort = <T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+  onResolveAfterAbort?: (value: T) => void
+): Promise<T> => {
+  if (!signal) return promise
+  if (signal.aborted) {
+    promise.then(onResolveAfterAbort, () => {})
+    return Promise.reject(createAbortedError())
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const cleanup = () => {
+      signal.removeEventListener('abort', onAbort)
+    }
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(createAbortedError())
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        if (settled) {
+          onResolveAfterAbort?.(value)
+          return
+        }
+        settled = true
+        cleanup()
+        resolve(value)
+      },
+      (error) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        reject(error)
+      }
+    )
+  })
+}
 
 const isLocalhostHostname = (hostname: string) => {
   const normalizedHostname = normalizeHostname(hostname)
@@ -265,9 +323,15 @@ const gotTransport: SafeRemoteFetchTransport = async ({
   method,
   readTimeoutInMilliseconds,
   resolvedAddresses,
+  signal,
   url
 }) =>
   new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(createAbortedError())
+      return
+    }
+
     const options: OptionsInit = {
       body,
       dnsLookup: createFixedDnsLookup(resolvedAddresses),
@@ -286,20 +350,59 @@ const gotTransport: SafeRemoteFetchTransport = async ({
     }
     const stream = got.stream(url.toString(), options)
     const responseBody = new PassThrough()
-    const rejectBeforeResponse = (error: Error) => {
-      reject(error)
+    let settled = false
+
+    const cleanupSignal = () => {
+      signal?.removeEventListener('abort', onAbort)
     }
+
+    const rejectBeforeResponse = (error: Error) => {
+      if (settled) return
+      settled = true
+      cleanupSignal()
+      reject(signal?.aborted ? createAbortedError() : error)
+    }
+
     const forwardStreamError = (error: Error) => {
+      cleanupSignal()
       queueMicrotask(() => {
-        responseBody.destroy(error)
+        responseBody.destroy(signal?.aborted ? createAbortedError() : error)
       })
     }
 
+    const onAbort = () => {
+      const abortError = createAbortedError()
+      if (!settled) {
+        settled = true
+        cleanupSignal()
+        stream.off('error', rejectBeforeResponse)
+        // Absorb any subsequent error emitted by stream destruction so Node
+        // does not treat it as an unhandled 'error' event.
+        stream.on('error', () => {})
+        if (!stream.destroyed) stream.destroy()
+        responseBody.destroy()
+        reject(abortError)
+        return
+      }
+
+      cleanupSignal()
+      stream.off('error', forwardStreamError)
+      // Absorb any subsequent error emitted by stream destruction so Node
+      // does not treat it as an unhandled 'error' event if responseBody closed first.
+      stream.on('error', () => {})
+      if (!stream.destroyed) stream.destroy()
+      responseBody.destroy(abortError)
+    }
+
+    signal?.addEventListener('abort', onAbort, { once: true })
     stream.once('error', rejectBeforeResponse)
     stream.once('response', (response) => {
+      if (settled) return
+      settled = true
       stream.off('error', rejectBeforeResponse)
       stream.on('error', forwardStreamError)
       responseBody.once('close', () => {
+        cleanupSignal()
         stream.off('error', forwardStreamError)
         if (!stream.destroyed) stream.destroy()
       })
@@ -394,8 +497,14 @@ const getRequestHeaders = ({
 const readResponseBody = async (
   response: SafeRemoteFetchTransportResponse,
   maxBodyBytes: number,
-  onBodyTooLarge: 'fail' | 'truncate' = 'fail'
+  onBodyTooLarge: 'fail' | 'truncate' = 'fail',
+  signal?: AbortSignal
 ) => {
+  if (signal?.aborted) {
+    response.body.destroy()
+    throw createAbortedError()
+  }
+
   const declaredLength = Number(
     getHeaderValue(response.headers, 'content-length')
   )
@@ -412,29 +521,50 @@ const readResponseBody = async (
   const chunks: Buffer[] = []
   let bodyBytes = 0
   let bodyTruncated = false
+  const onAbort = () => {
+    response.body.destroy(createAbortedError())
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
 
-  for await (const chunk of response.body) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-    const newTotal = bodyBytes + buffer.byteLength
-
-    if (newTotal > maxBodyBytes) {
-      if (onBodyTooLarge === 'truncate') {
-        const remaining = maxBodyBytes - bodyBytes
-        if (remaining > 0) {
-          chunks.push(buffer.subarray(0, remaining))
-        }
-        bodyTruncated = true
+  try {
+    for await (const chunk of response.body) {
+      if (signal?.aborted) {
         response.body.destroy()
-        break
+        throw createAbortedError()
+      }
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+      const newTotal = bodyBytes + buffer.byteLength
+
+      if (newTotal > maxBodyBytes) {
+        if (onBodyTooLarge === 'truncate') {
+          const remaining = maxBodyBytes - bodyBytes
+          if (remaining > 0) {
+            chunks.push(buffer.subarray(0, remaining))
+          }
+          bodyTruncated = true
+          response.body.destroy()
+          break
+        }
+
+        const error = createResponseTooLargeError()
+        response.body.destroy()
+        throw error
       }
 
-      const error = createResponseTooLargeError()
-      response.body.destroy()
-      throw error
+      bodyBytes = newTotal
+      chunks.push(buffer)
     }
+  } catch (error) {
+    if (signal?.aborted) {
+      throw createAbortedError()
+    }
+    throw error
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+  }
 
-    bodyBytes = newTotal
-    chunks.push(buffer)
+  if (signal?.aborted) {
+    throw createAbortedError()
   }
 
   return {
@@ -491,9 +621,12 @@ export const createSafeRemoteFetch = ({
     method = 'GET',
     onBodyTooLarge = 'fail',
     readTimeoutInMilliseconds,
+    signal,
     timeoutInMilliseconds = 10000,
     url
   }: SafeRemoteFetchOptions): Promise<SafeRemoteFetchResult> => {
+    throwIfAborted(signal)
+
     let currentUrl = new URL(url)
     currentUrl.username = ''
     currentUrl.password = ''
@@ -513,6 +646,7 @@ export const createSafeRemoteFetch = ({
     )
 
     while (true) {
+      throwIfAborted(signal)
       assertAllowedProtocol(currentUrl)
       const requestHeaders = getRequestHeaders({
         body: currentBody,
@@ -528,30 +662,45 @@ export const createSafeRemoteFetch = ({
         previousUrl,
         url: currentUrl
       })
-      const resolvedAddresses = await resolveSafeAddresses({
-        resolveHost,
-        url: currentUrl
-      })
+      const resolvedAddresses = await awaitWithAbort(
+        resolveSafeAddresses({
+          resolveHost,
+          url: currentUrl
+        }),
+        signal
+      )
       const firstResolvedAddress = resolvedAddresses[0]
       if (!firstResolvedAddress) {
         throw createUnsafeUrlError('Unable to resolve remote host')
       }
-      const response = await transport({
-        body: currentBody,
-        connectTimeoutInMilliseconds: connectTimeout,
-        headers: requestHeaders,
-        method: currentMethod,
-        readTimeoutInMilliseconds: readTimeout,
-        resolvedAddress: firstResolvedAddress,
-        resolvedAddresses,
-        url: currentUrl
-      })
+      const response = await awaitWithAbort(
+        transport({
+          body: currentBody,
+          connectTimeoutInMilliseconds: connectTimeout,
+          headers: requestHeaders,
+          method: currentMethod,
+          readTimeoutInMilliseconds: readTimeout,
+          resolvedAddress: firstResolvedAddress,
+          resolvedAddresses,
+          ...(signal ? { signal } : {}),
+          url: currentUrl
+        }),
+        signal,
+        (lateResponse) => {
+          lateResponse.body.destroy()
+        }
+      )
+      if (signal?.aborted) {
+        response.body.destroy()
+        throw createAbortedError()
+      }
       const redirectUrl = getRedirectLocation(response, currentUrl)
       if (!redirectUrl) {
         const { body: responseBody, bodyTruncated } = await readResponseBody(
           response,
           maxBodyBytes,
-          onBodyTooLarge
+          onBodyTooLarge,
+          signal
         )
         return {
           body: responseBody,
@@ -576,13 +725,17 @@ export const createSafeRemoteFetch = ({
         !(typeof allowCrossHostRedirects === 'function'
           ? // A throwing policy refuses the hop: its error could carry a network
             // code `request()` retries, re-contacting the redirecting host.
-            await Promise.resolve()
-              .then(() => allowCrossHostRedirects(redirectUrl))
-              .catch(() => false)
+            await awaitWithAbort(
+              Promise.resolve()
+                .then(() => allowCrossHostRedirects(redirectUrl))
+                .catch(() => false),
+              signal
+            )
           : allowCrossHostRedirects)
       ) {
         throw createCrossHostRedirectError()
       }
+      throwIfAborted(signal)
       previousUrl = currentUrl
       currentUrl = redirectUrl
       redirectCount += 1

@@ -721,4 +721,109 @@ describe('PostBox edit character limit', () => {
 
     await waitFor(() => expect(textarea).toHaveValue('The next post'))
   })
+
+  it('adds, replaces, and clears linkPreview on the updated status returned to onPostUpdated', async () => {
+    const initialPreview = {
+      url: 'https://example.com/old',
+      title: 'Old Preview',
+      description: null,
+      type: 'link',
+      siteName: 'Example',
+      authorName: null,
+      authorUrl: null,
+      imageUrl: null,
+      imageWidth: null,
+      imageHeight: null,
+      publishedAt: null
+    }
+    const replacementPreview = {
+      ...initialPreview,
+      url: 'https://example.com/new',
+      title: 'New Preview'
+    }
+    const onPostUpdated = vi.fn()
+
+    // 1. Replacing an existing link updates linkPreview
+    updateNoteMock.mockResolvedValueOnce({
+      content: '<p>https://example.com/new</p>',
+      spoilerText: '',
+      mediaAttachments: [],
+      linkPreview: replacementPreview,
+      status: {
+        id: editStatus.id,
+        text: 'https://example.com/new',
+        createdAt: currentTime,
+        updatedAt: updatedTime,
+        reply: ''
+      }
+    })
+
+    const { rerender } = render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={{
+          ...editStatus,
+          text: 'https://example.com/old',
+          linkPreview: initialPreview
+        }}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={onPostUpdated}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'https://example.com/new' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => expect(onPostUpdated).toHaveBeenCalledTimes(1))
+    expect(onPostUpdated.mock.calls[0][0]).toMatchObject({
+      linkPreview: replacementPreview
+    })
+
+    // 2. Removing the link clears linkPreview cleanly instead of keeping editStatus.linkPreview
+    updateNoteMock.mockResolvedValueOnce({
+      content: '<p>No links anymore</p>',
+      spoilerText: '',
+      mediaAttachments: [],
+      linkPreview: null,
+      status: {
+        id: editStatus.id,
+        text: 'No links anymore',
+        createdAt: currentTime,
+        updatedAt: updatedTime + 1_000,
+        reply: ''
+      }
+    })
+
+    rerender(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={{
+          ...editStatus,
+          id: `${editStatus.id}-remove`,
+          text: 'https://example.com/new',
+          linkPreview: replacementPreview
+        }}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={onPostUpdated}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'No links anymore' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() => expect(onPostUpdated).toHaveBeenCalledTimes(2))
+    expect(onPostUpdated.mock.calls[1][0]).not.toHaveProperty('linkPreview')
+  })
 })

@@ -31,6 +31,7 @@ import {
   saveOfflineScrollAnchor,
   saveOfflineTimeline
 } from '@/lib/client/offline'
+import { subscribeAnyLinkPreviewResolved } from '@/lib/client/pendingLinkPreviews'
 import { reconcileCachedStatuses } from '@/lib/client/statuses'
 import { TimelineRequestError } from '@/lib/client/timelines'
 import { AnnouncementIconButton } from '@/lib/components/announcements/AnnouncementBanner'
@@ -601,6 +602,26 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     currentTimelineContext,
     lastRefreshedAt
   ])
+
+  useEffect(() => {
+    return subscribeAnyLinkPreviewResolved((statusId, linkPreview) => {
+      setSegments((currentSegments) => {
+        let hasSegmentChanges = false
+        const nextSegments = currentSegments.map((seg) => {
+          const updatedStatuses = updateMatchingStatus(
+            seg.statuses,
+            statusId,
+            (target) =>
+              target.linkPreview ? target : { ...target, linkPreview }
+          )
+          if (updatedStatuses === seg.statuses) return seg
+          hasSegmentChanges = true
+          return { ...seg, statuses: updatedStatuses }
+        })
+        return hasSegmentChanges ? nextSegments : currentSegments
+      })
+    })
+  }, [])
 
   useEffect(() => {
     if (stagedActorIdRef.current === profile.id) return

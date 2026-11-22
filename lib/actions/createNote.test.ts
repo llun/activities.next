@@ -38,6 +38,23 @@ vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
   sendNotificationAlerts: vi.fn()
 }))
 
+const mockFetchLinkPreviewInline = vi.fn().mockResolvedValue({
+  record: null,
+  fromCache: false,
+  timedOut: true
+})
+
+vi.mock('@/lib/services/link-previews/fetchLinkPreview', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/link-previews/fetchLinkPreview')
+  >('@/lib/services/link-previews/fetchLinkPreview')
+  return {
+    ...actual,
+    fetchLinkPreviewInline: (...args: unknown[]) =>
+      mockFetchLinkPreviewInline(...args)
+  }
+})
+
 describe('Create note action', () => {
   const {
     database,
@@ -932,6 +949,57 @@ How are you?
         database
       })
 
+      const publishedNames = vi
+        .mocked(getQueue().publish)
+        .mock.calls.map(([message]) => message.name)
+      expect(publishedNames).not.toContain(FETCH_LINK_PREVIEW_JOB_NAME)
+    })
+
+    it('attaches resolved inline linkPreview immediately on the created status', async () => {
+      const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+      const urlHash = getHashFromString(url)
+      const record = await database.upsertLinkPreview({
+        urlHash,
+        url,
+        type: 'video',
+        title: 'Inline Video',
+        description: 'Fast preview',
+        siteName: 'YouTube',
+        authorName: null,
+        authorUrl: null,
+        imageUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+        imageWidth: 480,
+        imageHeight: 360,
+        publishedAt: null,
+        fetchStatus: 'completed',
+        error: null
+      })
+      mockFetchLinkPreviewInline.mockResolvedValueOnce({
+        record,
+        fromCache: false,
+        timedOut: false
+      })
+
+      const status = (await createNoteFromUserInput({
+        text: `Watch ${url}`,
+        currentActor: actor1,
+        visibility: 'public',
+        database
+      })) as StatusNote
+
+      expect(status.linkPreview).toEqual({
+        url,
+        title: 'Inline Video',
+        description: 'Fast preview',
+        type: 'video',
+        siteName: 'YouTube',
+        authorName: null,
+        authorUrl: null,
+        imageUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+        imageWidth: 480,
+        imageHeight: 360,
+        publishedAt: null
+      })
       const publishedNames = vi
         .mocked(getQueue().publish)
         .mock.calls.map(([message]) => message.name)

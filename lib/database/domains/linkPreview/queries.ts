@@ -9,6 +9,7 @@ import type {
   UpsertLinkPreviewParams
 } from '@/lib/database/domains/linkPreview/types'
 import { type Db, inTransaction } from '@/lib/database/kysely'
+import type { StatusLinkPreview } from '@/lib/types/domain/status'
 
 type LinkPreviewRow = {
   urlHash: string
@@ -244,6 +245,25 @@ export const getStatusLinkPreviews = async (
 
   return new Map(rows.map((row) => [row.statusId, toLinkPreviewRecord(row)]))
 }
+
+// The stored row carries fetch bookkeeping (status, error, hashes) the UI has
+// no use for; the domain object gets only what a card renders. Only completed
+// cards reach callers, so a missing title is coerced rather than trusted.
+export const toStatusLinkPreview = (
+  record: LinkPreviewRecord
+): StatusLinkPreview => ({
+  url: record.url,
+  title: record.title ?? '',
+  description: record.description,
+  type: record.type,
+  siteName: record.siteName,
+  authorName: record.authorName,
+  authorUrl: record.authorUrl,
+  imageUrl: record.imageUrl,
+  imageWidth: record.imageWidth,
+  imageHeight: record.imageHeight,
+  publishedAt: record.publishedAt
+})
 
 export const deleteStatusLinkPreview = async (
   db: Db,
