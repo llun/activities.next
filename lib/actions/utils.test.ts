@@ -385,6 +385,58 @@ describe('recordActorIfNeeded', () => {
     expect(actor).toMatchObject({ id: actorId, name: 'Kept Name' })
   })
 
+  it('stores indexable from a remote Person and updates it on refresh', async () => {
+    const indexableId = 'https://remote-indexable-on.test/users/alice'
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(indexableId, { indexable: true })
+    )
+    const indexableActor = await recordActorIfNeeded({
+      actorId: indexableId,
+      database
+    })
+    expect(indexableActor?.indexable).toBe(true)
+    await expect(
+      database.getActorSettings({ actorId: indexableId })
+    ).resolves.toMatchObject({ indexable: true })
+
+    // A refresh that drops the flag opts the actor back out.
+    mockGetActorPerson.mockResolvedValue(mockPerson(indexableId))
+    const optedOutActor = await recordActorIfNeeded({
+      actorId: indexableId,
+      database,
+      forceRefresh: true
+    })
+    expect(optedOutActor?.indexable).toBe(false)
+    await expect(
+      database.getActorSettings({ actorId: indexableId })
+    ).resolves.toMatchObject({ indexable: false })
+
+    // A new actor whose Person omits indexable stores false, then flips to true on refresh.
+    const defaultOffId = 'https://remote-indexable-off.test/users/bob'
+    mockGetActorPerson.mockResolvedValue(mockPerson(defaultOffId))
+    const defaultOffActor = await recordActorIfNeeded({
+      actorId: defaultOffId,
+      database
+    })
+    expect(defaultOffActor?.indexable).toBe(false)
+    await expect(
+      database.getActorSettings({ actorId: defaultOffId })
+    ).resolves.toMatchObject({ indexable: false })
+
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(defaultOffId, { indexable: true })
+    )
+    const optedInActor = await recordActorIfNeeded({
+      actorId: defaultOffId,
+      database,
+      forceRefresh: true
+    })
+    expect(optedInActor?.indexable).toBe(true)
+    await expect(
+      database.getActorSettings({ actorId: defaultOffId })
+    ).resolves.toMatchObject({ indexable: true })
+  })
+
   it('does not store a followers URL from another origin', async () => {
     const actorId = 'https://remote-followers.test/users/alice'
     mockGetActorPerson.mockResolvedValue(
@@ -995,6 +1047,22 @@ describe('recordActorIfNeeded', () => {
       expect(
         getPersistableProfile(personWithoutTag as never).tags
       ).toBeUndefined()
+    })
+
+    it('reads indexable strictly as true when present and false when absent', () => {
+      const base = {
+        id: 'https://remote.test/users/alice',
+        type: 'Person' as const,
+        preferredUsername: 'alice',
+        inbox: 'https://remote.test/users/alice/inbox'
+      }
+      expect(
+        getPersistableProfile({ ...base, indexable: true } as never).indexable
+      ).toBe(true)
+      expect(
+        getPersistableProfile({ ...base, indexable: false } as never).indexable
+      ).toBe(false)
+      expect(getPersistableProfile(base as never).indexable).toBe(false)
     })
   })
 })

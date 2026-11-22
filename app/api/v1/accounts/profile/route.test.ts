@@ -42,7 +42,8 @@ const mockUpdateActor = vi.fn(
       'iconUrl',
       'headerImageUrl',
       'fields',
-      'manuallyApprovesFollowers'
+      'manuallyApprovesFollowers',
+      'indexable'
     ]) {
       if (!(key in params)) continue
       if (params[key] === null) delete next[key]
@@ -126,6 +127,7 @@ describe('POST /api/v1/accounts/profile', () => {
     delete mockCurrentActor.fields
     delete mockCurrentActor.name
     delete mockCurrentActor.summary
+    delete mockCurrentActor.indexable
   })
 
   const createRequest = (fields: Record<string, string>) => {
@@ -594,6 +596,62 @@ describe('POST /api/v1/accounts/profile', () => {
       expect(params).toMatchObject({ manuallyApprovesFollowers: false })
       expect(params).not.toHaveProperty('postLineLimit')
     })
+
+    it('saves indexable=true and publishes an Update(Person) when indexable=on with marker', async () => {
+      const response = await post({
+        indexable: 'on',
+        indexable_marker: 'true',
+        returnTo: '/settings/privacy'
+      })
+
+      expect(response.status).toBe(303)
+      expect(response.headers.get('location')).toBe(
+        'https://llun.test/settings/privacy'
+      )
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: mockCurrentActor.id,
+          indexable: true
+        })
+      )
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+      expect(publishActorUpdate).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id
+      })
+    })
+
+    it('saves indexable=false and publishes an Update(Person) when only indexable_marker is sent', async () => {
+      mockCurrentActor.indexable = true
+
+      const response = await post({
+        indexable_marker: 'true',
+        returnTo: '/settings/privacy'
+      })
+
+      expect(response.status).toBe(303)
+      expect(mockDatabase.updateActorWithPrevious).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: mockCurrentActor.id,
+          indexable: false
+        })
+      )
+      expect(publishActorUpdate).toHaveBeenCalledTimes(1)
+      expect(publishActorUpdate).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id
+      })
+    })
+
+    it('leaves indexable unchanged when neither indexable nor indexable_marker is sent', async () => {
+      const response = await post({
+        postLineLimit: '10',
+        returnTo: '/settings/appearance'
+      })
+
+      expect(response.status).toBe(303)
+      const params = mockDatabase.updateActorWithPrevious.mock.calls[0][0]
+      expect(params).not.toHaveProperty('indexable')
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
   })
 })
 
@@ -609,6 +667,7 @@ describe('PATCH /api/v1/accounts/profile', () => {
     delete mockCurrentActor.fields
     delete mockCurrentActor.name
     delete mockCurrentActor.summary
+    delete mockCurrentActor.indexable
   })
 
   const patchRaw = (body: string) =>

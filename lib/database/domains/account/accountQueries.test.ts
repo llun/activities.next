@@ -510,6 +510,21 @@ describe('getActorsForAccount', () => {
     ).toEqual([])
   })
 
+  it('carries the discoverable and indexable flags the settings pages read', async () => {
+    const target = await newAccount('actors-flags')
+    await database.updateActor({
+      actorId: target.actorId,
+      discoverable: true,
+      indexable: true
+    })
+
+    const [actor] = await database.getActorsForAccount({
+      accountId: target.accountId
+    })
+
+    expect(actor).toMatchObject({ discoverable: true, indexable: true })
+  })
+
   // createActorForAccount stamps "now" and inserts in call order, so it can
   // produce neither a backdated createdAt nor an insertion order that differs
   // from createdAt order. These tests seed the rows straight into the table.

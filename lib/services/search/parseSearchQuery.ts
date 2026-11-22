@@ -34,8 +34,9 @@ export type SearchFilter = { negated: boolean } & (
   | { type: 'before' | 'after' | 'during'; value: number }
 )
 
-// `all` is accepted and, until opt-in public search exists, searches the
-// same library as `library`.
+// `all` (the default) also searches the public posts of authors who opted in
+// to search; `library` keeps to the viewer's own, liked, bookmarked and
+// mentioned posts.
 export type SearchScope = 'library' | 'all'
 
 export interface ParsedSearchQuery {
@@ -151,7 +152,7 @@ export const parseSearchQuery = (query: string): ParsedSearchQuery => {
   const excluded: string[][] = []
   const filters: SearchFilter[] = []
   const plainParts: string[] = []
-  let scope: SearchScope = 'library'
+  let scope: SearchScope = 'all'
   let hasOperators = false
   // Every word, phrase word and operator counts towards the query's token
   // cap, in the order typed; whatever is past it is dropped.

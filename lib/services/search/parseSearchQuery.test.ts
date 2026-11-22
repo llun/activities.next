@@ -14,7 +14,7 @@ describe('parseSearchQuery', () => {
       phrases: [],
       excluded: [],
       filters: [],
-      scope: 'library',
+      scope: 'all',
       plainText: 'Café naïve résumé',
       hasOperators: false
     })
@@ -27,7 +27,7 @@ describe('parseSearchQuery', () => {
         phrases: [],
         excluded: [],
         filters: [],
-        scope: 'library',
+        scope: 'all',
         plainText: '',
         hasOperators: false
       })
@@ -40,7 +40,7 @@ describe('parseSearchQuery', () => {
       phrases: [],
       excluded: [],
       filters: [],
-      scope: 'library',
+      scope: 'all',
       plainText: 'https://example.com/@a',
       hasOperators: false
     })
@@ -52,7 +52,7 @@ describe('parseSearchQuery', () => {
       phrases: [],
       excluded: [],
       filters: [],
-      scope: 'library',
+      scope: 'all',
       plainText: 'cats CATS café cafe dogs cats',
       hasOperators: false
     })
@@ -129,7 +129,7 @@ describe('parseSearchQuery', () => {
       phrases: [],
       excluded: [],
       filters: [filter],
-      scope: 'library',
+      scope: 'all',
       plainText: '',
       hasOperators: true
     })
@@ -149,7 +149,7 @@ describe('parseSearchQuery', () => {
         phrases: [],
         excluded: [],
         filters: [{ type: 'has', value, negated: true }],
-        scope: 'library',
+        scope: 'all',
         plainText: '',
         hasOperators: true
       })
@@ -170,7 +170,7 @@ describe('parseSearchQuery', () => {
         phrases: [],
         excluded: [],
         filters: [{ type: 'is', value, negated: true }],
-        scope: 'library',
+        scope: 'all',
         plainText: '',
         hasOperators: true
       })
@@ -204,7 +204,7 @@ describe('parseSearchQuery', () => {
       phrases: [],
       excluded: [],
       filters: [expected],
-      scope: 'library',
+      scope: 'all',
       plainText: '',
       hasOperators: true
     })
@@ -271,7 +271,7 @@ describe('parseSearchQuery', () => {
       phrases: [],
       excluded: [],
       filters: [expected],
-      scope: 'library',
+      scope: 'all',
       plainText: '',
       hasOperators: true
     })
@@ -367,7 +367,7 @@ describe('parseSearchQuery', () => {
     expect(parseSearchQuery(query)).toEqual({
       ...expected,
       filters: [],
-      scope: 'library',
+      scope: 'all',
       hasOperators: true
     })
   })
@@ -470,7 +470,7 @@ describe('parseSearchQuery', () => {
         ...expected,
         phrases: [],
         filters: [],
-        scope: 'library'
+        scope: 'all'
       })
     }
   )
@@ -487,7 +487,7 @@ describe('parseSearchQuery', () => {
         { type: 'has', value: 'media', negated: false },
         { type: 'is', value: 'reply', negated: true }
       ],
-      scope: 'library',
+      scope: 'all',
       plainText: 'grey heron dawn',
       hasOperators: true
     })
@@ -558,6 +558,6 @@ describe('parseSearchQuery', () => {
       { length: MAX_SEARCH_QUERY_TOKENS },
       (_, index) => `w${index}`
     ).join(' ')
-    expect(parseSearchQuery(`${words} in:all`).scope).toBe('library')
+    expect(parseSearchQuery(`${words} in:library`).scope).toBe('all')
   })
 })

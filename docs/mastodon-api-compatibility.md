@@ -338,10 +338,16 @@ Post search (`GET /api/v2/search` with `type=statuses` or no type, and the web S
 - `is:reply` and `is:sensitive` (marked sensitive or carrying a content warning);
 - `language:<code>`, the language the post declares, else the one detected from its text;
 - `before:`, `after:` and `during:` with a `YYYY-MM-DD` date, read as a UTC day: `before:` is earlier than that day, `after:` is later than it, `during:` is within it;
-- `in:library` (the default) and `in:all`; both search the viewer's library, the posts they wrote, liked, bookmarked or were mentioned in, where Mastodon's `in:all` also searches public posts;
+- `in:all` (the default) and `in:library` (see Post search scope below);
 - `"an exact phrase"`, and `-` before a word, a phrase or an operator to leave it out (`-is:reply`, `-has:media`).
 
 Operator names are case-insensitive. An unknown operator, or one with a value it does not take (`foo:bar`, `before:yesterday`), is searched as plain words, as Mastodon does. A query of operators alone (`from:me has:media`) returns the matching posts, a post with no text among them (every Note and Poll has a search document, empty when it has no text; `yarn search:reindex` adds them for older posts); one of exclusions alone matches nothing. Excluded words match whole words, while searched words match as prefixes. Words, phrase words and operators together count towards the query's token cap (`lib/utils/searchQueryLimits.ts`). The accounts and hashtags results search the plain words only, and are empty when a query holds no plain words. A query with an operator is never resolved as a remote URL.
+
+### Post search scope
+
+Post search finds the viewer's library, the posts they wrote, liked, bookmarked or were mentioned in, and, as Mastodon 4.2 does, the public posts of authors who opted in to search (`indexable`), local or remote; `in:library` keeps to the library. A public post is one addressed to Public in `to`: unlisted, followers-only and direct posts are never found through someone's opt-in. `indexable` is read from the author's actor row at query time, so an opt-out hides their posts at once and an opt-in includes their older public posts. The public part leaves out authors the viewer blocks or who block the viewer (as every result does), authors the viewer mutes while the mute lasts, authors on a domain the viewer blocks, authors on a domain (or a subdomain of one) the instance suspends or silences, and suspended, silenced or deleting accounts. Status search stays signed-in only.
+
+`indexable` defaults to off. A local account turns it on with Settings → Privacy → "Include my public posts in search results" or `PATCH /api/v1/accounts/update_credentials` with `indexable`; the Mastodon `Account` entity reports it, the actor document carries it (`"indexable": "toot:indexable"` in the context), and a change federates an `Update(Person)`. A remote actor's flag is stored from its actor document when it is recorded or refreshed; a document without the flag reads as off.
 
 ### Post search order
 

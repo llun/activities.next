@@ -7,6 +7,7 @@ import {
   fullTextMatch,
   fullTextRank,
   getDialectName,
+  jsonFlagIsTrue,
   jsonText,
   normalizedHashtagName,
   timestampValue,
@@ -154,6 +155,30 @@ describe('jsonText', () => {
       )
     expect(query.compile().sql).toBe(item.sql)
     expect(query.compile().parameters).toEqual([])
+  })
+})
+
+describe('jsonFlagIsTrue', () => {
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: `select "actors"."id" from "actors" where json_extract("actors"."settings", '$.indexable') = 1`
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: `select "actors"."id" from "actors" where ("actors"."settings"::jsonb ->> 'indexable') = 'true'`
+    }
+  ])('checks a boolean property of a JSON column ($name)', (item) => {
+    const db = item.instance
+    const compiled = db
+      .selectFrom('actors')
+      .select('actors.id')
+      .where(jsonFlagIsTrue(db, 'actors.settings', 'indexable'))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual([])
   })
 })
 

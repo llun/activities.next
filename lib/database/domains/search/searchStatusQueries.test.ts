@@ -6,6 +6,7 @@ import {
   seedStatus,
   seedTag
 } from '@/lib/database/testing/searchTestHelpers'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -23,10 +24,26 @@ describe('status search queries', () => {
   const testDb = createTestDatabase()
   const { database, db } = testDb
 
-  const addActor = async (username: string) => {
-    const id = actorIdOf(username)
-    await createSearchActor(database, { id, username, domain: DOMAIN })
+  const addActor = async (username: string, domain = DOMAIN) => {
+    const id = actorIdOf(username, domain)
+    await createSearchActor(database, { id, username, domain })
     return id
+  }
+
+  const setIndexable = async (actorId: string, indexable: boolean) => {
+    const row = await db
+      .selectFrom('actors')
+      .select('settings')
+      .where('id', '=', actorId)
+      .executeTakeFirstOrThrow()
+    const settings = getCompatibleJSON<Record<string, unknown>>(
+      row.settings as string | Record<string, unknown>
+    )
+    await db
+      .updateTable('actors')
+      .set({ settings: JSON.stringify({ ...settings, indexable }) })
+      .where('id', '=', actorId)
+      .execute()
   }
 
   // A raw status plus its search document.
@@ -2077,6 +2094,354 @@ describe('status search queries', () => {
             sort: 'relevance'
           })
         ).resolves.toEqual([strongKept, weakKept])
+      })
+    })
+
+    describe('indexable public posts', () => {
+      it('lets a stranger find an indexable author public post, drops it immediately on opt-out without reindexing, and excludes it under in:library', async () => {
+        const viewer = await addActor('sqidx-basic-viewer')
+        const indexableAuthor = await addActor('sqidx-basic-on')
+        const nonIndexableAuthor = await addActor('sqidx-basic-off')
+        await setIndexable(indexableAuthor, true)
+
+        const publicPost = await indexedStatus({
+          id: statusIdOf(indexableAuthor, 'public'),
+          actorId: indexableAuthor,
+          createdAt: 20,
+          text: 'sqidxbasic aurora',
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(nonIndexableAuthor, 'public'),
+          actorId: nonIndexableAuthor,
+          createdAt: 30,
+          text: 'sqidxbasic aurora',
+          to: [PUBLIC]
+        })
+
+        // Stranger finds the indexable author's public post, not the non-indexable one.
+        await expect(
+          search({ q: 'sqidxbasic', currentActorId: viewer })
+        ).resolves.toEqual([publicPost])
+
+        // `in:library` restricts to the viewer's library, excluding stranger public posts.
+        await expect(
+          search({ q: 'sqidxbasic in:library', currentActorId: viewer })
+        ).resolves.toEqual([])
+
+        // Flipping indexable to false hides the post right away with no reindex.
+        await setIndexable(indexableAuthor, false)
+        await expect(
+          search({ q: 'sqidxbasic', currentActorId: viewer })
+        ).resolves.toEqual([])
+      })
+
+      it('does not return unlisted, followers-only or direct posts of an indexable author to a stranger', async () => {
+        const viewer = await addActor('sqidx-vis-viewer')
+        const author = await addActor('sqidx-vis-author')
+        await setIndexable(author, true)
+
+        const publicPost = await indexedStatus({
+          id: statusIdOf(author, 'public'),
+          actorId: author,
+          createdAt: 40,
+          text: 'sqidxvis lantern',
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(author, 'unlisted'),
+          actorId: author,
+          createdAt: 30,
+          text: 'sqidxvis lantern',
+          to: [`${author}/followers`],
+          cc: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(author, 'followers'),
+          actorId: author,
+          createdAt: 20,
+          text: 'sqidxvis lantern',
+          to: [`${author}/followers`]
+        })
+        await indexedStatus({
+          id: statusIdOf(author, 'direct'),
+          actorId: author,
+          createdAt: 10,
+          text: 'sqidxvis lantern',
+          to: [viewer]
+        })
+
+        await expect(
+          search({ q: 'sqidxvis', currentActorId: viewer })
+        ).resolves.toEqual([publicPost])
+      })
+
+      it('excludes indexable public posts across a block in either direction', async () => {
+        const viewer = await addActor('sqidx-block-viewer')
+        const blockedByViewer = await addActor('sqidx-block-by-viewer')
+        const blockingViewer = await addActor('sqidx-block-of-viewer')
+        const unblocked = await addActor('sqidx-block-ok')
+        for (const author of [blockedByViewer, blockingViewer, unblocked]) {
+          await setIndexable(author, true)
+        }
+        await block(viewer, blockedByViewer)
+        await block(blockingViewer, viewer)
+
+        await indexedStatus({
+          id: statusIdOf(blockedByViewer, 'post'),
+          actorId: blockedByViewer,
+          createdAt: 30,
+          text: 'sqidxblock pebble',
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(blockingViewer, 'post'),
+          actorId: blockingViewer,
+          createdAt: 20,
+          text: 'sqidxblock pebble',
+          to: [PUBLIC]
+        })
+        const kept = await indexedStatus({
+          id: statusIdOf(unblocked, 'post'),
+          actorId: unblocked,
+          createdAt: 10,
+          text: 'sqidxblock pebble',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqidxblock', currentActorId: viewer })
+        ).resolves.toEqual([kept])
+      })
+
+      it('excludes actively muted authors from indexable public posts while keeping expired mutes', async () => {
+        const viewer = await addActor('sqidx-mute-viewer')
+        const foreverMuted = await addActor('sqidx-mute-forever')
+        const activeMuted = await addActor('sqidx-mute-active')
+        const expiredMuted = await addActor('sqidx-mute-expired')
+        for (const author of [foreverMuted, activeMuted, expiredMuted]) {
+          await setIndexable(author, true)
+        }
+
+        const now = Date.now()
+        await db
+          .insertInto('mutes')
+          .values([
+            {
+              id: `mute-${viewer}-${foreverMuted}`,
+              actorId: viewer,
+              actorHost: DOMAIN,
+              targetActorId: foreverMuted,
+              targetActorHost: DOMAIN,
+              endsAt: null
+            },
+            {
+              id: `mute-${viewer}-${activeMuted}`,
+              actorId: viewer,
+              actorHost: DOMAIN,
+              targetActorId: activeMuted,
+              targetActorHost: DOMAIN,
+              endsAt: now + 60_000
+            },
+            {
+              id: `mute-${viewer}-${expiredMuted}`,
+              actorId: viewer,
+              actorHost: DOMAIN,
+              targetActorId: expiredMuted,
+              targetActorHost: DOMAIN,
+              endsAt: now - 60_000
+            }
+          ])
+          .execute()
+
+        await indexedStatus({
+          id: statusIdOf(foreverMuted, 'post'),
+          actorId: foreverMuted,
+          createdAt: 30,
+          text: 'sqidxmute comet',
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(activeMuted, 'post'),
+          actorId: activeMuted,
+          createdAt: 20,
+          text: 'sqidxmute comet',
+          to: [PUBLIC]
+        })
+        const visible = await indexedStatus({
+          id: statusIdOf(expiredMuted, 'post'),
+          actorId: expiredMuted,
+          createdAt: 10,
+          text: 'sqidxmute comet',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqidxmute', currentActorId: viewer })
+        ).resolves.toEqual([visible])
+      })
+
+      it('excludes indexable authors whose domain the viewer blocks', async () => {
+        const viewer = await addActor('sqidx-domblk-viewer')
+        const blockedDomain = 'sqidx-blocked-domain.test'
+        const allowedDomain = 'sqidx-allowed-domain.test'
+        const blockedAuthor = await addActor('sqidx-domblk-bad', blockedDomain)
+        const allowedAuthor = await addActor('sqidx-domblk-ok', allowedDomain)
+        await setIndexable(blockedAuthor, true)
+        await setIndexable(allowedAuthor, true)
+
+        await db
+          .insertInto('actor_domain_blocks')
+          .values({
+            id: `domblk-${viewer}-${blockedDomain}`,
+            actorId: viewer,
+            domain: blockedDomain
+          })
+          .execute()
+
+        await indexedStatus({
+          id: statusIdOf(blockedAuthor, 'post'),
+          actorId: blockedAuthor,
+          createdAt: 20,
+          text: 'sqidxdomblk glacier',
+          to: [PUBLIC]
+        })
+        const kept = await indexedStatus({
+          id: statusIdOf(allowedAuthor, 'post'),
+          actorId: allowedAuthor,
+          createdAt: 10,
+          text: 'sqidxdomblk glacier',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqidxdomblk', currentActorId: viewer })
+        ).resolves.toEqual([kept])
+      })
+
+      it('excludes indexable authors on a domain or subdomain suspended by an instance federation rule', async () => {
+        const viewer = await addActor('sqidx-fed-viewer')
+        const exactDomain = 'sqidx-fed-exact.test'
+        const parentDomain = 'sqidx-fed-parent.test'
+        const subDomain = `sub.${parentDomain}`
+        const cleanDomain = 'sqidx-fed-clean.test'
+
+        const exactAuthor = await addActor('sqidx-fed-exact', exactDomain)
+        const subAuthor = await addActor('sqidx-fed-sub', subDomain)
+        const cleanAuthor = await addActor('sqidx-fed-clean', cleanDomain)
+        for (const author of [exactAuthor, subAuthor, cleanAuthor]) {
+          await setIndexable(author, true)
+        }
+
+        await db
+          .insertInto('domain_federation_rules')
+          .values([
+            {
+              id: `fed-rule-${exactDomain}`,
+              domain: exactDomain,
+              type: 'block',
+              severity: 'suspend'
+            },
+            {
+              id: `fed-rule-${parentDomain}`,
+              domain: parentDomain,
+              type: 'block',
+              severity: 'suspend'
+            }
+          ])
+          .execute()
+
+        await indexedStatus({
+          id: statusIdOf(exactAuthor, 'post'),
+          actorId: exactAuthor,
+          createdAt: 30,
+          text: 'sqidxfed horizon',
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(subAuthor, 'post'),
+          actorId: subAuthor,
+          createdAt: 20,
+          text: 'sqidxfed horizon',
+          to: [PUBLIC]
+        })
+        const kept = await indexedStatus({
+          id: statusIdOf(cleanAuthor, 'post'),
+          actorId: cleanAuthor,
+          createdAt: 10,
+          text: 'sqidxfed horizon',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqidxfed', currentActorId: viewer })
+        ).resolves.toEqual([kept])
+      })
+
+      it('excludes suspended and deleting authors from indexable public posts', async () => {
+        const viewer = await addActor('sqidx-mod-viewer')
+        const suspendedAuthor = await addActor('sqidx-mod-suspended')
+        const deletingAuthor = await addActor('sqidx-mod-deleting')
+        const activeAuthor = await addActor('sqidx-mod-active')
+        for (const author of [suspendedAuthor, deletingAuthor, activeAuthor]) {
+          await setIndexable(author, true)
+        }
+
+        await db
+          .updateTable('actors')
+          .set({ suspendedAt: new Date(1000) })
+          .where('id', '=', suspendedAuthor)
+          .execute()
+        await db
+          .updateTable('actors')
+          .set({ deletionStatus: 'scheduled' })
+          .where('id', '=', deletingAuthor)
+          .execute()
+
+        await indexedStatus({
+          id: statusIdOf(suspendedAuthor, 'post'),
+          actorId: suspendedAuthor,
+          createdAt: 30,
+          text: 'sqidxmod canyon',
+          to: [PUBLIC]
+        })
+        await indexedStatus({
+          id: statusIdOf(deletingAuthor, 'post'),
+          actorId: deletingAuthor,
+          createdAt: 20,
+          text: 'sqidxmod canyon',
+          to: [PUBLIC]
+        })
+        const kept = await indexedStatus({
+          id: statusIdOf(activeAuthor, 'post'),
+          actorId: activeAuthor,
+          createdAt: 10,
+          text: 'sqidxmod canyon',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqidxmod', currentActorId: viewer })
+        ).resolves.toEqual([kept])
+      })
+
+      it('returns an indexable public post under relevance sort', async () => {
+        const viewer = await addActor('sqidx-rel-viewer')
+        const author = await addActor('sqidx-rel-author')
+        await setIndexable(author, true)
+
+        const baseTime = Date.UTC(2026, 5, 1)
+        const publicPost = await indexedStatus({
+          id: statusIdOf(author, 'public'),
+          actorId: author,
+          createdAt: baseTime,
+          text: 'sqidxrel sqidxrel sqidxrel',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqidxrel', currentActorId: viewer, sort: 'relevance' })
+        ).resolves.toEqual([publicPost])
       })
     })
   })

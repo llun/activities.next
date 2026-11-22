@@ -84,6 +84,7 @@ export const createActor = async (
     iconUrl,
     headerImageUrl,
     manuallyApprovesFollowers,
+    indexable,
     fields,
     tags,
     movedTo,
@@ -118,6 +119,7 @@ export const createActor = async (
     ...(manuallyApprovesFollowers !== undefined
       ? { manuallyApprovesFollowers }
       : null),
+    ...(indexable !== undefined ? { indexable } : null),
     ...(fields !== undefined ? { fields } : null),
     ...(resolvedTags && resolvedTags.length > 0
       ? { tags: resolvedTags }

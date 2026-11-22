@@ -304,7 +304,7 @@ describe('GET /api/v2/search', () => {
         phrases: [],
         excluded: [],
         filters: [],
-        scope: 'library',
+        scope: 'all',
         plainText: 'trail',
         hasOperators: false
       },
@@ -2053,7 +2053,7 @@ describe('GET /api/v2/search', () => {
             phrases: [],
             excluded: [],
             filters: [{ type: 'from', value: { kind: 'me' }, negated: false }],
-            scope: 'library',
+            scope: 'all',
             plainText: 'cats',
             hasOperators: true
           }

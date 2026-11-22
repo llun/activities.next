@@ -43,6 +43,7 @@ const ProfileRequest = z.object({
   iconUrl: z.string().optional(),
   headerImageUrl: z.string().optional(),
   manuallyApprovesFollowers: z.string().optional(),
+  indexable: z.string().optional(),
   postLineLimit: z.string().optional(),
   returnTo: z.string().optional()
 })
@@ -66,6 +67,7 @@ export const POST = traceApiRoute(
     // Extract raw value to avoid passing string "on" to updateActor which expects boolean
     const {
       manuallyApprovesFollowers: rawValue,
+      indexable: rawIndexable,
       postLineLimit: rawPostLineLimit,
       iconUrl: rawIconUrl,
       headerImageUrl: rawHeaderImageUrl,
@@ -112,6 +114,13 @@ export const POST = traceApiRoute(
       manuallyApprovesFollowers = false
     }
 
+    let indexable: boolean | undefined
+    if (rawIndexable === 'on') {
+      indexable = true
+    } else if (json.indexable_marker === 'true') {
+      indexable = false
+    }
+
     let postLineLimit: PostLineLimit | undefined
     if (rawPostLineLimit !== undefined && rawPostLineLimit !== '') {
       const numValue = parseInt(rawPostLineLimit, 10)
@@ -137,6 +146,7 @@ export const POST = traceApiRoute(
         ...(manuallyApprovesFollowers !== undefined
           ? { manuallyApprovesFollowers }
           : null),
+        ...(indexable !== undefined ? { indexable } : null),
         ...(postLineLimit !== undefined ? { postLineLimit } : null),
         ...(profileFields.status === 'ok'
           ? { fields: profileFields.fields }

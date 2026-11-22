@@ -2,6 +2,7 @@ import {
   type Expression,
   type RawBuilder,
   type SelectQueryBuilder,
+  type SqlBool,
   SqliteAdapter,
   sql
 } from 'kysely'
@@ -76,6 +77,14 @@ export const jsonText = (
     string | null
   >`${sql.ref(column)}::jsonb${sql.join(objects, sql``)} ->> ${sql.lit(path[path.length - 1])}`
 }
+
+// Whether a boolean property of a JSON column is `true` (a missing or false
+// one is not): `json_extract` reads JSON true as 1 on SQLite, `->>` as 'true'
+// on PostgreSQL. `key` is spliced in as a literal, so it must be a fixed name.
+export const jsonFlagIsTrue = (db: Db, column: string, key: string) =>
+  getDialectName(db) === 'sqlite'
+    ? sql<SqlBool>`json_extract(${sql.ref(column)}, ${sql.lit(`$.${key}`)}) = 1`
+    : sql<SqlBool>`(${sql.ref(column)}::jsonb ->> ${sql.lit(key)}) = 'true'`
 
 // The hashtag name in `column` (a qualified tags.nameNormalized reference)
 // with its leading `#`s stripped and lowercased, so a tag stored as `name` and
