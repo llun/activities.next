@@ -1,0 +1,20 @@
+app/(timeline)/[actor]/ProfileGalleryTab.test.tsx
+  s_17b6192f00c988::t_e8f4a77c9928c8 523,530
+  s_17b6192f00c988::t_232320873bff5e 524-527,531
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d7b7905a2a4b0abc9b3b13ffb63208956e68a0a3",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
