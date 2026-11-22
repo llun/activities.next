@@ -1036,6 +1036,21 @@ describe('status search queries', () => {
         search({ q: 'café', currentActorId: viewer })
       ).resolves.toEqual([plain, accented])
     })
+
+    it('treats stylised NOT, AND and OR as words, not query syntax', async () => {
+      const viewer = await addActor('sqstyled-viewer')
+      const status = await indexedStatus({
+        id: statusIdOf(viewer, 'styled'),
+        actorId: viewer,
+        createdAt: 1,
+        text: 'not and or',
+        to: [PUBLIC]
+      })
+
+      await expect(
+        search({ q: '𝐍𝐎𝐓 𝐀𝐍𝐃 𝐎𝐑', currentActorId: viewer })
+      ).resolves.toEqual([status])
+    })
   })
 })
 

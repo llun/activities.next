@@ -22,8 +22,10 @@ export const getSearchDocumentId = ({
 // voiced kana back together. Document text and query tokens are both folded.
 export const foldSearchText = (value: string) =>
   value
-    .toLowerCase()
     .normalize('NFKD')
+    // After NFKD, which can yield capitals from characters with no case
+    // (𝐍𝐎𝐓, ™): an uppercase NOT, AND or OR token is FTS5 query syntax.
+    .toLowerCase()
     .replace(/[\u0300-\u036f]/g, '')
     .normalize('NFC')
 

@@ -53,6 +53,15 @@ describe('getSearchTokens', () => {
     ])
   })
 
+  it('lowercases capitals that compatibility folding produces', () => {
+    expect(getSearchTokens('𝐍𝐎𝐓 𝐀𝐍𝐃 ᴼᴿ Brand™')).toEqual([
+      'not',
+      'and',
+      'or',
+      'brandtm'
+    ])
+  })
+
   it('caps the number of tokens', () => {
     const many = Array.from(
       { length: MAX_SEARCH_QUERY_TOKENS + 5 },
