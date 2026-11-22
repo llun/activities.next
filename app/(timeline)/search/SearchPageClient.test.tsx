@@ -859,4 +859,143 @@ describe('SearchPageClient', () => {
       )
     ).toBeInTheDocument()
   })
+
+  describe('post sort control', () => {
+    it('shows the Sort posts control on All and Posts tabs for word queries and hides it on Profiles and Hashtags', async () => {
+      mockSearch.mockResolvedValue(emptySearchResult())
+
+      renderSearchPage('q=trail')
+
+      const sortGroup = await screen.findByRole('radiogroup', {
+        name: 'Sort posts'
+      })
+      expect(
+        within(sortGroup).getByRole('radio', { name: 'Top' })
+      ).toHaveAttribute('aria-checked', 'true')
+      expect(
+        within(sortGroup).getByRole('radio', { name: 'Latest' })
+      ).toHaveAttribute('aria-checked', 'false')
+
+      selectTab('Posts')
+      expect(
+        screen.getByRole('radiogroup', { name: 'Sort posts' })
+      ).toBeInTheDocument()
+
+      selectTab('Profiles')
+      expect(
+        screen.queryByRole('radiogroup', { name: 'Sort posts' })
+      ).not.toBeInTheDocument()
+
+      selectTab('Hashtags')
+      expect(
+        screen.queryByRole('radiogroup', { name: 'Sort posts' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('hides the Sort posts control and defaults to latest for operators-only queries', async () => {
+      mockSearch.mockResolvedValueOnce(emptySearchResult())
+
+      renderSearchPage('q=from%3Ame+has%3Amedia')
+
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenCalledWith(
+          expect.objectContaining({
+            q: 'from:me has:media',
+            sort: 'latest'
+          })
+        )
+      })
+      expect(
+        screen.queryByRole('radiogroup', { name: 'Sort posts' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('defaults to relevance for word queries, switches to latest on click from offset 0, and keeps sort on load more', async () => {
+      mockSearch
+        .mockResolvedValueOnce({
+          ...emptySearchResult(),
+          statuses: Array.from({ length: 20 }, (_, index) =>
+            searchStatus(`top-${index}`)
+          )
+        })
+        .mockResolvedValueOnce({
+          ...emptySearchResult(),
+          statuses: Array.from({ length: 20 }, (_, index) =>
+            searchStatus(`latest-${index}`)
+          )
+        })
+        .mockResolvedValueOnce({
+          ...emptySearchResult(),
+          statuses: [searchStatus('latest-20')]
+        })
+
+      renderSearchPage('q=trail&type=statuses')
+
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenCalledWith(
+          expect.objectContaining({
+            q: 'trail',
+            type: 'statuses',
+            offset: 0,
+            sort: 'relevance'
+          })
+        )
+      })
+      expect(await screen.findByText('top-0')).toBeInTheDocument()
+
+      const sortGroup = screen.getByRole('radiogroup', { name: 'Sort posts' })
+      fireEvent.click(within(sortGroup).getByRole('radio', { name: 'Latest' }))
+
+      expect(replace).toHaveBeenCalledWith(
+        '/search?q=trail&type=statuses&sort=latest'
+      )
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            q: 'trail',
+            type: 'statuses',
+            offset: 0,
+            sort: 'latest'
+          })
+        )
+      })
+      expect(await screen.findByText('latest-0')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            q: 'trail',
+            type: 'statuses',
+            offset: 20,
+            sort: 'latest'
+          })
+        )
+      })
+      expect(await screen.findByText('latest-20')).toBeInTheDocument()
+    })
+
+    it('honours ?sort=latest from the URL for word queries', async () => {
+      mockSearch.mockResolvedValueOnce(emptySearchResult())
+
+      renderSearchPage('q=trail&sort=latest')
+
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenCalledWith(
+          expect.objectContaining({
+            q: 'trail',
+            sort: 'latest'
+          })
+        )
+      })
+      const sortGroup = screen.getByRole('radiogroup', { name: 'Sort posts' })
+      expect(
+        within(sortGroup).getByRole('radio', { name: 'Latest' })
+      ).toHaveAttribute('aria-checked', 'true')
+      expect(
+        within(sortGroup).getByRole('radio', { name: 'Top' })
+      ).toHaveAttribute('aria-checked', 'false')
+    })
+  })
 })

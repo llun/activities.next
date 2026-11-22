@@ -74,6 +74,8 @@ export type SearchHashtag = {
   lastPostAt: number | null
 }
 
+export type SearchStatusSort = 'latest' | 'relevance'
+
 export type SearchStatusesParams = {
   q: string
   // `q` already read by parseSearchQuery, so a caller that parsed it does not
@@ -86,6 +88,10 @@ export type SearchStatusesParams = {
   currentActorDomain?: string | null
   // The domain a bare `from:username` names; the viewer's own when absent.
   localDomain?: string | null
+  // `latest` (the default) is newest first with max_id/min_id paging;
+  // `relevance` ranks the newest RELEVANCE_CANDIDATE_LIMIT matches and pages
+  // with offset only.
+  sort?: SearchStatusSort
   accountId?: string | null
   minId?: string | null
   maxId?: string | null

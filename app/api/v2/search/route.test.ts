@@ -308,6 +308,7 @@ describe('GET /api/v2/search', () => {
         plainText: 'trail',
         hasOperators: false
       },
+      sort: 'latest',
       localDomain: 'llun.test',
       limit: 4,
       offset: 0,
@@ -2167,6 +2168,51 @@ describe('GET /api/v2/search', () => {
           parsedQuery: expect.objectContaining({
             hasOperators: true
           })
+        })
+      )
+    })
+
+    it('passes sort=relevance through to searchStatusIds', async () => {
+      mockSearchStatusIds.mockResolvedValue([])
+
+      const response = await GET(
+        new NextRequest(
+          'https://llun.test/api/v2/search?q=trail&type=statuses&sort=relevance',
+          { headers: { Authorization: 'Bearer read-search-token' } }
+        ),
+        context
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockSearchStatusIds).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'trail',
+          sort: 'relevance'
+        })
+      )
+    })
+
+    it.each([
+      {
+        label: 'unknown sort value',
+        query: 'q=trail&type=statuses&sort=bogus'
+      },
+      { label: 'missing sort parameter', query: 'q=trail&type=statuses' }
+    ])('defaults sort to latest for $label', async ({ query }) => {
+      mockSearchStatusIds.mockResolvedValue([])
+
+      const response = await GET(
+        new NextRequest(`https://llun.test/api/v2/search?${query}`, {
+          headers: { Authorization: 'Bearer read-search-token' }
+        }),
+        context
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockSearchStatusIds).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'trail',
+          sort: 'latest'
         })
       )
     })

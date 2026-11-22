@@ -5,6 +5,7 @@ import {
   forShare,
   forUpdate,
   fullTextMatch,
+  fullTextRank,
   getDialectName,
   jsonText,
   normalizedHashtagName,
@@ -181,6 +182,86 @@ describe('fullTextMatch', () => {
       `select "search_documents"."id" from "search_documents" where to_tsvector('simple', "documentText") @@ to_tsquery('simple', $1)`
     )
     expect(compiled.parameters).toEqual(['trail:* & run_1:*'])
+  })
+})
+
+describe('fullTextRank', () => {
+  it('uses negated FTS5 bm25 on sqlite', () => {
+    const db = sqlite
+    const compiled = db
+      .selectFrom('search_documents')
+      .select(
+        fullTextRank(db, {
+          terms: ['trail', 'run_1'],
+          phrases: [['morning', 'run']]
+        }).as('score')
+      )
+      .compile()
+    expect(compiled.sql).toBe(
+      'select -bm25(search_documents_fts) as "score" from "search_documents"'
+    )
+    expect(compiled.parameters).toEqual([])
+  })
+
+  it('uses ts_rank_cd with to_tsquery for terms on postgres', () => {
+    const db = postgres
+    const compiled = db
+      .selectFrom('search_documents')
+      .select(
+        fullTextRank(db, {
+          terms: ['trail', 'run_1'],
+          phrases: []
+        }).as('score')
+      )
+      .compile()
+    expect(compiled.sql).toBe(
+      `select ts_rank_cd(to_tsvector('simple', "documentText"), to_tsquery('simple', $1)) as "score" from "search_documents"`
+    )
+    expect(compiled.parameters).toEqual(['trail:* & run_1:*'])
+  })
+
+  it('uses ts_rank_cd with phraseto_tsquery for phrases on postgres', () => {
+    const db = postgres
+    const compiled = db
+      .selectFrom('search_documents')
+      .select(
+        fullTextRank(db, {
+          terms: [],
+          phrases: [['morning', 'run']]
+        }).as('score')
+      )
+      .compile()
+    expect(compiled.sql).toBe(
+      `select ts_rank_cd(to_tsvector('simple', "documentText"), phraseto_tsquery('simple', $1)) as "score" from "search_documents"`
+    )
+    expect(compiled.parameters).toEqual(['morning run'])
+  })
+
+  it('combines terms and phrases in ts_rank_cd on postgres', () => {
+    const db = postgres
+    const compiled = db
+      .selectFrom('search_documents')
+      .select(
+        fullTextRank(db, {
+          terms: ['trail'],
+          phrases: [['morning', 'run']]
+        }).as('score')
+      )
+      .compile()
+    expect(compiled.sql).toBe(
+      `select ts_rank_cd(to_tsvector('simple', "documentText"), (to_tsquery('simple', $1) && phraseto_tsquery('simple', $2))) as "score" from "search_documents"`
+    )
+    expect(compiled.parameters).toEqual(['trail:*', 'morning run'])
+  })
+
+  it('emits a zero score when neither terms nor phrases are present on postgres', () => {
+    const db = postgres
+    const compiled = db
+      .selectFrom('search_documents')
+      .select(fullTextRank(db, { terms: [], phrases: [] }).as('score'))
+      .compile()
+    expect(compiled.sql).toBe('select 0 as "score" from "search_documents"')
+    expect(compiled.parameters).toEqual([])
   })
 })
 

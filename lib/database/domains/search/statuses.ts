@@ -19,6 +19,7 @@ import type {
 import type { DB, Db } from '@/lib/database/kysely'
 import {
   fullTextQueryMatch,
+  fullTextRank,
   timestampValue
 } from '@/lib/database/kysely/dialect'
 import {
@@ -643,6 +644,43 @@ const statusSearchFilter = (
   return sql<SqlBool>`1 = 0`
 }
 
+// Relevance ranks only the newest matches, so its cost stays bounded however
+// many posts match: an older post past this many newer matches is not ranked.
+export const RELEVANCE_CANDIDATE_LIMIT = 500
+// A match this many days older than the newest candidate weighs half as much
+// as an equally good newest one (a third at twice the age, and so on).
+const RELEVANCE_HALF_WEIGHT_DAYS = 30
+const DAY_MS = 24 * 60 * 60 * 1000
+
+type RankedCandidate = { entityId: string; createdAt: number; score: number }
+
+// Orders candidates by text score blended with recency. The score is first
+// divided by the best in the set, because SQLite's bm25 and PostgreSQL's
+// ts_rank_cd use different scales; it is then weighted by
+// 1 / (1 + age / RELEVANCE_HALF_WEIGHT_DAYS), the age in days measured from
+// the newest candidate, so the order does not drift with the clock. Ties fall
+// back to newest first, then to the id.
+export const rankSearchCandidates = (candidates: RankedCandidate[]) => {
+  const best = Math.max(0, ...candidates.map((candidate) => candidate.score))
+  const newest = Math.max(...candidates.map((candidate) => candidate.createdAt))
+  const weight = (candidate: RankedCandidate) =>
+    (best > 0 ? Math.max(0, candidate.score) / best : 1) /
+    (1 + (newest - candidate.createdAt) / DAY_MS / RELEVANCE_HALF_WEIGHT_DAYS)
+  return candidates
+    .map((candidate) => ({ candidate, weight: weight(candidate) }))
+    .sort(
+      (left, right) =>
+        right.weight - left.weight ||
+        right.candidate.createdAt - left.candidate.createdAt ||
+        (left.candidate.entityId < right.candidate.entityId
+          ? 1
+          : left.candidate.entityId > right.candidate.entityId
+            ? -1
+            : 0)
+    )
+    .map(({ candidate }) => candidate.entityId)
+}
+
 export const searchStatusIds = async (
   db: Db,
   {
@@ -654,6 +692,7 @@ export const searchStatusIds = async (
     currentActorUsername,
     currentActorDomain,
     localDomain,
+    sort = 'latest',
     accountId,
     minId,
     maxId
@@ -661,6 +700,8 @@ export const searchStatusIds = async (
 ): Promise<string[]> => {
   const parsed = parsedQuery ?? parseSearchQuery(q)
   const hasText = parsed.terms.length > 0 || parsed.phrases.length > 0
+  // Without a word or phrase there is nothing to rank: newest first.
+  const byRelevance = sort === 'relevance' && hasText
   // A search needs a word, a phrase or an operator: exclusions alone, or
   // nothing searchable at all, match nothing.
   if (!hasText && parsed.filters.length === 0) return []
@@ -671,9 +712,13 @@ export const searchStatusIds = async (
     currentActorUsername,
     currentActorDomain
   })
-  const cursors = await getStatusCursors(db, [
-    ...new Set([maxId, minId].filter((id): id is string => Boolean(id)))
-  ])
+  // A ranked order ignores max_id and min_id, so it needs no cursor.
+  const cursors = await getStatusCursors(
+    db,
+    byRelevance
+      ? []
+      : [...new Set([maxId, minId].filter((id): id is string => Boolean(id)))]
+  )
 
   let query = db
     .selectFrom('search_documents')
@@ -778,6 +823,47 @@ export const searchStatusIds = async (
         )
       )
     )
+
+  if (byRelevance) {
+    // The newest matches, then their scores: the score is computed for those
+    // rows only. max_id and min_id do not apply to a ranked order and are
+    // ignored; it pages with offset.
+    const candidates = await query
+      .select('search_documents.entityCreatedAt')
+      .orderBy('search_documents.entityCreatedAt', 'desc')
+      .orderBy('search_documents.entityId', 'desc')
+      .limit(RELEVANCE_CANDIDATE_LIMIT)
+      .execute()
+    if (candidates.length === 0) return []
+    const scores = await selectInChunks(
+      db,
+      candidates.map((candidate) => candidate.entityId),
+      (chunk) =>
+        fullTextQueryMatch(
+          db,
+          db
+            .selectFrom('search_documents')
+            .select([
+              'search_documents.entityId',
+              fullTextRank(db, parsed).as('score')
+            ])
+            .where('search_documents.entityType', '=', 'status')
+            .where('search_documents.entityId', 'in', chunk),
+          { terms: parsed.terms, phrases: parsed.phrases, excluded: [] }
+        ).execute(),
+      1
+    )
+    const scoreById = new Map(
+      scores.map((row) => [row.entityId, Number(row.score)])
+    )
+    return rankSearchCandidates(
+      candidates.map((candidate) => ({
+        entityId: candidate.entityId,
+        createdAt: Number(candidate.entityCreatedAt ?? 0),
+        score: scoreById.get(candidate.entityId) ?? 0
+      }))
+    ).slice(offset, offset + limit)
+  }
 
   for (const [cursorId, operator] of [
     [maxId, '<'],

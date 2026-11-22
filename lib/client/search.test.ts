@@ -53,6 +53,7 @@ describe('client search module', () => {
       expect(parsedUrl.searchParams.get('offset')).toBe('20')
       expect(parsedUrl.searchParams.get('resolve')).toBe('true')
       expect(parsedUrl.searchParams.get('format')).toBe('activities_next')
+      expect(parsedUrl.searchParams.has('sort')).toBe(false)
       expect(init).toEqual(
         expect.objectContaining({
           method: 'GET',
@@ -61,6 +62,22 @@ describe('client search module', () => {
         })
       )
     })
+
+    it.each(['relevance', 'latest'] as const)(
+      'includes sort=%s in the v2 search URL when provided',
+      async (sort) => {
+        fetchMock.mockResponseOnce(
+          JSON.stringify({ accounts: [], statuses: [], hashtags: [] }),
+          { status: 200 }
+        )
+
+        await search({ q: 'trail', sort })
+
+        const [url] = fetchMock.mock.calls[0]
+        const parsedUrl = new URL(url as string, 'https://llun.test')
+        expect(parsedUrl.searchParams.get('sort')).toBe(sort)
+      }
+    )
 
     it('returns an empty result when the search response is not JSON', async () => {
       fetchMock.mockResponseOnce('<html>bad gateway</html>', { status: 200 })

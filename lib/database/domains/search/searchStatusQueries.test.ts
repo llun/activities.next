@@ -1849,6 +1849,236 @@ describe('status search queries', () => {
         search({ q: '𝐍𝐎𝐓 𝐀𝐍𝐃 𝐎𝐑', currentActorId: viewer })
       ).resolves.toEqual([status])
     })
+
+    describe('relevance sort', () => {
+      const DAY_MS = 24 * 60 * 60 * 1000
+      const BASE_TIME = Date.UTC(2026, 5, 1)
+      const FILLER =
+        'alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa quebec romeo'
+
+      it('ranks a strong match above a weak newer match when ages are close, while default stays newest-first', async () => {
+        const viewer = await addActor('sqrel-close-viewer')
+        const strongOlder = await indexedStatus({
+          id: statusIdOf(viewer, 'strong-older'),
+          actorId: viewer,
+          createdAt: BASE_TIME - DAY_MS,
+          text: 'sqrelclose sqrelclose sqrelclose sqrelclose',
+          to: [PUBLIC]
+        })
+        const weakNewer = await indexedStatus({
+          id: statusIdOf(viewer, 'weak-newer'),
+          actorId: viewer,
+          createdAt: BASE_TIME,
+          text: `sqrelclose ${FILLER}`,
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqrelclose', currentActorId: viewer })
+        ).resolves.toEqual([weakNewer, strongOlder])
+        await expect(
+          search({ q: 'sqrelclose', currentActorId: viewer, sort: 'latest' })
+        ).resolves.toEqual([weakNewer, strongOlder])
+        await expect(
+          search({ q: 'sqrelclose', currentActorId: viewer, sort: 'relevance' })
+        ).resolves.toEqual([strongOlder, weakNewer])
+      })
+
+      it('ranks a much newer weak match above a year-old strong match', async () => {
+        const viewer = await addActor('sqrel-decay-viewer')
+        const strongOld = await indexedStatus({
+          id: statusIdOf(viewer, 'strong-old'),
+          actorId: viewer,
+          createdAt: BASE_TIME - 365 * DAY_MS,
+          text: 'sqreldecay sqreldecay sqreldecay sqreldecay',
+          to: [PUBLIC]
+        })
+        const weakRecent = await indexedStatus({
+          id: statusIdOf(viewer, 'weak-recent'),
+          actorId: viewer,
+          createdAt: BASE_TIME,
+          text: `sqreldecay ${FILLER}`,
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqreldecay', currentActorId: viewer, sort: 'relevance' })
+        ).resolves.toEqual([weakRecent, strongOld])
+      })
+
+      it('pages relevance results by offset and ignores maxId/minId cursors', async () => {
+        const viewer = await addActor('sqrel-page-viewer')
+        const high = await indexedStatus({
+          id: statusIdOf(viewer, 'high'),
+          actorId: viewer,
+          createdAt: BASE_TIME - 2_000,
+          text: 'sqrelpage sqrelpage sqrelpage sqrelpage sqrelpage sqrelpage',
+          to: [PUBLIC]
+        })
+        const mid = await indexedStatus({
+          id: statusIdOf(viewer, 'mid'),
+          actorId: viewer,
+          createdAt: BASE_TIME - 1_000,
+          text: 'sqrelpage sqrelpage sqrelpage alpha bravo charlie delta',
+          to: [PUBLIC]
+        })
+        const low = await indexedStatus({
+          id: statusIdOf(viewer, 'low'),
+          actorId: viewer,
+          createdAt: BASE_TIME,
+          text: `sqrelpage ${FILLER}`,
+          to: [PUBLIC]
+        })
+
+        // Latest order is chronological: low, mid, high.
+        await expect(
+          search({ q: 'sqrelpage', currentActorId: viewer })
+        ).resolves.toEqual([low, mid, high])
+
+        // Relevance order is high, mid, low; offset slices it page by page.
+        await expect(
+          search({
+            q: 'sqrelpage',
+            currentActorId: viewer,
+            sort: 'relevance',
+            limit: 1,
+            offset: 0
+          })
+        ).resolves.toEqual([high])
+        await expect(
+          search({
+            q: 'sqrelpage',
+            currentActorId: viewer,
+            sort: 'relevance',
+            limit: 1,
+            offset: 1
+          })
+        ).resolves.toEqual([mid])
+        await expect(
+          search({
+            q: 'sqrelpage',
+            currentActorId: viewer,
+            sort: 'relevance',
+            limit: 1,
+            offset: 2
+          })
+        ).resolves.toEqual([low])
+        await expect(
+          search({
+            q: 'sqrelpage',
+            currentActorId: viewer,
+            sort: 'relevance',
+            limit: 1,
+            offset: 3
+          })
+        ).resolves.toEqual([])
+
+        // maxId and minId do not constrain relevance mode.
+        await expect(
+          search({
+            q: 'sqrelpage',
+            currentActorId: viewer,
+            sort: 'relevance',
+            maxId: mid
+          })
+        ).resolves.toEqual([high, mid, low])
+        await expect(
+          search({
+            q: 'sqrelpage',
+            currentActorId: viewer,
+            sort: 'relevance',
+            minId: mid
+          })
+        ).resolves.toEqual([high, mid, low])
+      })
+
+      it('falls back to newest-first for operators-only queries when sort is relevance', async () => {
+        const viewer = await addActor('sqrel-ops-viewer')
+        const older = await indexedStatus({
+          id: statusIdOf(viewer, 'older'),
+          actorId: viewer,
+          createdAt: BASE_TIME - DAY_MS,
+          text: 'first post from me',
+          to: [PUBLIC]
+        })
+        const newer = await indexedStatus({
+          id: statusIdOf(viewer, 'newer'),
+          actorId: viewer,
+          createdAt: BASE_TIME,
+          text: 'second post from me',
+          to: [PUBLIC]
+        })
+
+        const latestOrder = await search({
+          q: 'from:me',
+          currentActorId: viewer,
+          sort: 'latest'
+        })
+        expect(latestOrder).toEqual([newer, older])
+        await expect(
+          search({ q: 'from:me', currentActorId: viewer, sort: 'relevance' })
+        ).resolves.toEqual(latestOrder)
+      })
+
+      it('ranks phrase-only queries by match strength', async () => {
+        const viewer = await addActor('sqrel-phrase-viewer')
+        const strongOlder = await indexedStatus({
+          id: statusIdOf(viewer, 'strong-phrase'),
+          actorId: viewer,
+          createdAt: BASE_TIME - DAY_MS,
+          text: 'sqrelphrase beacon sqrelphrase beacon sqrelphrase beacon sqrelphrase beacon',
+          to: [PUBLIC]
+        })
+        const weakNewer = await indexedStatus({
+          id: statusIdOf(viewer, 'weak-phrase'),
+          actorId: viewer,
+          createdAt: BASE_TIME,
+          text: `sqrelphrase beacon ${FILLER}`,
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({
+            q: '"sqrelphrase beacon"',
+            currentActorId: viewer,
+            sort: 'relevance'
+          })
+        ).resolves.toEqual([strongOlder, weakNewer])
+      })
+
+      it('still applies exclusions in relevance mode', async () => {
+        const viewer = await addActor('sqrel-excl-viewer')
+        await indexedStatus({
+          id: statusIdOf(viewer, 'excluded'),
+          actorId: viewer,
+          createdAt: BASE_TIME,
+          text: 'sqrelexcl sqrelexcl sqrelexcl sqrelexcl forbidden',
+          to: [PUBLIC]
+        })
+        const strongKept = await indexedStatus({
+          id: statusIdOf(viewer, 'strong-kept'),
+          actorId: viewer,
+          createdAt: BASE_TIME - DAY_MS,
+          text: 'sqrelexcl sqrelexcl sqrelexcl sqrelexcl',
+          to: [PUBLIC]
+        })
+        const weakKept = await indexedStatus({
+          id: statusIdOf(viewer, 'weak-kept'),
+          actorId: viewer,
+          createdAt: BASE_TIME,
+          text: `sqrelexcl ${FILLER}`,
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({
+            q: 'sqrelexcl -forbidden',
+            currentActorId: viewer,
+            sort: 'relevance'
+          })
+        ).resolves.toEqual([strongKept, weakKept])
+      })
+    })
   })
 })
 
