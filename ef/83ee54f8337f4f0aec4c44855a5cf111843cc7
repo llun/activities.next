@@ -1,0 +1,21 @@
+app/(timeline)/search/SearchPageClient.test.tsx
+  s_17b6192f00c988::t_6004441001ec78 1010,1013,1018-1045,1047
+app/(timeline)/search/SearchPageClient.tsx
+  s_17b6192f00c988::t_6004441001ec78 611-612,632,689-691
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ef83ee54f8337f4f0aec4c44855a5cf111843cc7",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
