@@ -1,8 +1,10 @@
+import { indexStatusSearchDocumentsByIds } from '@/lib/database/domains/search/statuses'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   readSearchDocument,
   seedStatus
 } from '@/lib/database/testing/searchTestHelpers'
+import { logger } from '@/lib/utils/logger'
 
 // The writes that change something a status shows besides its own row refresh
 // that status's search document, so the extra text it holds (attachment alt
@@ -163,6 +165,133 @@ describe('status search re-index hooks', () => {
     await database.updateFitnessFileProcessingStatus(fitnessFileId, 'completed')
 
     expect(await documentTextOf(statusId)).toContain('running')
+  })
+
+  it('refreshes the status document when a fitness file is deleted', async () => {
+    const owner = await newOwner('fitness-delete')
+    const statusId = `${owner.actorId}/statuses/fitness-delete`
+    await seedStatus(db, {
+      id: statusId,
+      actorId: owner.actorId,
+      createdAt: 1,
+      text: 'fitness delete base'
+    })
+    const fitnessFileId = `${statusId}/fitness/ride`
+    await db
+      .insertInto('fitness_files')
+      .values({
+        id: fitnessFileId,
+        actorId: owner.actorId,
+        statusId,
+        path: 'fitness/ride.fit',
+        fileName: 'ride.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 100,
+        activityType: 'ride',
+        createdAt: new Date(1),
+        updatedAt: new Date(1)
+      })
+      .execute()
+    await database.indexStatusSearchDocument({ statusId })
+    expect(await documentTextOf(statusId)).toContain('cycling')
+
+    await database.deleteFitnessFile({ id: fitnessFileId })
+
+    expect(await documentTextOf(statusId)).not.toContain('cycling')
+  })
+
+  it('refreshes the status document when a fitness file activity type changes', async () => {
+    const owner = await newOwner('fitness-activity')
+    const statusId = `${owner.actorId}/statuses/fitness-activity`
+    await seedStatus(db, {
+      id: statusId,
+      actorId: owner.actorId,
+      createdAt: 1,
+      text: 'fitness activity base'
+    })
+    const fitnessFileId = `${statusId}/fitness/swim`
+    await db
+      .insertInto('fitness_files')
+      .values({
+        id: fitnessFileId,
+        actorId: owner.actorId,
+        statusId,
+        path: 'fitness/swim.fit',
+        fileName: 'swim.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 100,
+        createdAt: new Date(1),
+        updatedAt: new Date(1)
+      })
+      .execute()
+    await database.indexStatusSearchDocument({ statusId })
+    expect(await documentTextOf(statusId)).not.toContain('swimming')
+
+    await database.updateFitnessFileActivityData(fitnessFileId, {
+      activityType: 'swim'
+    })
+
+    expect(await documentTextOf(statusId)).toContain('swimming')
+  })
+
+  it('refreshes the status document when fitness files finish processing in bulk', async () => {
+    const owner = await newOwner('fitness-bulk-complete')
+    const statusId = `${owner.actorId}/statuses/fitness-bulk-complete`
+    await seedStatus(db, {
+      id: statusId,
+      actorId: owner.actorId,
+      createdAt: 1,
+      text: 'fitness bulk complete base'
+    })
+    const fitnessFileId = `${statusId}/fitness/run`
+    await db
+      .insertInto('fitness_files')
+      .values({
+        id: fitnessFileId,
+        actorId: owner.actorId,
+        statusId,
+        path: 'fitness/run.fit',
+        fileName: 'run.fit',
+        fileType: 'fit',
+        mimeType: 'application/vnd.ant.fit',
+        bytes: 100,
+        createdAt: new Date(1),
+        updatedAt: new Date(1)
+      })
+      .execute()
+    await database.indexStatusSearchDocument({ statusId })
+    expect(await documentTextOf(statusId)).not.toContain('running')
+
+    // The processing run writes the activity type before it reports completion.
+    await db
+      .updateTable('fitness_files')
+      .set({ activityType: 'run' })
+      .where('id', '=', fitnessFileId)
+      .execute()
+    await database.updateFitnessFilesProcessingStatus({
+      fitnessFileIds: [fitnessFileId],
+      processingStatus: 'completed'
+    })
+
+    expect(await documentTextOf(statusId)).toContain('running')
+  })
+
+  it('swallows a failing status lookup and logs it', async () => {
+    const loggerError = vi.spyOn(logger, 'error')
+    try {
+      await expect(
+        indexStatusSearchDocumentsByIds(db, async () => {
+          throw new Error('boom')
+        })
+      ).resolves.toBeUndefined()
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.anything() })
+      )
+    } finally {
+      loggerError.mockRestore()
+    }
   })
 
   it('refreshes the status document when its remote attachments are replaced', async () => {
