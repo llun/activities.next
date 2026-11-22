@@ -925,17 +925,16 @@ export const updateMedia = async (
 
   // A posted photo's species is part of its statuses' search text.
   if (result && subjectChanged) {
-    const statuses = await db
-      .selectFrom('attachments')
-      .select('statusId')
-      .where('mediaId', '=', id)
-      .where('statusId', 'is not', null)
-      .$narrowType<{ statusId: NotNull }>()
-      .execute()
-    await indexStatusSearchDocumentsByIds(
-      db,
-      statuses.map((row) => row.statusId)
-    )
+    await indexStatusSearchDocumentsByIds(db, async () => {
+      const rows = await db
+        .selectFrom('attachments')
+        .select('statusId')
+        .where('mediaId', '=', id)
+        .where('statusId', 'is not', null)
+        .$narrowType<{ statusId: NotNull }>()
+        .execute()
+      return rows.map((row) => row.statusId)
+    })
   }
   return result
 }

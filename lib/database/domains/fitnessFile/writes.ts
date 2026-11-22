@@ -126,20 +126,22 @@ export const createFitnessFile = (
     })
   })
 
-export const deleteFitnessFile = (
+export const deleteFitnessFile = async (
   db: Db,
   { id }: DeleteFitnessFileParams
-): Promise<boolean> =>
-  inTransaction(db, async (trx) => {
+): Promise<boolean> => {
+  let statusId: string | null = null
+  const deleted = await inTransaction(db, async (trx) => {
     const file = await trx
       .selectFrom('fitness_files')
-      .select(['actorId', 'bytes'])
+      .select(['actorId', 'bytes', 'statusId'])
       .where('id', '=', id)
       .where('deletedAt', 'is', null)
       .limit(1)
       .executeTakeFirst()
 
     if (!file) return false
+    statusId = file.statusId
 
     const accountId = await getActorAccountId(trx, file.actorId)
 
@@ -184,6 +186,10 @@ export const deleteFitnessFile = (
 
     return true
   })
+  // The post no longer shows this activity's type and description.
+  if (deleted && statusId) await indexStatusSearchDocumentsByIds(db, [statusId])
+  return deleted
+}
 
 export const updateFitnessFileStatus = async (
   db: Db,
@@ -197,31 +203,26 @@ export const updateFitnessFileStatus = async (
     .executeTakeFirst()
 
   const updated = Number(result.numUpdatedRows) > 0
-  // The status's search text holds its activity's type and title.
+  // The status's search text holds its activity's type and description.
   if (updated) await indexStatusSearchDocumentsByIds(db, [statusId])
   return updated
 }
 
-// A finished processing run has written the activity type the status's search
-// text holds.
-const indexCompletedFitnessStatuses = async (
-  db: Db,
-  fitnessFileIds: string[]
-) => {
-  const rows = await selectInChunks(db, fitnessFileIds, (chunk) =>
-    db
-      .selectFrom('fitness_files')
-      .select('statusId')
-      .where('id', 'in', chunk)
-      .where('statusId', 'is not', null)
-      .$narrowType<{ statusId: NotNull }>()
-      .execute()
-  )
-  await indexStatusSearchDocumentsByIds(
-    db,
-    rows.map((row) => row.statusId)
-  )
-}
+// Refreshes the search documents of the statuses these files belong to: a
+// status's search text holds its activity's type and description.
+const indexFitnessFileStatuses = (db: Db, fitnessFileIds: string[]) =>
+  indexStatusSearchDocumentsByIds(db, async () => {
+    const rows = await selectInChunks(db, fitnessFileIds, (chunk) =>
+      db
+        .selectFrom('fitness_files')
+        .select('statusId')
+        .where('id', 'in', chunk)
+        .where('statusId', 'is not', null)
+        .$narrowType<{ statusId: NotNull }>()
+        .execute()
+    )
+    return rows.map((row) => row.statusId)
+  })
 
 export const updateFitnessFileProcessingStatus = async (
   db: Db,
@@ -237,7 +238,7 @@ export const updateFitnessFileProcessingStatus = async (
 
   const updated = Number(result.numUpdatedRows) > 0
   if (updated && processingStatus === 'completed') {
-    await indexCompletedFitnessStatuses(db, [fitnessFileId])
+    await indexFitnessFileStatuses(db, [fitnessFileId])
   }
   return updated
 }
@@ -266,7 +267,7 @@ export const updateFitnessFilesProcessingStatus = async (
     .executeTakeFirst()
 
   if (processingStatus === 'completed' && Number(result.numUpdatedRows) > 0) {
-    await indexCompletedFitnessStatuses(db, fitnessFileIds)
+    await indexFitnessFileStatuses(db, fitnessFileIds)
   }
   return Number(result.numUpdatedRows)
 }
@@ -610,7 +611,11 @@ export const updateFitnessFileActivityData = async (
     .where('id', '=', fitnessFileId)
     .executeTakeFirst()
 
-  return Number(result.numUpdatedRows) > 0
+  const updated = Number(result.numUpdatedRows) > 0
+  if (updated && 'activityType' in data) {
+    await indexFitnessFileStatuses(db, [fitnessFileId])
+  }
+  return updated
 }
 
 export const fitnessFileWrites = {

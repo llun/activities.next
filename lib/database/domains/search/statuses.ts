@@ -31,6 +31,7 @@ import {
   formatActivityTypeLabel,
   getActivityPresentation
 } from '@/lib/services/fitness-files/activityPresentation'
+import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
@@ -90,7 +91,7 @@ const getStatusDocumentText = (
 
 // What else a status shows every reader, beside its text: the alt text of each
 // attachment, the species a posted photo names, the poll's options, and the
-// type and title of the activity the post shows (the first non-deleted
+// type and description of the activity the post shows (the first non-deleted
 // recording, primary first, as hydration picks it). Never a photo's place or
 // anything else its owner may withhold from viewers (hidden locations,
 // threatened species' places); the subject itself is public, as
@@ -113,10 +114,39 @@ const getStatusExtraTextByStatusId = async (db: Db, statusIds: string[]) => {
     (chunk) =>
       db
         .selectFrom('attachments')
-        .leftJoin('medias', 'medias.id', 'attachments.mediaId')
+        // A photo's subject counts only when the media's owner (or another
+        // actor of their account) attached it, as the public details route
+        // decides: `attachments.mediaId` alone is a pointer anyone could
+        // write.
+        .leftJoin('actors as attachmentActors', (join) =>
+          join.onRef('attachmentActors.id', '=', 'attachments.actorId')
+        )
+        .leftJoin('medias', (join) =>
+          join
+            .onRef('medias.id', '=', 'attachments.mediaId')
+            .on((eb) =>
+              eb.or([
+                eb('medias.actorId', '=', eb.ref('attachments.actorId')),
+                eb.exists(
+                  eb
+                    .selectFrom('actors as mediaActors')
+                    .select(sql.lit(1).as('one'))
+                    .whereRef('mediaActors.id', '=', 'medias.actorId')
+                    .where('mediaActors.accountId', 'is not', null)
+                    .whereRef(
+                      'mediaActors.accountId',
+                      '=',
+                      'attachmentActors.accountId'
+                    )
+                )
+              ])
+            )
+        )
         .select([
           'attachments.statusId',
           'attachments.name',
+          'attachments.mediaType',
+          'attachments.url',
           'medias.subjectName',
           'medias.subjectScientificName',
           'medias.subjectCategory'
@@ -144,10 +174,22 @@ const getStatusExtraTextByStatusId = async (db: Db, statusIds: string[]) => {
       .where('deletedAt', 'is', null)
       .orderBy('isPrimary', 'desc')
       .orderBy('activityStartTime', 'asc')
+      .orderBy('createdAt', 'asc')
       .execute()
   )
 
   for (const row of attachments) {
+    // A remote note's activity file rides along as an attachment the post
+    // never shows.
+    if (
+      isFitnessAttachment({
+        mediaType: row.mediaType ?? '',
+        url: row.url ?? '',
+        name: row.name ?? ''
+      })
+    ) {
+      continue
+    }
     append(row.statusId, [
       row.name,
       row.subjectName,
@@ -308,21 +350,30 @@ export const indexStatusSearchDocument = async (
 
 // Refreshes the documents of the statuses that still exist, in one batch, after
 // a change to something a status shows besides its own row (an attachment, a
-// photo's species, its activity). Best-effort: the change has committed, and a
-// stale document is what `yarn search:reindex` rebuilds.
+// photo's species, its activity). `statusIds` may be a lookup, so finding them
+// is inside the same best-effort boundary: the change has committed, and a
+// stale document is what `yarn search:reindex` rebuilds. Call it after the
+// write's transaction, never inside one: on PostgreSQL a caught failure would
+// leave that transaction aborted.
 export const indexStatusSearchDocumentsByIds = async (
   db: Db,
-  statusIds: string[]
+  statusIds: string[] | (() => Promise<string[]>)
 ): Promise<void> => {
+  let ids: string[] = []
   try {
-    const rows = await selectInChunks(db, [...new Set(statusIds)], (chunk) =>
+    ids = [
+      ...new Set(
+        typeof statusIds === 'function' ? await statusIds() : statusIds
+      )
+    ]
+    const rows = await selectInChunks(db, ids, (chunk) =>
       selectSearchStatuses(db).where('id', 'in', chunk).execute()
     )
     await reindexStatusSearchDocuments(db, rows)
   } catch (error) {
     logger.error({
       message: 'Failed to refresh status search documents',
-      statusIds: statusIds.slice(0, 20),
+      statusIds: ids.slice(0, 20),
       err: toLoggableError(error)
     })
   }
