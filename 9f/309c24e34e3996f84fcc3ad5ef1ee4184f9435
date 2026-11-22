@@ -1,0 +1,105 @@
+app/(timeline)/fitness/RecentFitnessActivities.tsx
+  s_17b6192f00c988::t_c73f730f5a60e6 32-33
+  s_17b6192f00c988::t_9e05a1a9dd2fc0 1,7-8,13-17,41-42,45,70-73,79-85,87-92,100,111,113-138
+lib/services/gallery/galleryQueries.ts
+  s_17b6192f00c988::t_a15c62abc9c20d 171-172,181,200
+  s_17b6192f00c988::t_8b45332b5d5eac 105-106,618
+  s_17b6192f00c988::t_cb52f3d70433f4 385-386,409-410,653-654,666-667
+lib/database/domains/gallery/types.ts
+  s_17b6192f00c988::t_f1e3ef5725a4b5 273-276
+lib/database/domains/gallery/mediaFilters.ts
+  s_17b6192f00c988::t_f1e3ef5725a4b5 10-14,16,48-108,202-207
+  s_17b6192f00c988::t_f6b24bd17a9e99 208-209
+  s_17b6192f00c988::t_5af4a70fa6837b 210-212
+lib/database/domains/fitnessFile/queries.ts
+  s_17b6192f00c988::t_c006964ca9c88d 205-208,210-212
+  s_17b6192f00c988::t_ee2ea7752b9609 109-160,172-176,178-180
+  s_17b6192f00c988::t_fc822f4158db82 18-21,24,27-30
+app/api/v1/accounts/[id]/gallery/media/route.ts
+  s_17b6192f00c988::t_8b45332b5d5eac 35,65-66,221-222,321,389
+lib/database/kysely/dialect.ts
+  s_17b6192f00c988::t_0dd83c5d4ceec6 81-94
+lib/database/domains/fitnessFile/types.ts
+  s_17b6192f00c988::t_ee2ea7752b9609 104-107
+app/(timeline)/fitness/(overview)/page.tsx
+  s_17b6192f00c988::t_c49fbc8dd1c379 93-99,119-120
+  s_17b6192f00c988::t_c73f730f5a60e6 24,196
+app/(timeline)/[actor]/ProfileGalleryTab.test.tsx
+  s_17b6192f00c988::t_3f89138f1a7b01 5-13,21,27,34-35,38-40,61-63,67-68,71-72,159-165,464-527
+app/(timeline)/[actor]/ProfileGalleryTab.tsx
+  s_17b6192f00c988::t_a14c2055bbb6eb 10,14-15,24,48,324-329,340-350,361-377,382,394-420,431-435,438-459,538-545
+docs/features.md
+  s_17b6192f00c988::t_a6c984eeb70232 73,86
+docs/fitness-file-storage.md
+  s_17b6192f00c988::t_7b11b92f433ca5 418
+docs/maintenance.md
+  s_17b6192f00c988::t_a41759509776a0 1057
+docs/mastodon-api-compatibility.md
+  s_17b6192f00c988::t_b552b514b514f4 891-893
+lib/database/domains/gallery/galleryMediaFilters.test.ts
+  s_17b6192f00c988::t_fb9ad7a375f1d6 1354-1691
+app/(timeline)/fitness/FitnessActivitySearch.test.tsx
+  s_17b6192f00c988::t_ebcf80561546e4 1-83
+app/(timeline)/fitness/FitnessActivitySearch.tsx
+  s_17b6192f00c988::t_e6f416cc52e980 1-35
+app/(timeline)/fitness/RecentFitnessActivities.test.tsx
+  s_17b6192f00c988::t_60f5d314e2ace3 13-20,109-113,363-420
+app/(timeline)/fitness/activityFilter.test.ts
+  s_17b6192f00c988::t_17f66a3efed09f 4-6,122-172
+app/(timeline)/fitness/activityFilter.ts
+  s_17b6192f00c988::t_785ba9e38c2007 14,80-112
+app/(timeline)/gallery/media/GalleryAllMediaView.test.tsx
+  s_17b6192f00c988::t_f6abb77c36416c 27-30,78,95,138-146,343-344,3062-3151
+app/(timeline)/gallery/media/GalleryAllMediaView.tsx
+  s_17b6192f00c988::t_08ae3f7edd6094 5,33,72,84,151,155-160,164-170,209-245,258,261,586-606,729-735
+app/(timeline)/gallery/media/page.tsx
+  s_17b6192f00c988::t_0d75c25ecc61d7 16,30,49,58-59,68,81
+app/api/v1/accounts/[id]/gallery/media/route.test.ts
+  s_17b6192f00c988::t_002f55f8ce2d40 11,822-896
+lib/client/galleryMedia.test.ts
+  s_17b6192f00c988::t_21f8ec9ca8679d 45,60,67-76,201,225
+lib/client/galleryMedia.ts
+  s_17b6192f00c988::t_942c3349d7a3ef 28-29,109,129-130,158,182-183
+lib/components/debounced-search-input.test.tsx
+  s_17b6192f00c988::t_4a55ac46a340ba 1-173
+lib/components/debounced-search-input.tsx
+  s_17b6192f00c988::t_a27083961b7b82 1-137
+lib/components/gallery/filters/GalleryMediaFilterBar.test.tsx
+  s_17b6192f00c988::t_acd2ae0723b3e7 5-12,14,16,349-350,1069-1178
+lib/components/gallery/filters/GalleryMediaFilterBar.tsx
+  s_17b6192f00c988::t_c4b160c2d68e2d 6,80,82-84,88-96,107,116,119,163,194-202,507-508,558,590
+lib/components/gallery/filters/GalleryMediaFilterEmpty.test.tsx
+  s_17b6192f00c988::t_1fafc358c28163 238-262
+lib/components/gallery/filters/GalleryMediaFilterSheet.test.tsx
+  s_17b6192f00c988::t_7cd17b1035f212 117,475,482,514
+lib/components/gallery/filters/galleryMediaFilterLabels.test.ts
+  s_17b6192f00c988::t_d254c9a3f260bc 733-742
+lib/components/gallery/filters/galleryMediaFilterLabels.ts
+  s_17b6192f00c988::t_e6ab628aff07df 186-187
+lib/components/gallery/filters/galleryMediaFilterState.test.ts
+  s_17b6192f00c988::t_6ad17649b99eae 27,39-54,148-149,156
+lib/components/gallery/filters/galleryMediaFilterState.ts
+  s_17b6192f00c988::t_a1d165f3fb5991 20,23-24,40,50,56-59,61-62,117
+lib/components/gallery/galleryMediaQuery.ts
+  s_17b6192f00c988::t_9d3c86e27f9f18 10
+lib/database/domains/fitnessFile/fitnessFileQueries.test.ts
+  s_17b6192f00c988::t_d921a75b85b626 4,629-827
+lib/database/kysely/dialect.test.ts
+  s_17b6192f00c988::t_bf9ed9ae0dfa6c 10-11,187-286
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f309c24e34e3996f84fcc3ad5ef1ee4184f9435",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
