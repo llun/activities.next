@@ -1,0 +1,51 @@
+app/(timeline)/fitness/activityFilter.test.ts
+  s_17b6192f00c988::t_4d21b8ca700c55 64-72
+app/(timeline)/fitness/ActivityTypeBreakdown.tsx
+  s_17b6192f00c988::t_9d192bd87e80d7 32-33,50,176-177
+docs/features.md
+  s_17b6192f00c988::t_fae09cdd9bc839 73
+app/(timeline)/[actor]/ProfileGalleryTab.tsx
+  s_17b6192f00c988::t_35c0dba11aff9c 14-15,334-337,348-352,358,370,420
+  s_17b6192f00c988::t_26fe812ef909d5 400-404
+docs/mastodon-api-compatibility.md
+  s_17b6192f00c988::t_fae09cdd9bc839 893-894
+lib/database/domains/gallery/galleryMediaFilters.test.ts
+  s_17b6192f00c988::t_ca9461eb6e4453 1422
+  s_17b6192f00c988::t_f00afdfe975d03 1387-1392,1416
+  s_17b6192f00c988::t_28a0c2bfe3aab9 1415,1490-1504,1513,1521,1538-1548
+  s_17b6192f00c988::t_ec99236050e731 1549
+app/(timeline)/fitness/(overview)/page.tsx
+  s_17b6192f00c988::t_9d192bd87e80d7 180
+lib/database/domains/gallery/mediaFilters.ts
+  s_17b6192f00c988::t_6b3a51424e32f2 158,259
+  s_17b6192f00c988::t_d0ef2960cb0518 19-20,49-65,68-94,97,102,105-106,108-157,159-161
+app/(timeline)/fitness/activityFilter.ts
+  s_17b6192f00c988::t_9d192bd87e80d7 72-75,85
+  s_17b6192f00c988::t_4d21b8ca700c55 76-84
+app/(timeline)/fitness/ActorFitnessDashboard.tsx
+  s_17b6192f00c988::t_9d192bd87e80d7 115-116,220,873
+app/(timeline)/fitness/(overview)/page.test.tsx
+  s_17b6192f00c988::t_2f694c37c7a33c 227-261
+docs/maintenance.md
+  s_17b6192f00c988::t_fae09cdd9bc839 1057
+app/(timeline)/[actor]/ProfileGalleryTab.test.tsx
+  s_17b6192f00c988::t_5820094752c20c 547-549
+  s_17b6192f00c988::t_0f3b6ed6952b3a 466,487-488,500,505-507,516-520,552-553
+  s_17b6192f00c988::t_a226b8d53670e2 521-527,529-546,550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d52becea6767b0356fa2f43787d842dc44238bf0",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
