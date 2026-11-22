@@ -134,10 +134,9 @@ export type FullTextQuery = {
 // SQLite matches through the FTS5 table search_documents_fts, joined on its
 // rowid, and drops excluded rows with a second FTS5 match. PostgreSQL matches
 // the same to_tsvector('simple', "documentText") expression its GIN index is
-// built on, with phrases as `<->`, and drops excluded rows with a separate
-// NOT: an exclusion the 'simple' parser reads as no lexeme (`_`) makes an empty
-// tsquery, which matches nothing, so inside one tsquery it would drop every
-// row.
+// built on, and drops excluded rows with a separate NOT: an exclusion the
+// 'simple' parser reads as no lexeme (`_`) makes an empty tsquery, which
+// matches nothing, so inside the positive tsquery it would drop every row.
 export const fullTextQueryMatch = <TB extends keyof DB, O>(
   db: Db,
   query: SelectQueryBuilder<DB, TB, O>,
@@ -167,22 +166,31 @@ export const fullTextQueryMatch = <TB extends keyof DB, O>(
       )
   }
 
-  const tsPhrase = (tokens: string[]) =>
-    tokens.length === 1 ? tokens[0] : `(${tokens.join(' <-> ')})`
+  // A phrase goes through phraseto_tsquery, which reads the words with the
+  // same parser as to_tsvector: a token it skips (`_`) is skipped on both
+  // sides instead of widening the phrase's word distance.
+  const phrase = (tokens: string[]) =>
+    sql`phraseto_tsquery('simple', ${tokens.join(' ')})`
   const positive = [
-    ...terms.map((token) => `${token}:*`),
-    ...phrases.map(tsPhrase)
-  ].join(' & ')
-  const negative = excluded.map(tsPhrase).join(' | ')
+    ...(terms.length > 0
+      ? [
+          sql`to_tsquery('simple', ${terms.map((token) => `${token}:*`).join(' & ')})`
+        ]
+      : []),
+    ...phrases.map(phrase)
+  ]
+  const negative = excluded.map(phrase)
   const vector = sql`to_tsvector('simple', ${sql.ref('documentText')})`
+  const combine = (queries: RawBuilder<unknown>[], operator: string) =>
+    queries.length === 1
+      ? queries[0]
+      : sql`(${sql.join(queries, sql.raw(` ${operator} `))})`
   return query
     .$if(positive.length > 0, (qb) =>
-      qb.where(sql<boolean>`${vector} @@ to_tsquery('simple', ${positive})`)
+      qb.where(sql<boolean>`${vector} @@ ${combine(positive, '&&')}`)
     )
     .$if(negative.length > 0, (qb) =>
-      qb.where(
-        sql<boolean>`not (${vector} @@ to_tsquery('simple', ${negative}))`
-      )
+      qb.where(sql<boolean>`not (${vector} @@ ${combine(negative, '||')})`)
     )
 }
 

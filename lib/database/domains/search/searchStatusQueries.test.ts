@@ -944,6 +944,31 @@ describe('status search queries', () => {
         ).resolves.toEqual([reversed, separated])
       })
 
+      it('skips a token that is no word inside a phrase on both backends', async () => {
+        const viewer = await addActor('sqop-phrase-gap-viewer')
+        const together = await indexedStatus({
+          id: statusIdOf(viewer, 'together'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqopgap grey heron',
+          to: [PUBLIC]
+        })
+        const apart = await indexedStatus({
+          id: statusIdOf(viewer, 'apart'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopgap grey x heron',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqopgap "grey _ heron"', currentActorId: viewer })
+        ).resolves.toEqual([together])
+        await expect(
+          search({ q: 'sqopgap -"grey _ heron"', currentActorId: viewer })
+        ).resolves.toEqual([apart])
+      })
+
       it('keeps repeated words in a phrase', async () => {
         const viewer = await addActor('sqop-repeat-viewer')
         const repeated = await indexedStatus({
