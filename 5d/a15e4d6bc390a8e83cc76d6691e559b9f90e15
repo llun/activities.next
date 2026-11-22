@@ -1,0 +1,22 @@
+lib/database/domains/search/searchStatusQueries.test.ts
+  s_17b6192f00c988::t_dd3e0fad2c0c1e 947-971
+lib/database/kysely/dialect.ts
+  s_17b6192f00c988::t_6f77ddd1cea94a 137-139,169-173,175-182
+  s_17b6192f00c988::t_7c7cfae251582c 184-187,190,193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5da15e4d6bc390a8e83cc76d6691e559b9f90e15",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
