@@ -656,14 +656,12 @@ describe('status search queries', () => {
         .values([
           {
             statusId,
-            choiceId: 0,
             title: 'Red',
             createdAt: new Date(1),
             updatedAt: new Date(1)
           },
           {
             statusId,
-            choiceId: 1,
             title: 'Green',
             createdAt: new Date(1),
             updatedAt: new Date(1)

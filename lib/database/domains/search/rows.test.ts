@@ -53,6 +53,11 @@ describe('getSearchTokens', () => {
     ])
   })
 
+  it('keeps Thai and Lao SARA AM whole', () => {
+    expect(foldSearchText('คำ น้ำ ทำ ຄຳ')).toBe('คำ น้ำ ทำ ຄຳ')
+    expect(getSearchTokens('คำ')).toEqual(['คำ'])
+  })
+
   it('lowercases capitals that compatibility folding produces', () => {
     expect(getSearchTokens('𝐍𝐎𝐓 𝐀𝐍𝐃 ᴼᴿ Brand™')).toEqual([
       'not',
