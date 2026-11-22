@@ -3,6 +3,7 @@
 import { X } from 'lucide-react'
 import { type FC, type ReactNode, useState } from 'react'
 
+import { DebouncedSearchInput } from '@/lib/components/debounced-search-input'
 import { pluralize } from '@/lib/components/gallery/galleryCategories'
 import { Alert } from '@/lib/components/surface/Alert'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
@@ -76,9 +77,22 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
   filtersInSheet = false
 }) => {
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [searchResetKey, setSearchResetKey] = useState(0)
   const activeFilterCount = countActiveFilters(filters)
+  // Facet filters shown inside the sheet (the search box stays visible in the bar).
+  const chipKeys = filters.order.filter((key) => key !== 'q')
+  const sheetFilterCount = chipKeys.length
   const facetsLoading = facets === null && !facetsError
   const menusDisabled = disabled || facets === null
+
+  const handleClearAll = () => {
+    setSearchResetKey((key) => key + 1)
+    onChange(clearGalleryFilters(filters))
+  }
+
+  const handleSearchChange = (nextQuery: string) => {
+    onChange(setGalleryFilter(filters, 'q', nextQuery || null))
+  }
 
   // The sheet trigger. Phones always use it; from sm up only a host that
   // passes `filtersInSheet` does, in place of the four facet menus.
@@ -90,7 +104,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
       onClick={() => setSheetOpen(true)}
       className="h-10 font-normal"
     >
-      {activeFilterCount > 0 ? `Filters · ${activeFilterCount}` : 'Filters'}
+      {sheetFilterCount > 0 ? `Filters · ${sheetFilterCount}` : 'Filters'}
     </Button>
   )
 
@@ -99,10 +113,10 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
   // collapsed trigger carries no per-filter state); the menu host shows them
   // only below sm, where its menus are replaced by the sheet.
   const chips =
-    filters.order.length > 0 ? (
+    chipKeys.length > 0 ? (
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-2">
-          {filters.order.map((key) => {
+          {chipKeys.map((key) => {
             const label = formatFilterActiveValue(filters, key, facets)
             return (
               <div
@@ -146,7 +160,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
             variant="ghost"
             size="sm"
             disabled={disabled}
-            onClick={() => onChange(clearGalleryFilters(filters))}
+            onClick={handleClearAll}
             className="text-muted-foreground hover:text-foreground pointer-coarse:-my-3 pointer-coarse:min-h-11 hidden h-auto shrink-0 px-2 font-normal hover:bg-transparent sm:inline-flex"
           >
             Clear filters
@@ -176,6 +190,15 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
           }
         />
       ) : null}
+
+      <DebouncedSearchInput
+        value={filters.q ?? ''}
+        resetKey={searchResetKey}
+        disabled={disabled}
+        ariaLabel="Search photos"
+        placeholder="Search photos"
+        onSearchChange={handleSearchChange}
+      />
 
       {/* Desktop layout */}
       <div
@@ -481,8 +504,8 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               onClick={() => setSheetOpen(true)}
               className="h-10 font-normal"
             >
-              {activeFilterCount > 0
-                ? `Filters · ${activeFilterCount}`
+              {sheetFilterCount > 0
+                ? `Filters · ${sheetFilterCount}`
                 : 'Filters'}
             </Button>
           </div>
@@ -532,7 +555,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               variant="ghost"
               size="sm"
               disabled={disabled}
-              onClick={() => onChange(clearGalleryFilters(filters))}
+              onClick={handleClearAll}
               className="text-muted-foreground hover:text-foreground pointer-coarse:-my-3 pointer-coarse:min-h-11 h-auto px-2 font-normal hover:bg-transparent"
             >
               Clear
@@ -564,7 +587,7 @@ export const GalleryMediaFilterBar: FC<GalleryMediaFilterBarProps> = ({
               variant="ghost"
               size="sm"
               disabled={disabled}
-              onClick={() => onChange(clearGalleryFilters(filters))}
+              onClick={handleClearAll}
               className="text-muted-foreground hover:text-foreground h-auto p-0 font-normal hover:bg-transparent"
             >
               <span className="hidden sm:inline">Clear filters</span>

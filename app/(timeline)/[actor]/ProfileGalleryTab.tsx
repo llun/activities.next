@@ -7,6 +7,7 @@ import {
   Images,
   ListChecks,
   MapPin,
+  Search,
   X
 } from 'lucide-react'
 import Link from 'next/link'
@@ -20,6 +21,7 @@ import {
   getGalleryMap,
   getGallerySubjects
 } from '@/lib/client'
+import { DebouncedSearchInput } from '@/lib/components/debounced-search-input'
 import { GalleryLifeListTable } from '@/lib/components/gallery/GalleryLifeListTable'
 import { GalleryMap } from '@/lib/components/gallery/GalleryMap'
 import { GalleryPagedGrid } from '@/lib/components/gallery/GalleryPagedGrid'
@@ -43,6 +45,7 @@ import type {
 } from '@/lib/services/gallery/galleryEntities'
 import type { MediaSubjectCategory } from '@/lib/types/database/gallery'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
+import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 
 interface Props {
   actorId: string
@@ -328,6 +331,10 @@ export const ProfileGalleryTab: FC<Props> = ({
     label: string
   } | null>(null)
   const [category, setCategory] = useState<MediaSubjectCategory | null>(null)
+  // Local state, not `?q=`: the profile's tabs have no URL of their own, so a
+  // search in the address bar could neither reopen this tab nor follow the
+  // reader to another one.
+  const [searchQuery, setSearchQuery] = useState('')
 
   if (subviews.length === 0) {
     return null
@@ -338,10 +345,17 @@ export const ProfileGalleryTab: FC<Props> = ({
     ? view
     : (subviews[0] ?? 'subjects')
 
+  // Search narrows the photo grids only: Subjects and Recent, and a subject's
+  // photos opened from any subview.
+  const isSearchView = activeView === 'recent' || activeView === 'subjects'
+  const updateSearchQuery = (nextQuery: string) =>
+    setSearchQuery(nextQuery.trim().slice(0, MAX_SEARCH_QUERY_LENGTH))
+
   const changeView = (next: GallerySubview) => {
     setView(next)
     setSubject(null)
     setCategory(null)
+    setSearchQuery('')
   }
 
   const selectSubject = (key: string, label: string) =>
@@ -353,6 +367,29 @@ export const ProfileGalleryTab: FC<Props> = ({
     setView('recent')
   }
 
+  const showSearch = isSearchView || subject !== null
+
+  // Not GalleryMediaFilterEmpty: nothing under gallery/filters/ may load on
+  // profile pages (docs/architecture.md, gallery filter bundle confinement).
+  const searchEmptyState = searchQuery ? (
+    <EmptyState
+      icon={Search}
+      title="No matching photos"
+      action={
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => updateSearchQuery('')}
+        >
+          Clear search
+        </Button>
+      }
+    >
+      No photos match “{searchQuery}”.
+    </EmptyState>
+  ) : undefined
+
   const renderBody = () => {
     if (subject !== null) {
       return (
@@ -360,12 +397,42 @@ export const ProfileGalleryTab: FC<Props> = ({
           <FilterChip
             label={subject.label}
             clearLabel="Back to all subjects"
-            onClear={() => setSubject(null)}
+            onClear={() => {
+              setSubject(null)
+              // Back to a subview search does not narrow (the life list).
+              if (!isSearchView) setSearchQuery('')
+            }}
           />
           <GalleryPagedGrid
-            key={`subject:${subject.key}`}
+            key={
+              searchQuery
+                ? `subject:${subject.key}:q:${searchQuery}`
+                : `subject:${subject.key}`
+            }
             actorId={actorId}
             subject={subject.key}
+            query={searchQuery ? { q: searchQuery } : undefined}
+            emptyState={searchEmptyState}
+          />
+        </div>
+      )
+    }
+    if (searchQuery && isSearchView) {
+      return (
+        <div className="space-y-4">
+          {category ? (
+            <FilterChip
+              label={GALLERY_CATEGORY_LABELS[category]}
+              clearLabel="Show all photos and videos"
+              onClear={() => setCategory(null)}
+            />
+          ) : null}
+          <GalleryPagedGrid
+            key={`search:${category ?? 'all'}:${searchQuery}`}
+            actorId={actorId}
+            category={category ?? undefined}
+            query={{ q: searchQuery }}
+            emptyState={searchEmptyState}
           />
         </div>
       )
@@ -444,6 +511,17 @@ export const ProfileGalleryTab: FC<Props> = ({
           </Button>
         ) : null}
       </div>
+      {showSearch ? (
+        <DebouncedSearchInput
+          // A new subview starts a new search: remounting drops a draft
+          // still waiting out its debounce.
+          key={activeView}
+          value={searchQuery}
+          onSearchChange={updateSearchQuery}
+          ariaLabel="Search photos"
+          placeholder="Search photos"
+        />
+      ) : null}
       {renderBody()}
     </div>
   )

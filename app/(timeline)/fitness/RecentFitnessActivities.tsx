@@ -1,14 +1,20 @@
-import { X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Button } from '@/lib/components/ui/button'
 import { formatActivityTypeLabel } from '@/lib/services/fitness-files/activityPresentation'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 
-import { CLEAR_ACTIVITY_FILTER_HREF } from './activityFilter'
+import { FitnessActivitySearch } from './FitnessActivitySearch'
+import {
+  getClearActivityFilterHref,
+  getClearSearchHref
+} from './activityFilter'
 
 interface Props {
   host: string
@@ -23,6 +29,8 @@ interface Props {
    * "nothing at all".
    */
   activityType?: string
+  // The `?q=` words the list was narrowed by, if any.
+  query?: string
 }
 
 export const RecentFitnessActivities: FC<Props> = ({
@@ -30,9 +38,11 @@ export const RecentFitnessActivities: FC<Props> = ({
   currentTime,
   currentActor,
   statuses,
-  activityType
+  activityType,
+  query
 }) => {
   const label = activityType ? formatActivityTypeLabel(activityType) : null
+  const activeQuery = query?.trim() || undefined
 
   // Applying or clearing the filter is a navigation that swaps the list below
   // and moves nothing else: `scroll={false}` keeps the page still, the page
@@ -57,18 +67,29 @@ export const RecentFitnessActivities: FC<Props> = ({
   // one transition where nothing else on the page moves either — the one it
   // could not announce. The region is `sr-only`, so it is out of flow and an
   // otherwise-empty section costs no layout.
-  const hasNothingToShow = statuses.length === 0 && !activityType
+  const hasNothingToShow =
+    statuses.length === 0 && !activityType && !activeQuery
+  const clearActivityHref = getClearActivityFilterHref(activeQuery)
+  const clearSearchHref = getClearSearchHref(activityType)
 
   return (
     <section className="space-y-3">
       <p role="status" className="sr-only">
         {statuses.length === 0
-          ? label
-            ? `No recent ${label} activities have been posted.`
-            : 'No recent activities have been posted.'
+          ? activeQuery
+            ? label
+              ? `No matching ${label} activities.`
+              : 'No matching activities.'
+            : label
+              ? `No recent ${label} activities have been posted.`
+              : 'No recent activities have been posted.'
           : label
-            ? `Showing recent ${label} activities`
-            : 'Showing all recent activities'}
+            ? activeQuery
+              ? `Showing matching ${label} activities`
+              : `Showing recent ${label} activities`
+            : activeQuery
+              ? 'Showing matching activities'
+              : 'Showing all recent activities'}
       </p>
       {hasNothingToShow ? null : (
         <>
@@ -76,7 +97,7 @@ export const RecentFitnessActivities: FC<Props> = ({
             <h2 className="text-base font-semibold">Recent activities</h2>
             {label && (
               <Link
-                href={CLEAR_ACTIVITY_FILTER_HREF}
+                href={clearActivityHref}
                 prefetch={false}
                 scroll={false}
                 aria-label={`Clear ${label} filter`}
@@ -87,12 +108,34 @@ export const RecentFitnessActivities: FC<Props> = ({
               </Link>
             )}
           </div>
+          <FitnessActivitySearch query={activeQuery} />
           {statuses.length === 0 ? (
-            <p
-              className={`rounded-lg border border-dashed p-6 text-center text-sm break-words text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
-            >
-              No recent {label} activities have been posted.
-            </p>
+            activeQuery ? (
+              <EmptyState
+                icon={Search}
+                title="No matching activities"
+                action={
+                  <Button asChild variant="outline" size="sm">
+                    <Link
+                      href={clearSearchHref}
+                      prefetch={false}
+                      scroll={false}
+                    >
+                      Clear search
+                    </Link>
+                  </Button>
+                }
+              >
+                No recent{label ? ` ${label}` : ''} activities match “
+                {activeQuery}”.
+              </EmptyState>
+            ) : (
+              <p
+                className={`rounded-lg border border-dashed p-6 text-center text-sm break-words text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
+              >
+                No recent {label} activities have been posted.
+              </p>
+            )
           ) : (
             /* `currentActor` without `showActions` deliberately: this stays a
            read-only list (`Posts` gates the action row on both), but `Post` needs

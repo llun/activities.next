@@ -183,6 +183,8 @@ export const formatFilterActiveValue = (
   facets: GalleryMediaFacetsResponse | null
 ): string => {
   switch (key) {
+    case 'q':
+      return filters.q ? `“${filters.q}”` : ''
     case 'species': {
       const facet = facets?.species?.find((f) => f.key === filters.species)
       return formatSpeciesLabel(facet, filters.species)

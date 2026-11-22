@@ -13,6 +13,7 @@ import {
   type MediaSubjectCategory
 } from '@/lib/types/database/gallery'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 
 import { GalleryAllMediaView } from './GalleryAllMediaView'
 
@@ -26,6 +27,7 @@ interface PageProps {
   searchParams: Promise<{
     category?: string | string[]
     show?: string | string[]
+    q?: string | string[]
   }>
 }
 
@@ -44,7 +46,7 @@ const Page = async ({ searchParams }: PageProps) => {
     return redirect('/auth/signin')
   }
 
-  const { category: rawCategory, show: rawShow } = await searchParams
+  const { category: rawCategory, show: rawShow, q: rawQ } = await searchParams
   const categoryCandidate = first(rawCategory)
   const category = MEDIA_SUBJECT_CATEGORIES.find(
     (value) => value === categoryCandidate
@@ -53,6 +55,8 @@ const Page = async ({ searchParams }: PageProps) => {
   // Everything unless the URL names one of the other lists.
   const show: GalleryShow =
     GALLERY_SHOWS.find((value) => value === showCandidate) ?? 'all'
+  const queryCandidate = first(rawQ)?.trim().slice(0, MAX_SEARCH_QUERY_LENGTH)
+  const query = queryCandidate || undefined
 
   const page = await getGalleryMediaPage({
     database,
@@ -61,6 +65,7 @@ const Page = async ({ searchParams }: PageProps) => {
     limit: 24,
     category,
     show,
+    ...(query ? { query } : {}),
     sort: 'taken_desc',
     includeTotal: true,
     includeDays: true
@@ -73,6 +78,7 @@ const Page = async ({ searchParams }: PageProps) => {
       actorId={actor.id}
       initialCategory={(category ?? null) as MediaSubjectCategory | null}
       initialShow={show}
+      initialQuery={query ?? null}
       initialPage={page}
       isMediaUploadEnabled={Boolean(getConfig().mediaStorage)}
     />

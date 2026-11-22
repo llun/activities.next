@@ -415,6 +415,7 @@ A demoted recording's `mapError` is cleared with its flag, since a secondary own
 - Fitness activity status detail (see **The activity page** below); for an activity with several recordings, a picker in the "Recorded with" line, the owner's download button and "Make primary" (see **Several recordings of one activity**)
 - Settings pages for storage usage, file management, default visibility, Strava, training zones (`/fitness/zones`), privacy locations, and route map regeneration
 - Fitness overview with a viewer-local training calendar, date range picker and per-day activity details, and the route heatmap view
+- A search box over the overview's recent activities, kept in the URL as `?q=` beside `?activity=`: every word, folded like post search, must appear in the activity type (as stored or as captioned, so `cycling` finds rides), the description or the name of its non-deleted gear (`getFitnessFilesByActor` and `countFitnessFilesByActor` take `query`; matched in JS over the actor's own activity rows, then applied as one id list)
 - Records (`/fitness/records`): the owner's best power and fastest runs over all time, this year or the last 90 days, and a PR badge on the activity page's best efforts
 - Strava OAuth and webhook imports
 - Strava archive ZIP upload with progress, retry, and cancel support

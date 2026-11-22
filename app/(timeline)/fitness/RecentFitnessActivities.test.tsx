@@ -10,6 +10,14 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { RecentFitnessActivities } from './RecentFitnessActivities'
 
+const mockReplace = vi.fn()
+const mockSearchParams = { current: new URLSearchParams() }
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => mockSearchParams.current
+}))
+
 // next/link swallows `prefetch` and `scroll` instead of reflecting them in the
 // DOM, so they are rendered here to be assertable. Neither may be spread onto
 // the `<a>`: they are not valid DOM attributes.
@@ -98,6 +106,11 @@ const createStatus = (id: string): Status => ({
 })
 
 describe('RecentFitnessActivities', () => {
+  beforeEach(() => {
+    mockReplace.mockReset()
+    mockSearchParams.current = new URLSearchParams()
+  })
+
   it('shows nothing but the scope announcement when empty and unfiltered', () => {
     render(
       <RecentFitnessActivities
@@ -347,5 +360,63 @@ describe('RecentFitnessActivities', () => {
     )
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('searchbox', { name: 'Search activities' })
+    ).toBeInTheDocument()
+  })
+
+  it('shows the shared EmptyState with a clear link when query matches nothing', () => {
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+        query="marathon"
+      />
+    )
+
+    expect(
+      screen.getByRole('heading', { name: 'Recent activities' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('searchbox', { name: 'Search activities' })
+    ).toHaveValue('marathon')
+    expect(screen.getByText('No matching activities')).toBeInTheDocument()
+    expect(
+      screen.getByText('No recent activities match “marathon”.')
+    ).toBeInTheDocument()
+    const clearLink = screen.getByRole('link', { name: 'Clear search' })
+    expect(clearLink).toHaveAttribute('href', '/fitness')
+    expect(clearLink).toHaveAttribute('data-scroll', 'false')
+    expect(clearLink).toHaveAttribute('data-prefetch', 'false')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'No matching activities.'
+    )
+    expect(screen.queryByTestId('posts')).not.toBeInTheDocument()
+  })
+
+  it('preserves ?activity= on the EmptyState clear link and ?q= on the activity chip', () => {
+    render(
+      <RecentFitnessActivities
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+        statuses={[]}
+        activityType="gravel_ride"
+        query="canyon"
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'Clear search' })).toHaveAttribute(
+      'href',
+      '/fitness?activity=gravel_ride'
+    )
+    expect(
+      screen.getByRole('link', { name: 'Clear Gravel Ride filter' })
+    ).toHaveAttribute('href', '/fitness?q=canyon')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'No matching Gravel Ride activities.'
+    )
   })
 })

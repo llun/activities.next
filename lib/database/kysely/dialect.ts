@@ -78,6 +78,20 @@ export const jsonText = (
   >`${sql.ref(column)}::jsonb${sql.join(objects, sql``)} ->> ${sql.lit(path[path.length - 1])}`
 }
 
+// `column` is one of `values`, bound as ONE parameter however many there are
+// (a JSON array on SQLite, a PostgreSQL array), so a long id list never runs
+// into SQLite's bound-variable limit. `values` must be integers.
+export const inIntegerList = (db: Db, column: string, values: number[]) =>
+  getDialectName(db) === 'sqlite'
+    ? sql<SqlBool>`${sql.ref(column)} in (select value from json_each(${JSON.stringify(values)}))`
+    : sql<SqlBool>`${sql.ref(column)} = any(${values}::integer[])`
+
+// The same for text values.
+export const inTextList = (db: Db, column: string, values: string[]) =>
+  getDialectName(db) === 'sqlite'
+    ? sql<SqlBool>`${sql.ref(column)} in (select value from json_each(${JSON.stringify(values)}))`
+    : sql<SqlBool>`${sql.ref(column)} = any(${values}::text[])`
+
 // A `host[:port]` column without its port, lowercased: what federation rules
 // key on (normalizeDomain drops the port). substr/instr on SQLite,
 // split_part on PostgreSQL. shortcut: a bracketed IPv6 host is cut at its

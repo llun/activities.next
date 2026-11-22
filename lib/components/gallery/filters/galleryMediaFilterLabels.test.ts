@@ -731,6 +731,16 @@ describe('galleryMediaFilterLabels', () => {
         expected: 'Not from an activity'
       },
       {
+        description: 'formats q key with curly quotes',
+        filters: {
+          ...EMPTY_GALLERY_FILTERS,
+          q: 'kingfisher'
+        },
+        key: 'q' as const,
+        facets,
+        expected: '“kingfisher”'
+      },
+      {
         description: 'formats notInAlbum key',
         filters: {
           ...EMPTY_GALLERY_FILTERS,

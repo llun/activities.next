@@ -114,6 +114,7 @@ describe('GalleryMediaFilterSheet', () => {
 
   it('displays formatted active filter values in rows', () => {
     const activeFilters: GalleryMediaFilterState = {
+      q: null,
       species: 'name:Red Fox',
       place: 'Richmond Park',
       date: { kind: 'this_month' },
@@ -471,13 +472,14 @@ describe('GalleryMediaFilterSheet', () => {
   it('"Clear all" button resets draft filters while keeping sort', () => {
     const onApply = vi.fn()
     const activeFilters: GalleryMediaFilterState = {
+      q: 'kingfisher',
       species: 'name:Red Fox',
       place: 'Richmond Park',
       date: { kind: 'this_month' },
       activity: 'act-1',
       notInAlbum: true,
       sort: 'uploaded',
-      order: ['species', 'place', 'date', 'activity', 'notInAlbum']
+      order: ['q', 'species', 'place', 'date', 'activity', 'notInAlbum']
     }
 
     render(
@@ -509,6 +511,7 @@ describe('GalleryMediaFilterSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: /Show/ }))
 
     expect(onApply).toHaveBeenCalledWith({
+      q: null,
       species: null,
       place: null,
       date: null,

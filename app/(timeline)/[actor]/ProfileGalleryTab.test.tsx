@@ -2,7 +2,15 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within
+} from '@testing-library/react'
+import type { ReactNode } from 'react'
 
 import {
   getAccountGalleryAlbums,
@@ -10,20 +18,26 @@ import {
   getGalleryMap,
   getGallerySubjects
 } from '@/lib/client'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/components/debounced-search-input'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 import {
   buildGallerySubject,
   buildLifeListEntry
 } from '@/lib/components/gallery/__fixtures__/galleryItems'
+import type { GalleryMediaQuery } from '@/lib/components/gallery/galleryMediaQuery'
 import type { GalleryMapResponse } from '@/lib/services/gallery/galleryEntities'
 import type { Attachment } from '@/lib/types/domain/attachment'
 
 import { ProfileGalleryTab } from './ProfileGalleryTab'
 
 const mockPush = vi.fn()
+const mockReplace = vi.fn()
+const mockSearchParams = { current: new URLSearchParams() }
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush })
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  usePathname: () => '/@llun@llun.test',
+  useSearchParams: () => mockSearchParams.current
 }))
 
 vi.mock('@/lib/client', () => ({
@@ -44,13 +58,18 @@ vi.mock('@/lib/components/posts/media', () => ({
 vi.mock('@/lib/components/gallery/GalleryPagedGrid', () => ({
   GalleryPagedGrid: ({
     subject,
-    category
+    category,
+    query,
+    emptyState
   }: {
     subject?: string
     category?: string
+    query?: GalleryMediaQuery
+    emptyState?: ReactNode
   }) => (
     <div data-testid="paged-grid">
-      subject={subject ?? ''};category={category ?? ''}
+      subject={subject ?? ''};category={category ?? ''};q={query?.q ?? ''}
+      {emptyState ? <div data-testid="grid-empty">{emptyState}</div> : null}
     </div>
   )
 }))
@@ -137,6 +156,13 @@ describe('ProfileGalleryTab', () => {
     getGalleryMapMock.mockReset()
     getAlbumsMock.mockReset()
     mockPush.mockReset()
+    mockReplace.mockReset()
+    mockSearchParams.current = new URLSearchParams()
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
   })
 
   it('loads subjects first, with a skeleton meanwhile', async () => {
@@ -434,5 +460,118 @@ describe('ProfileGalleryTab', () => {
   it('returns null when subviews is only albums but handle is missing', () => {
     const { container } = renderTab({ subviews: ['albums'], handle: undefined })
     expect(container).toBeEmptyDOMElement()
+  })
+
+  describe('Photo search', () => {
+    it('debounces typing, passes q to the grid, shows the empty state, and clears for visitors', async () => {
+      renderTab({ isCurrentUser: false })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      expect(input).toHaveAttribute('placeholder', 'Search photos')
+
+      vi.useFakeTimers()
+      fireEvent.change(input, { target: { value: 'kingfisher' } })
+
+      act(() => {
+        vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 1)
+      })
+      expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
+
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(screen.getByTestId('paged-grid')).toHaveTextContent(
+        'subject=;category=;q=kingfisher'
+      )
+      // Profile tabs have no URL of their own, so the search stays out of it.
+      expect(mockReplace).not.toHaveBeenCalled()
+      expect(screen.getByText('No matching photos')).toBeInTheDocument()
+      expect(
+        screen.getByText('No photos match “kingfisher”.')
+      ).toBeInTheDocument()
+
+      // Clear via the clear button inside the input (first in the DOM; the
+      // empty state's own Clear search follows it).
+      fireEvent.click(
+        screen.getAllByRole('button', { name: 'Clear search' })[0]
+      )
+      expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
+      expect(input).toHaveValue('')
+    })
+
+    it('clears the search from the empty state Clear search button', () => {
+      renderTab({ isCurrentUser: false })
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      fireEvent.change(input, { target: { value: 'heron' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(screen.getByTestId('paged-grid')).toHaveTextContent('q=heron')
+      const clearButtons = screen.getAllByRole('button', {
+        name: 'Clear search'
+      })
+      expect(clearButtons).toHaveLength(2)
+      fireEvent.click(clearButtons[1])
+
+      expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
+      expect(input).toHaveValue('')
+    })
+
+    it('drops a draft still waiting out its debounce when the subview changes', async () => {
+      renderTab()
+      await screen.findByRole('region', { name: 'Birds' })
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      // Open the menu first so the debounce timer is the only one in play.
+      const nav = screen.getByRole('navigation', { name: 'Gallery views' })
+      fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
+      const recent = await screen.findByRole('menuitem', { name: 'Recent' })
+
+      vi.useFakeTimers()
+      fireEvent.change(input, { target: { value: 'king' } })
+      fireEvent.click(recent)
+      act(() => {
+        vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS)
+      })
+      expect(
+        screen.getByRole('searchbox', { name: 'Search photos' })
+      ).toHaveValue('')
+      expect(screen.getByTestId('paged-grid')).not.toHaveTextContent('q=king')
+    })
+
+    it('hides the search on the life list and drops it when a subject opened there is closed', async () => {
+      getGalleryLifeListMock.mockResolvedValue({
+        total: 1,
+        byCategory: { bird: 1 },
+        entries: [
+          buildLifeListEntry('sci:alcedo atthis', { name: 'Common Kingfisher' })
+        ],
+        truncated: false
+      })
+      renderTab()
+      await screen.findByRole('region', { name: 'Birds' })
+      await openSubview('Life list')
+      expect(
+        screen.queryByRole('searchbox', { name: 'Search photos' })
+      ).not.toBeInTheDocument()
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Common Kingfisher' })
+      )
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      fireEvent.change(input, { target: { value: 'perch' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(screen.getByTestId('paged-grid')).toHaveTextContent(
+        'subject=sci:alcedo atthis;category=;q=perch'
+      )
+
+      // Closing the subject goes back to the life list, not a search grid.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Back to all subjects' })
+      )
+      expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('searchbox', { name: 'Search photos' })
+      ).not.toBeInTheDocument()
+    })
   })
 })

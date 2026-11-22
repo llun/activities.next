@@ -888,7 +888,10 @@ null }` files the status into one of the viewer's folders, or unfiles it with
 - **Media details and gallery** — `GET`/`PUT`/`PATCH /api/v1/media/:id` carry a
   non-Mastodon `details` object (snake_case on the way in), and
   `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.
-  `GET /api/v1/accounts/:id/gallery/media` takes owner-only query parameters: `show`
+  `GET /api/v1/accounts/:id/gallery/media` takes `q` from anyone (words every
+  photo must match, folded like search, in its alt text, species, scientific
+  name, group or taxon path, and for the owner only its place name; anyone else
+  searches the alt text of the posts they may read), and owner-only query parameters: `show`
   (`all`, `in_gallery`, `hidden`, `not_posted`, `not_in_album`; ignored for anyone else),
   `sort` (`taken_desc` default for UI, `uploaded` default for API and non-owners, `taken_asc`),
   `cursor` (opaque keyset date cursor `<sortAt ms>:<mediaId>` for date sorts),

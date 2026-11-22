@@ -7,6 +7,8 @@ import {
   fullTextMatch,
   fullTextRank,
   getDialectName,
+  inIntegerList,
+  inTextList,
   jsonFlagIsTrue,
   jsonText,
   normalizedHashtagName,
@@ -179,6 +181,106 @@ describe('jsonFlagIsTrue', () => {
       .compile()
     expect(compiled.sql).toBe(item.sql)
     expect(compiled.parameters).toEqual([])
+  })
+})
+
+describe('inIntegerList', () => {
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: 'select "medias"."id" from "medias" where "medias"."id" in (select value from json_each(?))',
+      parameters: ['[1,2,3]']
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: 'select "medias"."id" from "medias" where "medias"."id" = any($1::integer[])',
+      parameters: [[1, 2, 3]]
+    }
+  ])('compiles an integer list match as one parameter ($name)', (item) => {
+    const db = item.instance
+    const compiled = db
+      .selectFrom('medias')
+      .select('medias.id')
+      .where(inIntegerList(db, 'medias.id', [1, 2, 3]))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual(item.parameters)
+  })
+
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: 'select "medias"."id" from "medias" where "medias"."id" in (select value from json_each(?))',
+      parameters: ['[]']
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: 'select "medias"."id" from "medias" where "medias"."id" = any($1::integer[])',
+      parameters: [[]]
+    }
+  ])('compiles an empty integer list ($name)', (item) => {
+    const db = item.instance
+    const compiled = db
+      .selectFrom('medias')
+      .select('medias.id')
+      .where(inIntegerList(db, 'medias.id', []))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual(item.parameters)
+  })
+})
+
+describe('inTextList', () => {
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: 'select "fitness_files"."id" from "fitness_files" where "fitness_files"."id" in (select value from json_each(?))',
+      parameters: ['["file-1","file-2"]']
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: 'select "fitness_files"."id" from "fitness_files" where "fitness_files"."id" = any($1::text[])',
+      parameters: [['file-1', 'file-2']]
+    }
+  ])('compiles a text list match as one parameter ($name)', (item) => {
+    const db = item.instance
+    const compiled = db
+      .selectFrom('fitness_files')
+      .select('fitness_files.id')
+      .where(inTextList(db, 'fitness_files.id', ['file-1', 'file-2']))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual(item.parameters)
+  })
+
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: 'select "fitness_files"."id" from "fitness_files" where "fitness_files"."id" in (select value from json_each(?))',
+      parameters: ['[]']
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: 'select "fitness_files"."id" from "fitness_files" where "fitness_files"."id" = any($1::text[])',
+      parameters: [[]]
+    }
+  ])('compiles an empty text list ($name)', (item) => {
+    const db = item.instance
+    const compiled = db
+      .selectFrom('fitness_files')
+      .select('fitness_files.id')
+      .where(inTextList(db, 'fitness_files.id', []))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual(item.parameters)
   })
 })
 

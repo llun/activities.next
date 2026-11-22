@@ -1351,4 +1351,388 @@ describe('gallery media filters and ordering', () => {
       expect(countBadKey).toEqual({ total: 0, inAlbum: 0 })
     })
   })
+
+  describe('text query filter', () => {
+    it('matches by alt text, common name, scientific name, taxon path, and category stem', async () => {
+      const actorId = await newActor()
+      const otherActorId = await newActor()
+      const statusId = await createPublicNote(actorId)
+
+      const byAlt = await seedMedia(actorId, {
+        description: 'Fog rolling over basalt cliffs at dawn'
+      })
+      await seedAttachment(byAlt, statusId, actorId)
+
+      const bySpecies = await seedMedia(actorId, {
+        subjectCategory: 'bird',
+        subjectName: 'Eurasian Kingfisher',
+        subjectScientificName: 'Alcedo atthis',
+        subjectTaxonPath: JSON.stringify([
+          'Animalia',
+          'Chordata',
+          'Aves',
+          'Coraciiformes',
+          'Alcedinidae'
+        ])
+      })
+      await seedAttachment(bySpecies, statusId, actorId)
+
+      const byMammal = await seedMedia(actorId, {
+        subjectCategory: 'mammal',
+        subjectName: 'Red Fox',
+        subjectScientificName: 'Vulpes vulpes'
+      })
+      await seedAttachment(byMammal, statusId, actorId)
+
+      const byFungus = await seedMedia(actorId, {
+        subjectCategory: 'fungus',
+        subjectName: 'Fly Agaric'
+      })
+      await seedAttachment(byFungus, statusId, actorId)
+
+      // Another actor's media with the same alt text must never match.
+      await seedMedia(otherActorId, {
+        description: 'Fog rolling over basalt cliffs at dawn'
+      })
+
+      const search = async (query: string) =>
+        (
+          await database.getGalleryMedia({
+            actorId,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 10,
+            filters: { query }
+          })
+        ).map((r) => r.media.id)
+
+      expect(await search('basalt')).toEqual([byAlt])
+      expect(await search('kingfisher')).toEqual([bySpecies])
+      expect(await search('alcedo')).toEqual([bySpecies])
+      expect(await search('coraciiformes')).toEqual([bySpecies])
+      // Category stem: plural "birds" matches category "bird".
+      expect(await search('birds')).toEqual([bySpecies])
+      expect(await search('mammals')).toEqual([byMammal])
+      // Fungi is the irregular plural of the fungus group.
+      expect(await search('fungi')).toEqual([byFungus])
+      // A longer word that only starts with a group is not that group.
+      expect(await search('birdhouse')).toEqual([])
+
+      // Whitespace or punctuation with no words leaves the list unfiltered.
+      expect((await search('   ---  ')).sort()).toEqual(
+        [byAlt, bySpecies, byMammal, byFungus].sort()
+      )
+    })
+
+    it('folds accents and case, and requires every word (AND across words)', async () => {
+      const actorId = await newActor()
+      const statusId = await createPublicNote(actorId)
+
+      const accentedHeron = await seedMedia(actorId, {
+        subjectCategory: 'bird',
+        subjectName: 'Héron cendré',
+        description: 'Perché sur un saule'
+      })
+      await seedAttachment(accentedHeron, statusId, actorId)
+
+      const greyHeron = await seedMedia(actorId, {
+        subjectCategory: 'bird',
+        subjectName: 'Grey Heron',
+        description: 'Standing in shallow water'
+      })
+      await seedAttachment(greyHeron, statusId, actorId)
+
+      const greyWolf = await seedMedia(actorId, {
+        subjectCategory: 'mammal',
+        subjectName: 'Grey Wolf'
+      })
+      await seedAttachment(greyWolf, statusId, actorId)
+
+      const search = async (query: string) =>
+        (
+          await database.getGalleryMedia({
+            actorId,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 10,
+            filters: { query }
+          })
+        )
+          .map((r) => r.media.id)
+          .sort()
+
+      expect(await search('heron')).toEqual([accentedHeron, greyHeron].sort())
+      expect(await search('HERON CENDRE')).toEqual([accentedHeron])
+      expect(await search('perche saule')).toEqual([accentedHeron])
+
+      // AND across words: both words must appear in the same media row.
+      expect(await search('grey heron')).toEqual([greyHeron])
+      expect(await search('grey water')).toEqual([greyHeron])
+      expect(await search('grey cendre')).toEqual([])
+    })
+
+    it('matches placeName for the owner but not for a visitor audience', async () => {
+      const actorId = await newActor()
+      const statusId = await createPublicNote(actorId)
+
+      const placeOnlyMatch = await seedMedia(actorId, {
+        description: 'Quiet morning reflection',
+        subjectCategory: 'landscape',
+        subjectName: 'Marsh',
+        placeName: 'Camargue Wetlands'
+      })
+      await seedAttachment(placeOnlyMatch, statusId, actorId)
+
+      const altMatch = await seedMedia(actorId, {
+        description: 'Sunrise over Camargue reeds',
+        subjectCategory: 'landscape',
+        subjectName: 'Reeds',
+        placeName: 'Somewhere Else'
+      })
+      // A visitor searches the alt text the post shows them.
+      await seedAttachment(altMatch, statusId, actorId, {
+        name: 'Sunrise over Camargue reeds'
+      })
+
+      // The owner rewrote this photo's alt text after posting it: a visitor
+      // still sees (and searches) the post's, never the media row's.
+      const rewritten = await seedMedia(actorId, {
+        description: 'Camargue nest, keep this quiet',
+        subjectCategory: 'bird',
+        subjectName: 'Flamingo'
+      })
+      await seedAttachment(rewritten, statusId, actorId, {
+        name: 'Pink birds in the shallows'
+      })
+
+      const ownerResults = await database.getGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 10,
+        filters: { query: 'camargue' }
+      })
+      expect(ownerResults.map((r) => r.media.id).sort()).toEqual(
+        [placeOnlyMatch, altMatch, rewritten].sort()
+      )
+      expect(
+        await database.countGalleryMedia({
+          actorId,
+          audience: OWNER_GALLERY_AUDIENCE,
+          filters: { query: 'camargue' }
+        })
+      ).toEqual({ total: 3, inAlbum: null })
+
+      const visitorResults = await database.getGalleryMedia({
+        actorId,
+        audience: PUBLIC_GALLERY_AUDIENCE,
+        limit: 10,
+        filters: { query: 'camargue' }
+      })
+      expect(visitorResults.map((r) => r.media.id)).toEqual([altMatch])
+      expect(
+        await database.countGalleryMedia({
+          actorId,
+          audience: PUBLIC_GALLERY_AUDIENCE,
+          filters: { query: 'camargue' }
+        })
+      ).toEqual({ total: 1, inAlbum: null })
+
+      // The owner also finds a photo by the alt text its post shows.
+      expect(
+        (
+          await database.getGalleryMedia({
+            actorId,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 10,
+            filters: { query: 'pink shallows' }
+          })
+        ).map((r) => r.media.id)
+      ).toEqual([rewritten])
+
+      // The post's alt text finds the rewritten photo for a visitor.
+      expect(
+        (
+          await database.getGalleryMedia({
+            actorId,
+            audience: PUBLIC_GALLERY_AUDIENCE,
+            limit: 10,
+            filters: { query: 'pink shallows' }
+          })
+        ).map((r) => r.media.id)
+      ).toEqual([rewritten])
+
+      // A query matching only placeName returns nothing for a visitor.
+      expect(
+        await database.getGalleryMedia({
+          actorId,
+          audience: PUBLIC_GALLERY_AUDIENCE,
+          limit: 10,
+          filters: { query: 'wetlands' }
+        })
+      ).toEqual([])
+      expect(
+        await database.countGalleryMedia({
+          actorId,
+          audience: PUBLIC_GALLERY_AUDIENCE,
+          filters: { query: 'wetlands' }
+        })
+      ).toEqual({ total: 0, inAlbum: null })
+    })
+
+    it('composes with category and subjectKey filters and pages with maxId and cursor', async () => {
+      const actorId = await newActor()
+      const statusId = await createPublicNote(actorId)
+
+      const m1 = await seedMedia(actorId, {
+        description: 'Alpine ridge morning light',
+        subjectCategory: 'bird',
+        subjectName: 'Golden Eagle',
+        subjectScientificName: 'Aquila chrysaetos',
+        sortAt: new Date(Date.UTC(2025, 0, 10))
+      })
+      await seedAttachment(m1, statusId, actorId)
+
+      const m2 = await seedMedia(actorId, {
+        description: 'Alpine meadow wildflowers',
+        subjectCategory: 'plant',
+        subjectName: 'Edelweiss',
+        subjectScientificName: 'Leontopodium nivale',
+        sortAt: new Date(Date.UTC(2025, 0, 20))
+      })
+      await seedAttachment(m2, statusId, actorId)
+
+      const m3 = await seedMedia(actorId, {
+        description: 'Alpine soaring silhouette',
+        subjectCategory: 'bird',
+        subjectName: 'Golden Eagle',
+        subjectScientificName: 'Aquila chrysaetos',
+        sortAt: new Date(Date.UTC(2025, 0, 30))
+      })
+      await seedAttachment(m3, statusId, actorId)
+
+      const m4 = await seedMedia(actorId, {
+        description: 'Alpine perch on pine',
+        subjectCategory: 'bird',
+        subjectName: 'Alpine Chough',
+        subjectScientificName: 'Pyrrhocorax graculus',
+        sortAt: new Date(Date.UTC(2025, 1, 5))
+      })
+      await seedAttachment(m4, statusId, actorId)
+
+      // Composes with category filter.
+      const alpinePlants = await database.getGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 10,
+        filters: { query: 'alpine', category: 'plant' }
+      })
+      expect(alpinePlants.map((r) => r.media.id)).toEqual([m2])
+
+      // Composes with subjectKey filter.
+      const eagleKey = toSubjectKey({
+        name: 'Golden Eagle',
+        scientificName: 'Aquila chrysaetos'
+      })!
+      const alpineEagles = await database.getGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 10,
+        filters: { query: 'alpine', subjectKey: eagleKey }
+      })
+      expect(alpineEagles.map((r) => r.media.id)).toEqual([m3, m1])
+
+      // Paging with limit + maxId across two pages of matches (newest id first).
+      const maxIdPage1 = await database.getGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 2,
+        filters: { query: 'alpine', category: 'bird' }
+      })
+      expect(maxIdPage1.map((r) => r.media.id)).toEqual([m4, m3])
+
+      const maxIdPage2 = await database.getGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 2,
+        maxId: maxIdPage1[1].media.id,
+        filters: { query: 'alpine', category: 'bird' }
+      })
+      expect(maxIdPage2.map((r) => r.media.id)).toEqual([m1])
+
+      // Paging with limit + cursor under taken_desc across two pages of matches.
+      const cursorPage1 = await database.getGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 2,
+        sort: 'taken_desc',
+        filters: { query: 'alpine' }
+      })
+      expect(cursorPage1.map((r) => r.media.id)).toEqual([m4, m3])
+
+      const cursorPage2 = await database.getGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 2,
+        sort: 'taken_desc',
+        cursor: {
+          key: cursorPage1[1].sortAt!,
+          mediaId: Number(cursorPage1[1].media.id)
+        },
+        filters: { query: 'alpine' }
+      })
+      expect(cursorPage2.map((r) => r.media.id)).toEqual([m2, m1])
+
+      const cursorPage3 = await database.getGalleryMedia({
+        actorId,
+        audience: OWNER_GALLERY_AUDIENCE,
+        limit: 2,
+        sort: 'taken_desc',
+        cursor: {
+          key: cursorPage2[1].sortAt!,
+          mediaId: Number(cursorPage2[1].media.id)
+        },
+        filters: { query: 'alpine' }
+      })
+      expect(cursorPage3).toEqual([])
+    })
+
+    it('returns empty and count 0 when nothing matches', async () => {
+      const actorId = await newActor()
+      const m1 = await seedMedia(actorId, {
+        description: 'Coastal lighthouse',
+        subjectName: 'Lighthouse'
+      })
+      const albumResult = await database.createGalleryAlbumWithinLimit({
+        actorId,
+        title: 'Coast Album',
+        limit: 10,
+        mediaIds: [m1]
+      })
+      expect(albumResult.status).toBe('created')
+      const albumId =
+        albumResult.status === 'created' ? albumResult.album.id : ''
+
+      expect(
+        await database.getGalleryMedia({
+          actorId,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 10,
+          filters: { query: 'unmatchedword' }
+        })
+      ).toEqual([])
+      expect(
+        await database.countGalleryMedia({
+          actorId,
+          audience: OWNER_GALLERY_AUDIENCE,
+          filters: { query: 'unmatchedword' }
+        })
+      ).toEqual({ total: 0, inAlbum: null })
+      expect(
+        await database.countGalleryMedia({
+          actorId,
+          audience: OWNER_GALLERY_AUDIENCE,
+          filters: { query: 'unmatchedword' },
+          albumId
+        })
+      ).toEqual({ total: 0, inAlbum: 0 })
+    })
+  })
 })

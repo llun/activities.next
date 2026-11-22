@@ -2,10 +2,18 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within
+} from '@testing-library/react'
 import { type ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { SEARCH_DEBOUNCE_MS } from '@/lib/components/debounced-search-input'
 import type { GalleryMediaFacetsResponse } from '@/lib/services/gallery/galleryEntities'
 
 import { GalleryMediaFilterBar } from './GalleryMediaFilterBar'
@@ -338,8 +346,8 @@ describe('GalleryMediaFilterBar', () => {
       })
       fireEvent.click(dateTrigger2)
 
-      const fromInput = screen.getByLabelText(/From/i)
-      const toInput = screen.getByLabelText(/To/i)
+      const fromInput = screen.getByLabelText(/^From$/i)
+      const toInput = screen.getByLabelText(/^To$/i)
       fireEvent.change(fromInput, { target: { value: '2025-01-01' } })
       fireEvent.change(toInput, { target: { value: '2025-01-31' } })
 
@@ -1056,6 +1064,116 @@ describe('GalleryMediaFilterBar', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
       expect(onChange).toHaveBeenCalledWith(EMPTY_GALLERY_FILTERS)
+    })
+  })
+
+  describe('Search photos input', () => {
+    afterEach(() => {
+      cleanup()
+      vi.useRealTimers()
+    })
+
+    it('renders the search input and debounces typing before updating filters with q', () => {
+      const onChange = vi.fn()
+      render(
+        <GalleryMediaFilterBar
+          idPrefix="test"
+          filters={EMPTY_GALLERY_FILTERS}
+          onChange={onChange}
+          facets={mockFacets}
+          total={42}
+        />
+      )
+
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      expect(input).toHaveAttribute('placeholder', 'Search photos')
+
+      vi.useFakeTimers()
+      fireEvent.change(input, { target: { value: 'kingfisher' } })
+
+      act(() => {
+        vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 1)
+      })
+      expect(onChange).not.toHaveBeenCalled()
+
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(onChange).toHaveBeenCalledTimes(1)
+      expect(onChange).toHaveBeenCalledWith({
+        ...EMPTY_GALLERY_FILTERS,
+        q: 'kingfisher',
+        order: ['q']
+      })
+    })
+
+    it('clears q immediately when the clear button inside the field is clicked', () => {
+      const onChange = vi.fn()
+      render(
+        <GalleryMediaFilterBar
+          idPrefix="test"
+          filters={{
+            ...EMPTY_GALLERY_FILTERS,
+            q: 'kingfisher',
+            order: ['q']
+          }}
+          onChange={onChange}
+          facets={mockFacets}
+          total={3}
+        />
+      )
+
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      expect(input).toHaveValue('kingfisher')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+
+      expect(onChange).toHaveBeenCalledWith(EMPTY_GALLERY_FILTERS)
+      expect(input).toHaveValue('')
+    })
+
+    it('clears q through the existing Clear filters button and counts q as active without inflating the sheet badge', () => {
+      const onChange = vi.fn()
+      render(
+        <GalleryMediaFilterBar
+          idPrefix="test"
+          filters={{
+            ...EMPTY_GALLERY_FILTERS,
+            q: 'kingfisher',
+            order: ['q']
+          }}
+          onChange={onChange}
+          facets={mockFacets}
+          total={3}
+        />
+      )
+
+      // Sheet badge only counts facet filters inside the sheet.
+      const mobile = screen.getByTestId('test-mobile-filters')
+      expect(
+        within(mobile).getByRole('button', { name: 'Filters' })
+      ).toBeInTheDocument()
+
+      // Count line still treats q as an active filter and offers Clear filters.
+      const countLine = screen.getByTestId('test-count-line')
+      fireEvent.click(within(countLine).getByRole('button', { name: /Clear/i }))
+      expect(onChange).toHaveBeenCalledWith(EMPTY_GALLERY_FILTERS)
+    })
+
+    it('keeps the search input enabled while facets load', () => {
+      render(
+        <GalleryMediaFilterBar
+          idPrefix="test"
+          filters={EMPTY_GALLERY_FILTERS}
+          onChange={vi.fn()}
+          facets={null}
+          total={null}
+        />
+      )
+
+      expect(
+        screen.getByRole('searchbox', { name: 'Search photos' })
+      ).toBeEnabled()
     })
   })
 })

@@ -8,6 +8,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { seedActor3 } from '@/lib/stub/seed/actor3'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
+import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET } from './route'
@@ -815,6 +816,81 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
       signIn(null)
 
       expect((await call(ACTOR1_ID, '?gear_id=x')).status).toBe(422)
+    })
+  })
+
+  describe('q search', () => {
+    it('passes q through for visitors without matching place names', async () => {
+      signIn(null)
+
+      const bySpecies = await call(ACTOR1_ID, '?q=kingfisher')
+      expect(bySpecies.status).toBe(200)
+      expect(await names(bySpecies)).toEqual(['Kingfisher'])
+
+      // Followers-only photo stays hidden from a logged-out visitor.
+      const hiddenFromPublic = await call(ACTOR1_ID, '?q=heron')
+      expect(hiddenFromPublic.status).toBe(200)
+      expect(await names(hiddenFromPublic)).toEqual([])
+
+      // Place name is owner-only.
+      const placeForPublic = await call(ACTOR1_ID, '?q=River')
+      expect(placeForPublic.status).toBe(200)
+      expect(await names(placeForPublic)).toEqual([])
+
+      // Follower sees the followers-only match, still without place matching.
+      signIn(seedActor3.email)
+      expect(await names(await call(ACTOR1_ID, '?q=heron'))).toEqual([
+        'Grey Heron'
+      ])
+      expect(await names(await call(ACTOR1_ID, '?q=River'))).toEqual([])
+    })
+
+    it('passes q through for the owner on page and ids_only reads, including place names', async () => {
+      signIn(seedActor1.email)
+
+      const byPlace = await call(ACTOR1_ID, '?q=River&include_total=true')
+      expect(byPlace.status).toBe(200)
+      const byPlaceBody = await byPlace.json()
+      expect(
+        byPlaceBody.items.map(
+          (item: { subject: { name: string } | null }) => item.subject?.name
+        )
+      ).toEqual(['Kingfisher'])
+      expect(byPlaceBody.total).toBe(1)
+
+      const byUnposted = await call(ACTOR1_ID, '?q=egret')
+      expect(byUnposted.status).toBe(200)
+      expect(await names(byUnposted)).toEqual(['Added Egret'])
+
+      const dayMatch = await call(
+        ACTOR1_ID,
+        '?ids_only=true&day_key=2024-03-01&sort=taken_asc&q=kingfisher'
+      )
+      expect(dayMatch.status).toBe(200)
+      expect((await dayMatch.json()).mediaIds).toEqual([ids.kingfisher])
+
+      const dayMiss = await call(
+        ACTOR1_ID,
+        '?ids_only=true&day_key=2024-03-01&sort=taken_asc&q=fox'
+      )
+      expect(dayMiss.status).toBe(200)
+      expect((await dayMiss.json()).mediaIds).toEqual([])
+    })
+
+    it('treats blank q as unfiltered and rejects over-long q with 422', async () => {
+      signIn(null)
+      const baseline = await (await call(ACTOR1_ID)).json()
+
+      const blank = await call(ACTOR1_ID, '?q=%20%20')
+      expect(blank.status).toBe(200)
+      expect(await blank.json()).toEqual(baseline)
+
+      const tooLong = await call(
+        ACTOR1_ID,
+        `?q=${'a'.repeat(MAX_SEARCH_QUERY_LENGTH + 1)}`
+      )
+      expect(tooLong.status).toBe(422)
+      expect(await tooLong.json()).toEqual({ error: 'Unprocessable entity' })
     })
   })
 

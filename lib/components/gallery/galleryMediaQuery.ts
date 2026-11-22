@@ -7,5 +7,5 @@ import type { GetGalleryMediaOptions } from '@/lib/client/galleryMedia'
  */
 export type GalleryMediaQuery = Pick<
   GetGalleryMediaOptions,
-  'sort' | 'subject' | 'place' | 'takenFrom' | 'takenTo' | 'activityId'
+  'sort' | 'subject' | 'q' | 'place' | 'takenFrom' | 'takenTo' | 'activityId'
 >

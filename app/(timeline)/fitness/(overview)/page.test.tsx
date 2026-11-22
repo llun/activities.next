@@ -224,6 +224,41 @@ describe('fitness page', () => {
     ).toMatchObject({ selectedActivityType: 'gravel_ride' })
   })
 
+  it('searches the recent activities by the trimmed ?q= words', async () => {
+    const database = createDatabase()
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page({
+      searchParams: Promise.resolve({ q: ['  gravel loop ', 'ignored'] })
+    })
+
+    expect(database.getFitnessFilesByActor).toHaveBeenCalledWith({
+      actorId: currentActor.id,
+      limit: 5,
+      processingStatus: 'completed',
+      isPrimary: true,
+      query: 'gravel loop'
+    })
+    expect(
+      findElementByType(element, RecentFitnessActivities)?.props
+    ).toMatchObject({ query: 'gravel loop' })
+    // The table's rows keep the search when they toggle ?activity=.
+    expect(
+      findElementByType(element, ActorFitnessDashboard)?.props
+    ).toMatchObject({ activityQuery: 'gravel loop' })
+  })
+
+  it('leaves the search off the query for a blank ?q=', async () => {
+    const database = createDatabase()
+    mockGetDatabase.mockReturnValue(database)
+
+    await Page({ searchParams: Promise.resolve({ q: '   ' }) })
+
+    expect(database.getFitnessFilesByActor.mock.calls[0][0]).not.toHaveProperty(
+      'query'
+    )
+  })
+
   // How a param is read is `activityFilter.test.ts`; what this asserts is that
   // the page states the narrowing only when it means it — the key is absent,
   // not present-and-undefined, which is a distinction an object-literal

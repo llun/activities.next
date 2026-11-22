@@ -102,6 +102,8 @@ interface GalleryQueryBase {
 export interface GetGalleryMediaPageParams extends GalleryQueryBase {
   maxId?: string
   limit: number
+  // Words to match (owner and visitors; the place name only for the owner).
+  query?: string
   subjectKey?: string
   category?: MediaSubjectCategory
   // Owner only. Anyone else asking gets an empty page; the routes answer 422
@@ -166,7 +168,8 @@ const toGalleryMediaFilters = ({
   place,
   takenFrom,
   takenTo,
-  activityId
+  activityId,
+  query
 }: {
   isOwner: boolean
   subjectKey?: string
@@ -175,6 +178,7 @@ const toGalleryMediaFilters = ({
   takenFrom?: string
   takenTo?: string
   activityId?: string
+  query?: string
 }): GalleryMediaFilters => {
   const placeKey = isOwner
     ? place === GALLERY_FILTER_NONE
@@ -193,6 +197,7 @@ const toGalleryMediaFilters = ({
     : undefined
 
   return {
+    ...(query ? { query } : null),
     ...(subjectKey !== undefined ? { subjectKey } : null),
     ...(category !== undefined ? { category } : null),
     ...(placeKey !== undefined ? { placeKey } : null),
@@ -377,7 +382,8 @@ export const getGalleryMediaPage = async ({
   activityId,
   albumId,
   includeTotal,
-  includeDays
+  includeDays,
+  query
 }: GetGalleryMediaPageParams): Promise<GalleryMediaPage> => {
   const empty: GalleryMediaPage = { items: [], nextMaxId: null }
   const pageSize = normalizePageLimit(limit)
@@ -400,7 +406,8 @@ export const getGalleryMediaPage = async ({
     place,
     takenFrom,
     takenTo,
-    activityId
+    activityId,
+    query
   })
 
   const isDateSort =
@@ -608,6 +615,7 @@ export const getGalleryMediaPage = async ({
 
 export interface GetGalleryMediaIdsParams extends GalleryQueryBase {
   limit: number
+  query?: string
   offset?: number
   subjectKey?: string
   category?: MediaSubjectCategory
@@ -642,7 +650,8 @@ export const getGalleryMediaIds = async ({
   takenTo,
   activityId,
   dayKey,
-  excludeAlbumId
+  excludeAlbumId,
+  query
 }: GetGalleryMediaIdsParams): Promise<GalleryMediaIdsResponse> => {
   const isOwner = toGalleryProjectionViewer(audience) === 'owner'
   if (!isOwner) return { mediaIds: [] }
@@ -654,7 +663,8 @@ export const getGalleryMediaIds = async ({
     place,
     takenFrom,
     takenTo,
-    activityId
+    activityId,
+    query
   })
 
   return {

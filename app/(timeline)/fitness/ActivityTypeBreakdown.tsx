@@ -29,6 +29,8 @@ interface Props {
    * row that reads as selected can never disagree.
    */
   selectedActivityType?: string
+  /** The page's `?q=` words, kept when a row toggles `?activity=`. */
+  activityQuery?: string
   /** Keep the table's shape with skeleton rows while the range loads. */
   loading?: boolean
 }
@@ -45,6 +47,7 @@ interface Props {
 export const ActivityTypeBreakdown: FC<Props> = ({
   summary,
   selectedActivityType,
+  activityQuery,
   loading = false
 }) => {
   const headingId = useId()
@@ -170,7 +173,8 @@ export const ActivityTypeBreakdown: FC<Props> = ({
                             <Link
                               href={getActivityFilterHref(
                                 activityType,
-                                isSelected
+                                isSelected,
+                                activityQuery
                               )}
                               prefetch={false}
                               scroll={false}

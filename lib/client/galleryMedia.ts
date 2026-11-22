@@ -25,6 +25,8 @@ export interface GetGalleryMediaOptions {
   signal?: AbortSignal
   /** A `toSubjectKey` key, sent verbatim. */
   subject?: string
+  /** Words every photo must match (alt text, species, and owner-only place). */
+  q?: string
   category?: MediaSubjectCategory
   /** Owner only; anyone else gets a 422. */
   gearId?: string
@@ -104,6 +106,7 @@ export const getGalleryMedia = async (
     dayKey,
     signal,
     subject,
+    q,
     category,
     gearId,
     show,
@@ -123,6 +126,8 @@ export const getGalleryMedia = async (
   if (limit !== undefined) query.set('limit', String(limit))
   if (dayKey !== undefined) query.set('day_key', dayKey)
   if (subject !== undefined) query.set('subject', subject)
+  const trimmedQ = q?.trim()
+  if (trimmedQ) query.set('q', trimmedQ)
   if (category !== undefined) query.set('category', category)
   if (gearId !== undefined) query.set('gear_id', gearId)
   if (show !== undefined) query.set('show', show)
@@ -150,6 +155,7 @@ export const getGalleryMediaIds = async (
   actorId: string,
   {
     subject,
+    q,
     category,
     gearId,
     show,
@@ -173,6 +179,8 @@ export const getGalleryMediaIds = async (
   query.set('limit', String(limit))
   if (offset !== undefined) query.set('offset', String(offset))
   if (subject !== undefined) query.set('subject', subject)
+  const trimmedQ = q?.trim()
+  if (trimmedQ) query.set('q', trimmedQ)
   if (category !== undefined) query.set('category', category)
   if (gearId !== undefined) query.set('gear_id', gearId)
   if (show !== undefined) query.set('show', show)
