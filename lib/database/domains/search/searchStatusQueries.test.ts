@@ -603,6 +603,7 @@ describe('status search queries', () => {
       const statusId = await seedStatus(db, {
         id: statusIdOf(author, 'extras'),
         actorId: author,
+        type: 'Poll',
         createdAt: 1,
         text: 'sqextras base',
         to: [PUBLIC]
@@ -980,6 +981,31 @@ describe('status search queries', () => {
       expect(documentText).toContain('earlier run')
       expect(documentText).not.toContain('cycling')
       expect(documentText).not.toContain('later ride')
+    })
+
+    it('reads poll choices for a Poll only', async () => {
+      const author = await addActor('sqnote-choices-author')
+      const statusId = await seedStatus(db, {
+        id: statusIdOf(author, 'note-choices'),
+        actorId: author,
+        createdAt: 1,
+        text: 'note with stray choice'
+      })
+      await db
+        .insertInto('poll_choices')
+        .values({
+          statusId,
+          title: 'Stray',
+          createdAt: new Date(1),
+          updatedAt: new Date(1)
+        })
+        .execute()
+
+      await database.indexStatusSearchDocument({ statusId })
+
+      expect(
+        (await readSearchDocument(db, 'status', statusId))?.documentText
+      ).toBe('note with stray choice')
     })
 
     it('indexes a status with no text but an attachment alt text', async () => {

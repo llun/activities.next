@@ -101,9 +101,21 @@ const getStatusDocumentText = (
 // threatened species' places); the subject itself is public, as
 // `toSubjectEntity` serves it. The route map attachment is skipped: its alt
 // text is a fixed label.
-const getStatusExtraTextByStatusId = async (db: Db, statusIds: string[]) => {
+const getStatusExtraTextByStatusId = async (
+  db: Db,
+  statuses: Pick<StatusSearchRow, 'id' | 'type'>[]
+) => {
   const extraTextByStatusId = new Map<string, string[]>()
+  const statusIds = [...new Set(statuses.map((status) => status.id))]
   if (statusIds.length === 0) return extraTextByStatusId
+  // Only a Poll has choices, and `poll_choices.statusId` has no index.
+  const pollIds = [
+    ...new Set(
+      statuses
+        .filter((status) => status.type === StatusType.enum.Poll)
+        .map((status) => status.id)
+    )
+  ]
   const append = (statusId: string | null, values: (string | null)[]) => {
     if (!statusId) return
     const texts = extraTextByStatusId.get(statusId) ?? []
@@ -162,7 +174,7 @@ const getStatusExtraTextByStatusId = async (db: Db, statusIds: string[]) => {
         .execute(),
     1
   )
-  const choices = await selectInChunks(db, statusIds, (chunk) =>
+  const choices = await selectInChunks(db, pollIds, (chunk) =>
     db
       .selectFrom('poll_choices')
       .select(['statusId', 'title'])
@@ -276,13 +288,10 @@ const reindexStatusSearchDocuments = async (
   const currentTime = new Date()
   const statusIdsToDelete: string[] = []
   const candidates: { status: StatusSearchRow; documentText: string }[] = []
-  const extraTextByStatusId = await getStatusExtraTextByStatusId(db, [
-    ...new Set(
-      statuses
-        .filter((status) => SEARCHABLE_STATUS_TYPES.includes(status.type))
-        .map((status) => status.id)
-    )
-  ])
+  const extraTextByStatusId = await getStatusExtraTextByStatusId(
+    db,
+    statuses.filter((status) => SEARCHABLE_STATUS_TYPES.includes(status.type))
+  )
 
   for (const status of statuses) {
     const documentText = SEARCHABLE_STATUS_TYPES.includes(status.type)
