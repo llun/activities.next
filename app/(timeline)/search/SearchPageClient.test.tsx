@@ -1007,19 +1007,44 @@ describe('SearchPageClient', () => {
       ).toHaveAttribute('aria-checked', 'false')
     })
 
-    it('puts the Sort posts control on the Posts section of All', async () => {
+    it('keeps the Sort posts control focused after switching on All', async () => {
       mockSearch.mockResolvedValue({
         ...emptySearchResult(),
-        statuses: [searchStatus('sort-section-1')]
+        statuses: [searchStatus('sort-focus-1')]
       })
 
       renderSearchPage('q=trail')
 
-      const postsSection = (
-        await screen.findByRole('heading', { name: 'Posts' })
-      ).closest('section') as HTMLElement
+      const latest = within(
+        await screen.findByRole('radiogroup', { name: 'Sort posts' })
+      ).getByRole('radio', { name: 'Latest' })
+      latest.focus()
+      fireEvent.click(latest)
+
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenCalledWith(
+          expect.objectContaining({ sort: 'latest' })
+        )
+      })
+      expect(document.activeElement).toBe(
+        within(
+          screen.getByRole('radiogroup', { name: 'Sort posts' })
+        ).getByRole('radio', { name: 'Latest' })
+      )
+    })
+
+    it('treats an unknown operator as words', async () => {
+      mockSearch.mockResolvedValue(emptySearchResult())
+
+      renderSearchPage('q=foo%3Abar&type=statuses')
+
+      await waitFor(() => {
+        expect(mockSearch).toHaveBeenCalledWith(
+          expect.objectContaining({ q: 'foo:bar', sort: 'relevance' })
+        )
+      })
       expect(
-        within(postsSection).getByRole('radiogroup', { name: 'Sort posts' })
+        screen.getByRole('radiogroup', { name: 'Sort posts' })
       ).toBeInTheDocument()
     })
 

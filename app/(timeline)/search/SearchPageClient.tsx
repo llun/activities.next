@@ -608,8 +608,8 @@ export const SearchPageClient = ({
 
   // The All tab names each kind of result with its own section; a typed tab is
   // already named by the tab, so it draws the one list.
-  // On the Posts tab it sits beside the tabs; on All, on the Posts section, as
-  // it orders only the posts.
+  // Beside the tabs, which stay mounted while a search runs, so focus stays on
+  // it after a switch; inside the results it would unmount with them.
   const sortControl = (
     <SegmentedControl
       aria-label="Sort posts"
@@ -629,9 +629,7 @@ export const SearchPageClient = ({
           <Section title="Profiles">{renderAccounts(results.accounts)}</Section>
         )}
         {results.statuses.length > 0 && (
-          <Section title="Posts" actions={canRank ? sortControl : undefined}>
-            {renderPosts(results.statuses)}
-          </Section>
+          <Section title="Posts">{renderPosts(results.statuses)}</Section>
         )}
         {results.hashtags.length > 0 && (
           <Section title="Hashtags">{renderHashtags(results.hashtags)}</Section>
@@ -688,7 +686,9 @@ export const SearchPageClient = ({
           value={activeTab}
           onValueChange={onTabChange}
         />
-        {canRank && activeTab === 'statuses' && sortControl}
+        {canRank &&
+          (activeTab === 'all' || activeTab === 'statuses') &&
+          sortControl}
       </div>
 
       {/* Before a query is typed, surface the top trending hashtags. The block
