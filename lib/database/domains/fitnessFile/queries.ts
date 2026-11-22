@@ -15,11 +15,19 @@ import type {
   PaginatedFitnessFiles
 } from '@/lib/database/domains/fitnessFile/types'
 import { fitnessFileWrites } from '@/lib/database/domains/fitnessFile/writes'
+import {
+  foldSearchText,
+  getSearchTokens
+} from '@/lib/database/domains/search/rows'
 import type { Db } from '@/lib/database/kysely'
 import { getCounterValue } from '@/lib/database/kysely/counter'
-import { timestampValue } from '@/lib/database/kysely/dialect'
+import { inTextList, timestampValue } from '@/lib/database/kysely/dialect'
 import { pastKeyset } from '@/lib/database/kysely/keyset'
 import { CounterKey } from '@/lib/database/utils/counter'
+import {
+  formatActivityTypeLabel,
+  getActivityPresentation
+} from '@/lib/services/fitness-files/activityPresentation'
 import type { FitnessFile } from '@/lib/types/database/fitnessFile'
 
 // The fitness file reads. The writes are in ./writes.ts and the fitness
@@ -98,6 +106,58 @@ const fitnessFilesByActor = (
       qb.where('activityStartTime', '<=', timestampValue(endDate!))
     )
 
+// The ids of the actor's activities that hold every word of `query`, each in
+// the activity type (as stored and as the post captions it), the description
+// or the gear's name, folded as post search folds. `undefined` when the query
+// has no word, `null` when nothing matches. Matched in JavaScript over the
+// actor's own activities so it folds the same on SQLite and PostgreSQL.
+// shortcut: reads every activity row of the actor per search; fine for the
+// thousands an athlete records, move to an index if that grows far past it.
+const fitnessQueryMatchIds = async (
+  db: Db,
+  actorId: string,
+  query: string
+): Promise<string[] | null | undefined> => {
+  const words = getSearchTokens(query)
+  if (words.length === 0) return undefined
+  const rows = await db
+    .selectFrom('fitness_files')
+    .leftJoin('fitness_gears', (join) =>
+      join
+        .onRef('fitness_gears.id', '=', 'fitness_files.gearId')
+        .onRef('fitness_gears.actorId', '=', 'fitness_files.actorId')
+        .on('fitness_gears.deletedAt', 'is', null)
+    )
+    .select([
+      'fitness_files.id',
+      'fitness_files.activityType',
+      'fitness_files.description',
+      'fitness_gears.name as gearName'
+    ])
+    .where('fitness_files.actorId', '=', actorId)
+    .where('fitness_files.deletedAt', 'is', null)
+    .execute()
+  const ids = rows
+    .filter((row) => {
+      const text = foldSearchText(
+        [
+          row.activityType,
+          row.activityType ? formatActivityTypeLabel(row.activityType) : null,
+          row.activityType
+            ? getActivityPresentation(row.activityType).label
+            : null,
+          row.description,
+          row.gearName
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join(' ')
+      )
+      return words.every((word) => text.includes(word))
+    })
+    .map((row) => row.id)
+  return ids.length > 0 ? ids : null
+}
+
 export const getFitnessFilesByActor = async (
   db: Db,
   params: GetFitnessFilesByActorParams
@@ -109,7 +169,15 @@ export const getFitnessFilesByActor = async (
     afterCursor
   } = params
 
+  const matchIds = params.query
+    ? await fitnessQueryMatchIds(db, params.actorId, params.query)
+    : undefined
+  if (matchIds === null) return []
+
   const query = fitnessFilesByActor(db, params)
+    .$if(matchIds !== undefined, (qb) =>
+      qb.where(inTextList(db, 'fitness_files.id', matchIds!))
+    )
     .selectAll()
     // Strictly after (createdAt, id) in the sort's own order. Only a forward
     // scan resumes from a cursor.
@@ -134,7 +202,14 @@ export const countFitnessFilesByActor = async (
   db: Db,
   params: CountFitnessFilesByActorParams
 ): Promise<number> => {
+  const matchIds = params.query
+    ? await fitnessQueryMatchIds(db, params.actorId, params.query)
+    : undefined
+  if (matchIds === null) return 0
   const row = await fitnessFilesByActor(db, params)
+    .$if(matchIds !== undefined, (qb) =>
+      qb.where(inTextList(db, 'fitness_files.id', matchIds!))
+    )
     .select((eb) => eb.fn.countAll().as('count'))
     .executeTakeFirst()
 

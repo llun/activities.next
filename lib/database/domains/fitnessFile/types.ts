@@ -101,6 +101,10 @@ export interface FitnessFileCursor {
 
 export interface GetFitnessFilesByActorParams {
   actorId: string
+  // Words every match must hold, each in the activity type (stored word or
+  // caption label), its description or its gear's name; matched case- and
+  // accent-insensitively.
+  query?: string
   limit?: number
   offset?: number
   processingStatus?: string

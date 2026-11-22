@@ -7,8 +7,13 @@ import type {
   GalleryMediaCount,
   GalleryMediaFilters
 } from '@/lib/database/domains/gallery/types'
+import { parseTaxonPath } from '@/lib/database/domains/media/rows'
+import {
+  foldSearchText,
+  getSearchTokens
+} from '@/lib/database/domains/search/rows'
 import type { DB, Db } from '@/lib/database/kysely'
-import { timestampValue } from '@/lib/database/kysely/dialect'
+import { inIntegerList, timestampValue } from '@/lib/database/kysely/dialect'
 import {
   galleryMediaIdRef,
   galleryMediaScope
@@ -38,6 +43,67 @@ export const parseDateBound = (
     return null
   }
   return { year, month, day }
+}
+
+// The ids of the actor's media that hold every word of `query`, each word in
+// any searchable field, folded as post search folds (lowercase, accents and
+// compatibility forms removed). `undefined` when the query has no word (no
+// filter), `null` when nothing matches. Matching runs in JavaScript over the
+// actor's own media so it folds the same on SQLite and PostgreSQL; the place
+// name is searched only for the owner, the one viewer who always sees it.
+// shortcut: reads every media row of the actor per search; fine for the
+// per-account counts galleries hold, move to an index if accounts grow far
+// past tens of thousands of photos.
+const galleryQueryMatchIds = async (
+  db: Db,
+  actorId: string,
+  query: string,
+  isOwner: boolean
+): Promise<number[] | null | undefined> => {
+  const words = getSearchTokens(query)
+  if (words.length === 0) return undefined
+  const rows = await db
+    .selectFrom('medias')
+    .select([
+      'medias.id',
+      'medias.description',
+      'medias.subjectName',
+      'medias.subjectScientificName',
+      'medias.subjectCategory',
+      'medias.subjectTaxonPath',
+      'medias.placeName'
+    ])
+    .where('medias.actorId', '=', actorId)
+    .execute()
+  const ids = rows
+    .filter((row) => {
+      const category = row.subjectCategory
+        ? foldSearchText(row.subjectCategory)
+        : ''
+      const text = foldSearchText(
+        [
+          row.description,
+          row.subjectName,
+          row.subjectScientificName,
+          ...(parseTaxonPath(row.subjectTaxonPath) ?? []),
+          isOwner ? row.placeName : null
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join(' ')
+      )
+      // A group is matched by its prefix or a plural ("bir", "birds" and
+      // "fishes" find their group; "birdhouse" does not).
+      return words.every(
+        (word) =>
+          text.includes(word) ||
+          (category !== '' &&
+            (category.startsWith(word) ||
+              (word.startsWith(category) &&
+                word.length - category.length <= 2)))
+      )
+    })
+    .map((row) => Number(row.id))
+  return ids.length > 0 ? ids : null
 }
 
 export const galleryMediaFilter = async (
@@ -131,6 +197,17 @@ export const galleryMediaFilter = async (
     } else {
       return false
     }
+  }
+
+  if (filters?.query !== undefined) {
+    const ids = await galleryQueryMatchIds(
+      db,
+      actorId,
+      filters.query,
+      audience?.kind === 'owner'
+    )
+    if (ids === null) return false
+    if (ids !== undefined) conditions.push(inIntegerList(db, 'medias.id', ids))
   }
 
   if (audience?.kind === 'owner') {

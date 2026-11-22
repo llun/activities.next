@@ -24,6 +24,7 @@ describe('gallery media filter state', () => {
     })
 
     it.each([
+      ['q', null],
       ['place', null],
       ['notInAlbum', false]
     ] as const)('removes %s from the order when cleared', (key, empty) => {
@@ -33,6 +34,22 @@ describe('gallery media filter state', () => {
 
       expect(state.order).toEqual(['species'])
       expect(state[key]).toBe(empty)
+    })
+
+    it('trims q and treats blank q as cleared', () => {
+      const active = setGalleryFilter(
+        EMPTY_GALLERY_FILTERS,
+        'q',
+        '  kingfisher  '
+      )
+      expect(active.q).toBe('kingfisher')
+      expect(active.order).toEqual(['q'])
+      expect(countActiveFilters(active)).toBe(1)
+
+      const cleared = setGalleryFilter(active, 'q', '   ')
+      expect(cleared.q).toBeNull()
+      expect(cleared.order).toEqual([])
+      expect(countActiveFilters(cleared)).toBe(0)
     })
 
     it('does not change the state it is given', () => {
@@ -128,13 +145,15 @@ describe('gallery media filter state', () => {
     })
 
     it('maps each filter and passes none through unchanged', () => {
-      let state = setGalleryFilter(EMPTY_GALLERY_FILTERS, 'species', 'k')
+      let state = setGalleryFilter(EMPTY_GALLERY_FILTERS, 'q', 'kingfisher')
+      state = setGalleryFilter(state, 'species', 'k')
       state = setGalleryFilter(state, 'place', GALLERY_FILTER_NONE)
       state = setGalleryFilter(state, 'activity', GALLERY_FILTER_NONE)
       state = setGalleryFilter(state, 'date', { kind: 'year', year: 2025 })
 
       expect(toGalleryMediaQuery(state, today)).toEqual({
         sort: 'taken_desc',
+        q: 'kingfisher',
         subject: 'k',
         place: GALLERY_FILTER_NONE,
         activityId: GALLERY_FILTER_NONE,

@@ -2,7 +2,15 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within
+} from '@testing-library/react'
+import type { ReactNode } from 'react'
 
 import {
   getAccountGalleryAlbums,
@@ -10,20 +18,26 @@ import {
   getGalleryMap,
   getGallerySubjects
 } from '@/lib/client'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/components/debounced-search-input'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 import {
   buildGallerySubject,
   buildLifeListEntry
 } from '@/lib/components/gallery/__fixtures__/galleryItems'
+import type { GalleryMediaQuery } from '@/lib/components/gallery/galleryMediaQuery'
 import type { GalleryMapResponse } from '@/lib/services/gallery/galleryEntities'
 import type { Attachment } from '@/lib/types/domain/attachment'
 
 import { ProfileGalleryTab } from './ProfileGalleryTab'
 
 const mockPush = vi.fn()
+const mockReplace = vi.fn()
+const mockSearchParams = { current: new URLSearchParams() }
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush })
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  usePathname: () => '/@llun@llun.test',
+  useSearchParams: () => mockSearchParams.current
 }))
 
 vi.mock('@/lib/client', () => ({
@@ -44,13 +58,18 @@ vi.mock('@/lib/components/posts/media', () => ({
 vi.mock('@/lib/components/gallery/GalleryPagedGrid', () => ({
   GalleryPagedGrid: ({
     subject,
-    category
+    category,
+    query,
+    emptyState
   }: {
     subject?: string
     category?: string
+    query?: GalleryMediaQuery
+    emptyState?: ReactNode
   }) => (
     <div data-testid="paged-grid">
-      subject={subject ?? ''};category={category ?? ''}
+      subject={subject ?? ''};category={category ?? ''};q={query?.q ?? ''}
+      {emptyState ? <div data-testid="grid-empty">{emptyState}</div> : null}
     </div>
   )
 }))
@@ -137,6 +156,13 @@ describe('ProfileGalleryTab', () => {
     getGalleryMapMock.mockReset()
     getAlbumsMock.mockReset()
     mockPush.mockReset()
+    mockReplace.mockReset()
+    mockSearchParams.current = new URLSearchParams()
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
   })
 
   it('loads subjects first, with a skeleton meanwhile', async () => {
@@ -434,5 +460,69 @@ describe('ProfileGalleryTab', () => {
   it('returns null when subviews is only albums but handle is missing', () => {
     const { container } = renderTab({ subviews: ['albums'], handle: undefined })
     expect(container).toBeEmptyDOMElement()
+  })
+
+  describe('Photo search', () => {
+    it('debounces typing, writes ?q=, passes q to the grid, renders the filter empty state, and clears for visitors', async () => {
+      renderTab({ isCurrentUser: false })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      expect(input).toHaveAttribute('placeholder', 'Search photos')
+
+      vi.useFakeTimers()
+      fireEvent.change(input, { target: { value: 'kingfisher' } })
+
+      act(() => {
+        vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 1)
+      })
+      expect(mockReplace).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
+
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(mockReplace).toHaveBeenCalledWith(
+        '/@llun@llun.test?q=kingfisher',
+        { scroll: false }
+      )
+      expect(screen.getByTestId('paged-grid')).toHaveTextContent(
+        'subject=;category=;q=kingfisher'
+      )
+      expect(screen.getByText('No matching photos')).toBeInTheDocument()
+      expect(
+        screen.getByText('No photos match “kingfisher”.')
+      ).toBeInTheDocument()
+
+      // Clear via the clear button inside the input (first in the DOM; the
+      // empty state's own Clear search follows it).
+      fireEvent.click(
+        screen.getAllByRole('button', { name: 'Clear search' })[0]
+      )
+
+      expect(mockReplace).toHaveBeenCalledWith('/@llun@llun.test', {
+        scroll: false
+      })
+      expect(screen.queryByTestId('paged-grid')).not.toBeInTheDocument()
+    })
+
+    it('clears the search from the empty state Clear search button', () => {
+      mockSearchParams.current = new URLSearchParams('q=heron')
+      renderTab({ isCurrentUser: false })
+
+      expect(screen.getByTestId('paged-grid')).toHaveTextContent('q=heron')
+      const clearButtons = screen.getAllByRole('button', {
+        name: 'Clear search'
+      })
+      expect(clearButtons).toHaveLength(2)
+      fireEvent.click(clearButtons[1])
+
+      expect(mockReplace).toHaveBeenCalledWith('/@llun@llun.test', {
+        scroll: false
+      })
+      expect(
+        screen.getByRole('searchbox', { name: 'Search photos' })
+      ).toHaveValue('')
+    })
   })
 })

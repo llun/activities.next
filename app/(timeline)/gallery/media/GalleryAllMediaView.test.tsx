@@ -24,7 +24,10 @@ import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlb
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import type { GalleryMediaFilterBarProps } from '@/lib/components/gallery/filters/GalleryMediaFilterBar'
 import type { GalleryMediaFilterEmptyProps } from '@/lib/components/gallery/filters/GalleryMediaFilterEmpty'
-import { EMPTY_GALLERY_FILTERS } from '@/lib/components/gallery/filters/galleryMediaFilterState'
+import {
+  EMPTY_GALLERY_FILTERS,
+  setGalleryFilter
+} from '@/lib/components/gallery/filters/galleryMediaFilterState'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import { PageHeaderSectionProvider } from '@/lib/components/page-header'
@@ -72,6 +75,7 @@ vi.mock('@/lib/components/gallery/filters/GalleryMediaFilterBar', () => ({
           type="button"
           onClick={() =>
             props.onChange({
+              q: null,
               species: 'sci:panthera leo',
               place: null,
               date: null,
@@ -88,6 +92,7 @@ vi.mock('@/lib/components/gallery/filters/GalleryMediaFilterBar', () => ({
           type="button"
           onClick={() =>
             props.onChange({
+              q: null,
               species: 'sci:fratercula arctica',
               place: null,
               date: null,
@@ -130,8 +135,15 @@ vi.mock('@/lib/components/gallery/filters/GalleryMediaFilterEmpty', () => ({
   }
 }))
 
-const router = vi.hoisted(() => ({ push: vi.fn() }))
-vi.mock('next/navigation', () => ({ useRouter: () => router }))
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }))
+const mockSearchParams = vi.hoisted(() => ({
+  current: new URLSearchParams()
+}))
+vi.mock('next/navigation', () => ({
+  useRouter: () => router,
+  usePathname: () => '/gallery/media',
+  useSearchParams: () => mockSearchParams.current
+}))
 
 const addDialog = vi.hoisted(() => ({
   current: null as null | {
@@ -328,6 +340,8 @@ describe('GalleryAllMediaView', () => {
     filterBarProps.current = null
     filterEmptyProps.current = null
     router.push.mockReset()
+    router.replace.mockReset()
+    mockSearchParams.current = new URLSearchParams()
     deleteUnpostedMediaMock.mockReset()
   })
 
@@ -3044,6 +3058,96 @@ describe('GalleryAllMediaView', () => {
 
       expect(screen.getByText('No mammals yet')).toBeInTheDocument()
       expect(screen.queryByTestId('filter-empty')).not.toBeInTheDocument()
+    })
+
+    it('syncs q to ?q=, passes q to getGalleryMedia, resets paging, and shows GalleryMediaFilterEmpty on no matches', async () => {
+      mockSearchParams.current = new URLSearchParams('category=bird')
+      getGalleryMediaMock.mockResolvedValue({
+        items: [],
+        nextMaxId: null,
+        total: 0
+      })
+
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory="bird"
+          initialShow="all"
+          initialPage={{
+            items: [buildGalleryItem('1')],
+            nextMaxId: null,
+            nextCursor: 'cursor-1',
+            total: 5
+          }}
+        />
+      )
+
+      act(() => {
+        filterBarProps.current!.onChange(
+          setGalleryFilter(EMPTY_GALLERY_FILTERS, 'q', 'kingfisher')
+        )
+      })
+
+      expect(router.replace).toHaveBeenCalledWith(
+        '/gallery/media?category=bird&q=kingfisher',
+        { scroll: false }
+      )
+
+      await waitFor(() => {
+        expect(getGalleryMediaMock).toHaveBeenCalledWith(
+          'actor-1',
+          expect.objectContaining({
+            q: 'kingfisher',
+            category: 'bird',
+            show: 'all'
+          })
+        )
+      })
+      // Paging was reset: no cursor or maxId on the new query's first page.
+      expect(getGalleryMediaMock.mock.calls[0][1]).not.toHaveProperty('cursor')
+      expect(getGalleryMediaMock.mock.calls[0][1]).not.toHaveProperty('maxId')
+
+      await waitFor(() => {
+        expect(screen.getByTestId('filter-empty')).toBeInTheDocument()
+      })
+
+      getGalleryMediaMock.mockResolvedValueOnce({
+        items: [buildGalleryItem('1')],
+        nextMaxId: null,
+        total: 1
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+      expect(router.replace).toHaveBeenCalledWith(
+        '/gallery/media?category=bird',
+        { scroll: false }
+      )
+      await waitFor(() => {
+        expect(screen.queryByTestId('filter-empty')).not.toBeInTheDocument()
+      })
+    })
+
+    it('initializes filters from initialQuery and reuses initialPage without refetching', () => {
+      mockSearchParams.current = new URLSearchParams('q=kingfisher')
+
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialQuery="kingfisher"
+          initialPage={{
+            items: [],
+            nextMaxId: null,
+            total: 0
+          }}
+        />
+      )
+
+      expect(filterBarProps.current?.filters.q).toBe('kingfisher')
+      expect(getGalleryMediaMock).not.toHaveBeenCalled()
+      expect(screen.getByTestId('filter-empty')).toBeInTheDocument()
     })
   })
 })

@@ -11,6 +11,7 @@
  */
 
 const ACTIVITY_FILTER_PARAM = 'activity'
+const SEARCH_QUERY_PARAM = 'q'
 
 const FITNESS_OVERVIEW_PATH = '/fitness'
 
@@ -76,3 +77,36 @@ export const getActivityFilterHref = (
 
 /** Where the chip beside "Recent activities" goes: the unfiltered overview. */
 export const CLEAR_ACTIVITY_FILTER_HREF = FITNESS_OVERVIEW_PATH
+
+/**
+ * The fitness overview address with `?q=` updated, preserving `?activity=` and
+ * any other active search params.
+ */
+export const getFitnessSearchHref = (
+  currentParams: { toString(): string },
+  nextQuery: string
+): string => {
+  const params = new URLSearchParams(currentParams.toString())
+  const trimmed = nextQuery.trim()
+  if (trimmed) {
+    params.set(SEARCH_QUERY_PARAM, trimmed)
+  } else {
+    params.delete(SEARCH_QUERY_PARAM)
+  }
+  const search = params.toString()
+  return search ? `${FITNESS_OVERVIEW_PATH}?${search}` : FITNESS_OVERVIEW_PATH
+}
+
+/** Clears `?q=` while keeping `?activity=` when one is active. */
+export const getClearSearchHref = (activityType?: string): string =>
+  activityType
+    ? `${FITNESS_OVERVIEW_PATH}?${ACTIVITY_FILTER_PARAM}=${encodeURIComponent(activityType)}`
+    : FITNESS_OVERVIEW_PATH
+
+/** Clears `?activity=` while keeping `?q=` when one is active. */
+export const getClearActivityFilterHref = (query?: string): string => {
+  const trimmed = query?.trim()
+  return trimmed
+    ? `${FITNESS_OVERVIEW_PATH}?${SEARCH_QUERY_PARAM}=${encodeURIComponent(trimmed)}`
+    : CLEAR_ACTIVITY_FILTER_HREF
+}

@@ -1,6 +1,9 @@
 import {
   CLEAR_ACTIVITY_FILTER_HREF,
   getActivityFilterHref,
+  getClearActivityFilterHref,
+  getClearSearchHref,
+  getFitnessSearchHref,
   readActivityTypeParam,
   resolveActivityTypeFilter
 } from './activityFilter'
@@ -114,5 +117,56 @@ describe('resolveActivityTypeFilter', () => {
 
   it('filters nothing when the actor has no activities at all', () => {
     expect(resolveActivityTypeFilter('run', [])).toBeUndefined()
+  })
+})
+
+describe('getFitnessSearchHref', () => {
+  it.each([
+    {
+      description: 'writes q when no params are set',
+      params: '',
+      nextQuery: 'morning run',
+      expected: '/fitness?q=morning+run'
+    },
+    {
+      description: 'preserves activity when setting q',
+      params: 'activity=gravel_ride',
+      nextQuery: 'hill',
+      expected: '/fitness?activity=gravel_ride&q=hill'
+    },
+    {
+      description: 'drops q while keeping activity when cleared',
+      params: 'activity=gravel_ride&q=hill',
+      nextQuery: '   ',
+      expected: '/fitness?activity=gravel_ride'
+    },
+    {
+      description: 'returns bare /fitness when only q was set and cleared',
+      params: 'q=hill',
+      nextQuery: '',
+      expected: '/fitness'
+    }
+  ])('$description', ({ params, nextQuery, expected }) => {
+    expect(getFitnessSearchHref(new URLSearchParams(params), nextQuery)).toBe(
+      expected
+    )
+  })
+})
+
+describe('getClearSearchHref and getClearActivityFilterHref', () => {
+  it('keeps activity when clearing search', () => {
+    expect(getClearSearchHref('gravel_ride')).toBe(
+      '/fitness?activity=gravel_ride'
+    )
+    expect(getClearSearchHref(undefined)).toBe('/fitness')
+  })
+
+  it('keeps q when clearing activity filter', () => {
+    expect(getClearActivityFilterHref('morning run')).toBe(
+      '/fitness?q=morning%20run'
+    )
+    expect(getClearActivityFilterHref(undefined)).toBe(
+      CLEAR_ACTIVITY_FILTER_HREF
+    )
   })
 })

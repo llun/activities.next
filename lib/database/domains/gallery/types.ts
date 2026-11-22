@@ -270,6 +270,10 @@ export interface GalleryMediaFilters {
   takenTo?: string
   // Fitness file id; null = not from an activity. Owner only.
   activityId?: string | null
+  // Words every match must hold, each in any of the photo's alt text, species
+  // name, scientific name, group or taxon path, and, for the owner only, its
+  // place name; matched case- and accent-insensitively.
+  query?: string
 }
 
 export interface GetGalleryMediaParams {

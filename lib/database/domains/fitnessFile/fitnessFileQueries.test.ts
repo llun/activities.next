@@ -1,7 +1,7 @@
 import { type Insertable, sql } from 'kysely'
 
 import { MAX_FITNESS_IMPORT_ERROR_LENGTH } from '@/lib/database/domains/fitnessFile/rows'
-import type { FitnessFiles } from '@/lib/database/kysely/db'
+import type { FitnessFiles, FitnessGears } from '@/lib/database/kysely/db'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createSearchActor } from '@/lib/database/testing/searchTestHelpers'
 import { CounterKey } from '@/lib/database/utils/counter'
@@ -623,6 +623,205 @@ describe('file reads', () => {
       expect(
         await both({ startDate: at('2026-05-02'), endDate: at('2026-05-03') })
       ).toEqual(['b', 'c'])
+    })
+  })
+
+  describe('getFitnessFilesByActor and countFitnessFilesByActor text search', () => {
+    const seedGear = async (
+      actorId: string,
+      values: Partial<Insertable<FitnessGears>> & { name: string }
+    ) => {
+      const id = values.id ?? nextId('gear')
+      await db()
+        .insertInto('fitness_gears')
+        .values({
+          kind: 'bike',
+          createdAt: at('2026-01-01'),
+          updatedAt: at('2026-01-01'),
+          deletedAt: null,
+          ...values,
+          id,
+          actorId
+        })
+        .execute()
+      return id
+    }
+
+    it('matches stored activity type, caption label, description, active gear name, accents/case, and AND across words', async () => {
+      const actorId = await newActor()
+      const otherActorId = await newActor()
+
+      const activeGearId = await seedGear(actorId, {
+        name: 'Canyon Endurace Vélo'
+      })
+      const deletedGearId = await seedGear(actorId, {
+        name: 'Retired Ghost Bike',
+        deletedAt: at('2026-06-05')
+      })
+
+      const ride = await seedFile(actorId, {
+        id: 'qsearch-ride',
+        activityType: 'ride',
+        description: 'Sortie au canal en été',
+        gearId: activeGearId,
+        createdAt: at('2026-06-01')
+      })
+      const trail = await seedFile(actorId, {
+        id: 'qsearch-trail',
+        activityType: 'trail_run',
+        description: 'Morning loop along the canal ridge',
+        gearId: deletedGearId,
+        createdAt: at('2026-06-02')
+      })
+      const indoor = await seedFile(actorId, {
+        id: 'qsearch-indoor',
+        activityType: 'virtual_ride',
+        description: 'Tempo intervals at home',
+        createdAt: at('2026-06-03')
+      })
+      // Deleted activity and another actor's activity must never match.
+      await seedFile(actorId, {
+        id: 'qsearch-deleted',
+        activityType: 'ride',
+        description: 'Deleted canal ride',
+        gearId: activeGearId,
+        deletedAt: at('2026-06-04'),
+        createdAt: at('2026-06-04')
+      })
+      await seedFile(otherActorId, {
+        id: 'qsearch-other',
+        activityType: 'ride',
+        description: 'Other athlete canal ride',
+        createdAt: at('2026-06-04')
+      })
+
+      const search = async (query: string) => {
+        const params = { actorId, orderDirection: 'asc' as const, query }
+        const found = idsOf(await database.getFitnessFilesByActor(params))
+        expect(await database.countFitnessFilesByActor(params)).toBe(
+          found.length
+        )
+        return found
+      }
+
+      // Stored activity type
+      expect(await search('trail_run')).toEqual([trail])
+      // Caption label: "cycling" finds stored `ride` and `virtual_ride` ("Indoor cycling")
+      expect(await search('cycling')).toEqual([ride, indoor])
+      expect(await search('indoor')).toEqual([indoor])
+      // Description
+      expect(await search('tempo')).toEqual([indoor])
+      // Active gear name matches, deleted gear does not
+      expect(await search('endurace')).toEqual([ride])
+      expect(await search('ghost')).toEqual([])
+      // Accents and case folded across description and gear name
+      expect(await search('ETE VELO')).toEqual([ride])
+      expect(await search('CANYON')).toEqual([ride])
+      // AND across words (fields can satisfy different words)
+      expect(await search('cycling canal')).toEqual([ride])
+      expect(await search('canal ridge')).toEqual([trail])
+      expect(await search('cycling ridge')).toEqual([])
+      // No match returns [] and count 0
+      expect(await search('unmatchedword')).toEqual([])
+      // Whitespace or punctuation with no words leaves results unfiltered
+      expect(await search('   ---  ')).toEqual([ride, trail, indoor])
+    })
+
+    it('composes query with activityType and paging (offset and cursor)', async () => {
+      const actorId = await newActor()
+
+      const r1 = await seedFile(actorId, {
+        id: 'qpage-1',
+        activityType: 'ride',
+        description: 'Summit climb 1',
+        createdAt: at('2026-06-10')
+      })
+      const run = await seedFile(actorId, {
+        id: 'qpage-2',
+        activityType: 'running',
+        description: 'Summit climb on foot',
+        createdAt: at('2026-06-11')
+      })
+      const r2 = await seedFile(actorId, {
+        id: 'qpage-3',
+        activityType: 'ride',
+        description: 'Summit climb 2',
+        createdAt: at('2026-06-12')
+      })
+      const r3 = await seedFile(actorId, {
+        id: 'qpage-4',
+        activityType: 'ride',
+        description: 'Summit climb 3',
+        createdAt: at('2026-06-13')
+      })
+
+      // Composes with activityType
+      expect(
+        idsOf(
+          await database.getFitnessFilesByActor({
+            actorId,
+            activityType: 'running',
+            query: 'summit'
+          })
+        )
+      ).toEqual([run])
+      expect(
+        await database.countFitnessFilesByActor({
+          actorId,
+          activityType: 'running',
+          query: 'summit'
+        })
+      ).toBe(1)
+
+      expect(
+        await database.countFitnessFilesByActor({
+          actorId,
+          activityType: 'ride',
+          query: 'summit'
+        })
+      ).toBe(3)
+
+      // Paging with limit + offset (newest first)
+      const descPage1 = await database.getFitnessFilesByActor({
+        actorId,
+        activityType: 'ride',
+        query: 'summit',
+        limit: 2,
+        offset: 0
+      })
+      expect(idsOf(descPage1)).toEqual([r3, r2])
+
+      const descPage2 = await database.getFitnessFilesByActor({
+        actorId,
+        activityType: 'ride',
+        query: 'summit',
+        limit: 2,
+        offset: 2
+      })
+      expect(idsOf(descPage2)).toEqual([r1])
+
+      // Forward cursor paging (oldest first) across two pages of matches
+      const ascPage1 = await database.getFitnessFilesByActor({
+        actorId,
+        activityType: 'ride',
+        query: 'summit',
+        orderDirection: 'asc',
+        limit: 2
+      })
+      expect(idsOf(ascPage1)).toEqual([r1, r2])
+
+      const ascPage2 = await database.getFitnessFilesByActor({
+        actorId,
+        activityType: 'ride',
+        query: 'summit',
+        orderDirection: 'asc',
+        limit: 2,
+        afterCursor: {
+          createdAt: ascPage1[1].createdAt,
+          id: ascPage1[1].id
+        }
+      })
+      expect(idsOf(ascPage2)).toEqual([r3])
     })
   })
 

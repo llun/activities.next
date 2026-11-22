@@ -17,9 +17,11 @@ export type GalleryDateFilter =
   | { kind: 'custom'; from: string; to: string; label?: string }
 
 export type GalleryFilterKey =
-  'species' | 'place' | 'date' | 'activity' | 'notInAlbum'
+  'q' | 'species' | 'place' | 'date' | 'activity' | 'notInAlbum'
 
 export interface GalleryMediaFilterState {
+  // Trimmed search words, or null when empty
+  q: string | null
   // toSubjectKey key
   species: string | null
   // Place name, or GALLERY_FILTER_NONE
@@ -35,6 +37,7 @@ export interface GalleryMediaFilterState {
 }
 
 export const EMPTY_GALLERY_FILTERS: GalleryMediaFilterState = {
+  q: null,
   species: null,
   place: null,
   date: null,
@@ -44,15 +47,19 @@ export const EMPTY_GALLERY_FILTERS: GalleryMediaFilterState = {
   order: []
 }
 
-/** Sets a filter (the key moves to the end of `order`); null or false removes it. */
+/** Sets a filter (the key moves to the end of `order`); null, false or blank q removes it. */
 export const setGalleryFilter = <K extends GalleryFilterKey>(
   state: GalleryMediaFilterState,
   key: K,
   value: GalleryMediaFilterState[K]
 ): GalleryMediaFilterState => {
+  const normalized =
+    key === 'q' && typeof value === 'string'
+      ? ((value.trim() || null) as GalleryMediaFilterState[K])
+      : value
   const order = state.order.filter((entry) => entry !== key)
-  if (value !== null && value !== false) order.push(key)
-  return { ...state, [key]: value, order }
+  if (normalized !== null && normalized !== false) order.push(key)
+  return { ...state, [key]: normalized, order }
 }
 
 /** Every filter off; the sort stays. */
@@ -107,6 +114,7 @@ export const toGalleryMediaQuery = (
   today: Date
 ): GalleryMediaQuery => ({
   sort: state.sort,
+  ...(state.q !== null && state.q.trim() ? { q: state.q.trim() } : {}),
   ...(state.species !== null ? { subject: state.species } : {}),
   ...(state.place !== null ? { place: state.place } : {}),
   ...(state.date ? getDateRange(state.date, today) : {}),

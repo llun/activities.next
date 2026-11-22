@@ -2,7 +2,7 @@
 
 import { CheckSquare, ImagePlus, Images, Lock, X } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
@@ -30,6 +30,7 @@ import {
   type GalleryMediaFilterState,
   type GalleryMediaQuery,
   countActiveFilters,
+  setGalleryFilter,
   toGalleryMediaQuery
 } from '@/lib/components/gallery/filters/galleryMediaFilterState'
 import { useGalleryMediaFacets } from '@/lib/components/gallery/filters/useGalleryMediaFacets'
@@ -68,6 +69,7 @@ import {
   MEDIA_SUBJECT_CATEGORIES,
   type MediaSubjectCategory
 } from '@/lib/types/database/gallery'
+import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 
 import { GalleryAddToAlbumDialog } from './GalleryAddToAlbumDialog'
 import {
@@ -79,6 +81,7 @@ interface Props {
   actorId: string
   initialCategory: MediaSubjectCategory | null
   initialShow: GalleryShow
+  initialQuery?: string | null
   initialPage: GalleryMediaPage
   /** False when the instance has no media storage: nothing can be added. */
   isMediaUploadEnabled?: boolean
@@ -145,16 +148,27 @@ export const GalleryAllMediaView: FC<Props> = ({
   actorId,
   initialCategory,
   initialShow,
+  initialQuery = null,
   initialPage,
   isMediaUploadEnabled: isUploadEnabled = true
 }) => {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const urlQuery =
+    searchParams.get('q')?.trim().slice(0, MAX_SEARCH_QUERY_LENGTH) || null
+  const startQuery = initialQuery ?? urlQuery
   const [filter, setFilterState] = useState<Filter>(initialCategory ?? 'all')
   const startFilter = initialCategory ?? 'all'
   const [show, setShowState] = useState<GalleryShow>(initialShow)
-  const [filters, setFilters] = useState<GalleryMediaFilterState>(
-    EMPTY_GALLERY_FILTERS
+  const [filters, setFilters] = useState<GalleryMediaFilterState>(() =>
+    startQuery
+      ? setGalleryFilter(EMPTY_GALLERY_FILTERS, 'q', startQuery)
+      : EMPTY_GALLERY_FILTERS
   )
-  const [query, setQuery] = useState<GalleryMediaQuery>({ sort: 'taken_desc' })
+  const [query, setQuery] = useState<GalleryMediaQuery>(() =>
+    startQuery ? { sort: 'taken_desc', q: startQuery } : { sort: 'taken_desc' }
+  )
   // The grid's day grouping and the Select day fetches follow this sort.
   const sort = query.sort ?? 'taken_desc'
   const [total, setTotal] = useState<number | null>(initialPage?.total ?? null)
@@ -173,7 +187,6 @@ export const GalleryAllMediaView: FC<Props> = ({
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
-  const router = useRouter()
   const { maxMediaAttachments } = useInstanceLimits()
   // Add to gallery: the files being added, the drag overlay and the toast that
   // follows. `gridNonce` remounts the grid so the new photos load first.
@@ -193,6 +206,43 @@ export const GalleryAllMediaView: FC<Props> = ({
   // the owner has switched filters (or edited anything) it is stale, so a later
   // return to the starting filter loads its own.
   const [reuseInitialPage, setReuseInitialPage] = useState(true)
+  const prevUrlQueryRef = useRef(urlQuery)
+  const lastCommittedQueryRef = useRef(startQuery)
+  const filtersRef = useRef(filters)
+  useEffect(() => {
+    filtersRef.current = filters
+  }, [filters])
+
+  useEffect(() => {
+    if (urlQuery === prevUrlQueryRef.current) return
+    prevUrlQueryRef.current = urlQuery
+    if (urlQuery === lastCommittedQueryRef.current) return
+    lastCommittedQueryRef.current = urlQuery
+    const next = setGalleryFilter(filtersRef.current, 'q', urlQuery)
+    filtersRef.current = next
+    setReuseInitialPage(false)
+    setFilters(next)
+    setQuery(toGalleryMediaQuery(next, new Date()))
+  }, [urlQuery])
+
+  const syncUrlQuery = useCallback(
+    (nextQ: string | null) => {
+      const normalized = nextQ?.trim().slice(0, MAX_SEARCH_QUERY_LENGTH) || null
+      if (normalized === lastCommittedQueryRef.current) return
+      lastCommittedQueryRef.current = normalized
+      const params = new URLSearchParams(searchParams.toString())
+      if (normalized) {
+        params.set('q', normalized)
+      } else {
+        params.delete('q')
+      }
+      const nextQs = params.toString()
+      router.replace(nextQs ? `${pathname}?${nextQs}` : pathname, {
+        scroll: false
+      })
+    },
+    [pathname, router, searchParams]
+  )
 
   const filterBarRef = useRef<HTMLDivElement>(null)
   const scrollToTop = useCallback(
@@ -205,9 +255,10 @@ export const GalleryAllMediaView: FC<Props> = ({
       setReuseInitialPage(false)
       setFilters(next)
       setQuery(toGalleryMediaQuery(next, new Date()))
+      syncUrlQuery(next.q)
       scrollToTop()
     },
-    [scrollToTop]
+    [scrollToTop, syncUrlQuery]
   )
 
   const countDraft = useCallback(
@@ -532,23 +583,27 @@ export const GalleryAllMediaView: FC<Props> = ({
     setAddFiles(taken)
   }, [])
 
-  const handleAdded = useCallback((mediaIds: string[]) => {
-    // New photos are unposted, so they are in Everything, In gallery and Not
-    // posted. Hidden and a category filter would not list them: start over at
-    // the unfiltered list, whose first page has them first.
-    setFilterState('all')
-    setShowState((current) => (current === 'hidden' ? 'all' : current))
-    setFilters(EMPTY_GALLERY_FILTERS)
-    setQuery({ sort: 'taken_desc' })
-    setReuseInitialPage(false)
-    setGridNonce((nonce) => nonce + 1)
-    setSelected([])
-    setToast({
-      id: Date.now(),
-      message: `${mediaIds.length} added to your gallery.`,
-      mediaIds
-    })
-  }, [])
+  const handleAdded = useCallback(
+    (mediaIds: string[]) => {
+      // New photos are unposted, so they are in Everything, In gallery and Not
+      // posted. Hidden and a category filter would not list them: start over at
+      // the unfiltered list, whose first page has them first.
+      setFilterState('all')
+      setShowState((current) => (current === 'hidden' ? 'all' : current))
+      setFilters(EMPTY_GALLERY_FILTERS)
+      setQuery({ sort: 'taken_desc' })
+      syncUrlQuery(null)
+      setReuseInitialPage(false)
+      setGridNonce((nonce) => nonce + 1)
+      setSelected([])
+      setToast({
+        id: Date.now(),
+        message: `${mediaIds.length} added to your gallery.`,
+        mediaIds
+      })
+    },
+    [syncUrlQuery]
+  )
 
   // A dialog being open (Add, edit, delete, album, or the viewer and the Edit
   // details inside the grid) means a drop is not for this page: it would
@@ -671,7 +726,13 @@ export const GalleryAllMediaView: FC<Props> = ({
   )
 
   const hasFilters = countActiveFilters(filters) > 0
-  const isDefaultFiltersAndSort = !hasFilters && filters.sort === 'taken_desc'
+  const isDefaultFiltersAndSort =
+    filters.sort === 'taken_desc' &&
+    (startQuery
+      ? filters.order.length === 1 &&
+        filters.order[0] === 'q' &&
+        filters.q === startQuery
+      : !hasFilters)
 
   const actions = (
     <div className="flex gap-2 sm:h-10 sm:items-center">

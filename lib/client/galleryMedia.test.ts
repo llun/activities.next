@@ -42,6 +42,7 @@ describe('gallery media client module', () => {
         maxId: '42',
         limit: 24,
         subject: 'sci:alcedo atthis',
+        q: 'kingfisher pond',
         category: 'bird',
         gearId: 'gear-1',
         show: 'hidden'
@@ -56,10 +57,21 @@ describe('gallery media client module', () => {
         max_id: '42',
         limit: '24',
         subject: 'sci:alcedo atthis',
+        q: 'kingfisher pond',
         category: 'bird',
         gear_id: 'gear-1',
         show: 'hidden'
       })
+    })
+
+    it('omits q when blank or whitespace', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ items: [], nextMaxId: null }))
+
+      await getGalleryMedia(ACTOR_ID, { q: '   ' })
+
+      expect(fetchMock.mock.calls[0][0] as string).toBe(
+        `/api/v1/accounts/${SEGMENT}/gallery/media`
+      )
     })
 
     it('sends the filter, sort and cursor options', async () => {
@@ -186,6 +198,7 @@ describe('gallery media client module', () => {
           limit: 2000,
           offset: 2000,
           subject: 'sci:alcedo atthis',
+          q: 'river',
           category: 'bird',
           gearId: 'gear-1',
           show: 'all',
@@ -209,6 +222,7 @@ describe('gallery media client module', () => {
         limit: '2000',
         offset: '2000',
         subject: 'sci:alcedo atthis',
+        q: 'river',
         category: 'bird',
         gear_id: 'gear-1',
         show: 'all',

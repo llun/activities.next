@@ -21,6 +21,7 @@ import { getActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
+import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,7 +90,13 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // one is not merely useless but unsafe. The extra read is paid for only by a
   // request that asked for a filter; the unfiltered page runs the same two
   // queries it always did.
-  const requestedActivityType = readActivityTypeParam(await searchParams)
+  const resolvedSearchParams = await searchParams
+  const requestedActivityType = readActivityTypeParam(resolvedSearchParams)
+  // `?q=`: words the recent activities must match (type, description, gear).
+  const rawQuery = resolvedSearchParams.q
+  const activityQuery = (Array.isArray(rawQuery) ? rawQuery[0] : rawQuery)
+    ?.trim()
+    .slice(0, MAX_SEARCH_QUERY_LENGTH)
   const readRecentStatuses = async () => {
     const activityType = requestedActivityType
       ? resolveActivityTypeFilter(
@@ -109,7 +116,8 @@ const Page: FC<Props> = async ({ searchParams }) => {
       // way, but `null` means something else entirely there — "activities with no
       // recorded type" — so the narrowing stays something this call states only
       // when it means it.
-      ...(activityType ? { activityType } : {})
+      ...(activityType ? { activityType } : {}),
+      ...(activityQuery ? { query: activityQuery } : {})
     })
     const statusIds = Array.from(
       new Set(
@@ -185,6 +193,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
         currentActor={getActorProfile(currentActor)}
         statuses={statuses.map((status) => cleanJson(status))}
         activityType={activityType}
+        query={activityQuery}
       />
     </div>
   )

@@ -32,6 +32,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -61,6 +62,8 @@ const GalleryMediaQueryParams = z.object({
   max_id: z.string().regex(/^\d+$/).max(10).optional(),
   limit: clampedLimit(60, 24),
   subject: z.string().trim().min(1).max(520).optional(),
+  // Words to match in the photos' alt text, species and (owner only) place.
+  q: z.string().trim().max(MAX_SEARCH_QUERY_LENGTH).optional(),
   category: z.enum(MEDIA_SUBJECT_CATEGORIES).optional(),
   gear_id: z.string().max(255).optional(),
   // Owner only: `in_gallery` (default), `all` (posted or added in Gallery),
@@ -215,7 +218,8 @@ export const GET = traceApiRoute(
         include_total,
         include_days,
         ids_only,
-        day_key
+        day_key,
+        q
       } = parsed.data
       const offset =
         'offset' in parsed.data && typeof parsed.data.offset === 'number'
@@ -314,6 +318,7 @@ export const GET = traceApiRoute(
               database,
               owner,
               audience,
+              query: q,
               limit,
               offset,
               subjectKey: subject,
@@ -381,6 +386,7 @@ export const GET = traceApiRoute(
           database,
           owner,
           audience,
+          query: q,
           maxId,
           limit,
           subjectKey: subject,

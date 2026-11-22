@@ -235,4 +235,29 @@ describe('GalleryMediaFilterEmpty', () => {
       screen.getByRole('button', { name: 'Remove Lake Bled, Slovenia' })
     ).toBeInTheDocument()
   })
+
+  it('shows the search query and removes it when q is the active filter', () => {
+    const onChange = vi.fn()
+    const filters: GalleryMediaFilterState = {
+      ...EMPTY_GALLERY_FILTERS,
+      q: 'kingfisher',
+      order: ['q']
+    }
+
+    render(
+      <GalleryMediaFilterEmpty
+        filters={filters}
+        facets={sampleFacets}
+        onChange={onChange}
+      />
+    )
+
+    expect(
+      screen.getByText('No photos match these filters')
+    ).toBeInTheDocument()
+    expect(screen.getByText('“kingfisher”')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove “kingfisher”' }))
+    expect(onChange).toHaveBeenCalledWith(EMPTY_GALLERY_FILTERS)
+  })
 })
