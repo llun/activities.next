@@ -1,0 +1,27 @@
+app/(timeline)/[actor]/ProfileGalleryTab.tsx
+  s_17b6192f00c988::t_d7f6b6e1ae97e2 516-518
+app/(timeline)/[actor]/ProfileGalleryTab.test.tsx
+  s_17b6192f00c988::t_22ea116c009fe2 520-538
+docs/maintenance.md
+  s_17b6192f00c988::t_15f4393500b86f 1057
+lib/database/domains/gallery/mediaFilters.ts
+  s_17b6192f00c988::t_ac5021d493a804 59-65,71-75,95,98-112
+lib/database/domains/gallery/galleryMediaFilters.test.ts
+  s_17b6192f00c988::t_d7f6b6e1ae97e2 1538-1549
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb6e767023578b77babdf652c68f7c310752fe3c",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
