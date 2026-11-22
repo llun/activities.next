@@ -1,0 +1,38 @@
+app/(timeline)/MainPageTimeline.test.tsx
+  h_580a04e334fef4 6,26-34,37,84-96,1722-1852
+app/(timeline)/MainPageTimeline.tsx
+  h_580a04e334fef4 607,615-619
+docs/architecture.md
+  h_580a04e334fef4 2103-2104
+lib/client/pendingLinkPreviews.test.ts
+  h_580a04e334fef4 5,214-218,220-224,334-375
+lib/client/pendingLinkPreviews.ts
+  h_580a04e334fef4 14-19,22,31,47,50,56,66,120-125,128-129,208-232,234
+lib/components/post-box/post-box.test.tsx
+  h_580a04e334fef4 21,57-66,1355-1388
+lib/components/posts/post-body.tsx
+  h_580a04e334fef4 7,89,92,113-121
+lib/components/posts/post.card-and-header.test.tsx
+  h_580a04e334fef4 609-690
+lib/components/posts/status-reply-box.test.tsx
+  h_580a04e334fef4 20,35-44,1030-1065
+lib/components/posts/statusArray.test.ts
+  h_580a04e334fef4 636-644,653-655
+lib/services/link-previews/fetchLinkPreview.test.ts
+  h_580a04e334fef4 658-671
+lib/services/link-previews/syncStatusLinkPreview.test.ts
+  h_580a04e334fef4 382-383,390,394,397-400,424-442
+lib/services/link-previews/syncStatusLinkPreview.ts
+  h_580a04e334fef4 130-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17dab28bef8416f44fd0b1741f806542756d0c77",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
