@@ -1,0 +1,26 @@
+app/(timeline)/search/SearchPageClient.tsx
+  s_17b6192f00c988::t_03ccdc68ed191e 156-157,159,162,611-622,632-634,691
+app/(timeline)/search/SearchPageClient.test.tsx
+  s_17b6192f00c988::t_36a4bb47001f83 1010
+  s_17b6192f00c988::t_a0592ee6d65bbb 865-869,984-987,999-1001,1009,1011-1042
+docs/mastodon-api-compatibility.md
+  s_17b6192f00c988::t_03ccdc68ed191e 348
+lib/database/domains/search/statuses.ts
+  s_17b6192f00c988::t_03ccdc68ed191e 657-663,667,854-855
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "517073cbc7add862a9162ee87f0fe817c702fe66",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
