@@ -520,13 +520,15 @@ describe('ProfileGalleryTab', () => {
     it('drops a draft still waiting out its debounce when the subview changes', async () => {
       renderTab()
       await screen.findByRole('region', { name: 'Birds' })
-      fireEvent.change(
-        screen.getByRole('searchbox', { name: 'Search photos' }),
-        { target: { value: 'king' } }
-      )
-      await openSubview('Recent')
+      const input = screen.getByRole('searchbox', { name: 'Search photos' })
+      // Open the menu first so the debounce timer is the only one in play.
+      const nav = screen.getByRole('navigation', { name: 'Gallery views' })
+      fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
+      const recent = await screen.findByRole('menuitem', { name: 'Recent' })
 
       vi.useFakeTimers()
+      fireEvent.change(input, { target: { value: 'king' } })
+      fireEvent.click(recent)
       act(() => {
         vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS)
       })
