@@ -2281,101 +2281,26 @@ describe('status search queries', () => {
         ).resolves.toEqual([visible])
       })
 
-      it('excludes indexable authors whose domain the viewer blocks', async () => {
-        const viewer = await addActor('sqidx-domblk-viewer')
-        const blockedDomain = 'sqidx-blocked-domain.test'
-        const allowedDomain = 'sqidx-allowed-domain.test'
-        const blockedAuthor = await addActor('sqidx-domblk-bad', blockedDomain)
-        const allowedAuthor = await addActor('sqidx-domblk-ok', allowedDomain)
-        await setIndexable(blockedAuthor, true)
-        await setIndexable(allowedAuthor, true)
-
+      it('excludes silenced authors from indexable public posts', async () => {
+        const viewer = await addActor('sqidx-silenced-viewer')
+        const silencedAuthor = await addActor('sqidx-silenced-author')
+        await setIndexable(silencedAuthor, true)
         await db
-          .insertInto('actor_domain_blocks')
-          .values({
-            id: `domblk-${viewer}-${blockedDomain}`,
-            actorId: viewer,
-            domain: blockedDomain
-          })
+          .updateTable('actors')
+          .set({ silencedAt: new Date(1000) })
+          .where('id', '=', silencedAuthor)
           .execute()
-
         await indexedStatus({
-          id: statusIdOf(blockedAuthor, 'post'),
-          actorId: blockedAuthor,
-          createdAt: 20,
-          text: 'sqidxdomblk glacier',
-          to: [PUBLIC]
-        })
-        const kept = await indexedStatus({
-          id: statusIdOf(allowedAuthor, 'post'),
-          actorId: allowedAuthor,
+          id: statusIdOf(silencedAuthor, 'post'),
+          actorId: silencedAuthor,
           createdAt: 10,
-          text: 'sqidxdomblk glacier',
+          text: 'sqidxsilenced harbor',
           to: [PUBLIC]
         })
 
         await expect(
-          search({ q: 'sqidxdomblk', currentActorId: viewer })
-        ).resolves.toEqual([kept])
-      })
-
-      it('excludes indexable authors on a domain or subdomain suspended by an instance federation rule', async () => {
-        const viewer = await addActor('sqidx-fed-viewer')
-        const exactDomain = 'sqidx-fed-exact.test'
-        const parentDomain = 'sqidx-fed-parent.test'
-        const subDomain = `sub.${parentDomain}`
-        const cleanDomain = 'sqidx-fed-clean.test'
-
-        const exactAuthor = await addActor('sqidx-fed-exact', exactDomain)
-        const subAuthor = await addActor('sqidx-fed-sub', subDomain)
-        const cleanAuthor = await addActor('sqidx-fed-clean', cleanDomain)
-        for (const author of [exactAuthor, subAuthor, cleanAuthor]) {
-          await setIndexable(author, true)
-        }
-
-        await db
-          .insertInto('domain_federation_rules')
-          .values([
-            {
-              id: `fed-rule-${exactDomain}`,
-              domain: exactDomain,
-              type: 'block',
-              severity: 'suspend'
-            },
-            {
-              id: `fed-rule-${parentDomain}`,
-              domain: parentDomain,
-              type: 'block',
-              severity: 'suspend'
-            }
-          ])
-          .execute()
-
-        await indexedStatus({
-          id: statusIdOf(exactAuthor, 'post'),
-          actorId: exactAuthor,
-          createdAt: 30,
-          text: 'sqidxfed horizon',
-          to: [PUBLIC]
-        })
-        await indexedStatus({
-          id: statusIdOf(subAuthor, 'post'),
-          actorId: subAuthor,
-          createdAt: 20,
-          text: 'sqidxfed horizon',
-          to: [PUBLIC]
-        })
-        const kept = await indexedStatus({
-          id: statusIdOf(cleanAuthor, 'post'),
-          actorId: cleanAuthor,
-          createdAt: 10,
-          text: 'sqidxfed horizon',
-          to: [PUBLIC]
-        })
-
-        await expect(
-          search({ q: 'sqidxfed', currentActorId: viewer })
-        ).resolves.toEqual([kept])
+          search({ q: 'sqidxsilenced', currentActorId: viewer })
+        ).resolves.toEqual([])
       })
 
       it('excludes suspended and deleting authors from indexable public posts', async () => {

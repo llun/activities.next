@@ -686,8 +686,9 @@ export const rankSearchCandidates = (candidates: RankedCandidate[]) => {
 // author opted in to search, read from the author's row at query time so an
 // opt-out hides their posts at once and an opt-in includes the old ones. The
 // author must not be being deleted, suspended or silenced, nor muted by the
-// viewer (while the mute lasts), nor on a domain the viewer blocks or the
-// instance suspends or silences. Blocks both ways apply to every result.
+// viewer (while the mute lasts). Blocks both ways apply to every result; the
+// viewer's and the instance's domain blocks are applied by the search route
+// with the federation policy's own matching (filterSearchStatuses).
 const indexablePublicPost = (
   db: Db,
   eb: ExpressionBuilder<DB, 'search_documents' | 'statuses'>,
@@ -712,38 +713,6 @@ const indexablePublicPost = (
         .where('search_authors.deletionStatus', 'is', null)
         .where('search_authors.suspendedAt', 'is', null)
         .where('search_authors.silencedAt', 'is', null)
-        .where((author) =>
-          author.not(
-            author.exists(
-              author
-                .selectFrom('actor_domain_blocks')
-                .select(sql.lit(1).as('one'))
-                .where('actor_domain_blocks.actorId', '=', viewerId)
-                .where(
-                  sql<SqlBool>`lower(${sql.ref('actor_domain_blocks.domain')}) = lower(${sql.ref('search_authors.domain')})`
-                )
-            )
-          )
-        )
-        .where((author) =>
-          author.not(
-            author.exists(
-              author
-                .selectFrom('domain_federation_rules')
-                .select(sql.lit(1).as('one'))
-                .where('domain_federation_rules.type', '=', 'block')
-                .where('domain_federation_rules.severity', 'in', [
-                  'suspend',
-                  'silence'
-                ])
-                // The rule's domain or a subdomain of it, compared without
-                // LIKE so a `_` in a domain is not a wildcard.
-                .where(
-                  sql<SqlBool>`(lower(${sql.ref('search_authors.domain')}) = lower(${sql.ref('domain_federation_rules.domain')}) or (length(${sql.ref('search_authors.domain')}) > length(${sql.ref('domain_federation_rules.domain')}) and substr(lower(${sql.ref('search_authors.domain')}), length(${sql.ref('search_authors.domain')}) - length(${sql.ref('domain_federation_rules.domain')})) = '.' || lower(${sql.ref('domain_federation_rules.domain')})))`
-                )
-            )
-          )
-        )
     ),
     eb.not(
       eb.exists(

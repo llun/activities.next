@@ -70,6 +70,8 @@ vi.mock('@/lib/database', () => ({
     searchHashtags: mockSearchHashtags,
     searchStatusIds: mockSearchStatusIds,
     getStatusesByIds: mockGetStatusesByIds,
+    getActorDomainBlocks: async () => [],
+    getDomainBlocksForDomains: async () => ({}),
     getActorFromId: mockGetActorFromId,
     getActorFromUsername: mockGetActorFromUsername,
     isCurrentActorFollowing: mockIsCurrentActorFollowing,

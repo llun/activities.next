@@ -24,6 +24,7 @@ import {
   resolveActorIdParam,
   resolveStatusIdParam
 } from '@/lib/services/mastodon/resolveClientId'
+import { filterSearchStatuses } from '@/lib/services/search/filterSearchStatuses'
 import {
   type ParsedSearchQuery,
   parseSearchQuery
@@ -665,10 +666,14 @@ const searchStatuses = async ({
     return resolvedStatus ? [resolvedStatus] : []
   }
 
-  const statuses = await database.getStatusesByIds({
-    statusIds: ids,
-    currentActorId: currentActor.id,
-    visibleToActorId: currentActor.id
+  const statuses = await filterSearchStatuses({
+    database,
+    viewerId: currentActor.id,
+    statuses: await database.getStatusesByIds({
+      statusIds: ids,
+      currentActorId: currentActor.id,
+      visibleToActorId: currentActor.id
+    })
   })
   const orderedStatuses = await orderStatusesByIds({
     database,
