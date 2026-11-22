@@ -1,0 +1,48 @@
+app/api/v2/search/route.ts
+  s_17b6192f00c988::t_7eac981bfefef3 7,92-99,102,637
+app/(timeline)/search/SearchPageClient.tsx
+  s_17b6192f00c988::t_013805b0c5405c 17-22,129-133,140,144-163,381-387,419,451,480,490,514-522,545,668-684
+lib/database/domains/search/statuses.ts
+  s_17b6192f00c988::t_cb844f1eada189 650-651
+  s_17b6192f00c988::t_2d3c1ffef79068 22,647-649,652-683,695,703-704,715-721,827-866
+  s_17b6192f00c988::t_2556b959bd6b21 867
+lib/client/search.ts
+  s_17b6192f00c988::t_7cae345ff6f3e7 6-7,21,72,83
+lib/database/domains/search/types.ts
+  s_17b6192f00c988::t_2d3c1ffef79068 77-78,91-94
+lib/database/kysely/dialect.ts
+  s_17b6192f00c988::t_aebf5c9441f72b 229
+  s_17b6192f00c988::t_22ed85a63dcfc2 169-170,172-173,175-176,180-228
+docs/features.md
+  s_17b6192f00c988::t_d81c8f7c0ed9d8 102
+docs/mastodon-api-compatibility.md
+  s_17b6192f00c988::t_0b337067c1e582 346-349
+app/(timeline)/search/SearchPageClient.test.tsx
+  s_17b6192f00c988::t_5e2cd9ce538478 862-1000
+app/api/v2/search/route.test.ts
+  s_17b6192f00c988::t_b9fe3b2455262e 311,2174-2218
+lib/client/search.test.ts
+  s_17b6192f00c988::t_20a6cf5de934c9 56,66-81
+lib/database/domains/search/rankSearchCandidates.test.ts
+  s_17b6192f00c988::t_30ebd05c7798c0 1-100
+lib/database/domains/search/searchStatusQueries.test.ts
+  s_17b6192f00c988::t_67e6f4a327c4fb 1852-2081
+lib/database/kysely/dialect.test.ts
+  s_17b6192f00c988::t_38a6eca83baf15 8,188-267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c09cdb8db4cd975bc1a0b361ec78a3646edff612",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
