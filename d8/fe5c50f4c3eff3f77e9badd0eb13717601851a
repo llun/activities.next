@@ -1,0 +1,41 @@
+lib/actions/createNote.ts
+  s_17b6192f00c988::t_1e8e3a6b70ae54 1148-1149,1152-1155
+lib/database/domains/search/rows.ts
+  s_17b6192f00c988::t_9269019bdbbe7d 17-23,29,31
+  s_17b6192f00c988::t_d25fd61a39f5e6 40
+  s_17b6192f00c988::t_d7b03a8349056f 24-28
+lib/database/domains/search/statuses.ts
+  s_17b6192f00c988::t_bcd49de4432c88 30-33,109,130-131,139,148
+  s_17b6192f00c988::t_0b4fe4bd80fb4d 74-77,79-108,114-127,149-173
+  s_17b6192f00c988::t_d9b1c8e9ee7c6d 310,313-316,329-330
+  s_17b6192f00c988::t_ccf5a1ab64b3f0 110-113,132-137,140-147
+  s_17b6192f00c988::t_fd391d1c166255 36,38,309,311-312,317-328
+  s_17b6192f00c988::t_5456cccd58a177 128-129,229-235,239
+lib/database/domains/media/writes.ts
+  s_17b6192f00c988::t_ccf5a1ab64b3f0 318-324,826-845,847-850,852-860,863-865,867-871,873-895,897-901,903-924
+  s_17b6192f00c988::t_20beefe331b738 50,802-803,822-825,925-940
+lib/services/accountImport/createImportedStatus.ts
+  s_17b6192f00c988::t_1e8e3a6b70ae54 314,317,327
+  s_17b6192f00c988::t_d7b03a8349056f 315-316,318-326
+lib/database/domains/fitnessFile/writes.ts
+  s_17b6192f00c988::t_459be7f5ec9351 199-223,238-242,268-270
+  s_17b6192f00c988::t_c530ad2139089a 2,17,25
+lib/jobs/noteAttachments.ts
+  s_17b6192f00c988::t_1e8e3a6b70ae54 135,139-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d8fe5c50f4c3eff3f77e9badd0eb13717601851a",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
