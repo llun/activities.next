@@ -1040,6 +1040,53 @@ describe('status search queries', () => {
           })
         ).resolves.toEqual([strangerPost])
       })
+
+      it('keeps matching rows when an excluded token has no lexeme', async () => {
+        const viewer = await addActor('sqop-nolex-viewer')
+        const first = await indexedStatus({
+          id: statusIdOf(viewer, 'first'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqopnolex alpha',
+          to: [PUBLIC]
+        })
+        const second = await indexedStatus({
+          id: statusIdOf(viewer, 'second'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopnolex beta',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'from:me -_', currentActorId: viewer })
+        ).resolves.toEqual([first, second])
+      })
+
+      it('excludes whole words while matching positive terms by prefix', async () => {
+        const viewer = await addActor('sqop-whole-viewer')
+        const cats = await indexedStatus({
+          id: statusIdOf(viewer, 'cats'),
+          actorId: viewer,
+          createdAt: 20,
+          text: 'sqopwhole cats here',
+          to: [PUBLIC]
+        })
+        const cat = await indexedStatus({
+          id: statusIdOf(viewer, 'cat'),
+          actorId: viewer,
+          createdAt: 10,
+          text: 'sqopwhole cat here',
+          to: [PUBLIC]
+        })
+
+        await expect(
+          search({ q: 'sqopwhole -cat', currentActorId: viewer })
+        ).resolves.toEqual([cats])
+        await expect(
+          search({ q: 'sqopwhole cat', currentActorId: viewer })
+        ).resolves.toEqual([cats, cat])
+      })
     })
   })
 

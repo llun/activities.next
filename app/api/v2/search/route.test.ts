@@ -2096,16 +2096,67 @@ describe('GET /api/v2/search', () => {
       expect(data.statuses).toHaveLength(1)
     })
 
-    it('does not take the status URL resolve path when operators are present', async () => {
+    it('does not take the remote account resolution path when operators are present', async () => {
       const response = await GET(
         new NextRequest(
-          `https://llun.test/api/v2/search?q=${encodeURIComponent('from:me https://remote.test/users/alice/statuses/1')}&type=statuses&resolve=true`,
+          `https://llun.test/api/v2/search?q=${encodeURIComponent('from:me https://remote.test/users/alice')}&resolve=true`,
           { headers: { Authorization: 'Bearer read-search-token' } }
         ),
         context
       )
 
       expect(response.status).toBe(200)
+      expect(mockGetFederationSigningActor).not.toHaveBeenCalled()
+      expect(mockGetActorPerson).not.toHaveBeenCalled()
+      expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+      expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+      expect(mockGetActorFromId).toHaveBeenCalledTimes(1)
+      expect(mockGetActorFromId).toHaveBeenCalledWith({ id: oauthActor.id })
+      expect(mockSearchAccountIds).toHaveBeenCalledWith({
+        q: 'https://remote.test/users/alice',
+        limit: 20,
+        offset: 0,
+        localDomain: 'llun.test'
+      })
+    })
+
+    it('does not load the federation signing actor for operator-only queries with resolve=true', async () => {
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v2/search?q=${encodeURIComponent('from:me has:media')}&resolve=true`,
+          { headers: { Authorization: 'Bearer read-search-token' } }
+        ),
+        context
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockGetFederationSigningActor).not.toHaveBeenCalled()
+      expect(mockSearchAccountIds).not.toHaveBeenCalled()
+      expect(mockSearchHashtags).not.toHaveBeenCalled()
+      expect(mockSearchStatusIds).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'from:me has:media',
+          parsedQuery: expect.objectContaining({
+            hasOperators: true
+          })
+        })
+      )
+    })
+
+    it('does not take the status URL resolve path when operators are present', async () => {
+      // The URL leads so `isUrl(query)` is true (WHATWG URL accepts spaces in
+      // paths); without the `!parsedQuery.hasOperators` guard on
+      // `getResolvedStatus`, the route would look up and fetch this query.
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v2/search?q=${encodeURIComponent('https://remote.test/users/alice/statuses/1 from:me')}&type=statuses&resolve=true`,
+          { headers: { Authorization: 'Bearer read-search-token' } }
+        ),
+        context
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockGetFederationSigningActor).not.toHaveBeenCalled()
       expect(mockGetStatus).not.toHaveBeenCalled()
       expect(mockGetStatusFromUrl).not.toHaveBeenCalled()
       expect(

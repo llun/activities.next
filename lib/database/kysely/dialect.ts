@@ -117,23 +117,27 @@ export const utcDay = (
 // What a full-text match asks of a document's text: every term as a word
 // prefix, every phrase as consecutive whole words, and none of the excluded
 // words or phrases. Every token must be non-empty and made of letters, digits
-// and underscores (getSearchTokens() guarantees it): tokens are written into
-// the match syntax, not escaped, and nothing else the user typed ever is.
+// and underscores (getSearchWords() and getSearchTokens() guarantee it): tokens
+// are written into the match syntax, not escaped, and nothing else the user
+// typed ever is.
 export type FullTextQuery = {
   terms: string[]
   phrases: string[][]
   excluded: string[][]
 }
 
-// Keeps the `search_documents` rows whose documentText matches `text`. `query`
-// must select from `search_documents`, and `text` must hold at least one term,
-// phrase or excluded entry; with no term or phrase it only drops the rows that
-// hold an excluded one.
+// Keeps the `search_documents` rows whose documentText matches the
+// FullTextQuery. `query` must select from `search_documents`, and the
+// FullTextQuery must hold at least one term, phrase or excluded entry; with no
+// term or phrase it only drops the rows that hold an excluded one.
 //
 // SQLite matches through the FTS5 table search_documents_fts, joined on its
 // rowid, and drops excluded rows with a second FTS5 match. PostgreSQL matches
 // the same to_tsvector('simple', "documentText") expression its GIN index is
-// built on, with phrases as `<->` and exclusions as `!` in one tsquery.
+// built on, with phrases as `<->`, and drops excluded rows with a separate
+// NOT: an exclusion the 'simple' parser reads as no lexeme (`_`) makes an empty
+// tsquery, which matches nothing, so inside one tsquery it would drop every
+// row.
 export const fullTextQueryMatch = <TB extends keyof DB, O>(
   db: Db,
   query: SelectQueryBuilder<DB, TB, O>,
@@ -165,14 +169,21 @@ export const fullTextQueryMatch = <TB extends keyof DB, O>(
 
   const tsPhrase = (tokens: string[]) =>
     tokens.length === 1 ? tokens[0] : `(${tokens.join(' <-> ')})`
-  const tsQuery = [
+  const positive = [
     ...terms.map((token) => `${token}:*`),
-    ...phrases.map(tsPhrase),
-    ...excluded.map((tokens) => `!${tsPhrase(tokens)}`)
+    ...phrases.map(tsPhrase)
   ].join(' & ')
-  return query.where(
-    sql<boolean>`to_tsvector('simple', ${sql.ref('documentText')}) @@ to_tsquery('simple', ${tsQuery})`
-  )
+  const negative = excluded.map(tsPhrase).join(' | ')
+  const vector = sql`to_tsvector('simple', ${sql.ref('documentText')})`
+  return query
+    .$if(positive.length > 0, (qb) =>
+      qb.where(sql<boolean>`${vector} @@ to_tsquery('simple', ${positive})`)
+    )
+    .$if(negative.length > 0, (qb) =>
+      qb.where(
+        sql<boolean>`not (${vector} @@ to_tsquery('simple', ${negative}))`
+      )
+    )
 }
 
 // Keeps the `search_documents` rows whose documentText contains every token as
