@@ -1,0 +1,61 @@
+app/api/v2/search/route.test.ts
+  s_17b6192f00c988::t_6833bed886f7d5 307,2056
+app/(timeline)/settings/privacy/page.tsx
+  s_17b6192f00c988::t_810cf942aaa541 87
+  s_17b6192f00c988::t_0b56317c553fc9 98-102
+  s_17b6192f00c988::t_22bc666745f7b9 47,80-86,88-97
+lib/services/search/parseSearchQuery.test.ts
+  s_17b6192f00c988::t_6bb8c9c14fd8a4 17,30,43,55,132,152,173,207,274,370,473,490,561
+lib/database/domains/actor/writes.ts
+  s_17b6192f00c988::t_0a4d2ff3b85618 87,122
+lib/services/search/parseSearchQuery.ts
+  s_17b6192f00c988::t_9363b5215ec82f 37-39,155
+lib/database/domains/search/statuses.ts
+  s_17b6192f00c988::t_9363b5215ec82f 23,685-764
+  s_17b6192f00c988::t_df95a9745d65d3 842-844,847-849
+app/api/v1/accounts/profile/route.ts
+  s_17b6192f00c988::t_22bc666745f7b9 46,70,117-123,149
+lib/database/kysely/dialect.ts
+  s_17b6192f00c988::t_8078a57cbe50fd 5,81-87
+  s_17b6192f00c988::t_d84e769e351b82 88
+lib/actions/utils.ts
+  s_17b6192f00c988::t_0a4d2ff3b85618 142-144
+lib/database/domains/actor/types.ts
+  s_17b6192f00c988::t_0a4d2ff3b85618 28-29
+app/(timeline)/search/SearchPageClient.tsx
+  s_17b6192f00c988::t_85d068f0e588aa 88-91
+docs/features.md
+  s_17b6192f00c988::t_0e075d3aee80af 102
+docs/mastodon-api-compatibility.md
+  s_17b6192f00c988::t_8c14a844692273 341,346-351
+lib/database/domains/account/accountQueries.test.ts
+  s_17b6192f00c988::t_b12120d47dc936 513-527
+lib/database/domains/account/accounts.ts
+  s_17b6192f00c988::t_d47aa7608b3133 422-428
+app/(timeline)/settings/privacy/page.test.tsx
+  s_17b6192f00c988::t_434debb1fbacb7 149,153-182
+app/api/v1/accounts/profile/route.test.ts
+  s_17b6192f00c988::t_38c6026f8cd9b0 45-46,130,599-654,670
+lib/actions/utils.test.ts
+  s_17b6192f00c988::t_6a622f1755b820 388-439,1051-1066
+lib/database/domains/search/searchStatusQueries.test.ts
+  s_17b6192f00c988::t_218752d01ae788 9,27-29,33-48,2099-2446
+lib/database/kysely/dialect.test.ts
+  s_17b6192f00c988::t_c1f6a8e0f92405 10,161-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5622d0b27c158b75d347d0a8025a870f23a27e9a",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
