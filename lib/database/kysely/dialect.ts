@@ -80,7 +80,8 @@ export const jsonText = (
 
 // A `host[:port]` column without its port, lowercased: what federation rules
 // key on (normalizeDomain drops the port). substr/instr on SQLite,
-// split_part on PostgreSQL.
+// split_part on PostgreSQL. shortcut: a bracketed IPv6 host is cut at its
+// first colon and so never matches; filterSearchStatuses re-checks those.
 export const hostnameOf = (db: Db, column: string) =>
   getDialectName(db) === 'sqlite'
     ? sql<string>`lower(case when instr(${sql.ref(column)}, ':') > 0 then substr(${sql.ref(column)}, 1, instr(${sql.ref(column)}, ':') - 1) else ${sql.ref(column)} end)`

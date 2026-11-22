@@ -98,4 +98,32 @@ describe('filterSearchStatuses', () => {
     })
     expect(ids(result)).toEqual(['mention'])
   })
+
+  it('counts a mention by profile URL or handle as library, but not a bare @username', async () => {
+    const withMention = (id: string, tag: { value?: string; name: string }) =>
+      ({
+        ...status(id, `https://silenced.test/users/${id}`),
+        tags: [{ type: 'mention', ...tag }]
+      }) as unknown as Status
+    const result = await filterSearchStatuses({
+      database: database({
+        rules: { 'silenced.test': { severity: 'silence' } }
+      }),
+      viewerId: VIEWER,
+      viewerUsername: 'viewer',
+      viewerDomain: 'local.test',
+      statuses: [
+        withMention('profile', {
+          value: 'https://local.test/@viewer',
+          name: '@viewer'
+        }),
+        withMention('handle', { name: '@viewer@local.test' }),
+        withMention('bare', {
+          value: 'https://silenced.test/users/viewer',
+          name: '@viewer'
+        })
+      ]
+    })
+    expect(ids(result)).toEqual(['profile', 'handle'])
+  })
 })

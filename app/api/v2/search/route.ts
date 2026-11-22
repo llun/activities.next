@@ -667,6 +667,8 @@ const searchStatuses = async ({
       ? filterSearchStatuses({
           database,
           viewerId: currentActor.id,
+          viewerUsername: currentActor.username,
+          viewerDomain: currentActor.domain,
           statuses: [resolvedStatus]
         })
       : []
@@ -686,6 +688,8 @@ const searchStatuses = async ({
     await filterSearchStatuses({
       database,
       viewerId: currentActor.id,
+      viewerUsername: currentActor.username,
+      viewerDomain: currentActor.domain,
       statuses: [resolvedStatus, ...orderedStatuses].filter(
         (status): status is Status => Boolean(status)
       )

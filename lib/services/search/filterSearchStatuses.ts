@@ -21,10 +21,14 @@ import { Status } from '@/lib/types/domain/status'
 export const filterSearchStatuses = async ({
   database,
   viewerId,
+  viewerUsername,
+  viewerDomain,
   statuses
 }: {
   database: Database
   viewerId: string
+  viewerUsername?: string | null
+  viewerDomain?: string | null
   statuses: Status[]
 }): Promise<Status[]> => {
   if (statuses.length === 0) return statuses
@@ -36,6 +40,20 @@ export const filterSearchStatuses = async ({
   )
   const domainFiltered = filterDomainBlockedStatuses(blockedDomains, statuses)
 
+  // The forms a mention of the viewer is stored under, as searchStatusIds
+  // matches them; a bare `@username` is left out, as it names an account on
+  // the author's own server.
+  const mentionValues = new Set([
+    viewerId,
+    `${viewerId}/`,
+    ...(viewerUsername && viewerDomain
+      ? [
+          `https://${viewerDomain}/@${viewerUsername}`,
+          `https://${viewerDomain}/@${viewerUsername}@${viewerDomain}`,
+          `@${viewerUsername}@${viewerDomain}`
+        ]
+      : [])
+  ])
   // The viewer's library: written, liked, bookmarked or mentioning them. Search
   // returns Notes and Polls only, which carry the viewer's own flags and tags.
   const isLibrary = (status: Status) =>
@@ -44,7 +62,10 @@ export const filterSearchStatuses = async ({
     ('isActorBookmarked' in status && Boolean(status.isActorBookmarked)) ||
     ('tags' in status &&
       status.tags.some(
-        (tag) => tag.type === 'mention' && tag.value === viewerId
+        (tag) =>
+          tag.type === 'mention' &&
+          (mentionValues.has(tag.value ?? '') ||
+            (!tag.value && mentionValues.has(tag.name)))
       ))
   const publicDomains = [
     ...new Set(

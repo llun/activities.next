@@ -601,6 +601,43 @@ describe('GET /api/v2/search', () => {
     )
   })
 
+  it('drops a resolved status from an instance-blocked domain, alone or before indexed results', async () => {
+    const statusUrl = 'http://blocked.test/users/eve/statuses/resolved'
+    const resolvedStatus = {
+      id: 'https://blocked.test/users/eve/statuses/resolved',
+      type: 'Note',
+      actorId: 'https://blocked.test/users/eve'
+    }
+    mockGetStatus.mockResolvedValue(resolvedStatus)
+    mockGetDomainBlocksForDomains.mockResolvedValue({
+      'blocked.test': { severity: 'suspend' }
+    })
+    const request = () =>
+      GET(
+        new NextRequest(
+          `https://llun.test/api/v2/search?q=${encodeURIComponent(statusUrl)}&type=statuses&resolve=true&format=activities_next`,
+          { headers: { Authorization: 'Bearer read-search-token' } }
+        ),
+        context
+      )
+
+    mockSearchStatusIds.mockResolvedValue([])
+    const alone = await (await request()).json()
+    expect(alone.statuses).toEqual([])
+
+    const indexed = {
+      id: 'https://remote.test/users/alice/statuses/indexed',
+      type: 'Note',
+      actorId: 'https://remote.test/users/alice'
+    }
+    mockSearchStatusIds.mockResolvedValue([indexed.id])
+    mockGetStatusesByIds.mockResolvedValue([indexed])
+    const withIndexed = await (await request()).json()
+    expect(withIndexed.statuses.map((item: { id: string }) => item.id)).toEqual(
+      [indexed.id]
+    )
+  })
+
   it('resolves uncached remote status URLs through the store-first helper', async () => {
     const statusUrl = 'http://remote.test/users/alice/statuses/remote'
     const fetchedNote = { id: statusUrl, type: 'Note' }
