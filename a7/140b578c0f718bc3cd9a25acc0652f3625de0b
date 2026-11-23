@@ -1,0 +1,32 @@
+docs/maintenance.md
+  s_17b6192f00c988::t_c3ff4c82380100 533,537
+lib/database/domains/search/semanticStore.ts
+  s_17b6192f00c988::t_01c063862e1920 432-435,446-451,453,508-513,520-531
+lib/services/search/semantic/semanticSearch.ts
+  s_17b6192f00c988::t_01c063862e1920 118-121,129-146,148-152,364-370,373,377-401,403,442-457,491,494,496-498
+  s_17b6192f00c988::t_f805d8f6d25210 101,458-460,488-490,492-493,495,499-502
+lib/database/domains/actor/writes.ts
+  s_17b6192f00c988::t_ba931df1247743 322-324,346
+lib/services/search/semantic/semanticSearch.test.ts
+  s_17b6192f00c988::t_b8fdafe2d9be14 30,36,114,578,584-587,589-610,613-617,619,623-677,682-724,726-727,732,749,755-760,769-771,781-786,788,791-839,923-973
+lib/database/domains/actor/actor.test.ts
+  s_17b6192f00c988::t_824e56eeae3aaf 6,18,544-657
+lib/database/domains/search/semantic.pgvector.test.ts
+  s_17b6192f00c988::t_107c5d93daddf4 6,15,582-681,1278,1290,1293-1295,1303-1311,1331-1332,1361-1362,1364-1367,1371,1387,1417-1418,1421-1422,1549,1551-1557,1566,1569-1582,1589,1595-1596,1599-1605,1619-1641,1643,1645,1649-1673,1676-1729,1731,1733
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a7140b578c0f718bc3cd9a25acc0652f3625de0b",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
