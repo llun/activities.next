@@ -264,6 +264,8 @@ describe('createGeminiEmbeddingProvider', () => {
 
       expect(error).toBeInstanceOf(EmbeddingProviderError)
       expect(error.retryable).toBe(false)
+      expect(error.cause).toBeUndefined()
+      expect('cause' in error).toBe(false)
     }
   )
 
@@ -297,14 +299,19 @@ describe('createGeminiEmbeddingProvider', () => {
       expect(error.retryable).toBe(retryable)
       expect(error.message).toContain(String(statusCode))
       expect(error.message).not.toContain('gemini-secret-fixture-key')
+      expect(error.cause).toBeUndefined()
+      expect('cause' in error).toBe(false)
     }
   )
 
-  it('classifies network failures as retryable and SafeRemoteFetchError as non-retryable', async () => {
+  it('classifies network failures as retryable, SafeRemoteFetchError as non-retryable, and omits cause', async () => {
     const networkFetcher = vi.fn<SafeRemoteFetch>().mockRejectedValue(
-      Object.assign(new Error('connect ECONNREFUSED'), {
-        code: 'ECONNREFUSED'
-      })
+      Object.assign(
+        new Error('connect ECONNREFUSED with gemini-secret-fixture-key'),
+        {
+          code: 'ECONNREFUSED'
+        }
+      )
     )
     const networkProvider = createGeminiEmbeddingProvider(
       GEMINI_001_CONFIG,
@@ -315,6 +322,9 @@ describe('createGeminiEmbeddingProvider', () => {
       .catch((caught: unknown) => caught)) as EmbeddingProviderError
     expect(networkError).toBeInstanceOf(EmbeddingProviderError)
     expect(networkError.retryable).toBe(true)
+    expect(networkError.message).not.toContain('gemini-secret-fixture-key')
+    expect(networkError.cause).toBeUndefined()
+    expect('cause' in networkError).toBe(false)
 
     const safeErrorFetcher = vi
       .fn<SafeRemoteFetch>()
@@ -333,5 +343,7 @@ describe('createGeminiEmbeddingProvider', () => {
       .catch((caught: unknown) => caught)) as EmbeddingProviderError
     expect(safeError).toBeInstanceOf(EmbeddingProviderError)
     expect(safeError.retryable).toBe(false)
+    expect(safeError.cause).toBeUndefined()
+    expect('cause' in safeError).toBe(false)
   })
 })

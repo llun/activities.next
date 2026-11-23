@@ -222,6 +222,8 @@ describe('createOpenAIEmbeddingProvider', () => {
 
       expect(error).toBeInstanceOf(EmbeddingProviderError)
       expect((error as EmbeddingProviderError).retryable).toBe(false)
+      expect((error as EmbeddingProviderError).cause).toBeUndefined()
+      expect('cause' in (error as EmbeddingProviderError)).toBe(false)
     }
   )
 
@@ -257,6 +259,8 @@ describe('createOpenAIEmbeddingProvider', () => {
       expect(providerError.retryable).toBe(retryable)
       expect(providerError.message).toContain(String(statusCode))
       expect(providerError.message).not.toContain('sk-secret-fixture-key')
+      expect(providerError.cause).toBeUndefined()
+      expect('cause' in providerError).toBe(false)
     }
   )
 
@@ -280,7 +284,7 @@ describe('createOpenAIEmbeddingProvider', () => {
     expect(detailPart).toHaveLength(200)
   })
 
-  it('classifies timeouts and network errors as retryable and redacts API key', async () => {
+  it('classifies timeouts and network errors as retryable, redacts API key, and omits cause', async () => {
     const timeoutError = Object.assign(
       new Error('Timeout awaiting response with sk-secret-fixture-key'),
       { name: 'TimeoutError' }
@@ -296,9 +300,11 @@ describe('createOpenAIEmbeddingProvider', () => {
     expect(error.retryable).toBe(true)
     expect(error.statusCode).toBeUndefined()
     expect(error.message).not.toContain('sk-secret-fixture-key')
+    expect(error.cause).toBeUndefined()
+    expect('cause' in error).toBe(false)
   })
 
-  it('classifies SafeRemoteFetchError as non-retryable', async () => {
+  it('classifies SafeRemoteFetchError as non-retryable and omits cause', async () => {
     const fetcher = vi
       .fn<SafeRemoteFetch>()
       .mockRejectedValue(
@@ -315,5 +321,7 @@ describe('createOpenAIEmbeddingProvider', () => {
 
     expect(error).toBeInstanceOf(EmbeddingProviderError)
     expect(error.retryable).toBe(false)
+    expect(error.cause).toBeUndefined()
+    expect('cause' in error).toBe(false)
   })
 })

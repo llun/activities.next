@@ -247,38 +247,81 @@ export const getStoredEmbeddings = async (
 }
 
 // Marks the documents as needing a look from the embedding job (embed, refresh
-// or drop). Only documents that still exist are marked.
+// or drop). A document that already has a row (embedded, or waiting) is marked
+// whatever it is now, so the job can drop it when it stopped qualifying; a new
+// one gets a row only when it qualifies, so a followers-only post or a
+// non-indexable author's never schedules work. Returns how many were marked.
 export const markEmbeddingsPending = async (
   db: Db,
   documentIds: string[],
   { model, dimensions }: { model: string; dimensions: number }
-): Promise<void> => {
-  if (documentIds.length === 0) return
-  await sql`
-    insert into ${sql.table(EMBEDDINGS_TABLE)}
-      ("documentId", model, dimensions, "pendingSince", "updatedAt")
-    select id, ${model}, ${dimensions}, now(), now()
-    from search_documents
-    where id = any(${documentIds}::text[])
-    on conflict ("documentId") do update set "pendingSince" = now()
+): Promise<number> => {
+  if (documentIds.length === 0) return 0
+  const { rows: existing } = await sql<{ documentId: string }>`
+    update ${sql.table(EMBEDDINGS_TABLE)} set "pendingSince" = now()
+    where "documentId" = any(${documentIds}::text[])
+    returning "documentId"
   `.execute(db)
+  const marked = new Set(existing.map((row) => row.documentId))
+  const fresh = (
+    await getEmbeddableDocuments(
+      db,
+      documentIds.filter((id) => !marked.has(id))
+    )
+  ).map((document) => document.id)
+  if (fresh.length > 0) {
+    await sql`
+      insert into ${sql.table(EMBEDDINGS_TABLE)}
+        ("documentId", model, dimensions, "pendingSince", "updatedAt")
+      select id, ${model}, ${dimensions}, now(), now()
+      from search_documents
+      where id = any(${fresh}::text[])
+      on conflict ("documentId") do update set "pendingSince" = now()
+    `.execute(db)
+  }
+  return marked.size + fresh.length
 }
 
-// `pendingSince` is the timestamp's exact text, so the conditional clear below
-// compares it to the microsecond (a JS Date keeps milliseconds only).
+// `pendingSince` is the timestamp's exact text, so the conditional writes below
+// compare it to the microsecond (a JS Date keeps milliseconds only).
 export type PendingEmbedding = { documentId: string; pendingSince: string }
 
-export const getPendingEmbeddings = async (
+// How long a job owns the rows it claimed. A job that fails releases them; one
+// that dies leaves them to the next job once the lease ends.
+export const EMBEDDING_CLAIM_LEASE_SECONDS = 120
+
+// Claims up to `limit` pending rows, oldest mark first, that no other job
+// holds, so concurrent jobs (several instances, overlapping deliveries) never
+// send the same document twice.
+export const claimPendingEmbeddings = async (
   db: Db,
   limit: number
 ): Promise<PendingEmbedding[]> => {
   const { rows } = await sql<PendingEmbedding>`
-    select "documentId", "pendingSince"::text as "pendingSince" from ${sql.table(EMBEDDINGS_TABLE)}
-    where "pendingSince" is not null
-    order by "pendingSince", "documentId"
-    limit ${limit}
+    update ${sql.table(EMBEDDINGS_TABLE)}
+    set "claimedUntil" = now() + make_interval(secs => ${EMBEDDING_CLAIM_LEASE_SECONDS})
+    where "documentId" in (
+      select "documentId" from ${sql.table(EMBEDDINGS_TABLE)}
+      where "pendingSince" is not null
+        and ("claimedUntil" is null or "claimedUntil" < now())
+      order by "pendingSince", "documentId"
+      limit ${limit}
+      for update skip locked
+    )
+    returning "documentId", "pendingSince"::text as "pendingSince"
   `.execute(db)
   return rows
+}
+
+export const releaseEmbeddingClaims = async (
+  db: Db,
+  documentIds: string[]
+): Promise<void> => {
+  if (documentIds.length === 0) return
+  await sql`
+    update ${sql.table(EMBEDDINGS_TABLE)} set "claimedUntil" = null
+    where "documentId" = any(${documentIds}::text[])
+  `.execute(db)
 }
 
 export const countPendingEmbeddings = async (db: Db): Promise<number> => {
@@ -293,8 +336,9 @@ export type EmbeddingWrite = {
   documentId: string
   contentHash: string
   embedding: number[]
-  // The pending mark this write answers; a newer mark (the document changed
-  // again meanwhile) is kept so the job looks at it once more.
+  // The pending mark this write answers (the job), or null (the backfill). A
+  // newer mark (the document changed again meanwhile) is kept so the job looks
+  // at it once more.
   pendingSince: string | null
 }
 
@@ -304,46 +348,85 @@ export const storeEmbeddings = async (
   { model, dimensions }: { model: string; dimensions: number }
 ): Promise<void> => {
   for (const write of writes) {
+    const vector = sql`${toVectorLiteral(write.embedding)}::halfvec`
+    if (write.pendingSince !== null) {
+      // Only the row this job claimed: a row deleted meanwhile (the author
+      // opted out, the post was deleted) stays deleted.
+      await sql`
+        update ${sql.table(EMBEDDINGS_TABLE)} set
+          model = ${model},
+          dimensions = ${dimensions},
+          "contentHash" = ${write.contentHash},
+          embedding = ${vector},
+          "pendingSince" = case
+            when "pendingSince" = ${write.pendingSince}::timestamptz then null
+            else "pendingSince" end,
+          "claimedUntil" = null,
+          "updatedAt" = now()
+        where "documentId" = ${write.documentId}
+      `.execute(db)
+      continue
+    }
     await sql`
-      insert into ${sql.table(EMBEDDINGS_TABLE)} as stored
-        ("documentId", model, dimensions, "contentHash", embedding, "pendingSince", "updatedAt")
-      select id, ${model}, ${dimensions}, ${write.contentHash},
-        ${toVectorLiteral(write.embedding)}::halfvec, null, now()
+      insert into ${sql.table(EMBEDDINGS_TABLE)}
+        ("documentId", model, dimensions, "contentHash", embedding, "updatedAt")
+      select id, ${model}, ${dimensions}, ${write.contentHash}, ${vector}, now()
       from search_documents where id = ${write.documentId}
       on conflict ("documentId") do update set
         model = excluded.model,
         dimensions = excluded.dimensions,
         "contentHash" = excluded."contentHash",
         embedding = excluded.embedding,
-        "pendingSince" = case
-          when stored."pendingSince" is not distinct from ${write.pendingSince}::timestamptz then null
-          else stored."pendingSince" end,
         "updatedAt" = now()
     `.execute(db)
   }
 }
 
-// The document is unchanged (or was dropped): clear the mark this pass read.
+// The document is unchanged: clear the mark this pass read (a newer one stays).
 export const clearEmbeddingPending = async (
   db: Db,
   documentId: string,
   pendingSince: string
 ): Promise<void> => {
   await sql`
-    update ${sql.table(EMBEDDINGS_TABLE)} set "pendingSince" = null
-    where "documentId" = ${documentId} and "pendingSince" = ${pendingSince}::timestamptz
+    update ${sql.table(EMBEDDINGS_TABLE)}
+    set "pendingSince" = case
+        when "pendingSince" = ${pendingSince}::timestamptz then null
+        else "pendingSince" end,
+      "claimedUntil" = null
+    where "documentId" = ${documentId}
   `.execute(db)
 }
 
+// Drops rows that no longer qualify. With the mark the job read, only a row
+// still carrying it: a newer mark (the post made public again meanwhile) keeps
+// the row for the next job.
 export const deleteEmbeddings = async (
   db: Db,
-  documentIds: string[]
+  documentIds: string[],
+  pendingSince?: Map<string, string>
 ): Promise<void> => {
   if (documentIds.length === 0) return
-  await sql`
-    delete from ${sql.table(EMBEDDINGS_TABLE)}
-    where "documentId" = any(${documentIds}::text[])
-  `.execute(db)
+  if (!pendingSince) {
+    await sql`
+      delete from ${sql.table(EMBEDDINGS_TABLE)}
+      where "documentId" = any(${documentIds}::text[])
+    `.execute(db)
+    return
+  }
+  for (const documentId of documentIds) {
+    const mark = pendingSince.get(documentId)
+    if (mark === undefined) {
+      await deleteEmbeddings(db, [documentId])
+      continue
+    }
+    await sql`
+      delete from ${sql.table(EMBEDDINGS_TABLE)}
+      where "documentId" = ${documentId}
+        and "pendingSince" = ${mark}::timestamptz
+    `.execute(db)
+    await releaseEmbeddingClaims(db, [documentId])
+  }
 }
 
 // A remote author's posts are embedded only while they opt in to search.
@@ -541,7 +624,6 @@ export const setupSemanticSearchTables = async (
     typeRows[0]?.embeddingType ?? null
   )
   const tableExists = typeRows[0]?.embeddingType != null
-  let recreated = false
   if (tableExists && existingDimensions !== dimensions) {
     if (!recreate) {
       throw new SemanticSetupError(
@@ -549,12 +631,14 @@ export const setupSemanticSearchTables = async (
       )
     }
   }
-  if (tableExists && recreate) {
-    await sql`drop table ${sql.table(EMBEDDINGS_TABLE)}`.execute(db)
-    recreated = true
-  }
+  const recreated = tableExists && recreate
 
+  // One transaction: a failed grant leaves the old table (and its embeddings)
+  // in place rather than dropped.
   await inTransaction(db, async (trx) => {
+    if (recreated) {
+      await sql`drop table ${sql.table(EMBEDDINGS_TABLE)}`.execute(trx)
+    }
     await sql`
       create table if not exists ${sql.table(EMBEDDINGS_TABLE)} (
         "documentId" varchar(320) primary key
@@ -564,6 +648,7 @@ export const setupSemanticSearchTables = async (
         "contentHash" text,
         embedding halfvec(${sql.lit(dimensions)}),
         "pendingSince" timestamptz,
+        "claimedUntil" timestamptz,
         "updatedAt" timestamptz not null default now()
       )
     `.execute(trx)
@@ -587,8 +672,13 @@ export const setupSemanticSearchTables = async (
         "updatedAt" timestamptz not null default now()
       )
     `.execute(trx)
-    if (recreated) {
-      // The old embeddings are gone, so the backfill starts over.
+    // A table made by an earlier version of this script.
+    await sql`
+      alter table ${sql.table(EMBEDDINGS_TABLE)}
+        add column if not exists "claimedUntil" timestamptz
+    `.execute(trx)
+    if (!tableExists || recreated) {
+      // No embeddings yet, so the backfill starts over.
       await sql`update ${sql.table(SEMANTIC_STATUS_TABLE)} set "backfillCursor" = null`.execute(
         trx
       )

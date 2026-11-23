@@ -4,16 +4,17 @@ import {
   setSemanticSearchListener
 } from '@/lib/database/domains/search/semanticHooks'
 import {
+  claimPendingEmbeddings,
   clearEmbeddingPending,
   deleteEmbeddings,
   deleteEmbeddingsForActor,
   getEmbeddableDocuments,
-  getPendingEmbeddings,
   getSemanticAvailability,
   getStoredEmbeddings,
   markEmbeddingsPending,
   recordSemanticFailure,
   recordSemanticSuccess,
+  releaseEmbeddingClaims,
   storeEmbeddings
 } from '@/lib/database/domains/search/semanticStore'
 import type { Db } from '@/lib/database/kysely'
@@ -28,7 +29,9 @@ import {
   createSemanticSearchListener,
   embedSearchQuery,
   getSearchQueryEmbedding,
-  runEmbeddingJob
+  resetEmbeddingJobScheduleForTests,
+  runEmbeddingJob,
+  scheduleEmbeddingJob
 } from '@/lib/services/search/semantic/semanticSearch'
 import {
   type EmbeddingProvider,
@@ -45,16 +48,17 @@ vi.mock(
       >()
     return {
       ...actual,
+      claimPendingEmbeddings: vi.fn(),
       clearEmbeddingPending: vi.fn(),
       deleteEmbeddings: vi.fn(),
       deleteEmbeddingsForActor: vi.fn(),
       getEmbeddableDocuments: vi.fn(),
-      getPendingEmbeddings: vi.fn(),
       getSemanticAvailability: vi.fn(),
       getStoredEmbeddings: vi.fn(),
       markEmbeddingsPending: vi.fn(),
       recordSemanticFailure: vi.fn(),
       recordSemanticSuccess: vi.fn(),
+      releaseEmbeddingClaims: vi.fn(),
       storeEmbeddings: vi.fn()
     }
   }
@@ -99,6 +103,7 @@ describe('semanticSearch service', () => {
 
   beforeEach(() => {
     clearQueryEmbeddingCache()
+    resetEmbeddingJobScheduleForTests()
     setSemanticSearchListener(null)
     publish.mockReset().mockResolvedValue(undefined)
     vi.mocked(getQueue)
@@ -112,15 +117,16 @@ describe('semanticSearch service', () => {
     vi.mocked(getSemanticAvailability)
       .mockReset()
       .mockResolvedValue({ available: true })
-    vi.mocked(getPendingEmbeddings).mockReset().mockResolvedValue([])
+    vi.mocked(claimPendingEmbeddings).mockReset().mockResolvedValue([])
     vi.mocked(getEmbeddableDocuments).mockReset().mockResolvedValue([])
     vi.mocked(getStoredEmbeddings).mockReset().mockResolvedValue(new Map())
     vi.mocked(clearEmbeddingPending).mockReset().mockResolvedValue(undefined)
     vi.mocked(deleteEmbeddings).mockReset().mockResolvedValue(undefined)
     vi.mocked(deleteEmbeddingsForActor).mockReset().mockResolvedValue(undefined)
-    vi.mocked(markEmbeddingsPending).mockReset().mockResolvedValue(undefined)
+    vi.mocked(markEmbeddingsPending).mockReset().mockResolvedValue(1)
     vi.mocked(recordSemanticFailure).mockReset().mockResolvedValue(undefined)
     vi.mocked(recordSemanticSuccess).mockReset().mockResolvedValue(undefined)
+    vi.mocked(releaseEmbeddingClaims).mockReset().mockResolvedValue(undefined)
     vi.mocked(storeEmbeddings).mockReset().mockResolvedValue(undefined)
   })
 
@@ -223,6 +229,37 @@ describe('semanticSearch service', () => {
       // query-1 was evicted and must re-embed.
       await embedSearchQuery(provider, 'query-1', t0 + 4)
       expect(provider.embed).toHaveBeenCalledTimes(502)
+    })
+
+    it('re-inserts an expired key at the most recently used end', async () => {
+      const provider = createFakeProvider()
+      const t0 = 1_700_000_000_000
+
+      // query-0 expires at t0 + 10m; query-1..499 expire 5s later.
+      await embedSearchQuery(provider, 'query-0', t0)
+      for (let i = 1; i < 500; i += 1) {
+        await embedSearchQuery(provider, `query-${i}`, t0 + 5_000)
+      }
+      expect(provider.embed).toHaveBeenCalledTimes(500)
+
+      // At t1, query-0 is expired (and was oldest); re-embedding it must move
+      // it to the most recently used end so query-1 is now oldest.
+      const t1 = t0 + TEN_MINUTES_MS
+      await embedSearchQuery(provider, 'query-0', t1)
+      expect(provider.embed).toHaveBeenCalledTimes(501)
+
+      // Inserting the 501st entry evicts query-1, not the freshly re-embedded query-0.
+      await embedSearchQuery(provider, 'query-500', t1 + 1)
+      expect(provider.embed).toHaveBeenCalledTimes(502)
+
+      // query-0 is still cached.
+      await embedSearchQuery(provider, 'query-0', t1 + 2)
+      expect(provider.embed).toHaveBeenCalledTimes(502)
+
+      // query-1 is not yet expired (t1 + 3 < t0 + 5s + 10m), so re-embedding
+      // proves it was the entry evicted by LRU.
+      await embedSearchQuery(provider, 'query-1', t1 + 3)
+      expect(provider.embed).toHaveBeenCalledTimes(503)
     })
 
     it('does not cache a failed embedding', async () => {
@@ -374,6 +411,63 @@ describe('semanticSearch service', () => {
     })
   })
 
+  describe('scheduleEmbeddingJob', () => {
+    it('publishes at most once per 10s bucket and always publishes continuations', async () => {
+      await scheduleEmbeddingJob(false, 10_000)
+      await scheduleEmbeddingJob(false, 19_999)
+
+      expect(publish).toHaveBeenCalledTimes(1)
+      expect(publish).toHaveBeenLastCalledWith({
+        id: 'semantic-embed-1',
+        name: EMBED_SEARCH_DOCUMENTS_JOB_NAME,
+        data: {},
+        delaySeconds: 10
+      })
+
+      await scheduleEmbeddingJob(false, 20_000)
+      expect(publish).toHaveBeenCalledTimes(2)
+      expect(publish).toHaveBeenLastCalledWith({
+        id: 'semantic-embed-2',
+        name: EMBED_SEARCH_DOCUMENTS_JOB_NAME,
+        data: {},
+        delaySeconds: 10
+      })
+
+      await scheduleEmbeddingJob(true, 20_001)
+      await scheduleEmbeddingJob(true, 20_002)
+      expect(publish).toHaveBeenCalledTimes(4)
+      const thirdId = publish.mock.calls[2]?.[0]?.id
+      const fourthId = publish.mock.calls[3]?.[0]?.id
+      expect(thirdId).toMatch(/^semantic-embed-/)
+      expect(fourthId).toMatch(/^semantic-embed-/)
+      expect(thirdId).not.toBe(fourthId)
+    })
+
+    it('lets the next call in the same bucket retry after a failed publish', async () => {
+      publish
+        .mockRejectedValueOnce(new Error('queue unavailable'))
+        .mockResolvedValueOnce(undefined)
+
+      await expect(scheduleEmbeddingJob(false, 30_000)).rejects.toThrow(
+        'queue unavailable'
+      )
+      await expect(scheduleEmbeddingJob(false, 30_500)).resolves.toBeUndefined()
+      expect(publish).toHaveBeenCalledTimes(2)
+      expect(publish).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ id: 'semantic-embed-3' })
+      )
+      expect(publish).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ id: 'semantic-embed-3' })
+      )
+
+      // Once published, further calls in the same bucket are folded.
+      await scheduleEmbeddingJob(false, 31_000)
+      expect(publish).toHaveBeenCalledTimes(2)
+    })
+  })
+
   describe('runEmbeddingJob', () => {
     it('rethrows retryable provider errors after recording the health failure', async () => {
       const provider = createFakeProvider()
@@ -383,7 +477,7 @@ describe('semanticSearch service', () => {
       })
       provider.embed.mockRejectedValue(error)
       vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
-      vi.mocked(getPendingEmbeddings).mockResolvedValue([
+      vi.mocked(claimPendingEmbeddings).mockResolvedValue([
         { documentId: 'doc-1', pendingSince: '2026-01-01 00:00:01+00' }
       ])
       vi.mocked(getEmbeddableDocuments).mockResolvedValue([
@@ -391,11 +485,12 @@ describe('semanticSearch service', () => {
       ])
 
       await expect(runEmbeddingJob(mockDb)).rejects.toBe(error)
+      expect(releaseEmbeddingClaims).toHaveBeenCalledWith(mockDb, ['doc-1'])
       expect(recordSemanticFailure).toHaveBeenCalledWith(mockDb, 'HTTP 503')
       expect(recordSemanticSuccess).not.toHaveBeenCalled()
     })
 
-    it('swallows non-retryable provider errors after recording the health failure', async () => {
+    it('keeps the marks when the provider refuses the key, and records the failure once', async () => {
       const provider = createFakeProvider()
       const error = new EmbeddingProviderError('invalid API key', {
         statusCode: 401,
@@ -403,7 +498,35 @@ describe('semanticSearch service', () => {
       })
       provider.embed.mockRejectedValue(error)
       vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
-      vi.mocked(getPendingEmbeddings).mockResolvedValue([
+      vi.mocked(claimPendingEmbeddings).mockResolvedValue([
+        { documentId: 'doc-1', pendingSince: '2026-01-01 00:00:01+00' },
+        { documentId: 'doc-2', pendingSince: '2026-01-01 00:00:02+00' }
+      ])
+      vi.mocked(getEmbeddableDocuments).mockResolvedValue([
+        { id: 'doc-1', documentText: 'hello world' },
+        { id: 'doc-2', documentText: 'another post' }
+      ])
+
+      await expect(runEmbeddingJob(mockDb)).resolves.toBeUndefined()
+      // One request, not one per document; nothing cleared, claims released.
+      expect(provider.embed).toHaveBeenCalledTimes(1)
+      expect(clearEmbeddingPending).not.toHaveBeenCalled()
+      expect(releaseEmbeddingClaims).toHaveBeenCalledWith(mockDb, [
+        'doc-1',
+        'doc-2'
+      ])
+      expect(recordSemanticFailure).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears the mark of a document the provider refuses as input, after recording it', async () => {
+      const provider = createFakeProvider()
+      const error = new EmbeddingProviderError('input too long', {
+        statusCode: 400,
+        retryable: false
+      })
+      provider.embed.mockRejectedValue(error)
+      vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
+      vi.mocked(claimPendingEmbeddings).mockResolvedValue([
         { documentId: 'doc-1', pendingSince: '2026-01-01 00:00:01+00' }
       ])
       vi.mocked(getEmbeddableDocuments).mockResolvedValue([
@@ -411,9 +534,14 @@ describe('semanticSearch service', () => {
       ])
 
       await expect(runEmbeddingJob(mockDb)).resolves.toBeUndefined()
+      expect(clearEmbeddingPending).toHaveBeenCalledWith(
+        mockDb,
+        'doc-1',
+        '2026-01-01 00:00:01+00'
+      )
       expect(recordSemanticFailure).toHaveBeenCalledWith(
         mockDb,
-        'invalid API key'
+        'input too long'
       )
       expect(recordSemanticSuccess).not.toHaveBeenCalled()
     })
@@ -428,7 +556,7 @@ describe('semanticSearch service', () => {
           pendingSince: `2026-01-01 00:00:${String(index).padStart(2, '0')}+00`
         })
       )
-      vi.mocked(getPendingEmbeddings).mockResolvedValue(pending)
+      vi.mocked(claimPendingEmbeddings).mockResolvedValue(pending)
       vi.mocked(getEmbeddableDocuments).mockResolvedValue(
         pending.map((item) => ({
           id: item.documentId,
@@ -458,6 +586,7 @@ describe('semanticSearch service', () => {
       const callOrder: string[] = []
       vi.mocked(markEmbeddingsPending).mockImplementation(async () => {
         callOrder.push('markPending')
+        return 2
       })
       publish.mockImplementation(async () => {
         callOrder.push('scheduleJob')
@@ -474,6 +603,23 @@ describe('semanticSearch service', () => {
         provider
       )
       expect(publish).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not schedule an embedding job when nothing was marked pending', async () => {
+      const provider = createFakeProvider()
+      vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
+      vi.mocked(markEmbeddingsPending).mockResolvedValue(0)
+
+      const listener = createSemanticSearchListener(() => mockDb)
+      listener.statusDocumentsWritten(['doc-followers-only'])
+      await flushMicrotasks()
+
+      expect(markEmbeddingsPending).toHaveBeenCalledWith(
+        mockDb,
+        ['doc-followers-only'],
+        provider
+      )
+      expect(publish).not.toHaveBeenCalled()
     })
 
     it('never throws when marking pending or scheduling fails', async () => {

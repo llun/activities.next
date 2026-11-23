@@ -20,7 +20,6 @@ export interface EmbeddingProvider {
 export interface EmbeddingProviderErrorOptions {
   statusCode?: number
   retryable: boolean
-  cause?: unknown
 }
 
 export class EmbeddingProviderError extends Error {
@@ -28,10 +27,7 @@ export class EmbeddingProviderError extends Error {
   readonly retryable: boolean
 
   constructor(message: string, options: EmbeddingProviderErrorOptions) {
-    super(
-      message,
-      options.cause !== undefined ? { cause: options.cause } : undefined
-    )
+    super(message)
     this.name = 'EmbeddingProviderError'
     this.statusCode = options.statusCode
     this.retryable = options.retryable

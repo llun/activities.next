@@ -74,10 +74,9 @@ export const createTransportEmbeddingError = ({
 
   return new EmbeddingProviderError(
     `${providerLabel} embeddings request failed: ${safeMessage}`,
-    {
-      retryable,
-      cause: error
-    }
+    // No `cause`: the transport error can carry the request's headers (the
+    // key) and an unredacted message, and the logger would print it.
+    { retryable }
   )
 }
 
@@ -87,13 +86,11 @@ export const parseEmbeddingJson = <T>(
 ): T => {
   try {
     return JSON.parse(body) as T
-  } catch (error) {
+  } catch {
+    // No `cause`: a JSON parse error quotes the body.
     throw new EmbeddingProviderError(
       `${providerLabel} embeddings response was not valid JSON`,
-      {
-        retryable: false,
-        cause: error
-      }
+      { retryable: false }
     )
   }
 }

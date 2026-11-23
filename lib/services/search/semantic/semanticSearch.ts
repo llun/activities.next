@@ -4,18 +4,19 @@ import { getKysely } from '@/lib/database'
 import { foldSearchText } from '@/lib/database/domains/search/rows'
 import {
   type EmbeddableDocument,
+  claimPendingEmbeddings,
   clearEmbeddingPending,
   deleteEmbeddings,
   deleteEmbeddingsForActor,
   getEmbeddableDocuments,
   getEmbeddingContentHash,
   getEmbeddingText,
-  getPendingEmbeddings,
   getSemanticAvailability,
   getStoredEmbeddings,
   markEmbeddingsPending,
   recordSemanticFailure,
   recordSemanticSuccess,
+  releaseEmbeddingClaims,
   storeEmbeddings
 } from '@/lib/database/domains/search/semanticStore'
 import type { Db } from '@/lib/database/kysely'
@@ -66,9 +67,89 @@ export const recordFailure = async (db: Db, error: unknown) => {
   }
 }
 
+type EmbedItem = { id: string; text: string; hash: string }
+
+const INPUT_REFUSAL_STATUS_CODES = new Set([400, 413, 422])
+
+// Sends one batch and stores what still qualifies once the vectors are back
+// (a post made followers-only, or an author who opted out, while the request
+// was out is not stored). A batch the provider refuses outright (a text over
+// the model's limit, say) is retried one document at a time, so one bad post
+// cannot hold back the rest: a document refused alone has its mark cleared and
+// the refusal recorded, and waits for its next edit or the backfill.
+const embedBatch = async (
+  db: Db,
+  provider: EmbeddingProvider,
+  batch: EmbedItem[],
+  pendingSince: Map<string, string>
+): Promise<number> => {
+  let vectors: number[][]
+  try {
+    vectors = await provider.embed(
+      batch.map((item) => item.text),
+      'document'
+    )
+  } catch (error) {
+    // Only a refusal of the input (400, 413, 422) is about these documents; a
+    // bad key, a wrong model or a dimension mismatch fails every document the
+    // same way, so it goes up to the job with the marks kept.
+    if (
+      !(error instanceof EmbeddingProviderError) ||
+      error.retryable ||
+      !INPUT_REFUSAL_STATUS_CODES.has(error.statusCode ?? 0)
+    ) {
+      throw error
+    }
+    if (batch.length === 1) {
+      await recordFailure(db, error)
+      const mark = pendingSince.get(batch[0].id)
+      if (mark) await clearEmbeddingPending(db, batch[0].id, mark)
+      return 0
+    }
+    let sent = 0
+    for (const item of batch) {
+      sent += await embedBatch(db, provider, [item], pendingSince)
+    }
+    return sent
+  }
+  const stillEmbeddable = new Set(
+    (
+      await getEmbeddableDocuments(
+        db,
+        batch.map((item) => item.id)
+      )
+    ).map((document) => document.id)
+  )
+  await deleteEmbeddings(
+    db,
+    batch
+      .filter((item) => !stillEmbeddable.has(item.id))
+      .map((item) => item.id),
+    pendingSince
+  )
+  await storeEmbeddings(
+    db,
+    batch.flatMap((item, index) =>
+      stillEmbeddable.has(item.id)
+        ? [
+            {
+              documentId: item.id,
+              contentHash: item.hash,
+              embedding: vectors[index],
+              pendingSince: pendingSince.get(item.id) ?? null
+            }
+          ]
+        : []
+    ),
+    provider
+  )
+  return batch.length
+}
+
 // Embeds the documents whose text changed since their embedding was made (or
 // that have none), in provider-sized batches, and stores the vectors. Returns
-// how many were sent to the provider.
+// how many were sent to the provider. `pendingSince` holds the marks the job
+// claimed (empty for the backfill).
 export const embedDocuments = async (
   db: Db,
   provider: EmbeddingProvider,
@@ -79,7 +160,7 @@ export const embedDocuments = async (
     db,
     documents.map((document) => document.id)
   )
-  const toEmbed: { id: string; text: string; hash: string }[] = []
+  const toEmbed: EmbedItem[] = []
   for (const document of documents) {
     const text = getEmbeddingText(document.documentText)
     const hash = getEmbeddingContentHash(text)
@@ -96,51 +177,51 @@ export const embedDocuments = async (
     }
     // A post with no words (a captionless photo) has nothing to embed.
     if (!text.trim()) {
-      await deleteEmbeddings(db, [document.id])
+      await deleteEmbeddings(db, [document.id], pendingSince)
       continue
     }
     toEmbed.push({ id: document.id, text, hash })
   }
+  let sent = 0
   for (let start = 0; start < toEmbed.length; start += provider.maxBatchSize) {
-    const batch = toEmbed.slice(start, start + provider.maxBatchSize)
-    const vectors = await provider.embed(
-      batch.map((item) => item.text),
-      'document'
-    )
-    await storeEmbeddings(
+    sent += await embedBatch(
       db,
-      batch.map((item, index) => ({
-        documentId: item.id,
-        contentHash: item.hash,
-        embedding: vectors[index],
-        pendingSince: pendingSince.get(item.id) ?? null
-      })),
-      provider
+      provider,
+      toEmbed.slice(start, start + provider.maxBatchSize),
+      pendingSince
     )
   }
-  return toEmbed.length
+  return sent
 }
 
-// One pass over the pending marks: embed what still qualifies, drop what no
-// longer does (a post made followers-only, an author who opted out).
+// One pass over the pending marks this job claims: embed what still qualifies,
+// drop what no longer does (a post made followers-only, an author who opted
+// out). On a failure the claims are released for the queue's retry.
 export const processPendingEmbeddings = async (
   db: Db,
   provider: EmbeddingProvider,
   limit = EMBEDDING_JOB_BATCH_SIZE
 ): Promise<{ looked: number; embedded: number }> => {
-  const pending = await getPendingEmbeddings(db, limit)
+  const pending = await claimPendingEmbeddings(db, limit)
   if (pending.length === 0) return { looked: 0, embedded: 0 }
   const pendingSince = new Map(
     pending.map((row) => [row.documentId, row.pendingSince])
   )
-  const documents = await getEmbeddableDocuments(db, [...pendingSince.keys()])
-  const embeddable = new Set(documents.map((document) => document.id))
-  await deleteEmbeddings(
-    db,
-    [...pendingSince.keys()].filter((id) => !embeddable.has(id))
-  )
-  const embedded = await embedDocuments(db, provider, documents, pendingSince)
-  return { looked: pending.length, embedded }
+  const ids = [...pendingSince.keys()]
+  try {
+    const documents = await getEmbeddableDocuments(db, ids)
+    const embeddable = new Set(documents.map((document) => document.id))
+    await deleteEmbeddings(
+      db,
+      ids.filter((id) => !embeddable.has(id)),
+      pendingSince
+    )
+    const embedded = await embedDocuments(db, provider, documents, pendingSince)
+    return { looked: pending.length, embedded }
+  } catch (error) {
+    await releaseEmbeddingClaims(db, ids).catch(() => undefined)
+    throw error
+  }
 }
 
 const publishEmbeddingJob = async (id: string) => {
@@ -153,20 +234,41 @@ const publishEmbeddingJob = async (id: string) => {
   })
 }
 
-// Bursts of writes share one job (the queue drops a repeated id); a
-// continuation gets an id of its own.
-export const scheduleEmbeddingJob = (continuation = false) =>
-  publishEmbeddingJob(
-    continuation
-      ? `semantic-embed-${randomUUID()}`
-      : `semantic-embed-${Math.floor(Date.now() / JOB_BUCKET_MS)}`
-  )
+let lastScheduledBucket: number | null = null
+
+// Bursts of writes share one job: this process schedules at most one per
+// JOB_BUCKET_MS window (a queue that drops a repeated id also folds the
+// windows of several processes), and jobs that do overlap claim disjoint rows.
+// A continuation gets an id of its own.
+export const scheduleEmbeddingJob = async (
+  continuation = false,
+  now = Date.now()
+) => {
+  if (continuation) {
+    await publishEmbeddingJob(`semantic-embed-${randomUUID()}`)
+    return
+  }
+  const bucket = Math.floor(now / JOB_BUCKET_MS)
+  if (lastScheduledBucket === bucket) return
+  lastScheduledBucket = bucket
+  try {
+    await publishEmbeddingJob(`semantic-embed-${bucket}`)
+  } catch (error) {
+    // Let the next write in this window try again.
+    if (lastScheduledBucket === bucket) lastScheduledBucket = null
+    throw error
+  }
+}
+
+export const resetEmbeddingJobScheduleForTests = () => {
+  lastScheduledBucket = null
+}
 
 // The job: one batch of pending documents, then another job while more wait.
 // A provider failure is recorded in the health signal; a retryable one is
-// thrown so the queue retries it with backoff, the rest wait for the next
-// write or `yarn search:semantic:backfill` (retrying a bad key changes
-// nothing).
+// thrown so the queue retries it with backoff (the claims are released), the
+// rest wait for the next write or `yarn search:semantic:backfill` (retrying a
+// bad key changes nothing).
 export const runEmbeddingJob = async (db: Db): Promise<void> => {
   const layer = await getSemanticLayer(db)
   if (!layer) return
@@ -183,8 +285,9 @@ export const runEmbeddingJob = async (db: Db): Promise<void> => {
     throw error
   }
   if (result.embedded > 0) await recordSemanticSuccess(db)
-  if (result.looked >= EMBEDDING_JOB_BATCH_SIZE)
+  if (result.looked >= EMBEDDING_JOB_BATCH_SIZE) {
     await scheduleEmbeddingJob(true)
+  }
 }
 
 type CachedQuery = { expiresAt: number; vector: Promise<number[]> }
@@ -201,9 +304,9 @@ export const embedSearchQuery = (
 ): Promise<number[]> => {
   const key = `${provider.cacheKey}\u0000${foldSearchText(query).trim()}`
   const cached = queryCache.get(key)
+  // Re-inserted either way, so it moves to the most recently used end.
+  queryCache.delete(key)
   if (cached && cached.expiresAt > now) {
-    // Refresh its place as the most recently used.
-    queryCache.delete(key)
     queryCache.set(key, cached)
     return cached.vector
   }
@@ -232,8 +335,12 @@ export const createSemanticSearchListener = (getDb: () => Db) => ({
       const db = getDb()
       const layer = await getSemanticLayer(db)
       if (!layer) return
-      await markEmbeddingsPending(db, documentIds, layer.provider)
-      await scheduleEmbeddingJob()
+      const marked = await markEmbeddingsPending(
+        db,
+        documentIds,
+        layer.provider
+      )
+      if (marked > 0) await scheduleEmbeddingJob()
     })().catch((error) =>
       logger.warn({
         message: 'Failed to schedule semantic search embeddings',

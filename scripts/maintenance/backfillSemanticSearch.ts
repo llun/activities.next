@@ -117,8 +117,9 @@ async function backfill() {
           tokens += estimateTokens(text)
         }
       } else {
+        let sent = 0
         try {
-          const sent = await embedDocuments(db, provider, page)
+          sent = await embedDocuments(db, provider, page)
           toSend += sent
           if (sent > 0) await recordSemanticSuccess(db)
         } catch (error) {
@@ -129,7 +130,8 @@ async function backfill() {
           throw error
         }
         await saveBackfillCursor(db, page[page.length - 1].id)
-        if (toSend > 0 && options.delayMs > 0) await sleep(options.delayMs)
+        // Only after a page that called the provider.
+        if (sent > 0 && options.delayMs > 0) await sleep(options.delayMs)
       }
       cursor = page[page.length - 1].id
       console.log(
