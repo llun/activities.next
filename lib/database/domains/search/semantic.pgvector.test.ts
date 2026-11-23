@@ -544,15 +544,38 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         .set({ privateKey: '', settings: JSON.stringify({ indexable: true }) })
         .where('id', '=', userinfo)
         .execute()
-      const posts = await Promise.all(
-        [silenced, subdomain, split, userinfo, allowed].map((actorId, index) =>
-          indexedStatus({
-            id: statusIdOf(actorId, `domain-${index}`),
-            actorId,
-            createdAt: 600 + index,
-            text: `domain rule post ${index}`,
-            to: [PUBLIC]
+      // Trailing dots on the id host, and an id with no host at all (fails
+      // closed).
+      const dotted = `https://${silencedDomain}../users/domain-dotted`
+      const hostless = `acct:domain-hostless@${silencedDomain}`
+      for (const [id, username] of [
+        [dotted, 'domain-dotted'],
+        [hostless, 'domain-hostless']
+      ]) {
+        await createSearchActor(database, {
+          id,
+          username,
+          domain: REMOTE_DOMAIN
+        })
+        await db
+          .updateTable('actors')
+          .set({
+            privateKey: '',
+            settings: JSON.stringify({ indexable: true })
           })
+          .where('id', '=', id)
+          .execute()
+      }
+      const posts = await Promise.all(
+        [silenced, subdomain, split, userinfo, dotted, hostless, allowed].map(
+          (actorId, index) =>
+            indexedStatus({
+              id: statusIdOf(actorId, `domain-${index}`),
+              actorId,
+              createdAt: 600 + index,
+              text: `domain rule post ${index}`,
+              to: [PUBLIC]
+            })
         )
       )
       await sql`
@@ -563,7 +586,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       try {
         const embeddable = await getEmbeddableDocuments(db, posts.map(docIdOf))
         expect(embeddable.map((document) => document.id)).toEqual([
-          docIdOf(posts[4])
+          docIdOf(posts[6])
         ])
       } finally {
         await sql`

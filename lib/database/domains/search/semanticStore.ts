@@ -264,31 +264,39 @@ const withoutBlockedDomains = async (
   db: Db,
   rows: CandidateRow[]
 ): Promise<EmbeddableDocument[]> => {
-  const domainsOf = (row: CandidateRow) => {
-    if (row.privateKey) return []
-    let idHost: string | null
+  // The raw domains of a remote author (trailing dots dropped, which
+  // normalizeDomain removes one at a time), or null when one cannot be read:
+  // such an author is not embedded (fail closed).
+  const domainsOf = (row: CandidateRow): string[] | null => {
+    let idHost = ''
     try {
-      idHost = row.actorId ? new URL(row.actorId).host : null
+      idHost = row.actorId ? new URL(row.actorId).host : ''
     } catch {
-      idHost = null
+      return null
     }
-    return [idHost, row.actorDomain].flatMap((domain) =>
-      domain ? [normalizeDomain(domain) ?? domain.toLowerCase()] : []
+    const raw = [idHost, ...(row.actorDomain ? [row.actorDomain] : [])].map(
+      (domain) => domain.replace(/\.+$/, '')
     )
+    if (!raw[0] || raw.some((domain) => normalizeDomain(domain) === null)) {
+      return null
+    }
+    return raw
   }
-  const domains = [...new Set(rows.flatMap(domainsOf))]
+  const remote = rows.filter((row) => !row.privateKey)
+  const domains = [...new Set(remote.flatMap((row) => domainsOf(row) ?? []))]
+  // Keyed by normalizeDomain of the raw domain, looked up the same way, as
+  // filterSearchStatuses does.
   const rules =
     domains.length > 0 ? await getDomainBlocksForDomains(db, domains) : {}
   const blocked = (domain: string) => {
-    const severity = rules[domain]?.severity
+    const severity = rules[normalizeDomain(domain) ?? '']?.severity
     return severity === 'suspend' || severity === 'silence'
   }
   return rows
     .filter((row) => {
       if (row.privateKey) return true
       const rowDomains = domainsOf(row)
-      // A remote author whose id has no readable host is not embedded.
-      return rowDomains.length > 0 && !rowDomains.some(blocked)
+      return rowDomains !== null && !rowDomains.some(blocked)
     })
     .map(({ id, documentText }) => ({ id, documentText }))
 }
