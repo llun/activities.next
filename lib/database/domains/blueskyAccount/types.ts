@@ -29,6 +29,7 @@ export interface BlueskyAccountDatabase {
   getBlueskyAccountByDid(params: {
     did: string
   }): Promise<BlueskyAccount | null>
+  /** Only a claim an active admin's actor holds. */
   getBlueskyAccountByInstanceHandle(params: {
     host: string
   }): Promise<BlueskyAccount | null>
@@ -46,7 +47,10 @@ export interface BlueskyAccountDatabase {
     pdsUrl: string
     domainHandle: boolean
   }): Promise<void>
-  /** `false` when another actor already answers for `host`. */
+  /**
+   * `false` when another active admin's actor already answers for `host`; a
+   * claim whose holder lost that is freed first.
+   */
   setBlueskyInstanceHandle(params: {
     actorId: string
     host: string | null

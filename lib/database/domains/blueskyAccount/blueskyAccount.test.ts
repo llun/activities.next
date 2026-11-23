@@ -1,4 +1,5 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 
 describe('BlueskyAccount', () => {
   const testDb = createTestDatabase()
@@ -12,6 +13,26 @@ describe('BlueskyAccount', () => {
   afterAll(async () => {
     await database.destroy()
   })
+
+  // A local actor whose account is an admin; returns the actor id.
+  const createAdmin = async (username: string) => {
+    const accountId = await database.createAccount({
+      email: `${username}@${TEST_DOMAIN}`,
+      username,
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: `privateKey-${username}`,
+      publicKey: `publicKey-${username}`
+    })
+    await setRole(accountId, 'admin')
+    return { accountId, actorId: `https://${TEST_DOMAIN}/users/${username}` }
+  }
+  const setRole = (accountId: string, role: string | null) =>
+    testDb.db
+      .updateTable('accounts')
+      .set({ role })
+      .where('id', '=', accountId)
+      .execute()
 
   const link = (actorId: string, did: string) =>
     database.saveBlueskyAccount({
@@ -59,19 +80,21 @@ describe('BlueskyAccount', () => {
     expect(await database.getBlueskySession({ did: 'did:plc:same' })).toBe('s1')
   })
 
-  it('lets one actor at a time answer for a host', async () => {
-    await link('actor-5', 'did:plc:five')
-    await link('actor-6', 'did:plc:six')
+  it('lets one active admin actor at a time answer for a host', async () => {
+    const five = await createAdmin('bsky-five')
+    const six = await createAdmin('bsky-six')
+    await link(five.actorId, 'did:plc:five')
+    await link(six.actorId, 'did:plc:six')
 
     expect(
       await database.setBlueskyInstanceHandle({
-        actorId: 'actor-5',
+        actorId: five.actorId,
         host: 'Social.Example'
       })
     ).toBe(true)
     expect(
       await database.setBlueskyInstanceHandle({
-        actorId: 'actor-6',
+        actorId: six.actorId,
         host: 'social.example'
       })
     ).toBe(false)
@@ -79,9 +102,43 @@ describe('BlueskyAccount', () => {
       await database.getBlueskyAccountByInstanceHandle({
         host: 'social.example'
       })
-    ).toMatchObject({ actorId: 'actor-5', did: 'did:plc:five' })
+    ).toMatchObject({ actorId: five.actorId, did: 'did:plc:five' })
 
-    await database.setBlueskyInstanceHandle({ actorId: 'actor-5', host: null })
+    // Re-linking the same DID keeps the claim.
+    await link(five.actorId, 'did:plc:five')
+    expect(
+      (await database.getBlueskyAccount({ actorId: five.actorId }))
+        ?.instanceHandle
+    ).toBe('social.example')
+
+    // A holder who is no longer an admin answers nothing, and the claim can
+    // be taken.
+    await setRole(five.accountId, null)
+    expect(
+      await database.getBlueskyAccountByInstanceHandle({
+        host: 'social.example'
+      })
+    ).toBeNull()
+    expect(
+      await database.setBlueskyInstanceHandle({
+        actorId: six.actorId,
+        host: 'social.example'
+      })
+    ).toBe(true)
+    expect(
+      await database.getBlueskyAccountByInstanceHandle({
+        host: 'social.example'
+      })
+    ).toMatchObject({ actorId: six.actorId })
+    expect(
+      (await database.getBlueskyAccount({ actorId: five.actorId }))
+        ?.instanceHandle
+    ).toBeNull()
+
+    await database.setBlueskyInstanceHandle({
+      actorId: six.actorId,
+      host: null
+    })
     expect(
       await database.getBlueskyAccountByInstanceHandle({
         host: 'social.example'

@@ -3,9 +3,11 @@ import {
   extractPdsUrl,
   isAtprotoDid
 } from '@atproto/oauth-client-node'
+import crypto from 'node:crypto'
 import { resolveTxt } from 'node:dns/promises'
 
 import { getConfig } from '@/lib/config'
+import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import {
@@ -27,12 +29,50 @@ import {
 
 const INVALID_HANDLE = 'handle.invalid'
 
+// The `scope` claim of a PDS access token, read without verifying it: the
+// PDS that issued it was just asked over HTTPS, and the token is only stored.
+const getJwtScope = (jwt: string): string => {
+  try {
+    const payload: unknown = JSON.parse(
+      Buffer.from(jwt.split('.')[1] ?? '', 'base64url').toString('utf8')
+    )
+    const scope = (payload as { scope?: unknown })?.scope
+    return typeof scope === 'string' ? scope : ''
+  } catch {
+    return ''
+  }
+}
+
 export class BlueskyLinkError extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 409 | 422 | 502 = 422
+    readonly status: 400 | 409 | 422 | 429 | 502 = 422
   ) {
     super(message)
+  }
+}
+
+const HANDLE_PATTERN =
+  /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}$/
+const isHandle = (value: string) =>
+  value.length <= 253 && HANDLE_PATTERN.test(value)
+
+// Each of these reaches other servers on the actor's behalf (and app-password
+// tries are guesses against the PDS), so they share one window per actor.
+const RATE_LIMIT = { limit: 20, windowMs: 15 * 60 * 1000 }
+
+const limitOutboundAction = async (database: Database, actor: Actor) => {
+  const digest = crypto.createHash('sha256').update(actor.id).digest('hex')
+  const result = await database.consumeRateLimit({
+    key: `${APP_RATE_LIMIT_KEY_PREFIX}bluesky:${digest}`,
+    keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+    ...RATE_LIMIT
+  })
+  if (!result.allowed) {
+    throw new BlueskyLinkError(
+      `Too many tries. Try again in ${Math.ceil(result.retryAfterSeconds / 60)} minutes.`,
+      429
+    )
   }
 }
 
@@ -41,11 +81,7 @@ export class BlueskyLinkError extends Error {
 const normalizeIdentifier = (input: string) => {
   const value = input.trim().replace(/^@/, '').toLowerCase()
   if (isAtprotoDid(value)) return value
-  if (
-    /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}$/.test(value)
-  ) {
-    return value
-  }
+  if (isHandle(value)) return value
   throw new BlueskyLinkError('Enter a Bluesky handle, like alice.bsky.social.')
 }
 
@@ -105,10 +141,15 @@ const resolveIdentity = async (identifier: string, noCache = false) => {
     const claimed = identity.didDoc.alsoKnownAs
       ?.find((name) => name.startsWith('at://'))
       ?.slice('at://'.length)
+      .toLowerCase()
     const verified = identity.handle !== INVALID_HANDLE
     return {
       did: identity.did,
-      handle: verified ? identity.handle : (claimed ?? identity.handle),
+      handle: verified
+        ? identity.handle
+        : claimed && isHandle(claimed)
+          ? claimed
+          : INVALID_HANDLE,
       verified,
       pdsUrl: extractPdsUrl(identity.didDoc).href
     }
@@ -162,7 +203,7 @@ export const startBlueskyOAuth = async (
   actor: Actor,
   input: string
 ): Promise<string> => {
-  const client = getBlueskyOAuthClient(database)
+  const client = getBlueskyOAuthClient(database, actor.domain)
   if (!client) {
     throw new BlueskyLinkError(
       'Bluesky sign-in is not set up on this server. Use an app password.',
@@ -171,8 +212,12 @@ export const startBlueskyOAuth = async (
   }
   // Refuse a DID another profile holds before the authorization server is
   // involved: finishing the sign-in would make the OAuth client revoke and
-  // replace that profile's stored session.
-  const { did } = await resolveIdentity(normalizeIdentifier(input))
+  // replace that profile's stored session. (A user who signs in as another
+  // account on the authorization server still gets past this; the callback
+  // refuses the link, and readers trust a stored session's own `type`.)
+  const identifier = normalizeIdentifier(input)
+  await limitOutboundAction(database, actor)
+  const { did } = await resolveIdentity(identifier)
   const holder = await database.getBlueskyAccountByDid({ did })
   if (holder && holder.actorId !== actor.id) {
     throw new BlueskyLinkError(
@@ -180,29 +225,39 @@ export const startBlueskyOAuth = async (
       409
     )
   }
+  let url: URL
   try {
-    const url = await (
+    url = await (
       await client
     ).authorize(did, {
       scope: BLUESKY_OAUTH_SCOPE,
       // Read back in the callback, which refuses another actor's sign-in.
       state: actor.id
     })
-    return url.href
   } catch (error) {
-    // Only a failure to find the account or its sign-in server is the user's
-    // to fix; anything else (database, keys) goes up as a server error.
-    if (!(error instanceof OAuthResolverError)) throw error
-    logger.info({
+    // The account's servers had no usable sign-in for us (no OAuth metadata,
+    // an auth method or scope we can't use, a PAR refusal or outage). Only a
+    // failure to find them is routine; the rest needs a look, but the user's
+    // way forward is the same: an app password.
+    const log = error instanceof OAuthResolverError ? logger.info : logger.warn
+    log({
       message: 'Bluesky OAuth could not start',
       actorId: actor.id,
       err: toLoggableError(error)
     })
     throw new BlueskyLinkError(
-      'That account or its server’s Bluesky sign-in could not be found. Check the handle, or use an app password.',
+      'Bluesky sign-in could not start for that account’s server. Try again later, or use an app password.',
       502
     )
   }
+  // The browser goes there next; only ever to an HTTPS sign-in page.
+  if (url.protocol !== 'https:') {
+    throw new BlueskyLinkError(
+      'That account’s sign-in page is not secure. Use an app password.',
+      502
+    )
+  }
+  return url.href
 }
 
 const saveLink = async (
@@ -234,8 +289,15 @@ export const completeBlueskyOAuth = async (
   actor: Actor,
   params: URLSearchParams
 ): Promise<BlueskyCallbackResult> => {
-  const client = getBlueskyOAuthClient(database)
+  const client = getBlueskyOAuthClient(database, actor.domain)
   if (!client) return 'failed'
+  // The callback stores a session for the DID before we decide; on any
+  // outcome but a link, drop it unless a link uses the DID.
+  const dropUnlinkedSession = async (did: string) => {
+    if (!(await database.getBlueskyAccountByDid({ did }))) {
+      await database.deleteBlueskySession({ did })
+    }
+  }
   let result: { session: { did: string }; state?: string | null }
   try {
     result = await (await client).callback(params)
@@ -258,11 +320,7 @@ export const completeBlueskyOAuth = async (
       message: 'Bluesky OAuth callback for another actor refused',
       actorId: actor.id
     })
-    // The callback already stored the session (replacing, and revoking, any
-    // earlier one for this DID); drop it unless a link uses the DID.
-    if (!(await database.getBlueskyAccountByDid({ did }))) {
-      await database.deleteBlueskySession({ did })
-    }
+    await dropUnlinkedSession(did)
     return 'failed'
   }
 
@@ -270,19 +328,16 @@ export const completeBlueskyOAuth = async (
     await saveLink(database, actor, await resolveIdentity(did, true), 'oauth')
     return 'linked'
   } catch (error) {
-    if (error instanceof BlueskyLinkError && error.status === 409) {
-      return 'did_taken'
+    const taken = error instanceof BlueskyLinkError && error.status === 409
+    if (!taken) {
+      logger.error({
+        message: 'Bluesky OAuth link could not be saved',
+        actorId: actor.id,
+        err: toLoggableError(error)
+      })
     }
-    logger.error({
-      message: 'Bluesky OAuth link could not be saved',
-      actorId: actor.id,
-      err: toLoggableError(error)
-    })
-    // The callback stored a session; without a link nothing would remove it.
-    if (!(await database.getBlueskyAccountByDid({ did }))) {
-      await database.deleteBlueskySession({ did })
-    }
-    return 'failed'
+    await dropUnlinkedSession(did)
+    return taken ? 'did_taken' : 'failed'
   }
 }
 
@@ -297,7 +352,9 @@ export const linkBlueskyAppPassword = async (
       'Use an app password, like abcd-efgh-ijkl-mnop, not your main password.'
     )
   }
-  const identity = await resolveIdentity(normalizeIdentifier(input.identifier))
+  const identifier = normalizeIdentifier(input.identifier)
+  await limitOutboundAction(database, actor)
+  const identity = await resolveIdentity(identifier)
   let body: {
     did?: unknown
     accessJwt?: unknown
@@ -344,6 +401,13 @@ export const linkBlueskyAppPassword = async (
       502
     )
   }
+  // A main password in the app-password shape would sign in with full
+  // access; only an app-password session (scope com.atproto.appPass…) is kept.
+  if (!getJwtScope(body.accessJwt).startsWith('com.atproto.appPass')) {
+    throw new BlueskyLinkError(
+      'Use an app password, like abcd-efgh-ijkl-mnop, not your main password.'
+    )
+  }
   await saveLink(database, actor, identity, 'app_password')
   await writeStoredBlueskySession(database, identity.did, {
     type: 'app_password',
@@ -387,6 +451,7 @@ export const checkBlueskyHandle = async (
 ): Promise<BlueskyHandleCheck> => {
   const account = await database.getBlueskyAccount({ actorId: actor.id })
   if (!account) throw new BlueskyLinkError('No Bluesky account is linked.', 400)
+  await limitOutboundAction(database, actor)
   const identity = await resolveIdentity(account.did, true)
   const { handle, verified } = identity
   await database.updateBlueskyAccountIdentity({
@@ -407,6 +472,12 @@ export const setBlueskyInstanceHandle = async (
   actor: Actor,
   enabled: boolean
 ) => {
+  // Anyone may let go of a claim (an admin who lost the role included); only
+  // an admin may take one.
+  if (!enabled) {
+    await database.setBlueskyInstanceHandle({ actorId: actor.id, host: null })
+    return
+  }
   if (actor.account?.role !== 'admin') {
     throw new BlueskyLinkError('Only an admin can use this server’s name.', 400)
   }
@@ -419,7 +490,7 @@ export const setBlueskyInstanceHandle = async (
   }
   const saved = await database.setBlueskyInstanceHandle({
     actorId: actor.id,
-    host: enabled ? host : null
+    host
   })
   if (!saved) {
     throw new BlueskyLinkError(

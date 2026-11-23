@@ -10,7 +10,7 @@ import {
 } from '@atproto/oauth-client-node'
 import crypto from 'node:crypto'
 
-import { type Config, getBaseURL, getConfig } from '@/lib/config'
+import { type Config, buildBaseURL, getConfig } from '@/lib/config'
 import type { Database } from '@/lib/database/types'
 import { decrypt, encrypt } from '@/lib/utils/crypto'
 
@@ -21,12 +21,18 @@ import { blueskyFetch } from './fetch'
 export const BLUESKY_OAUTH_SCOPE = 'atproto transition:generic'
 
 const STATE_TTL_MS = 60 * 60 * 1000
-const LOCK_TTL_MS = 60 * 1000
+// Longer than the slowest refresh chain (identity, token call, nonce retry),
+// so a second instance never sees a live refresh's lock as abandoned.
+const LOCK_TTL_MS = 3 * 60 * 1000
 const LOCK_WAIT_MS = 30 * 1000
 const LOCK_POLL_MS = 200
 
-export const getBlueskyOAuthUrls = () => {
-  const base = getBaseURL()
+// Each served domain is its own OAuth client (client_id is a URL on it), so a
+// sign-in starts and returns on the domain the actor lives on, where its
+// session cookie is. A session is tied to that client_id, so later calls for
+// an account use the client of its actor's domain too.
+export const getBlueskyOAuthUrls = (domain: string) => {
+  const base = buildBaseURL(domain)
   return {
     clientId: `${base}/api/v1/bluesky/client-metadata.json`,
     jwksUri: `${base}/api/v1/bluesky/jwks.json`,
@@ -117,17 +123,18 @@ export const createBlueskyLock =
 
 const buildClient = async (
   database: Database,
-  config: Config & { bluesky: NonNullable<Config['bluesky']> }
+  config: Config & { bluesky: NonNullable<Config['bluesky']> },
+  domain: string
 ) => {
   const keyset = await Promise.all(
     config.bluesky.oauthPrivateKeys.map((jwk) => JoseKey.fromJWK(jwk))
   )
-  const { clientId, jwksUri, redirectUri } = getBlueskyOAuthUrls()
+  const { clientId, jwksUri, redirectUri } = getBlueskyOAuthUrls(domain)
   return new NodeOAuthClient({
     clientMetadata: {
       client_id: clientId,
       client_name: config.serviceName || config.host,
-      client_uri: getBaseURL(),
+      client_uri: buildBaseURL(domain),
       redirect_uris: [redirectUri as `https://${string}`],
       scope: BLUESKY_OAUTH_SCOPE,
       grant_types: ['authorization_code', 'refresh_token'],
@@ -148,23 +155,38 @@ const buildClient = async (
 }
 
 let cached:
-  | { database: Database; config: Config; client: Promise<NodeOAuthClient> }
+  | {
+      database: Database
+      config: Config
+      clients: Map<string, Promise<NodeOAuthClient>>
+    }
   | undefined
 
-/** null when no OAuth keys are configured (app passwords still work). */
+/**
+ * The OAuth client of one served domain; null when no OAuth keys are
+ * configured (app passwords still work).
+ */
 export const getBlueskyOAuthClient = (
-  database: Database
+  database: Database,
+  domain: string
 ): Promise<NodeOAuthClient> | null => {
   const config = getConfig()
   const bluesky = config.bluesky
   if (!bluesky) return null
   if (cached?.database !== database || cached.config !== config) {
-    const client = buildClient(database, { ...config, bluesky })
-    // A bad key must not stay cached as a rejected promise.
-    client.catch(() => {
-      if (cached?.client === client) cached = undefined
-    })
-    cached = { database, config, client }
+    cached = { database, config, clients: new Map() }
   }
-  return cached.client
+  const clients = cached.clients
+  const key = domain.toLowerCase()
+  let client = clients.get(key)
+  if (!client) {
+    client = buildClient(database, { ...config, bluesky }, key)
+    // A bad key must not stay cached as a rejected promise.
+    const built = client
+    built.catch(() => {
+      if (clients.get(key) === built) clients.delete(key)
+    })
+    clients.set(key, built)
+  }
+  return client
 }

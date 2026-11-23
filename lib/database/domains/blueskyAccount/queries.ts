@@ -47,6 +47,18 @@ export const getBlueskyAccountByDid = async (
   return row ? toAccount(row) : null
 }
 
+// Actors whose account may hold a domain claim now: an admin, not disabled,
+// not suspended. A claim whose holder lost that answers nothing and can be
+// taken.
+const activeAdminActorIds = (db: Db) =>
+  db
+    .selectFrom('actors')
+    .innerJoin('accounts', 'accounts.id', 'actors.accountId')
+    .select('actors.id')
+    .where('accounts.role', '=', 'admin')
+    .where('accounts.disabledAt', 'is', null)
+    .where('actors.suspendedAt', 'is', null)
+
 export const getBlueskyAccountByInstanceHandle = async (
   db: Db,
   { host }: { host: string }
@@ -55,6 +67,7 @@ export const getBlueskyAccountByInstanceHandle = async (
     .selectFrom('bluesky_accounts')
     .selectAll()
     .where('instanceHandle', '=', host.toLowerCase())
+    .where('actorId', 'in', activeAdminActorIds(db))
     .executeTakeFirst()
   return row ? toAccount(row) : null
 }
@@ -137,15 +150,24 @@ export const setBlueskyInstanceHandle = async (
   db: Db,
   { actorId, host }: { actorId: string; host: string | null }
 ): Promise<boolean> => {
+  const instanceHandle = host?.toLowerCase() ?? null
   try {
-    await db
-      .updateTable('bluesky_accounts')
-      .set({
-        instanceHandle: host?.toLowerCase() ?? null,
-        updatedAt: new Date()
-      })
-      .where('actorId', '=', actorId)
-      .execute()
+    await inTransaction(db, async (trx) => {
+      if (instanceHandle) {
+        // Free a claim its holder can no longer make.
+        await trx
+          .updateTable('bluesky_accounts')
+          .set({ instanceHandle: null, updatedAt: new Date() })
+          .where('instanceHandle', '=', instanceHandle)
+          .where('actorId', 'not in', activeAdminActorIds(trx))
+          .execute()
+      }
+      await trx
+        .updateTable('bluesky_accounts')
+        .set({ instanceHandle, updatedAt: new Date() })
+        .where('actorId', '=', actorId)
+        .execute()
+    })
     return true
   } catch (error) {
     if (isUniqueConstraintError(error)) return false

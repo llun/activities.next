@@ -2,7 +2,7 @@ import { JoseKey } from '@atproto/oauth-client-node'
 import { NextRequest } from 'next/server'
 
 import { GET as getMetadata } from '@/app/api/v1/bluesky/client-metadata.json/route'
-import { getBaseURL, getConfig } from '@/lib/config'
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
@@ -10,8 +10,7 @@ import { GET as getJwks } from './route'
 
 vi.mock('@/lib/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/config')>()),
-  getConfig: vi.fn(),
-  getBaseURL: vi.fn()
+  getConfig: vi.fn()
 }))
 vi.mock('@/lib/database', () => ({ getDatabase: vi.fn() }))
 
@@ -34,7 +33,6 @@ describe('Bluesky OAuth client documents', () => {
 
   beforeEach(() => {
     vi.mocked(getDatabase).mockReturnValue(testDb.database)
-    vi.mocked(getBaseURL).mockReturnValue('https://social.example')
   })
 
   it('answers 404 for both when no keys are set', async () => {

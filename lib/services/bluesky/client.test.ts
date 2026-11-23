@@ -1,6 +1,6 @@
 import { JoseKey } from '@atproto/oauth-client-node'
 
-import { getBaseURL, getConfig } from '@/lib/config'
+import { getConfig } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   createBlueskyLock,
@@ -9,9 +9,9 @@ import {
   writeStoredBlueskySession
 } from '@/lib/services/bluesky/client'
 
-vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(),
-  getBaseURL: vi.fn()
+vi.mock('@/lib/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/config')>()),
+  getConfig: vi.fn()
 }))
 
 describe('Bluesky OAuth client', () => {
@@ -27,16 +27,12 @@ describe('Bluesky OAuth client', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
-    vi.mocked(getBaseURL).mockReturnValue('https://social.example')
-  })
-
   it('is off without keys', () => {
     vi.mocked(getConfig).mockReturnValue({
       host: 'social.example',
       secretPhase: 'secret'
     } as never)
-    expect(getBlueskyOAuthClient(database)).toBeNull()
+    expect(getBlueskyOAuthClient(database, 'social.example')).toBeNull()
   })
 
   it('is a confidential DPoP client that publishes only public keys', async () => {
@@ -47,7 +43,7 @@ describe('Bluesky OAuth client', () => {
       bluesky: { oauthPrivateKeys: [key.privateJwk] }
     } as never)
 
-    const client = await getBlueskyOAuthClient(database)!
+    const client = await getBlueskyOAuthClient(database, 'social.example')!
     expect(client.clientMetadata).toMatchObject({
       client_id: 'https://social.example/api/v1/bluesky/client-metadata.json',
       redirect_uris: ['https://social.example/api/v1/bluesky/callback'],
@@ -89,7 +85,7 @@ describe('Bluesky OAuth client', () => {
       secretPhase: 'secret',
       bluesky: { oauthPrivateKeys: [key.privateJwk] }
     } as never)
-    const client = await getBlueskyOAuthClient(database)!
+    const client = await getBlueskyOAuthClient(database, 'social.example')!
     const stateStore = (
       client as unknown as {
         stateStore: {

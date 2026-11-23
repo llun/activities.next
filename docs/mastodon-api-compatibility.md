@@ -1251,16 +1251,24 @@ sharing. The code is in `lib/services/bluesky/`:
   its public keys `GET /api/v1/bluesky/jwks.json`, and the authorization server
   returns to `GET /api/v1/bluesky/callback`, which needs the signed-in actor
   that started the sign-in: the OAuth `state` carries that actor's id and a
-  callback finished by another actor is refused. A DID another profile on the
-  server holds is refused before the redirect, because finishing the sign-in
-  makes the OAuth client revoke and replace the stored session for that DID.
+  callback finished by another actor is refused. Each served domain is its
+  own client (`client_id` on that domain): sign-in starts and returns on the
+  domain the actor lives on, and later calls use that domain's client. A DID
+  another profile on the server holds is refused before the redirect, because
+  finishing the sign-in makes the OAuth client revoke and replace the stored
+  session for that DID; a user who switches accounts on the authorization
+  server gets past that check, so the callback still refuses the link and
+  session readers go by the session's own kind. The browser is only sent to
+  an HTTPS sign-in page.
   The keys come from
   `ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS`; without them the metadata and JWKS
   routes answer 404 and only app passwords are offered.
 - **App passwords** for a PDS without OAuth: the handle is resolved to its DID
   and PDS, and `com.atproto.server.createSession` is called on that PDS. Only a
   password in the app-password shape (`xxxx-xxxx-xxxx-xxxx`) is accepted, so a
-  main password is never stored, and the session must be for the resolved DID.
+  main password is never stored, the session must be for the resolved DID, and
+  its access token must carry an app-password scope (`com.atproto.appPass…`),
+  so a main password in that shape is refused too.
 - **Storage.** `bluesky_accounts` holds one link per actor and one actor per
   DID (linking a DID another profile on the server holds is refused).
   `bluesky_sessions` holds the session by DID and `bluesky_oauth_states` the
@@ -1268,10 +1276,16 @@ sharing. The code is in `lib/services/bluesky/`:
   secret (`lib/utils/crypto`). Each stored session is tagged with its kind
   (`oauth` or `app_password`); readers go by that tag. Refresh tokens are single use, so the OAuth
   client's refresh lock is a row in the shared lock table
-  (`fitness_import_locks`, keys prefixed `bluesky:`), held across instances.
+  (`fitness_import_locks`, keys prefixed `bluesky:`, one per DID, three
+  minutes), held across instances.
   When the PDS refuses the session the account shows "Bluesky ended this
   session" until it is linked again. Unlinking (and deleting the actor) removes
-  the link and the stored session only; the Bluesky account is untouched.
+  the link and the stored session only; the Bluesky account is untouched, and
+  an OAuth grant stays in the account's Bluesky sessions until the user
+  removes it there. Starting sign-in, linking with an app password and
+  checking the handle share one window per actor (20 in 15 minutes), since
+  each reaches other servers and an app-password try is a guess against the
+  PDS.
 - **Handles.** The linked state shows the handle, DID and PDS. A handle that is
   not under a domain the PDS hands out (`describeServer`'s
   `availableUserDomains`) shows the `_atproto.<handle>` TXT record it needs;
@@ -1279,7 +1293,10 @@ sharing. The code is in `lib/services/bluesky/`:
   and reports whether the handle verifies and the TXT record is present.
 - **A served domain as a handle.** An admin's linked profile can claim the
   served domain it lives on (never one with a port), one profile per domain:
-  each domain under Admin › Served domains has its own. `GET
+  each domain under Admin › Served domains has its own. A claim counts only
+  while its holder's account is an admin and neither it nor the actor is
+  disabled or suspended; otherwise it answers nothing and another admin can
+  take it, and the holder can always let it go. `GET
 /.well-known/atproto-did` answers the claiming profile's DID as `text/plain`
   for a request whose own authority is that domain, and 404 otherwise, so the
   handle can be set in the Bluesky app without DNS access.

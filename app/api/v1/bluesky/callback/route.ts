@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { getBaseURL } from '@/lib/config'
+import { buildBaseURL } from '@/lib/config'
 import { completeBlueskyOAuth } from '@/lib/services/bluesky/account'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -18,7 +18,7 @@ export const GET = traceApiRoute(
       currentActor,
       new URL(req.url).searchParams
     )
-    const url = new URL('/settings/networks', getBaseURL())
+    const url = new URL('/settings/networks', buildBaseURL(currentActor.domain))
     url.searchParams.set('bluesky', result)
     return Response.redirect(url.toString(), 303)
   })

@@ -36,6 +36,11 @@ const PDS = 'https://pds.example.net/'
 const actor = (id: string, role?: 'admin', domain = 'social.example') =>
   ({ id, domain, account: { id: `${id}-account`, role } }) as unknown as Actor
 
+// A PDS access token carrying `scope`; only the payload is read.
+const jwt = (scope: string) =>
+  `e30.${Buffer.from(JSON.stringify({ scope })).toString('base64url')}.sig`
+const APP_PASSWORD_JWT = jwt('com.atproto.appPass')
+
 const respond = (statusCode: number, body: unknown) => ({
   statusCode,
   body: JSON.stringify(body),
@@ -52,6 +57,22 @@ describe('Bluesky account service', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    // actor-a and actor-b are admins' actors: a domain claim needs one.
+    for (const id of ['a', 'b']) {
+      await testDb.db
+        .insertInto('accounts')
+        .values({ id: `account-${id}`, role: 'admin' })
+        .execute()
+      await testDb.db
+        .insertInto('actors')
+        .values({
+          id: `actor-${id}`,
+          accountId: `account-${id}`,
+          username: id,
+          domain: 'social.example'
+        })
+        .execute()
+    }
   })
 
   afterAll(async () => {
@@ -86,7 +107,7 @@ describe('Bluesky account service', () => {
         : respond(200, {
             did: DID,
             handle: 'alice.example.com',
-            accessJwt: 'access',
+            accessJwt: APP_PASSWORD_JWT,
             refreshJwt: 'refresh'
           })
     )
@@ -96,6 +117,10 @@ describe('Bluesky account service', () => {
     vi.clearAllMocks()
     for (const id of ['actor-a', 'actor-b']) {
       await database.deleteBlueskyAccount({ actorId: id })
+    }
+    // Sessions a test stored without a link.
+    for (const did of [DID, 'did:plc:other']) {
+      await database.deleteBlueskySession({ did })
     }
   })
 
@@ -152,7 +177,7 @@ describe('Bluesky account service', () => {
       })
       expect(writeStoredBlueskySession).toHaveBeenCalledWith(database, DID, {
         type: 'app_password',
-        accessJwt: 'access',
+        accessJwt: APP_PASSWORD_JWT,
         refreshJwt: 'refresh'
       })
     })
@@ -169,6 +194,28 @@ describe('Bluesky account service', () => {
       expect(
         (await database.getBlueskyAccount({ actorId: 'actor-a' }))?.domainHandle
       ).toBe(false)
+    })
+
+    it('refuses a main password that happens to look like an app password', async () => {
+      vi.mocked(safeRemoteFetch).mockImplementation(async ({ url }) =>
+        url.endsWith('describeServer')
+          ? respond(200, { availableUserDomains: [] })
+          : respond(200, {
+              did: DID,
+              accessJwt: jwt('com.atproto.access'),
+              refreshJwt: 'refresh'
+            })
+      )
+      await expect(
+        linkBlueskyAppPassword(database, actor('actor-a'), {
+          identifier: 'alice.example.com',
+          password: 'abcd-efgh-ijkl-mnop'
+        })
+      ).rejects.toThrow('app password')
+      expect(
+        await database.getBlueskyAccount({ actorId: 'actor-a' })
+      ).toBeNull()
+      expect(writeStoredBlueskySession).not.toHaveBeenCalled()
     })
 
     it('says the password is wrong on a 401', async () => {
@@ -256,15 +303,44 @@ describe('Bluesky account service', () => {
       expect(authorize).not.toHaveBeenCalled()
     })
 
-    it('reports a server error, not a user message, when sign-in fails for another reason', async () => {
+    it('offers app passwords when the account’s servers refuse sign-in', async () => {
       vi.mocked(getBlueskyOAuthClient).mockReturnValue(
         Promise.resolve({
-          authorize: vi.fn().mockRejectedValue(new Error('database down'))
+          authorize: vi.fn().mockRejectedValue(new Error('invalid_client'))
         }) as never
       )
       await expect(
         startBlueskyOAuth(database, actor('actor-a'), 'alice.example.com')
-      ).rejects.toThrow('database down')
+      ).rejects.toMatchObject({
+        status: 502,
+        message: expect.stringContaining('app password')
+      })
+    })
+
+    it('never sends the browser to a sign-in page that is not HTTPS', async () => {
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({
+          authorize: vi
+            .fn()
+            .mockResolvedValue(new URL('http://127.0.0.1:8080/authorize'))
+        }) as never
+      )
+      await expect(
+        startBlueskyOAuth(database, actor('actor-a'), 'alice.example.com')
+      ).rejects.toThrow('not secure')
+    })
+
+    it('uses the OAuth client of the domain the actor lives on', async () => {
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(null)
+      await startBlueskyOAuth(
+        database,
+        actor('actor-a', undefined, 'other.example'),
+        'alice.example.com'
+      ).catch(() => undefined)
+      expect(getBlueskyOAuthClient).toHaveBeenCalledWith(
+        database,
+        'other.example'
+      )
     })
 
     it('says so when the server has no OAuth keys', async () => {
@@ -477,6 +553,16 @@ describe('Bluesky account service', () => {
       ).rejects.toMatchObject({ status: 409 })
     })
 
+    it('lets a holder who is no longer an admin let go of the claim', async () => {
+      await linkAlice()
+      await setBlueskyInstanceHandle(database, actor('actor-a', 'admin'), true)
+      await setBlueskyInstanceHandle(database, actor('actor-a'), false)
+      expect(
+        (await database.getBlueskyAccount({ actorId: 'actor-a' }))
+          ?.instanceHandle
+      ).toBeNull()
+    })
+
     it('claims each served domain separately', async () => {
       await linkAlice()
       await database.saveBlueskyAccount({
@@ -518,6 +604,26 @@ describe('Bluesky account service', () => {
       await expect(
         setBlueskyInstanceHandle(database, local, true)
       ).rejects.toThrow('cannot be a handle')
+    })
+
+    it('limits how often one actor reaches other servers', async () => {
+      const limited = actor('actor-rate-limit')
+      await database.saveBlueskyAccount({
+        actorId: limited.id,
+        did: 'did:plc:ratelimit',
+        handle: 'alice.example.com',
+        pdsUrl: PDS,
+        authType: 'oauth',
+        domainHandle: true
+      })
+      vi.mocked(resolveTxt).mockResolvedValue([])
+      for (let i = 0; i < 20; i++) {
+        await checkBlueskyHandle(database, limited)
+      }
+      await expect(checkBlueskyHandle(database, limited)).rejects.toMatchObject(
+        { status: 429 }
+      )
+      await database.deleteBlueskyAccount({ actorId: limited.id })
     })
 
     it('unlinks', async () => {

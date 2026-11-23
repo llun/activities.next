@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { getBlueskyOAuthClient } from '@/lib/services/bluesky/client'
+import { headerHost } from '@/lib/services/guards/headerHost'
 import { ERROR_404, apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -12,7 +13,9 @@ export const GET = traceApiRoute(
   'blueskyClientMetadata',
   async (req: NextRequest) => {
     const database = getDatabase()
-    const client = database ? getBlueskyOAuthClient(database) : null
+    const client = database
+      ? getBlueskyOAuthClient(database, headerHost(req.headers))
+      : null
     if (!client) {
       return apiResponse({
         req,

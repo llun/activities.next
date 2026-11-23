@@ -137,6 +137,26 @@ export class SafeRemoteFetchError extends Error {
   }
 }
 
+// got's RequestError keeps the request it failed on as an enumerable
+// `options` (body and headers: a password, a bearer or DPoP token, a client
+// assertion), and the logger serializes `err` properties. Hand callers only
+// what they read: the message, the code and the stack.
+const toSafeTransportError = (error: unknown): unknown => {
+  if (
+    !(error instanceof Error) ||
+    error instanceof SafeRemoteFetchError ||
+    !('options' in error)
+  ) {
+    return error
+  }
+  const safe = new SafeRemoteFetchError(
+    error.message,
+    (error as NodeJS.ErrnoException).code ?? 'ERR_REMOTE_FETCH'
+  )
+  safe.stack = error.stack
+  return safe
+}
+
 const createUnsafeUrlError = (message: string) =>
   new SafeRemoteFetchError(message, 'ERR_UNSAFE_REMOTE_URL')
 
@@ -644,7 +664,7 @@ export const createSafeRemoteFetch = ({
   resolveHost?: ResolveHost
   transport?: SafeRemoteFetchTransport
 } = {}): SafeRemoteFetch => {
-  const safeRemoteFetch = async ({
+  const fetchRemote = async ({
     allowCrossHostRedirects = true,
     body,
     connectTimeoutInMilliseconds,
@@ -794,7 +814,10 @@ export const createSafeRemoteFetch = ({
     }
   }
 
-  return safeRemoteFetch
+  return (options) =>
+    fetchRemote(options).catch((error: unknown) => {
+      throw toSafeTransportError(error)
+    })
 }
 
 export const safeRemoteFetch = createSafeRemoteFetch()

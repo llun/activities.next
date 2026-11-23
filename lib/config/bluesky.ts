@@ -8,8 +8,18 @@ import { logger } from '@/lib/utils/logger'
 // old key stays listed until its sessions are gone. Unset, Bluesky sign-in is
 // off and only app passwords can link an account.
 const PrivateJwk = z
-  .object({ kid: z.string().min(1), d: z.string().min(1) })
-  .passthrough()
+  .object({
+    kty: z.literal('EC'),
+    crv: z.literal('P-256'),
+    x: z.string().min(1),
+    y: z.string().min(1),
+    d: z.string().min(1),
+    kid: z.string().min(1),
+    alg: z.literal('ES256').optional()
+  })
+  // Only these fields reach the key library: the published JWKS is derived
+  // from them, and an extra private member (an RSA key's p, q…) would leak.
+  .strip()
 
 export const BlueskyConfig = z.object({
   oauthPrivateKeys: PrivateJwk.array().min(1)

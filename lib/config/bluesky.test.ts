@@ -17,6 +17,16 @@ describe('getBlueskyConfig', () => {
     expect(getBlueskyConfig()).toBeNull()
   })
 
+  it('keeps only the EC key fields', () => {
+    process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = JSON.stringify({
+      ...key,
+      p: 'stray-private-part'
+    })
+    expect(getBlueskyConfig()?.bluesky.oauthPrivateKeys[0]).not.toHaveProperty(
+      'p'
+    )
+  })
+
   it('takes one key or an array of keys', () => {
     process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = JSON.stringify(key)
     expect(getBlueskyConfig()?.bluesky.oauthPrivateKeys).toEqual([key])
@@ -34,7 +44,16 @@ describe('getBlueskyConfig', () => {
     for (const value of [
       'not json',
       JSON.stringify({ ...key, kid: undefined }),
-      JSON.stringify({ ...key, d: undefined })
+      JSON.stringify({ ...key, d: undefined }),
+      // Only ES256 keys: the JWKS of any other kind could carry private parts.
+      JSON.stringify({
+        kty: 'RSA',
+        n: 'n',
+        e: 'AQAB',
+        d: 'd',
+        p: 'p',
+        kid: 'r'
+      })
     ]) {
       process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = value
       expect(getBlueskyConfig()).toBeNull()
