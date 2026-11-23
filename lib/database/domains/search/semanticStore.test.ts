@@ -6,7 +6,9 @@ import {
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import {
+  MAX_EMBEDDING_TEXT_LENGTH,
   compareVersions,
+  getEmbeddingText,
   parseHalfvecDimensions,
   readSemanticAvailability,
   resetSemanticAvailabilityCache
@@ -94,6 +96,44 @@ describe('parseHalfvecDimensions', () => {
     }
   ])('$description', ({ type, expected }) => {
     expect(parseHalfvecDimensions(type)).toBe(expected)
+  })
+})
+
+describe('getEmbeddingText', () => {
+  it('returns short text and empty string unchanged', () => {
+    expect(getEmbeddingText('')).toBe('')
+    expect(getEmbeddingText('hello 😀 world')).toBe('hello 😀 world')
+  })
+
+  it('truncates plain text at MAX_EMBEDDING_TEXT_LENGTH', () => {
+    const input = 'a'.repeat(MAX_EMBEDDING_TEXT_LENGTH + 50)
+    const output = getEmbeddingText(input)
+    expect(output).toHaveLength(MAX_EMBEDDING_TEXT_LENGTH)
+    expect(output).toBe('a'.repeat(MAX_EMBEDDING_TEXT_LENGTH))
+  })
+
+  it('strips a trailing lone high surrogate when truncation splits a surrogate pair', () => {
+    const emoji = '😀' // U+1F600 -> \uD83D\uDE00 (2 UTF-16 code units)
+    const input = `${'a'.repeat(MAX_EMBEDDING_TEXT_LENGTH - 1)}${emoji}tail`
+    const output = getEmbeddingText(input)
+
+    expect(output).toHaveLength(MAX_EMBEDDING_TEXT_LENGTH - 1)
+    expect(output).toBe('a'.repeat(MAX_EMBEDDING_TEXT_LENGTH - 1))
+    const lastCode = output.charCodeAt(output.length - 1)
+    expect(lastCode < 0xd800 || lastCode > 0xdbff).toBe(true)
+  })
+
+  it('keeps an intact surrogate pair that ends exactly at MAX_EMBEDDING_TEXT_LENGTH', () => {
+    const emoji = '😀'
+    const input = `${'a'.repeat(MAX_EMBEDDING_TEXT_LENGTH - 2)}${emoji}tail`
+    const output = getEmbeddingText(input)
+
+    expect(output).toHaveLength(MAX_EMBEDDING_TEXT_LENGTH)
+    expect(output.endsWith(emoji)).toBe(true)
+  })
+
+  it('strips a lone high surrogate at the end of shorter text', () => {
+    expect(getEmbeddingText('hello\uD83D')).toBe('hello')
   })
 })
 

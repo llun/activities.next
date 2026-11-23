@@ -1213,6 +1213,86 @@ describe('safeRemoteFetch', () => {
       }
     )
 
+    it('rejects plain HTTP to a public address while allowing HTTP to private/loopback and HTTPS to public', async () => {
+      const blockedTransport = vi.fn<SafeRemoteFetchTransport>(async () =>
+        okResponse('blocked')
+      )
+      const publicHttpFetch = createSafeRemoteFetch({
+        allowPrivateNetwork: true,
+        resolveHost: async () => [SAFE_ADDRESS],
+        transport: blockedTransport
+      })
+      await expect(
+        publicHttpFetch({ url: 'http://api.example/v1/embeddings' })
+      ).rejects.toMatchObject({
+        code: 'ERR_UNSAFE_REMOTE_URL',
+        message: expect.stringContaining(
+          `Plain HTTP is only allowed to a private address, not ${SAFE_ADDRESS.address}`
+        )
+      })
+      expect(blockedTransport).not.toHaveBeenCalled()
+
+      // Mixed private + public DNS answers must still fail over plain HTTP.
+      const mixedHttpFetch = createSafeRemoteFetch({
+        allowPrivateNetwork: true,
+        resolveHost: async () => [
+          { address: '10.0.0.5', family: 4 },
+          SAFE_ADDRESS
+        ],
+        transport: blockedTransport
+      })
+      await expect(
+        mixedHttpFetch({ url: 'http://dual.example/v1/embeddings' })
+      ).rejects.toMatchObject({
+        code: 'ERR_UNSAFE_REMOTE_URL',
+        message: expect.stringContaining(SAFE_ADDRESS.address)
+      })
+      expect(blockedTransport).not.toHaveBeenCalled()
+
+      // Plain HTTP to 10.x and 127.0.0.1 is allowed.
+      for (const { url, address } of [
+        {
+          url: 'http://10.0.0.5:11434/v1/embeddings',
+          address: { address: '10.0.0.5', family: 4 as const }
+        },
+        {
+          url: 'http://127.0.0.1:11434/v1/embeddings',
+          address: { address: '127.0.0.1', family: 4 as const }
+        }
+      ]) {
+        const transport = vi.fn<SafeRemoteFetchTransport>(async () =>
+          okResponse('ok')
+        )
+        const privateHttpFetch = createSafeRemoteFetch({
+          allowPrivateNetwork: true,
+          resolveHost: async () => [address],
+          transport
+        })
+        await expect(privateHttpFetch({ url })).resolves.toMatchObject({
+          body: 'ok',
+          statusCode: 200
+        })
+        expect(transport).toHaveBeenCalledTimes(1)
+      }
+
+      // HTTPS to a public address still works when allowPrivateNetwork is true.
+      const publicHttpsTransport = vi.fn<SafeRemoteFetchTransport>(async () =>
+        okResponse('https-ok')
+      )
+      const publicHttpsFetch = createSafeRemoteFetch({
+        allowPrivateNetwork: true,
+        resolveHost: async () => [SAFE_ADDRESS],
+        transport: publicHttpsTransport
+      })
+      await expect(
+        publicHttpsFetch({ url: 'https://api.example/v1/embeddings' })
+      ).resolves.toMatchObject({
+        body: 'https-ok',
+        statusCode: 200
+      })
+      expect(publicHttpsTransport).toHaveBeenCalledTimes(1)
+    })
+
     it('still rejects non-HTTP(S) protocols when allowPrivateNetwork is true', async () => {
       const transport = vi.fn<SafeRemoteFetchTransport>(async () =>
         okResponse()

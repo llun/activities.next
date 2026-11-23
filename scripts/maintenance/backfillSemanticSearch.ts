@@ -89,6 +89,7 @@ async function backfill() {
     let looked = 0
     let toSend = 0
     let tokens = 0
+    let refused = 0
     for (;;) {
       const page = await getEmbeddableDocumentPage(db, {
         afterId: cursor,
@@ -119,9 +120,18 @@ async function backfill() {
       } else {
         let sent = 0
         try {
-          sent = await embedDocuments(db, provider, page)
-          toSend += sent
-          if (sent > 0) await recordSemanticSuccess(db)
+          const result = await embedDocuments(db, provider, page)
+          sent = result.sent
+          toSend += result.embedded
+          refused += result.refused.length
+          if (result.refused.length > 0) {
+            await recordSemanticFailure(
+              db,
+              `backfill: the provider refused ${result.refused.length} document(s) as input`
+            )
+          } else if (sent > 0) {
+            await recordSemanticSuccess(db)
+          }
         } catch (error) {
           await recordSemanticFailure(
             db,
@@ -146,7 +156,9 @@ async function backfill() {
       )
     } else {
       await saveBackfillCursor(db, null)
-      console.log(`Backfill complete: embedded ${toSend} of ${looked} posts.`)
+      console.log(
+        `Backfill complete: sent ${toSend} of ${looked} posts${refused > 0 ? `; the provider refused ${refused} (see search_semantic_status)` : ''}.`
+      )
     }
     return 0
   } finally {

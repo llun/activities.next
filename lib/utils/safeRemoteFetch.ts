@@ -260,7 +260,19 @@ const resolveSafeAddresses = async ({
     throw createUnsafeUrlError('Unable to resolve remote host')
   }
 
-  if (!allowPrivateNetwork) {
+  if (allowPrivateNetwork) {
+    // Plain http only to the private network the option is for: a public
+    // host still needs https, so a key never crosses the internet in clear.
+    const publicAddress =
+      url.protocol === 'http:'
+        ? addresses.find(({ address }) => !isUnsafeAddress(address))
+        : undefined
+    if (publicAddress) {
+      throw createUnsafeUrlError(
+        `Plain HTTP is only allowed to a private address, not ${publicAddress.address}`
+      )
+    }
+  } else {
     const allowDevelopmentLocalhost = allowsDevelopmentLocalhost(url)
     const unsafeAddress = addresses.find(({ address }) =>
       allowDevelopmentLocalhost

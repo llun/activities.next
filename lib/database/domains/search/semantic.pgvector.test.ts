@@ -12,8 +12,12 @@ import {
   deleteEmbeddings,
   deleteEmbeddingsForActor,
   getEmbeddableDocuments,
+  getEmbeddingContentHash,
+  getEmbeddingText,
   getSemanticStatus,
   getStoredEmbeddings,
+  hasClaimablePendingEmbeddings,
+  markEmbeddingsFailed,
   markEmbeddingsPending,
   readSemanticAvailability,
   releaseEmbeddingClaims,
@@ -32,12 +36,38 @@ import {
   seedStatus
 } from '@/lib/database/testing/searchTestHelpers'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
-import { processPendingEmbeddings } from '@/lib/services/search/semantic/semanticSearch'
+import { EMBED_SEARCH_DOCUMENTS_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
+import { getEmbeddingProvider } from '@/lib/services/search/semantic/index'
+import {
+  embedDocuments,
+  processPendingEmbeddings,
+  runEmbeddingJob
+} from '@/lib/services/search/semantic/semanticSearch'
 import {
   type EmbeddingProvider,
   EmbeddingProviderError
 } from '@/lib/services/search/semantic/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+
+vi.mock('@/lib/services/search/semantic/index', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/search/semantic/index')
+    >()
+  return {
+    ...actual,
+    getEmbeddingProvider: vi.fn(actual.getEmbeddingProvider)
+  }
+})
+
+vi.mock('@/lib/services/queue', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/services/queue')>()
+  return {
+    ...actual,
+    getQueue: vi.fn(actual.getQueue)
+  }
+})
 
 const DIMENSIONS = 8
 const MODEL = 'fake-bow-8'
@@ -313,19 +343,29 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       }
     })
 
-    it('adds the claimedUntil column to an existing table created without it', async () => {
+    it('adds claim, retry, and backoff columns to an existing table created without them', async () => {
+      const upgradedColumns = [
+        'claimedUntil',
+        'claimToken',
+        'attempts',
+        'retryAfter'
+      ]
       try {
-        await sql`alter table ${sql.table(EMBEDDINGS_TABLE)} drop column "claimedUntil"`.execute(
-          db
-        )
-        const { rows: beforeRows } = await sql<{ exists: boolean }>`
-          select exists(
-            select 1 from pg_attribute
-            where attrelid = to_regclass(${EMBEDDINGS_TABLE})
-              and attname = 'claimedUntil' and not attisdropped
-          ) as exists
+        await sql`
+          alter table ${sql.table(EMBEDDINGS_TABLE)}
+            drop column "claimedUntil",
+            drop column "claimToken",
+            drop column attempts,
+            drop column "retryAfter"
         `.execute(db)
-        expect(beforeRows[0]?.exists).toBe(false)
+
+        const { rows: beforeRows } = await sql<{ attname: string }>`
+          select attname from pg_attribute
+          where attrelid = to_regclass(${EMBEDDINGS_TABLE})
+            and attname = any(${upgradedColumns}::text[])
+            and not attisdropped
+        `.execute(db)
+        expect(beforeRows).toEqual([])
 
         const upgraded = await setupSemanticSearchTables(db, {
           dimensions: DIMENSIONS
@@ -333,14 +373,27 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         expect(upgraded.created).toBe(false)
         expect(upgraded.recreated).toBe(false)
 
-        const { rows: afterRows } = await sql<{ colType: string | null }>`
-          select format_type(atttypid, atttypmod) as "colType"
+        const { rows: afterRows } = await sql<{
+          attname: string
+          colType: string
+        }>`
+          select attname, format_type(atttypid, atttypmod) as "colType"
           from pg_attribute
           where attrelid = to_regclass(${EMBEDDINGS_TABLE})
-            and attname = 'claimedUntil' and not attisdropped
+            and attname = any(${upgradedColumns}::text[])
+            and not attisdropped
+          order by attname
         `.execute(db)
-        expect(afterRows[0]?.colType).toBe('timestamp with time zone')
-        await expect(claimPendingEmbeddings(db, 10)).resolves.toEqual([])
+        expect(afterRows).toEqual([
+          { attname: 'attempts', colType: 'integer' },
+          { attname: 'claimToken', colType: 'text' },
+          { attname: 'claimedUntil', colType: 'timestamp with time zone' },
+          { attname: 'retryAfter', colType: 'timestamp with time zone' }
+        ])
+        await expect(
+          claimPendingEmbeddings(db, 10, 'upgrade-token')
+        ).resolves.toEqual([])
+        await expect(hasClaimablePendingEmbeddings(db)).resolves.toBe(false)
       } finally {
         await setupSemanticSearchTables(db, { dimensions: DIMENSIONS })
       }
@@ -474,7 +527,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       expect(await countPendingEmbeddings(db)).toBe(2)
 
       const firstPass = await processPendingEmbeddings(db, provider)
-      expect(firstPass).toEqual({ looked: 2, embedded: 2 })
+      expect(firstPass).toMatchObject({ looked: 2, embedded: 2 })
       expect(provider.embed).toHaveBeenCalledTimes(1)
       expect(await countPendingEmbeddings(db)).toBe(0)
 
@@ -488,7 +541,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       // Marking the same unchanged document pending again skips calling the provider.
       await markEmbeddingsPending(db, [localDocId], provider)
       const secondPass = await processPendingEmbeddings(db, provider)
-      expect(secondPass).toEqual({ looked: 1, embedded: 0 })
+      expect(secondPass).toMatchObject({ looked: 1, embedded: 0 })
       expect(provider.embed).toHaveBeenCalledTimes(1)
       expect(await countPendingEmbeddings(db)).toBe(0)
 
@@ -520,7 +573,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         .execute()
       await markEmbeddingsPending(db, [localDocId], provider)
       const thirdPass = await processPendingEmbeddings(db, provider)
-      expect(thirdPass).toEqual({ looked: 1, embedded: 0 })
+      expect(thirdPass).toMatchObject({ looked: 1, embedded: 0 })
       expect(
         (await getStoredEmbeddings(db, [localDocId])).has(localDocId)
       ).toBe(false)
@@ -552,8 +605,12 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         let firstIds: string[] = []
         let secondIds: string[] = []
         await inTransaction(db, async (trx) => {
-          const first = await claimPendingEmbeddings(trx, 2)
-          const second = await claimPendingEmbeddings(secondHandle.db, 2)
+          const first = await claimPendingEmbeddings(trx, 2, 'concurrent-1')
+          const second = await claimPendingEmbeddings(
+            secondHandle.db,
+            2,
+            'concurrent-2'
+          )
           firstIds = first.map((row) => row.documentId)
           secondIds = second.map((row) => row.documentId)
         })
@@ -562,13 +619,16 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         expect(secondIds).toHaveLength(2)
         expect(firstIds.filter((id) => secondIds.includes(id))).toEqual([])
         expect([...firstIds, ...secondIds].sort()).toEqual([...docIds].sort())
-        expect(await claimPendingEmbeddings(db, 10)).toEqual([])
+        expect(
+          await claimPendingEmbeddings(db, 10, 'concurrent-extra')
+        ).toEqual([])
 
-        // Release and verify two parallel top-level claims also receive disjoint rows.
-        await releaseEmbeddingClaims(db, docIds)
+        // Release each set with its own claim token and verify parallel claims get disjoint rows.
+        await releaseEmbeddingClaims(db, firstIds, 'concurrent-1')
+        await releaseEmbeddingClaims(db, secondIds, 'concurrent-2')
         const [parallelA, parallelB] = await Promise.all([
-          claimPendingEmbeddings(db, 2),
-          claimPendingEmbeddings(db, 2)
+          claimPendingEmbeddings(db, 2, 'parallel-a'),
+          claimPendingEmbeddings(db, 2, 'parallel-b')
         ])
         const parallelAIds = parallelA.map((row) => row.documentId)
         const parallelBIds = parallelB.map((row) => row.documentId)
@@ -601,9 +661,9 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       try {
         await markEmbeddingsPending(db, [docId], provider)
 
-        const firstClaim = await claimPendingEmbeddings(db, 10)
+        const firstClaim = await claimPendingEmbeddings(db, 10, 'lease-first')
         expect(firstClaim.map((row) => row.documentId)).toEqual([docId])
-        expect(await claimPendingEmbeddings(db, 10)).toEqual([])
+        expect(await claimPendingEmbeddings(db, 10, 'lease-second')).toEqual([])
 
         await sql`
           update ${sql.table(EMBEDDINGS_TABLE)}
@@ -611,7 +671,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
           where "documentId" = ${docId}
         `.execute(db)
 
-        const reclaimed = await claimPendingEmbeddings(db, 10)
+        const reclaimed = await claimPendingEmbeddings(db, 10, 'lease-reclaim')
         expect(reclaimed.map((row) => row.documentId)).toEqual([docId])
       } finally {
         await deleteEmbeddings(db, [docId])
@@ -652,7 +712,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
           processPendingEmbeddings(db, failingProvider)
         ).rejects.toThrow('provider unavailable')
 
-        const claimed = await claimPendingEmbeddings(db, 10)
+        const claimed = await claimPendingEmbeddings(db, 10, 'after-release')
         expect(claimed.map((row) => row.documentId).sort()).toEqual(
           [...docIds].sort()
         )
@@ -683,7 +743,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
 
       try {
         await markEmbeddingsPending(db, [docClear, docDelete], provider)
-        const claimed = await claimPendingEmbeddings(db, 10)
+        const claimed = await claimPendingEmbeddings(db, 10, 'mark-race-1')
         const oldMarks = new Map(
           claimed.map((row) => [row.documentId, row.pendingSince])
         )
@@ -697,15 +757,14 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
           where "documentId" = any(${[docClear, docDelete]}::text[])
         `.execute(db)
 
-        await clearEmbeddingPending(db, docClear, oldClearMark)
-        await deleteEmbeddings(
-          db,
-          [docDelete],
-          new Map([[docDelete, oldDeleteMark]])
-        )
+        await clearEmbeddingPending(db, docClear, oldClearMark, 'mark-race-1')
+        await deleteEmbeddings(db, [docDelete], {
+          claimToken: 'mark-race-1',
+          pendingSince: new Map([[docDelete, oldDeleteMark]])
+        })
 
         // Both rows survive with their newer marks and are immediately claimable again.
-        const reclaimed = await claimPendingEmbeddings(db, 10)
+        const reclaimed = await claimPendingEmbeddings(db, 10, 'mark-race-2')
         const newMarks = new Map(
           reclaimed.map((row) => [row.documentId, row.pendingSince])
         )
@@ -716,12 +775,16 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         expect(newMarks.get(docDelete)).not.toBe(oldDeleteMark)
 
         // Applying the current marks clears/deletes as expected.
-        await clearEmbeddingPending(db, docClear, newMarks.get(docClear)!)
-        await deleteEmbeddings(
+        await clearEmbeddingPending(
           db,
-          [docDelete],
-          new Map([[docDelete, newMarks.get(docDelete)!]])
+          docClear,
+          newMarks.get(docClear)!,
+          'mark-race-2'
         )
+        await deleteEmbeddings(db, [docDelete], {
+          claimToken: 'mark-race-2',
+          pendingSince: new Map([[docDelete, newMarks.get(docDelete)!]])
+        })
         expect(await countPendingEmbeddings(db)).toBe(0)
         expect(
           (await getStoredEmbeddings(db, [docDelete])).has(docDelete)
@@ -749,7 +812,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
 
       try {
         await markEmbeddingsPending(db, [docId], provider)
-        const [claimed] = await claimPendingEmbeddings(db, 10)
+        const [claimed] = await claimPendingEmbeddings(db, 10, 'optout-token')
         expect(claimed?.documentId).toBe(docId)
 
         // Author opts out while the embedding request is in flight.
@@ -765,7 +828,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
               pendingSince: claimed.pendingSince
             }
           ],
-          provider
+          { ...provider, claimToken: 'optout-token' }
         )
 
         expect((await getStoredEmbeddings(db, [docId])).has(docId)).toBe(false)
@@ -891,33 +954,429 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       }
     })
 
-    it('retries one document at a time on a non-retryable batch error, clears the bad mark, records the failure, and embeds the rest', async () => {
-      const author = await addActor('batch-retry-author')
-      const goodFirst = await indexedStatus({
-        id: statusIdOf(author, 'retry-good-1'),
+    it('fences store, clear, delete, release, and fail by claimToken when a job loses its lease', async () => {
+      const provider = createDeterministicProvider()
+      const author = await addActor('fence-author')
+      const [statusStore, statusClear, statusDelete, statusRelease] =
+        await Promise.all([
+          indexedStatus({
+            id: statusIdOf(author, 'fence-store'),
+            actorId: author,
+            createdAt: 365,
+            text: 'bicycle fence store',
+            to: [PUBLIC]
+          }),
+          indexedStatus({
+            id: statusIdOf(author, 'fence-clear'),
+            actorId: author,
+            createdAt: 366,
+            text: 'espresso fence clear',
+            to: [PUBLIC]
+          }),
+          indexedStatus({
+            id: statusIdOf(author, 'fence-delete'),
+            actorId: author,
+            createdAt: 367,
+            text: 'hiking fence delete',
+            to: [PUBLIC]
+          }),
+          indexedStatus({
+            id: statusIdOf(author, 'fence-release'),
+            actorId: author,
+            createdAt: 368,
+            text: 'peloton fence release',
+            to: [PUBLIC]
+          })
+        ])
+      const docStore = docIdOf(statusStore)
+      const docClear = docIdOf(statusClear)
+      const docDelete = docIdOf(statusDelete)
+      const docRelease = docIdOf(statusRelease)
+      const allDocIds = [docStore, docClear, docDelete, docRelease]
+
+      try {
+        await markEmbeddingsPending(db, allDocIds, provider)
+        const jobAClaim = await claimPendingEmbeddings(db, 10, 'token-a')
+        const jobAMarks = new Map(
+          jobAClaim.map((row) => [row.documentId, row.pendingSince])
+        )
+        expect(jobAClaim).toHaveLength(4)
+
+        // Job A's lease expires and Job B reclaims all four rows.
+        await sql`
+          update ${sql.table(EMBEDDINGS_TABLE)}
+          set "claimedUntil" = now() - interval '1 second'
+          where "documentId" = any(${allDocIds}::text[])
+        `.execute(db)
+        const jobBClaim = await claimPendingEmbeddings(db, 10, 'token-b')
+        expect(jobBClaim).toHaveLength(4)
+
+        // Stale Job A attempts every write with its old token: all must be no-ops.
+        await storeEmbeddings(
+          db,
+          [
+            {
+              documentId: docStore,
+              contentHash: 'stale-hash',
+              embedding: bagOfWordsVector('bicycle fence store'),
+              pendingSince: jobAMarks.get(docStore)!
+            }
+          ],
+          { ...provider, claimToken: 'token-a' }
+        )
+        await clearEmbeddingPending(
+          db,
+          docClear,
+          jobAMarks.get(docClear)!,
+          'token-a'
+        )
+        await deleteEmbeddings(db, [docDelete], {
+          claimToken: 'token-a',
+          pendingSince: new Map([[docDelete, jobAMarks.get(docDelete)!]])
+        })
+        await releaseEmbeddingClaims(db, [docRelease], 'token-a')
+        await markEmbeddingsFailed(db, [docRelease], {
+          claimToken: 'token-a',
+          pendingSince: jobAMarks
+        })
+
+        const { rows } = await sql<{
+          documentId: string
+          claimToken: string | null
+          hasEmbedding: boolean
+          hasPending: boolean
+          hasClaimedUntil: boolean
+          attempts: number
+          hasRetryAfter: boolean
+        }>`
+          select
+            "documentId",
+            "claimToken",
+            embedding is not null as "hasEmbedding",
+            "pendingSince" is not null as "hasPending",
+            "claimedUntil" > now() as "hasClaimedUntil",
+            attempts,
+            "retryAfter" is not null as "hasRetryAfter"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = any(${allDocIds}::text[])
+        `.execute(db)
+
+        expect(rows).toHaveLength(4)
+        for (const row of rows) {
+          expect(row.claimToken).toBe('token-b')
+          expect(row.hasEmbedding).toBe(false)
+          expect(row.hasPending).toBe(true)
+          expect(row.hasClaimedUntil).toBe(true)
+          expect(row.attempts).toBe(0)
+          expect(row.hasRetryAfter).toBe(false)
+        }
+        expect(await claimPendingEmbeddings(db, 10, 'token-c')).toEqual([])
+      } finally {
+        await deleteEmbeddings(db, allDocIds)
+      }
+    })
+
+    it('backs off rows on markEmbeddingsFailed, respects retryAfter, and resets backoff on markEmbeddingsPending', async () => {
+      const provider = createDeterministicProvider()
+      const author = await addActor('backoff-author')
+      const statusId = await indexedStatus({
+        id: statusIdOf(author, 'backoff-post'),
+        actorId: author,
+        createdAt: 369,
+        text: 'bicycle backoff test',
+        to: [PUBLIC]
+      })
+      const docId = docIdOf(statusId)
+
+      try {
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(false)
+
+        await markEmbeddingsPending(db, [docId], provider)
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(true)
+
+        const [firstClaim] = await claimPendingEmbeddings(db, 10, 'backoff-1')
+        expect(firstClaim?.documentId).toBe(docId)
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(false)
+
+        await markEmbeddingsFailed(db, [docId], {
+          claimToken: 'backoff-1',
+          pendingSince: new Map([[docId, firstClaim!.pendingSince]])
+        })
+
+        const { rows: afterFirstFail } = await sql<{
+          attempts: number
+          backingOff: boolean
+          hasPending: boolean
+          claimToken: string | null
+          claimedUntil: string | null
+        }>`
+          select
+            attempts,
+            "retryAfter" > now() as "backingOff",
+            "pendingSince" is not null as "hasPending",
+            "claimToken",
+            "claimedUntil"::text as "claimedUntil"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = ${docId}
+        `.execute(db)
+        expect(afterFirstFail[0]).toEqual({
+          attempts: 1,
+          backingOff: true,
+          hasPending: true,
+          claimToken: null,
+          claimedUntil: null
+        })
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(false)
+        expect(await claimPendingEmbeddings(db, 10, 'backoff-2')).toEqual([])
+
+        // Once retryAfter elapses, the row is claimable again.
+        await sql`
+          update ${sql.table(EMBEDDINGS_TABLE)}
+          set "retryAfter" = now() - interval '1 second'
+          where "documentId" = ${docId}
+        `.execute(db)
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(true)
+
+        const [secondClaim] = await claimPendingEmbeddings(db, 10, 'backoff-2')
+        expect(secondClaim?.documentId).toBe(docId)
+        await markEmbeddingsFailed(db, [docId], {
+          claimToken: 'backoff-2',
+          pendingSince: new Map([[docId, secondClaim!.pendingSince]])
+        })
+        const { rows: afterSecondFail } = await sql<{
+          attempts: number
+          backingOff: boolean
+        }>`
+          select attempts, "retryAfter" > now() as "backingOff"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = ${docId}
+        `.execute(db)
+        expect(afterSecondFail[0]).toEqual({ attempts: 2, backingOff: true })
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(false)
+
+        // A fresh markEmbeddingsPending clears attempts and retryAfter, making it claimable at once.
+        await markEmbeddingsPending(db, [docId], provider)
+        const { rows: afterRemark } = await sql<{
+          attempts: number
+          retryAfter: string | null
+        }>`
+          select attempts, "retryAfter"::text as "retryAfter"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = ${docId}
+        `.execute(db)
+        expect(afterRemark[0]).toEqual({ attempts: 0, retryAfter: null })
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(true)
+
+        const [thirdClaim] = await claimPendingEmbeddings(db, 10, 'backoff-3')
+        expect(thirdClaim?.documentId).toBe(docId)
+      } finally {
+        await deleteEmbeddings(db, [docId])
+      }
+    })
+
+    it('keeps a newer mark written while claimed and schedules a continuation in runEmbeddingJob', async () => {
+      const author = await addActor('remark-cont-author')
+      const statusId = await indexedStatus({
+        id: statusIdOf(author, 'remark-cont-post'),
         actorId: author,
         createdAt: 370,
-        text: 'bicycle morning commute',
+        text: 'bicycle initial text',
         to: [PUBLIC]
       })
-      const badDoc = await indexedStatus({
-        id: statusIdOf(author, 'retry-bad'),
-        actorId: author,
-        createdAt: 371,
-        text: 'poisondocument text refused by provider',
-        to: [PUBLIC]
+      const docId = docIdOf(statusId)
+      const publish = vi.fn().mockResolvedValue(undefined)
+
+      let remarkOnce = true
+      const provider = createDeterministicProvider()
+      provider.embed.mockImplementation(async (texts: string[]) => {
+        if (remarkOnce) {
+          remarkOnce = false
+          // Simulate an edit arriving while the first job is waiting on the provider.
+          await db
+            .updateTable('search_documents')
+            .set({ documentText: 'espresso updated text' })
+            .where('id', '=', docId)
+            .execute()
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          await markEmbeddingsPending(db, [docId], provider)
+        }
+        return texts.map((text) => bagOfWordsVector(text))
       })
-      const goodSecond = await indexedStatus({
-        id: statusIdOf(author, 'retry-good-2'),
-        actorId: author,
-        createdAt: 372,
-        text: 'espresso cappuccino barista',
-        to: [PUBLIC]
-      })
-      const goodFirstDocId = docIdOf(goodFirst)
-      const badDocId = docIdOf(badDoc)
-      const goodSecondDocId = docIdOf(goodSecond)
-      const allDocIds = [goodFirstDocId, badDocId, goodSecondDocId]
+
+      const prevProviderImpl = vi
+        .mocked(getEmbeddingProvider)
+        .getMockImplementation()
+      const prevQueueImpl = vi.mocked(getQueue).getMockImplementation()
+      vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
+      vi.mocked(getQueue).mockReturnValue({
+        publish,
+        handle: vi.fn(),
+        runsInline: false,
+        dropsDelayedJobs: false
+      } as unknown as ReturnType<typeof getQueue>)
+
+      try {
+        await markEmbeddingsPending(db, [docId], provider)
+
+        await runEmbeddingJob(db)
+
+        // First embedding stored, newer mark preserved, claim cleared, continuation scheduled.
+        const { rows: afterFirst } = await sql<{
+          hasEmbedding: boolean
+          contentHash: string | null
+          hasPending: boolean
+          claimToken: string | null
+          claimedUntil: string | null
+        }>`
+          select
+            embedding is not null as "hasEmbedding",
+            "contentHash",
+            "pendingSince" is not null as "hasPending",
+            "claimToken",
+            "claimedUntil"::text as "claimedUntil"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = ${docId}
+        `.execute(db)
+        expect(afterFirst[0]).toEqual({
+          hasEmbedding: true,
+          contentHash: getEmbeddingContentHash(
+            getEmbeddingText('bicycle initial text')
+          ),
+          hasPending: true,
+          claimToken: null,
+          claimedUntil: null
+        })
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(true)
+        expect(publish).toHaveBeenCalledTimes(1)
+        expect(publish).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: EMBED_SEARCH_DOCUMENTS_JOB_NAME,
+            data: {}
+          })
+        )
+
+        // Running the continuation job re-embeds the updated text and clears the mark.
+        await runEmbeddingJob(db)
+        const storedAfterSecond = await getStoredEmbeddings(db, [docId])
+        expect(storedAfterSecond.get(docId)?.contentHash).toBe(
+          getEmbeddingContentHash(getEmbeddingText('espresso updated text'))
+        )
+        expect(await countPendingEmbeddings(db)).toBe(0)
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(false)
+        expect(publish).toHaveBeenCalledTimes(1)
+      } finally {
+        if (prevProviderImpl) {
+          vi.mocked(getEmbeddingProvider).mockImplementation(prevProviderImpl)
+        } else {
+          vi.mocked(getEmbeddingProvider).mockReset()
+        }
+        if (prevQueueImpl) {
+          vi.mocked(getQueue).mockImplementation(prevQueueImpl)
+        } else {
+          vi.mocked(getQueue).mockReset()
+        }
+        await deleteEmbeddings(db, [docId])
+      }
+    })
+
+    it('backs off all rows without clearing marks on a request-wide 400 after the batch and the first and last probes', async () => {
+      const author = await addActor('reqwide-400-author')
+      const docIds: string[] = []
+      for (let i = 0; i < 5; i += 1) {
+        const statusId = await indexedStatus({
+          id: statusIdOf(author, `reqwide-400-${i}`),
+          actorId: author,
+          createdAt: 371 + i,
+          text: `bicycle request wide refusal ${i}`,
+          to: [PUBLIC]
+        })
+        docIds.push(docIdOf(statusId))
+      }
+
+      const refuseAllProvider = createDeterministicProvider()
+      refuseAllProvider.embed.mockRejectedValue(
+        new EmbeddingProviderError('API key rejected as bad request', {
+          statusCode: 400,
+          retryable: false
+        })
+      )
+
+      try {
+        await markEmbeddingsPending(db, docIds, refuseAllProvider)
+
+        const pass = await processPendingEmbeddings(db, refuseAllProvider)
+        expect(pass.looked).toBe(5)
+        expect(pass.embedded).toBe(0)
+        expect(pass.failed).toBeInstanceOf(EmbeddingProviderError)
+
+        // Exactly two calls: the full batch of 5, then the single-document probe.
+        expect(refuseAllProvider.embed).toHaveBeenCalledTimes(3)
+        expect(refuseAllProvider.embed.mock.calls[0]?.[0]).toHaveLength(5)
+        expect(refuseAllProvider.embed.mock.calls[1]?.[0]).toHaveLength(1)
+
+        // No marks cleared; every row is backing off with its claim released.
+        expect(await countPendingEmbeddings(db)).toBe(5)
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(false)
+        expect(await claimPendingEmbeddings(db, 10, 'after-reqwide')).toEqual(
+          []
+        )
+
+        const { rows } = await sql<{
+          attempts: number
+          backingOff: boolean
+          hasPending: boolean
+          hasEmbedding: boolean
+          claimToken: string | null
+        }>`
+          select
+            attempts,
+            "retryAfter" > now() as "backingOff",
+            "pendingSince" is not null as "hasPending",
+            embedding is not null as "hasEmbedding",
+            "claimToken"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = any(${docIds}::text[])
+        `.execute(db)
+        expect(rows).toHaveLength(5)
+        for (const row of rows) {
+          expect(row).toEqual({
+            attempts: 1,
+            backingOff: true,
+            hasPending: true,
+            hasEmbedding: false,
+            claimToken: null
+          })
+        }
+      } finally {
+        await deleteEmbeddings(db, docIds)
+      }
+    })
+
+    it('isolates one bad document in a batch of 5, storing the other 4 and backing off the bad one', async () => {
+      const author = await addActor('batch-isolate-author')
+      const specs = [
+        { slug: 'iso-1-good', text: 'bicycle morning commute' },
+        { slug: 'iso-2-good', text: 'espresso cappuccino barista' },
+        {
+          slug: 'iso-3-poison',
+          text: 'poisondocument text refused by provider'
+        },
+        { slug: 'iso-4-good', text: 'hiking alpine summit' },
+        { slug: 'iso-5-good', text: 'peloton derailleur climb' }
+      ]
+      const docIds: string[] = []
+      for (let i = 0; i < specs.length; i += 1) {
+        const statusId = await indexedStatus({
+          id: statusIdOf(author, specs[i].slug),
+          actorId: author,
+          createdAt: 380 + i,
+          text: specs[i].text,
+          to: [PUBLIC]
+        })
+        docIds.push(docIdOf(statusId))
+      }
+      const badDocId = docIds[2]
+      const goodDocIds = docIds.filter((id) => id !== badDocId)
 
       const selectiveProvider = createDeterministicProvider()
       selectiveProvider.embed.mockImplementation(async (texts: string[]) => {
@@ -934,22 +1393,114 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
 
       try {
         const failuresBefore = (await getSemanticStatus(db))?.failureCount ?? 0
-        await markEmbeddingsPending(db, allDocIds, selectiveProvider)
+        await markEmbeddingsPending(db, docIds, selectiveProvider)
 
-        const result = await processPendingEmbeddings(db, selectiveProvider)
-        expect(result).toEqual({ looked: 3, embedded: 2 })
-        // 1 failed batch of 3 + 3 single-document retries.
-        expect(selectiveProvider.embed).toHaveBeenCalledTimes(4)
+        const pass = await processPendingEmbeddings(db, selectiveProvider)
+        expect(pass.looked).toBe(5)
+        expect(pass.failed).toBeUndefined()
 
-        const stored = await getStoredEmbeddings(db, allDocIds)
-        expect(stored.get(goodFirstDocId)?.hasEmbedding).toBe(true)
-        expect(stored.get(goodSecondDocId)?.hasEmbedding).toBe(true)
+        const stored = await getStoredEmbeddings(db, docIds)
+        for (const goodId of goodDocIds) {
+          expect(stored.get(goodId)?.hasEmbedding).toBe(true)
+        }
         expect(stored.get(badDocId)?.hasEmbedding).toBe(false)
-        expect(await countPendingEmbeddings(db)).toBe(0)
+
+        // Only the refused row remains pending, and it is backing off (not claimable).
+        expect(await countPendingEmbeddings(db)).toBe(1)
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(false)
+        expect(await claimPendingEmbeddings(db, 10, 'after-iso')).toEqual([])
+
+        const { rows: badRows } = await sql<{
+          attempts: number
+          backingOff: boolean
+          hasPending: boolean
+          claimToken: string | null
+        }>`
+          select
+            attempts,
+            "retryAfter" > now() as "backingOff",
+            "pendingSince" is not null as "hasPending",
+            "claimToken"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = ${badDocId}
+        `.execute(db)
+        expect(badRows[0]).toEqual({
+          attempts: 1,
+          backingOff: true,
+          hasPending: true,
+          claimToken: null
+        })
 
         const status = await getSemanticStatus(db)
         expect(status?.failureCount).toBe(failuresBefore + 1)
-        expect(status?.lastError).toContain('input exceeds model token limit')
+        expect(status?.lastError).toContain('refused 1 document(s)')
+      } finally {
+        await deleteEmbeddings(db, docIds)
+      }
+    })
+
+    it('backfill does not overwrite a marked row and skips a document whose text changed during embed()', async () => {
+      const author = await addActor('backfill-race-author')
+      const [markedStatus, changedStatus, stableStatus] = await Promise.all([
+        indexedStatus({
+          id: statusIdOf(author, 'bf-marked'),
+          actorId: author,
+          createdAt: 390,
+          text: 'bicycle marked for job',
+          to: [PUBLIC]
+        }),
+        indexedStatus({
+          id: statusIdOf(author, 'bf-changed'),
+          actorId: author,
+          createdAt: 391,
+          text: 'espresso before backfill edit',
+          to: [PUBLIC]
+        }),
+        indexedStatus({
+          id: statusIdOf(author, 'bf-stable'),
+          actorId: author,
+          createdAt: 392,
+          text: 'hiking alpine stable post',
+          to: [PUBLIC]
+        })
+      ])
+      const markedDocId = docIdOf(markedStatus)
+      const changedDocId = docIdOf(changedStatus)
+      const stableDocId = docIdOf(stableStatus)
+      const allDocIds = [markedDocId, changedDocId, stableDocId]
+
+      const backfillProvider = createDeterministicProvider()
+      backfillProvider.embed.mockImplementation(async (texts: string[]) => {
+        // Edit changedDocId while the provider request is in flight.
+        await db
+          .updateTable('search_documents')
+          .set({ documentText: 'espresso after backfill edit' })
+          .where('id', '=', changedDocId)
+          .execute()
+        return texts.map((text) => bagOfWordsVector(text))
+      })
+
+      try {
+        await markEmbeddingsPending(db, [markedDocId], backfillProvider)
+        const docs = await getEmbeddableDocuments(db, allDocIds)
+        expect(docs).toHaveLength(3)
+
+        const result = await embedDocuments(db, backfillProvider, docs)
+        expect(result.refused).toEqual([])
+        expect(result.sent).toBe(3)
+
+        const stored = await getStoredEmbeddings(db, allDocIds)
+        // Stable doc was stored by backfill.
+        expect(stored.get(stableDocId)?.hasEmbedding).toBe(true)
+        expect(stored.get(stableDocId)?.contentHash).toBe(
+          getEmbeddingContentHash(getEmbeddingText('hiking alpine stable post'))
+        )
+        // Marked row was left untouched for the embedding job (not overwritten).
+        expect(stored.get(markedDocId)?.hasEmbedding).toBe(false)
+        expect(stored.get(markedDocId)?.contentHash).toBeNull()
+        expect(await countPendingEmbeddings(db)).toBe(1)
+        // Changed doc was skipped because its text hash changed mid-request.
+        expect(stored.has(changedDocId)).toBe(false)
       } finally {
         await deleteEmbeddings(db, allDocIds)
       }

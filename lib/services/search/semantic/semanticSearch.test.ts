@@ -11,6 +11,8 @@ import {
   getEmbeddableDocuments,
   getSemanticAvailability,
   getStoredEmbeddings,
+  hasClaimablePendingEmbeddings,
+  markEmbeddingsFailed,
   markEmbeddingsPending,
   recordSemanticFailure,
   recordSemanticSuccess,
@@ -55,6 +57,8 @@ vi.mock(
       getEmbeddableDocuments: vi.fn(),
       getSemanticAvailability: vi.fn(),
       getStoredEmbeddings: vi.fn(),
+      hasClaimablePendingEmbeddings: vi.fn(),
+      markEmbeddingsFailed: vi.fn(),
       markEmbeddingsPending: vi.fn(),
       recordSemanticFailure: vi.fn(),
       recordSemanticSuccess: vi.fn(),
@@ -111,6 +115,7 @@ describe('semanticSearch service', () => {
       .mockReturnValue({
         publish,
         handle: vi.fn(),
+        runsInline: false,
         dropsDelayedJobs: false
       } as unknown as ReturnType<typeof getQueue>)
     vi.mocked(getEmbeddingProvider).mockReset().mockReturnValue(null)
@@ -120,9 +125,13 @@ describe('semanticSearch service', () => {
     vi.mocked(claimPendingEmbeddings).mockReset().mockResolvedValue([])
     vi.mocked(getEmbeddableDocuments).mockReset().mockResolvedValue([])
     vi.mocked(getStoredEmbeddings).mockReset().mockResolvedValue(new Map())
+    vi.mocked(hasClaimablePendingEmbeddings)
+      .mockReset()
+      .mockResolvedValue(false)
     vi.mocked(clearEmbeddingPending).mockReset().mockResolvedValue(undefined)
     vi.mocked(deleteEmbeddings).mockReset().mockResolvedValue(undefined)
     vi.mocked(deleteEmbeddingsForActor).mockReset().mockResolvedValue(undefined)
+    vi.mocked(markEmbeddingsFailed).mockReset().mockResolvedValue(undefined)
     vi.mocked(markEmbeddingsPending).mockReset().mockResolvedValue(1)
     vi.mocked(recordSemanticFailure).mockReset().mockResolvedValue(undefined)
     vi.mocked(recordSemanticSuccess).mockReset().mockResolvedValue(undefined)
@@ -443,6 +452,31 @@ describe('semanticSearch service', () => {
       expect(thirdId).not.toBe(fourthId)
     })
 
+    it('publishes with a unique id on every call when the queue runs inline', async () => {
+      vi.mocked(getQueue).mockReturnValue({
+        publish,
+        handle: vi.fn(),
+        runsInline: true,
+        dropsDelayedJobs: true
+      } as unknown as ReturnType<typeof getQueue>)
+
+      await scheduleEmbeddingJob(false, 10_000)
+      await scheduleEmbeddingJob(false, 10_001)
+      await scheduleEmbeddingJob(false, 10_002)
+
+      expect(publish).toHaveBeenCalledTimes(3)
+      const ids = publish.mock.calls.map((call) => call[0]?.id as string)
+      for (const id of ids) {
+        expect(id).toMatch(/^semantic-embed-/)
+      }
+      expect(new Set(ids).size).toBe(3)
+      expect(publish).toHaveBeenLastCalledWith({
+        id: ids[2],
+        name: EMBED_SEARCH_DOCUMENTS_JOB_NAME,
+        data: {}
+      })
+    })
+
     it('lets the next call in the same bucket retry after a failed publish', async () => {
       publish
         .mockRejectedValueOnce(new Error('queue unavailable'))
@@ -485,12 +519,19 @@ describe('semanticSearch service', () => {
       ])
 
       await expect(runEmbeddingJob(mockDb)).rejects.toBe(error)
-      expect(releaseEmbeddingClaims).toHaveBeenCalledWith(mockDb, ['doc-1'])
+      const claimToken = vi.mocked(claimPendingEmbeddings).mock.calls[0]?.[2]
+      expect(claimToken).toEqual(expect.any(String))
+      expect(releaseEmbeddingClaims).toHaveBeenCalledWith(
+        mockDb,
+        ['doc-1'],
+        claimToken
+      )
+      expect(markEmbeddingsFailed).not.toHaveBeenCalled()
       expect(recordSemanticFailure).toHaveBeenCalledWith(mockDb, 'HTTP 503')
       expect(recordSemanticSuccess).not.toHaveBeenCalled()
     })
 
-    it('keeps the marks when the provider refuses the key, and records the failure once', async () => {
+    it('backs off rows when the provider refuses the key, keeps marks, records failure once, and schedules no continuation', async () => {
       const provider = createFakeProvider()
       const error = new EmbeddingProviderError('invalid API key', {
         statusCode: 401,
@@ -506,19 +547,30 @@ describe('semanticSearch service', () => {
         { id: 'doc-1', documentText: 'hello world' },
         { id: 'doc-2', documentText: 'another post' }
       ])
+      vi.mocked(hasClaimablePendingEmbeddings).mockResolvedValue(true)
 
       await expect(runEmbeddingJob(mockDb)).resolves.toBeUndefined()
-      // One request, not one per document; nothing cleared, claims released.
+      const claimToken = vi.mocked(claimPendingEmbeddings).mock.calls[0]?.[2]
+      expect(claimToken).toEqual(expect.any(String))
+      // One request, not one per document; nothing cleared, rows backed off.
       expect(provider.embed).toHaveBeenCalledTimes(1)
       expect(clearEmbeddingPending).not.toHaveBeenCalled()
-      expect(releaseEmbeddingClaims).toHaveBeenCalledWith(mockDb, [
-        'doc-1',
-        'doc-2'
-      ])
+      expect(releaseEmbeddingClaims).not.toHaveBeenCalled()
+      expect(markEmbeddingsFailed).toHaveBeenCalledWith(
+        mockDb,
+        ['doc-1', 'doc-2'],
+        expect.objectContaining({ claimToken })
+      )
       expect(recordSemanticFailure).toHaveBeenCalledTimes(1)
+      expect(recordSemanticFailure).toHaveBeenCalledWith(
+        mockDb,
+        'invalid API key'
+      )
+      expect(recordSemanticSuccess).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
     })
 
-    it('clears the mark of a document the provider refuses as input, after recording it', async () => {
+    it('backs off a single document refused as input without clearing its mark, after recording the failure', async () => {
       const provider = createFakeProvider()
       const error = new EmbeddingProviderError('input too long', {
         statusCode: 400,
@@ -534,19 +586,23 @@ describe('semanticSearch service', () => {
       ])
 
       await expect(runEmbeddingJob(mockDb)).resolves.toBeUndefined()
-      expect(clearEmbeddingPending).toHaveBeenCalledWith(
+      const claimToken = vi.mocked(claimPendingEmbeddings).mock.calls[0]?.[2]
+      expect(claimToken).toEqual(expect.any(String))
+      expect(clearEmbeddingPending).not.toHaveBeenCalled()
+      expect(markEmbeddingsFailed).toHaveBeenCalledWith(
         mockDb,
-        'doc-1',
-        '2026-01-01 00:00:01+00'
+        ['doc-1'],
+        expect.objectContaining({ claimToken })
       )
       expect(recordSemanticFailure).toHaveBeenCalledWith(
         mockDb,
         'input too long'
       )
       expect(recordSemanticSuccess).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
     })
 
-    it('records success and schedules a continuation job when a full batch was examined', async () => {
+    it('records success and schedules a continuation job only when claimable pending rows remain', async () => {
       const provider = createFakeProvider({ maxBatchSize: 64 })
       vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
       const pending = Array.from(
@@ -563,10 +619,22 @@ describe('semanticSearch service', () => {
           documentText: `post ${item.documentId}`
         }))
       )
+      vi.mocked(hasClaimablePendingEmbeddings).mockResolvedValueOnce(true)
 
       await runEmbeddingJob(mockDb)
 
+      const firstToken = vi.mocked(claimPendingEmbeddings).mock.calls[0]?.[2]
+      expect(firstToken).toEqual(expect.any(String))
       expect(storeEmbeddings).toHaveBeenCalledTimes(1)
+      expect(storeEmbeddings).toHaveBeenCalledWith(
+        mockDb,
+        expect.any(Array),
+        expect.objectContaining({
+          model: provider.model,
+          dimensions: provider.dimensions,
+          claimToken: firstToken
+        })
+      )
       expect(recordSemanticSuccess).toHaveBeenCalledWith(mockDb)
       expect(publish).toHaveBeenCalledTimes(1)
       expect(publish).toHaveBeenCalledWith(
@@ -576,6 +644,11 @@ describe('semanticSearch service', () => {
           delaySeconds: 10
         })
       )
+
+      // When no claimable rows remain after a pass, no continuation is scheduled.
+      vi.mocked(hasClaimablePendingEmbeddings).mockResolvedValueOnce(false)
+      await runEmbeddingJob(mockDb)
+      expect(publish).toHaveBeenCalledTimes(1)
     })
   })
 
