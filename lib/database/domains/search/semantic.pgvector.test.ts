@@ -489,6 +489,53 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
   })
 
   describe('processPendingEmbeddings and deleteEmbeddingsForActor', () => {
+    it('leaves out remote authors on a suspended or silenced domain', async () => {
+      const silencedDomain = 'silenced-embed.test'
+      const subdomainParent = 'blocked-parent.test'
+      const silenced = await addActor('domain-silenced', {
+        domain: silencedDomain,
+        remote: true,
+        indexable: true
+      })
+      const subdomain = await addActor('domain-sub', {
+        domain: `social.${subdomainParent}`,
+        remote: true,
+        indexable: true
+      })
+      const allowed = await addActor('domain-allowed', {
+        domain: REMOTE_DOMAIN,
+        remote: true,
+        indexable: true
+      })
+      const posts = await Promise.all(
+        [silenced, subdomain, allowed].map((actorId, index) =>
+          indexedStatus({
+            id: statusIdOf(actorId, `domain-${index}`),
+            actorId,
+            createdAt: 600 + index,
+            text: `domain rule post ${index}`,
+            to: [PUBLIC]
+          })
+        )
+      )
+      await sql`
+        insert into domain_federation_rules (id, domain, type, severity)
+        values (${`rule-${silencedDomain}`}, ${silencedDomain}, 'block', 'silence'),
+          (${`rule-${subdomainParent}`}, ${`*.${subdomainParent}`}, 'block', 'suspend')
+      `.execute(db)
+      try {
+        const embeddable = await getEmbeddableDocuments(db, posts.map(docIdOf))
+        expect(embeddable.map((document) => document.id)).toEqual([
+          docIdOf(posts[2])
+        ])
+      } finally {
+        await sql`
+          delete from domain_federation_rules
+          where domain in (${silencedDomain}, ${`*.${subdomainParent}`})
+        `.execute(db)
+      }
+    })
+
     it('embeds pending docs, skips unchanged text, drops newly followers-only docs, and deletes remote actor embeddings only', async () => {
       const provider = createDeterministicProvider()
       const localAuthor = await addActor('proc-local')

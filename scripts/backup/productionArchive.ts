@@ -1916,6 +1916,24 @@ const getForeignKeyReferences = async (
   throw new Error(`Unsupported database client for restore: ${client}`)
 }
 
+// A local PostgreSQL where yarn search:semantic:setup ran has embeddings
+// pointing at search_documents, so TRUNCATE (no CASCADE) must take them too.
+// They are derived from the data being replaced, so they go, with the
+// backfill's place: run yarn search:semantic:backfill after the restore.
+export const getLocalSemanticSearchTables = async (
+  database: ArchiveDatabase
+): Promise<string[]> => {
+  if (getClientName(database) !== 'pg') return []
+  const { rows } = await sql<{ embeddings: boolean; status: boolean }>`
+    select to_regclass(${EMBEDDINGS_TABLE}) is not null as embeddings,
+      to_regclass(${SEMANTIC_STATUS_TABLE}) is not null as status
+  `.execute(database.db)
+  return [
+    ...(rows[0]?.embeddings ? [EMBEDDINGS_TABLE] : []),
+    ...(rows[0]?.status ? [SEMANTIC_STATUS_TABLE] : [])
+  ]
+}
+
 export const truncateTables = async (
   database: ArchiveDatabase,
   tableNames: string[],
@@ -2464,7 +2482,19 @@ export const restoreDatabase = async (
   const foreignKeys = await getForeignKeyReferences(database, restoredTables)
   const orderedTables = sortTablesForRestore(restoredTables, foreignKeys)
 
-  await truncateTables(database, restoredTables, orderedTables)
+  // Emptied in the same TRUNCATE: PostgreSQL refuses to truncate a table
+  // another table references unless that one is in the statement too.
+  const semanticTables = await getLocalSemanticSearchTables(database)
+  await truncateTables(
+    database,
+    [...restoredTables, ...semanticTables],
+    orderedTables
+  )
+  if (semanticTables.length > 0) {
+    console.log(
+      `Database: emptied ${semanticTables.join(', ')}; run yarn search:semantic:backfill after the restore`
+    )
+  }
 
   for (const tableName of orderedTables) {
     const rowCount = await restoreTableFromJsonLines(

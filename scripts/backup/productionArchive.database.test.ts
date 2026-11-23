@@ -1078,6 +1078,59 @@ describe('production archive scripts', () => {
       ROUND_TRIP_TIMEOUT_MS
     )
 
+    it.runIf(backend === 'pg')(
+      'restores again onto a PostgreSQL target that has the semantic search tables, emptying them',
+      async () => {
+        // Stand-ins for the tables yarn search:semantic:setup creates (the
+        // vector column needs pgvector; the foreign key is what matters).
+        const { database, destroy } = openArchiveDatabase(targetConfig)
+        try {
+          await sql`
+            create table if not exists search_document_embeddings (
+              "documentId" varchar(320) primary key
+                references search_documents(id) on delete cascade
+            )
+          `.execute(database.db)
+          await sql`
+            create table if not exists search_semantic_status (
+              id text primary key, "backfillCursor" text
+            )
+          `.execute(database.db)
+          await sql`
+            insert into search_document_embeddings ("documentId")
+            select id from search_documents limit 1
+          `.execute(database.db)
+          await sql`
+            insert into search_semantic_status (id, "backfillCursor")
+            values ('embeddings', 'zzz')
+          `.execute(database.db)
+        } finally {
+          await destroy()
+        }
+
+        await restore(targetConfig)
+
+        const after = openArchiveDatabase(targetConfig)
+        try {
+          const { rows } = await sql<{ embeddings: string; status: string }>`
+            select
+              (select count(*) from search_document_embeddings)::text as embeddings,
+              (select count(*) from search_semantic_status)::text as status
+          `.execute(after.database.db)
+          expect(rows[0]).toEqual({ embeddings: '0', status: '0' })
+          await sql`drop table search_document_embeddings`.execute(
+            after.database.db
+          )
+          await sql`drop table search_semantic_status`.execute(
+            after.database.db
+          )
+        } finally {
+          await after.destroy()
+        }
+      },
+      ROUND_TRIP_TIMEOUT_MS
+    )
+
     it('keeps every value as it was stored', async () => {
       const { database, destroy } = openArchiveDatabase(targetConfig)
       try {

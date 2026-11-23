@@ -1,8 +1,12 @@
 import { createHash } from 'crypto'
-import { type SelectQueryBuilder, sql } from 'kysely'
+import { type SelectQueryBuilder, type SqlBool, sql } from 'kysely'
 
 import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
-import { getDialectName, jsonFlagIsTrue } from '@/lib/database/kysely/dialect'
+import {
+  getDialectName,
+  hostnameOf,
+  jsonFlagIsTrue
+} from '@/lib/database/kysely/dialect'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { StatusType } from '@/lib/types/domain/status'
 
@@ -163,8 +167,9 @@ export const toVectorLiteral = (embedding: number[]) =>
 // The status documents whose text may go to the embeddings provider: only text
 // any stranger could already read. A local Note or Poll addressed to the public
 // (`to` or `cc`, so public or unlisted) or a remote one with the public in `to`
-// whose author opted in to search (`indexable`), by an author who is not being
-// deleted, suspended or silenced. Never followers-only or direct.
+// whose author opted in to search (`indexable`) and is not on a suspended or
+// silenced domain, by an author who is not being deleted, suspended or
+// silenced. Never followers-only or direct.
 const embeddableDocuments = (db: Db) =>
   db
     .selectFrom('search_documents')
@@ -189,12 +194,26 @@ const embeddableDocuments = (db: Db) =>
             .where('embed_recipients.type', 'in', types)
             .where('embed_recipients.actorId', 'in', PUBLIC_ACTIVITY_RECIPIENTS)
         )
+      // A remote author on a domain the instance suspends or silences is left
+      // out, as the public surfaces leave it out (domainMatchesRule: `*`, the
+      // host itself, or a `*.parent` rule's subdomains).
+      const blockedDomain = eb.exists(
+        eb
+          .selectFrom('domain_federation_rules as embed_domain_rules')
+          .select(sql.lit(1).as('one'))
+          .where('embed_domain_rules.type', '=', 'block')
+          .where('embed_domain_rules.severity', 'in', ['suspend', 'silence'])
+          .where(
+            sql<SqlBool>`(${sql.ref('embed_domain_rules.domain')} = '*' or ${hostnameOf(db, 'actors.domain')} = lower(${sql.ref('embed_domain_rules.domain')}) or (${sql.ref('embed_domain_rules.domain')} like '*.%' and length(${hostnameOf(db, 'actors.domain')}) > length(${sql.ref('embed_domain_rules.domain')}) - 1 and substr(${hostnameOf(db, 'actors.domain')}, length(${hostnameOf(db, 'actors.domain')}) - length(${sql.ref('embed_domain_rules.domain')}) + 2) = lower(substr(${sql.ref('embed_domain_rules.domain')}, 2))))`
+          )
+      )
       return eb.or([
         eb.and([isLocal, publicRecipient(['to', 'cc'])]),
         eb.and([
           eb.not(isLocal),
           publicRecipient(['to']),
-          jsonFlagIsTrue(db, 'actors.settings', 'indexable')
+          jsonFlagIsTrue(db, 'actors.settings', 'indexable'),
+          eb.not(blockedDomain)
         ])
       ])
     })
