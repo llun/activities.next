@@ -266,15 +266,26 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         })
         expect(result.grantedTo).toBe(roleName)
 
-        const { rows } = await sql<{
-          canEmbeddings: boolean
-          canStatus: boolean
-        }>`
-          select
-            has_table_privilege(${roleName}, ${EMBEDDINGS_TABLE}, 'SELECT, INSERT, UPDATE, DELETE') as "canEmbeddings",
-            has_table_privilege(${roleName}, ${SEMANTIC_STATUS_TABLE}, 'SELECT, INSERT, UPDATE, DELETE') as "canStatus"
-        `.execute(db)
-        expect(rows[0]).toEqual({ canEmbeddings: true, canStatus: true })
+        // has_table_privilege with a list answers whether ANY is held, so each
+        // privilege is asked on its own; TRUNCATE is for the archive restore.
+        for (const table of [EMBEDDINGS_TABLE, SEMANTIC_STATUS_TABLE]) {
+          for (const privilege of [
+            'SELECT',
+            'INSERT',
+            'UPDATE',
+            'DELETE',
+            'TRUNCATE'
+          ]) {
+            const { rows } = await sql<{ granted: boolean }>`
+              select has_table_privilege(${roleName}, ${table}, ${privilege}) as granted
+            `.execute(db)
+            expect({ table, privilege, granted: rows[0]?.granted }).toEqual({
+              table,
+              privilege,
+              granted: true
+            })
+          }
+        }
       } finally {
         await sql`revoke all on table ${sql.table(EMBEDDINGS_TABLE)}, ${sql.table(SEMANTIC_STATUS_TABLE)} from ${sql.id(roleName)}`.execute(
           db
@@ -507,8 +518,21 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         remote: true,
         indexable: true
       })
+      // A handle on an allowed domain for an actor whose id is on the
+      // silenced host.
+      const split = `https://${silencedDomain}/users/domain-split`
+      await createSearchActor(database, {
+        id: split,
+        username: 'domain-split',
+        domain: REMOTE_DOMAIN
+      })
+      await db
+        .updateTable('actors')
+        .set({ privateKey: '', settings: JSON.stringify({ indexable: true }) })
+        .where('id', '=', split)
+        .execute()
       const posts = await Promise.all(
-        [silenced, subdomain, allowed].map((actorId, index) =>
+        [silenced, subdomain, split, allowed].map((actorId, index) =>
           indexedStatus({
             id: statusIdOf(actorId, `domain-${index}`),
             actorId,
@@ -526,7 +550,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       try {
         const embeddable = await getEmbeddableDocuments(db, posts.map(docIdOf))
         expect(embeddable.map((document) => document.id)).toEqual([
-          docIdOf(posts[2])
+          docIdOf(posts[3])
         ])
       } finally {
         await sql`

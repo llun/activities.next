@@ -510,7 +510,8 @@ The semantic tables (`search_document_embeddings` and `search_semantic_status`) 
 
 ```bash
 # Run as a database user that may create extensions (e.g. `postgres`, a
-# cloudsqlsuperuser member on Cloud SQL) and grant access to the app user:
+# cloudsqlsuperuser member on Cloud SQL) and grant the app user read, write
+# and truncate (the archive restore empties these tables) on them:
 yarn search:semantic:setup --grant-to activitynext
 
 # Optional: override the vector length (defaults to ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS, 768)
@@ -527,7 +528,7 @@ The setup script is idempotent when the table already matches the configured dim
 Only text that any stranger could already read is ever sent to the embeddings provider:
 
 - Local `Note` and `Poll` posts addressed to Public in `to` or `cc` (public and unlisted).
-- Remote `Note` and `Poll` posts addressed to Public in `to` whose author opted in to search (`indexable`).
+- Remote `Note` and `Poll` posts addressed to Public in `to` whose author opted in to search (`indexable`) and is not on an instance domain blocked with `suspend` or `silence` (judged on both the handle's domain and the host of the actor id).
 - Posts by authors who are being deleted, suspended, or silenced, and all followers-only and direct posts, are never embedded.
 
 Every search query still re-checks post visibility, `indexable`, blocks, mutes, domain rules, `in:library`, phrases, exclusions, and search operators at query time, so an existing embedding can never expose a post the viewer may not see. When a remote author turns off `indexable`, their stored embeddings are deleted; when they turn it back on, their newest 1,000 public posts are queued for embedding again (at most once a day per author in each process, best effort; older posts wait for the backfill).

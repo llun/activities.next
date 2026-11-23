@@ -1,12 +1,13 @@
 import { createHash } from 'crypto'
-import { type SelectQueryBuilder, type SqlBool, sql } from 'kysely'
+import {
+  type RawBuilder,
+  type SelectQueryBuilder,
+  type SqlBool,
+  sql
+} from 'kysely'
 
 import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
-import {
-  getDialectName,
-  hostnameOf,
-  jsonFlagIsTrue
-} from '@/lib/database/kysely/dialect'
+import { getDialectName, jsonFlagIsTrue } from '@/lib/database/kysely/dialect'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { StatusType } from '@/lib/types/domain/status'
 
@@ -196,15 +197,32 @@ const embeddableDocuments = (db: Db) =>
         )
       // A remote author on a domain the instance suspends or silences is left
       // out, as the public surfaces leave it out (domainMatchesRule: `*`, the
-      // host itself, or a `*.parent` rule's subdomains).
+      // host itself, or a `*.parent` rule's subdomains), judged on both the
+      // handle's domain and the host of the actor's id (they can differ).
+      // PostgreSQL only, like the rest of this module; a bracketed IPv6 host
+      // keeps its brackets.
+      const hostOf = (value: RawBuilder<string>) =>
+        sql<string>`lower(case when ${value} like '[%' then substring(${value} from '^\\[[^]]*\\]') else split_part(${value}, ':', 1) end)`
+      const hosts = [
+        hostOf(sql<string>`coalesce(${sql.ref('actors.domain')}, '')`),
+        hostOf(
+          sql<string>`split_part(split_part(${sql.ref('actors.id')}, '://', 2), '/', 1)`
+        )
+      ]
+      const rule = sql.ref('embed_domain_rules.domain')
       const blockedDomain = eb.exists(
         eb
           .selectFrom('domain_federation_rules as embed_domain_rules')
           .select(sql.lit(1).as('one'))
           .where('embed_domain_rules.type', '=', 'block')
           .where('embed_domain_rules.severity', 'in', ['suspend', 'silence'])
-          .where(
-            sql<SqlBool>`(${sql.ref('embed_domain_rules.domain')} = '*' or ${hostnameOf(db, 'actors.domain')} = lower(${sql.ref('embed_domain_rules.domain')}) or (${sql.ref('embed_domain_rules.domain')} like '*.%' and length(${hostnameOf(db, 'actors.domain')}) > length(${sql.ref('embed_domain_rules.domain')}) - 1 and substr(${hostnameOf(db, 'actors.domain')}, length(${hostnameOf(db, 'actors.domain')}) - length(${sql.ref('embed_domain_rules.domain')}) + 2) = lower(substr(${sql.ref('embed_domain_rules.domain')}, 2))))`
+          .where((ruleEb) =>
+            ruleEb.or(
+              hosts.map(
+                (host) =>
+                  sql<SqlBool>`(${rule} = '*' or ${host} = lower(${rule}) or (${rule} like '*.%' and right(${host}, length(${rule}) - 1) = lower(substr(${rule}, 2)) and length(${host}) > length(${rule}) - 1))`
+              )
+            )
           )
       )
       return eb.or([
@@ -792,7 +810,8 @@ export const setupSemanticSearchTables = async (
     }
     if (grantTo !== null) {
       for (const table of [EMBEDDINGS_TABLE, SEMANTIC_STATUS_TABLE]) {
-        await sql`grant select, insert, update, delete on ${sql.table(table)} to ${sql.id(grantTo)}`.execute(
+        // truncate too: the archive restore empties these tables with TRUNCATE.
+        await sql`grant select, insert, update, delete, truncate on ${sql.table(table)} to ${sql.id(grantTo)}`.execute(
           trx
         )
       }
