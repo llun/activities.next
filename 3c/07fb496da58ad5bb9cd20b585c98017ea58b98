@@ -1,0 +1,38 @@
+lib/utils/safeRemoteFetch.ts
+  s_17b6192f00c988::t_c99f7c2d8fb829 263-275
+lib/services/search/semantic/semanticSearch.ts
+  s_17b6192f00c988::t_fede72e639e04f 73-75,78-81,83-96,98-99,101,103-110,112-135,138-151,155,157,159-176,179-185,189-192,194-197,202-203,213,220-222,227,232,234-239,241-250,255-257,262-264,266-272,279,281-295,297-301,318-322,327,347-351,355,357,367-368
+  s_17b6192f00c988::t_9d1d62bdf9a358 16-17,366,369-376
+scripts/maintenance/backfillSemanticSearch.ts
+  s_17b6192f00c988::t_294f43d64a74f5 92,123-134,159-161
+lib/database/domains/search/semanticStore.ts
+  s_17b6192f00c988::t_1e0d0292d596eb 148-154,258-259,267-268,286-287,298-300,303-311,314-315,319-320,323,333-342,345-346,350-351,353,357-382,395,402-406,410-413,423-424,426,428,432-433,435,445,450,454-455,462-466,470-472,476,479,487-494,497,720-722,749-752
+docs/environment-variables.md
+  s_17b6192f00c988::t_b1088272f92389 258
+docs/maintenance.md
+  s_17b6192f00c988::t_ca180af176015b 537
+lib/database/domains/search/semantic.pgvector.test.ts
+  s_17b6192f00c988::t_1b091ee697d877 15-16,19-20,39-46,53-71,346-352,354-366,368,376-380,383-385,387-396,530,544,576,608-613,622-624,626-628,630-631,664,666,674,715,746,760-764,767,778,780-782,784-787,815,831,957-1083,1085-1086,1089-1180,1182-1183,1186-1203,1205-1379,1396,1398-1400,1402-1405,1407-1432,1436-1503
+lib/services/search/semantic/semanticSearch.test.ts
+  s_17b6192f00c988::t_14455ffd42c6a5 14-15,60-61,118,128-130,134,455-479,522-529,534,550,553-555,558-563,565-570,573,589-592,594-595,602,605,622,626-627,629-637,647-651
+lib/database/domains/search/semanticStore.test.ts
+  s_17b6192f00c988::t_088dc1ae8e253a 9,11,102-139
+lib/utils/safeRemoteFetch.test.ts
+  s_17b6192f00c988::t_123182a81987e2 1216-1295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3c07fb496da58ad5bb9cd20b585c98017ea58b98",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
