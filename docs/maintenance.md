@@ -545,7 +545,7 @@ psql "$DATABASE_URL" -c 'SELECT "lastSuccessAt", "lastErrorAt", "failureCount", 
 
 ### Backfill and model changes
 
-After initial setup — or after switching embedding models — embed existing eligible posts with `yarn search:semantic:backfill`:
+After initial setup — or after switching embedding models, or after `yarn search:reindex` (scripts do not run the write hook; the app and `scripts/maintenance/runQueueWorker.ts` do) — embed existing eligible posts with `yarn search:semantic:backfill`:
 
 ```bash
 # Preview eligible post count and estimated tokens without calling the provider

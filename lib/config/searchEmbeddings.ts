@@ -78,6 +78,25 @@ const parseDimensions = (): number | null => {
   return parsed
 }
 
+// The dimensions the setup script builds the table for, read on their own:
+// the script runs as a database administrator who may not have the provider's
+// key. Unset is the default; a value that is set but invalid is an error, so
+// the table is never built (or dropped and rebuilt) for the wrong size.
+export const readSearchEmbeddingsDimensions = ():
+  { dimensions: number } | { error: string } => {
+  const raw = process.env.ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS?.trim()
+  if (!raw) return { dimensions: DEFAULT_SEARCH_EMBEDDINGS_DIMENSIONS }
+  const parsed = Number(raw)
+  return /^\d+$/.test(raw) &&
+    Number.isSafeInteger(parsed) &&
+    parsed >= MIN_SEARCH_EMBEDDINGS_DIMENSIONS &&
+    parsed <= MAX_SEARCH_EMBEDDINGS_DIMENSIONS
+    ? { dimensions: parsed }
+    : {
+        error: `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS must be an integer between ${MIN_SEARCH_EMBEDDINGS_DIMENSIONS} and ${MAX_SEARCH_EMBEDDINGS_DIMENSIONS}, got "${raw}"`
+      }
+}
+
 const parseEndpoint = (
   rawEndpoint: string,
   allowPrivateEndpoint: boolean

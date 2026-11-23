@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node scripts/run.cjs
 import { loadEnvConfig } from '@next/env'
 
-import { getConfig } from '@/lib/config'
+import { readSearchEmbeddingsDimensions } from '@/lib/config/searchEmbeddings'
 import { getKysely } from '@/lib/database'
 import {
   SemanticSetupError,
@@ -41,8 +41,17 @@ async function setup() {
     console.log(USAGE)
     return 0
   }
-  const dimensions =
-    args.dimensions ?? getConfig().searchEmbeddings?.dimensions ?? 768
+  // --dimensions, else ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS read on its
+  // own (the provider's key need not be set where this runs), else 768.
+  let dimensions = args.dimensions
+  if (dimensions === null) {
+    const configured = readSearchEmbeddingsDimensions()
+    if ('error' in configured) {
+      console.error(configured.error)
+      return 1
+    }
+    dimensions = configured.dimensions
+  }
   const db = getKysely()
   try {
     const result = await setupSemanticSearchTables(db, {

@@ -4,7 +4,8 @@ import {
   DEFAULT_GEMINI_EMBEDDINGS_ENDPOINT,
   DEFAULT_GEMINI_EMBEDDINGS_MODEL,
   DEFAULT_SEARCH_EMBEDDINGS_DIMENSIONS,
-  getSearchEmbeddingsConfig
+  getSearchEmbeddingsConfig,
+  readSearchEmbeddingsDimensions
 } from './searchEmbeddings'
 
 vi.mock('@/lib/utils/logger', () => ({
@@ -246,6 +247,41 @@ describe('getSearchEmbeddingsConfig', () => {
         'ACTIVITIES_SEARCH_EMBEDDINGS_ALLOW_PRIVATE_ENDPOINT'
       )
       expect(message).toContain('semantic search will be disabled')
+    }
+  )
+})
+
+describe('readSearchEmbeddingsDimensions', () => {
+  const originalEnv = process.env
+
+  beforeEach(() => {
+    process.env = { ...originalEnv }
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith('ACTIVITIES_SEARCH_EMBEDDINGS_')) {
+        delete process.env[key]
+      }
+    }
+  })
+
+  afterAll(() => {
+    process.env = originalEnv
+  })
+
+  it('reads the dimensions without a provider configured, defaulting to 768', () => {
+    expect(readSearchEmbeddingsDimensions()).toEqual({
+      dimensions: DEFAULT_SEARCH_EMBEDDINGS_DIMENSIONS
+    })
+    process.env.ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS = '1536'
+    expect(readSearchEmbeddingsDimensions()).toEqual({ dimensions: 1536 })
+  })
+
+  it.each(['0', '4001', '12.5', 'abc'])(
+    'answers an error for an invalid value %s instead of the default',
+    (value) => {
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS = value
+      expect(readSearchEmbeddingsDimensions()).toEqual({
+        error: expect.stringContaining(value)
+      })
     }
   )
 })

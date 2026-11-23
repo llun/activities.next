@@ -2,9 +2,10 @@
 import { loadEnvConfig } from '@next/env'
 
 import { getConfig } from '@/lib/config'
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKysely } from '@/lib/database'
 import { startServedDomainRefresher } from '@/lib/services/domains/servedDomainSnapshot'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
+import { startSemanticSearch } from '@/lib/services/search/semantic/startup'
 
 import { createQueueWorkerShutdown } from './runQueueWorkerLifecycle'
 
@@ -29,6 +30,9 @@ async function runQueueWorker() {
   // Jobs decide what is local (forwarding, relays, reactions) from the served
   // domains, which include the active Admin › Served domains rows.
   startServedDomainRefresher(database)
+  // Jobs write search documents too (remote posts, edits, scheduled posts,
+  // actor updates), so the semantic search hook must listen here as well.
+  void startSemanticSearch(getKysely)
   const runner = startDatabaseQueueRunner(database, {
     pollIntervalMs
   })
