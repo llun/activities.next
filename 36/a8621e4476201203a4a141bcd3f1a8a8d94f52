@@ -1,0 +1,41 @@
+docs/maintenance.md
+  s_17b6192f00c988::t_32d531ed77d998 537,560
+scripts/maintenance/backfillSemanticSearch.ts
+  s_17b6192f00c988::t_3983ec5eb2bbbc 118-119,121-122,124-137
+  s_17b6192f00c988::t_0d2466283b6ace 10,16-19,102,104-112,114-115,146-147
+  s_17b6192f00c988::t_e6896e9e803a44 154,164
+lib/services/search/semantic/semanticSearch.ts
+  s_17b6192f00c988::t_163a51f8a1b4e2 7,165,172-173,178,181,187-194,198-206,216,220-261,266
+  s_17b6192f00c988::t_4df410f4be4bf1 276-278,285
+lib/database/domains/search/semanticStore.ts
+  s_17b6192f00c988::t_163a51f8a1b4e2 395-396,400-405,412-413,417-423
+  s_17b6192f00c988::t_c6201011b956d2 424,430
+lib/database/domains/search/semantic.pgvector.test.ts
+  s_9dbfab87f57ce6::t_e42be79369f20c 29-30,45,296-298,1684-1712,1714-1715,1718-1721,1723,1734,1736,1738-1743,1745-1750,1752-1761,1779,1785-1786,1789,1794,1796-1797,1800,1805,1807-1811,1813-1828,1830-1872,1874-1899,1901,1904,1906-1910,1912,1916,1918-1945,1948-1952,1955-1957,1959-1960,1962,1964,1969-1971,1975-1978,1981-1983,1987,1990,1995-1996,2002-2004,2008-2010,2012-2014,2017-2027,2030-2034,2036-2044,2046-2047,2049-2054,2056,2058,2159-2169,2247-2249
+lib/services/search/semantic/semanticSearch.test.ts
+  s_9dbfab87f57ce6::t_e2ca9ea11334b9 13,38,852-856,858-926,928-935,937-946,948-949,951-962,964-980,984-987,989-993,995-1123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "36a8621e4476201203a4a141bcd3f1a8a8d94f52",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_9dbfab87f57ce6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8007ff11-b74f-42ed-9351-71e592afa1fe",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
