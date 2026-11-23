@@ -107,19 +107,18 @@ async function backfill() {
         }
       } else if (needing.length > 0) {
         // The backfill marks the rows and runs the embedding job's own passes
-        // here, so it writes through the same claims as the job and never
-        // races it. A new mark also lifts any back-off.
-        await markEmbeddingsPending(
-          db,
-          needing.map((document) => document.id),
-          provider
-        )
+        // on them here, so it writes through the same claims as the job and
+        // never races it. A new mark also lifts any back-off. Only this
+        // page's rows are claimed, so live writes cannot keep it on the page.
+        const pageIds = needing.map((document) => document.id)
+        await markEmbeddingsPending(db, pageIds, provider)
         try {
           for (;;) {
             const pass = await processPendingEmbeddings(
               db,
               provider,
-              options.batchSize
+              options.batchSize,
+              pageIds
             )
             if (pass.failed) {
               // The request, not the posts (a bad key or model): stop, so a
@@ -132,7 +131,8 @@ async function backfill() {
             if (pass.embedded > 0 && !pass.refused) {
               await recordSemanticSuccess(db)
             }
-            if (pass.embedded > 0 && options.delayMs > 0) {
+            // After every pass that called the provider, refusals included.
+            if ((pass.sent ?? 0) > 0 && options.delayMs > 0) {
               await sleep(options.delayMs)
             }
           }
@@ -151,7 +151,7 @@ async function backfill() {
       console.log(
         options.dryRun
           ? `Looked at ${looked}; ${toSend} to embed (~${tokens} tokens)`
-          : `Looked at ${looked}; embedded ${toSend} (waiting posts included)`
+          : `Looked at ${looked}; embedded ${toSend}`
       )
     }
     if (options.dryRun) {
@@ -161,7 +161,7 @@ async function backfill() {
     } else {
       await saveBackfillCursor(db, null)
       console.log(
-        `Backfill complete: looked at ${looked} posts and embedded ${toSend} (posts already waiting included)${refused > 0 ? `; the provider refused ${refused}, which back off (see search_semantic_status)` : ''}.`
+        `Backfill complete: looked at ${looked} posts and embedded ${toSend}${refused > 0 ? `; the provider refused ${refused}, which back off (see search_semantic_status)` : ''}.`
       )
     }
     return 0

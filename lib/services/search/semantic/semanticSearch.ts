@@ -302,6 +302,8 @@ export const embedDocuments = async (
 
 export type EmbeddingPass = {
   looked: number
+  // Documents sent to the provider (refused ones included).
+  sent?: number
   embedded: number
   refused?: number
   // Set when the provider failed the whole request in a way retrying soon
@@ -317,10 +319,16 @@ export type EmbeddingPass = {
 export const processPendingEmbeddings = async (
   db: Db,
   provider: EmbeddingProvider,
-  limit = EMBEDDING_JOB_BATCH_SIZE
+  limit = EMBEDDING_JOB_BATCH_SIZE,
+  onlyDocumentIds?: string[]
 ): Promise<EmbeddingPass> => {
   const claimToken = randomUUID()
-  const pending = await claimPendingEmbeddings(db, limit, claimToken)
+  const pending = await claimPendingEmbeddings(
+    db,
+    limit,
+    claimToken,
+    onlyDocumentIds
+  )
   if (pending.length === 0) return { looked: 0, embedded: 0 }
   const claim: JobClaim = {
     claimToken,
@@ -349,6 +357,7 @@ export const processPendingEmbeddings = async (
     }
     return {
       looked: pending.length,
+      sent: result.sent,
       embedded: result.embedded,
       refused: result.refused.length
     }

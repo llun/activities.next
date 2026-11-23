@@ -312,7 +312,9 @@ const claimable = sql<boolean>`"pendingSince" is not null
 export const claimPendingEmbeddings = async (
   db: Db,
   limit: number,
-  claimToken: string
+  claimToken: string,
+  // The backfill's page: claim only among these.
+  onlyDocumentIds?: string[]
 ): Promise<PendingEmbedding[]> => {
   const { rows } = await sql<PendingEmbedding>`
     update ${sql.table(EMBEDDINGS_TABLE)}
@@ -321,6 +323,7 @@ export const claimPendingEmbeddings = async (
     where "documentId" in (
       select "documentId" from ${sql.table(EMBEDDINGS_TABLE)}
       where ${claimable}
+        ${onlyDocumentIds ? sql`and "documentId" = any(${onlyDocumentIds}::text[])` : sql``}
       order by "pendingSince", "documentId"
       limit ${limit}
       for update skip locked

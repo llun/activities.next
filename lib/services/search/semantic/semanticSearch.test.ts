@@ -37,6 +37,7 @@ import {
   embedSearchQuery,
   getDocumentsNeedingEmbedding,
   getSearchQueryEmbedding,
+  processPendingEmbeddings,
   resetActorOptInsForTests,
   resetEmbeddingJobScheduleForTests,
   runEmbeddingJob,
@@ -509,6 +510,31 @@ describe('semanticSearch service', () => {
       // Once published, further calls in the same bucket are folded.
       await scheduleEmbeddingJob(false, 31_000)
       expect(publish).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('processPendingEmbeddings', () => {
+    it('claims only among the given documents (the backfill page) and reports how many it sent', async () => {
+      const provider = createFakeProvider()
+      vi.mocked(claimPendingEmbeddings).mockResolvedValue([
+        { documentId: 'doc-1', pendingSince: '2026-01-01 00:00:01+00' }
+      ])
+      vi.mocked(getEmbeddableDocuments).mockResolvedValue([
+        { id: 'doc-1', documentText: 'hello world' }
+      ])
+
+      const pass = await processPendingEmbeddings(mockDb, provider, 16, [
+        'doc-1',
+        'doc-2'
+      ])
+
+      expect(claimPendingEmbeddings).toHaveBeenCalledWith(
+        mockDb,
+        16,
+        expect.any(String),
+        ['doc-1', 'doc-2']
+      )
+      expect(pass).toMatchObject({ looked: 1, sent: 1, embedded: 1 })
     })
   })
 
