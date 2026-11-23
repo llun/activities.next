@@ -3,7 +3,6 @@ import { SafeRemoteFetchError } from '@/lib/utils/safeRemoteFetch'
 
 import { EmbeddingProviderError } from './types'
 
-export const DEFAULT_EMBEDDING_TIMEOUT_MS = 30_000
 export const MAX_EMBEDDING_RESPONSE_BYTES = 16 * 1024 * 1024
 export const MAX_PROVIDER_ERROR_MESSAGE_LENGTH = 200
 

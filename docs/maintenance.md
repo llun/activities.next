@@ -502,7 +502,7 @@ Semantic search adds vector similarity to post search on PostgreSQL so relevance
 ### Requirements
 
 - PostgreSQL with the `pgvector` extension version `0.8.0` or newer (needed for `halfvec` HNSW iterative scans; Google Cloud SQL for PostgreSQL 18 ships `pgvector` `0.8.5`).
-- An embeddings provider configured through `ACTIVITIES_SEARCH_EMBEDDINGS_*` (see [Environment Variables](environment-variables.md#semantic-search-optional)).
+- An embeddings provider configured through `ACTIVITIES_SEARCH_EMBEDDINGS_*` (see [Environment Variables](environment-variables.md#semantic-search-optional)): any OpenAI-compatible `/embeddings` API (the default, e.g. Mistral, OpenAI, Ollama, or LM Studio) or the native Gemini API.
 
 ### Database setup
 
@@ -562,7 +562,7 @@ The backfill marks the posts of each page that need an embedding and runs the em
 
 - **Changing the model (same dimensions):** update `ACTIVITIES_SEARCH_EMBEDDINGS_MODEL` and run `yarn search:semantic:backfill --restart`. Because stored rows record their `model` column, the backfill re-embeds rows made by the old model, and queries only search rows matching the active model.
 - **Changing the dimensions:** update `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS`, run `yarn search:semantic:setup --recreate` (with `--grant-to <app user>` if needed), and then run `yarn search:semantic:backfill`.
-- **Cost note:** a typical post is roughly 100 tokens (documents are capped at 2,000 characters), so backfilling 100,000 posts sends roughly 10 million tokens. Use `--dry-run` first to estimate your instance's total.
+- **Cost note:** a typical post is roughly 100 tokens (documents are capped at 2,000 characters), so backfilling 100,000 posts sends roughly 10 million tokens. Use `--dry-run` first to estimate your instance's total. `mistral-embed` always answers 1024 dimensions, so set `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS=1024` (or pass `--dimensions 1024` to `yarn search:semantic:setup`) before the first setup; the default 768 does not match it.
 
 ### Hybrid query behavior
 

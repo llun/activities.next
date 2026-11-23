@@ -329,6 +329,8 @@ describe('Config', () => {
         apiKey: 'gemini-test-key',
         model: 'gemini-embedding-001',
         dimensions: 768,
+        batchSize: 100,
+        timeoutMs: 30000,
         allowPrivateEndpoint: false
       })
     })

@@ -2,7 +2,6 @@ import { OpenAISearchEmbeddingsConfig } from '@/lib/config/searchEmbeddings'
 import { SafeRemoteFetch, safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import {
-  DEFAULT_EMBEDDING_TIMEOUT_MS,
   MAX_EMBEDDING_RESPONSE_BYTES,
   chunkTexts,
   createHttpEmbeddingError,
@@ -17,7 +16,17 @@ import {
   EmbeddingRequestOptions
 } from './types'
 
-export const OPENAI_MAX_BATCH_SIZE = 64
+// OpenAI's own batch size (the configured default for api.openai.com).
+export const OPENAI_DEFAULT_BATCH_SIZE = 64
+
+// The name errors carry: the provider behind the endpoint when it is a known
+// one, else the API shape.
+const providerLabelFor = (endpoint: string) => {
+  const host = new URL(endpoint).hostname.toLowerCase()
+  if (host === 'api.mistral.ai') return 'Mistral'
+  if (host === 'api.openai.com') return 'OpenAI'
+  return 'OpenAI-compatible'
+}
 
 interface OpenAIEmbeddingsResponse {
   data?: Array<{
@@ -32,12 +41,18 @@ export const createOpenAIEmbeddingProvider = (
 ): EmbeddingProvider => {
   const endpoint = config.endpoint.replace(/\/+$/, '')
   const url = `${endpoint}/embeddings`
+  const label = providerLabelFor(endpoint)
+  const batchSize = config.batchSize
+  const sizeField =
+    config.dimensionsField === 'none'
+      ? {}
+      : { [config.dimensionsField]: config.dimensions }
 
   return {
-    cacheKey: `openai:${config.model}:${config.dimensions}`,
+    cacheKey: `openai:${endpoint}:${config.model}:${config.dimensions}`,
     model: config.model,
     dimensions: config.dimensions,
-    maxBatchSize: OPENAI_MAX_BATCH_SIZE,
+    maxBatchSize: batchSize,
 
     async embed(
       texts: string[],
@@ -47,14 +62,13 @@ export const createOpenAIEmbeddingProvider = (
       if (texts.length === 0) return []
 
       const results: number[][] = []
-      const timeoutInMilliseconds =
-        options?.timeoutMs ?? DEFAULT_EMBEDDING_TIMEOUT_MS
+      const timeoutInMilliseconds = options?.timeoutMs ?? config.timeoutMs
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {})
       }
 
-      for (const batch of chunkTexts(texts, OPENAI_MAX_BATCH_SIZE)) {
+      for (const batch of chunkTexts(texts, batchSize)) {
         let response
         try {
           response = await fetcher({
@@ -64,7 +78,7 @@ export const createOpenAIEmbeddingProvider = (
             body: JSON.stringify({
               model: config.model,
               input: batch,
-              dimensions: config.dimensions
+              ...sizeField
             }),
             timeoutInMilliseconds,
             maxBodyBytes: MAX_EMBEDDING_RESPONSE_BYTES,
@@ -75,7 +89,7 @@ export const createOpenAIEmbeddingProvider = (
         } catch (error) {
           throw createTransportEmbeddingError({
             error,
-            providerLabel: 'OpenAI',
+            providerLabel: label,
             secret: config.apiKey
           })
         }
@@ -83,7 +97,7 @@ export const createOpenAIEmbeddingProvider = (
         if (response.statusCode !== 200) {
           throw createHttpEmbeddingError({
             body: response.body,
-            providerLabel: 'OpenAI',
+            providerLabel: label,
             secret: config.apiKey,
             statusCode: response.statusCode
           })
@@ -91,14 +105,14 @@ export const createOpenAIEmbeddingProvider = (
 
         const payload = parseEmbeddingJson<OpenAIEmbeddingsResponse>(
           response.body,
-          'OpenAI'
+          label
         )
         if (
           !Array.isArray(payload.data) ||
           payload.data.length !== batch.length
         ) {
           throw new EmbeddingProviderError(
-            `OpenAI embeddings response returned ${Array.isArray(payload.data) ? payload.data.length : 0} vectors, expected ${batch.length}`,
+            `${label} embeddings response returned ${Array.isArray(payload.data) ? payload.data.length : 0} vectors, expected ${batch.length}`,
             { retryable: false }
           )
         }
@@ -115,7 +129,7 @@ export const createOpenAIEmbeddingProvider = (
             ordered[item.index] !== undefined
           ) {
             throw new EmbeddingProviderError(
-              'OpenAI embeddings response had invalid or duplicate item indices',
+              `${label} embeddings response had invalid or duplicate item indices`,
               { retryable: false }
             )
           }
@@ -123,14 +137,14 @@ export const createOpenAIEmbeddingProvider = (
           ordered[item.index] = validateEmbeddingVector(
             item.embedding,
             config.dimensions,
-            'OpenAI'
+            label
           )
         }
 
         for (const vector of ordered) {
           if (!vector) {
             throw new EmbeddingProviderError(
-              'OpenAI embeddings response was missing an embedding vector',
+              `${label} embeddings response was missing an embedding vector`,
               { retryable: false }
             )
           }

@@ -2,7 +2,6 @@ import { GeminiSearchEmbeddingsConfig } from '@/lib/config/searchEmbeddings'
 import { SafeRemoteFetch, safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import {
-  DEFAULT_EMBEDDING_TIMEOUT_MS,
   MAX_EMBEDDING_RESPONSE_BYTES,
   chunkTexts,
   createHttpEmbeddingError,
@@ -74,7 +73,7 @@ export const createGeminiEmbeddingProvider = (
     cacheKey: `gemini:${config.model}:${config.dimensions}`,
     model: config.model,
     dimensions: config.dimensions,
-    maxBatchSize: GEMINI_MAX_BATCH_SIZE,
+    maxBatchSize: config.batchSize,
 
     async embed(
       texts: string[],
@@ -84,14 +83,13 @@ export const createGeminiEmbeddingProvider = (
       if (texts.length === 0) return []
 
       const results: number[][] = []
-      const timeoutInMilliseconds =
-        options?.timeoutMs ?? DEFAULT_EMBEDDING_TIMEOUT_MS
+      const timeoutInMilliseconds = options?.timeoutMs ?? config.timeoutMs
       const headers: Record<string, string> = {
         'x-goog-api-key': config.apiKey,
         'Content-Type': 'application/json'
       }
 
-      for (const batch of chunkTexts(texts, GEMINI_MAX_BATCH_SIZE)) {
+      for (const batch of chunkTexts(texts, config.batchSize)) {
         const requests = batch.map((text) =>
           buildGeminiRequest(config.model, config.dimensions, text, kind)
         )

@@ -21,6 +21,8 @@ const GEMINI_001_CONFIG: GeminiSearchEmbeddingsConfig = {
   apiKey: 'gemini-secret-fixture-key',
   model: 'gemini-embedding-001',
   dimensions: 3,
+  batchSize: GEMINI_MAX_BATCH_SIZE,
+  timeoutMs: 30_000,
   allowPrivateEndpoint: false
 }
 
@@ -30,6 +32,8 @@ const GEMINI_2_CONFIG: GeminiSearchEmbeddingsConfig = {
   apiKey: 'gemini-secret-fixture-key',
   model: 'gemini-embedding-2-preview',
   dimensions: 3,
+  batchSize: GEMINI_MAX_BATCH_SIZE,
+  timeoutMs: 30_000,
   allowPrivateEndpoint: false
 }
 
@@ -345,5 +349,67 @@ describe('createGeminiEmbeddingProvider', () => {
     expect(safeError.retryable).toBe(false)
     expect(safeError.cause).toBeUndefined()
     expect('cause' in safeError).toBe(false)
+  })
+
+  it('chunks by the configured batch size and exposes it as maxBatchSize', async () => {
+    const texts = Array.from({ length: 5 }, (_, index) => `doc-${index}`)
+    let offset = 0
+    const fetcher = vi.fn<SafeRemoteFetch>(async ({ body }) => {
+      const parsed = JSON.parse(body ?? '{}') as { requests: unknown[] }
+      const start = offset
+      offset += parsed.requests.length
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          embeddings: parsed.requests.map((_item, idx) => ({
+            values: [start + idx, 1, 2]
+          }))
+        }),
+        bodyTruncated: false,
+        headers: {},
+        url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents'
+      }
+    })
+
+    const provider = createGeminiEmbeddingProvider(
+      { ...GEMINI_001_CONFIG, batchSize: 2 },
+      fetcher
+    )
+    const vectors = await provider.embed(texts, 'document')
+
+    expect(provider.maxBatchSize).toBe(2)
+    expect(fetcher).toHaveBeenCalledTimes(3)
+    expect(
+      fetcher.mock.calls.map(
+        ([req]) =>
+          (JSON.parse(req.body ?? '{}') as { requests: unknown[] }).requests
+            .length
+      )
+    ).toEqual([2, 2, 1])
+    expect(vectors).toHaveLength(5)
+    expect(vectors[0]).toEqual([0, 1, 2])
+    expect(vectors[2]).toEqual([2, 1, 2])
+    expect(vectors[4]).toEqual([4, 1, 2])
+  })
+
+  it('uses the configured timeout and lets a per-call timeout override it', async () => {
+    const fetcher = vi.fn<SafeRemoteFetch>().mockResolvedValue({
+      statusCode: 200,
+      body: JSON.stringify({ embeddings: [{ values: [0.1, 0.2, 0.3] }] }),
+      bodyTruncated: false,
+      headers: {},
+      url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents'
+    })
+
+    const provider = createGeminiEmbeddingProvider(
+      { ...GEMINI_001_CONFIG, timeoutMs: 5000 },
+      fetcher
+    )
+
+    await provider.embed(['hello'], 'query')
+    expect(fetcher.mock.calls[0]?.[0].timeoutInMilliseconds).toBe(5000)
+
+    await provider.embed(['hello'], 'query', { timeoutMs: 2000 })
+    expect(fetcher.mock.calls[1]?.[0].timeoutInMilliseconds).toBe(2000)
   })
 })

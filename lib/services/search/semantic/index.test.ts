@@ -46,6 +46,8 @@ describe('getEmbeddingProvider', () => {
         apiKey: 'gemini-key',
         model: 'gemini-embedding-001',
         dimensions: 2,
+        batchSize: 100,
+        timeoutMs: 30_000,
         allowPrivateEndpoint: false
       }
     } as ReturnType<typeof getConfig>)
@@ -79,6 +81,9 @@ describe('getEmbeddingProvider', () => {
         endpoint: 'http://192.168.1.20:11434/v1',
         model: 'nomic-embed-text',
         dimensions: 2,
+        dimensionsField: 'none',
+        batchSize: 32,
+        timeoutMs: 30_000,
         allowPrivateEndpoint: true
       }
     } as ReturnType<typeof getConfig>)
@@ -94,7 +99,9 @@ describe('getEmbeddingProvider', () => {
     const { getEmbeddingProvider } = await import('./index')
     const provider = getEmbeddingProvider()
 
-    expect(provider?.cacheKey).toBe('openai:nomic-embed-text:2')
+    expect(provider?.cacheKey).toBe(
+      'openai:http://192.168.1.20:11434/v1:nomic-embed-text:2'
+    )
     expect(createSafeRemoteFetch).toHaveBeenCalledTimes(1)
     expect(createSafeRemoteFetch).toHaveBeenCalledWith({
       allowPrivateNetwork: true

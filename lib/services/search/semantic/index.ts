@@ -7,7 +7,10 @@ import {
 } from '@/lib/utils/safeRemoteFetch'
 
 import { GEMINI_MAX_BATCH_SIZE, createGeminiEmbeddingProvider } from './gemini'
-import { OPENAI_MAX_BATCH_SIZE, createOpenAIEmbeddingProvider } from './openai'
+import {
+  OPENAI_DEFAULT_BATCH_SIZE,
+  createOpenAIEmbeddingProvider
+} from './openai'
 import { EmbeddingProvider } from './types'
 
 export const getEmbeddingProvider = memoize((): EmbeddingProvider | null => {
@@ -30,7 +33,7 @@ export const getEmbeddingProvider = memoize((): EmbeddingProvider | null => {
 
 export {
   GEMINI_MAX_BATCH_SIZE,
-  OPENAI_MAX_BATCH_SIZE,
+  OPENAI_DEFAULT_BATCH_SIZE,
   createGeminiEmbeddingProvider,
   createOpenAIEmbeddingProvider
 }
