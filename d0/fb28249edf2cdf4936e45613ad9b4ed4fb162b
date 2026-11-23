@@ -1,0 +1,129 @@
+lib/services/search/semantic/fixtures/geminiErrorResponse.json
+  h_580a04e334fef4 1-7
+lib/config/index.test.ts
+  h_580a04e334fef4 309-346
+lib/services/search/semantic/openai.ts
+  h_580a04e334fef4 1-144
+lib/database/domains/search/types.ts
+  s_17b6192f00c988::t_ba2a6925061085 98-101
+lib/services/search/semantic/startup.ts
+  s_17b6192f00c988::t_b45671622e34e7 1-35
+docs/architecture.md
+  h_580a04e334fef4 1480
+lib/database/domains/actor/writes.ts
+  s_17b6192f00c988::t_dd02765fb0bd7e 381-382
+  s_17b6192f00c988::t_2acca5a7c823b0 35
+lib/database/domains/search/semanticStore.ts
+  s_17b6192f00c988::t_f5d6540bcf1394 349-353
+  s_17b6192f00c988::t_875e8c7018fb4a 415-421,423-441,443-444,446,448-451
+  s_17b6192f00c988::t_f3f3ca842f786c 1-348,354-414,422,442,445,447,452-457
+  s_17b6192f00c988::t_35d2dfbd0dc014 458-598
+  s_17b6192f00c988::t_2d3fd394366c34 599-611
+lib/jobs/names.ts
+  s_17b6192f00c988::t_b45671622e34e7 60
+lib/utils/safeRemoteFetch.ts
+  h_580a04e334fef4 122-125,216,218-223,225-229,250,254,263-268,270-274,625,629,632,669,686
+lib/services/search/semantic/fixtures/openaiErrorResponse.json
+  h_580a04e334fef4 1-8
+lib/services/search/semantic/types.ts
+  h_580a04e334fef4 1-39
+lib/services/search/semantic/gemini.test.ts
+  h_580a04e334fef4 1-337
+lib/jobs/index.ts
+  s_17b6192f00c988::t_b45671622e34e7 12,40,295-297
+lib/database/domains/search/semanticHooks.ts
+  s_17b6192f00c988::t_13b3baa503ea3c 1-35
+scripts/maintenance/backfillSemanticSearch.ts
+  s_17b6192f00c988::t_fb0a2485e3cb71 1-151
+  s_17b6192f00c988::t_5f5e113c8d206e 152-160
+lib/jobs/embedSearchDocumentsJob.ts
+  s_17b6192f00c988::t_b45671622e34e7 1-16
+  s_17b6192f00c988::t_250e4e40c05fcd 17
+lib/database/domains/search/statuses.ts
+  s_17b6192f00c988::t_3d10057b29819d 909,911-968,970-1000,1002,1005-1010,1044-1074
+  s_17b6192f00c988::t_ba2a6925061085 782-848
+  s_17b6192f00c988::t_9c09038cf5d4fe 5,15-20,26,28
+  s_17b6192f00c988::t_dd02765fb0bd7e 372-373
+  s_17b6192f00c988::t_9daecd7eac40e2 863-864,910
+instrumentation.ts
+  s_17b6192f00c988::t_b45671622e34e7 38-42
+lib/services/search/semantic/fixtures/openaiEmbeddingsResponse.json
+  h_580a04e334fef4 1-20
+lib/services/search/semantic/index.test.ts
+  h_580a04e334fef4 1-109
+lib/services/search/semantic/fixtures/geminiEmbeddingsResponse.json
+  h_580a04e334fef4 1-10
+lib/services/search/semantic/shared.ts
+  h_580a04e334fef4 1-141
+lib/services/search/semantic/semanticSearch.ts
+  s_17b6192f00c988::t_123c9021d4d54e 3,268-271,273,276-278,281-283
+  s_17b6192f00c988::t_ed18dd4fb488ff 272
+  s_17b6192f00c988::t_e8eb13993733b1 1-2,4-23,25-255
+  s_17b6192f00c988::t_1eb50d31ada9c8 24,256-267,274-275,279-280,284-301
+  s_17b6192f00c988::t_ccb90f4ade8119 302
+lib/config/searchEmbeddings.test.ts
+  h_580a04e334fef4 1-251
+lib/services/search/semantic/index.ts
+  h_580a04e334fef4 1-43
+package.json
+  s_17b6192f00c988::t_fb0a2485e3cb71 23-24
+lib/services/search/semantic/gemini.ts
+  h_580a04e334fef4 1-153
+lib/utils/safeRemoteFetch.test.ts
+  h_580a04e334fef4 1138-1310
+docs/environment-variables.md
+  h_580a04e334fef4 247-278
+lib/services/search/semantic/openai.test.ts
+  h_580a04e334fef4 1-319
+lib/config/searchEmbeddings.ts
+  h_580a04e334fef4 1-207
+scripts/maintenance/setupSemanticSearch.ts
+  s_17b6192f00c988::t_fb0a2485e3cb71 1-80
+test/next.config.test.ts
+  h_580a04e334fef4 32-43,73-79
+lib/config/index.ts
+  h_580a04e334fef4 30-33,76,165
+app/api/v2/search/route.ts
+  s_17b6192f00c988::t_123c9021d4d54e 628
+  s_17b6192f00c988::t_1eb50d31ada9c8 625-627,629-634,658-659
+  s_17b6192f00c988::t_e91f6c48674672 32
+docs/maintenance.md
+  s_17b6192f00c988::t_e30e3f0793ea8b 498-569
+lib/services/search/semantic/semanticSearch.test.ts
+  s_17b6192f00c988::t_8a6ce44f288c4e 1-532
+.github/workflows/ci.test.ts
+  s_17b6192f00c988::t_c0c86f9c5eb6c6 22
+.github/workflows/ci.yml
+  s_17b6192f00c988::t_ae6e57f4fb213c 392-441,444-445,448,455,545,554
+docs/features.md
+  s_17b6192f00c988::t_24525d53ccb648 103
+docs/postgresql-setup.md
+  s_17b6192f00c988::t_18c0455afdf105 67-68
+lib/database/domains/search/fuseRankings.test.ts
+  s_17b6192f00c988::t_6c961048e6b07c 1-66
+lib/database/domains/search/semantic.pgvector.test.ts
+  s_17b6192f00c988::t_dbdaa513fc49a4 1-665
+lib/database/domains/search/semanticStore.test.ts
+  s_17b6192f00c988::t_2e29cdec8110be 1-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0fb28249edf2cdf4936e45613ad9b4ed4fb162b",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  },
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
