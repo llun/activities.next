@@ -1,0 +1,22 @@
+lib/database/domains/search/semanticStore.ts
+  s_17b6192f00c988::t_0d45f868167aae 267-271,273,275,277-278,280-283,285,287-288,292,299
+  s_17b6192f00c988::t_2784231f7f557e 286
+lib/database/domains/search/semantic.pgvector.test.ts
+  s_17b6192f00c988::t_2784231f7f557e 547-564,566-578,589
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "871998c221dacfd1f690f81ddd63ab8378a9fdf9",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
