@@ -268,7 +268,7 @@ const withoutBlockedDomains = async (
   // normalizeDomain removes one at a time), or null when one cannot be read:
   // such an author is not embedded (fail closed).
   const domainsOf = (row: CandidateRow): string[] | null => {
-    let idHost = ''
+    let idHost: string
     try {
       idHost = row.actorId ? new URL(row.actorId).host : ''
     } catch {
