@@ -1,0 +1,25 @@
+lib/services/search/semantic/semanticSearch.ts
+  s_17b6192f00c988::t_fede72e639e04f 8-9,73-75,78-81,83-96,98-99,101,103-110,112-133,136-149,153,155,157-174,177-183,187-188,190-193,198-199,209,216-218,223,228,230-234,236-244,249-251,256-258,260-266,273,275-285,287-291,308-312,317,337-341,345,347,356-365
+lib/utils/safeRemoteFetch.ts
+  s_17b6192f00c988::t_c99f7c2d8fb829 263-275
+lib/database/domains/search/semanticStore.ts
+  s_17b6192f00c988::t_1e0d0292d596eb 148-154,258-259,267-268,286-287,298-300,303-311,314-315,319-320,323,333-342,345-346,350-351,353-373,389,396-400,404-407,417-418,420,422,426-427,429,439,444,448-449,456-460,464-466,470,473,481-488,491,714-716,743-746
+scripts/maintenance/backfillSemanticSearch.ts
+  s_17b6192f00c988::t_294f43d64a74f5 92,123-124,126-134,159-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "003ac77f02411c90f881b6a7025a762734cdfa13",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
