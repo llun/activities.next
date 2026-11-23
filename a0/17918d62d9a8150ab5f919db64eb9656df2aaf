@@ -1,0 +1,27 @@
+lib/database/domains/search/semanticStore.ts
+  s_17b6192f00c988::t_163a51f8a1b4e2 395,399-404,411-412,416-423,429
+scripts/maintenance/backfillSemanticSearch.ts
+  s_17b6192f00c988::t_3983ec5eb2bbbc 118-119,121-122,124-137
+  s_17b6192f00c988::t_0d2466283b6ace 10,16-19,102,104-112,114-115,146-147
+lib/services/search/semantic/semanticSearch.ts
+  s_17b6192f00c988::t_163a51f8a1b4e2 7,165-166,173-174,179,182,188-195,199-207,217,221-257,262,272-274,281
+  s_17b6192f00c988::t_8cc3ee680f6e22 289-292
+docs/maintenance.md
+  s_17b6192f00c988::t_32d531ed77d998 537,560
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a017918d62d9a8150ab5f919db64eb9656df2aaf",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
