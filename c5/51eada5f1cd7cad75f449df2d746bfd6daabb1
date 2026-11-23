@@ -1,0 +1,42 @@
+lib/config/searchEmbeddings.ts
+  s_17b6192f00c988::t_d877955f194002 14-35,41-59,71-73,168-230,250-268,277-279,304-313,321-322
+  s_17b6192f00c988::t_7e89a0be001aeb 332-335
+lib/services/search/semantic/openai.ts
+  s_17b6192f00c988::t_e1a6691bd71944 19,45,47
+  s_17b6192f00c988::t_61fd92dd7192c8 22-29,44,46,48-49,52,55,65,71,81,92,100,108,115,132,140,147
+  s_17b6192f00c988::t_b37e92f2bdacf6 20-21
+lib/services/search/semantic/gemini.ts
+  s_17b6192f00c988::t_e1a6691bd71944 76,86,92
+lib/config/index.test.ts
+  s_17b6192f00c988::t_3908b087fc6d0e 332-333
+lib/services/search/semantic/index.ts
+  s_17b6192f00c988::t_65e2f2144343ad 10-13,36
+lib/services/search/semantic/openai.test.ts
+  s_17b6192f00c988::t_662f34b160ecb7 11-14,27-41,45-63,69-71,74,150-152,173,369-539
+docs/environment-variables.md
+  s_17b6192f00c988::t_f3f78f829628de 249-263,266-269,272,281-298
+docs/maintenance.md
+  s_17b6192f00c988::t_d539df8894febd 505,565
+lib/config/searchEmbeddings.test.ts
+  s_17b6192f00c988::t_0d745063e2fa2a 7-12,51,58,63-82,95,106-107,129-130,164-209,229-231,331-454
+lib/services/search/semantic/gemini.test.ts
+  s_17b6192f00c988::t_82cebfcbdc3211 24-25,35-36,353-414
+lib/services/search/semantic/index.test.ts
+  s_17b6192f00c988::t_314adb5d204f10 49-50,84-86,102-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c551eada5f1cd7cad75f449df2d746bfd6daabb1",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
