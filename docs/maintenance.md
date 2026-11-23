@@ -520,7 +520,7 @@ yarn search:semantic:setup --dimensions 768 --grant-to activitynext
 yarn search:semantic:setup --dimensions 1536 --recreate --grant-to activitynext
 ```
 
-The setup script is idempotent when the table already matches the configured dimensions. Changing `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS` without `--recreate` fails rather than silently dropping vectors; pass `--recreate` to drop and rebuild `search_document_embeddings` (which also resets the backfill cursor), then run the backfill below.
+The setup script is idempotent when the table already matches the configured dimensions. Changing `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS` without `--recreate` fails rather than silently dropping vectors; pass `--recreate` to drop and rebuild `search_document_embeddings` (which also resets the backfill cursor), then run the backfill below. `--recreate` always drops the stored embeddings, even when the dimensions match, so it also serves as a clean rebuild; a model change alone does not need it.
 
 ### What is embedded and how visibility works
 
@@ -530,7 +530,7 @@ Only text that any stranger could already read is ever sent to the embeddings pr
 - Remote `Note` and `Poll` posts addressed to Public in `to` whose author opted in to search (`indexable`).
 - Posts by authors who are being deleted, suspended, or silenced, and all followers-only and direct posts, are never embedded.
 
-Every search query still re-checks post visibility, `indexable`, blocks, mutes, domain rules, `in:library`, phrases, exclusions, and search operators at query time, so an existing embedding can never expose a post the viewer may not see. When a remote author turns off `indexable`, their stored embeddings are deleted.
+Every search query still re-checks post visibility, `indexable`, blocks, mutes, domain rules, `in:library`, phrases, exclusions, and search operators at query time, so an existing embedding can never expose a post the viewer may not see. When a remote author turns off `indexable`, their stored embeddings are deleted; when they turn it back on, their public posts are queued for embedding again.
 
 ### Ongoing indexing and health signal
 

@@ -7,6 +7,7 @@ import {
   seedActorTestDatabase
 } from '@/lib/database/domains/actor/actorTestHelpers'
 import { getActor } from '@/lib/database/domains/actor/rows'
+import { setSemanticSearchListener } from '@/lib/database/domains/search/semanticHooks'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -512,6 +513,30 @@ describe('ActorDatabase', () => {
 
         const settings = await database.getActorSettings({ actorId })
         expect(settings).toMatchObject(update)
+      })
+
+      it('tells the semantic search hook when the indexable flag changes, not on every update', async () => {
+        const username = `indexable-hook-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+        const listener = {
+          statusDocumentsWritten: vi.fn(),
+          actorIndexed: vi.fn(),
+          actorUnindexed: vi.fn()
+        }
+        setSemanticSearchListener(listener)
+        try {
+          await database.updateActor({ actorId, indexable: true })
+          await database.updateActor({ actorId, indexable: true })
+          await database.updateActor({ actorId, indexable: false })
+          await database.updateActor({ actorId, indexable: false })
+        } finally {
+          setSemanticSearchListener(null)
+        }
+        expect(listener.actorIndexed).toHaveBeenCalledTimes(1)
+        expect(listener.actorIndexed).toHaveBeenCalledWith(actorId)
+        expect(listener.actorUnindexed).toHaveBeenCalledTimes(1)
+        expect(listener.actorUnindexed).toHaveBeenCalledWith(actorId)
       })
 
       it('preserves other settings updates passed alongside an append', async () => {

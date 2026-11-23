@@ -6,6 +6,7 @@
 export type SemanticSearchListener = {
   statusDocumentsWritten(documentIds: string[]): void
   actorUnindexed(actorId: string): void
+  actorIndexed(actorId: string): void
 }
 
 let listener: SemanticSearchListener | null = null
@@ -31,5 +32,14 @@ export const notifyActorUnindexed = (actorId: string) => {
     listener.actorUnindexed(actorId)
   } catch {
     // Search re-checks `indexable` at query time either way.
+  }
+}
+
+export const notifyActorIndexed = (actorId: string) => {
+  if (!listener) return
+  try {
+    listener.actorIndexed(actorId)
+  } catch {
+    // The backfill fills what a lost mark leaves.
   }
 }

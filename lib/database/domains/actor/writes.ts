@@ -32,7 +32,10 @@ import {
   deleteActorSearchDocument,
   indexActorSearchDocument
 } from '@/lib/database/domains/search/accounts'
-import { notifyActorUnindexed } from '@/lib/database/domains/search/semanticHooks'
+import {
+  notifyActorIndexed,
+  notifyActorUnindexed
+} from '@/lib/database/domains/search/semanticHooks'
 import { type Db, inTransaction } from '@/lib/database/kysely'
 import { forUpdate } from '@/lib/database/kysely/dialect'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
@@ -378,8 +381,11 @@ const applyActorUpdate = async (
     })
     if (withSnapshots) after = await getActorFromId(trx, { id: actorId })
   })
-  // A remote author's posts leave the semantic index when they opt out.
-  if (indexable === false) notifyActorUnindexed(actorId)
+  // A remote author's posts leave the semantic index when they opt out, and
+  // are looked at again when they opt back in.
+  const wasIndexable = persistedSettings.indexable === true
+  if (indexable === false && wasIndexable) notifyActorUnindexed(actorId)
+  if (indexable === true && !wasIndexable) notifyActorIndexed(actorId)
   return {
     before,
     after: withSnapshots ? after : await getActorFromId(db, { id: actorId })

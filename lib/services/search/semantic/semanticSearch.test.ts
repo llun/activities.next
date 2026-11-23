@@ -8,6 +8,7 @@ import {
   clearEmbeddingPending,
   deleteEmbeddings,
   deleteEmbeddingsForActor,
+  getActorStatusDocumentIds,
   getEmbeddableDocuments,
   getSemanticAvailability,
   getStoredEmbeddings,
@@ -54,6 +55,7 @@ vi.mock(
       clearEmbeddingPending: vi.fn(),
       deleteEmbeddings: vi.fn(),
       deleteEmbeddingsForActor: vi.fn(),
+      getActorStatusDocumentIds: vi.fn(),
       getEmbeddableDocuments: vi.fn(),
       getSemanticAvailability: vi.fn(),
       getStoredEmbeddings: vi.fn(),
@@ -711,6 +713,28 @@ describe('semanticSearch service', () => {
       expect(warnSpy).toHaveBeenCalledTimes(1)
     })
 
+    it("marks an actor's documents pending on actorIndexed and schedules a job", async () => {
+      const provider = createFakeProvider()
+      vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
+      vi.mocked(getActorStatusDocumentIds).mockResolvedValue(['doc-1', 'doc-2'])
+      vi.mocked(markEmbeddingsPending).mockResolvedValue(2)
+
+      const listener = createSemanticSearchListener(() => mockDb)
+      listener.actorIndexed('https://remote.test/users/bob')
+      await flushMicrotasks()
+
+      expect(getActorStatusDocumentIds).toHaveBeenCalledWith(
+        mockDb,
+        'https://remote.test/users/bob'
+      )
+      expect(markEmbeddingsPending).toHaveBeenCalledWith(
+        mockDb,
+        ['doc-1', 'doc-2'],
+        provider
+      )
+      expect(publish).toHaveBeenCalledTimes(1)
+    })
+
     it('drops actor embeddings on actorUnindexed and swallows errors', async () => {
       const provider = createFakeProvider()
       vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
@@ -738,6 +762,9 @@ describe('semanticSearch service', () => {
           throw new Error('sync boom')
         },
         actorUnindexed() {
+          throw new Error('sync actor boom')
+        },
+        actorIndexed() {
           throw new Error('sync actor boom')
         }
       })

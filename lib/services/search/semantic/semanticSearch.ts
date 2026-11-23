@@ -8,6 +8,7 @@ import {
   clearEmbeddingPending,
   deleteEmbeddings,
   deleteEmbeddingsForActor,
+  getActorStatusDocumentIds,
   getEmbeddableDocuments,
   getEmbeddingContentHash,
   getEmbeddingText,
@@ -432,6 +433,24 @@ export const createSemanticSearchListener = (getDb: () => Db) => ({
     })().catch((error) =>
       logger.warn({
         message: 'Failed to schedule semantic search embeddings',
+        err: toLoggableError(error)
+      })
+    )
+  },
+  actorIndexed(actorId: string) {
+    void (async () => {
+      const db = getDb()
+      const layer = await getSemanticLayer(db)
+      if (!layer) return
+      const marked = await markEmbeddingsPending(
+        db,
+        await getActorStatusDocumentIds(db, actorId),
+        layer.provider
+      )
+      if (marked > 0) await scheduleEmbeddingJob()
+    })().catch((error) =>
+      logger.warn({
+        message: 'Failed to schedule semantic search embeddings of an actor',
         err: toLoggableError(error)
       })
     )

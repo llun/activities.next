@@ -17,7 +17,8 @@ Creates the pgvector extension and the semantic search tables on PostgreSQL.
 Run it as a user that may create extensions (on Cloud SQL, \`postgres\` or another
 cloudsqlsuperuser member) and pass --grant-to <app user> so the app can use them.
 --dimensions defaults to ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS (768).
---recreate drops the stored embeddings when the dimensions change.`
+--recreate drops the table and its stored embeddings and builds it again; it is
+required when the dimensions change, and then run yarn search:semantic:backfill.`
 
 const parseArgs = (args: string[]) => {
   let grantTo: string | null = null

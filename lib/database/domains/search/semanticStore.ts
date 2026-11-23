@@ -497,6 +497,21 @@ export const deleteEmbeddings = async (
   await releaseEmbeddingClaims(db, documentIds, claim.claimToken)
 }
 
+// The ids of an author's status documents, to look at again when they opt back
+// in to search.
+export const getActorStatusDocumentIds = async (
+  db: Db,
+  actorId: string
+): Promise<string[]> => {
+  const rows = await db
+    .selectFrom('search_documents')
+    .select('id')
+    .where('entityType', '=', 'status')
+    .where('actorId', '=', actorId)
+    .execute()
+  return rows.map((row) => row.id)
+}
+
 // A remote author's posts are embedded only while they opt in to search.
 export const deleteEmbeddingsForActor = async (
   db: Db,
