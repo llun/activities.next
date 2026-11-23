@@ -6,9 +6,11 @@ import {
   sql
 } from 'kysely'
 
+import { getDomainBlocksForDomains } from '@/lib/database/domains/admin/queries'
 import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
 import { getDialectName, jsonFlagIsTrue } from '@/lib/database/kysely/dialect'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
+import { normalizeDomain } from '@/lib/services/federation/domainRules'
 import { StatusType } from '@/lib/types/domain/status'
 
 // Every read and write of the optional semantic search tables. They live
@@ -238,33 +240,93 @@ const embeddableDocuments = (db: Db) =>
 
 export type EmbeddableDocument = { id: string; documentText: string }
 
+type CandidateRow = EmbeddableDocument & {
+  actorId: string | null
+  actorDomain: string | null
+  privateKey: string | null
+}
+
+const selectCandidates = (db: Db) =>
+  embeddableDocuments(db).select([
+    'search_documents.id',
+    'search_documents.documentText',
+    'actors.id as actorId',
+    'actors.domain as actorDomain',
+    'actors.privateKey'
+  ])
+
+// The SQL above is a cheap pre-filter; this is the check: the federation
+// policy's own matching (normalizeDomain and the rule candidates, as
+// filterSearchStatuses applies it to results) on both the host of a remote
+// author's id and their handle's domain, so no text from a suspended or
+// silenced instance reaches the provider however its id is spelled.
+const withoutBlockedDomains = async (
+  db: Db,
+  rows: CandidateRow[]
+): Promise<EmbeddableDocument[]> => {
+  const domainsOf = (row: CandidateRow) => {
+    if (row.privateKey) return []
+    let idHost: string | null
+    try {
+      idHost = row.actorId ? new URL(row.actorId).host : null
+    } catch {
+      idHost = null
+    }
+    return [idHost, row.actorDomain].flatMap((domain) =>
+      domain ? [normalizeDomain(domain) ?? domain.toLowerCase()] : []
+    )
+  }
+  const domains = [...new Set(rows.flatMap(domainsOf))]
+  const rules =
+    domains.length > 0 ? await getDomainBlocksForDomains(db, domains) : {}
+  const blocked = (domain: string) => {
+    const severity = rules[domain]?.severity
+    return severity === 'suspend' || severity === 'silence'
+  }
+  return rows
+    .filter((row) => {
+      if (row.privateKey) return true
+      const rowDomains = domainsOf(row)
+      // A remote author whose id has no readable host is not embedded.
+      return rowDomains.length > 0 && !rowDomains.some(blocked)
+    })
+    .map(({ id, documentText }) => ({ id, documentText }))
+}
+
 export const getEmbeddableDocuments = async (
   db: Db,
   documentIds: string[]
 ): Promise<EmbeddableDocument[]> => {
   if (documentIds.length === 0) return []
-  return embeddableDocuments(db)
-    .select(['search_documents.id', 'search_documents.documentText'])
-    .where(
-      sql<boolean>`${sql.ref('search_documents.id')} = any(${documentIds}::text[])`
-    )
-    .execute()
+  return withoutBlockedDomains(
+    db,
+    await selectCandidates(db)
+      .where(
+        sql<boolean>`${sql.ref('search_documents.id')} = any(${documentIds}::text[])`
+      )
+      .execute()
+  )
 }
 
 // The next `limit` embeddable documents after `afterId`, by id, for the
-// backfill.
-export const getEmbeddableDocumentPage = (
+// backfill. `nextCursor` is the last id the page read (null at the end), so
+// a page whose posts the domain check drops still moves the backfill on.
+export const getEmbeddableDocumentPage = async (
   db: Db,
   { afterId, limit }: { afterId: string | null; limit: number }
-): Promise<EmbeddableDocument[]> =>
-  embeddableDocuments(db)
-    .select(['search_documents.id', 'search_documents.documentText'])
+): Promise<{ documents: EmbeddableDocument[]; nextCursor: string | null }> => {
+  const rows = await selectCandidates(db)
     .$if(afterId !== null, (query) =>
       query.where('search_documents.id', '>', afterId as string)
     )
     .orderBy('search_documents.id')
     .limit(limit)
     .execute()
+  return {
+    documents: await withoutBlockedDomains(db, rows),
+    nextCursor: rows.length > 0 ? rows[rows.length - 1].id : null
+  }
+}
 
 export type StoredEmbedding = {
   documentId: string
@@ -533,8 +595,7 @@ export const getActorStatusDocumentIds = async (
   actorId: string
 ): Promise<string[]> => {
   // Only the posts that qualify count against the limit.
-  const rows = await embeddableDocuments(db)
-    .select('search_documents.id')
+  const rows = await selectCandidates(db)
     .where('search_documents.actorId', '=', actorId)
     .where((eb) =>
       eb.or([
@@ -545,7 +606,7 @@ export const getActorStatusDocumentIds = async (
     .orderBy('search_documents.entityCreatedAt', 'desc')
     .limit(ACTOR_OPT_IN_DOCUMENT_LIMIT)
     .execute()
-  return rows.map((row) => row.id)
+  return (await withoutBlockedDomains(db, rows)).map((row) => row.id)
 }
 
 // A remote author's posts are embedded only while they opt in to search.

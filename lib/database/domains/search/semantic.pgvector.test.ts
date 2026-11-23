@@ -531,8 +531,21 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         .set({ privateKey: '', settings: JSON.stringify({ indexable: true }) })
         .where('id', '=', split)
         .execute()
+      // An id spelled with userinfo, which a split on '/' would misread; the
+      // federation policy's own URL parsing still sees the silenced host.
+      const userinfo = `https://someone@${silencedDomain}/users/domain-userinfo`
+      await createSearchActor(database, {
+        id: userinfo,
+        username: 'domain-userinfo',
+        domain: REMOTE_DOMAIN
+      })
+      await db
+        .updateTable('actors')
+        .set({ privateKey: '', settings: JSON.stringify({ indexable: true }) })
+        .where('id', '=', userinfo)
+        .execute()
       const posts = await Promise.all(
-        [silenced, subdomain, split, allowed].map((actorId, index) =>
+        [silenced, subdomain, split, userinfo, allowed].map((actorId, index) =>
           indexedStatus({
             id: statusIdOf(actorId, `domain-${index}`),
             actorId,
@@ -550,7 +563,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       try {
         const embeddable = await getEmbeddableDocuments(db, posts.map(docIdOf))
         expect(embeddable.map((document) => document.id)).toEqual([
-          docIdOf(posts[3])
+          docIdOf(posts[4])
         ])
       } finally {
         await sql`

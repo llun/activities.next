@@ -93,11 +93,11 @@ async function backfill() {
     let tokens = 0
     let refused = 0
     for (;;) {
-      const page = await getEmbeddableDocumentPage(db, {
-        afterId: cursor,
-        limit: options.batchSize
-      })
-      if (page.length === 0) break
+      const { documents: page, nextCursor } = await getEmbeddableDocumentPage(
+        db,
+        { afterId: cursor, limit: options.batchSize }
+      )
+      if (nextCursor === null) break
       looked += page.length
       const needing = await getDocumentsNeedingEmbedding(db, provider, page)
       if (options.dryRun) {
@@ -150,9 +150,9 @@ async function backfill() {
         }
       }
       if (!options.dryRun) {
-        await saveBackfillCursor(db, page[page.length - 1].id)
+        await saveBackfillCursor(db, nextCursor)
       }
-      cursor = page[page.length - 1].id
+      cursor = nextCursor
       console.log(
         options.dryRun
           ? `Looked at ${looked}; ${toSend} to embed (~${tokens} tokens)`
