@@ -1,0 +1,37 @@
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  s_f193227df3df34::t_999dc30a94a036 149-179
+lib/services/bluesky/account.ts
+  s_f193227df3df34::t_f1392f242034f5 228-229,232
+lib/config/bluesky.test.ts
+  s_f193227df3df34::t_245aa872a51669 56-58
+lib/utils/safeRemoteFetch.test.ts
+  s_f193227df3df34::t_a9e149e318fecc 6
+  s_f193227df3df34::t_f1392f242034f5 98-100
+lib/services/bluesky/account.test.ts
+  s_f193227df3df34::t_b985c81fd97bdd 372-416,536-555,674-700
+  s_f193227df3df34::t_c6ffe3bf695a43 701
+docs/architecture.md
+  s_f193227df3df34::t_30f0ce758864cb 1475
+lib/utils/safeRemoteFetch.ts
+  s_f193227df3df34::t_f1392f242034f5 145-156,165
+  s_f193227df3df34::t_30f0ce758864cb 143-144
+app/api/v1/bluesky/jwks.json/route.test.ts
+  s_f193227df3df34::t_245aa872a51669 17-18,73-88
+  s_f193227df3df34::t_4a0647379b6d19 89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "50af627b468ad78d670cac6624f04adacb692cb9",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
