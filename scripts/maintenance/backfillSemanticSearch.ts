@@ -113,7 +113,10 @@ async function backfill() {
         const pageIds = needing.map((document) => document.id)
         await markEmbeddingsPending(db, pageIds, provider)
         try {
-          for (;;) {
+          // Enough passes for the page, and a couple for rows re-marked
+          // meanwhile; a post edited faster than that is left to the job.
+          const maxPasses = Math.ceil(pageIds.length / options.batchSize) + 2
+          for (let passes = 0; passes < maxPasses; passes += 1) {
             const pass = await processPendingEmbeddings(
               db,
               provider,

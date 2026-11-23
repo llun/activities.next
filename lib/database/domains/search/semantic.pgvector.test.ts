@@ -882,6 +882,38 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       }
     })
 
+    it('claims only among the given document ids (the backfill page)', async () => {
+      const provider = createDeterministicProvider()
+      const author = await addActor('claim-page-only')
+      const docIds: string[] = []
+      for (let i = 0; i < 3; i += 1) {
+        const statusId = await indexedStatus({
+          id: statusIdOf(author, `page-only-${i}`),
+          actorId: author,
+          createdAt: 320 + i,
+          text: `kayak page only claim ${i}`,
+          to: [PUBLIC]
+        })
+        docIds.push(docIdOf(statusId))
+      }
+      try {
+        expect(await markEmbeddingsPending(db, docIds, provider)).toBe(3)
+        const claimed = await claimPendingEmbeddings(db, 10, 'page-only', [
+          docIds[1]
+        ])
+        expect(claimed.map((row) => row.documentId)).toEqual([docIds[1]])
+        expect(
+          await claimPendingEmbeddings(db, 10, 'page-only-empty', [])
+        ).toEqual([])
+        const rest = await claimPendingEmbeddings(db, 10, 'page-only-rest')
+        expect(rest.map((row) => row.documentId).sort()).toEqual(
+          [docIds[0], docIds[2]].sort()
+        )
+      } finally {
+        await deleteEmbeddings(db, docIds)
+      }
+    })
+
     it('makes a row claimable again once its lease expires', async () => {
       const provider = createDeterministicProvider()
       const author = await addActor('claim-expire')
