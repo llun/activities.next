@@ -33,8 +33,8 @@ vi.mock('@/lib/services/bluesky/client', () => ({
 const DID = 'did:plc:abc123'
 const PDS = 'https://pds.example.net/'
 
-const actor = (id: string, role?: 'admin') =>
-  ({ id, account: { id: `${id}-account`, role } }) as unknown as Actor
+const actor = (id: string, role?: 'admin', domain = 'social.example') =>
+  ({ id, domain, account: { id: `${id}-account`, role } }) as unknown as Actor
 
 const respond = (statusCode: number, body: unknown) => ({
   statusCode,
@@ -230,10 +230,41 @@ describe('Bluesky account service', () => {
       expect(
         await startBlueskyOAuth(database, actor('actor-a'), 'alice.example.com')
       ).toBe('https://auth.example.net/authorize?x=1')
-      expect(authorize).toHaveBeenCalledWith('alice.example.com', {
+      // Resolved first, so the sign-in is bound to that DID.
+      expect(authorize).toHaveBeenCalledWith(DID, {
         scope: 'atproto transition:generic',
         state: 'actor-a'
       })
+    })
+
+    it('refuses a DID another actor holds before the authorization server sees it', async () => {
+      await database.saveBlueskyAccount({
+        actorId: 'actor-b',
+        did: DID,
+        handle: 'alice.example.com',
+        pdsUrl: PDS,
+        authType: 'app_password',
+        domainHandle: true
+      })
+      const authorize = vi.fn()
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({ authorize }) as never
+      )
+      await expect(
+        startBlueskyOAuth(database, actor('actor-a'), 'alice.example.com')
+      ).rejects.toMatchObject({ status: 409 })
+      expect(authorize).not.toHaveBeenCalled()
+    })
+
+    it('reports a server error, not a user message, when sign-in fails for another reason', async () => {
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({
+          authorize: vi.fn().mockRejectedValue(new Error('database down'))
+        }) as never
+      )
+      await expect(
+        startBlueskyOAuth(database, actor('actor-a'), 'alice.example.com')
+      ).rejects.toThrow('database down')
     })
 
     it('says so when the server has no OAuth keys', async () => {
@@ -283,6 +314,26 @@ describe('Bluesky account service', () => {
       expect(
         await database.getBlueskyAccount({ actorId: 'actor-a' })
       ).toBeNull()
+      expect(await database.getBlueskySession({ did: DID })).toBeNull()
+    })
+
+    it('drops the stored session when the link cannot be saved', async () => {
+      await database.setBlueskySession({ did: DID, session: 'stored' })
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({
+          callback: vi
+            .fn()
+            .mockResolvedValue({ session: { did: DID }, state: 'actor-a' })
+        }) as never
+      )
+      resolve.mockRejectedValueOnce(new Error('plc.directory timed out'))
+      expect(
+        await completeBlueskyOAuth(
+          database,
+          actor('actor-a'),
+          new URLSearchParams('code=c&state=s')
+        )
+      ).toBe('failed')
       expect(await database.getBlueskySession({ did: DID })).toBeNull()
     })
 
@@ -341,19 +392,56 @@ describe('Bluesky account service', () => {
         dnsRecord: true
       })
 
+      // Unverified: the handle the DID document claims, not handle.invalid.
+      const identity = await resolve()
       resolve.mockResolvedValueOnce({
-        ...(await resolve()),
-        handle: 'handle.invalid'
+        ...identity,
+        handle: 'handle.invalid',
+        didDoc: { ...identity.didDoc, alsoKnownAs: ['at://alice.example.org'] }
       })
-      vi.mocked(resolveTxt).mockRejectedValue(new Error('ENODATA'))
+      vi.mocked(resolveTxt).mockRejectedValue(
+        Object.assign(new Error('queryTxt ENODATA'), { code: 'ENODATA' })
+      )
       expect(await checkBlueskyHandle(database, actor('actor-a'))).toEqual({
-        handle: 'alice.example.com',
+        handle: 'alice.example.org',
         verified: false,
         dnsRecord: false
       })
+      expect(
+        (await database.getBlueskyAccount({ actorId: 'actor-a' }))?.handle
+      ).toBe('alice.example.org')
     })
 
-    it('lets only an admin answer for the server host, one at a time', async () => {
+    it('tells a record for another DID, and a DNS failure, from a match', async () => {
+      await linkAlice()
+      vi.mocked(resolveTxt).mockResolvedValue([['did=did:plc:someoneelse']])
+      expect(
+        (await checkBlueskyHandle(database, actor('actor-a'))).dnsRecord
+      ).toBe(false)
+
+      vi.mocked(resolveTxt).mockRejectedValue(
+        Object.assign(new Error('queryTxt ESERVFAIL'), { code: 'ESERVFAIL' })
+      )
+      expect(
+        (await checkBlueskyHandle(database, actor('actor-a'))).dnsRecord
+      ).toBeNull()
+    })
+
+    it('shows the DNS record when the PDS does not say which domains it hands out', async () => {
+      vi.mocked(safeRemoteFetch).mockResolvedValue(respond(500, {}))
+      resolve.mockResolvedValueOnce({
+        ...(await resolve()),
+        handle: 'alice.pds.example.net'
+      })
+      await linkAlice()
+      vi.mocked(resolveTxt).mockResolvedValue([])
+      await checkBlueskyHandle(database, actor('actor-a'))
+      expect(
+        (await database.getBlueskyAccount({ actorId: 'actor-a' }))?.domainHandle
+      ).toBe(true)
+    })
+
+    it('lets only an admin answer for the domain it lives on, one profile per domain', async () => {
       await linkAlice()
       await expect(
         setBlueskyInstanceHandle(database, actor('actor-a'), true)
@@ -389,15 +477,46 @@ describe('Bluesky account service', () => {
       ).rejects.toMatchObject({ status: 409 })
     })
 
-    it('never offers a host with a port', async () => {
-      vi.mocked(getConfig).mockReturnValue({ host: 'localhost:3000' } as never)
+    it('claims each served domain separately', async () => {
       await linkAlice()
+      await database.saveBlueskyAccount({
+        actorId: 'actor-b',
+        did: 'did:plc:other',
+        handle: 'bob.example.com',
+        pdsUrl: PDS,
+        authType: 'oauth',
+        domainHandle: true
+      })
+      await setBlueskyInstanceHandle(database, actor('actor-a', 'admin'), true)
+      const other = actor('actor-b', 'admin', 'Other.Example')
       expect(
-        (await getBlueskyAccountState(database, actor('actor-a', 'admin')))
-          .instanceHandle
+        (await getBlueskyAccountState(database, other)).instanceHandle
+      ).toEqual({ host: 'other.example', status: 'free' })
+      await setBlueskyInstanceHandle(database, other, true)
+      expect(
+        (
+          await database.getBlueskyAccountByInstanceHandle({
+            host: 'other.example'
+          })
+        )?.did
+      ).toBe('did:plc:other')
+      expect(
+        (
+          await database.getBlueskyAccountByInstanceHandle({
+            host: 'social.example'
+          })
+        )?.did
+      ).toBe(DID)
+    })
+
+    it('never offers a host with a port', async () => {
+      await linkAlice()
+      const local = actor('actor-a', 'admin', 'localhost:3000')
+      expect(
+        (await getBlueskyAccountState(database, local)).instanceHandle
       ).toBeNull()
       await expect(
-        setBlueskyInstanceHandle(database, actor('actor-a', 'admin'), true)
+        setBlueskyInstanceHandle(database, local, true)
       ).rejects.toThrow('cannot be a handle')
     })
 

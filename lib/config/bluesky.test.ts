@@ -30,20 +30,14 @@ describe('getBlueskyConfig', () => {
     ).toEqual(['k1', 'k2'])
   })
 
-  it('refuses a value that is not JSON, or a key without kid or private part', () => {
-    process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = 'not json'
-    expect(() => getBlueskyConfig()).toThrow('must be JSON')
-
-    process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = JSON.stringify({
-      ...key,
-      kid: undefined
-    })
-    expect(() => getBlueskyConfig()).toThrow()
-
-    process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = JSON.stringify({
-      ...key,
-      d: undefined
-    })
-    expect(() => getBlueskyConfig()).toThrow()
+  it('turns sign-in off for a value that is not JSON, or a key without kid or private part', () => {
+    for (const value of [
+      'not json',
+      JSON.stringify({ ...key, kid: undefined }),
+      JSON.stringify({ ...key, d: undefined })
+    ]) {
+      process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = value
+      expect(getBlueskyConfig()).toBeNull()
+    }
   })
 })

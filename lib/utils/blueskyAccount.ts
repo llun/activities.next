@@ -17,8 +17,8 @@ export interface BlueskyAccountState {
   // Bluesky sign-in (OAuth) is configured on this server.
   oauthAvailable: boolean
   account: BlueskyLinkedAccount | null
-  // Set for an admin: the server host they may answer
-  // /.well-known/atproto-did for, and who holds it now.
+  // Set for an admin: the served domain this profile lives on, which it may
+  // answer /.well-known/atproto-did for, and who holds it now.
   instanceHandle: {
     host: string
     status: 'yours' | 'free' | 'taken'
@@ -29,8 +29,8 @@ export interface BlueskyHandleCheck {
   handle: string
   // The handle and the DID point at each other (DNS or HTTPS).
   verified: boolean
-  // `_atproto.<handle>` holds `did=<did>`.
-  dnsRecord: boolean
+  // `_atproto.<handle>` holds `did=<did>`; null when DNS could not answer.
+  dnsRecord: boolean | null
 }
 
 // The TXT record a domain handle needs.

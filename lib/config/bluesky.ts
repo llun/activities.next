@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { logger } from '@/lib/utils/logger'
+
 // The private keys the server signs atproto OAuth client assertions with
 // (`private_key_jwt`). One ES256 private JWK with a `kid`, or a JSON array of
 // them while rotating: a PDS ties a session to the key it started with, so an
@@ -18,15 +20,20 @@ export const getBlueskyConfig = (): { bluesky: BlueskyConfig } | null => {
   const raw = process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS?.trim()
   if (!raw) return null
 
-  let parsed: unknown
+  // A bad key turns Bluesky sign-in off (app passwords still work) instead of
+  // failing the whole config, like the other optional sections.
   try {
-    parsed = JSON.parse(raw)
+    const parsed: unknown = JSON.parse(raw)
+    return {
+      bluesky: BlueskyConfig.parse({
+        oauthPrivateKeys: Array.isArray(parsed) ? parsed : [parsed]
+      })
+    }
   } catch {
-    throw new Error('ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS must be JSON')
-  }
-  return {
-    bluesky: BlueskyConfig.parse({
-      oauthPrivateKeys: Array.isArray(parsed) ? parsed : [parsed]
+    logger.warn({
+      message:
+        'ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS must be a private JWK with a kid, or a JSON array of them; Bluesky sign-in will be disabled'
     })
+    return null
   }
 }

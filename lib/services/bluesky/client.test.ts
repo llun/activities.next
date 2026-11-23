@@ -82,6 +82,62 @@ describe('Bluesky OAuth client', () => {
     })
   })
 
+  it('stores pending sign-ins encrypted, with an expiry', async () => {
+    const key = await JoseKey.generate(['ES256'], 'key-state')
+    vi.mocked(getConfig).mockReturnValue({
+      host: 'social.example',
+      secretPhase: 'secret',
+      bluesky: { oauthPrivateKeys: [key.privateJwk] }
+    } as never)
+    const client = await getBlueskyOAuthClient(database)!
+    const stateStore = (
+      client as unknown as {
+        stateStore: {
+          set(key: string, value: unknown): Promise<void>
+          get(key: string): Promise<unknown>
+        }
+      }
+    ).stateStore
+    const dpopKey = await JoseKey.generate(['ES256'])
+    await stateStore.set('state-key', {
+      iss: 'https://auth.example.net',
+      dpopKey,
+      verifier: 'pkce-verifier-value',
+      appState: 'actor-a'
+    })
+
+    const raw = await database.getBlueskyOAuthState({ key: 'state-key' })
+    expect(raw).not.toBeNull()
+    expect(raw).not.toContain('pkce-verifier-value')
+    expect(raw).not.toContain('actor-a')
+    expect(await stateStore.get('state-key')).toMatchObject({
+      verifier: 'pkce-verifier-value',
+      appState: 'actor-a'
+    })
+    // Expires: gone an hour and a bit later.
+    expect(
+      await database.getBlueskyOAuthState({
+        key: 'state-key',
+        now: Date.now() + 61 * 60 * 1000
+      })
+    ).toBeNull()
+  })
+
+  it('locks each name on its own', async () => {
+    const lock = createBlueskyLock(database)
+    let release!: () => void
+    const held = lock('refresh:did:plc:a', () => {
+      return new Promise<void>((resolve) => {
+        release = resolve
+      })
+    })
+    await vi.waitFor(() => expect(release).toBeDefined())
+    // Another DID's refresh does not wait for the first.
+    expect(await lock('refresh:did:plc:b', async () => 'other')).toBe('other')
+    release()
+    await held
+  })
+
   it('runs one holder of a lock name at a time', async () => {
     const lock = createBlueskyLock(database)
     const events: string[] = []

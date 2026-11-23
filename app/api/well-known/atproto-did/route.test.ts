@@ -1,33 +1,33 @@
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
-import { headerHost } from '@/lib/services/guards/headerHost'
 
 import { GET } from './route'
 
 vi.mock('@/lib/database', () => ({ getDatabase: vi.fn() }))
-vi.mock('@/lib/services/guards/headerHost', () => ({ headerHost: vi.fn() }))
 
 const getBlueskyAccountByInstanceHandle = vi.fn()
 const database = { getBlueskyAccountByInstanceHandle }
 
-const request = () =>
-  new NextRequest('https://social.example/.well-known/atproto-did')
-
-const call = () => GET(request(), { params: Promise.resolve({}) })
+const call = (host: string) =>
+  GET(
+    new NextRequest(`https://${host}/.well-known/atproto-did`, {
+      headers: { host }
+    }),
+    { params: Promise.resolve({}) }
+  )
 
 describe('GET /.well-known/atproto-did', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.mocked(getDatabase).mockReturnValue(database as never)
-    vi.mocked(headerHost).mockReturnValue('social.example')
   })
 
-  it('answers the DID for a host an admin claimed', async () => {
+  it('answers the DID for the domain the request arrived on', async () => {
     getBlueskyAccountByInstanceHandle.mockResolvedValue({
       did: 'did:plc:abc123'
     })
-    const response = await call()
+    const response = await call('Social.Example')
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe(
       'text/plain; charset=utf-8'
@@ -39,9 +39,12 @@ describe('GET /.well-known/atproto-did', () => {
     })
   })
 
-  it('answers 404 for a host nobody claimed', async () => {
+  it('looks up the raw authority, never a fallback to the primary host', async () => {
     getBlueskyAccountByInstanceHandle.mockResolvedValue(null)
-    const response = await call()
+    const response = await call('203.0.113.5')
+    expect(getBlueskyAccountByInstanceHandle).toHaveBeenCalledWith({
+      host: '203.0.113.5'
+    })
     expect(response.status).toBe(404)
     expect(await response.text()).toBe('Not Found')
   })

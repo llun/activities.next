@@ -1242,8 +1242,7 @@ accepted); other follow requests keep the usual approval rules. See the
 
 Settings → Other networks also links a profile to a Bluesky account on any PDS
 (bsky.social, a self-hosted PDS or another host), separately from Bridgy Fed
-sharing. Linking stores the account; later steps use it to read and write
-Bluesky. The code is in `lib/services/bluesky/`:
+sharing. The code is in `lib/services/bluesky/`:
 
 - **Bluesky sign-in (atproto OAuth).** The server is a confidential client
   (`private_key_jwt`, DPoP, PAR, scope `atproto transition:generic`) through
@@ -1252,7 +1251,10 @@ Bluesky. The code is in `lib/services/bluesky/`:
   its public keys `GET /api/v1/bluesky/jwks.json`, and the authorization server
   returns to `GET /api/v1/bluesky/callback`, which needs the signed-in actor
   that started the sign-in: the OAuth `state` carries that actor's id and a
-  callback finished by another actor is refused. The keys come from
+  callback finished by another actor is refused. A DID another profile on the
+  server holds is refused before the redirect, because finishing the sign-in
+  makes the OAuth client revoke and replace the stored session for that DID.
+  The keys come from
   `ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS`; without them the metadata and JWKS
   routes answer 404 and only app passwords are offered.
 - **App passwords** for a PDS without OAuth: the handle is resolved to its DID
@@ -1263,7 +1265,8 @@ Bluesky. The code is in `lib/services/bluesky/`:
   DID (linking a DID another profile on the server holds is refused).
   `bluesky_sessions` holds the session by DID and `bluesky_oauth_states` the
   pending sign-ins (expiring after an hour), both encrypted with the server
-  secret (`lib/utils/crypto`). Refresh tokens are single use, so the OAuth
+  secret (`lib/utils/crypto`). Each stored session is tagged with its kind
+  (`oauth` or `app_password`); readers go by that tag. Refresh tokens are single use, so the OAuth
   client's refresh lock is a row in the shared lock table
   (`fitness_import_locks`, keys prefixed `bluesky:`), held across instances.
   When the PDS refuses the session the account shows "Bluesky ended this
@@ -1274,11 +1277,12 @@ Bluesky. The code is in `lib/services/bluesky/`:
   `availableUserDomains`) shows the `_atproto.<handle>` TXT record it needs;
   "Check handle" resolves the DID again, stores its current handle and PDS,
   and reports whether the handle verifies and the TXT record is present.
-- **The server's own name as a handle.** An admin's linked profile can claim the
-  server host (`ACTIVITIES_HOST`, not one with a port); one profile at a time.
-  `GET /.well-known/atproto-did` then answers that profile's DID as
-  `text/plain` on that host and 404 everywhere else, so the handle can be set
-  in the Bluesky app without DNS access.
+- **A served domain as a handle.** An admin's linked profile can claim the
+  served domain it lives on (never one with a port), one profile per domain:
+  each domain under Admin › Served domains has its own. `GET
+/.well-known/atproto-did` answers the claiming profile's DID as `text/plain`
+  for a request whose own authority is that domain, and 404 otherwise, so the
+  handle can be set in the Bluesky app without DNS access.
 
 ### Multi-actor & account management
 

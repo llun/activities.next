@@ -77,17 +77,27 @@ export const saveBlueskyAccount = async (
         .select('did')
         .where('actorId', '=', params.actorId)
         .executeTakeFirst()
-      if (previous && previous.did !== params.did) {
+      const now = new Date()
+      // Linking the same DID again refreshes the row and keeps its claim and
+      // creation time.
+      if (previous?.did === params.did) {
+        await trx
+          .updateTable('bluesky_accounts')
+          .set({ ...params, updatedAt: now })
+          .where('actorId', '=', params.actorId)
+          .execute()
+        return 'saved' as const
+      }
+      if (previous) {
         await trx
           .deleteFrom('bluesky_sessions')
           .where('did', '=', previous.did)
           .execute()
+        await trx
+          .deleteFrom('bluesky_accounts')
+          .where('actorId', '=', params.actorId)
+          .execute()
       }
-      await trx
-        .deleteFrom('bluesky_accounts')
-        .where('actorId', '=', params.actorId)
-        .execute()
-      const now = new Date()
       await trx
         .insertInto('bluesky_accounts')
         .values({ ...params, createdAt: now, updatedAt: now })
@@ -95,9 +105,15 @@ export const saveBlueskyAccount = async (
       return 'saved' as const
     })
   } catch (error) {
-    // A concurrent link of the same DID by another actor won the insert.
-    if (isUniqueConstraintError(error)) return 'did_taken'
-    throw error
+    if (!isUniqueConstraintError(error)) throw error
+    // A concurrent insert won: another actor's link of the DID, or this
+    // actor's own second submit of the same link.
+    const winner = await db
+      .selectFrom('bluesky_accounts')
+      .select(['actorId', 'did'])
+      .where('actorId', '=', params.actorId)
+      .executeTakeFirst()
+    return winner?.did === params.did ? 'saved' : 'did_taken'
   }
 }
 

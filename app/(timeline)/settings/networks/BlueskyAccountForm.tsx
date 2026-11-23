@@ -12,7 +12,7 @@ import {
 } from '@/lib/client'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
 import { Alert } from '@/lib/components/surface/Alert'
-import { FormRow } from '@/lib/components/surface/FormRow'
+import { FormRow, formRowHintId } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
@@ -135,6 +135,7 @@ export const BlueskyAccountForm = ({
               <div className="flex flex-wrap gap-2">
                 <Input
                   id="bluesky-handle"
+                  aria-describedby={formRowHintId('bluesky-handle')}
                   className="min-w-0 flex-1 basis-48"
                   autoComplete="username"
                   autoCapitalize="none"
@@ -162,6 +163,7 @@ export const BlueskyAccountForm = ({
                 <div className="flex flex-wrap gap-2">
                   <Input
                     id="bluesky-app-password"
+                    aria-describedby={formRowHintId('bluesky-app-password')}
                     className="min-w-0 flex-1 basis-48 font-mono"
                     type="password"
                     autoComplete="off"
@@ -218,7 +220,7 @@ export const BlueskyAccountForm = ({
             >
               {account.handle}
             </a>
-            <Badge tone={account.sessionActive ? 'success' : 'warning'}>
+            <Badge>
               {account.authType === 'oauth' ? 'OAuth' : 'App password'}
             </Badge>
             <Button
@@ -264,25 +266,7 @@ export const BlueskyAccountForm = ({
                 </dd>
               </dl>
             ) : null}
-            <div
-              className="flex flex-wrap items-center gap-2"
-              role="status"
-              aria-live="polite"
-            >
-              {check ? (
-                <>
-                  <Badge tone={check.verified ? 'success' : 'warning'}>
-                    {check.verified ? 'Verified' : 'Not verified'}
-                  </Badge>
-                  {account.domainHandle ? (
-                    <span className="text-muted-foreground">
-                      {check.dnsRecord
-                        ? 'DNS record found'
-                        : 'No DNS record found yet'}
-                    </span>
-                  ) : null}
-                </>
-              ) : null}
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -298,6 +282,28 @@ export const BlueskyAccountForm = ({
               >
                 {busy === 'check' ? 'Checking…' : 'Check handle'}
               </Button>
+              <span
+                className="flex flex-wrap items-center gap-2"
+                role="status"
+                aria-live="polite"
+              >
+                {check ? (
+                  <>
+                    <Badge tone={check.verified ? 'success' : 'warning'}>
+                      {check.verified ? 'Verified' : 'Not verified'}
+                    </Badge>
+                    {account.domainHandle ? (
+                      <span className="text-muted-foreground">
+                        {check.dnsRecord === null
+                          ? 'DNS could not be checked'
+                          : check.dnsRecord
+                            ? 'DNS record found'
+                            : 'No DNS record found yet'}
+                      </span>
+                    ) : null}
+                  </>
+                ) : null}
+              </span>
             </div>
           </div>
         </FormRow>

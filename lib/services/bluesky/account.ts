@@ -1,4 +1,8 @@
-import { extractPdsUrl, isAtprotoDid } from '@atproto/oauth-client-node'
+import {
+  OAuthResolverError,
+  extractPdsUrl,
+  isAtprotoDid
+} from '@atproto/oauth-client-node'
 import { resolveTxt } from 'node:dns/promises'
 
 import { getConfig } from '@/lib/config'
@@ -45,7 +49,13 @@ const normalizeIdentifier = (input: string) => {
   throw new BlueskyLinkError('Enter a Bluesky handle, like alice.bsky.social.')
 }
 
-const getInstanceHost = () => getConfig().host.toLowerCase()
+// The served domain the actor lives on: the host it may answer
+// /.well-known/atproto-did for. A handle carries no port, so a host with one
+// cannot be claimed.
+const getClaimableHost = (actor: Actor) => {
+  const host = actor.domain.toLowerCase()
+  return host.includes(':') ? null : host
+}
 
 // A handle needs its own DNS record unless it sits under a domain the PDS
 // hands out (".bsky.social" on Bluesky's). When the PDS does not say, show the
@@ -59,7 +69,14 @@ const isDomainHandle = async (handle: string, pdsUrl: string) => {
       maxBodyBytes: 64 * 1024,
       timeoutInMilliseconds: 5000
     })
-    if (response.statusCode !== 200) return true
+    if (response.statusCode !== 200) {
+      logger.info({
+        message: 'Bluesky describeServer failed; showing the DNS record',
+        pdsUrl,
+        statusCode: response.statusCode
+      })
+      return true
+    }
     const domains: unknown = JSON.parse(response.body).availableUserDomains
     if (!Array.isArray(domains)) return true
     return !domains.some(
@@ -68,7 +85,12 @@ const isDomainHandle = async (handle: string, pdsUrl: string) => {
         domain.startsWith('.') &&
         handle.endsWith(domain.toLowerCase())
     )
-  } catch {
+  } catch (error) {
+    logger.info({
+      message: 'Bluesky describeServer failed; showing the DNS record',
+      pdsUrl,
+      err: toLoggableError(error)
+    })
     return true
   }
 }
@@ -78,9 +100,16 @@ const resolveIdentity = async (identifier: string, noCache = false) => {
     const identity = await createBlueskyIdentityResolver().resolve(identifier, {
       noCache
     })
+    // An unverified handle comes back as handle.invalid; keep the one the DID
+    // document claims, so the DNS row names the domain to fix.
+    const claimed = identity.didDoc.alsoKnownAs
+      ?.find((name) => name.startsWith('at://'))
+      ?.slice('at://'.length)
+    const verified = identity.handle !== INVALID_HANDLE
     return {
       did: identity.did,
-      handle: identity.handle,
+      handle: verified ? identity.handle : (claimed ?? identity.handle),
+      verified,
       pdsUrl: extractPdsUrl(identity.didDoc).href
     }
   } catch (error) {
@@ -102,10 +131,9 @@ export const getBlueskyAccountState = async (
   const session = account
     ? await database.getBlueskySession({ did: account.did })
     : null
-  const host = getInstanceHost()
+  const host = getClaimableHost(actor)
   let instanceHandle: BlueskyAccountState['instanceHandle'] = null
-  // A handle carries no port, so a host with one cannot be claimed.
-  if (actor.account?.role === 'admin' && !host.includes(':')) {
+  if (actor.account?.role === 'admin' && host) {
     const holder = await database.getBlueskyAccountByInstanceHandle({ host })
     instanceHandle = {
       host,
@@ -141,24 +169,37 @@ export const startBlueskyOAuth = async (
       400
     )
   }
-  const identifier = normalizeIdentifier(input)
+  // Refuse a DID another profile holds before the authorization server is
+  // involved: finishing the sign-in would make the OAuth client revoke and
+  // replace that profile's stored session.
+  const { did } = await resolveIdentity(normalizeIdentifier(input))
+  const holder = await database.getBlueskyAccountByDid({ did })
+  if (holder && holder.actorId !== actor.id) {
+    throw new BlueskyLinkError(
+      'This Bluesky account is already linked to another profile on this server.',
+      409
+    )
+  }
   try {
     const url = await (
       await client
-    ).authorize(identifier, {
+    ).authorize(did, {
       scope: BLUESKY_OAUTH_SCOPE,
       // Read back in the callback, which refuses another actor's sign-in.
       state: actor.id
     })
     return url.href
   } catch (error) {
+    // Only a failure to find the account or its sign-in server is the user's
+    // to fix; anything else (database, keys) goes up as a server error.
+    if (!(error instanceof OAuthResolverError)) throw error
     logger.info({
       message: 'Bluesky OAuth could not start',
       actorId: actor.id,
       err: toLoggableError(error)
     })
     throw new BlueskyLinkError(
-      'That account’s server does not offer Bluesky sign-in. Use an app password instead.',
+      'That account or its server’s Bluesky sign-in could not be found. Check the handle, or use an app password.',
       502
     )
   }
@@ -195,30 +236,33 @@ export const completeBlueskyOAuth = async (
 ): Promise<BlueskyCallbackResult> => {
   const client = getBlueskyOAuthClient(database)
   if (!client) return 'failed'
-  let did: string
+  let result: { session: { did: string }; state?: string | null }
   try {
-    const { session, state } = await (await client).callback(params)
-    did = session.did
-    // The state was minted for one actor. Finishing it as another one (a
-    // forged or shared callback link) would link a stranger's Bluesky account.
-    if (state !== actor.id) {
-      logger.warn({
-        message: 'Bluesky OAuth callback for another actor refused',
-        actorId: actor.id
-      })
-      // The callback already stored the session; keep it only when it is
-      // the session of an existing link.
-      if (!(await database.getBlueskyAccountByDid({ did }))) {
-        await database.deleteBlueskySession({ did })
-      }
-      return 'failed'
-    }
+    result = await (await client).callback(params)
   } catch (error) {
-    logger.info({
+    // `error=` in the redirect is the user (or their server) declining;
+    // anything else is a failure on our side or theirs that needs a look.
+    const log = params.has('error') ? logger.info : logger.warn
+    log({
       message: 'Bluesky OAuth callback failed',
       actorId: actor.id,
       err: toLoggableError(error)
     })
+    return 'failed'
+  }
+  const did = result.session.did
+  // The state was minted for one actor. Finishing it as another one (a forged
+  // or shared callback link) would link a stranger's Bluesky account.
+  if (result.state !== actor.id) {
+    logger.warn({
+      message: 'Bluesky OAuth callback for another actor refused',
+      actorId: actor.id
+    })
+    // The callback already stored the session (replacing, and revoking, any
+    // earlier one for this DID); drop it unless a link uses the DID.
+    if (!(await database.getBlueskyAccountByDid({ did }))) {
+      await database.deleteBlueskySession({ did })
+    }
     return 'failed'
   }
 
@@ -234,6 +278,10 @@ export const completeBlueskyOAuth = async (
       actorId: actor.id,
       err: toLoggableError(error)
     })
+    // The callback stored a session; without a link nothing would remove it.
+    if (!(await database.getBlueskyAccountByDid({ did }))) {
+      await database.deleteBlueskySession({ did })
+    }
     return 'failed'
   }
 }
@@ -309,12 +357,27 @@ export const linkBlueskyAppPassword = async (
 export const unlinkBluesky = (database: Database, actor: Actor) =>
   database.deleteBlueskyAccount({ actorId: actor.id })
 
-const hasDnsRecord = async (handle: string, did: string) => {
+const DNS_NOT_FOUND = new Set(['ENOTFOUND', 'ENODATA'])
+
+// null when DNS could not answer (a timeout, a failing server): that is not
+// the same as a missing record.
+const hasDnsRecord = async (
+  handle: string,
+  did: string
+): Promise<boolean | null> => {
   const { name, value } = getBlueskyDnsRecord(handle, did)
   try {
     return (await resolveTxt(name)).some((chunks) => chunks.join('') === value)
-  } catch {
-    return false
+  } catch (error) {
+    if (DNS_NOT_FOUND.has((error as NodeJS.ErrnoException).code ?? '')) {
+      return false
+    }
+    logger.warn({
+      message: 'Bluesky handle DNS lookup failed',
+      name,
+      err: toLoggableError(error)
+    })
+    return null
   }
 }
 
@@ -325,10 +388,7 @@ export const checkBlueskyHandle = async (
   const account = await database.getBlueskyAccount({ actorId: actor.id })
   if (!account) throw new BlueskyLinkError('No Bluesky account is linked.', 400)
   const identity = await resolveIdentity(account.did, true)
-  const verified = identity.handle !== INVALID_HANDLE
-  // An unverified handle comes back as handle.invalid; keep the one on record
-  // so the DNS row still names the domain to fix.
-  const handle = verified ? identity.handle : account.handle
+  const { handle, verified } = identity
   await database.updateBlueskyAccountIdentity({
     actorId: actor.id,
     handle,
@@ -350,8 +410,8 @@ export const setBlueskyInstanceHandle = async (
   if (actor.account?.role !== 'admin') {
     throw new BlueskyLinkError('Only an admin can use this server’s name.', 400)
   }
-  const host = getInstanceHost()
-  if (host.includes(':')) {
+  const host = getClaimableHost(actor)
+  if (!host) {
     throw new BlueskyLinkError('This server’s address cannot be a handle.', 400)
   }
   if (!(await database.getBlueskyAccount({ actorId: actor.id }))) {

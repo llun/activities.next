@@ -515,9 +515,15 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 
 ## Bluesky
 
-| Variable                                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS` | Turns on Bluesky sign-in for linking accounts. One ES256 (P-256) private JWK with a `kid`, or a JSON array of them while rotating keys: a PDS ties each session to the key it started with, so keep an old key listed until its sessions are gone. Generate one with `node -e "import('@atproto/oauth-client-node').then(async ({ JoseKey }) => console.log(JSON.stringify((await JoseKey.generate(['ES256'], 'key-' + Date.now())).privateJwk)))"`. Unset, accounts can still be linked with app passwords. |
+| Variable                                | Description                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS` | Turns on Bluesky sign-in for linking accounts. One ES256 (P-256) private JWK with a `kid`, or a JSON array of them while rotating keys: a PDS ties each session to the key it started with, so keep an old key listed until its sessions are gone. Generate one with the command below. Unset, or not a valid key (a warning is logged), accounts can still be linked with app passwords. |
+
+Generate a key (the `kid` must be unique across rotations):
+
+```bash
+node -e "import('@atproto/oauth-client-node').then(async ({ JoseKey }) => console.log(JSON.stringify((await JoseKey.generate(['ES256'], 'key-' + Date.now())).privateJwk)))"
+```
 
 ## Domain Controls
 
