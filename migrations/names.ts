@@ -27,7 +27,8 @@ export const MIGRATION_NAMES = [
   '20261105210627_add_media_subject_taxon_rank',
   '20261106094910_add_remote_signature_schemes',
   '20261106120000_add_bookmark_folders',
-  '20261121174116_add_accounts_email_change_code_index'
+  '20261121174116_add_accounts_email_change_code_index',
+  '20261123212228_add_bluesky_accounts'
 ] as const
 
 export type MigrationName = (typeof MIGRATION_NAMES)[number]

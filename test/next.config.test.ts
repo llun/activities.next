@@ -18,6 +18,8 @@ describe('next config runtime isolation', () => {
     ACTIVITIES_ALLOW_MEDIA_DOMAINS: process.env.ACTIVITIES_ALLOW_MEDIA_DOMAINS,
     ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS:
       process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS,
+    ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS:
+      process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS,
     ACTIVITIES_EMAIL: process.env.ACTIVITIES_EMAIL,
     ACTIVITIES_EMAIL_TYPE: process.env.ACTIVITIES_EMAIL_TYPE,
     ACTIVITIES_GALLERY_GBIF_ENDPOINT:
@@ -148,6 +150,35 @@ describe('next config runtime isolation', () => {
       expect(staticHeaders).not.toContain('wasm-unsafe-eval')
       expect(staticHeaders).not.toContain('hf.co')
       expect(staticHeaders).not.toContain('build-model')
+    }
+  )
+
+  it.each([
+    ['set', '{"kid":"build-key-kid","kty":"EC","d":"secret-d"}'],
+    ['invalid', 'not-json'],
+    ['missing', undefined]
+  ])(
+    'does not consume the Bluesky OAuth keys when they are %s',
+    async (_, value) => {
+      if (value === undefined) {
+        delete process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS
+      } else {
+        process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = value
+      }
+
+      const { default: loadedNextConfig } = await loadNextConfig()
+      const serialized = JSON.stringify({
+        ...loadedNextConfig,
+        headers: await loadedNextConfig.headers?.(),
+        rewrites: await loadedNextConfig.rewrites?.(),
+        redirects: await loadedNextConfig.redirects?.()
+      })
+
+      expect(loadedNextConfig.env).toEqual({
+        NEXT_PUBLIC_BUILD_VERSION: packageJson.version
+      })
+      expect(serialized).not.toContain('build-key-kid')
+      expect(serialized).not.toContain('secret-d')
     }
   )
 

@@ -266,6 +266,31 @@ export interface Blocks {
   uri: string
 }
 
+export interface BlueskyAccounts {
+  actorId: string
+  authType: string
+  createdAt: WithDefault<Timestamp>
+  did: string
+  domainHandle: WithDefault<boolean>
+  handle: string
+  instanceHandle: Nullable<string>
+  pdsUrl: string
+  updatedAt: WithDefault<Timestamp>
+}
+
+export interface BlueskyOauthStates {
+  createdAt: WithDefault<Timestamp>
+  expiresAt: Timestamp
+  key: string
+  state: string
+}
+
+export interface BlueskySessions {
+  did: string
+  session: string
+  updatedAt: WithDefault<Timestamp>
+}
+
 export interface BookmarkFolders {
   actorId: string
   createdAt: WithDefault<Timestamp>
@@ -1570,6 +1595,9 @@ export interface DB {
   attachments: Attachments
   auth_codes: AuthCodes
   blocks: Blocks
+  bluesky_accounts: BlueskyAccounts
+  bluesky_oauth_states: BlueskyOauthStates
+  bluesky_sessions: BlueskySessions
   bookmark_folders: BookmarkFolders
   bookmarks: Bookmarks
   bulk_import_rows: BulkImportRows
