@@ -13,6 +13,7 @@ import {
   deleteEmbeddings,
   deleteEmbeddingsForActor,
   getActorStatusDocumentIds,
+  getDatabaseTime,
   getEmbeddableDocuments,
   getEmbeddingContentHash,
   getEmbeddingText,
@@ -647,6 +648,30 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       const totalRows = ACTOR_OPT_IN_DOCUMENT_LIMIT + 5
       try {
         await sql`
+          insert into statuses (id, "actorId", type, content, url, reply, "createdAt", "updatedAt")
+          select
+            ${`${cappedRemote}/statuses/bulk-`} || lpad(g::text, 4, '0'),
+            ${cappedRemote},
+            'Note',
+            'bulk post ' || g::text,
+            ${`${cappedRemote}/statuses/bulk-`} || lpad(g::text, 4, '0'),
+            '',
+            to_timestamp(1700000000 + g),
+            to_timestamp(1700000000 + g)
+          from generate_series(1, ${totalRows}) as g
+        `.execute(db)
+        await sql`
+          insert into recipients (id, "statusId", "actorId", type, "createdAt", "updatedAt")
+          select
+            'recip-bulk-' || lpad(g::text, 4, '0'),
+            ${`${cappedRemote}/statuses/bulk-`} || lpad(g::text, 4, '0'),
+            ${PUBLIC},
+            'to',
+            to_timestamp(1700000000 + g),
+            to_timestamp(1700000000 + g)
+          from generate_series(1, ${totalRows}) as g
+        `.execute(db)
+        await sql`
           insert into search_documents
             (id, "entityType", "entityId", "documentText", "actorId", visibility, "entityCreatedAt")
           select
@@ -676,6 +701,125 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
           .deleteFrom('search_documents')
           .where('actorId', '=', cappedRemote)
           .where('entityType', '=', 'status')
+          .execute()
+        await db
+          .deleteFrom('recipients')
+          .where('id', 'like', 'recip-bulk-%')
+          .execute()
+        await db
+          .deleteFrom('statuses')
+          .where('actorId', '=', cappedRemote)
+          .execute()
+      }
+    })
+
+    it('getActorStatusDocumentIds ignores non-public posts when applying the limit', async () => {
+      const remoteAuthor = await addActor('optin-nonpublic-remote', {
+        domain: REMOTE_DOMAIN,
+        remote: true,
+        indexable: true
+      })
+
+      const olderPublic1 = await indexedStatus({
+        id: statusIdOf(remoteAuthor, 'pub-1'),
+        actorId: remoteAuthor,
+        createdAt: 1_000,
+        text: 'older public post one',
+        to: [PUBLIC]
+      })
+      const olderPublic2 = await indexedStatus({
+        id: statusIdOf(remoteAuthor, 'pub-2'),
+        actorId: remoteAuthor,
+        createdAt: 2_000,
+        text: 'older public post two',
+        to: [PUBLIC]
+      })
+      const olderPublic3 = await indexedStatus({
+        id: statusIdOf(remoteAuthor, 'pub-3'),
+        actorId: remoteAuthor,
+        createdAt: 3_000,
+        text: 'older public post three',
+        to: [PUBLIC]
+      })
+      // Unlisted (public only in cc) and direct posts must also be excluded for remote authors.
+      await indexedStatus({
+        id: statusIdOf(remoteAuthor, 'unlisted-newer'),
+        actorId: remoteAuthor,
+        createdAt: 4_000,
+        text: 'remote unlisted post',
+        to: [`${remoteAuthor}/followers`],
+        cc: [PUBLIC]
+      })
+      await indexedStatus({
+        id: statusIdOf(remoteAuthor, 'direct-newer'),
+        actorId: remoteAuthor,
+        createdAt: 5_000,
+        text: 'remote direct post',
+        to: [actorIdOf('someone-else', REMOTE_DOMAIN)]
+      })
+
+      // Add ACTOR_OPT_IN_DOCUMENT_LIMIT newer followers-only posts so that if
+      // non-public posts counted toward the limit, none of the older public posts
+      // would be returned.
+      const followersOnlyCount = ACTOR_OPT_IN_DOCUMENT_LIMIT
+      try {
+        await sql`
+          insert into statuses (id, "actorId", type, content, url, reply, "createdAt", "updatedAt")
+          select
+            ${`${remoteAuthor}/statuses/followers-`} || lpad(g::text, 4, '0'),
+            ${remoteAuthor},
+            'Note',
+            'followers only post ' || g::text,
+            ${`${remoteAuthor}/statuses/followers-`} || lpad(g::text, 4, '0'),
+            '',
+            to_timestamp(1700010000 + g),
+            to_timestamp(1700010000 + g)
+          from generate_series(1, ${followersOnlyCount}) as g
+        `.execute(db)
+        await sql`
+          insert into recipients (id, "statusId", "actorId", type, "createdAt", "updatedAt")
+          select
+            'recip-nonpub-foll-' || lpad(g::text, 4, '0'),
+            ${`${remoteAuthor}/statuses/followers-`} || lpad(g::text, 4, '0'),
+            ${`${remoteAuthor}/followers`},
+            'to',
+            to_timestamp(1700010000 + g),
+            to_timestamp(1700010000 + g)
+          from generate_series(1, ${followersOnlyCount}) as g
+        `.execute(db)
+        await sql`
+          insert into search_documents
+            (id, "entityType", "entityId", "documentText", "actorId", visibility, "entityCreatedAt")
+          select
+            ${`status:${remoteAuthor}/statuses/followers-`} || lpad(g::text, 4, '0'),
+            'status',
+            ${`${remoteAuthor}/statuses/followers-`} || lpad(g::text, 4, '0'),
+            'followers only post ' || g::text,
+            ${remoteAuthor},
+            'followers',
+            to_timestamp(1700010000 + g)
+          from generate_series(1, ${followersOnlyCount}) as g
+        `.execute(db)
+
+        const ids = await getActorStatusDocumentIds(db, remoteAuthor)
+        expect(ids).toEqual([
+          docIdOf(olderPublic3),
+          docIdOf(olderPublic2),
+          docIdOf(olderPublic1)
+        ])
+      } finally {
+        await db
+          .deleteFrom('search_documents')
+          .where('actorId', '=', remoteAuthor)
+          .where('entityType', '=', 'status')
+          .execute()
+        await db
+          .deleteFrom('recipients')
+          .where('id', 'like', 'recip-nonpub-foll-%')
+          .execute()
+        await db
+          .deleteFrom('statuses')
+          .where('actorId', '=', remoteAuthor)
           .execute()
       }
     })
@@ -1733,6 +1877,241 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         expect(byId.has(changedDocId)).toBe(false)
       } finally {
         await deleteEmbeddings(db, allDocIds)
+      }
+    })
+
+    it('backfill keeps a mark written after checkedAt and preserves its old embedding state while settling older marks', async () => {
+      const provider = createDeterministicProvider()
+      const author = await addActor('bf-checkedat-author')
+      const [olderStatus, newerEditedStatus, newerFreshStatus] =
+        await Promise.all([
+          indexedStatus({
+            id: statusIdOf(author, 'bf-older-mark'),
+            actorId: author,
+            createdAt: 395,
+            text: 'bicycle marked before recheck',
+            to: [PUBLIC]
+          }),
+          indexedStatus({
+            id: statusIdOf(author, 'bf-newer-edited'),
+            actorId: author,
+            createdAt: 396,
+            text: 'espresso edited after recheck',
+            to: [PUBLIC]
+          }),
+          indexedStatus({
+            id: statusIdOf(author, 'bf-newer-fresh'),
+            actorId: author,
+            createdAt: 397,
+            text: 'hiking freshly marked after recheck',
+            to: [PUBLIC]
+          })
+        ])
+      const olderDocId = docIdOf(olderStatus)
+      const newerEditedDocId = docIdOf(newerEditedStatus)
+      const newerFreshDocId = docIdOf(newerFreshStatus)
+      const allDocIds = [olderDocId, newerEditedDocId, newerFreshDocId]
+
+      try {
+        // Seed newerEditedDocId with an existing embedding, and mark olderDocId before checkedAt.
+        await storeEmbeddings(
+          db,
+          [
+            {
+              documentId: newerEditedDocId,
+              contentHash: 'old-existing-hash',
+              embedding: bagOfWordsVector('bicycle'),
+              pendingSince: null
+            }
+          ],
+          { model: MODEL, dimensions: DIMENSIONS }
+        )
+        await markEmbeddingsPending(db, [olderDocId], provider)
+
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        const checkedAt = await getDatabaseTime(db)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+
+        // Marks written after checkedAt must survive backfill's upsert untouched.
+        await markEmbeddingsPending(
+          db,
+          [newerEditedDocId, newerFreshDocId],
+          provider
+        )
+
+        const { rows: marksBefore } = await sql<{
+          documentId: string
+          pendingSince: string | null
+        }>`
+          select "documentId", "pendingSince"::text as "pendingSince"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = any(${[newerEditedDocId, newerFreshDocId]}::text[])
+        `.execute(db)
+        const expectedMarks = new Map(
+          marksBefore.map((row) => [row.documentId, row.pendingSince])
+        )
+        expect(expectedMarks.get(newerEditedDocId)).toEqual(expect.any(String))
+        expect(expectedMarks.get(newerFreshDocId)).toEqual(expect.any(String))
+
+        await storeEmbeddings(
+          db,
+          [
+            {
+              documentId: olderDocId,
+              contentHash: 'backfill-older-hash',
+              embedding: bagOfWordsVector('bicycle marked before recheck'),
+              pendingSince: null
+            },
+            {
+              documentId: newerEditedDocId,
+              contentHash: 'backfill-stale-hash',
+              embedding: bagOfWordsVector('espresso edited after recheck'),
+              pendingSince: null
+            },
+            {
+              documentId: newerFreshDocId,
+              contentHash: 'backfill-fresh-stale-hash',
+              embedding: bagOfWordsVector(
+                'hiking freshly marked after recheck'
+              ),
+              pendingSince: null
+            }
+          ],
+          { model: MODEL, dimensions: DIMENSIONS, checkedAt }
+        )
+
+        const { rows: rowsAfter } = await sql<{
+          documentId: string
+          hasEmbedding: boolean
+          contentHash: string | null
+          pendingSince: string | null
+        }>`
+          select
+            "documentId",
+            embedding is not null as "hasEmbedding",
+            "contentHash",
+            "pendingSince"::text as "pendingSince"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = any(${allDocIds}::text[])
+        `.execute(db)
+        const byId = new Map(rowsAfter.map((row) => [row.documentId, row]))
+
+        // Marked before checkedAt -> settled.
+        expect(byId.get(olderDocId)).toEqual({
+          documentId: olderDocId,
+          hasEmbedding: true,
+          contentHash: 'backfill-older-hash',
+          pendingSince: null
+        })
+
+        // Marked after checkedAt -> kept its newer pendingSince and its old embedding state.
+        expect(byId.get(newerEditedDocId)).toEqual({
+          documentId: newerEditedDocId,
+          hasEmbedding: true,
+          contentHash: 'old-existing-hash',
+          pendingSince: expectedMarks.get(newerEditedDocId)
+        })
+        expect(byId.get(newerFreshDocId)).toEqual({
+          documentId: newerFreshDocId,
+          hasEmbedding: false,
+          contentHash: null,
+          pendingSince: expectedMarks.get(newerFreshDocId)
+        })
+
+        // Both newer marks remain claimable by the job.
+        const claimed = await claimPendingEmbeddings(
+          db,
+          10,
+          'bf-after-checkedat'
+        )
+        expect(claimed.map((row) => row.documentId).sort()).toEqual(
+          [newerEditedDocId, newerFreshDocId].sort()
+        )
+      } finally {
+        await deleteEmbeddings(db, allDocIds)
+      }
+    })
+
+    it('backfill post-store re-check drops a row whose author opted out between the pre-store check and the store', async () => {
+      const provider = createDeterministicProvider()
+      const optoutAuthor = await addActor('bf-postcheck-optout', {
+        domain: REMOTE_DOMAIN,
+        remote: true,
+        indexable: true
+      })
+      const stayAuthor = await addActor('bf-postcheck-stay', {
+        domain: REMOTE_DOMAIN,
+        remote: true,
+        indexable: true
+      })
+      const optoutStatus = await indexedStatus({
+        id: statusIdOf(optoutAuthor, 'postcheck-optout-post'),
+        actorId: optoutAuthor,
+        createdAt: 398,
+        text: 'bicycle remote author opting out during store',
+        to: [PUBLIC]
+      })
+      const stayStatus = await indexedStatus({
+        id: statusIdOf(stayAuthor, 'postcheck-stay-post'),
+        actorId: stayAuthor,
+        createdAt: 399,
+        text: 'espresso remote author staying indexable',
+        to: [PUBLIC]
+      })
+      const optoutDocId = docIdOf(optoutStatus)
+      const stayDocId = docIdOf(stayStatus)
+      const triggerName = 'test_flip_optout_on_embedding_insert'
+      const fnName = 'test_flip_optout_on_embedding_insert_fn'
+
+      try {
+        // Flip optoutAuthor's indexable flag inside the INSERT performed by storeEmbeddings(),
+        // so the pre-store getEmbeddableDocuments check passes and the row IS written,
+        // leaving only the post-store re-check to detect the opt-out and delete it.
+        await sql`
+          create or replace function ${sql.id(fnName)}() returns trigger language plpgsql as $$
+          begin
+            if new."documentId" = ${sql.lit(optoutDocId)} then
+              update actors
+              set settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{indexable}', 'false'::jsonb)
+              where id = ${sql.lit(optoutAuthor)};
+            end if;
+            return new;
+          end;
+          $$
+        `.execute(db)
+        await sql`
+          create trigger ${sql.id(triggerName)}
+          after insert on ${sql.table(EMBEDDINGS_TABLE)}
+          for each row execute function ${sql.id(fnName)}()
+        `.execute(db)
+
+        const docs = await getEmbeddableDocuments(db, [optoutDocId, stayDocId])
+        expect(docs).toHaveLength(2)
+
+        const result = await embedDocuments(db, provider, docs)
+        expect(result).toEqual({ sent: 2, embedded: 2, refused: [] })
+
+        // Verify the trigger actually ran (proving the pre-store check passed and INSERT occurred).
+        const actorAfter = await db
+          .selectFrom('actors')
+          .select('settings')
+          .where('id', '=', optoutAuthor)
+          .executeTakeFirstOrThrow()
+        const settingsAfter = getCompatibleJSON<Record<string, unknown>>(
+          actorAfter.settings as string | Record<string, unknown>
+        )
+        expect(settingsAfter.indexable).toBe(false)
+
+        // Post-store re-check must have deleted optoutDocId while keeping stayDocId.
+        const stored = await getStoredEmbeddings(db, [optoutDocId, stayDocId])
+        expect(stored.has(optoutDocId)).toBe(false)
+        expect(stored.get(stayDocId)?.hasEmbedding).toBe(true)
+      } finally {
+        await sql`drop trigger if exists ${sql.id(triggerName)} on ${sql.table(EMBEDDINGS_TABLE)}`.execute(
+          db
+        )
+        await sql`drop function if exists ${sql.id(fnName)}()`.execute(db)
+        await deleteEmbeddings(db, [optoutDocId, stayDocId])
       }
     })
   })

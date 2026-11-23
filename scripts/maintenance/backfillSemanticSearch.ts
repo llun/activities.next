@@ -121,13 +121,22 @@ async function backfill() {
         let sent = 0
         try {
           const result = await embedDocuments(db, provider, page)
+          // Every document on the page refused (two or more) is the request,
+          // not the posts (some providers answer a bad key with 400): stop
+          // here, so a rerun after the fix starts from this page. A lone post
+          // refused is skipped like any refused post.
+          if (result.sent > 1 && result.embedded === 0) {
+            throw new Error(
+              `the provider refused every post on this page: ${result.refusal instanceof Error ? result.refusal.message : String(result.refusal)}`
+            )
+          }
           sent = result.sent
           toSend += result.embedded
           refused += result.refused.length
           if (result.refused.length > 0) {
             await recordSemanticFailure(
               db,
-              `backfill: the provider refused ${result.refused.length} document(s) as input`
+              `backfill: the provider refused ${result.refused.length} document(s) as input: ${result.refusal instanceof Error ? result.refusal.message : String(result.refusal)}`
             )
           } else if (sent > 0) {
             await recordSemanticSuccess(db)

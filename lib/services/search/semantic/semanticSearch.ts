@@ -9,6 +9,7 @@ import {
   deleteEmbeddings,
   deleteEmbeddingsForActor,
   getActorStatusDocumentIds,
+  getDatabaseTime,
   getEmbeddableDocuments,
   getEmbeddingContentHash,
   getEmbeddingText,
@@ -92,24 +93,33 @@ const embedTexts = async (
   return batch.map((item, index) => ({ item, vector: vectors[index] }))
 }
 
+type Isolated = {
+  embedded: Embedded[]
+  refused: EmbedItem[]
+  refusal?: unknown
+}
+
 // Narrows a refused batch down to the documents the provider refuses, by
 // halves.
 const embedByHalves = async (
   provider: EmbeddingProvider,
   batch: EmbedItem[]
-): Promise<{ embedded: Embedded[]; refused: EmbedItem[] }> => {
+): Promise<Isolated> => {
   if (batch.length === 0) return { embedded: [], refused: [] }
   try {
     return { embedded: await embedTexts(provider, batch), refused: [] }
   } catch (error) {
     if (!isInputRefusal(error)) throw error
-    if (batch.length === 1) return { embedded: [], refused: batch }
+    if (batch.length === 1) {
+      return { embedded: [], refused: batch, refusal: error }
+    }
     const middle = Math.ceil(batch.length / 2)
     const left = await embedByHalves(provider, batch.slice(0, middle))
     const right = await embedByHalves(provider, batch.slice(middle))
     return {
       embedded: [...left.embedded, ...right.embedded],
-      refused: [...left.refused, ...right.refused]
+      refused: [...left.refused, ...right.refused],
+      refusal: right.refusal ?? left.refusal
     }
   }
 }
@@ -122,14 +132,16 @@ const embedByHalves = async (
 const embedIsolating = async (
   provider: EmbeddingProvider,
   batch: EmbedItem[]
-): Promise<{ embedded: Embedded[]; refused: EmbedItem[] }> => {
+): Promise<Isolated> => {
   try {
     return { embedded: await embedTexts(provider, batch), refused: [] }
   } catch (error) {
     if (!isInputRefusal(error)) throw error
     // A lone document refused is that document (it backs off; nothing is
     // lost if it was really the request).
-    if (batch.length === 1) return { embedded: [], refused: batch }
+    if (batch.length === 1) {
+      return { embedded: [], refused: batch, refusal: error }
+    }
     // The first, middle and last alone: all three refused, it is the request.
     const probeIndexes = [
       ...new Set([0, Math.floor(batch.length / 2), batch.length - 1])
@@ -149,7 +161,8 @@ const embedIsolating = async (
         ...probes.flatMap((probe) => probe.embedded),
         ...rest.embedded
       ],
-      refused: [...probes.flatMap((probe) => probe.refused), ...rest.refused]
+      refused: [...probes.flatMap((probe) => probe.refused), ...rest.refused],
+      refusal: error
     }
   }
 }
@@ -165,6 +178,9 @@ const storeEmbedded = async (
   claim: JobClaim | undefined
 ) => {
   if (embedded.length === 0) return
+  // The backfill only settles marks older than this check; a mark written
+  // after it (an edit, a visibility change) is the job's to look at.
+  const checkedAt = claim ? null : await getDatabaseTime(db)
   const fresh = new Map(
     (
       await getEmbeddableDocuments(
@@ -199,13 +215,36 @@ const storeEmbedded = async (
       embedding: vector,
       pendingSince: claim?.pendingSince.get(item.id) ?? null
     })),
-    { ...provider, claimToken: claim?.claimToken ?? null }
+    { ...provider, claimToken: claim?.claimToken ?? null, checkedAt }
   )
+  if (!claim && keep.length > 0) {
+    // A post that stopped qualifying while the rows were written (an opt-out,
+    // a post made followers-only that had no row yet) leaves no mark behind
+    // for the job, so the backfill checks once more and drops it.
+    const stillEmbeddable = new Set(
+      (
+        await getEmbeddableDocuments(
+          db,
+          keep.map(({ item }) => item.id)
+        )
+      ).map((document) => document.id)
+    )
+    await deleteEmbeddings(
+      db,
+      keep.map(({ item }) => item.id).filter((id) => !stillEmbeddable.has(id))
+    )
+  }
 }
 
 // `sent`: documents sent to the provider; `embedded`: vectors it returned;
 // `refused`: documents it refused as input.
-export type EmbedResult = { sent: number; embedded: number; refused: string[] }
+export type EmbedResult = {
+  sent: number
+  embedded: number
+  refused: string[]
+  // The provider's last refusal, for the health signal.
+  refusal?: unknown
+}
 
 // Embeds the documents whose text changed since their embedding was made (or
 // that have none), in provider-sized batches, and stores the vectors. `claim`
@@ -249,11 +288,12 @@ export const embedDocuments = async (
   const result: EmbedResult = { sent: 0, embedded: 0, refused: [] }
   for (let start = 0; start < toEmbed.length; start += provider.maxBatchSize) {
     const batch = toEmbed.slice(start, start + provider.maxBatchSize)
-    const { embedded, refused } = await embedIsolating(provider, batch)
+    const { embedded, refused, refusal } = await embedIsolating(provider, batch)
     await storeEmbedded(db, provider, embedded, claim)
     result.sent += batch.length
     result.embedded += embedded.length
     result.refused.push(...refused.map((item) => item.id))
+    if (refusal !== undefined) result.refusal = refusal
   }
   return result
 }
@@ -301,7 +341,7 @@ export const processPendingEmbeddings = async (
       await recordFailure(
         db,
         new Error(
-          `the provider refused ${result.refused.length} document(s) as input`
+          `the provider refused ${result.refused.length} document(s) as input: ${describeError(result.refusal)}`
         )
       )
     }
@@ -361,20 +401,29 @@ export const resetEmbeddingJobScheduleForTests = () => {
   lastScheduledBucket = null
 }
 
-// How many batches one job takes before handing over to a continuation.
+// How many batches one job takes under a real queue before handing over to a
+// continuation job.
 export const EMBEDDING_JOB_MAX_PASSES = 8
+// The inline queue's bound: a safety stop (12,800 rows), not a pace; the next
+// write's job picks up what is left.
+export const EMBEDDING_INLINE_JOB_MAX_PASSES = 200
 
 // The job: batches of pending documents while rows remain that a job could
-// claim (marks written while it held them included), then, under a real
-// queue, a continuation; an inline queue never chains (the next write runs
-// the next job), so a long backlog cannot grow the request's call stack. A
+// claim (marks written while it held them included). Under a real queue it
+// hands over to a continuation job after EMBEDDING_JOB_MAX_PASSES; the inline
+// queue runs it detached from the request, so it loops until nothing is left
+// rather than publishing (which would nest each job inside the last). A
 // failure is recorded in the health signal; a retryable one is thrown so the
 // queue retries it with backoff, any other backs its rows off and ends the
 // job until the next write.
 export const runEmbeddingJob = async (db: Db): Promise<void> => {
   const layer = await getSemanticLayer(db)
   if (!layer) return
-  for (let passes = 0; passes < EMBEDDING_JOB_MAX_PASSES; passes += 1) {
+  const inline = getQueue().runsInline
+  const maxPasses = inline
+    ? EMBEDDING_INLINE_JOB_MAX_PASSES
+    : EMBEDDING_JOB_MAX_PASSES
+  for (let passes = 0; passes < maxPasses; passes += 1) {
     let pass: EmbeddingPass
     try {
       pass = await processPendingEmbeddings(db, layer.provider)
@@ -400,7 +449,7 @@ export const runEmbeddingJob = async (db: Db): Promise<void> => {
       return
     }
   }
-  if (!getQueue().runsInline) await scheduleEmbeddingJob(true)
+  if (!inline) await scheduleEmbeddingJob(true)
 }
 
 type CachedQuery = { expiresAt: number; vector: Promise<number[]> }
@@ -485,11 +534,18 @@ export const createSemanticSearchListener = (getDb: () => Db) => ({
       const db = getDb()
       const layer = await getSemanticLayer(db)
       if (!layer) return
-      const documentIds = await getActorStatusDocumentIds(db, actorId)
       // An author toggling the flag must not re-embed their history over and
-      // over: once a day per process at most (a local author has none here).
-      if (documentIds.length === 0 || !takeActorOptIn(actorId)) return
+      // over: once a day per author in each process, best effort (the record
+      // is in memory, capped).
+      if (!takeActorOptIn(actorId)) return
       try {
+        const documentIds = await getActorStatusDocumentIds(db, actorId)
+        // A local author's posts never left, and an author with no public
+        // posts does not use up the day.
+        if (documentIds.length === 0) {
+          actorOptIns.delete(actorId)
+          return
+        }
         const marked = await markEmbeddingsPending(
           db,
           documentIds,

@@ -402,8 +402,15 @@ export const storeEmbeddings = async (
   {
     model,
     dimensions,
-    claimToken = null
-  }: { model: string; dimensions: number; claimToken?: string | null }
+    claimToken = null,
+    checkedAt = null
+  }: {
+    model: string
+    dimensions: number
+    claimToken?: string | null
+    // The backfill's: the database time before it re-checked the documents.
+    checkedAt?: string | null
+  }
 ): Promise<void> => {
   for (const write of writes) {
     const vector = sql`${toVectorLiteral(write.embedding)}::halfvec`
@@ -450,9 +457,19 @@ export const storeEmbeddings = async (
         "claimedUntil" = null,
         "claimToken" = null,
         "updatedAt" = now()
-      where stored."claimedUntil" is null or stored."claimedUntil" < now()
+      where (stored."claimedUntil" is null or stored."claimedUntil" < now())
+        and (stored."pendingSince" is null
+          or stored."pendingSince" <= ${checkedAt}::timestamptz)
     `.execute(db)
   }
+}
+
+// The database's own clock, as exact text, to compare marks against.
+export const getDatabaseTime = async (db: Db): Promise<string> => {
+  const { rows } = await sql<{ now: string }>`
+    select clock_timestamp()::text as now
+  `.execute(db)
+  return rows[0].now
 }
 
 // The document is unchanged: clear the mark this job read (a newer one stays).
@@ -509,17 +526,15 @@ export const deleteEmbeddings = async (
 // an edit or the backfill.
 export const ACTOR_OPT_IN_DOCUMENT_LIMIT = 1000
 
-// The ids of a remote author's newest status documents, to look at again when
-// they opt back in to search. A local author's posts never left.
+// The ids of a remote author's newest posts that qualify, to look at again
+// when they opt back in to search. A local author's posts never left.
 export const getActorStatusDocumentIds = async (
   db: Db,
   actorId: string
 ): Promise<string[]> => {
-  const rows = await db
-    .selectFrom('search_documents')
-    .innerJoin('actors', 'actors.id', 'search_documents.actorId')
+  // Only the posts that qualify count against the limit.
+  const rows = await embeddableDocuments(db)
     .select('search_documents.id')
-    .where('search_documents.entityType', '=', 'status')
     .where('search_documents.actorId', '=', actorId)
     .where((eb) =>
       eb.or([

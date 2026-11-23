@@ -9,6 +9,7 @@ import {
   deleteEmbeddings,
   deleteEmbeddingsForActor,
   getActorStatusDocumentIds,
+  getDatabaseTime,
   getEmbeddableDocuments,
   getSemanticAvailability,
   getStoredEmbeddings,
@@ -26,11 +27,13 @@ import { getQueue } from '@/lib/services/queue'
 import { parseSearchQuery } from '@/lib/services/search/parseSearchQuery'
 import { getEmbeddingProvider } from '@/lib/services/search/semantic/index'
 import {
+  EMBEDDING_INLINE_JOB_MAX_PASSES,
   EMBEDDING_JOB_BATCH_SIZE,
   EMBEDDING_JOB_MAX_PASSES,
   QUERY_EMBEDDING_TIMEOUT_MS,
   clearQueryEmbeddingCache,
   createSemanticSearchListener,
+  embedDocuments,
   embedSearchQuery,
   getSearchQueryEmbedding,
   resetActorOptInsForTests,
@@ -58,6 +61,7 @@ vi.mock(
       deleteEmbeddings: vi.fn(),
       deleteEmbeddingsForActor: vi.fn(),
       getActorStatusDocumentIds: vi.fn(),
+      getDatabaseTime: vi.fn(),
       getEmbeddableDocuments: vi.fn(),
       getSemanticAvailability: vi.fn(),
       getStoredEmbeddings: vi.fn(),
@@ -128,6 +132,10 @@ describe('semanticSearch service', () => {
       .mockReset()
       .mockResolvedValue({ available: true })
     vi.mocked(claimPendingEmbeddings).mockReset().mockResolvedValue([])
+    vi.mocked(getActorStatusDocumentIds).mockReset().mockResolvedValue([])
+    vi.mocked(getDatabaseTime)
+      .mockReset()
+      .mockResolvedValue('2026-01-01 00:00:00+00')
     vi.mocked(getEmbeddableDocuments).mockReset().mockResolvedValue([])
     vi.mocked(getStoredEmbeddings).mockReset().mockResolvedValue(new Map())
     vi.mocked(hasClaimablePendingEmbeddings)
@@ -624,7 +632,7 @@ describe('semanticSearch service', () => {
       )
       expect(recordSemanticFailure).toHaveBeenCalledWith(
         mockDb,
-        'the provider refused 1 document(s) as input'
+        'the provider refused 1 document(s) as input: input too long'
       )
       expect(storeEmbeddings).toHaveBeenCalledTimes(1)
       expect(storeEmbeddings).toHaveBeenCalledWith(
@@ -679,7 +687,7 @@ describe('semanticSearch service', () => {
       )
       expect(recordSemanticFailure).toHaveBeenCalledWith(
         mockDb,
-        'the provider refused 2 document(s) as input'
+        'the provider refused 2 document(s) as input: input too long'
       )
       expect(recordSemanticSuccess).not.toHaveBeenCalled()
     })
@@ -789,7 +797,7 @@ describe('semanticSearch service', () => {
       expect(publish).toHaveBeenCalledTimes(1)
     })
 
-    it('never publishes a continuation under an inline queue and stops when nothing is claimable', async () => {
+    it('loops past EMBEDDING_JOB_MAX_PASSES under an inline queue, stops at EMBEDDING_INLINE_JOB_MAX_PASSES, and never publishes a continuation', async () => {
       const provider = createFakeProvider({ maxBatchSize: 64 })
       vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
       vi.mocked(getQueue).mockReturnValue({
@@ -805,26 +813,31 @@ describe('semanticSearch service', () => {
       vi.mocked(getEmbeddableDocuments).mockResolvedValue([
         { id: 'doc-inline', documentText: 'inline post' }
       ])
-      vi.mocked(hasClaimablePendingEmbeddings).mockResolvedValue(true)
 
+      // Loops past EMBEDDING_JOB_MAX_PASSES (8) while claimable rows remain (10 passes).
+      let claimChecks = 0
+      vi.mocked(hasClaimablePendingEmbeddings).mockImplementation(async () => {
+        claimChecks += 1
+        return claimChecks < 10
+      })
       await runEmbeddingJob(mockDb)
-
-      expect(claimPendingEmbeddings).toHaveBeenCalledTimes(
-        EMBEDDING_JOB_MAX_PASSES
-      )
-      expect(storeEmbeddings).toHaveBeenCalledTimes(EMBEDDING_JOB_MAX_PASSES)
+      expect(claimPendingEmbeddings).toHaveBeenCalledTimes(10)
+      expect(storeEmbeddings).toHaveBeenCalledTimes(10)
       expect(publish).not.toHaveBeenCalled()
 
-      // Stops early once no claimable rows remain.
+      // Stops at the EMBEDDING_INLINE_JOB_MAX_PASSES safety bound when always claimable.
       vi.mocked(claimPendingEmbeddings).mockClear()
       vi.mocked(storeEmbeddings).mockClear()
       vi.mocked(hasClaimablePendingEmbeddings)
         .mockReset()
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(false)
+        .mockResolvedValue(true)
       await runEmbeddingJob(mockDb)
-      expect(claimPendingEmbeddings).toHaveBeenCalledTimes(2)
-      expect(storeEmbeddings).toHaveBeenCalledTimes(2)
+      expect(claimPendingEmbeddings).toHaveBeenCalledTimes(
+        EMBEDDING_INLINE_JOB_MAX_PASSES
+      )
+      expect(storeEmbeddings).toHaveBeenCalledTimes(
+        EMBEDDING_INLINE_JOB_MAX_PASSES
+      )
       expect(publish).not.toHaveBeenCalled()
 
       // Stops immediately when nothing is claimable on the first pass.
@@ -836,6 +849,60 @@ describe('semanticSearch service', () => {
       expect(storeEmbeddings).not.toHaveBeenCalled()
       expect(hasClaimablePendingEmbeddings).not.toHaveBeenCalled()
       expect(publish).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('embedDocuments (backfill)', () => {
+    it('reads database time before pre-store re-check, passes checkedAt, and deletes rows that stop qualifying after store', async () => {
+      const provider = createFakeProvider()
+      const callOrder: string[] = []
+      const checkedAt = '2026-01-01 00:05:00.123456+00'
+
+      vi.mocked(getDatabaseTime).mockImplementation(async () => {
+        callOrder.push('getDatabaseTime')
+        return checkedAt
+      })
+      vi.mocked(getEmbeddableDocuments)
+        .mockImplementationOnce(async () => {
+          callOrder.push('preCheck')
+          return [
+            { id: 'doc-keep', documentText: 'stays public' },
+            { id: 'doc-optout', documentText: 'author opts out mid-store' }
+          ]
+        })
+        .mockImplementationOnce(async () => {
+          callOrder.push('postCheck')
+          return [{ id: 'doc-keep', documentText: 'stays public' }]
+        })
+      vi.mocked(storeEmbeddings).mockImplementation(async () => {
+        callOrder.push('storeEmbeddings')
+      })
+      vi.mocked(deleteEmbeddings).mockImplementation(async () => {
+        callOrder.push('deleteEmbeddings')
+      })
+
+      const result = await embedDocuments(mockDb, provider, [
+        { id: 'doc-keep', documentText: 'stays public' },
+        { id: 'doc-optout', documentText: 'author opts out mid-store' }
+      ])
+
+      expect(result).toEqual({ sent: 2, embedded: 2, refused: [] })
+      expect(callOrder).toEqual([
+        'getDatabaseTime',
+        'preCheck',
+        'storeEmbeddings',
+        'postCheck',
+        'deleteEmbeddings'
+      ])
+      expect(storeEmbeddings).toHaveBeenCalledWith(
+        mockDb,
+        [
+          expect.objectContaining({ documentId: 'doc-keep' }),
+          expect.objectContaining({ documentId: 'doc-optout' })
+        ],
+        expect.objectContaining({ claimToken: null, checkedAt })
+      )
+      expect(deleteEmbeddings).toHaveBeenCalledWith(mockDb, ['doc-optout'])
     })
   })
 
@@ -969,6 +1036,83 @@ describe('semanticSearch service', () => {
       } finally {
         vi.useRealTimers()
       }
+    })
+
+    it('takes the actorIndexed throttle slot before querying and releases it when no qualifying posts exist or marking fails', async () => {
+      const provider = createFakeProvider()
+      vi.mocked(getEmbeddingProvider).mockReturnValue(provider)
+      const warnSpy = vi.spyOn(logger, 'warn')
+      const listener = createSemanticSearchListener(() => mockDb)
+
+      // 1. Slot is taken before querying: a throttled second call (even concurrent)
+      // never calls getActorStatusDocumentIds.
+      const bob = 'https://remote.test/users/bob'
+      let resolveBobQuery!: (ids: string[]) => void
+      vi.mocked(getActorStatusDocumentIds).mockImplementationOnce(
+        () =>
+          new Promise<string[]>((resolve) => {
+            resolveBobQuery = resolve
+          })
+      )
+      vi.mocked(markEmbeddingsPending).mockResolvedValue(1)
+
+      listener.actorIndexed(bob)
+      listener.actorIndexed(bob)
+      await flushMicrotasks()
+      expect(getActorStatusDocumentIds).toHaveBeenCalledTimes(1)
+
+      resolveBobQuery(['doc-bob-1'])
+      await flushMicrotasks()
+      expect(markEmbeddingsPending).toHaveBeenCalledTimes(1)
+
+      // A later call within the 24h window also skips querying getActorStatusDocumentIds.
+      listener.actorIndexed(bob)
+      await flushMicrotasks()
+      expect(getActorStatusDocumentIds).toHaveBeenCalledTimes(1)
+      expect(markEmbeddingsPending).toHaveBeenCalledTimes(1)
+
+      // 2. When getActorStatusDocumentIds returns [], the slot is released so a later call queries again.
+      const carol = 'https://remote.test/users/carol'
+      vi.mocked(getActorStatusDocumentIds)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(['doc-carol-1'])
+
+      listener.actorIndexed(carol)
+      await flushMicrotasks()
+      expect(getActorStatusDocumentIds).toHaveBeenCalledTimes(2)
+      expect(markEmbeddingsPending).toHaveBeenCalledTimes(1)
+
+      listener.actorIndexed(carol)
+      await flushMicrotasks()
+      expect(getActorStatusDocumentIds).toHaveBeenCalledTimes(3)
+      expect(markEmbeddingsPending).toHaveBeenCalledTimes(2)
+      expect(markEmbeddingsPending).toHaveBeenLastCalledWith(
+        mockDb,
+        ['doc-carol-1'],
+        provider
+      )
+
+      // Once carol's posts were marked, she is throttled and does not query again.
+      listener.actorIndexed(carol)
+      await flushMicrotasks()
+      expect(getActorStatusDocumentIds).toHaveBeenCalledTimes(3)
+
+      // 3. When marking fails, the slot is released so a subsequent call retries.
+      const dave = 'https://remote.test/users/dave'
+      vi.mocked(getActorStatusDocumentIds).mockResolvedValue(['doc-dave-1'])
+      vi.mocked(markEmbeddingsPending)
+        .mockRejectedValueOnce(new Error('transient db error'))
+        .mockResolvedValueOnce(1)
+
+      listener.actorIndexed(dave)
+      await flushMicrotasks()
+      expect(warnSpy).toHaveBeenCalledTimes(1)
+      expect(getActorStatusDocumentIds).toHaveBeenCalledTimes(4)
+
+      listener.actorIndexed(dave)
+      await flushMicrotasks()
+      expect(getActorStatusDocumentIds).toHaveBeenCalledTimes(5)
+      expect(markEmbeddingsPending).toHaveBeenCalledTimes(4)
     })
 
     it('drops actor embeddings on actorUnindexed and swallows errors', async () => {
