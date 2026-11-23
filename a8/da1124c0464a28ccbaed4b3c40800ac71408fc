@@ -1,0 +1,37 @@
+scripts/maintenance/backfillSemanticSearch.ts
+  s_17b6192f00c988::t_9c14fb7dab4cd5 120,122,133-134
+lib/database/domains/search/semanticStore.ts
+  s_17b6192f00c988::t_949a47073a3e45 634,636-637,639-641,675-681
+  s_17b6192f00c988::t_9e316f8f13d0eb 250-253,258-263,265-282,285-286,289-296,301-311,316-326,339-341,351-369,371-373,385,392-397,401-403,406-407,410-429,651
+lib/services/search/semantic/semanticSearch.ts
+  s_17b6192f00c988::t_e3d56a24208375 7,19,70-148,151-152,163,180,185,187,189-191,194,197-199,205,210-224,237-260,265,290,338
+  s_17b6192f00c988::t_a7fab673f13b8e 261-264,269-271,288,307-308,339-343
+lib/services/search/semantic/types.ts
+  s_17b6192f00c988::t_5b459fd9676eca 30
+lib/services/search/semantic/shared.ts
+  s_17b6192f00c988::t_5b459fd9676eca 77-79,89-90,93
+lib/services/search/semantic/semanticSearch.test.ts
+  s_17b6192f00c988::t_d3e263cc43d449 7,17,32-34,51,61,106,120,126,129,234-264,414-470,480,488,493,501-529,537-541,544,559,589,608-624
+lib/database/domains/search/semantic.pgvector.test.ts
+  s_17b6192f00c988::t_f9949a70f9e351 3,9-10,12,19,25-29,36-39,253-347,530-958
+lib/services/search/semantic/gemini.test.ts
+  s_17b6192f00c988::t_6e78a990fe432e 267-268,302-303,307,309-314,325-327,346-347
+lib/services/search/semantic/openai.test.ts
+  s_17b6192f00c988::t_840b26eed12a30 225-226,262-263,287,303-304,307,324-325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8da1124c0464a28ccbaed4b3c40800ac71408fc",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
