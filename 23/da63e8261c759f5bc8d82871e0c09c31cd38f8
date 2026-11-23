@@ -1,0 +1,31 @@
+scripts/maintenance/runQueueWorker.test.ts
+  s_17b6192f00c988::t_f8e2324247118c 1,4,12-19,47-48
+lib/config/searchEmbeddings.test.ts
+  s_17b6192f00c988::t_4f60493fe0161f 7-8,253-285
+  s_17b6192f00c988::t_78278fa57297e3 286-287
+lib/config/searchEmbeddings.ts
+  s_17b6192f00c988::t_e30f147e5328d9 81-85,87-99
+  s_17b6192f00c988::t_a0950c086e1438 86
+scripts/maintenance/runQueueWorker.ts
+  s_17b6192f00c988::t_e30f147e5328d9 5,8,33-35
+scripts/maintenance/setupSemanticSearch.ts
+  s_17b6192f00c988::t_e30f147e5328d9 4,44-54
+docs/maintenance.md
+  s_17b6192f00c988::t_4f60493fe0161f 548
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "23da63e8261c759f5bc8d82871e0c09c31cd38f8",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
