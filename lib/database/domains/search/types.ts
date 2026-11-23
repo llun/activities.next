@@ -95,6 +95,10 @@ export type SearchStatusesParams = {
   accountId?: string | null
   minId?: string | null
   maxId?: string | null
+  // The query's embedding, when semantic search is on: a relevance search with
+  // at least one plain word then also takes the nearest embedded documents and
+  // merges both rankings by reciprocal rank fusion.
+  semantic?: { embedding: number[]; model: string; dimensions: number } | null
 }
 
 export type ReindexSearchDocumentsParams = {

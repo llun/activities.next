@@ -64,6 +64,8 @@ yarn migrate
 
 On an empty database the first migration loads the baseline schema (`migrations/baseline/postgres.sql`), then every later migration in the [migrations directory](https://github.com/llun/activities.next/tree/main/migrations) runs. `yarn migrate` prints the database it resolved before it does anything, and `yarn migrate:status` lists the applied and pending migrations without writing to the database. An existing database that ran the old Knex migrations needs one check first: see [Upgrading past the Knex handover](maintenance.md#upgrading-past-the-knex-handover).
 
+> **Optional semantic search (`pgvector`):** PostgreSQL instances with `pgvector` `0.8.0` or newer can enable optional hybrid semantic search over posts by configuring an embeddings provider and running `yarn search:semantic:setup` and `yarn search:semantic:backfill` — see [Semantic search (optional)](maintenance.md#semantic-search-optional).
+
 ## Production Deployment with PostgreSQL
 
 For production deployment with PostgreSQL:

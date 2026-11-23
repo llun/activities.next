@@ -20,7 +20,9 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
   'cookie2',
   'proxy-authorization',
   'signature',
-  'signature-input'
+  'signature-input',
+  // An API key header (the Gemini embeddings provider): never to another host.
+  'x-goog-api-key'
 ])
 const BODY_REDIRECT_HEADERS = new Set([
   'content-digest',
@@ -119,6 +121,10 @@ export type SafeRemoteFetchResult = {
   url: string
 }
 
+export type SafeRemoteFetch = (
+  options: SafeRemoteFetchOptions
+) => Promise<SafeRemoteFetchResult>
+
 type ResolveHost = (hostname: string) => Promise<ResolvedRemoteAddress[]>
 
 export class SafeRemoteFetchError extends Error {
@@ -209,11 +215,20 @@ const isLocalhostHostname = (hostname: string) => {
 const allowsDevelopmentLocalhost = (url: URL) =>
   process.env.NODE_ENV === 'development' && isLocalhostHostname(url.hostname)
 
-const assertAllowedProtocol = (url: URL) => {
+const assertAllowedProtocol = (url: URL, allowPrivateNetwork: boolean) => {
   if (url.protocol === 'https:') return
-  if (url.protocol === 'http:' && allowsDevelopmentLocalhost(url)) return
+  if (
+    url.protocol === 'http:' &&
+    (allowPrivateNetwork || allowsDevelopmentLocalhost(url))
+  ) {
+    return
+  }
 
-  throw createUnsafeUrlError('Only HTTPS remote URLs are allowed')
+  throw createUnsafeUrlError(
+    allowPrivateNetwork
+      ? 'Only HTTP and HTTPS remote URLs are allowed'
+      : 'Only HTTPS remote URLs are allowed'
+  )
 }
 
 const defaultResolveHost: ResolveHost = async (hostname) => {
@@ -234,9 +249,11 @@ const defaultResolveHost: ResolveHost = async (hostname) => {
 }
 
 const resolveSafeAddresses = async ({
+  allowPrivateNetwork,
   resolveHost,
   url
 }: {
+  allowPrivateNetwork: boolean
   resolveHost: ResolveHost
   url: URL
 }) => {
@@ -245,16 +262,30 @@ const resolveSafeAddresses = async ({
     throw createUnsafeUrlError('Unable to resolve remote host')
   }
 
-  const allowDevelopmentLocalhost = allowsDevelopmentLocalhost(url)
-  const unsafeAddress = addresses.find(({ address }) =>
-    allowDevelopmentLocalhost
-      ? !isLoopbackAddress(address)
-      : isUnsafeAddress(address)
-  )
-  if (unsafeAddress) {
-    throw createUnsafeUrlError(
-      `Unsafe remote address: ${unsafeAddress.address}`
+  if (allowPrivateNetwork) {
+    // Plain http only to the private network the option is for: a public
+    // host still needs https, so a key never crosses the internet in clear.
+    const publicAddress =
+      url.protocol === 'http:'
+        ? addresses.find(({ address }) => !isUnsafeAddress(address))
+        : undefined
+    if (publicAddress) {
+      throw createUnsafeUrlError(
+        `Plain HTTP is only allowed to a private address, not ${publicAddress.address}`
+      )
+    }
+  } else {
+    const allowDevelopmentLocalhost = allowsDevelopmentLocalhost(url)
+    const unsafeAddress = addresses.find(({ address }) =>
+      allowDevelopmentLocalhost
+        ? !isLoopbackAddress(address)
+        : isUnsafeAddress(address)
     )
+    if (unsafeAddress) {
+      throw createUnsafeUrlError(
+        `Unsafe remote address: ${unsafeAddress.address}`
+      )
+    }
   }
 
   return addresses
@@ -605,12 +636,14 @@ const getDynamicHeadersToStrip = ({
 }
 
 export const createSafeRemoteFetch = ({
+  allowPrivateNetwork = false,
   resolveHost = defaultResolveHost,
   transport = gotTransport
 }: {
+  allowPrivateNetwork?: boolean
   resolveHost?: ResolveHost
   transport?: SafeRemoteFetchTransport
-} = {}) => {
+} = {}): SafeRemoteFetch => {
   const safeRemoteFetch = async ({
     allowCrossHostRedirects = true,
     body,
@@ -647,7 +680,7 @@ export const createSafeRemoteFetch = ({
 
     while (true) {
       throwIfAborted(signal)
-      assertAllowedProtocol(currentUrl)
+      assertAllowedProtocol(currentUrl, allowPrivateNetwork)
       const requestHeaders = getRequestHeaders({
         body: currentBody,
         headers: currentHeaders,
@@ -664,6 +697,7 @@ export const createSafeRemoteFetch = ({
       })
       const resolvedAddresses = await awaitWithAbort(
         resolveSafeAddresses({
+          allowPrivateNetwork,
           resolveHost,
           url: currentUrl
         }),

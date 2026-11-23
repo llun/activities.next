@@ -3,16 +3,19 @@ import { sql } from 'kysely'
 
 import {
   createActorPublicIdReader,
+  createFreshDatabaseRunner,
   createSigningAccount,
   seedActorTestDatabase
 } from '@/lib/database/domains/actor/actorTestHelpers'
 import { getActor } from '@/lib/database/domains/actor/rows'
+import { setSemanticSearchListener } from '@/lib/database/domains/search/semanticHooks'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { holdTransaction } from '@/lib/database/testing/heldTransaction'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
@@ -513,6 +516,144 @@ describe('ActorDatabase', () => {
         const settings = await database.getActorSettings({ actorId })
         expect(settings).toMatchObject(update)
       })
+
+      it('tells the semantic search hook when the indexable flag changes, not on every update', async () => {
+        const username = `indexable-hook-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+        const listener = {
+          statusDocumentsWritten: vi.fn(),
+          actorIndexed: vi.fn(),
+          actorUnindexed: vi.fn()
+        }
+        setSemanticSearchListener(listener)
+        try {
+          await database.updateActor({ actorId, indexable: true })
+          await database.updateActor({ actorId, indexable: true })
+          await database.updateActor({ actorId, indexable: false })
+          await database.updateActor({ actorId, indexable: false })
+        } finally {
+          setSemanticSearchListener(null)
+        }
+        expect(listener.actorIndexed).toHaveBeenCalledTimes(1)
+        expect(listener.actorIndexed).toHaveBeenCalledWith(actorId)
+        expect(listener.actorUnindexed).toHaveBeenCalledTimes(1)
+        expect(listener.actorUnindexed).toHaveBeenCalledWith(actorId)
+      })
+
+      it('fires actorUnindexed when actors.settings JSON was updated directly to indexable true before updateActor({ indexable: false })', async () => {
+        const withFreshDb = createFreshDatabaseRunner(backend)
+        await withFreshDb(async (freshDatabase, freshDb) => {
+          const username = `indexable-direct-${crypto.randomUUID().slice(0, 8)}`
+          const actorId = `https://${TEST_DOMAIN}/users/${username}`
+          await createSigningAccount(freshDatabase, username)
+          await freshDatabase.updateActor({ actorId, indexable: false })
+
+          const row = await freshDb
+            .selectFrom('actors')
+            .select('settings')
+            .where('id', '=', actorId)
+            .executeTakeFirstOrThrow()
+          const currentSettings = getCompatibleJSON<Record<string, unknown>>(
+            row.settings as string | Record<string, unknown>
+          )
+          await freshDb
+            .updateTable('actors')
+            .set({
+              settings: JSON.stringify({ ...currentSettings, indexable: true })
+            })
+            .where('id', '=', actorId)
+            .execute()
+
+          const listener = {
+            statusDocumentsWritten: vi.fn(),
+            actorIndexed: vi.fn(),
+            actorUnindexed: vi.fn()
+          }
+          setSemanticSearchListener(listener)
+          try {
+            await freshDatabase.updateActor({ actorId, indexable: false })
+          } finally {
+            setSemanticSearchListener(null)
+          }
+
+          expect(listener.actorUnindexed).toHaveBeenCalledTimes(1)
+          expect(listener.actorUnindexed).toHaveBeenCalledWith(actorId)
+          expect(listener.actorIndexed).not.toHaveBeenCalled()
+        })
+      })
+
+      it.runIf(backend === 'pg')(
+        'reads wasIndexable under the row lock so a concurrent opt-in before updateActor({ indexable: false }) still fires actorUnindexed',
+        async () => {
+          const username = `indexable-held-${crypto.randomUUID().slice(0, 8)}`
+          const actorId = `https://${TEST_DOMAIN}/users/${username}`
+          await createSigningAccount(database, username)
+          await database.updateActor({ actorId, indexable: false })
+
+          const listener = {
+            statusDocumentsWritten: vi.fn(),
+            actorIndexed: vi.fn(),
+            actorUnindexed: vi.fn()
+          }
+          const raw = createTestDatabase({ backend: 'pg' })
+          const held = await holdTransaction(raw.db)
+          let pending: ReturnType<typeof database.updateActor> | undefined
+          setSemanticSearchListener(listener)
+          try {
+            const lockedRow = await held.trx
+              .selectFrom('actors')
+              .select('settings')
+              .where('id', '=', actorId)
+              .forUpdate()
+              .executeTakeFirstOrThrow()
+            const lockedSettings = getCompatibleJSON<Record<string, unknown>>(
+              lockedRow.settings as string | Record<string, unknown>
+            )
+            // Flip indexable to true inside the uncommitted transaction:
+            // updateActor's pre-transaction read sees the stale false, then waits on FOR UPDATE.
+            await held.trx
+              .updateTable('actors')
+              .set({
+                settings: JSON.stringify({ ...lockedSettings, indexable: true })
+              })
+              .where('id', '=', actorId)
+              .execute()
+
+            pending = database.updateActor({ actorId, indexable: false })
+            const deadline = Date.now() + 5000
+            for (;;) {
+              const { rows } = await sql<{ waiting: number }>`
+                select count(*)::int as waiting
+                from pg_stat_activity
+                where datname = current_database()
+                  and wait_event_type = 'Lock'
+                  and pid <> pg_backend_pid()
+              `.execute(raw.db)
+              if (rows[0].waiting > 0) break
+              if (Date.now() > deadline) {
+                throw new Error(
+                  'updateActor never waited for the actor row lock'
+                )
+              }
+              await new Promise((resolve) => setTimeout(resolve, 20))
+            }
+            await held.commit()
+            await pending
+          } catch (error) {
+            await held.rollback()
+            throw error
+          } finally {
+            await pending?.catch(() => undefined)
+            setSemanticSearchListener(null)
+            await raw.destroy()
+          }
+
+          expect(listener.actorUnindexed).toHaveBeenCalledTimes(1)
+          expect(listener.actorUnindexed).toHaveBeenCalledWith(actorId)
+          expect(listener.actorIndexed).not.toHaveBeenCalled()
+        }
+      )
 
       it('preserves other settings updates passed alongside an append', async () => {
         const username = `append-settings-${crypto.randomUUID().slice(0, 8)}`

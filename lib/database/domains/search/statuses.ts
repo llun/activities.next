@@ -2,6 +2,7 @@ import {
   type Expression,
   type ExpressionBuilder,
   type NotNull,
+  type SelectQueryBuilder,
   type SqlBool,
   sql
 } from 'kysely'
@@ -11,13 +12,20 @@ import {
   getSearchDocumentId,
   normalizeSearchText
 } from '@/lib/database/domains/search/rows'
+import { notifyStatusDocumentsWritten } from '@/lib/database/domains/search/semanticHooks'
+import {
+  enableIterativeScan,
+  nearestDocumentIds,
+  recordSemanticFailure
+} from '@/lib/database/domains/search/semanticStore'
 import type {
   ReindexSearchDocumentsParams,
   ReindexSearchDocumentsResult,
   SearchStatusesParams
 } from '@/lib/database/domains/search/types'
-import type { DB, Db } from '@/lib/database/kysely'
+import { type DB, type Db, inTransaction } from '@/lib/database/kysely'
 import {
+  type FullTextQuery,
   fullTextQueryMatch,
   fullTextRank,
   hostnameOf,
@@ -361,6 +369,8 @@ const reindexStatusSearchDocuments = async (
       )
       .execute()
   )
+  // The semantic layer (when on) decides whether each one is embedded.
+  notifyStatusDocumentsWritten(rows.map((row) => row.id))
 }
 
 // Passing a fresh status row indexes that exact shape; passing only an id
@@ -769,6 +779,73 @@ const indexablePublicPost = (
     )
   ])
 
+// How many nearest documents the semantic side adds to a relevance search.
+export const SEMANTIC_CANDIDATE_LIMIT = 100
+// Reciprocal rank fusion's damping constant: a document at rank r in a list
+// adds 1 / (RRF_K + r).
+export const RRF_K = 60
+
+// Merges ranked id lists by reciprocal rank fusion. Ties keep the order of the
+// first list that ranks them (the keyword one), then the larger id.
+export const fuseRankings = (rankings: string[][]): string[] => {
+  const scores = new Map<string, { score: number; first: number }>()
+  rankings.forEach((ranking, listIndex) => {
+    ranking.forEach((id, index) => {
+      const entry = scores.get(id) ?? {
+        score: 0,
+        first: listIndex * RELEVANCE_CANDIDATE_LIMIT * 10 + index
+      }
+      entry.score += 1 / (RRF_K + index + 1)
+      scores.set(id, entry)
+    })
+  })
+  return [...scores.entries()]
+    .sort(
+      ([leftId, left], [rightId, right]) =>
+        right.score - left.score ||
+        left.first - right.first ||
+        (leftId < rightId ? 1 : leftId > rightId ? -1 : 0)
+    )
+    .map(([id]) => id)
+}
+
+// The semantic side of a relevance search: the nearest embedded documents the
+// viewer may find. Any failure (the tables gone, a lock, a bad vector) leaves
+// the keyword results alone and is recorded in the persisted health signal.
+const semanticCandidateIds = async (
+  db: Db,
+  semantic: NonNullable<SearchStatusesParams['semantic']>,
+  buildQuery: (
+    conn: Db
+  ) => SelectQueryBuilder<DB, 'search_documents' | 'statuses', object>
+): Promise<string[]> => {
+  if (db.isTransaction) return []
+  try {
+    return await inTransaction(db, async (trx) => {
+      await enableIterativeScan(trx)
+      return nearestDocumentIds(buildQuery(trx), semantic.embedding, {
+        model: semantic.model,
+        dimensions: semantic.dimensions,
+        limit: SEMANTIC_CANDIDATE_LIMIT
+      })
+    })
+  } catch (error) {
+    logger.warn({
+      message: 'Semantic search candidates failed; using keyword results',
+      err: toLoggableError(error)
+    })
+    try {
+      await recordSemanticFailure(
+        db,
+        `search query: ${error instanceof Error ? error.message : String(error)}`
+      )
+    } catch {
+      // The status table may be what failed.
+    }
+    return []
+  }
+}
+
 export const searchStatusIds = async (
   db: Db,
   {
@@ -783,7 +860,8 @@ export const searchStatusIds = async (
     sort = 'latest',
     accountId,
     minId,
-    maxId
+    maxId,
+    semantic
   }: SearchStatusesParams
 ): Promise<string[]> => {
   const parsed = parsedQuery ?? parseSearchQuery(q)
@@ -808,15 +886,6 @@ export const searchStatusIds = async (
       : [...new Set([maxId, minId].filter((id): id is string => Boolean(id)))]
   )
 
-  let query = db
-    .selectFrom('search_documents')
-    .innerJoin('statuses', 'statuses.id', 'search_documents.entityId')
-    .select('search_documents.entityId')
-    .where('search_documents.entityType', '=', 'status')
-    .where('statuses.type', 'in', SEARCHABLE_STATUS_TYPES)
-  if (hasText || parsed.excluded.length > 0) {
-    query = fullTextQueryMatch(db, query, parsed)
-  }
   // A bare `from:username` names an account on this domain; a caller that gave
   // no domain gets the viewer's own.
   let fromDomain = (localDomain ?? currentActorDomain)?.toLowerCase() ?? null
@@ -837,83 +906,108 @@ export const searchStatusIds = async (
     fromDomain = viewer?.domain?.toLowerCase() ?? null
   }
   const filterContext = { viewerId, localDomain: fromDomain }
-  for (const filter of parsed.filters) {
-    query = query.where((eb) => {
-      const condition = statusSearchFilter(eb, filter, filterContext)
-      return filter.negated ? eb.not(condition) : condition
-    })
-  }
-  if (accountId) query = query.where('statuses.actorId', '=', accountId)
-  query = query
-    .where((eb) => potentiallyReadableStatus(db, eb, viewerId))
-    // Search finds the statuses the viewer wrote, liked, bookmarked or was
-    // mentioned in (their library) and, unless the query says `in:library`,
-    // the public posts of authors who opted in to search (`indexable`).
-    .where((eb) =>
-      eb.or([
-        ...(parsed.scope === 'all'
-          ? [indexablePublicPost(db, eb, viewerId, Date.now())]
-          : []),
-        eb('statuses.actorId', '=', viewerId),
-        eb.exists(
-          eb
-            .selectFrom('likes')
-            .select(sql.lit(1).as('one'))
-            .where('likes.actorId', '=', viewerId)
-            .whereRef('likes.statusId', '=', 'statuses.id')
-        ),
-        eb.exists(
-          eb
-            .selectFrom('bookmarks')
-            .select(sql.lit(1).as('one'))
-            .where('bookmarks.actorId', '=', viewerId)
-            .whereRef('bookmarks.statusId', '=', 'statuses.id')
-        ),
-        ...(mentionValues.length > 0
-          ? [
-              eb.exists(
-                eb
-                  .selectFrom('tags')
-                  .select(sql.lit(1).as('one'))
-                  .where('tags.type', '=', 'mention')
-                  .whereRef('tags.statusId', '=', 'statuses.id')
-                  .where((mention) =>
-                    mention.or([
-                      mention('tags.value', 'in', mentionValues),
-                      mention('tags.name', 'in', mentionValues)
-                    ])
+  const now = Date.now()
+
+  // The matching statuses the viewer may find, on `conn` (the semantic side
+  // runs it inside a transaction), with `text` as the full-text condition.
+  const buildQuery = (conn: Db, text: FullTextQuery | null) => {
+    let query = conn
+      .selectFrom('search_documents')
+      .innerJoin('statuses', 'statuses.id', 'search_documents.entityId')
+      .select('search_documents.entityId')
+      .where('search_documents.entityType', '=', 'status')
+      .where('statuses.type', 'in', SEARCHABLE_STATUS_TYPES)
+    if (text) query = fullTextQueryMatch(conn, query, text)
+    for (const filter of parsed.filters) {
+      query = query.where((eb) => {
+        const condition = statusSearchFilter(eb, filter, filterContext)
+        return filter.negated ? eb.not(condition) : condition
+      })
+    }
+    if (accountId) query = query.where('statuses.actorId', '=', accountId)
+    return (
+      query
+        .where((eb) => potentiallyReadableStatus(conn, eb, viewerId))
+        // Search finds the statuses the viewer wrote, liked, bookmarked or was
+        // mentioned in (their library) and, unless the query says
+        // `in:library`, the public posts of authors who opted in to search
+        // (`indexable`).
+        .where((eb) =>
+          eb.or([
+            ...(parsed.scope === 'all'
+              ? [indexablePublicPost(conn, eb, viewerId, now)]
+              : []),
+            eb('statuses.actorId', '=', viewerId),
+            eb.exists(
+              eb
+                .selectFrom('likes')
+                .select(sql.lit(1).as('one'))
+                .where('likes.actorId', '=', viewerId)
+                .whereRef('likes.statusId', '=', 'statuses.id')
+            ),
+            eb.exists(
+              eb
+                .selectFrom('bookmarks')
+                .select(sql.lit(1).as('one'))
+                .where('bookmarks.actorId', '=', viewerId)
+                .whereRef('bookmarks.statusId', '=', 'statuses.id')
+            ),
+            ...(mentionValues.length > 0
+              ? [
+                  eb.exists(
+                    eb
+                      .selectFrom('tags')
+                      .select(sql.lit(1).as('one'))
+                      .where('tags.type', '=', 'mention')
+                      .whereRef('tags.statusId', '=', 'statuses.id')
+                      .where((mention) =>
+                        mention.or([
+                          mention('tags.value', 'in', mentionValues),
+                          mention('tags.name', 'in', mentionValues)
+                        ])
+                      )
                   )
-              )
-            ]
-          : [])
-      ])
-    )
-    // Neither side of a block sees the other's statuses.
-    .where((eb) =>
-      eb.not(
-        eb.exists(
-          eb
-            .selectFrom('blocks')
-            .select(sql.lit(1).as('one'))
-            .where((block) =>
-              block.or([
-                block.and([
-                  block('blocks.actorId', '=', viewerId),
-                  block(
-                    'blocks.targetActorId',
-                    '=',
-                    block.ref('statuses.actorId')
-                  )
-                ]),
-                block.and([
-                  block('blocks.targetActorId', '=', viewerId),
-                  block('blocks.actorId', '=', block.ref('statuses.actorId'))
-                ])
-              ])
-            )
+                ]
+              : [])
+          ])
         )
-      )
+        // Neither side of a block sees the other's statuses.
+        .where((eb) =>
+          eb.not(
+            eb.exists(
+              eb
+                .selectFrom('blocks')
+                .select(sql.lit(1).as('one'))
+                .where((block) =>
+                  block.or([
+                    block.and([
+                      block('blocks.actorId', '=', viewerId),
+                      block(
+                        'blocks.targetActorId',
+                        '=',
+                        block.ref('statuses.actorId')
+                      )
+                    ]),
+                    block.and([
+                      block('blocks.targetActorId', '=', viewerId),
+                      block(
+                        'blocks.actorId',
+                        '=',
+                        block.ref('statuses.actorId')
+                      )
+                    ])
+                  ])
+                )
+            )
+          )
+        )
     )
+  }
+
+  let query = buildQuery(
+    db,
+    hasText || parsed.excluded.length > 0 ? parsed : null
+  )
 
   if (byRelevance) {
     // The newest matches, then their scores: the score is computed for those
@@ -925,7 +1019,6 @@ export const searchStatusIds = async (
       .orderBy('search_documents.entityId', 'desc')
       .limit(RELEVANCE_CANDIDATE_LIMIT)
       .execute()
-    if (candidates.length === 0) return []
     const scores = await selectInChunks(
       db,
       candidates.map((candidate) => candidate.entityId),
@@ -948,13 +1041,37 @@ export const searchStatusIds = async (
     const scoreById = new Map(
       scores.map((row) => [row.entityId, Number(row.score)])
     )
-    return rankSearchCandidates(
-      candidates.map((candidate) => ({
-        entityId: candidate.entityId,
-        createdAt: Number(candidate.entityCreatedAt ?? 0),
-        score: scoreById.get(candidate.entityId) ?? 0
-      }))
-    ).slice(offset, offset + limit)
+    const keywordRanked =
+      candidates.length === 0
+        ? []
+        : rankSearchCandidates(
+            candidates.map((candidate) => ({
+              entityId: candidate.entityId,
+              createdAt: Number(candidate.entityCreatedAt ?? 0),
+              score: scoreById.get(candidate.entityId) ?? 0
+            }))
+          )
+    const semanticRanked =
+      semantic && parsed.terms.length > 0
+        ? await semanticCandidateIds(db, semantic, (conn) =>
+            // The plain words find by meaning; phrases and exclusions stay
+            // filters on both sides, as do the operators.
+            buildQuery(
+              conn,
+              parsed.phrases.length > 0 || parsed.excluded.length > 0
+                ? {
+                    terms: [],
+                    phrases: parsed.phrases,
+                    excluded: parsed.excluded
+                  }
+                : null
+            )
+          )
+        : []
+    return fuseRankings([keywordRanked, semanticRanked]).slice(
+      offset,
+      offset + limit
+    )
   }
 
   for (const [cursorId, operator] of [

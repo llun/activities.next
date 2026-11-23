@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 403,
+    "message": "API key not valid (gemini-secret-fixture-key). Please pass a valid API key.",
+    "status": "PERMISSION_DENIED"
+  }
+}

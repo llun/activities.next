@@ -260,7 +260,7 @@ To prevent accidental data loss or clobbering of a live instance:
 #### How the database travels
 
 - **Both scripts run on Kysely, through the app's connection code** (`openArchiveDatabase` in `scripts/backup/productionArchive.ts`, over `openScriptDatabase(config, { normalizeResults: false })`). Unlike every other connection, this one does not normalise results. On SQLite rows are exported and restored as stored: epoch milliseconds or `CURRENT_TIMESTAMP` text, `0`/`1` and JSON text. On PostgreSQL they are node-postgres's own types (`bigint` values as exact strings, booleans, JSON parsed), except `date`, `timestamp` and `timestamptz` values, which stay the text PostgreSQL sends and are bound back as that text, so they restore exactly whatever the zone of the machine running the scripts. The connection sets each of its sessions' `DateStyle` to ISO and `TimeZone` to UTC (`lib/database/connection.ts`), so that text is `2026-01-02` and `2026-02-03 04:05:06.789123+00` whatever the server, database or role defaults are; the app's own connection keeps the server's settings. A `timestamptz` written with another offset (`2026-02-03 09:35:06.789123+05:30`) restores as the same instant. node-postgres's `Date` would drop a timestamp's microseconds and read a `date` as the process's local midnight, which an export run east of UTC wrote as the previous day. Archives written before this held ISO strings (`2026-02-03T04:05:06.789Z`) for both; they still restore, with what they hold (milliseconds, and a `date` exported east of UTC a day early), and PostgreSQL archives written now also restore exactly with the earlier scripts, which bind the text the same way. `scripts/backup/productionArchive.database.test.ts` pins this with an export (run in `Asia/Bangkok`, and on PostgreSQL from a database whose sessions default to `Asia/Kolkata` and the `SQL, DMY` style) → restore round trip on both backends.
-- **The export reads one snapshot**: a repeatable-read, read-only transaction on PostgreSQL (`inTransaction` with `isolationLevel` / `accessMode`), an ordinary transaction on SQLite. Every table is exported except SQLite's `sqlite_sequence` and the migration bookkeeping and lock tables (`kysely_migration`, `kysely_migration_lock`, `knex_migrations` and `knex_migrations_lock`: `MIGRATION_TABLES` and `MIGRATION_LOCK_TABLES` in `lib/database/migrate`). The manifest's migration list says what the source had applied, and a restored database keeps the history its own migrations wrote: those tables are never restored, and an older archive's `knex_migrations` rows are skipped.
+- **The export reads one snapshot**: a repeatable-read, read-only transaction on PostgreSQL (`inTransaction` with `isolationLevel` / `accessMode`), an ordinary transaction on SQLite. Every table is exported except SQLite's `sqlite_sequence`, the migration bookkeeping and lock tables (`kysely_migration`, `kysely_migration_lock`, `knex_migrations` and `knex_migrations_lock`: `MIGRATION_TABLES` and `MIGRATION_LOCK_TABLES` in `lib/database/migrate`), and the optional semantic search tables (`search_document_embeddings`, `search_semantic_status`: derived data, emptied on a PostgreSQL target that has them and rebuilt by `yarn search:semantic:backfill`). The manifest's migration list says what the source had applied, and a restored database keeps the history its own migrations wrote: those tables are never restored, and an older archive's `knex_migrations` rows are skipped.
 - **The manifest's `database.migrations` is the list of migrations the source had applied** (`getAppliedMigrationNames` in `lib/database/migrate`: the rows of `kysely_migration`, in the order they ran; on a database the Knex migrations built and `yarn migrate` has not touched yet, `knex_migrations` read as the baseline when it holds all 181 Knex migrations). An archive written before the handover lists the Knex migrations; when it lists all 181 it is read as `[20261014000000_baseline]` (`normalizeMigrationNames`), so it restores with this release. A restore refuses unless the list equals the migrations this checkout ships (`getKnownMigrationNames`, the keys of `migrations/index.ts`) and, when the local database already has migrations applied, those too. A local database with none applied is migrated first (`migrateToLatest`, the same migrations `yarn migrate` runs), on a normalising connection of its own (`openScriptDatabase(config)`), not the archive's, so migrations read rows as they do under `yarn migrate`. So restore an archive with the code that wrote it (or, for an archive from v1.192.34 or a later pre-handover release, this release), into an empty database or one at the same migration.
 - **SQLite's full-text search tables are not restored row by row.** The archive includes `search_documents_fts`, an external-content FTS5 table over `search_documents`, and its shadow tables (`search_documents_fts_data`, `_idx`, `_docsize`, `_config`), but SQLite refuses writes to the shadow tables. The restore skips external-content FTS5 tables (a `using fts5(…)` table whose `content=` option names a table: the option name in any case, written in full or abbreviated as FTS5 allows (`c=`, `cont=`); the table name bare or quoted with `''`, `""`, `[]` or backticks, and matched case-insensitively) and their shadow tables, and once their content table is restored it runs FTS5's `rebuild` command on each, which also drops anything a drifted local index held. Any other virtual or shadow table in the archive (a contentless or self-contained FTS5 table, an rtree) is refused before anything is deleted, because its data could not be rebuilt.
 - **A restore is not atomic**: it empties the archived tables, then inserts a transaction per 250-row batch, so a failure part-way leaves the local database partly emptied (restore again, or start from an empty database). SQLite's `sqlite_sequence` is not carried, so an AUTOINCREMENT table continues after its highest restored id.
@@ -494,6 +494,79 @@ Batch sizing can be controlled with the `SEARCH_REINDEX_BATCH_SIZE` environment 
 ```bash
 SEARCH_REINDEX_BATCH_SIZE=1000 yarn search:reindex
 ```
+
+## Semantic search (optional)
+
+Semantic search adds vector similarity to post search on PostgreSQL so relevance queries can match posts by meaning alongside exact keywords. Instances running SQLite, PostgreSQL without `pgvector`, or no embeddings provider configuration search exactly as before: no extra tables, and without a provider configured no extra queries (with one configured but the database not ready, the app logs one info line at startup and re-checks availability every five minutes).
+
+### Requirements
+
+- PostgreSQL with the `pgvector` extension version `0.8.0` or newer (needed for `halfvec` HNSW iterative scans; Google Cloud SQL for PostgreSQL 18 ships `pgvector` `0.8.5`).
+- An embeddings provider configured through `ACTIVITIES_SEARCH_EMBEDDINGS_*` (see [Environment Variables](environment-variables.md#semantic-search-optional)): any OpenAI-compatible `/embeddings` API (the default, e.g. Mistral, OpenAI, Ollama, or LM Studio) or the native Gemini API.
+
+### Database setup
+
+The semantic tables (`search_document_embeddings` and `search_semantic_status`) live outside the shared Kysely migrations so deployments without `pgvector` are unaffected. They hold only derived data, so the production archive scripts leave them out; after a restore, run the setup and the backfill again. Create them with `yarn search:semantic:setup`:
+
+```bash
+# Run as a database user that may create extensions (e.g. `postgres`, a
+# cloudsqlsuperuser member on Cloud SQL) and grant the app user read, write
+# and truncate (the archive restore empties these tables) on them:
+yarn search:semantic:setup --grant-to activitynext
+
+# Optional: override the vector length (defaults to ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS, 768)
+yarn search:semantic:setup --dimensions 768 --grant-to activitynext
+
+# Changing vector dimensions drops stored embeddings and rebuilds the table:
+yarn search:semantic:setup --dimensions 1536 --recreate --grant-to activitynext
+```
+
+The setup script is idempotent when the table already matches the configured dimensions. Changing `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS` without `--recreate` fails rather than silently dropping vectors; pass `--recreate` to drop and rebuild `search_document_embeddings` (which also resets the backfill cursor), then run the backfill below. `--recreate` always drops the stored embeddings, even when the dimensions match, so it also serves as a clean rebuild; a model change alone does not need it.
+
+### What is embedded and how visibility works
+
+Only text that any stranger could already read is ever sent to the embeddings provider:
+
+- Local `Note` and `Poll` posts addressed to Public in `to` or `cc` (public and unlisted).
+- Remote `Note` and `Poll` posts addressed to Public in `to` whose author opted in to search (`indexable`) and is not on an instance domain blocked with `suspend` or `silence` (judged on both the handle's domain and the host of the actor id).
+- Posts by authors who are being deleted, suspended, or silenced, and all followers-only and direct posts, are never embedded.
+
+Every search query still re-checks post visibility, `indexable`, blocks, mutes, domain rules, `in:library`, phrases, exclusions, and search operators at query time, so an existing embedding can never expose a post the viewer may not see. When a remote author turns off `indexable`, their stored embeddings are deleted; when they turn it back on, their newest 1,000 public posts are queued for embedding again (at most once a day per author in each process, best effort; older posts wait for the backfill).
+
+### Ongoing indexing and health signal
+
+When semantic search is active, a write hook on status search-document writes marks documents pending in `search_document_embeddings` — every document that already has a row, and a new one only when it qualifies, so a followers-only post never schedules work — and schedules `EmbedSearchDocumentsJob` (under a real queue at most one per process per 10-second window, delayed past it; under the in-process queue one per write, run at once). A job claims up to 64 rows no other job holds (`FOR UPDATE SKIP LOCKED` with a 120-second lease and a claim token that fences every write, so a job that outlived its lease changes nothing), skips documents whose text hash, model and dimensions are unchanged, drops documents that no longer qualify (re-checked again after the provider answers), and takes further batches while claimable rows remain: under a real queue up to eight, then a continuation job; under the in-process queue (which runs it detached from the request) until none is left. A retryable provider error (429, 5xx, timeout) releases the claims and is thrown so the queue retries with backoff. Any other failure — a bad key or model, or a document the provider refuses as input (narrowed down so the rest of the batch is stored) — keeps the mark and backs the row off (`attempts`, `retryAfter`: one minute, doubling, at most a day); the next job after the back-off retries it, a new edit of the post starts it over, and `yarn search:semantic:backfill` settles it at once (the way to recover after fixing a key or model). A refused batch is narrowed down by trying the first, middle and last document alone: all three refused counts as a problem with the request (a bad key some providers answer with 400) rather than with the documents.
+
+Failures from background embedding, backfills, or live search queries are persisted in the `search_semantic_status` table (`id = 'embeddings'`: `lastError`, `lastErrorAt`, `failureCount`, and `lastSuccessAt`). Inspect the current status with `psql`:
+
+```bash
+psql "$DATABASE_URL" -c 'SELECT "lastSuccessAt", "lastErrorAt", "failureCount", "lastError" FROM search_semantic_status WHERE id = '\''embeddings'\'';'
+```
+
+### Backfill and model changes
+
+After initial setup — or after switching embedding models, or after `yarn search:reindex` (scripts do not run the write hook; the app and `scripts/maintenance/runQueueWorker.ts` do) — embed existing eligible posts with `yarn search:semantic:backfill`:
+
+```bash
+# Preview eligible post count and estimated tokens without calling the provider
+yarn search:semantic:backfill --dry-run
+
+# Run the backfill (defaults: --batch-size 64, --delay-ms 1000)
+yarn search:semantic:backfill --batch-size 64 --delay-ms 1000
+
+# Start from the beginning instead of resuming from the saved cursor
+yarn search:semantic:backfill --restart
+```
+
+The backfill marks the posts of each page that need an embedding and runs the embedding job's own passes on them in the script, so it writes through the same claims as the background job and never races it (a mark also lifts a back-off). It saves its cursor in `search_semantic_status."backfillCursor"` after each page, so an interrupted run resumes where it left off unless `--restart` is passed; a failure of the whole request (a bad key or model) stops it before the cursor moves.
+
+- **Changing the model (same dimensions):** update `ACTIVITIES_SEARCH_EMBEDDINGS_MODEL` and run `yarn search:semantic:backfill --restart`. Because stored rows record their `model` column, the backfill re-embeds rows made by the old model, and queries only search rows matching the active model.
+- **Changing the dimensions:** update `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS`, run `yarn search:semantic:setup --recreate` (with `--grant-to <app user>` if needed), and then run `yarn search:semantic:backfill`.
+- **Cost note:** a typical post is roughly 100 tokens (documents are capped at 2,000 characters), so backfilling 100,000 posts sends roughly 10 million tokens. Use `--dry-run` first to estimate your instance's total. `mistral-embed` always answers 1024 dimensions, so set `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS=1024` (or pass `--dimensions 1024` to `yarn search:semantic:setup`) before the first setup; the default 768 does not match it.
+
+### Hybrid query behavior
+
+When `GET /api/v2/search` runs a status search with `sort=relevance` and at least one plain word, semantic search embeds the plain query text (never the search operators) with a 2-second timeout, cached in-process for 10 minutes (LRU up to 500 entries, keyed by model, dimensions, and folded query) and counted against the per-actor search rate limit. PostgreSQL fetches up to the top 100 nearest embeddings matching all visibility checks, phrases, exclusions, and operators (`hnsw.iterative_scan = relaxed_order` inside a transaction) and merges them with the keyword ranking using Reciprocal Rank Fusion (`k = 60`). `sort=latest` ignores semantic search. Any provider error, timeout or database error falls back to keyword results for that request and records the error in `search_semantic_status`; a spent rate limit skips the semantic side without recording anything.
 
 ## Fixing Attachment URLs
 

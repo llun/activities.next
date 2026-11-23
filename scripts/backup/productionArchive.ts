@@ -28,6 +28,10 @@ import {
   MediaStorageS3Config,
   MediaStorageType
 } from '@/lib/config/mediaStorage'
+import {
+  EMBEDDINGS_TABLE,
+  SEMANTIC_STATUS_TABLE
+} from '@/lib/database/domains/search/semanticStore'
 import { type DB, inTransaction } from '@/lib/database/kysely'
 import {
   MIGRATION_LOCK_TABLES,
@@ -710,10 +714,15 @@ const getClientName = (database: ArchiveDatabase) =>
 
 // The migration runners' bookkeeping and lock tables (lib/database/migrate).
 // The manifest's migration list says which migrations the source had applied;
-// a restored database keeps the history its own migrations wrote.
+// a restored database keeps the history its own migrations wrote. The optional
+// semantic search tables live outside the migrations (yarn
+// search:semantic:setup), so a restore target has no such tables; they hold
+// only derived data, which yarn search:semantic:backfill rebuilds.
 const NOT_ARCHIVED_TABLES: readonly string[] = [
   ...MIGRATION_TABLES,
-  ...MIGRATION_LOCK_TABLES
+  ...MIGRATION_LOCK_TABLES,
+  EMBEDDINGS_TABLE,
+  SEMANTIC_STATUS_TABLE
 ]
 
 export const getDatabaseTableNames = async (database: ArchiveDatabase) => {
@@ -1907,6 +1916,24 @@ const getForeignKeyReferences = async (
   throw new Error(`Unsupported database client for restore: ${client}`)
 }
 
+// A local PostgreSQL where yarn search:semantic:setup ran has embeddings
+// pointing at search_documents, so TRUNCATE (no CASCADE) must take them too.
+// They are derived from the data being replaced, so they go, with the
+// backfill's place: run yarn search:semantic:backfill after the restore.
+export const getLocalSemanticSearchTables = async (
+  database: ArchiveDatabase
+): Promise<string[]> => {
+  if (getClientName(database) !== 'pg') return []
+  const { rows } = await sql<{ embeddings: boolean; status: boolean }>`
+    select to_regclass(${EMBEDDINGS_TABLE}) is not null as embeddings,
+      to_regclass(${SEMANTIC_STATUS_TABLE}) is not null as status
+  `.execute(database.db)
+  return [
+    ...(rows[0]?.embeddings ? [EMBEDDINGS_TABLE] : []),
+    ...(rows[0]?.status ? [SEMANTIC_STATUS_TABLE] : [])
+  ]
+}
+
 export const truncateTables = async (
   database: ArchiveDatabase,
   tableNames: string[],
@@ -2421,8 +2448,10 @@ export const restoreDatabase = async (
   for (const { name } of manifest.database.tables) {
     if (NOT_ARCHIVED_TABLES.includes(name)) {
       console.log(
-        `Database: skipped ${name}; the local database keeps its own ` +
-          'migration history'
+        [EMBEDDINGS_TABLE, SEMANTIC_STATUS_TABLE].includes(name)
+          ? `Database: skipped ${name}; rebuild it with yarn search:semantic:setup and yarn search:semantic:backfill`
+          : `Database: skipped ${name}; the local database keeps its own ` +
+              'migration history'
       )
       continue
     }
@@ -2453,7 +2482,19 @@ export const restoreDatabase = async (
   const foreignKeys = await getForeignKeyReferences(database, restoredTables)
   const orderedTables = sortTablesForRestore(restoredTables, foreignKeys)
 
-  await truncateTables(database, restoredTables, orderedTables)
+  // Emptied in the same TRUNCATE: PostgreSQL refuses to truncate a table
+  // another table references unless that one is in the statement too.
+  const semanticTables = await getLocalSemanticSearchTables(database)
+  await truncateTables(
+    database,
+    [...restoredTables, ...semanticTables],
+    orderedTables
+  )
+  if (semanticTables.length > 0) {
+    console.log(
+      `Database: emptied ${semanticTables.join(', ')}; run yarn search:semantic:backfill after the restore`
+    )
+  }
 
   for (const tableName of orderedTables) {
     const rowCount = await restoreTableFromJsonLines(

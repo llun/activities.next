@@ -29,6 +29,7 @@ import {
   type ParsedSearchQuery,
   parseSearchQuery
 } from '@/lib/services/search/parseSearchQuery'
+import { getSearchQueryEmbedding } from '@/lib/services/search/semantic/semanticSearch'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getReadableStatusAndFetchedNoteForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
@@ -621,6 +622,16 @@ const searchStatuses = async ({
     resolveSearchStatusId(database, params.max_id),
     resolveSearchStatusId(database, params.min_id)
   ])
+  // Semantic search, when on, adds the nearest posts by meaning to a
+  // relevance search; it counts against the search rate limit (once per
+  // request) and falls back to keyword results on any failure.
+  const semantic = await getSearchQueryEmbedding({
+    parsedQuery,
+    sort: params.sort ?? 'latest',
+    consumeRateLimit: () =>
+      params.resolve === true ||
+      checkSearchResolveRateLimit(currentActor.id).allowed
+  })
   const [resolvedStatus, indexedIds] = await Promise.all([
     // A URL to resolve is the whole query, never one with operators.
     offset === 0 && !parsedQuery.hasOperators
@@ -644,7 +655,8 @@ const searchStatuses = async ({
       currentActorDomain: currentActor.domain,
       accountId,
       maxId,
-      minId
+      minId,
+      ...(semantic ? { semantic } : {})
     })
   ])
 

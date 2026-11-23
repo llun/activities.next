@@ -1135,4 +1135,257 @@ describe('safeRemoteFetch', () => {
     expect(isAbortError(caughtError)).toBe(true)
     expect(transport).toHaveBeenCalledTimes(1)
   })
+
+  describe('allowPrivateNetwork', () => {
+    it.each([
+      {
+        label: 'HTTP private RFC 1918 IPv4',
+        url: 'http://192.168.1.20:11434/v1/embeddings',
+        address: { address: '192.168.1.20', family: 4 as const }
+      },
+      {
+        label: 'HTTPS private RFC 1918 IPv4',
+        url: 'https://ollama.internal/v1/embeddings',
+        address: { address: '10.0.0.5', family: 4 as const }
+      },
+      {
+        label: 'HTTP IPv4 loopback',
+        url: 'http://127.0.0.1:11434/v1/embeddings',
+        address: { address: '127.0.0.1', family: 4 as const }
+      },
+      {
+        label: 'HTTP IPv6 loopback',
+        url: 'http://[::1]:11434/v1/embeddings',
+        address: { address: '::1', family: 6 as const }
+      },
+      {
+        label: 'HTTP IPv4 link-local',
+        url: 'http://169.254.1.10/v1/embeddings',
+        address: { address: '169.254.1.10', family: 4 as const }
+      },
+      {
+        label: 'HTTP IPv6 link-local',
+        url: 'http://[fe80::1]/v1/embeddings',
+        address: { address: 'fe80::1', family: 6 as const }
+      },
+      {
+        label: 'HTTPS IPv6 unique-local',
+        url: 'https://[fd00::1]/v1/embeddings',
+        address: { address: 'fd00::1', family: 6 as const }
+      }
+    ])(
+      'rejects $label by default and permits it when allowPrivateNetwork is true',
+      async ({ url, address }) => {
+        const defaultTransport = vi.fn<SafeRemoteFetchTransport>(async () =>
+          okResponse('blocked')
+        )
+        const defaultFetch = createSafeRemoteFetch({
+          resolveHost: async () => [address],
+          transport: defaultTransport
+        })
+
+        await expect(defaultFetch({ url })).rejects.toMatchObject({
+          code: 'ERR_UNSAFE_REMOTE_URL'
+        })
+        expect(defaultTransport).not.toHaveBeenCalled()
+
+        const privateTransport = vi.fn<SafeRemoteFetchTransport>(async () =>
+          okResponse('ok')
+        )
+        const privateFetch = createSafeRemoteFetch({
+          allowPrivateNetwork: true,
+          resolveHost: async () => [address],
+          transport: privateTransport
+        })
+
+        const result = await privateFetch({ url })
+        expect(result).toMatchObject({
+          body: 'ok',
+          statusCode: 200
+        })
+        expect(privateTransport).toHaveBeenCalledTimes(1)
+        expect(privateTransport).toHaveBeenCalledWith(
+          expect.objectContaining({
+            resolvedAddress: address,
+            resolvedAddresses: [address]
+          })
+        )
+      }
+    )
+
+    it('rejects plain HTTP to a public address while allowing HTTP to private/loopback and HTTPS to public', async () => {
+      const blockedTransport = vi.fn<SafeRemoteFetchTransport>(async () =>
+        okResponse('blocked')
+      )
+      const publicHttpFetch = createSafeRemoteFetch({
+        allowPrivateNetwork: true,
+        resolveHost: async () => [SAFE_ADDRESS],
+        transport: blockedTransport
+      })
+      await expect(
+        publicHttpFetch({ url: 'http://api.example/v1/embeddings' })
+      ).rejects.toMatchObject({
+        code: 'ERR_UNSAFE_REMOTE_URL',
+        message: expect.stringContaining(
+          `Plain HTTP is only allowed to a private address, not ${SAFE_ADDRESS.address}`
+        )
+      })
+      expect(blockedTransport).not.toHaveBeenCalled()
+
+      // Mixed private + public DNS answers must still fail over plain HTTP.
+      const mixedHttpFetch = createSafeRemoteFetch({
+        allowPrivateNetwork: true,
+        resolveHost: async () => [
+          { address: '10.0.0.5', family: 4 },
+          SAFE_ADDRESS
+        ],
+        transport: blockedTransport
+      })
+      await expect(
+        mixedHttpFetch({ url: 'http://dual.example/v1/embeddings' })
+      ).rejects.toMatchObject({
+        code: 'ERR_UNSAFE_REMOTE_URL',
+        message: expect.stringContaining(SAFE_ADDRESS.address)
+      })
+      expect(blockedTransport).not.toHaveBeenCalled()
+
+      // Plain HTTP to 10.x and 127.0.0.1 is allowed.
+      for (const { url, address } of [
+        {
+          url: 'http://10.0.0.5:11434/v1/embeddings',
+          address: { address: '10.0.0.5', family: 4 as const }
+        },
+        {
+          url: 'http://127.0.0.1:11434/v1/embeddings',
+          address: { address: '127.0.0.1', family: 4 as const }
+        }
+      ]) {
+        const transport = vi.fn<SafeRemoteFetchTransport>(async () =>
+          okResponse('ok')
+        )
+        const privateHttpFetch = createSafeRemoteFetch({
+          allowPrivateNetwork: true,
+          resolveHost: async () => [address],
+          transport
+        })
+        await expect(privateHttpFetch({ url })).resolves.toMatchObject({
+          body: 'ok',
+          statusCode: 200
+        })
+        expect(transport).toHaveBeenCalledTimes(1)
+      }
+
+      // HTTPS to a public address still works when allowPrivateNetwork is true.
+      const publicHttpsTransport = vi.fn<SafeRemoteFetchTransport>(async () =>
+        okResponse('https-ok')
+      )
+      const publicHttpsFetch = createSafeRemoteFetch({
+        allowPrivateNetwork: true,
+        resolveHost: async () => [SAFE_ADDRESS],
+        transport: publicHttpsTransport
+      })
+      await expect(
+        publicHttpsFetch({ url: 'https://api.example/v1/embeddings' })
+      ).resolves.toMatchObject({
+        body: 'https-ok',
+        statusCode: 200
+      })
+      expect(publicHttpsTransport).toHaveBeenCalledTimes(1)
+    })
+
+    it('still rejects non-HTTP(S) protocols when allowPrivateNetwork is true', async () => {
+      const transport = vi.fn<SafeRemoteFetchTransport>(async () =>
+        okResponse()
+      )
+      const privateFetch = createSafeRemoteFetch({
+        allowPrivateNetwork: true,
+        resolveHost: async () => [{ address: '127.0.0.1', family: 4 }],
+        transport
+      })
+
+      await expect(
+        privateFetch({ url: 'file:///etc/passwd' })
+      ).rejects.toMatchObject({
+        code: 'ERR_UNSAFE_REMOTE_URL',
+        message: 'Only HTTP and HTTPS remote URLs are allowed'
+      })
+      await expect(
+        privateFetch({ url: 'ftp://192.168.1.20/file' })
+      ).rejects.toMatchObject({
+        code: 'ERR_UNSAFE_REMOTE_URL'
+      })
+      expect(transport).not.toHaveBeenCalled()
+    })
+
+    it('keeps DNS pinning, timeouts, body cap, and redirect restrictions when allowPrivateNetwork is true', async () => {
+      const privateAddress: ResolvedRemoteAddress = {
+        address: '192.168.1.20',
+        family: 4
+      }
+      const seenRequests: Array<{
+        connectTimeoutInMilliseconds: number
+        readTimeoutInMilliseconds: number
+        resolvedAddresses: ResolvedRemoteAddress[]
+      }> = []
+
+      const privateFetch = createSafeRemoteFetch({
+        allowPrivateNetwork: true,
+        resolveHost: async () => [privateAddress],
+        transport: async (request) => {
+          seenRequests.push({
+            connectTimeoutInMilliseconds: request.connectTimeoutInMilliseconds,
+            readTimeoutInMilliseconds: request.readTimeoutInMilliseconds,
+            resolvedAddresses: request.resolvedAddresses
+          })
+          if (request.url.pathname === '/large') {
+            return {
+              statusCode: 200,
+              headers: {},
+              body: streamFrom(['123456789'])
+            }
+          }
+          if (request.url.pathname === '/redirect') {
+            return {
+              statusCode: 302,
+              headers: { location: 'http://192.168.1.21/other' },
+              body: streamFrom([])
+            }
+          }
+          return okResponse('ok')
+        }
+      })
+
+      const okResult = await privateFetch({
+        url: 'http://ollama.local:11434/v1/embeddings',
+        timeoutInMilliseconds: 2500
+      })
+      expect(okResult.body).toBe('ok')
+      expect(seenRequests[0]).toEqual({
+        connectTimeoutInMilliseconds: 2500,
+        readTimeoutInMilliseconds: 2500,
+        resolvedAddresses: [privateAddress]
+      })
+
+      await expect(
+        privateFetch({
+          url: 'http://ollama.local:11434/large',
+          maxBodyBytes: 4
+        })
+      ).rejects.toMatchObject({ code: 'ERR_RESPONSE_TOO_LARGE' })
+
+      await expect(
+        privateFetch({
+          url: 'http://ollama.local:11434/redirect',
+          maxRedirects: 0
+        })
+      ).rejects.toMatchObject({ code: 'ERR_TOO_MANY_REDIRECTS' })
+
+      await expect(
+        privateFetch({
+          url: 'http://ollama.local:11434/redirect',
+          allowCrossHostRedirects: false
+        })
+      ).rejects.toMatchObject({ code: 'ERR_CROSS_HOST_REDIRECT' })
+    })
+  })
 })

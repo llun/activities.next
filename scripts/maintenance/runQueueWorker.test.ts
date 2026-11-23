@@ -1,6 +1,7 @@
-import { getDatabase } from '@/lib/database'
+import { getDatabase, getKysely } from '@/lib/database'
 import { startServedDomainRefresher } from '@/lib/services/domains/servedDomainSnapshot'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
+import { startSemanticSearch } from '@/lib/services/search/semantic/startup'
 
 vi.mock('@next/env', () => ({ loadEnvConfig: vi.fn() }))
 
@@ -8,7 +9,14 @@ vi.mock('@/lib/config', () => ({
   getConfig: () => ({ queue: { type: 'database', pollIntervalMs: 1234 } })
 }))
 
-vi.mock('@/lib/database', () => ({ getDatabase: vi.fn() }))
+vi.mock('@/lib/database', () => ({
+  getDatabase: vi.fn(),
+  getKysely: vi.fn()
+}))
+
+vi.mock('@/lib/services/search/semantic/startup', () => ({
+  startSemanticSearch: vi.fn().mockResolvedValue(undefined)
+}))
 
 vi.mock('@/lib/services/domains/servedDomainSnapshot', () => ({
   startServedDomainRefresher: vi.fn()
@@ -36,6 +44,8 @@ describe('runQueueWorker', () => {
       // Jobs decide what is local from the served domains, which include the
       // active Admin › Served domains rows only once the refresher has loaded them.
       expect(startServedDomainRefresher).toHaveBeenCalledWith(database)
+      // Jobs write search documents, so the semantic search hook listens here.
+      expect(startSemanticSearch).toHaveBeenCalledWith(getKysely)
     } finally {
       processOn.mockRestore()
       consoleLog.mockRestore()

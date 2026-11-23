@@ -29,6 +29,18 @@ describe('next config runtime isolation', () => {
     ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
     ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL:
       process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL,
+    ACTIVITIES_SEARCH_EMBEDDINGS_ALLOW_PRIVATE_ENDPOINT:
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_ALLOW_PRIVATE_ENDPOINT,
+    ACTIVITIES_SEARCH_EMBEDDINGS_API_KEY:
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_API_KEY,
+    ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS:
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS,
+    ACTIVITIES_SEARCH_EMBEDDINGS_ENDPOINT:
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_ENDPOINT,
+    ACTIVITIES_SEARCH_EMBEDDINGS_MODEL:
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_MODEL,
+    ACTIVITIES_SEARCH_EMBEDDINGS_PROVIDER:
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_PROVIDER,
     ACTIVITIES_TRUST_PROXY_IP_HEADER:
       process.env.ACTIVITIES_TRUST_PROXY_IP_HEADER,
     ACTIVITIES_TRUST_PROXY_IP_HEADERS:
@@ -58,6 +70,13 @@ describe('next config runtime isolation', () => {
     // The photo editor's model origins reach the CSP at request time only.
     process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL =
       'https://build-model-should-not-be-used.example.com/'
+    // Semantic search embeddings are server-side runtime config only.
+    process.env.ACTIVITIES_SEARCH_EMBEDDINGS_PROVIDER = 'unknown-provider'
+    process.env.ACTIVITIES_SEARCH_EMBEDDINGS_ENDPOINT = 'not-a-url'
+    process.env.ACTIVITIES_SEARCH_EMBEDDINGS_API_KEY = 'placeholder-key'
+    process.env.ACTIVITIES_SEARCH_EMBEDDINGS_MODEL = 'placeholder-model'
+    process.env.ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS = 'not-a-number'
+    process.env.ACTIVITIES_SEARCH_EMBEDDINGS_ALLOW_PRIVATE_ENDPOINT = 'invalid'
     // Client IP header trust is read per request; an invalid pinned header
     // must not fail the build or reach the next config.
     process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'

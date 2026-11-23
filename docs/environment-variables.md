@@ -244,6 +244,58 @@ Optional. Enables `POST /api/v1/statuses/:id/translate` and the Translate contro
 | `ACTIVITIES_TRANSLATION_MODEL`    | Model name. Required for `openai` (e.g. `gpt-4o-mini`); optional for `gemini` (defaults to `gemini-2.5-flash`).                                                                                                    |
 | `ACTIVITIES_TRANSLATION_PLAN`     | DeepL plan: `free` (default) or `pro`. Routes requests to `api-free.deepl.com` or `api.deepl.com`. Used by `deepl` only.                                                                                           |
 
+## Semantic search (optional)
+
+Optional. Configures an embedding provider for semantic search on posts. This only takes effect on PostgreSQL with `pgvector` >= 0.8.0 after running `yarn search:semantic:setup`. One provider is active at a time, selected by `ACTIVITIES_SEARCH_EMBEDDINGS_PROVIDER`, which defaults to `openai` (any OpenAI-compatible `/embeddings` API, including Mistral, OpenAI, Ollama, LM Studio, and vLLM); `gemini` selects the native Google Generative Language API. If no semantic search variables are set, semantic search stays disabled silently, and if any value is missing or invalid, one warning is logged and semantic search is disabled without blocking builds or startup.
+
+| Variable                                              | Description                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_SEARCH_EMBEDDINGS_PROVIDER`               | Embedding provider: `openai` (default; any OpenAI-compatible `/embeddings` API) or `gemini` (Google Generative Language `:batchEmbedContents` API).                                                                                                                                                                                                         |
+| `ACTIVITIES_SEARCH_EMBEDDINGS_ENDPOINT`               | Base endpoint URL (trailing slash stripped). Required for `openai` (e.g. `https://api.mistral.ai/v1`, `https://api.openai.com/v1`, or `http://192.168.1.20:11434/v1`); optional for `gemini` (defaults to `https://generativelanguage.googleapis.com/v1beta`). Must be `https:` unless private endpoints are allowed.                                       |
+| `ACTIVITIES_SEARCH_EMBEDDINGS_API_KEY`                | API key sent in `x-goog-api-key` (`gemini`) or `Authorization: Bearer` (`openai`). Required for `gemini`; optional for `openai` (local servers such as Ollama or LM Studio need none).                                                                                                                                                                      |
+| `ACTIVITIES_SEARCH_EMBEDDINGS_MODEL`                  | Embedding model name. Required for `openai` (e.g. `mistral-embed`, `text-embedding-3-small`, or `nomic-embed-text`); optional for `gemini` (defaults to `gemini-embedding-001`).                                                                                                                                                                            |
+| `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS`             | Output embedding vector length, an integer from `1` to `4000` (the `pgvector` `halfvec` HNSW limit). Defaults to `768`.                                                                                                                                                                                                                                     |
+| `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS_FIELD`       | How an `openai` request asks for the vector size: `dimensions` (OpenAI), `output_dimension` (Mistral's `codestral-embed`), or `none` (a fixed-size model such as `mistral-embed`, or a server that rejects the field). Defaults by endpoint host: `api.openai.com` → `dimensions`, `api.mistral.ai` → `none`, any other host → `none`. Ignored by `gemini`. |
+| `ACTIVITIES_SEARCH_EMBEDDINGS_BATCH_SIZE`             | Texts per request, an integer from `1` to `256` (`1` to `100` for `gemini`). Defaults: `api.mistral.ai` → `8`, `api.openai.com` → `64`, any other `openai` host → `32`, `gemini` → `100`.                                                                                                                                                                   |
+| `ACTIVITIES_SEARCH_EMBEDDINGS_TIMEOUT_MS`             | Request timeout in milliseconds, an integer from `1000` to `120000`. Defaults to `30000`. Search queries keep their own 2-second timeout.                                                                                                                                                                                                                   |
+| `ACTIVITIES_SEARCH_EMBEDDINGS_ALLOW_PRIVATE_ENDPOINT` | Set to `true` to allow an endpoint on a private, loopback, or link-local address (for self-hosted servers such as Ollama or LM Studio), over `http:` or `https:`; a public address still needs `https:`. Any other value (default) requires a public `https:` endpoint.                                                                                     |
+
+Example — Mistral (`mistral-embed` always answers 1024 dimensions, so no size field is sent):
+
+```env
+ACTIVITIES_SEARCH_EMBEDDINGS_ENDPOINT=https://api.mistral.ai/v1
+ACTIVITIES_SEARCH_EMBEDDINGS_MODEL=mistral-embed
+ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS=1024
+ACTIVITIES_SEARCH_EMBEDDINGS_API_KEY=your-mistral-api-key
+```
+
+Example — local OpenAI-compatible server (Ollama; the provider defaults to `openai` and no API key is needed):
+
+```env
+ACTIVITIES_SEARCH_EMBEDDINGS_ENDPOINT=http://192.168.1.20:11434/v1
+ACTIVITIES_SEARCH_EMBEDDINGS_MODEL=nomic-embed-text
+ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS=768
+ACTIVITIES_SEARCH_EMBEDDINGS_ALLOW_PRIVATE_ENDPOINT=true
+```
+
+Example — OpenAI (the size is sent as `dimensions`):
+
+```env
+ACTIVITIES_SEARCH_EMBEDDINGS_ENDPOINT=https://api.openai.com/v1
+ACTIVITIES_SEARCH_EMBEDDINGS_MODEL=text-embedding-3-small
+ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS=768
+ACTIVITIES_SEARCH_EMBEDDINGS_API_KEY=your-openai-api-key
+```
+
+Example — Gemini:
+
+```env
+ACTIVITIES_SEARCH_EMBEDDINGS_PROVIDER=gemini
+ACTIVITIES_SEARCH_EMBEDDINGS_MODEL=gemini-embedding-001
+ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS=768
+ACTIVITIES_SEARCH_EMBEDDINGS_API_KEY=your-gemini-api-key
+```
+
 ## Alt Text Generation
 
 Optional. Automatically generates accessibility descriptions (alt text) for uploaded images and videos when no description is provided by the client, and generates route descriptions for fitness activity route maps, using an OpenAI-compatible vision chat-completions API. For a video, the representative preview frame is extracted and sent as the image input. Alt-text generation is best-effort: a provider or extraction failure leaves the media without a generated description rather than failing the upload or fitness processing. Note this is separate from storing the video's poster frame, which a synchronous video upload still requires to be decodable. If any required variable is missing, alt text generation is disabled.

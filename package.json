@@ -20,6 +20,8 @@
     "prettier": "prettier --write app migrations lib lint test",
     "prettier:check": "prettier --check app migrations lib lint test",
     "search:reindex": "node scripts/run.cjs scripts/maintenance/rebuildSearchIndex.ts",
+    "search:semantic:backfill": "node scripts/run.cjs scripts/maintenance/backfillSemanticSearch.ts",
+    "search:semantic:setup": "node scripts/run.cjs scripts/maintenance/setupSemanticSearch.ts",
     "migrate": "node scripts/run.cjs scripts/database/migrate.ts latest",
     "migrate:make": "node scripts/run.cjs scripts/database/migrate.ts make",
     "migrate:status": "node scripts/run.cjs scripts/database/migrate.ts status",

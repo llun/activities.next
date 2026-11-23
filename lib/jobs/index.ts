@@ -9,6 +9,7 @@ import { createRelayAnnounceJob } from './createRelayAnnounceJob'
 import { deleteActorJob } from './deleteActorJob'
 import { deleteObjectJob } from './deleteObjectJob'
 import { deliverActivityJob } from './deliverActivityJob'
+import { embedSearchDocumentsJob } from './embedSearchDocumentsJob'
 import { emojiReactionJob } from './emojiReactionJob'
 import { exportAccountArchiveJob } from './exportAccountArchiveJob'
 import { fetchLinkPreviewJob } from './fetchLinkPreviewJob'
@@ -36,6 +37,7 @@ import {
   DELETE_ACTOR_JOB_NAME,
   DELETE_OBJECT_JOB_NAME,
   DELIVER_ACTIVITY_JOB_NAME,
+  EMBED_SEARCH_DOCUMENTS_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
   EXPORT_ACCOUNT_ARCHIVE_JOB_NAME,
   FETCH_LINK_PREVIEW_JOB_NAME,
@@ -290,5 +292,8 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [RENAME_STATUS_URLS_JOB_NAME]() {
     return renameStatusUrlsJob
+  },
+  get [EMBED_SEARCH_DOCUMENTS_JOB_NAME]() {
+    return embedSearchDocumentsJob
   }
 }

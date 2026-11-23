@@ -27,6 +27,10 @@ import {
 import { PushConfig, getPushConfig } from './push'
 import { QueueConfig, getQueueConfig } from './queue'
 import { RequestConfig, getRequestConfig } from './request'
+import {
+  SearchEmbeddingsConfig,
+  getSearchEmbeddingsConfig
+} from './searchEmbeddings'
 import { TranslationConfig, getTranslationConfig } from './translation'
 import { getEnvironmentList } from './utils'
 import {
@@ -69,6 +73,7 @@ const Config = z.object({
   openTelemetry: OpenTelemetryConfig.optional(),
   request: RequestConfig.optional(),
   translation: TranslationConfig.optional(),
+  searchEmbeddings: SearchEmbeddingsConfig.optional(),
   altText: AltTextConfig.optional(),
   // Always present, defaults applied; see lib/config/gallery.ts.
   gallery: GalleryLookupConfig
@@ -157,6 +162,7 @@ const getConfigFromEnvironment = () => {
       ...getQueueConfig(),
       ...getPushConfig(),
       ...getTranslationConfig(),
+      ...getSearchEmbeddingsConfig(),
       ...altTextConfig,
       ...getGalleryConfig(altTextConfig?.altText)
     })
