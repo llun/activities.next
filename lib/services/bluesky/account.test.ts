@@ -303,6 +303,16 @@ describe('Bluesky account service', () => {
       expect(authorize).not.toHaveBeenCalled()
     })
 
+    it('reports a key that will not load as a server error', async () => {
+      const keyError = new Error('Invalid key')
+      const rejected = Promise.reject(keyError)
+      rejected.catch(() => undefined)
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(rejected as never)
+      await expect(
+        startBlueskyOAuth(database, actor('actor-a'), 'alice.example.com')
+      ).rejects.toBe(keyError)
+    })
+
     it('offers app passwords when the account’s servers refuse sign-in', async () => {
       vi.mocked(getBlueskyOAuthClient).mockReturnValue(
         Promise.resolve({
@@ -377,7 +387,7 @@ describe('Bluesky account service', () => {
       )
     })
 
-    it('drops the new session when another profile holds the DID', async () => {
+    it('drops the session when the link loses a race for the DID', async () => {
       await database.saveBlueskyAccount({
         actorId: 'actor-b',
         did: 'did:plc:other',
@@ -540,7 +550,12 @@ describe('Bluesky account service', () => {
       for (const [alias, stored] of [
         ['at://Alice.Example.ORG', 'alice.example.org'],
         ['at://alice.example.org:8080/path', 'handle.invalid'],
-        [`at://${'a'.repeat(250)}.example`, 'handle.invalid']
+        [`at://${'a'.repeat(250)}.example`, 'handle.invalid'],
+        // Valid labels, but longer than a handle may be (253).
+        [
+          `at://${Array(5).fill('a'.repeat(60)).join('.')}.example`,
+          'handle.invalid'
+        ]
       ]) {
         resolve.mockResolvedValueOnce({
           ...identity,
