@@ -140,7 +140,20 @@ export class SafeRemoteFetchError extends Error {
 // got's RequestError keeps the request it failed on as an enumerable
 // `options` (body and headers: a password, a bearer or DPoP token, a client
 // assertion), and the logger serializes `err` properties. Hand callers only
-// what they read: the message, the code and the stack.
+// what they read: the message, the code and the stack. Not a
+// SafeRemoteFetchError: that class means this helper refused the
+// request (an unsafe address, a redirect, a body too large), which callers
+// treat as final, while a transport failure may be worth a retry.
+class RemoteTransportError extends Error {
+  code: string
+
+  constructor(message: string, code: string) {
+    super(message)
+    this.name = 'RemoteTransportError'
+    this.code = code
+  }
+}
+
 const toSafeTransportError = (error: unknown): unknown => {
   if (
     !(error instanceof Error) ||
@@ -149,7 +162,7 @@ const toSafeTransportError = (error: unknown): unknown => {
   ) {
     return error
   }
-  const safe = new SafeRemoteFetchError(
+  const safe = new RemoteTransportError(
     error.message,
     (error as NodeJS.ErrnoException).code ?? 'ERR_REMOTE_FETCH'
   )

@@ -225,11 +225,11 @@ export const startBlueskyOAuth = async (
       409
     )
   }
+  // Outside the try: a key that will not load is our fault, not the PDS's.
+  const oauthClient = await client
   let url: URL
   try {
-    url = await (
-      await client
-    ).authorize(did, {
+    url = await oauthClient.authorize(did, {
       scope: BLUESKY_OAUTH_SCOPE,
       // Read back in the callback, which refuses another actor's sign-in.
       state: actor.id

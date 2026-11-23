@@ -53,7 +53,9 @@ describe('getBlueskyConfig', () => {
         d: 'd',
         p: 'p',
         kid: 'r'
-      })
+      }),
+      JSON.stringify({ ...key, crv: 'secp256k1' }),
+      JSON.stringify({ ...key, kty: 'OKP', crv: 'Ed25519' })
     ]) {
       process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = value
       expect(getBlueskyConfig()).toBeNull()

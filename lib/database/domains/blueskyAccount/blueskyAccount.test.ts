@@ -146,6 +146,37 @@ describe('BlueskyAccount', () => {
     ).toBeNull()
   })
 
+  it('stops serving a claim whose account is disabled or actor suspended', async () => {
+    const seven = await createAdmin('bsky-seven')
+    await link(seven.actorId, 'did:plc:seven-claim')
+    await database.setBlueskyInstanceHandle({
+      actorId: seven.actorId,
+      host: 'seven.example'
+    })
+    const lookup = () =>
+      database.getBlueskyAccountByInstanceHandle({ host: 'seven.example' })
+    expect(await lookup()).toMatchObject({ actorId: seven.actorId })
+
+    await testDb.db
+      .updateTable('accounts')
+      .set({ disabledAt: new Date() })
+      .where('id', '=', seven.accountId)
+      .execute()
+    expect(await lookup()).toBeNull()
+
+    await testDb.db
+      .updateTable('accounts')
+      .set({ disabledAt: null })
+      .where('id', '=', seven.accountId)
+      .execute()
+    await testDb.db
+      .updateTable('actors')
+      .set({ suspendedAt: new Date() })
+      .where('id', '=', seven.actorId)
+      .execute()
+    expect(await lookup()).toBeNull()
+  })
+
   it('unlinks the account and its session', async () => {
     await link('actor-7', 'did:plc:seven')
     await database.setBlueskySession({ did: 'did:plc:seven', session: 's' })

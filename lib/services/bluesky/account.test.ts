@@ -369,6 +369,51 @@ describe('Bluesky account service', () => {
       expect(
         await database.getBlueskyAccount({ actorId: 'actor-a' })
       ).toMatchObject({ did: DID, authType: 'oauth' })
+      // The client of the domain the sign-in started on (the session is tied
+      // to its client_id).
+      expect(getBlueskyOAuthClient).toHaveBeenCalledWith(
+        database,
+        'social.example'
+      )
+    })
+
+    it('drops the new session when another profile holds the DID', async () => {
+      await database.saveBlueskyAccount({
+        actorId: 'actor-b',
+        did: 'did:plc:other',
+        handle: 'bob.example.com',
+        pdsUrl: PDS,
+        authType: 'oauth',
+        domainHandle: true
+      })
+      // actor-a re-links its own DID in another tab: did_taken from the
+      // primary key race is simulated by holding the DID it resolves to.
+      resolve.mockResolvedValueOnce({
+        ...(await resolve()),
+        did: 'did:plc:other'
+      })
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({
+          callback: vi.fn().mockResolvedValue({
+            session: { did: 'did:plc:unlinked' },
+            state: 'actor-a'
+          })
+        }) as never
+      )
+      await database.setBlueskySession({
+        did: 'did:plc:unlinked',
+        session: 'stored'
+      })
+      expect(
+        await completeBlueskyOAuth(
+          database,
+          actor('actor-a'),
+          new URLSearchParams('code=c&state=s')
+        )
+      ).toBe('did_taken')
+      expect(
+        await database.getBlueskySession({ did: 'did:plc:unlinked' })
+      ).toBeNull()
     })
 
     it('refuses a callback started by another actor and drops its session', async () => {
@@ -488,6 +533,26 @@ describe('Bluesky account service', () => {
       ).toBe('alice.example.org')
     })
 
+    it('lowercases a claimed handle and refuses one that is not a handle', async () => {
+      await linkAlice()
+      vi.mocked(resolveTxt).mockResolvedValue([])
+      const identity = await resolve()
+      for (const [alias, stored] of [
+        ['at://Alice.Example.ORG', 'alice.example.org'],
+        ['at://alice.example.org:8080/path', 'handle.invalid'],
+        [`at://${'a'.repeat(250)}.example`, 'handle.invalid']
+      ]) {
+        resolve.mockResolvedValueOnce({
+          ...identity,
+          handle: 'handle.invalid',
+          didDoc: { ...identity.didDoc, alsoKnownAs: [alias] }
+        })
+        expect(
+          (await checkBlueskyHandle(database, actor('actor-a'))).handle
+        ).toBe(stored)
+      }
+    })
+
     it('tells a record for another DID, and a DNS failure, from a match', async () => {
       await linkAlice()
       vi.mocked(resolveTxt).mockResolvedValue([['did=did:plc:someoneelse']])
@@ -604,6 +669,34 @@ describe('Bluesky account service', () => {
       await expect(
         setBlueskyInstanceHandle(database, local, true)
       ).rejects.toThrow('cannot be a handle')
+    })
+
+    it('counts sign-in starts and app-password tries in the same window', async () => {
+      const limited = actor('actor-rate-limit-2')
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({
+          authorize: vi
+            .fn()
+            .mockResolvedValue(new URL('https://auth.example.net/authorize'))
+        }) as never
+      )
+      vi.mocked(safeRemoteFetch).mockResolvedValue(respond(401, {}))
+      for (let i = 0; i < 10; i++) {
+        await startBlueskyOAuth(database, limited, 'alice.example.com')
+        await linkBlueskyAppPassword(database, limited, {
+          identifier: 'alice.example.com',
+          password: 'abcd-efgh-ijkl-mnop'
+        }).catch(() => undefined)
+      }
+      await expect(
+        linkBlueskyAppPassword(database, limited, {
+          identifier: 'alice.example.com',
+          password: 'abcd-efgh-ijkl-mnop'
+        })
+      ).rejects.toMatchObject({ status: 429 })
+      await expect(
+        startBlueskyOAuth(database, limited, 'alice.example.com')
+      ).rejects.toMatchObject({ status: 429 })
     })
 
     it('limits how often one actor reaches other servers', async () => {

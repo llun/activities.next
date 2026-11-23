@@ -14,8 +14,8 @@ vi.mock('@/lib/config', async (importOriginal) => ({
 }))
 vi.mock('@/lib/database', () => ({ getDatabase: vi.fn() }))
 
-const call = (handler: typeof getJwks, path: string) =>
-  handler(new NextRequest(`https://social.example${path}`), {
+const call = (handler: typeof getJwks, path: string, host = 'social.example') =>
+  handler(new NextRequest(`https://${host}${path}`, { headers: { host } }), {
     params: Promise.resolve({})
   })
 
@@ -69,6 +69,23 @@ describe('Bluesky OAuth client documents', () => {
       client_id: 'https://social.example/api/v1/bluesky/client-metadata.json',
       jwks_uri: 'https://social.example/api/v1/bluesky/jwks.json',
       token_endpoint_auth_method: 'private_key_jwt'
+    })
+
+    // Each served domain is its own client.
+    vi.mocked(getConfig).mockReturnValue({
+      host: 'social.example',
+      trustedHosts: ['other.example'],
+      secretPhase: 'secret',
+      bluesky: { oauthPrivateKeys: [key.privateJwk] }
+    } as never)
+    const other = await call(
+      getMetadata,
+      '/api/v1/bluesky/client-metadata.json',
+      'other.example'
+    )
+    expect(await other.json()).toMatchObject({
+      client_id: 'https://other.example/api/v1/bluesky/client-metadata.json',
+      redirect_uris: ['https://other.example/api/v1/bluesky/callback']
     })
   })
 })

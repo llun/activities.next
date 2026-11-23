@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import { isAbortError } from '@/lib/utils/isAbortError'
 import {
   ResolvedRemoteAddress,
+  SafeRemoteFetchError,
   SafeRemoteFetchTransport,
   createSafeRemoteFetch
 } from '@/lib/utils/safeRemoteFetch'
@@ -94,6 +95,9 @@ describe('safeRemoteFetch', () => {
       code: 'ECONNREFUSED'
     })
     expect(error).not.toHaveProperty('options')
+    // A transport failure, not one of this helper's own refusals: callers
+    // that retry on the former must still see it as retryable.
+    expect(error).not.toBeInstanceOf(SafeRemoteFetchError)
     const serialized = JSON.stringify(error, Object.getOwnPropertyNames(error))
     expect(serialized).not.toContain('abcd-efgh-ijkl-mnop')
     expect(serialized).not.toContain('secret-token')
