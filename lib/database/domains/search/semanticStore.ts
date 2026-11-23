@@ -429,8 +429,10 @@ export const storeEmbeddings = async (
       `.execute(db)
       continue
     }
-    // The backfill: never over a row a job is about to look at (marked) or one
-    // already embedded from the same text.
+    // The backfill (its caller re-checked after the provider answered that
+    // the text is unchanged and still qualifies): it also settles a waiting
+    // or backing-off row, which is how rows a broken key or model left behind
+    // recover, but never one a job holds right now.
     await sql`
       insert into ${sql.table(EMBEDDINGS_TABLE)} as stored
         ("documentId", model, dimensions, "contentHash", embedding, "updatedAt")
@@ -441,8 +443,14 @@ export const storeEmbeddings = async (
         dimensions = excluded.dimensions,
         "contentHash" = excluded."contentHash",
         embedding = excluded.embedding,
+        "pendingSince" = null,
+        attempts = 0,
+        "retryAfter" = null,
+        -- An expired claim's job must not write over this later.
+        "claimedUntil" = null,
+        "claimToken" = null,
         "updatedAt" = now()
-      where stored."pendingSince" is null
+      where stored."claimedUntil" is null or stored."claimedUntil" < now()
     `.execute(db)
   }
 }
@@ -497,17 +505,30 @@ export const deleteEmbeddings = async (
   await releaseEmbeddingClaims(db, documentIds, claim.claimToken)
 }
 
-// The ids of an author's status documents, to look at again when they opt back
-// in to search.
+// How many of an author's newest posts an opt-in queues; older ones wait for
+// an edit or the backfill.
+export const ACTOR_OPT_IN_DOCUMENT_LIMIT = 1000
+
+// The ids of a remote author's newest status documents, to look at again when
+// they opt back in to search. A local author's posts never left.
 export const getActorStatusDocumentIds = async (
   db: Db,
   actorId: string
 ): Promise<string[]> => {
   const rows = await db
     .selectFrom('search_documents')
-    .select('id')
-    .where('entityType', '=', 'status')
-    .where('actorId', '=', actorId)
+    .innerJoin('actors', 'actors.id', 'search_documents.actorId')
+    .select('search_documents.id')
+    .where('search_documents.entityType', '=', 'status')
+    .where('search_documents.actorId', '=', actorId)
+    .where((eb) =>
+      eb.or([
+        eb('actors.privateKey', 'is', null),
+        eb('actors.privateKey', '=', '')
+      ])
+    )
+    .orderBy('search_documents.entityCreatedAt', 'desc')
+    .limit(ACTOR_OPT_IN_DOCUMENT_LIMIT)
     .execute()
   return rows.map((row) => row.id)
 }

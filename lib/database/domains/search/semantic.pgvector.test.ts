@@ -3,6 +3,7 @@ import { sql } from 'kysely'
 import { createDatabaseConnection } from '@/lib/database/connection'
 import { getSearchDocumentId } from '@/lib/database/domains/search/rows'
 import {
+  ACTOR_OPT_IN_DOCUMENT_LIMIT,
   EMBEDDINGS_TABLE,
   SEMANTIC_STATUS_TABLE,
   SemanticSetupError,
@@ -11,6 +12,7 @@ import {
   countPendingEmbeddings,
   deleteEmbeddings,
   deleteEmbeddingsForActor,
+  getActorStatusDocumentIds,
   getEmbeddableDocuments,
   getEmbeddingContentHash,
   getEmbeddingText,
@@ -36,7 +38,6 @@ import {
   seedStatus
 } from '@/lib/database/testing/searchTestHelpers'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
-import { EMBED_SEARCH_DOCUMENTS_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { getEmbeddingProvider } from '@/lib/services/search/semantic/index'
 import {
@@ -577,6 +578,106 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       expect(
         (await getStoredEmbeddings(db, [localDocId])).has(localDocId)
       ).toBe(false)
+    })
+
+    it('getActorStatusDocumentIds returns [] for local authors and at most ACTOR_OPT_IN_DOCUMENT_LIMIT newest-first for remote authors', async () => {
+      const localAuthor = await addActor('optin-ids-local')
+      const remoteAuthor = await addActor('optin-ids-remote', {
+        domain: REMOTE_DOMAIN,
+        remote: true,
+        indexable: true
+      })
+      const cappedRemote = await addActor('optin-ids-remote-cap', {
+        domain: REMOTE_DOMAIN,
+        remote: true,
+        indexable: true
+      })
+      // Also exercise the privateKey IS NULL remote representation.
+      await db
+        .updateTable('actors')
+        .set({ privateKey: null })
+        .where('id', '=', cappedRemote)
+        .execute()
+
+      await indexedStatus({
+        id: statusIdOf(localAuthor, 'local-1'),
+        actorId: localAuthor,
+        createdAt: 1_000,
+        text: 'local post one',
+        to: [PUBLIC]
+      })
+      await indexedStatus({
+        id: statusIdOf(localAuthor, 'local-2'),
+        actorId: localAuthor,
+        createdAt: 2_000,
+        text: 'local post two',
+        to: [PUBLIC]
+      })
+
+      // Insert remote posts out of chronological order to verify ORDER BY entityCreatedAt DESC.
+      const oldest = await indexedStatus({
+        id: statusIdOf(remoteAuthor, 'remote-oldest'),
+        actorId: remoteAuthor,
+        createdAt: 1_000,
+        text: 'remote oldest post',
+        to: [PUBLIC]
+      })
+      const newest = await indexedStatus({
+        id: statusIdOf(remoteAuthor, 'remote-newest'),
+        actorId: remoteAuthor,
+        createdAt: 3_000,
+        text: 'remote newest post',
+        to: [PUBLIC]
+      })
+      const middle = await indexedStatus({
+        id: statusIdOf(remoteAuthor, 'remote-middle'),
+        actorId: remoteAuthor,
+        createdAt: 2_000,
+        text: 'remote middle post',
+        to: [PUBLIC]
+      })
+
+      expect(await getActorStatusDocumentIds(db, localAuthor)).toEqual([])
+      expect(await getActorStatusDocumentIds(db, remoteAuthor)).toEqual([
+        docIdOf(newest),
+        docIdOf(middle),
+        docIdOf(oldest)
+      ])
+
+      const totalRows = ACTOR_OPT_IN_DOCUMENT_LIMIT + 5
+      try {
+        await sql`
+          insert into search_documents
+            (id, "entityType", "entityId", "documentText", "actorId", visibility, "entityCreatedAt")
+          select
+            ${`status:${cappedRemote}/statuses/bulk-`} || lpad(g::text, 4, '0'),
+            'status',
+            ${`${cappedRemote}/statuses/bulk-`} || lpad(g::text, 4, '0'),
+            'bulk post ' || g::text,
+            ${cappedRemote},
+            'public',
+            to_timestamp(1700000000 + g)
+          from generate_series(1, ${totalRows}) as g
+        `.execute(db)
+
+        const cappedIds = await getActorStatusDocumentIds(db, cappedRemote)
+        expect(cappedIds).toHaveLength(ACTOR_OPT_IN_DOCUMENT_LIMIT)
+        expect(cappedIds[0]).toBe(
+          `status:${cappedRemote}/statuses/bulk-${String(totalRows).padStart(4, '0')}`
+        )
+        expect(cappedIds[cappedIds.length - 1]).toBe(
+          `status:${cappedRemote}/statuses/bulk-0006`
+        )
+        expect(cappedIds).not.toContain(
+          `status:${cappedRemote}/statuses/bulk-0005`
+        )
+      } finally {
+        await db
+          .deleteFrom('search_documents')
+          .where('actorId', '=', cappedRemote)
+          .where('entityType', '=', 'status')
+          .execute()
+      }
     })
   })
 
@@ -1174,7 +1275,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       }
     })
 
-    it('keeps a newer mark written while claimed and schedules a continuation in runEmbeddingJob', async () => {
+    it('keeps a newer mark written while claimed and re-embeds it in the next pass of runEmbeddingJob', async () => {
       const author = await addActor('remark-cont-author')
       const statusId = await indexedStatus({
         id: statusIdOf(author, 'remark-cont-post'),
@@ -1186,15 +1287,24 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       const docId = docIdOf(statusId)
       const publish = vi.fn().mockResolvedValue(undefined)
 
-      let remarkOnce = true
+      let editStep = 0
       const provider = createDeterministicProvider()
       provider.embed.mockImplementation(async (texts: string[]) => {
-        if (remarkOnce) {
-          remarkOnce = false
-          // Simulate an edit arriving while the first job is waiting on the provider.
+        editStep += 1
+        if (editStep === 1) {
+          // Simulate an edit arriving while processPendingEmbeddings is waiting on the provider.
           await db
             .updateTable('search_documents')
             .set({ documentText: 'espresso updated text' })
+            .where('id', '=', docId)
+            .execute()
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          await markEmbeddingsPending(db, [docId], provider)
+        } else if (editStep === 2) {
+          // Simulate a second edit arriving during pass 1 of runEmbeddingJob so pass 2 picks it up.
+          await db
+            .updateTable('search_documents')
+            .set({ documentText: 'hiking final text' })
             .where('id', '=', docId)
             .execute()
           await new Promise((resolve) => setTimeout(resolve, 5))
@@ -1218,9 +1328,9 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       try {
         await markEmbeddingsPending(db, [docId], provider)
 
-        await runEmbeddingJob(db)
+        // One pass stores the initial embedding while preserving the newer pending mark.
+        await processPendingEmbeddings(db, provider)
 
-        // First embedding stored, newer mark preserved, claim cleared, continuation scheduled.
         const { rows: afterFirst } = await sql<{
           hasEmbedding: boolean
           contentHash: string | null
@@ -1247,23 +1357,18 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
           claimedUntil: null
         })
         expect(await hasClaimablePendingEmbeddings(db)).toBe(true)
-        expect(publish).toHaveBeenCalledTimes(1)
-        expect(publish).toHaveBeenCalledWith(
-          expect.objectContaining({
-            name: EMBED_SEARCH_DOCUMENTS_JOB_NAME,
-            data: {}
-          })
-        )
 
-        // Running the continuation job re-embeds the updated text and clears the mark.
+        // runEmbeddingJob loops across passes within the same job until nothing is claimable,
+        // embedding both the preserved mark and the edit that arrived during pass 1.
         await runEmbeddingJob(db)
-        const storedAfterSecond = await getStoredEmbeddings(db, [docId])
-        expect(storedAfterSecond.get(docId)?.contentHash).toBe(
-          getEmbeddingContentHash(getEmbeddingText('espresso updated text'))
+        expect(provider.embed).toHaveBeenCalledTimes(3)
+        const storedAfterJob = await getStoredEmbeddings(db, [docId])
+        expect(storedAfterJob.get(docId)?.contentHash).toBe(
+          getEmbeddingContentHash(getEmbeddingText('hiking final text'))
         )
         expect(await countPendingEmbeddings(db)).toBe(0)
         expect(await hasClaimablePendingEmbeddings(db)).toBe(false)
-        expect(publish).toHaveBeenCalledTimes(1)
+        expect(publish).not.toHaveBeenCalled()
       } finally {
         if (prevProviderImpl) {
           vi.mocked(getEmbeddingProvider).mockImplementation(prevProviderImpl)
@@ -1279,7 +1384,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       }
     })
 
-    it('backs off all rows without clearing marks on a request-wide 400 after the batch and the first and last probes', async () => {
+    it('backs off all rows without clearing marks on a request-wide 400 after the batch and the first, middle, and last probes', async () => {
       const author = await addActor('reqwide-400-author')
       const docIds: string[] = []
       for (let i = 0; i < 5; i += 1) {
@@ -1309,10 +1414,12 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         expect(pass.embedded).toBe(0)
         expect(pass.failed).toBeInstanceOf(EmbeddingProviderError)
 
-        // Exactly two calls: the full batch of 5, then the single-document probe.
-        expect(refuseAllProvider.embed).toHaveBeenCalledTimes(3)
+        // Four calls: the full batch of 5, then the first, middle, and last single-document probes.
+        expect(refuseAllProvider.embed).toHaveBeenCalledTimes(4)
         expect(refuseAllProvider.embed.mock.calls[0]?.[0]).toHaveLength(5)
         expect(refuseAllProvider.embed.mock.calls[1]?.[0]).toHaveLength(1)
+        expect(refuseAllProvider.embed.mock.calls[2]?.[0]).toHaveLength(1)
+        expect(refuseAllProvider.embed.mock.calls[3]?.[0]).toHaveLength(1)
 
         // No marks cleared; every row is backing off with its claim released.
         expect(await countPendingEmbeddings(db)).toBe(5)
@@ -1439,9 +1546,15 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       }
     })
 
-    it('backfill does not overwrite a marked row and skips a document whose text changed during embed()', async () => {
+    it('backfill settles marked and backing-off rows, leaves a live-claimed row untouched, and skips a document whose text changed during embed()', async () => {
       const author = await addActor('backfill-race-author')
-      const [markedStatus, changedStatus, stableStatus] = await Promise.all([
+      const [
+        markedStatus,
+        backingOffStatus,
+        claimedStatus,
+        changedStatus,
+        stableStatus
+      ] = await Promise.all([
         indexedStatus({
           id: statusIdOf(author, 'bf-marked'),
           actorId: author,
@@ -1450,24 +1563,46 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
           to: [PUBLIC]
         }),
         indexedStatus({
-          id: statusIdOf(author, 'bf-changed'),
+          id: statusIdOf(author, 'bf-backoff'),
           actorId: author,
           createdAt: 391,
+          text: 'peloton backing off row',
+          to: [PUBLIC]
+        }),
+        indexedStatus({
+          id: statusIdOf(author, 'bf-claimed'),
+          actorId: author,
+          createdAt: 392,
+          text: 'barista currently claimed row',
+          to: [PUBLIC]
+        }),
+        indexedStatus({
+          id: statusIdOf(author, 'bf-changed'),
+          actorId: author,
+          createdAt: 393,
           text: 'espresso before backfill edit',
           to: [PUBLIC]
         }),
         indexedStatus({
           id: statusIdOf(author, 'bf-stable'),
           actorId: author,
-          createdAt: 392,
+          createdAt: 394,
           text: 'hiking alpine stable post',
           to: [PUBLIC]
         })
       ])
       const markedDocId = docIdOf(markedStatus)
+      const backingOffDocId = docIdOf(backingOffStatus)
+      const claimedDocId = docIdOf(claimedStatus)
       const changedDocId = docIdOf(changedStatus)
       const stableDocId = docIdOf(stableStatus)
-      const allDocIds = [markedDocId, changedDocId, stableDocId]
+      const allDocIds = [
+        markedDocId,
+        backingOffDocId,
+        claimedDocId,
+        changedDocId,
+        stableDocId
+      ]
 
       const backfillProvider = createDeterministicProvider()
       backfillProvider.embed.mockImplementation(async (texts: string[]) => {
@@ -1481,26 +1616,121 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       })
 
       try {
+        // Put backingOffDocId into backoff (attempts = 1, retryAfter > now(), pendingSince set).
+        await markEmbeddingsPending(db, [backingOffDocId], backfillProvider)
+        const [backoffClaim] = await claimPendingEmbeddings(
+          db,
+          10,
+          'bf-backoff-token'
+        )
+        expect(backoffClaim?.documentId).toBe(backingOffDocId)
+        await markEmbeddingsFailed(db, [backingOffDocId], {
+          claimToken: 'bf-backoff-token',
+          pendingSince: new Map([[backingOffDocId, backoffClaim!.pendingSince]])
+        })
+
+        // Put claimedDocId under a live claim.
+        await markEmbeddingsPending(db, [claimedDocId], backfillProvider)
+        const [liveClaim] = await claimPendingEmbeddings(
+          db,
+          10,
+          'bf-live-claim'
+        )
+        expect(liveClaim?.documentId).toBe(claimedDocId)
+
+        // Mark markedDocId pending without a claim.
         await markEmbeddingsPending(db, [markedDocId], backfillProvider)
+
         const docs = await getEmbeddableDocuments(db, allDocIds)
-        expect(docs).toHaveLength(3)
+        expect(docs).toHaveLength(5)
 
         const result = await embedDocuments(db, backfillProvider, docs)
         expect(result.refused).toEqual([])
-        expect(result.sent).toBe(3)
+        expect(result.sent).toBe(5)
 
-        const stored = await getStoredEmbeddings(db, allDocIds)
+        const { rows } = await sql<{
+          documentId: string
+          hasEmbedding: boolean
+          contentHash: string | null
+          pendingSince: string | null
+          attempts: number
+          retryAfter: string | null
+          claimToken: string | null
+          hasLiveClaim: boolean
+        }>`
+          select
+            "documentId",
+            embedding is not null as "hasEmbedding",
+            "contentHash",
+            "pendingSince"::text as "pendingSince",
+            attempts,
+            "retryAfter"::text as "retryAfter",
+            "claimToken",
+            coalesce("claimedUntil" > now(), false) as "hasLiveClaim"
+          from ${sql.table(EMBEDDINGS_TABLE)}
+          where "documentId" = any(${allDocIds}::text[])
+        `.execute(db)
+        const byId = new Map(rows.map((row) => [row.documentId, row]))
+
         // Stable doc was stored by backfill.
-        expect(stored.get(stableDocId)?.hasEmbedding).toBe(true)
-        expect(stored.get(stableDocId)?.contentHash).toBe(
-          getEmbeddingContentHash(getEmbeddingText('hiking alpine stable post'))
-        )
-        // Marked row was left untouched for the embedding job (not overwritten).
-        expect(stored.get(markedDocId)?.hasEmbedding).toBe(false)
-        expect(stored.get(markedDocId)?.contentHash).toBeNull()
+        expect(byId.get(stableDocId)).toEqual({
+          documentId: stableDocId,
+          hasEmbedding: true,
+          contentHash: getEmbeddingContentHash(
+            getEmbeddingText('hiking alpine stable post')
+          ),
+          pendingSince: null,
+          attempts: 0,
+          retryAfter: null,
+          claimToken: null,
+          hasLiveClaim: false
+        })
+
+        // Marked row (no live claim) was settled by backfill.
+        expect(byId.get(markedDocId)).toEqual({
+          documentId: markedDocId,
+          hasEmbedding: true,
+          contentHash: getEmbeddingContentHash(
+            getEmbeddingText('bicycle marked for job')
+          ),
+          pendingSince: null,
+          attempts: 0,
+          retryAfter: null,
+          claimToken: null,
+          hasLiveClaim: false
+        })
+
+        // Backing-off row was settled by backfill (embedding stored, pending/attempts/retryAfter cleared).
+        expect(byId.get(backingOffDocId)).toEqual({
+          documentId: backingOffDocId,
+          hasEmbedding: true,
+          contentHash: getEmbeddingContentHash(
+            getEmbeddingText('peloton backing off row')
+          ),
+          pendingSince: null,
+          attempts: 0,
+          retryAfter: null,
+          claimToken: null,
+          hasLiveClaim: false
+        })
+
+        // Live-claimed row was left untouched for the job holding the claim.
+        expect(byId.get(claimedDocId)).toEqual({
+          documentId: claimedDocId,
+          hasEmbedding: false,
+          contentHash: null,
+          pendingSince: expect.any(String),
+          attempts: 0,
+          retryAfter: null,
+          claimToken: 'bf-live-claim',
+          hasLiveClaim: true
+        })
+
+        // Only the live-claimed row remains pending.
         expect(await countPendingEmbeddings(db)).toBe(1)
+
         // Changed doc was skipped because its text hash changed mid-request.
-        expect(stored.has(changedDocId)).toBe(false)
+        expect(byId.has(changedDocId)).toBe(false)
       } finally {
         await deleteEmbeddings(db, allDocIds)
       }

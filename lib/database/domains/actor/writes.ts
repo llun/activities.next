@@ -319,6 +319,9 @@ const applyActorUpdate = async (
 
   let before: Actor | null = null
   let after: Actor | null = null
+  // `indexable` as the row held it under the lock, so a concurrent update
+  // cannot make this write miss an opt-out or an opt-in.
+  let wasIndexable = persistedSettings.indexable === true
   await inTransaction(db, async (trx) => {
     // Re-read the settings inside the transaction (with a row lock on
     // PostgreSQL; SQLite runs one connection, so the read is already atomic
@@ -340,6 +343,7 @@ const applyActorUpdate = async (
           freshActor.settings as string | ActorSettings
         )
       : persistedSettings
+    wasIndexable = freshSettings.indexable === true
     // The row as it stands under the lock, for a caller that must compare what
     // this write changes against the state it really replaced.
     if (withSnapshots) before = await getActorFromId(trx, { id: actorId })
@@ -383,7 +387,6 @@ const applyActorUpdate = async (
   })
   // A remote author's posts leave the semantic index when they opt out, and
   // are looked at again when they opt back in.
-  const wasIndexable = persistedSettings.indexable === true
   if (indexable === false && wasIndexable) notifyActorUnindexed(actorId)
   if (indexable === true && !wasIndexable) notifyActorIndexed(actorId)
   return {

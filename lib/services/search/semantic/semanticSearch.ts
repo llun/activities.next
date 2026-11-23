@@ -98,6 +98,7 @@ const embedByHalves = async (
   provider: EmbeddingProvider,
   batch: EmbedItem[]
 ): Promise<{ embedded: Embedded[]; refused: EmbedItem[] }> => {
+  if (batch.length === 0) return { embedded: [], refused: [] }
   try {
     return { embedded: await embedTexts(provider, batch), refused: [] }
   } catch (error) {
@@ -114,10 +115,10 @@ const embedByHalves = async (
 }
 
 // Embeds a batch. When the provider refuses it as a bad request (a text over
-// the model's limit, say), the first and the last document are tried alone:
-// both refused, the refusal is about the request (a key or model the provider
-// calls a bad request) and is thrown; otherwise the rest is narrowed by halves,
-// so one bad post does not hold back the others.
+// the model's limit, say), the first, middle and last document are tried
+// alone: all refused, the refusal is about the request (a key or model the
+// provider calls a bad request) and is thrown; otherwise the rest is narrowed
+// by halves, so one bad post does not hold back the others.
 const embedIsolating = async (
   provider: EmbeddingProvider,
   batch: EmbedItem[]
@@ -125,15 +126,30 @@ const embedIsolating = async (
   try {
     return { embedded: await embedTexts(provider, batch), refused: [] }
   } catch (error) {
-    if (!isInputRefusal(error) || batch.length === 1) throw error
-    // The first and the last alone: both refused, it is the request.
-    const first = await embedByHalves(provider, batch.slice(0, 1))
-    const last = await embedByHalves(provider, batch.slice(-1))
-    if (first.embedded.length === 0 && last.embedded.length === 0) throw error
-    const rest = await embedByHalves(provider, batch.slice(1, -1))
+    if (!isInputRefusal(error)) throw error
+    // A lone document refused is that document (it backs off; nothing is
+    // lost if it was really the request).
+    if (batch.length === 1) return { embedded: [], refused: batch }
+    // The first, middle and last alone: all three refused, it is the request.
+    const probeIndexes = [
+      ...new Set([0, Math.floor(batch.length / 2), batch.length - 1])
+    ]
+    const probes = await Promise.all(
+      probeIndexes.map((index) =>
+        embedByHalves(provider, batch.slice(index, index + 1))
+      )
+    )
+    if (probes.every((probe) => probe.embedded.length === 0)) throw error
+    const rest = await embedByHalves(
+      provider,
+      batch.filter((_, index) => !probeIndexes.includes(index))
+    )
     return {
-      embedded: [...first.embedded, ...rest.embedded, ...last.embedded],
-      refused: [...first.refused, ...rest.refused, ...last.refused]
+      embedded: [
+        ...probes.flatMap((probe) => probe.embedded),
+        ...rest.embedded
+      ],
+      refused: [...probes.flatMap((probe) => probe.refused), ...rest.refused]
     }
   }
 }
@@ -345,38 +361,46 @@ export const resetEmbeddingJobScheduleForTests = () => {
   lastScheduledBucket = null
 }
 
-// The job: one batch of pending documents, then another job while rows remain
-// that a job could claim (marks written while this one held them included). A
+// How many batches one job takes before handing over to a continuation.
+export const EMBEDDING_JOB_MAX_PASSES = 8
+
+// The job: batches of pending documents while rows remain that a job could
+// claim (marks written while it held them included), then, under a real
+// queue, a continuation; an inline queue never chains (the next write runs
+// the next job), so a long backlog cannot grow the request's call stack. A
 // failure is recorded in the health signal; a retryable one is thrown so the
 // queue retries it with backoff, any other backs its rows off and ends the
-// chain until the next write.
+// job until the next write.
 export const runEmbeddingJob = async (db: Db): Promise<void> => {
   const layer = await getSemanticLayer(db)
   if (!layer) return
-  let pass: EmbeddingPass
-  try {
-    pass = await processPendingEmbeddings(db, layer.provider)
-  } catch (error) {
-    await recordFailure(db, error)
-    logger.warn({
-      message: 'Semantic search embedding failed',
-      err: toLoggableError(error)
-    })
-    throw error
+  for (let passes = 0; passes < EMBEDDING_JOB_MAX_PASSES; passes += 1) {
+    let pass: EmbeddingPass
+    try {
+      pass = await processPendingEmbeddings(db, layer.provider)
+    } catch (error) {
+      await recordFailure(db, error)
+      logger.warn({
+        message: 'Semantic search embedding failed',
+        err: toLoggableError(error)
+      })
+      throw error
+    }
+    if (pass.failed) {
+      await recordFailure(db, pass.failed)
+      logger.warn({
+        message: 'Semantic search embedding failed; the documents back off',
+        err: toLoggableError(pass.failed)
+      })
+      return
+    }
+    // A refusal was recorded as a failure; do not wipe it straight away.
+    if (pass.embedded > 0 && !pass.refused) await recordSemanticSuccess(db)
+    if (pass.looked === 0 || !(await hasClaimablePendingEmbeddings(db))) {
+      return
+    }
   }
-  if (pass.failed) {
-    await recordFailure(db, pass.failed)
-    logger.warn({
-      message: 'Semantic search embedding failed; the documents back off',
-      err: toLoggableError(pass.failed)
-    })
-    return
-  }
-  // A refusal was recorded as a failure; do not wipe it straight away.
-  if (pass.embedded > 0 && !pass.refused) await recordSemanticSuccess(db)
-  if (pass.looked > 0 && (await hasClaimablePendingEmbeddings(db))) {
-    await scheduleEmbeddingJob(true)
-  }
+  if (!getQueue().runsInline) await scheduleEmbeddingJob(true)
 }
 
 type CachedQuery = { expiresAt: number; vector: Promise<number[]> }
@@ -415,6 +439,25 @@ export const embedSearchQuery = (
   return vector
 }
 
+const ACTOR_OPT_IN_INTERVAL_MS = 24 * 60 * 60 * 1000
+const ACTOR_OPT_IN_MAX_ENTRIES = 10_000
+const actorOptIns = new Map<string, number>()
+
+const takeActorOptIn = (actorId: string, now = Date.now()) => {
+  const last = actorOptIns.get(actorId)
+  if (last !== undefined && now - last < ACTOR_OPT_IN_INTERVAL_MS) return false
+  actorOptIns.delete(actorId)
+  actorOptIns.set(actorId, now)
+  while (actorOptIns.size > ACTOR_OPT_IN_MAX_ENTRIES) {
+    const oldest = actorOptIns.keys().next().value
+    if (oldest === undefined) break
+    actorOptIns.delete(oldest)
+  }
+  return true
+}
+
+export const resetActorOptInsForTests = () => actorOptIns.clear()
+
 // What the database layer's write hook does when the layer is configured:
 // mark the written documents pending and schedule the job, without holding the
 // write. Nothing happens until the database has the tables.
@@ -442,12 +485,21 @@ export const createSemanticSearchListener = (getDb: () => Db) => ({
       const db = getDb()
       const layer = await getSemanticLayer(db)
       if (!layer) return
-      const marked = await markEmbeddingsPending(
-        db,
-        await getActorStatusDocumentIds(db, actorId),
-        layer.provider
-      )
-      if (marked > 0) await scheduleEmbeddingJob()
+      const documentIds = await getActorStatusDocumentIds(db, actorId)
+      // An author toggling the flag must not re-embed their history over and
+      // over: once a day per process at most (a local author has none here).
+      if (documentIds.length === 0 || !takeActorOptIn(actorId)) return
+      try {
+        const marked = await markEmbeddingsPending(
+          db,
+          documentIds,
+          layer.provider
+        )
+        if (marked > 0) await scheduleEmbeddingJob()
+      } catch (error) {
+        actorOptIns.delete(actorId)
+        throw error
+      }
     })().catch((error) =>
       logger.warn({
         message: 'Failed to schedule semantic search embeddings of an actor',
