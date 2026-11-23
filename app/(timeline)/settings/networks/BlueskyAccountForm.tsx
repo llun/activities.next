@@ -66,11 +66,15 @@ export const BlueskyAccountForm = ({
   useEffect(() => {
     setState(initialState)
   }, [initialState])
-  const notice = callbackResult ? CALLBACK_NOTICES[callbackResult] : undefined
+  // The sign-in result belongs to the page load; any later action replaces it.
+  const [showNotice, setShowNotice] = useState(true)
+  const notice =
+    showNotice && callbackResult ? CALLBACK_NOTICES[callbackResult] : undefined
 
   const run = async (name: string, action: () => Promise<void>) => {
     setBusy(name)
     setError('')
+    setShowNotice(false)
     try {
       await action()
     } catch (error) {
