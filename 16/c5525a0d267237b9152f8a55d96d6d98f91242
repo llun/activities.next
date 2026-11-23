@@ -1,0 +1,24 @@
+lib/config/searchEmbeddings.ts
+  s_17b6192f00c988::t_d877955f194002 14-35,41-59,71,166-220,240-258,267-269,294-303,311-312,322-325
+lib/services/search/semantic/gemini.ts
+  s_17b6192f00c988::t_e1a6691bd71944 76,87,93
+lib/services/search/semantic/openai.ts
+  s_17b6192f00c988::t_61fd92dd7192c8 22-30,44,46,48-49,52,55,72,82,93,101,109,116,133,141,148
+  s_17b6192f00c988::t_e1a6691bd71944 19,45,47,66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "16c5525a0d267237b9152f8a55d96d6d98f91242",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
