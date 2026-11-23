@@ -1,0 +1,61 @@
+lib/utils/safeRemoteFetch.ts
+  s_f193227df3df34::t_ded82cf05318e3 140-159,667,817-820
+app/api/v1/bluesky/jwks.json/route.test.ts
+  s_f193227df3df34::t_dc97823f8598c5 5,13
+lib/database/domains/blueskyAccount/types.ts
+  s_f193227df3df34::t_6b6c1be410ffb5 32,50-53
+lib/services/bluesky/client.ts
+  s_f193227df3df34::t_89bc74d311cca3 13,24-26,30-35,126-127,132,137,158-162,165-168,170-171,177-183,185-187,189,191
+lib/services/bluesky/account.test.ts
+  s_f193227df3df34::t_65c707b2be5487 39-43,60-75,110,121-124,180,199-214,218,556-563
+  s_f193227df3df34::t_4c6030b864f52d 219,564,609-628
+  s_f193227df3df34::t_8ff45b0c81bad7 215-217,306-320,323-325,330-343
+  s_f193227df3df34::t_84253807c7c63a 220,565
+lib/config/bluesky.test.ts
+  s_f193227df3df34::t_cac1b1d8f33697 20-29,47-56
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_b66892ea6201a8 1283-1288
+  s_f193227df3df34::t_5fedf7eb749b7b 1254-1262,1269-1271,1279-1280,1296-1299
+app/api/v1/bluesky/jwks.json/route.ts
+  s_f193227df3df34::t_b66892ea6201a8 15-17
+  s_f193227df3df34::t_dc97823f8598c5 5
+docs/environment-variables.md
+  s_f193227df3df34::t_5fedf7eb749b7b 518-520
+lib/config/bluesky.ts
+  s_f193227df3df34::t_89bc74d311cca3 11-22
+lib/database/domains/blueskyAccount/queries.ts
+  s_f193227df3df34::t_6b6c1be410ffb5 50-61,70,153,155-170
+app/api/v1/bluesky/client-metadata.json/route.ts
+  s_f193227df3df34::t_dc97823f8598c5 5
+  s_f193227df3df34::t_b66892ea6201a8 16-18
+lib/utils/safeRemoteFetch.test.ts
+  s_f193227df3df34::t_45aa8d5a33d6de 69-101
+app/api/v1/bluesky/callback/route.ts
+  s_f193227df3df34::t_dc97823f8598c5 3,21
+lib/services/bluesky/client.test.ts
+  s_f193227df3df34::t_dc97823f8598c5 3,12-14,35,46,88
+lib/services/bluesky/account.ts
+  s_f193227df3df34::t_dc97823f8598c5 55-58,78,84,150
+  s_f193227df3df34::t_cdbd30658b4bbd 144,148-149,151-152,206,215-217,228,230,238-243,249-256,260,409
+  s_f193227df3df34::t_39a9a9ca47926f 32-45,292,294-300,323,331-337,339-340,404-408,410,475-480,493
+  s_f193227df3df34::t_217ecf9f16d995 218-220,355-357,454
+  s_f193227df3df34::t_3fe8e90532c7d4 6,10,49,59-77
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  s_f193227df3df34::t_ed8e53214a07e1 2,17-36,83-87,91,97,105-136,138-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7576a5375bed78e74e98fd78cb73a9b79604b3be",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
