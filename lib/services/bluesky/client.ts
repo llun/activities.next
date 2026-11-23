@@ -154,6 +154,8 @@ const buildClient = async (
   })
 }
 
+const MAX_CACHED_CLIENTS = 64
+
 let cached:
   | {
       database: Database
@@ -180,6 +182,10 @@ export const getBlueskyOAuthClient = (
   const key = domain.toLowerCase()
   let client = clients.get(key)
   if (!client) {
+    // A wildcard trusted host can name any number of subdomains; keep the
+    // cache bounded. shortcut: drops every client at the cap, swap for an LRU
+    // if a server ever serves more domains than this.
+    if (clients.size >= MAX_CACHED_CLIENTS) clients.clear()
     client = buildClient(database, { ...config, bluesky }, key)
     // A bad key must not stay cached as a rejected promise.
     const built = client
