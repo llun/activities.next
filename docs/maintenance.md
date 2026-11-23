@@ -506,7 +506,7 @@ Semantic search adds vector similarity to post search on PostgreSQL so relevance
 
 ### Database setup
 
-The semantic tables (`search_document_embeddings` and `search_semantic_status`) live outside the shared Kysely migrations so deployments without `pgvector` are unaffected. Create them with `yarn search:semantic:setup`:
+The semantic tables (`search_document_embeddings` and `search_semantic_status`) live outside the shared Kysely migrations so deployments without `pgvector` are unaffected. They hold only derived data, so the production archive scripts leave them out; after a restore, run the setup and the backfill again. Create them with `yarn search:semantic:setup`:
 
 ```bash
 # Run as a database user that may create extensions (e.g. `postgres`, a

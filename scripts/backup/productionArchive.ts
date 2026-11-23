@@ -28,6 +28,10 @@ import {
   MediaStorageS3Config,
   MediaStorageType
 } from '@/lib/config/mediaStorage'
+import {
+  EMBEDDINGS_TABLE,
+  SEMANTIC_STATUS_TABLE
+} from '@/lib/database/domains/search/semanticStore'
 import { type DB, inTransaction } from '@/lib/database/kysely'
 import {
   MIGRATION_LOCK_TABLES,
@@ -710,10 +714,15 @@ const getClientName = (database: ArchiveDatabase) =>
 
 // The migration runners' bookkeeping and lock tables (lib/database/migrate).
 // The manifest's migration list says which migrations the source had applied;
-// a restored database keeps the history its own migrations wrote.
+// a restored database keeps the history its own migrations wrote. The optional
+// semantic search tables live outside the migrations (yarn
+// search:semantic:setup), so a restore target has no such tables; they hold
+// only derived data, which yarn search:semantic:backfill rebuilds.
 const NOT_ARCHIVED_TABLES: readonly string[] = [
   ...MIGRATION_TABLES,
-  ...MIGRATION_LOCK_TABLES
+  ...MIGRATION_LOCK_TABLES,
+  EMBEDDINGS_TABLE,
+  SEMANTIC_STATUS_TABLE
 ]
 
 export const getDatabaseTableNames = async (database: ArchiveDatabase) => {
@@ -2421,8 +2430,10 @@ export const restoreDatabase = async (
   for (const { name } of manifest.database.tables) {
     if (NOT_ARCHIVED_TABLES.includes(name)) {
       console.log(
-        `Database: skipped ${name}; the local database keeps its own ` +
-          'migration history'
+        [EMBEDDINGS_TABLE, SEMANTIC_STATUS_TABLE].includes(name)
+          ? `Database: skipped ${name}; rebuild it with yarn search:semantic:setup and yarn search:semantic:backfill`
+          : `Database: skipped ${name}; the local database keeps its own ` +
+              'migration history'
       )
       continue
     }

@@ -20,7 +20,9 @@ const SENSITIVE_REDIRECT_HEADERS = new Set([
   'cookie2',
   'proxy-authorization',
   'signature',
-  'signature-input'
+  'signature-input',
+  // An API key header (the Gemini embeddings provider): never to another host.
+  'x-goog-api-key'
 ])
 const BODY_REDIRECT_HEADERS = new Set([
   'content-digest',

@@ -111,16 +111,18 @@ async function backfill() {
         // never races it. A new mark also lifts any back-off. Only this
         // page's rows are claimed, so live writes cannot keep it on the page.
         const pageIds = needing.map((document) => document.id)
+        // One provider request per pass, so --delay-ms falls between requests.
+        const claimLimit = Math.min(options.batchSize, provider.maxBatchSize)
         await markEmbeddingsPending(db, pageIds, provider)
         try {
           // Enough passes for the page, and a couple for rows re-marked
           // meanwhile; a post edited faster than that is left to the job.
-          const maxPasses = Math.ceil(pageIds.length / options.batchSize) + 2
+          const maxPasses = Math.ceil(pageIds.length / claimLimit) + 2
           for (let passes = 0; passes < maxPasses; passes += 1) {
             const pass = await processPendingEmbeddings(
               db,
               provider,
-              options.batchSize,
+              claimLimit,
               pageIds
             )
             if (pass.failed) {

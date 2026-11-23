@@ -589,6 +589,14 @@ describe('production archive scripts', () => {
           create table kysely_migration_lock (id varchar(255) primary key)
         `.execute(database.db)
 
+        // The optional semantic search tables hold derived data outside the
+        // migrations; a restore target has none.
+        await sql`
+          create table search_document_embeddings ("documentId" text primary key)
+        `.execute(database.db)
+        await sql`
+          create table search_semantic_status (id text primary key)
+        `.execute(database.db)
         await sql`insert into app_data (id) values (1)`.execute(database.db)
 
         await expect(getDatabaseTableNames(database)).resolves.toEqual([
