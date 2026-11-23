@@ -19,7 +19,7 @@ describe('ci.yml guard rails', () => {
       /^ {4}timeout-minutes: \d+$/.test(line)
     )
 
-    expect(jobs.length).toBe(9)
+    expect(jobs.length).toBe(10)
     expect(timeouts.length).toBe(jobs.length)
   })
 

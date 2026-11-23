@@ -389,19 +389,70 @@ jobs:
             exit 1
           fi
 
+  # Semantic search integration tests against PostgreSQL 18 with pgvector.
+  # Runs only the semantic search suites so the main PostgreSQL shards stay free
+  # of pgvector and continue verifying graceful fallback without the extension.
+  test-pg-semantic:
+    name: PostgreSQL semantic search tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: activities
+          POSTGRES_PASSWORD: activities
+          POSTGRES_DB: postgres
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U activities"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Enable corepack
+        run: |
+          command -v corepack >/dev/null || npm install -g corepack@0.36.0
+          corepack enable
+      - name: Use Node.js 26
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: yarn
+      - name: Install dependencies
+        uses: ./.github/actions/install
+      - name: Run PostgreSQL semantic search tests
+        env:
+          TEST_PGVECTOR: '1'
+          TEST_DATABASE_TYPE: pg
+          TEST_DATABASE_HOST: 127.0.0.1
+          TEST_DATABASE_PORT: ${{ job.services.postgres.ports['5432'] }}
+          TEST_DATABASE_USERNAME: activities
+          TEST_DATABASE_PASSWORD: activities
+        run: >-
+          yarn vitest run --maxWorkers=2
+          lib/database/domains/search/semantic.pgvector.test.ts
+          lib/database/domains/search/semanticStore.test.ts
+          lib/database/domains/search/fuseRankings.test.ts
+          lib/services/search/semantic/semanticSearch.test.ts
+
   # Aggregate gate for the test jobs: this is the job to mark required in
   # branch protection as "All Tests". It always runs (`if: always()`) and
-  # fails closed unless every test shard and both PostgreSQL shards succeeded.
+  # fails closed unless every test shard, both PostgreSQL shards, and the
+  # PostgreSQL semantic search job succeeded.
   test:
     name: All Tests
-    needs: [test-shards, test-pg]
+    needs: [test-shards, test-pg, test-pg-semantic]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Verify all test shards succeeded
         env:
-          RESULTS: ${{ needs.test-shards.result }} ${{ needs.test-pg.result }}
+          RESULTS: ${{ needs.test-shards.result }} ${{ needs.test-pg.result }} ${{ needs.test-pg-semantic.result }}
         run: |
           echo "Test shard results: $RESULTS"
           for result in $RESULTS; do
@@ -491,6 +542,7 @@ jobs:
         build,
         test-shards,
         test-pg,
+        test-pg-semantic,
         test,
         docker-smoke-minimal,
         docker-smoke-full
@@ -499,7 +551,7 @@ jobs:
     steps:
       - name: Verify all CI jobs succeeded
         env:
-          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test-shards.result }} ${{ needs.test-pg.result }} ${{ needs.test.result }} ${{ needs.docker-smoke-minimal.result }} ${{ needs.docker-smoke-full.result }}
+          RESULTS: ${{ needs.lint-prettier.result }} ${{ needs.typecheck.result }} ${{ needs.build.result }} ${{ needs.test-shards.result }} ${{ needs.test-pg.result }} ${{ needs.test-pg-semantic.result }} ${{ needs.test.result }} ${{ needs.docker-smoke-minimal.result }} ${{ needs.docker-smoke-full.result }}
         run: |
           echo "Upstream job results: $RESULTS"
           for result in $RESULTS; do

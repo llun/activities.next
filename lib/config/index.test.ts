@@ -306,4 +306,42 @@ describe('Config', () => {
       }
     })
   })
+
+  describe('searchEmbeddings configuration', () => {
+    const loadConfig = async () => {
+      process.env.ACTIVITIES_HOST = 'example.com'
+      process.env.ACTIVITIES_SECRET_PHASE = 'env-secret'
+      process.env.ACTIVITIES_ALLOW_EMAILS = '[]'
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'better-sqlite3'
+      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
+      const { getConfig } = await import('./index')
+      return getConfig()
+    }
+
+    it('wires valid searchEmbeddings config into getConfig()', async () => {
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_PROVIDER = 'gemini'
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_API_KEY = 'gemini-test-key'
+
+      const config = await loadConfig()
+      expect(config.searchEmbeddings).toEqual({
+        provider: 'gemini',
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: 'gemini-test-key',
+        model: 'gemini-embedding-001',
+        dimensions: 768,
+        allowPrivateEndpoint: false
+      })
+    })
+
+    it('leaves searchEmbeddings undefined and does not throw when values are invalid placeholders', async () => {
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_PROVIDER = 'openai'
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_ENDPOINT =
+        'http://192.168.1.20:11434/v1'
+      process.env.ACTIVITIES_SEARCH_EMBEDDINGS_MODEL = 'nomic-embed-text'
+      delete process.env.ACTIVITIES_SEARCH_EMBEDDINGS_ALLOW_PRIVATE_ENDPOINT
+
+      const config = await loadConfig()
+      expect(config.searchEmbeddings).toBeUndefined()
+    })
+  })
 })

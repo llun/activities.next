@@ -495,6 +495,78 @@ Batch sizing can be controlled with the `SEARCH_REINDEX_BATCH_SIZE` environment 
 SEARCH_REINDEX_BATCH_SIZE=1000 yarn search:reindex
 ```
 
+## Semantic search (optional)
+
+Semantic search adds vector similarity to post search on PostgreSQL so relevance queries can match posts by meaning alongside exact keywords. Instances running SQLite, PostgreSQL without `pgvector`, or no embeddings provider configuration search exactly as before: no extra tables, and without a provider configured no extra queries (with one configured but the database not ready, the app logs one info line at startup and re-checks availability every five minutes).
+
+### Requirements
+
+- PostgreSQL with the `pgvector` extension version `0.8.0` or newer (needed for `halfvec` HNSW iterative scans; Google Cloud SQL for PostgreSQL 18 ships `pgvector` `0.8.5`).
+- An embeddings provider configured through `ACTIVITIES_SEARCH_EMBEDDINGS_*` (see [Environment Variables](environment-variables.md#semantic-search-optional)).
+
+### Database setup
+
+The semantic tables (`search_document_embeddings` and `search_semantic_status`) live outside the shared Kysely migrations so deployments without `pgvector` are unaffected. Create them with `yarn search:semantic:setup`:
+
+```bash
+# Run as a database user that may create extensions (e.g. `postgres`, a
+# cloudsqlsuperuser member on Cloud SQL) and grant access to the app user:
+yarn search:semantic:setup --grant-to activitynext
+
+# Optional: override the vector length (defaults to ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS, 768)
+yarn search:semantic:setup --dimensions 768 --grant-to activitynext
+
+# Changing vector dimensions drops stored embeddings and rebuilds the table:
+yarn search:semantic:setup --dimensions 1536 --recreate --grant-to activitynext
+```
+
+The setup script is idempotent when the table already matches the configured dimensions. Changing `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS` without `--recreate` fails rather than silently dropping vectors; pass `--recreate` to drop and rebuild `search_document_embeddings` (which also resets the backfill cursor), then run the backfill below.
+
+### What is embedded and how visibility works
+
+Only text that any stranger could already read is ever sent to the embeddings provider:
+
+- Local `Note` and `Poll` posts addressed to Public in `to` or `cc` (public and unlisted).
+- Remote `Note` and `Poll` posts addressed to Public in `to` whose author opted in to search (`indexable`).
+- Posts by authors who are being deleted, suspended, or silenced, and all followers-only and direct posts, are never embedded.
+
+Every search query still re-checks post visibility, `indexable`, blocks, mutes, domain rules, `in:library`, phrases, exclusions, and search operators at query time, so an existing embedding can never expose a post the viewer may not see. When a remote author turns off `indexable`, their stored embeddings are deleted.
+
+### Ongoing indexing and health signal
+
+When semantic search is active, a write hook on status search-document writes marks changed documents pending in `search_document_embeddings` and schedules `EmbedSearchDocumentsJob` (coalescing bursts of writes within a 10-second window). Each job embeds up to 64 pending documents per run, skips documents whose text hash, model, and dimensions are unchanged, drops documents that are no longer embeddable, and schedules a continuation job while more remain. Retryable provider errors are rethrown so the queue retries with backoff; non-retryable errors (such as an invalid key) are recorded and swallowed so they do not spin the queue.
+
+Failures from background embedding, backfills, or live search queries are persisted in the `search_semantic_status` table (`id = 'embeddings'`: `lastError`, `lastErrorAt`, `failureCount`, and `lastSuccessAt`). Inspect the current status with `psql`:
+
+```bash
+psql "$DATABASE_URL" -c 'SELECT "lastSuccessAt", "lastErrorAt", "failureCount", "lastError" FROM search_semantic_status WHERE id = '\''embeddings'\'';'
+```
+
+### Backfill and model changes
+
+After initial setup — or after switching embedding models — embed existing eligible posts with `yarn search:semantic:backfill`:
+
+```bash
+# Preview eligible post count and estimated tokens without calling the provider
+yarn search:semantic:backfill --dry-run
+
+# Run the backfill (defaults: --batch-size 64, --delay-ms 1000)
+yarn search:semantic:backfill --batch-size 64 --delay-ms 1000
+
+# Start from the beginning instead of resuming from the saved cursor
+yarn search:semantic:backfill --restart
+```
+
+The backfill saves its cursor in `search_semantic_status."backfillCursor"` after each batch so an interrupted run resumes where it left off unless `--restart` is passed.
+
+- **Changing the model (same dimensions):** update `ACTIVITIES_SEARCH_EMBEDDINGS_MODEL` and run `yarn search:semantic:backfill --restart`. Because stored rows record their `model` column, the backfill re-embeds rows made by the old model, and queries only search rows matching the active model.
+- **Changing the dimensions:** update `ACTIVITIES_SEARCH_EMBEDDINGS_DIMENSIONS`, run `yarn search:semantic:setup --recreate` (with `--grant-to <app user>` if needed), and then run `yarn search:semantic:backfill`.
+- **Cost note:** a typical post is roughly 100 tokens (documents are capped at 2,000 characters), so backfilling 100,000 posts sends roughly 10 million tokens. Use `--dry-run` first to estimate your instance's total.
+
+### Hybrid query behavior
+
+When `GET /api/v2/search` runs a status search with `sort=relevance` and at least one plain word, semantic search embeds the plain query text (never the search operators) with a 2-second timeout, cached in-process for 10 minutes (LRU up to 500 entries, keyed by model, dimensions, and folded query) and counted against the per-actor search rate limit. PostgreSQL fetches up to the top 100 nearest embeddings matching all visibility checks, phrases, exclusions, and operators (`hnsw.iterative_scan = relaxed_order` inside a transaction) and merges them with the keyword ranking using Reciprocal Rank Fusion (`k = 60`). `sort=latest` ignores semantic search. Any provider error, timeout or database error falls back to keyword results for that request and records the error in `search_semantic_status`; a spent rate limit skips the semantic side without recording anything.
+
 ## Fixing Attachment URLs
 
 The `fixAttachmentUrls.ts` script fixes attachment URLs that were mistakenly stored with a local or incorrect host (such as `localhost:3000`) instead of your production domain. It inspects `attachments.url` and replaces the mismatched host with the target domain.
