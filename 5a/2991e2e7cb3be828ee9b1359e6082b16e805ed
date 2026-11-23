@@ -1,0 +1,29 @@
+scripts/backup/productionArchive.database.test.ts
+  s_17b6192f00c988::t_9ff0ac3fefa352 1081-1133
+lib/database/domains/search/semantic.pgvector.test.ts
+  s_17b6192f00c988::t_8c0f4e099b2304 492-521,525-538
+  s_17b6192f00c988::t_77669130fc1b0f 522-524
+scripts/backup/productionArchive.ts
+  s_17b6192f00c988::t_17df0214334fbf 1919,1924,1927-1930,1932-1936
+  s_17b6192f00c988::t_6ed3fa61a40c89 1920-1923,1925-1926,1931,2485-2497
+lib/database/domains/search/semanticStore.ts
+  s_17b6192f00c988::t_17df0214334fbf 2,5-9,170-172,197-209,215-216
+docs/maintenance.md
+  s_17b6192f00c988::t_17df0214334fbf 263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a2991e2e7cb3be828ee9b1359e6082b16e805ed",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
