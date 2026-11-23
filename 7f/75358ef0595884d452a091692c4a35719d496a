@@ -1,0 +1,21 @@
+lib/database/domains/search/semantic.pgvector.test.ts
+  s_17b6192f00c988::t_87217df0ee54b9 885-916
+scripts/maintenance/backfillSemanticSearch.ts
+  s_17b6192f00c988::t_87217df0ee54b9 116-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7f75358ef0595884d452a091692c4a35719d496a",
+  "prompts": {},
+  "sessions": {
+    "s_17b6192f00c988": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "605bac20-8140-42f7-b812-cf5592e1f657",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
