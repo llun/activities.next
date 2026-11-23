@@ -548,15 +548,16 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       // closed).
       const dotted = `https://${silencedDomain}../users/domain-dotted`
       const hostless = `acct:domain-hostless@${silencedDomain}`
-      for (const [id, username] of [
-        [dotted, 'domain-dotted'],
-        [hostless, 'domain-hostless']
+      // Dots before a port, and a handle domain with ideographic full stops.
+      const dottedPort = `https://${silencedDomain}..:8443/users/domain-port`
+      const idnaDomain = `https://${REMOTE_DOMAIN}/users/domain-idna`
+      for (const [id, username, domain] of [
+        [dotted, 'domain-dotted', REMOTE_DOMAIN],
+        [hostless, 'domain-hostless', REMOTE_DOMAIN],
+        [dottedPort, 'domain-port', REMOTE_DOMAIN],
+        [idnaDomain, 'domain-idna', `${silencedDomain}\u3002\u3002`]
       ]) {
-        await createSearchActor(database, {
-          id,
-          username,
-          domain: REMOTE_DOMAIN
-        })
+        await createSearchActor(database, { id, username, domain })
         await db
           .updateTable('actors')
           .set({
@@ -567,15 +568,24 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
           .execute()
       }
       const posts = await Promise.all(
-        [silenced, subdomain, split, userinfo, dotted, hostless, allowed].map(
-          (actorId, index) =>
-            indexedStatus({
-              id: statusIdOf(actorId, `domain-${index}`),
-              actorId,
-              createdAt: 600 + index,
-              text: `domain rule post ${index}`,
-              to: [PUBLIC]
-            })
+        [
+          silenced,
+          subdomain,
+          split,
+          userinfo,
+          dotted,
+          hostless,
+          dottedPort,
+          idnaDomain,
+          allowed
+        ].map((actorId, index) =>
+          indexedStatus({
+            id: statusIdOf(actorId, `domain-${index}`),
+            actorId,
+            createdAt: 600 + index,
+            text: `domain rule post ${index}`,
+            to: [PUBLIC]
+          })
         )
       )
       await sql`
@@ -586,7 +596,7 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       try {
         const embeddable = await getEmbeddableDocuments(db, posts.map(docIdOf))
         expect(embeddable.map((document) => document.id)).toEqual([
-          docIdOf(posts[6])
+          docIdOf(posts[8])
         ])
       } finally {
         await sql`

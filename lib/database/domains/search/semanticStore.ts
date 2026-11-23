@@ -264,32 +264,40 @@ const withoutBlockedDomains = async (
   db: Db,
   rows: CandidateRow[]
 ): Promise<EmbeddableDocument[]> => {
-  // The raw domains of a remote author (trailing dots dropped, which
-  // normalizeDomain removes one at a time), or null when one cannot be read:
-  // such an author is not embedded (fail closed).
+  // A domain as the federation policy compares it: normalizeDomain (which
+  // parses it as a URL host: lowercase, IDNA, no port), then every trailing
+  // dot dropped (it removes only one), checked to be stable. Null when it
+  // cannot be read.
+  const canonical = (domain: string): string | null => {
+    const normalized = normalizeDomain(domain)?.replace(/\.+$/, '')
+    return normalized && normalizeDomain(normalized) === normalized
+      ? normalized
+      : null
+  }
+  // The canonical domains of a remote author: the host of their id and their
+  // handle's domain; null when either cannot be read, and such an author is
+  // not embedded (fail closed).
   const domainsOf = (row: CandidateRow): string[] | null => {
     let idHost: string
     try {
-      idHost = row.actorId ? new URL(row.actorId).host : ''
+      idHost = row.actorId ? new URL(row.actorId).hostname : ''
     } catch {
       return null
     }
-    const raw = [idHost, ...(row.actorDomain ? [row.actorDomain] : [])].map(
-      (domain) => domain.replace(/\.+$/, '')
+    const domains = [idHost, ...(row.actorDomain ? [row.actorDomain] : [])].map(
+      canonical
     )
-    if (!raw[0] || raw.some((domain) => normalizeDomain(domain) === null)) {
-      return null
-    }
-    return raw
+    return domains.every((domain): domain is string => domain !== null)
+      ? domains
+      : null
   }
   const remote = rows.filter((row) => !row.privateKey)
   const domains = [...new Set(remote.flatMap((row) => domainsOf(row) ?? []))]
-  // Keyed by normalizeDomain of the raw domain, looked up the same way, as
-  // filterSearchStatuses does.
+  // Keyed by normalizeDomain, which leaves a canonical domain as it is.
   const rules =
     domains.length > 0 ? await getDomainBlocksForDomains(db, domains) : {}
   const blocked = (domain: string) => {
-    const severity = rules[normalizeDomain(domain) ?? '']?.severity
+    const severity = rules[domain]?.severity
     return severity === 'suspend' || severity === 'silence'
   }
   return rows
