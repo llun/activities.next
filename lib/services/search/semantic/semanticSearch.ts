@@ -4,12 +4,12 @@ import { getKysely } from '@/lib/database'
 import { foldSearchText } from '@/lib/database/domains/search/rows'
 import {
   type EmbeddableDocument,
+  type StoredEmbedding,
   claimPendingEmbeddings,
   clearEmbeddingPending,
   deleteEmbeddings,
   deleteEmbeddingsForActor,
   getActorStatusDocumentIds,
-  getDatabaseTime,
   getEmbeddableDocuments,
   getEmbeddingContentHash,
   getEmbeddingText,
@@ -162,78 +162,49 @@ const embedIsolating = async (
         ...rest.embedded
       ],
       refused: [...probes.flatMap((probe) => probe.refused), ...rest.refused],
-      refusal: error
+      refusal: rest.refusal ?? probes.find((probe) => probe.refusal)?.refusal
     }
   }
 }
 
 // Stores what still qualifies once the vectors are back: a post made
 // followers-only, or an author who opted out, while the request was out is
-// dropped (job) or skipped (backfill), and the backfill also skips a post whose
-// text changed meanwhile (its new mark brings the job).
+// dropped. Every write is fenced by the job's claim (see semanticStore.ts), so
+// a newer mark or a newer job always wins.
 const storeEmbedded = async (
   db: Db,
   provider: EmbeddingProvider,
   embedded: Embedded[],
-  claim: JobClaim | undefined
+  claim: JobClaim
 ) => {
   if (embedded.length === 0) return
-  // The backfill only settles marks older than this check; a mark written
-  // after it (an edit, a visibility change) is the job's to look at.
-  const checkedAt = claim ? null : await getDatabaseTime(db)
-  const fresh = new Map(
+  const stillEmbeddable = new Set(
     (
       await getEmbeddableDocuments(
         db,
         embedded.map(({ item }) => item.id)
       )
-    ).map((document) => [document.id, document])
+    ).map((document) => document.id)
   )
-  const keep = embedded.filter(({ item }) => {
-    const document = fresh.get(item.id)
-    if (!document) return false
-    if (claim) return true
-    return (
-      getEmbeddingContentHash(getEmbeddingText(document.documentText)) ===
-      item.hash
-    )
-  })
-  if (claim) {
-    await deleteEmbeddings(
-      db,
-      embedded
-        .filter(({ item }) => !fresh.has(item.id))
-        .map(({ item }) => item.id),
-      claim
-    )
-  }
+  await deleteEmbeddings(
+    db,
+    embedded
+      .filter(({ item }) => !stillEmbeddable.has(item.id))
+      .map(({ item }) => item.id),
+    claim
+  )
   await storeEmbeddings(
     db,
-    keep.map(({ item, vector }) => ({
-      documentId: item.id,
-      contentHash: item.hash,
-      embedding: vector,
-      pendingSince: claim?.pendingSince.get(item.id) ?? null
-    })),
-    { ...provider, claimToken: claim?.claimToken ?? null, checkedAt }
+    embedded
+      .filter(({ item }) => stillEmbeddable.has(item.id))
+      .map(({ item, vector }) => ({
+        documentId: item.id,
+        contentHash: item.hash,
+        embedding: vector,
+        pendingSince: claim.pendingSince.get(item.id) ?? null
+      })),
+    { ...provider, claimToken: claim.claimToken }
   )
-  if (!claim && keep.length > 0) {
-    // A post that stopped qualifying while the rows were written (an opt-out,
-    // a post made followers-only that had no row yet) leaves no mark behind
-    // for the job, so the backfill checks once more and drops it.
-    const stillEmbeddable = new Set(
-      (
-        await getEmbeddableDocuments(
-          db,
-          keep.map(({ item }) => item.id)
-        )
-      ).map((document) => document.id)
-    )
-    await deleteEmbeddings(
-      db,
-      keep.map(({ item }) => item.id).filter((id) => !stillEmbeddable.has(id))
-    )
-  }
 }
 
 // `sent`: documents sent to the provider; `embedded`: vectors it returned;
@@ -242,20 +213,57 @@ export type EmbedResult = {
   sent: number
   embedded: number
   refused: string[]
-  // The provider's last refusal, for the health signal.
+  // The provider's last refusal of a document, for the health signal.
   refusal?: unknown
 }
 
-// Embeds the documents whose text changed since their embedding was made (or
-// that have none), in provider-sized batches, and stores the vectors. `claim`
-// is the job's (absent for the backfill). Returns how many were sent and the
-// documents the provider refused as input; a failure of the whole request
-// (network, key, model) is thrown.
+// Whether a document's stored embedding exists and matches its text, model
+// and dimensions.
+const isUpToDate = (
+  current: StoredEmbedding | undefined,
+  hash: string,
+  provider: EmbeddingProvider
+) =>
+  Boolean(
+    current?.hasEmbedding &&
+    current.contentHash === hash &&
+    current.model === provider.model &&
+    current.dimensions === provider.dimensions
+  )
+
+// The documents (with any words) whose embedding is missing or out of date:
+// what the backfill marks, and what its dry run counts.
+export const getDocumentsNeedingEmbedding = async (
+  db: Db,
+  provider: EmbeddingProvider,
+  documents: EmbeddableDocument[]
+): Promise<EmbeddableDocument[]> => {
+  const stored = await getStoredEmbeddings(
+    db,
+    documents.map((document) => document.id)
+  )
+  return documents.filter((document) => {
+    const text = getEmbeddingText(document.documentText)
+    return (
+      text.trim() !== '' &&
+      !isUpToDate(
+        stored.get(document.id),
+        getEmbeddingContentHash(text),
+        provider
+      )
+    )
+  })
+}
+
+// Embeds the claimed documents whose text changed since their embedding was
+// made (or that have none), in provider-sized batches, and stores the vectors.
+// Returns how many were sent and the documents the provider refused as input;
+// a failure of the whole request (network, key, model) is thrown.
 export const embedDocuments = async (
   db: Db,
   provider: EmbeddingProvider,
   documents: EmbeddableDocument[],
-  claim?: JobClaim
+  claim: JobClaim
 ): Promise<EmbedResult> => {
   const stored = await getStoredEmbeddings(
     db,
@@ -265,22 +273,16 @@ export const embedDocuments = async (
   for (const document of documents) {
     const text = getEmbeddingText(document.documentText)
     const hash = getEmbeddingContentHash(text)
-    const current = stored.get(document.id)
-    const pending = claim?.pendingSince.get(document.id)
-    if (
-      current?.hasEmbedding &&
-      current.contentHash === hash &&
-      current.model === provider.model &&
-      current.dimensions === provider.dimensions
-    ) {
-      if (claim && pending) {
+    const pending = claim.pendingSince.get(document.id)
+    if (isUpToDate(stored.get(document.id), hash, provider)) {
+      if (pending) {
         await clearEmbeddingPending(db, document.id, pending, claim.claimToken)
       }
       continue
     }
     // A post with no words (a captionless photo) has nothing to embed.
     if (!text.trim()) {
-      if (claim) await deleteEmbeddings(db, [document.id], claim)
+      await deleteEmbeddings(db, [document.id], claim)
       continue
     }
     toEmbed.push({ id: document.id, text, hash })

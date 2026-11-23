@@ -4,17 +4,19 @@ import { loadEnvConfig } from '@next/env'
 import { getKysely } from '@/lib/database'
 import {
   getEmbeddableDocumentPage,
-  getEmbeddingContentHash,
   getEmbeddingText,
   getSemanticAvailability,
   getSemanticStatus,
-  getStoredEmbeddings,
+  markEmbeddingsPending,
   recordSemanticFailure,
   recordSemanticSuccess,
   saveBackfillCursor
 } from '@/lib/database/domains/search/semanticStore'
 import { getEmbeddingProvider } from '@/lib/services/search/semantic'
-import { embedDocuments } from '@/lib/services/search/semantic/semanticSearch'
+import {
+  getDocumentsNeedingEmbedding,
+  processPendingEmbeddings
+} from '@/lib/services/search/semantic/semanticSearch'
 
 const projectDir = process.cwd()
 loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
@@ -97,49 +99,42 @@ async function backfill() {
       })
       if (page.length === 0) break
       looked += page.length
+      const needing = await getDocumentsNeedingEmbedding(db, provider, page)
       if (options.dryRun) {
-        const stored = await getStoredEmbeddings(
-          db,
-          page.map((document) => document.id)
-        )
-        for (const document of page) {
-          const text = getEmbeddingText(document.documentText)
-          const current = stored.get(document.id)
-          if (!text.trim()) continue
-          if (
-            current?.hasEmbedding &&
-            current.contentHash === getEmbeddingContentHash(text) &&
-            current.model === provider.model &&
-            current.dimensions === provider.dimensions
-          ) {
-            continue
-          }
-          toSend += 1
-          tokens += estimateTokens(text)
+        toSend += needing.length
+        for (const document of needing) {
+          tokens += estimateTokens(getEmbeddingText(document.documentText))
         }
-      } else {
-        let sent = 0
+      } else if (needing.length > 0) {
+        // The backfill marks the rows and runs the embedding job's own passes
+        // here, so it writes through the same claims as the job and never
+        // races it. A new mark also lifts any back-off.
+        await markEmbeddingsPending(
+          db,
+          needing.map((document) => document.id),
+          provider
+        )
         try {
-          const result = await embedDocuments(db, provider, page)
-          // Every document on the page refused (two or more) is the request,
-          // not the posts (some providers answer a bad key with 400): stop
-          // here, so a rerun after the fix starts from this page. A lone post
-          // refused is skipped like any refused post.
-          if (result.sent > 1 && result.embedded === 0) {
-            throw new Error(
-              `the provider refused every post on this page: ${result.refusal instanceof Error ? result.refusal.message : String(result.refusal)}`
-            )
-          }
-          sent = result.sent
-          toSend += result.embedded
-          refused += result.refused.length
-          if (result.refused.length > 0) {
-            await recordSemanticFailure(
+          for (;;) {
+            const pass = await processPendingEmbeddings(
               db,
-              `backfill: the provider refused ${result.refused.length} document(s) as input: ${result.refusal instanceof Error ? result.refusal.message : String(result.refusal)}`
+              provider,
+              options.batchSize
             )
-          } else if (sent > 0) {
-            await recordSemanticSuccess(db)
+            if (pass.failed) {
+              // The request, not the posts (a bad key or model): stop, so a
+              // rerun after the fix starts from this page.
+              throw pass.failed
+            }
+            if (pass.looked === 0) break
+            toSend += pass.embedded
+            refused += pass.refused ?? 0
+            if (pass.embedded > 0 && !pass.refused) {
+              await recordSemanticSuccess(db)
+            }
+            if (pass.embedded > 0 && options.delayMs > 0) {
+              await sleep(options.delayMs)
+            }
           }
         } catch (error) {
           await recordSemanticFailure(
@@ -148,15 +143,15 @@ async function backfill() {
           )
           throw error
         }
+      }
+      if (!options.dryRun) {
         await saveBackfillCursor(db, page[page.length - 1].id)
-        // Only after a page that called the provider.
-        if (sent > 0 && options.delayMs > 0) await sleep(options.delayMs)
       }
       cursor = page[page.length - 1].id
       console.log(
         options.dryRun
           ? `Looked at ${looked}; ${toSend} to embed (~${tokens} tokens)`
-          : `Looked at ${looked}; embedded ${toSend}`
+          : `Looked at ${looked}; embedded ${toSend} (waiting posts included)`
       )
     }
     if (options.dryRun) {
@@ -166,7 +161,7 @@ async function backfill() {
     } else {
       await saveBackfillCursor(db, null)
       console.log(
-        `Backfill complete: sent ${toSend} of ${looked} posts${refused > 0 ? `; the provider refused ${refused} (see search_semantic_status)` : ''}.`
+        `Backfill complete: looked at ${looked} posts and embedded ${toSend} (posts already waiting included)${refused > 0 ? `; the provider refused ${refused}, which back off (see search_semantic_status)` : ''}.`
       )
     }
     return 0

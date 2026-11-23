@@ -392,84 +392,44 @@ export type EmbeddingWrite = {
   documentId: string
   contentHash: string
   embedding: number[]
-  // The mark this write answers, from the job's claim; null for the backfill.
+  // The mark this write answers, from the job's claim (null when the row was
+  // claimed without one, which never clears a mark).
   pendingSince: string | null
 }
 
+// Stores the vectors of rows the job holding `claimToken` still holds: a row
+// deleted meanwhile (the author opted out, the post was deleted) stays
+// deleted, a row another job took over is left to it, and a newer mark (the
+// post changed again) is kept for the next job. Every embedding is written
+// here, the backfill included (it marks rows and runs the job), so no writer
+// races another.
 export const storeEmbeddings = async (
   db: Db,
   writes: EmbeddingWrite[],
   {
     model,
     dimensions,
-    claimToken = null,
-    checkedAt = null
-  }: {
-    model: string
-    dimensions: number
-    claimToken?: string | null
-    // The backfill's: the database time before it re-checked the documents.
-    checkedAt?: string | null
-  }
+    claimToken
+  }: { model: string; dimensions: number; claimToken: string }
 ): Promise<void> => {
   for (const write of writes) {
-    const vector = sql`${toVectorLiteral(write.embedding)}::halfvec`
-    if (claimToken !== null) {
-      // Only a row this job still holds: a row deleted meanwhile (the author
-      // opted out, the post was deleted) stays deleted, and a newer mark (the
-      // post changed again) is kept for the next job.
-      await sql`
-        update ${sql.table(EMBEDDINGS_TABLE)} set
-          model = ${model},
-          dimensions = ${dimensions},
-          "contentHash" = ${write.contentHash},
-          embedding = ${vector},
-          "pendingSince" = case
-            when "pendingSince" = ${write.pendingSince}::timestamptz then null
-            else "pendingSince" end,
-          attempts = 0,
-          "retryAfter" = null,
-          "claimedUntil" = null,
-          "claimToken" = null,
-          "updatedAt" = now()
-        where "documentId" = ${write.documentId} and "claimToken" = ${claimToken}
-      `.execute(db)
-      continue
-    }
-    // The backfill (its caller re-checked after the provider answered that
-    // the text is unchanged and still qualifies): it also settles a waiting
-    // or backing-off row, which is how rows a broken key or model left behind
-    // recover, but never one a job holds right now.
     await sql`
-      insert into ${sql.table(EMBEDDINGS_TABLE)} as stored
-        ("documentId", model, dimensions, "contentHash", embedding, "updatedAt")
-      select id, ${model}, ${dimensions}, ${write.contentHash}, ${vector}, now()
-      from search_documents where id = ${write.documentId}
-      on conflict ("documentId") do update set
-        model = excluded.model,
-        dimensions = excluded.dimensions,
-        "contentHash" = excluded."contentHash",
-        embedding = excluded.embedding,
-        "pendingSince" = null,
+      update ${sql.table(EMBEDDINGS_TABLE)} set
+        model = ${model},
+        dimensions = ${dimensions},
+        "contentHash" = ${write.contentHash},
+        embedding = ${toVectorLiteral(write.embedding)}::halfvec,
+        "pendingSince" = case
+          when "pendingSince" = ${write.pendingSince}::timestamptz then null
+          else "pendingSince" end,
         attempts = 0,
         "retryAfter" = null,
-        -- An expired claim's job must not write over this later.
         "claimedUntil" = null,
         "claimToken" = null,
         "updatedAt" = now()
-      where (stored."claimedUntil" is null or stored."claimedUntil" < now())
-        and (stored."pendingSince" is null
-          or stored."pendingSince" <= ${checkedAt}::timestamptz)
+      where "documentId" = ${write.documentId} and "claimToken" = ${claimToken}
     `.execute(db)
   }
-}
-
-// The database's own clock, as exact text, to compare marks against.
-export const getDatabaseTime = async (db: Db): Promise<string> => {
-  const { rows } = await sql<{ now: string }>`
-    select clock_timestamp()::text as now
-  `.execute(db)
-  return rows[0].now
 }
 
 // The document is unchanged: clear the mark this job read (a newer one stays).

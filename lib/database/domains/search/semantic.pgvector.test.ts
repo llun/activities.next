@@ -13,7 +13,6 @@ import {
   deleteEmbeddings,
   deleteEmbeddingsForActor,
   getActorStatusDocumentIds,
-  getDatabaseTime,
   getEmbeddableDocuments,
   getEmbeddingContentHash,
   getEmbeddingText,
@@ -27,7 +26,8 @@ import {
   resetSemanticAvailabilityCache,
   saveBackfillCursor,
   setupSemanticSearchTables,
-  storeEmbeddings
+  storeEmbeddings,
+  toVectorLiteral
 } from '@/lib/database/domains/search/semanticStore'
 import { inTransaction } from '@/lib/database/kysely'
 import {
@@ -42,7 +42,7 @@ import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { getQueue } from '@/lib/services/queue'
 import { getEmbeddingProvider } from '@/lib/services/search/semantic/index'
 import {
-  embedDocuments,
+  getDocumentsNeedingEmbedding,
   processPendingEmbeddings,
   runEmbeddingJob
 } from '@/lib/services/search/semantic/semanticSearch'
@@ -293,18 +293,9 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         to: [PUBLIC]
       })
       const docId = docIdOf(statusId)
-      await storeEmbeddings(
-        db,
-        [
-          {
-            documentId: docId,
-            contentHash: 'setup-tx-hash',
-            embedding: bagOfWordsVector('bicycle'),
-            pendingSince: null
-          }
-        ],
-        { model: MODEL, dimensions: DIMENSIONS }
-      )
+      const provider = createDeterministicProvider()
+      await markEmbeddingsPending(db, [docId], provider)
+      await processPendingEmbeddings(db, provider)
 
       try {
         await expect(
@@ -1690,78 +1681,46 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
       }
     })
 
-    it('backfill settles marked and backing-off rows, leaves a live-claimed row untouched, and skips a document whose text changed during embed()', async () => {
-      const author = await addActor('backfill-race-author')
-      const [
-        markedStatus,
-        backingOffStatus,
-        claimedStatus,
-        changedStatus,
-        stableStatus
-      ] = await Promise.all([
-        indexedStatus({
-          id: statusIdOf(author, 'bf-marked'),
-          actorId: author,
-          createdAt: 390,
-          text: 'bicycle marked for job',
-          to: [PUBLIC]
-        }),
-        indexedStatus({
-          id: statusIdOf(author, 'bf-backoff'),
-          actorId: author,
-          createdAt: 391,
-          text: 'peloton backing off row',
-          to: [PUBLIC]
-        }),
-        indexedStatus({
-          id: statusIdOf(author, 'bf-claimed'),
-          actorId: author,
-          createdAt: 392,
-          text: 'barista currently claimed row',
-          to: [PUBLIC]
-        }),
-        indexedStatus({
-          id: statusIdOf(author, 'bf-changed'),
-          actorId: author,
-          createdAt: 393,
-          text: 'espresso before backfill edit',
-          to: [PUBLIC]
-        }),
-        indexedStatus({
-          id: statusIdOf(author, 'bf-stable'),
-          actorId: author,
-          createdAt: 394,
-          text: 'hiking alpine stable post',
-          to: [PUBLIC]
-        })
-      ])
-      const markedDocId = docIdOf(markedStatus)
+    it('backfill flow lifts backoff via markEmbeddingsPending and embeds through processPendingEmbeddings', async () => {
+      const provider = createDeterministicProvider()
+      const author = await addActor('backfill-flow-author')
+      const [upToDateStatus, backingOffStatus, freshStatus] = await Promise.all(
+        [
+          indexedStatus({
+            id: statusIdOf(author, 'bf-uptodate'),
+            actorId: author,
+            createdAt: 390,
+            text: 'bicycle already embedded post',
+            to: [PUBLIC]
+          }),
+          indexedStatus({
+            id: statusIdOf(author, 'bf-backoff'),
+            actorId: author,
+            createdAt: 391,
+            text: 'peloton backed off post',
+            to: [PUBLIC]
+          }),
+          indexedStatus({
+            id: statusIdOf(author, 'bf-fresh'),
+            actorId: author,
+            createdAt: 392,
+            text: 'hiking fresh unembedded post',
+            to: [PUBLIC]
+          })
+        ]
+      )
+      const upToDateDocId = docIdOf(upToDateStatus)
       const backingOffDocId = docIdOf(backingOffStatus)
-      const claimedDocId = docIdOf(claimedStatus)
-      const changedDocId = docIdOf(changedStatus)
-      const stableDocId = docIdOf(stableStatus)
-      const allDocIds = [
-        markedDocId,
-        backingOffDocId,
-        claimedDocId,
-        changedDocId,
-        stableDocId
-      ]
-
-      const backfillProvider = createDeterministicProvider()
-      backfillProvider.embed.mockImplementation(async (texts: string[]) => {
-        // Edit changedDocId while the provider request is in flight.
-        await db
-          .updateTable('search_documents')
-          .set({ documentText: 'espresso after backfill edit' })
-          .where('id', '=', changedDocId)
-          .execute()
-        return texts.map((text) => bagOfWordsVector(text))
-      })
+      const freshDocId = docIdOf(freshStatus)
+      const allDocIds = [upToDateDocId, backingOffDocId, freshDocId]
 
       try {
+        // Seed upToDateDocId with a current embedding.
+        await markEmbeddingsPending(db, [upToDateDocId], provider)
+        await processPendingEmbeddings(db, provider)
+
         // Put backingOffDocId into backoff (attempts = 1, retryAfter > now(), pendingSince set).
-        await markEmbeddingsPending(db, [backingOffDocId], backfillProvider)
+        await markEmbeddingsPending(db, [backingOffDocId], provider)
         const [backoffClaim] = await claimPendingEmbeddings(
           db,
           10,
@@ -1772,25 +1731,34 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
           claimToken: 'bf-backoff-token',
           pendingSince: new Map([[backingOffDocId, backoffClaim!.pendingSince]])
         })
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(false)
 
-        // Put claimedDocId under a live claim.
-        await markEmbeddingsPending(db, [claimedDocId], backfillProvider)
-        const [liveClaim] = await claimPendingEmbeddings(
-          db,
-          10,
-          'bf-live-claim'
+        provider.embed.mockClear()
+
+        // Backfill flow: find documents needing embedding, mark pending, drain passes.
+        const page = await getEmbeddableDocuments(db, allDocIds)
+        const needing = await getDocumentsNeedingEmbedding(db, provider, page)
+        expect(needing.map((doc) => doc.id).sort()).toEqual(
+          [backingOffDocId, freshDocId].sort()
         )
-        expect(liveClaim?.documentId).toBe(claimedDocId)
 
-        // Mark markedDocId pending without a claim.
-        await markEmbeddingsPending(db, [markedDocId], backfillProvider)
+        await markEmbeddingsPending(
+          db,
+          needing.map((doc) => doc.id),
+          provider
+        )
+        expect(await hasClaimablePendingEmbeddings(db)).toBe(true)
 
-        const docs = await getEmbeddableDocuments(db, allDocIds)
-        expect(docs).toHaveLength(5)
-
-        const result = await embedDocuments(db, backfillProvider, docs)
-        expect(result.refused).toEqual([])
-        expect(result.sent).toBe(5)
+        let totalEmbedded = 0
+        for (;;) {
+          const pass = await processPendingEmbeddings(db, provider)
+          expect(pass.failed).toBeUndefined()
+          if (pass.looked === 0) break
+          totalEmbedded += pass.embedded
+        }
+        expect(totalEmbedded).toBe(2)
+        expect(provider.embed).toHaveBeenCalledTimes(1)
+        expect(provider.embed.mock.calls[0]?.[0]).toHaveLength(2)
 
         const { rows } = await sql<{
           documentId: string
@@ -1800,7 +1768,6 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
           attempts: number
           retryAfter: string | null
           claimToken: string | null
-          hasLiveClaim: boolean
         }>`
           select
             "documentId",
@@ -1809,309 +1776,286 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
             "pendingSince"::text as "pendingSince",
             attempts,
             "retryAfter"::text as "retryAfter",
-            "claimToken",
-            coalesce("claimedUntil" > now(), false) as "hasLiveClaim"
+            "claimToken"
           from ${sql.table(EMBEDDINGS_TABLE)}
           where "documentId" = any(${allDocIds}::text[])
         `.execute(db)
         const byId = new Map(rows.map((row) => [row.documentId, row]))
 
-        // Stable doc was stored by backfill.
-        expect(byId.get(stableDocId)).toEqual({
-          documentId: stableDocId,
-          hasEmbedding: true,
-          contentHash: getEmbeddingContentHash(
-            getEmbeddingText('hiking alpine stable post')
-          ),
-          pendingSince: null,
-          attempts: 0,
-          retryAfter: null,
-          claimToken: null,
-          hasLiveClaim: false
-        })
-
-        // Marked row (no live claim) was settled by backfill.
-        expect(byId.get(markedDocId)).toEqual({
-          documentId: markedDocId,
-          hasEmbedding: true,
-          contentHash: getEmbeddingContentHash(
-            getEmbeddingText('bicycle marked for job')
-          ),
-          pendingSince: null,
-          attempts: 0,
-          retryAfter: null,
-          claimToken: null,
-          hasLiveClaim: false
-        })
-
-        // Backing-off row was settled by backfill (embedding stored, pending/attempts/retryAfter cleared).
         expect(byId.get(backingOffDocId)).toEqual({
           documentId: backingOffDocId,
           hasEmbedding: true,
           contentHash: getEmbeddingContentHash(
-            getEmbeddingText('peloton backing off row')
+            getEmbeddingText('peloton backed off post')
           ),
           pendingSince: null,
           attempts: 0,
           retryAfter: null,
-          claimToken: null,
-          hasLiveClaim: false
+          claimToken: null
         })
-
-        // Live-claimed row was left untouched for the job holding the claim.
-        expect(byId.get(claimedDocId)).toEqual({
-          documentId: claimedDocId,
-          hasEmbedding: false,
-          contentHash: null,
-          pendingSince: expect.any(String),
+        expect(byId.get(freshDocId)).toEqual({
+          documentId: freshDocId,
+          hasEmbedding: true,
+          contentHash: getEmbeddingContentHash(
+            getEmbeddingText('hiking fresh unembedded post')
+          ),
+          pendingSince: null,
           attempts: 0,
           retryAfter: null,
-          claimToken: 'bf-live-claim',
-          hasLiveClaim: true
+          claimToken: null
         })
-
-        // Only the live-claimed row remains pending.
-        expect(await countPendingEmbeddings(db)).toBe(1)
-
-        // Changed doc was skipped because its text hash changed mid-request.
-        expect(byId.has(changedDocId)).toBe(false)
+        expect(await countPendingEmbeddings(db)).toBe(0)
       } finally {
         await deleteEmbeddings(db, allDocIds)
       }
     })
 
-    it('backfill keeps a mark written after checkedAt and preserves its old embedding state while settling older marks', async () => {
-      const provider = createDeterministicProvider()
-      const author = await addActor('bf-checkedat-author')
-      const [olderStatus, newerEditedStatus, newerFreshStatus] =
-        await Promise.all([
-          indexedStatus({
-            id: statusIdOf(author, 'bf-older-mark'),
-            actorId: author,
-            createdAt: 395,
-            text: 'bicycle marked before recheck',
-            to: [PUBLIC]
-          }),
-          indexedStatus({
-            id: statusIdOf(author, 'bf-newer-edited'),
-            actorId: author,
-            createdAt: 396,
-            text: 'espresso edited after recheck',
-            to: [PUBLIC]
-          }),
-          indexedStatus({
-            id: statusIdOf(author, 'bf-newer-fresh'),
-            actorId: author,
-            createdAt: 397,
-            text: 'hiking freshly marked after recheck',
-            to: [PUBLIC]
-          })
-        ])
-      const olderDocId = docIdOf(olderStatus)
-      const newerEditedDocId = docIdOf(newerEditedStatus)
-      const newerFreshDocId = docIdOf(newerFreshStatus)
-      const allDocIds = [olderDocId, newerEditedDocId, newerFreshDocId]
+    it('leaves a row held by a live claim untouched during a second processPendingEmbeddings', async () => {
+      const author = await addActor('live-claim-pass-author')
+      const [heldStatus, otherStatus] = await Promise.all([
+        indexedStatus({
+          id: statusIdOf(author, 'live-held'),
+          actorId: author,
+          createdAt: 393,
+          text: 'barista held by first pass',
+          to: [PUBLIC]
+        }),
+        indexedStatus({
+          id: statusIdOf(author, 'live-other'),
+          actorId: author,
+          createdAt: 394,
+          text: 'bicycle embedded by second pass',
+          to: [PUBLIC]
+        })
+      ])
+      const heldDocId = docIdOf(heldStatus)
+      const otherDocId = docIdOf(otherStatus)
+
+      const secondProvider = createDeterministicProvider()
+      let secondPassResult: Awaited<
+        ReturnType<typeof processPendingEmbeddings>
+      > | null = null
+      let emptyPassResult: Awaited<
+        ReturnType<typeof processPendingEmbeddings>
+      > | null = null
+      let heldRowDuringFirstPass: {
+        claimToken: string | null
+        pendingSince: string | null
+        hasEmbedding: boolean
+        hasLiveClaim: boolean
+      } | null = null
+      let heldRowAfterSecondPass: {
+        claimToken: string | null
+        pendingSince: string | null
+        hasEmbedding: boolean
+        hasLiveClaim: boolean
+      } | null = null
+
+      const firstProvider = createDeterministicProvider()
+      firstProvider.embed.mockImplementation(async (texts: string[]) => {
+        const readHeld = async () => {
+          const { rows } = await sql<{
+            claimToken: string | null
+            pendingSince: string | null
+            hasEmbedding: boolean
+            hasLiveClaim: boolean
+          }>`
+            select
+              "claimToken",
+              "pendingSince"::text as "pendingSince",
+              embedding is not null as "hasEmbedding",
+              coalesce("claimedUntil" > now(), false) as "hasLiveClaim"
+            from ${sql.table(EMBEDDINGS_TABLE)}
+            where "documentId" = ${heldDocId}
+          `.execute(db)
+          return rows[0] ?? null
+        }
+
+        heldRowDuringFirstPass = await readHeld()
+        await markEmbeddingsPending(db, [otherDocId], secondProvider)
+        secondPassResult = await processPendingEmbeddings(db, secondProvider)
+        emptyPassResult = await processPendingEmbeddings(db, secondProvider)
+        heldRowAfterSecondPass = await readHeld()
+        return texts.map((text) => bagOfWordsVector(text))
+      })
 
       try {
-        // Seed newerEditedDocId with an existing embedding, and mark olderDocId before checkedAt.
+        await markEmbeddingsPending(db, [heldDocId], firstProvider)
+
+        const firstPassResult = await processPendingEmbeddings(
+          db,
+          firstProvider
+        )
+        expect(firstPassResult).toMatchObject({ looked: 1, embedded: 1 })
+        expect(secondPassResult).toMatchObject({ looked: 1, embedded: 1 })
+        expect(emptyPassResult).toEqual({ looked: 0, embedded: 0 })
+        expect(secondProvider.embed).toHaveBeenCalledTimes(1)
+        expect(secondProvider.embed.mock.calls[0]?.[0]).toEqual([
+          'bicycle embedded by second pass'
+        ])
+
+        // The second pass left the live-claimed row completely untouched.
+        expect(heldRowDuringFirstPass).toEqual({
+          claimToken: expect.any(String),
+          pendingSince: expect.any(String),
+          hasEmbedding: false,
+          hasLiveClaim: true
+        })
+        expect(heldRowAfterSecondPass).toEqual(heldRowDuringFirstPass)
+
+        // Once the first pass completes, both rows have their embeddings.
+        const stored = await getStoredEmbeddings(db, [heldDocId, otherDocId])
+        expect(stored.get(heldDocId)?.hasEmbedding).toBe(true)
+        expect(stored.get(otherDocId)?.hasEmbedding).toBe(true)
+        expect(await countPendingEmbeddings(db)).toBe(0)
+      } finally {
+        await deleteEmbeddings(db, [heldDocId, otherDocId])
+      }
+    })
+
+    it('changes nothing when storeEmbeddings is called without the holding claimToken', async () => {
+      const provider = createDeterministicProvider()
+      const author = await addActor('store-token-fence-author')
+      const [missingRowStatus, heldStatus, settledStatus] = await Promise.all([
+        indexedStatus({
+          id: statusIdOf(author, 'token-missing-row'),
+          actorId: author,
+          createdAt: 395,
+          text: 'bicycle no row exists',
+          to: [PUBLIC]
+        }),
+        indexedStatus({
+          id: statusIdOf(author, 'token-held'),
+          actorId: author,
+          createdAt: 396,
+          text: 'espresso held by valid token',
+          to: [PUBLIC]
+        }),
+        indexedStatus({
+          id: statusIdOf(author, 'token-settled'),
+          actorId: author,
+          createdAt: 397,
+          text: 'hiking already settled row',
+          to: [PUBLIC]
+        })
+      ])
+      const missingRowDocId = docIdOf(missingRowStatus)
+      const heldDocId = docIdOf(heldStatus)
+      const settledDocId = docIdOf(settledStatus)
+      const allDocIds = [missingRowDocId, heldDocId, settledDocId]
+
+      try {
+        // Settle settledDocId so its row exists with claimToken = null.
+        await markEmbeddingsPending(db, [settledDocId], provider)
+        await processPendingEmbeddings(db, provider)
+        const settledHash = getEmbeddingContentHash(
+          getEmbeddingText('hiking already settled row')
+        )
+
+        // Hold heldDocId with a live claim.
+        await markEmbeddingsPending(db, [heldDocId], provider)
+        const [heldClaim] = await claimPendingEmbeddings(
+          db,
+          10,
+          'holding-token'
+        )
+        expect(heldClaim?.documentId).toBe(heldDocId)
+
+        // Calling storeEmbeddings with a non-holding token must neither insert nor update any row.
         await storeEmbeddings(
           db,
           [
             {
-              documentId: newerEditedDocId,
-              contentHash: 'old-existing-hash',
+              documentId: missingRowDocId,
+              contentHash: 'unclaimed-insert-attempt',
+              embedding: bagOfWordsVector('bicycle no row exists'),
+              pendingSince: null
+            },
+            {
+              documentId: heldDocId,
+              contentHash: 'wrong-token-overwrite',
+              embedding: bagOfWordsVector('espresso held by valid token'),
+              pendingSince: heldClaim!.pendingSince
+            },
+            {
+              documentId: settledDocId,
+              contentHash: 'settled-overwrite-attempt',
               embedding: bagOfWordsVector('bicycle'),
               pendingSince: null
             }
           ],
-          { model: MODEL, dimensions: DIMENSIONS }
-        )
-        await markEmbeddingsPending(db, [olderDocId], provider)
-
-        await new Promise((resolve) => setTimeout(resolve, 5))
-        const checkedAt = await getDatabaseTime(db)
-        await new Promise((resolve) => setTimeout(resolve, 5))
-
-        // Marks written after checkedAt must survive backfill's upsert untouched.
-        await markEmbeddingsPending(
-          db,
-          [newerEditedDocId, newerFreshDocId],
-          provider
+          { ...provider, claimToken: 'not-the-holding-token' }
         )
 
-        const { rows: marksBefore } = await sql<{
-          documentId: string
-          pendingSince: string | null
-        }>`
-          select "documentId", "pendingSince"::text as "pendingSince"
-          from ${sql.table(EMBEDDINGS_TABLE)}
-          where "documentId" = any(${[newerEditedDocId, newerFreshDocId]}::text[])
-        `.execute(db)
-        const expectedMarks = new Map(
-          marksBefore.map((row) => [row.documentId, row.pendingSince])
-        )
-        expect(expectedMarks.get(newerEditedDocId)).toEqual(expect.any(String))
-        expect(expectedMarks.get(newerFreshDocId)).toEqual(expect.any(String))
-
-        await storeEmbeddings(
-          db,
-          [
-            {
-              documentId: olderDocId,
-              contentHash: 'backfill-older-hash',
-              embedding: bagOfWordsVector('bicycle marked before recheck'),
-              pendingSince: null
-            },
-            {
-              documentId: newerEditedDocId,
-              contentHash: 'backfill-stale-hash',
-              embedding: bagOfWordsVector('espresso edited after recheck'),
-              pendingSince: null
-            },
-            {
-              documentId: newerFreshDocId,
-              contentHash: 'backfill-fresh-stale-hash',
-              embedding: bagOfWordsVector(
-                'hiking freshly marked after recheck'
-              ),
-              pendingSince: null
-            }
-          ],
-          { model: MODEL, dimensions: DIMENSIONS, checkedAt }
-        )
-
-        const { rows: rowsAfter } = await sql<{
+        const { rows: afterWrongToken } = await sql<{
           documentId: string
           hasEmbedding: boolean
           contentHash: string | null
           pendingSince: string | null
+          claimToken: string | null
+          hasLiveClaim: boolean
         }>`
           select
             "documentId",
             embedding is not null as "hasEmbedding",
             "contentHash",
-            "pendingSince"::text as "pendingSince"
+            "pendingSince"::text as "pendingSince",
+            "claimToken",
+            coalesce("claimedUntil" > now(), false) as "hasLiveClaim"
           from ${sql.table(EMBEDDINGS_TABLE)}
           where "documentId" = any(${allDocIds}::text[])
         `.execute(db)
-        const byId = new Map(rowsAfter.map((row) => [row.documentId, row]))
+        const byId = new Map(
+          afterWrongToken.map((row) => [row.documentId, row])
+        )
 
-        // Marked before checkedAt -> settled.
-        expect(byId.get(olderDocId)).toEqual({
-          documentId: olderDocId,
-          hasEmbedding: true,
-          contentHash: 'backfill-older-hash',
-          pendingSince: null
-        })
-
-        // Marked after checkedAt -> kept its newer pendingSince and its old embedding state.
-        expect(byId.get(newerEditedDocId)).toEqual({
-          documentId: newerEditedDocId,
-          hasEmbedding: true,
-          contentHash: 'old-existing-hash',
-          pendingSince: expectedMarks.get(newerEditedDocId)
-        })
-        expect(byId.get(newerFreshDocId)).toEqual({
-          documentId: newerFreshDocId,
+        expect(byId.has(missingRowDocId)).toBe(false)
+        expect(byId.get(heldDocId)).toEqual({
+          documentId: heldDocId,
           hasEmbedding: false,
           contentHash: null,
-          pendingSince: expectedMarks.get(newerFreshDocId)
+          pendingSince: heldClaim!.pendingSince,
+          claimToken: 'holding-token',
+          hasLiveClaim: true
+        })
+        expect(byId.get(settledDocId)).toEqual({
+          documentId: settledDocId,
+          hasEmbedding: true,
+          contentHash: settledHash,
+          pendingSince: null,
+          claimToken: null,
+          hasLiveClaim: false
         })
 
-        // Both newer marks remain claimable by the job.
-        const claimed = await claimPendingEmbeddings(
+        // Calling storeEmbeddings with the actual holding token succeeds.
+        const heldHash = getEmbeddingContentHash(
+          getEmbeddingText('espresso held by valid token')
+        )
+        await storeEmbeddings(
           db,
-          10,
-          'bf-after-checkedat'
+          [
+            {
+              documentId: heldDocId,
+              contentHash: heldHash,
+              embedding: bagOfWordsVector('espresso held by valid token'),
+              pendingSince: heldClaim!.pendingSince
+            }
+          ],
+          { ...provider, claimToken: 'holding-token' }
         )
-        expect(claimed.map((row) => row.documentId).sort()).toEqual(
-          [newerEditedDocId, newerFreshDocId].sort()
+        const storedHeld = (await getStoredEmbeddings(db, [heldDocId])).get(
+          heldDocId
         )
+        expect(storedHeld).toEqual(
+          expect.objectContaining({
+            documentId: heldDocId,
+            contentHash: heldHash,
+            hasEmbedding: true
+          })
+        )
+        expect(await countPendingEmbeddings(db)).toBe(0)
       } finally {
         await deleteEmbeddings(db, allDocIds)
-      }
-    })
-
-    it('backfill post-store re-check drops a row whose author opted out between the pre-store check and the store', async () => {
-      const provider = createDeterministicProvider()
-      const optoutAuthor = await addActor('bf-postcheck-optout', {
-        domain: REMOTE_DOMAIN,
-        remote: true,
-        indexable: true
-      })
-      const stayAuthor = await addActor('bf-postcheck-stay', {
-        domain: REMOTE_DOMAIN,
-        remote: true,
-        indexable: true
-      })
-      const optoutStatus = await indexedStatus({
-        id: statusIdOf(optoutAuthor, 'postcheck-optout-post'),
-        actorId: optoutAuthor,
-        createdAt: 398,
-        text: 'bicycle remote author opting out during store',
-        to: [PUBLIC]
-      })
-      const stayStatus = await indexedStatus({
-        id: statusIdOf(stayAuthor, 'postcheck-stay-post'),
-        actorId: stayAuthor,
-        createdAt: 399,
-        text: 'espresso remote author staying indexable',
-        to: [PUBLIC]
-      })
-      const optoutDocId = docIdOf(optoutStatus)
-      const stayDocId = docIdOf(stayStatus)
-      const triggerName = 'test_flip_optout_on_embedding_insert'
-      const fnName = 'test_flip_optout_on_embedding_insert_fn'
-
-      try {
-        // Flip optoutAuthor's indexable flag inside the INSERT performed by storeEmbeddings(),
-        // so the pre-store getEmbeddableDocuments check passes and the row IS written,
-        // leaving only the post-store re-check to detect the opt-out and delete it.
-        await sql`
-          create or replace function ${sql.id(fnName)}() returns trigger language plpgsql as $$
-          begin
-            if new."documentId" = ${sql.lit(optoutDocId)} then
-              update actors
-              set settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{indexable}', 'false'::jsonb)
-              where id = ${sql.lit(optoutAuthor)};
-            end if;
-            return new;
-          end;
-          $$
-        `.execute(db)
-        await sql`
-          create trigger ${sql.id(triggerName)}
-          after insert on ${sql.table(EMBEDDINGS_TABLE)}
-          for each row execute function ${sql.id(fnName)}()
-        `.execute(db)
-
-        const docs = await getEmbeddableDocuments(db, [optoutDocId, stayDocId])
-        expect(docs).toHaveLength(2)
-
-        const result = await embedDocuments(db, provider, docs)
-        expect(result).toEqual({ sent: 2, embedded: 2, refused: [] })
-
-        // Verify the trigger actually ran (proving the pre-store check passed and INSERT occurred).
-        const actorAfter = await db
-          .selectFrom('actors')
-          .select('settings')
-          .where('id', '=', optoutAuthor)
-          .executeTakeFirstOrThrow()
-        const settingsAfter = getCompatibleJSON<Record<string, unknown>>(
-          actorAfter.settings as string | Record<string, unknown>
-        )
-        expect(settingsAfter.indexable).toBe(false)
-
-        // Post-store re-check must have deleted optoutDocId while keeping stayDocId.
-        const stored = await getStoredEmbeddings(db, [optoutDocId, stayDocId])
-        expect(stored.has(optoutDocId)).toBe(false)
-        expect(stored.get(stayDocId)?.hasEmbedding).toBe(true)
-      } finally {
-        await sql`drop trigger if exists ${sql.id(triggerName)} on ${sql.table(EMBEDDINGS_TABLE)}`.execute(
-          db
-        )
-        await sql`drop function if exists ${sql.id(fnName)}()`.execute(db)
-        await deleteEmbeddings(db, [optoutDocId, stayDocId])
       }
     })
   })
@@ -2212,18 +2156,17 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         [docIdOf(pendingUnembeddedPost)],
         provider
       )
-      await storeEmbeddings(
-        db,
-        [
-          {
-            documentId: docIdOf(hiddenFollowersPost),
-            contentHash: 'manual-hash',
-            embedding: bagOfWordsVector('bicycle'),
-            pendingSince: null
-          }
-        ],
-        provider
-      )
+      await sql`
+        insert into ${sql.table(EMBEDDINGS_TABLE)}
+          ("documentId", model, dimensions, "contentHash", embedding)
+        values (
+          ${docIdOf(hiddenFollowersPost)},
+          ${MODEL},
+          ${DIMENSIONS},
+          'manual-hash',
+          ${toVectorLiteral(bagOfWordsVector('bicycle'))}::halfvec
+        )
+      `.execute(db)
 
       const semantic = {
         embedding: bagOfWordsVector('bicycle'),
@@ -2301,18 +2244,9 @@ describe.skipIf(!runPgvector)('semantic search pgvector integration', () => {
         text: 'fallbackkeyword lantern',
         to: [PUBLIC]
       })
-      await storeEmbeddings(
-        db,
-        [
-          {
-            documentId: docIdOf(keywordMatch),
-            contentHash: 'fb-hash',
-            embedding: bagOfWordsVector('fallbackkeyword lantern'),
-            pendingSince: null
-          }
-        ],
-        { model: MODEL, dimensions: DIMENSIONS }
-      )
+      const provider = createDeterministicProvider()
+      await markEmbeddingsPending(db, [docIdOf(keywordMatch)], provider)
+      await processPendingEmbeddings(db, provider)
 
       // Wrong vector dimension triggers a pgvector error; search returns keyword match.
       const wrongDimResults = await database.searchStatusIds({

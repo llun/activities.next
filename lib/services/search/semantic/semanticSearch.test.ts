@@ -9,8 +9,8 @@ import {
   deleteEmbeddings,
   deleteEmbeddingsForActor,
   getActorStatusDocumentIds,
-  getDatabaseTime,
   getEmbeddableDocuments,
+  getEmbeddingContentHash,
   getSemanticAvailability,
   getStoredEmbeddings,
   hasClaimablePendingEmbeddings,
@@ -35,6 +35,7 @@ import {
   createSemanticSearchListener,
   embedDocuments,
   embedSearchQuery,
+  getDocumentsNeedingEmbedding,
   getSearchQueryEmbedding,
   resetActorOptInsForTests,
   resetEmbeddingJobScheduleForTests,
@@ -61,7 +62,6 @@ vi.mock(
       deleteEmbeddings: vi.fn(),
       deleteEmbeddingsForActor: vi.fn(),
       getActorStatusDocumentIds: vi.fn(),
-      getDatabaseTime: vi.fn(),
       getEmbeddableDocuments: vi.fn(),
       getSemanticAvailability: vi.fn(),
       getStoredEmbeddings: vi.fn(),
@@ -133,9 +133,6 @@ describe('semanticSearch service', () => {
       .mockResolvedValue({ available: true })
     vi.mocked(claimPendingEmbeddings).mockReset().mockResolvedValue([])
     vi.mocked(getActorStatusDocumentIds).mockReset().mockResolvedValue([])
-    vi.mocked(getDatabaseTime)
-      .mockReset()
-      .mockResolvedValue('2026-01-01 00:00:00+00')
     vi.mocked(getEmbeddableDocuments).mockReset().mockResolvedValue([])
     vi.mocked(getStoredEmbeddings).mockReset().mockResolvedValue(new Map())
     vi.mocked(hasClaimablePendingEmbeddings)
@@ -852,57 +849,278 @@ describe('semanticSearch service', () => {
     })
   })
 
-  describe('embedDocuments (backfill)', () => {
-    it('reads database time before pre-store re-check, passes checkedAt, and deletes rows that stop qualifying after store', async () => {
-      const provider = createFakeProvider()
-      const callOrder: string[] = []
-      const checkedAt = '2026-01-01 00:05:00.123456+00'
-
-      vi.mocked(getDatabaseTime).mockImplementation(async () => {
-        callOrder.push('getDatabaseTime')
-        return checkedAt
+  describe('getDocumentsNeedingEmbedding', () => {
+    it('returns documents with missing, unembedded, stale hash, wrong model, or wrong dimensions, and excludes empty and up-to-date documents', async () => {
+      const provider = createFakeProvider({
+        model: 'embed-v2',
+        dimensions: 4
       })
-      vi.mocked(getEmbeddableDocuments)
-        .mockImplementationOnce(async () => {
-          callOrder.push('preCheck')
-          return [
-            { id: 'doc-keep', documentText: 'stays public' },
-            { id: 'doc-optout', documentText: 'author opts out mid-store' }
+      const upToDateText = 'already embedded unchanged post'
+      const changedText = 'edited post with new words'
+      const wrongModelText = 'embedded under old model'
+      const wrongDimsText = 'embedded under old dimensions'
+      const unembeddedText = 'pending row with null embedding'
+      const missingText = 'brand new post with no row'
+
+      const documents = [
+        { id: 'doc-missing', documentText: missingText },
+        { id: 'doc-unembedded', documentText: unembeddedText },
+        { id: 'doc-hash-changed', documentText: changedText },
+        { id: 'doc-model-changed', documentText: wrongModelText },
+        { id: 'doc-dims-changed', documentText: wrongDimsText },
+        { id: 'doc-empty', documentText: '' },
+        { id: 'doc-whitespace', documentText: '   \n\t  ' },
+        { id: 'doc-up-to-date', documentText: upToDateText }
+      ]
+
+      vi.mocked(getStoredEmbeddings).mockResolvedValue(
+        new Map([
+          [
+            'doc-unembedded',
+            {
+              documentId: 'doc-unembedded',
+              model: provider.model,
+              dimensions: provider.dimensions,
+              contentHash: getEmbeddingContentHash(unembeddedText),
+              hasEmbedding: false
+            }
+          ],
+          [
+            'doc-hash-changed',
+            {
+              documentId: 'doc-hash-changed',
+              model: provider.model,
+              dimensions: provider.dimensions,
+              contentHash: getEmbeddingContentHash('older text before edit'),
+              hasEmbedding: true
+            }
+          ],
+          [
+            'doc-model-changed',
+            {
+              documentId: 'doc-model-changed',
+              model: 'embed-v1',
+              dimensions: provider.dimensions,
+              contentHash: getEmbeddingContentHash(wrongModelText),
+              hasEmbedding: true
+            }
+          ],
+          [
+            'doc-dims-changed',
+            {
+              documentId: 'doc-dims-changed',
+              model: provider.model,
+              dimensions: 8,
+              contentHash: getEmbeddingContentHash(wrongDimsText),
+              hasEmbedding: true
+            }
+          ],
+          [
+            'doc-up-to-date',
+            {
+              documentId: 'doc-up-to-date',
+              model: provider.model,
+              dimensions: provider.dimensions,
+              contentHash: getEmbeddingContentHash(upToDateText),
+              hasEmbedding: true
+            }
           ]
-        })
-        .mockImplementationOnce(async () => {
-          callOrder.push('postCheck')
-          return [{ id: 'doc-keep', documentText: 'stays public' }]
-        })
-      vi.mocked(storeEmbeddings).mockImplementation(async () => {
-        callOrder.push('storeEmbeddings')
-      })
-      vi.mocked(deleteEmbeddings).mockImplementation(async () => {
-        callOrder.push('deleteEmbeddings')
-      })
+        ])
+      )
 
-      const result = await embedDocuments(mockDb, provider, [
-        { id: 'doc-keep', documentText: 'stays public' },
-        { id: 'doc-optout', documentText: 'author opts out mid-store' }
+      const needing = await getDocumentsNeedingEmbedding(
+        mockDb,
+        provider,
+        documents
+      )
+
+      expect(getStoredEmbeddings).toHaveBeenCalledWith(
+        mockDb,
+        documents.map((doc) => doc.id)
+      )
+      expect(needing.map((doc) => doc.id)).toEqual([
+        'doc-missing',
+        'doc-unembedded',
+        'doc-hash-changed',
+        'doc-model-changed',
+        'doc-dims-changed'
       ])
+    })
+  })
+
+  describe('embedDocuments', () => {
+    it('fences post-embed drops and writes with the job claim', async () => {
+      const provider = createFakeProvider()
+      const claim = {
+        claimToken: 'claim-token-1',
+        pendingSince: new Map([
+          ['doc-keep', '2026-01-01 00:00:01+00'],
+          ['doc-optout', '2026-01-01 00:00:02+00']
+        ])
+      }
+      vi.mocked(getEmbeddableDocuments).mockResolvedValue([
+        { id: 'doc-keep', documentText: 'stays public' }
+      ])
+
+      const result = await embedDocuments(
+        mockDb,
+        provider,
+        [
+          { id: 'doc-keep', documentText: 'stays public' },
+          { id: 'doc-optout', documentText: 'author opts out mid-embed' }
+        ],
+        claim
+      )
 
       expect(result).toEqual({ sent: 2, embedded: 2, refused: [] })
-      expect(callOrder).toEqual([
-        'getDatabaseTime',
-        'preCheck',
-        'storeEmbeddings',
-        'postCheck',
-        'deleteEmbeddings'
-      ])
+      expect(deleteEmbeddings).toHaveBeenCalledWith(
+        mockDb,
+        ['doc-optout'],
+        claim
+      )
       expect(storeEmbeddings).toHaveBeenCalledWith(
         mockDb,
         [
-          expect.objectContaining({ documentId: 'doc-keep' }),
-          expect.objectContaining({ documentId: 'doc-optout' })
+          expect.objectContaining({
+            documentId: 'doc-keep',
+            pendingSince: '2026-01-01 00:00:01+00'
+          })
         ],
-        expect.objectContaining({ claimToken: null, checkedAt })
+        expect.objectContaining({
+          model: provider.model,
+          dimensions: provider.dimensions,
+          claimToken: claim.claimToken
+        })
       )
-      expect(deleteEmbeddings).toHaveBeenCalledWith(mockDb, ['doc-optout'])
+    })
+
+    it('yields no refusal when a batch 413 splits cleanly with no refused documents', async () => {
+      const provider = createFakeProvider({ maxBatchSize: 16 })
+      const batchTooLarge = new EmbeddingProviderError('payload too large', {
+        statusCode: 413,
+        retryable: false
+      })
+      provider.embed.mockImplementation(async (texts: string[]) => {
+        if (texts.length > 2) throw batchTooLarge
+        return texts.map((_, index) => [index + 1, 0, 0, 0])
+      })
+      const docs = Array.from({ length: 6 }, (_, index) => ({
+        id: `doc-${index}`,
+        documentText: `post number ${index}`
+      }))
+      const claim = {
+        claimToken: 'claim-413-clean',
+        pendingSince: new Map(
+          docs.map((doc, index) => [
+            doc.id,
+            `2026-01-01 00:00:0${index + 1}+00`
+          ])
+        )
+      }
+      vi.mocked(getEmbeddableDocuments).mockResolvedValue(docs)
+
+      const result = await embedDocuments(mockDb, provider, docs, claim)
+
+      expect(result).toEqual({ sent: 6, embedded: 6, refused: [] })
+      expect(result.refusal).toBeUndefined()
+      const storedIds = vi
+        .mocked(storeEmbeddings)
+        .mock.calls[0]?.[1].map((write) => write.documentId)
+        .sort()
+      expect(storedIds).toEqual(docs.map((doc) => doc.id).sort())
+    })
+
+    it("reports a refused document's own error from halving rather than the batch 413 error", async () => {
+      const provider = createFakeProvider({ maxBatchSize: 16 })
+      const batchTooLarge = new EmbeddingProviderError(
+        'batch payload too large',
+        { statusCode: 413, retryable: false }
+      )
+      const docRefusal = new EmbeddingProviderError(
+        'document exceeds token limit',
+        { statusCode: 400, retryable: false }
+      )
+      provider.embed.mockImplementation(async (texts: string[]) => {
+        if (texts.length > 1) throw batchTooLarge
+        if (texts[0] === 'bad-in-rest') throw docRefusal
+        return [[1, 0, 0, 0]]
+      })
+      // Probes for length 5 are indexes 0, 2, 4; index 1 is isolated by halving rest.
+      const docs = [
+        { id: 'doc-0', documentText: 'good-0' },
+        { id: 'doc-1', documentText: 'bad-in-rest' },
+        { id: 'doc-2', documentText: 'good-2' },
+        { id: 'doc-3', documentText: 'good-3' },
+        { id: 'doc-4', documentText: 'good-4' }
+      ]
+      const claim = {
+        claimToken: 'claim-413-rest-refusal',
+        pendingSince: new Map(
+          docs.map((doc, index) => [
+            doc.id,
+            `2026-01-01 00:00:0${index + 1}+00`
+          ])
+        )
+      }
+      vi.mocked(getEmbeddableDocuments).mockResolvedValue(docs)
+
+      const result = await embedDocuments(mockDb, provider, docs, claim)
+
+      expect(result).toEqual({
+        sent: 5,
+        embedded: 4,
+        refused: ['doc-1'],
+        refusal: docRefusal
+      })
+      expect(result.refusal).toBe(docRefusal)
+    })
+
+    it("reports a refused probe document's own error rather than the batch 413 error", async () => {
+      const provider = createFakeProvider({ maxBatchSize: 16 })
+      const batchTooLarge = new EmbeddingProviderError(
+        'batch payload too large',
+        { statusCode: 413, retryable: false }
+      )
+      const probeRefusal = new EmbeddingProviderError(
+        'invalid input encoding',
+        {
+          statusCode: 422,
+          retryable: false
+        }
+      )
+      provider.embed.mockImplementation(async (texts: string[]) => {
+        if (texts.length > 2) throw batchTooLarge
+        if (texts.includes('bad-probe')) throw probeRefusal
+        return texts.map((_, index) => [index + 1, 0, 0, 0])
+      })
+      // Index 0 is a probe; rest ([doc-1, doc-3]) succeeds with no refusals.
+      const docs = [
+        { id: 'doc-0', documentText: 'bad-probe' },
+        { id: 'doc-1', documentText: 'good-1' },
+        { id: 'doc-2', documentText: 'good-2' },
+        { id: 'doc-3', documentText: 'good-3' },
+        { id: 'doc-4', documentText: 'good-4' }
+      ]
+      const claim = {
+        claimToken: 'claim-413-probe-refusal',
+        pendingSince: new Map(
+          docs.map((doc, index) => [
+            doc.id,
+            `2026-01-01 00:00:0${index + 1}+00`
+          ])
+        )
+      }
+      vi.mocked(getEmbeddableDocuments).mockResolvedValue(docs)
+
+      const result = await embedDocuments(mockDb, provider, docs, claim)
+
+      expect(result).toEqual({
+        sent: 5,
+        embedded: 4,
+        refused: ['doc-0'],
+        refusal: probeRefusal
+      })
+      expect(result.refusal).toBe(probeRefusal)
     })
   })
 
