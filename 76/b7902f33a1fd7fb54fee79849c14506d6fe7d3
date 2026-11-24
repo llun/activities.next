@@ -1,0 +1,35 @@
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_ce769448219bca 1390,1392
+app/api/v1/accounts/outbox/route.test.ts
+  s_f193227df3df34::t_42fbca034e44fe 873,991-1055
+app/api/v1/accounts/outbox/route.ts
+  s_f193227df3df34::t_cb74d2a662778b 21,375-392
+lib/services/bluesky/sync.test.ts
+  s_f193227df3df34::t_7f634292c526f2 693-761
+lib/services/bluesky/sync.ts
+  s_f193227df3df34::t_4761bf3d89dd37 42-43,102,108-120,182-186,230
+lib/services/notifications/evaluateNotificationPolicy.test.ts
+  s_f193227df3df34::t_4a576c7f714653 10-11,18,35,190-287
+lib/services/notifications/evaluateNotificationPolicy.ts
+  s_f193227df3df34::t_7dfcbbf08efedd 6,97,104,107,109-134,137-141,144-146
+lib/services/timelines/main.test.ts
+  s_f193227df3df34::t_6fe2d8b4aa6867 3,6,931-1073
+lib/services/timelines/main.ts
+  s_f193227df3df34::t_9f80e4aa0ea701 1,3,5-11,16-33,97-108,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76b7902f33a1fd7fb54fee79849c14506d6fe7d3",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
