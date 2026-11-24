@@ -114,15 +114,15 @@ export const resolveBlueskyProfile = async (
   }
 }
 
-// One AppView read of each kind per Bluesky actor per window, whoever views
-// the profile; a refused read shows what is stored. updatedAt alone cannot
-// throttle the profile read: an unchanged profile does not move it.
-const claimAppViewRead = async (
+// One AppView read of each kind per Bluesky target per window, whoever views
+// it; a refused read shows what is stored. updatedAt alone cannot throttle the
+// profile read: an unchanged profile does not move it.
+export const claimAppViewRead = async (
   database: Database,
-  kind: 'feed' | 'profile',
-  actorId: string
+  kind: 'feed' | 'profile' | 'thread',
+  targetId: string
 ) => {
-  const digest = crypto.createHash('sha256').update(actorId).digest('hex')
+  const digest = crypto.createHash('sha256').update(targetId).digest('hex')
   const { allowed } = await database.consumeRateLimit({
     key: `${APP_RATE_LIMIT_KEY_PREFIX}bluesky-${kind}:${digest}`,
     keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,

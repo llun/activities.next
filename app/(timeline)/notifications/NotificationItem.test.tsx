@@ -649,4 +649,60 @@ describe('NotificationItem', () => {
 
     expect(overlayLink(container)).toBeNull()
   })
+
+  it('renders a Bluesky notification with the handle@bsky.app profile link and post preview', () => {
+    const bskyDid = `did:plc:${'b'.repeat(24)}`
+    const bskyActorId = `https://bsky.app/profile/${bskyDid}`
+    const bskyStatusId = `${bskyActorId}/post/3kreply`
+    const bskyAccount: Mastodon.Account = {
+      ...account,
+      id: '01900000-0000-7000-8000-000000000001',
+      username: 'alice.bsky.social',
+      acct: 'alice.bsky.social@bsky.app',
+      url: bskyActorId,
+      uri: bskyActorId,
+      display_name: 'Alice Bluesky',
+      avatar: 'https://cdn.bsky.app/alice.jpg',
+      avatar_static: 'https://cdn.bsky.app/alice.jpg'
+    }
+    const bskyStatus: StatusNote = {
+      ...status,
+      id: bskyStatusId,
+      url: bskyStatusId,
+      actorId: bskyActorId,
+      actor: {
+        ...status.actor!,
+        id: bskyActorId,
+        username: 'alice.bsky.social',
+        domain: 'bsky.app',
+        name: 'Alice Bluesky'
+      },
+      isLocalActor: false,
+      network: 'bluesky',
+      text: '<p>Nice post on Bluesky!</p>'
+    }
+
+    const { container } = renderNotificationItem({
+      id: 'notification-bluesky-reply',
+      actorId: 'https://llun.social/users/llun',
+      type: 'reply',
+      sourceActorId: bskyActorId,
+      statusId: bskyStatusId,
+      account: bskyAccount,
+      status: bskyStatus
+    })
+
+    expect(screen.getByText('replied to your post')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Alice Bluesky' })).toHaveAttribute(
+      'href',
+      '/@alice.bsky.social@bsky.app'
+    )
+    expect(screen.getByText(/Nice post on Bluesky!/)).toBeInTheDocument()
+    const overlay = overlayLink(container)
+    expect(overlay).not.toBeNull()
+    expect(overlay).toHaveAttribute(
+      'href',
+      expect.stringContaining('/@alice.bsky.social@bsky.app/')
+    )
+  })
 })

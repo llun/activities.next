@@ -8,6 +8,7 @@ import {
   getBlueskyAgent
 } from '@/lib/services/bluesky/agent'
 import { getPublicPosts } from '@/lib/services/bluesky/appview'
+import { syncBlueskyNotifications } from '@/lib/services/bluesky/notifications'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import { syncBlueskyHome } from '@/lib/services/bluesky/sync'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
@@ -18,6 +19,9 @@ vi.mock('@/lib/services/bluesky/agent', async (importOriginal) => ({
   getBlueskyAgent: vi.fn()
 }))
 vi.mock('@/lib/services/bluesky/appview', () => ({ getPublicPosts: vi.fn() }))
+vi.mock('@/lib/services/bluesky/notifications', () => ({
+  syncBlueskyNotifications: vi.fn()
+}))
 
 // A DID the strict did:plc pattern accepts.
 const did = (name: string) => `did:plc:${name.padEnd(24, 'a')}`
@@ -94,6 +98,8 @@ describe('syncBlueskyHome', () => {
 
   beforeEach(() => {
     get.mockReset()
+    vi.mocked(syncBlueskyNotifications).mockReset()
+    vi.mocked(syncBlueskyNotifications).mockResolvedValue(undefined)
     vi.mocked(getPublicPosts).mockImplementation(async (uris) =>
       uris.flatMap((uri) => (appView.has(uri) ? [appView.get(uri)] : []))
     )
@@ -590,8 +596,49 @@ describe('syncBlueskyHome', () => {
 
     expect(getBlueskyAgent).not.toHaveBeenCalled()
     expect(get).not.toHaveBeenCalled()
+    expect(syncBlueskyNotifications).not.toHaveBeenCalled()
     expect((await account())?.syncError).toBe(
       'This server does not allow Bluesky.'
     )
+  })
+
+  it('syncs Bluesky notifications after a successful Home sync inside the same lock', async () => {
+    const lockKey = `bluesky-sync:${crypto.createHash('sha256').update(actor.id).digest('hex')}`
+    get.mockResolvedValueOnce({ feed: [] })
+    let lockHeldDuringNotifications = false
+    vi.mocked(syncBlueskyNotifications).mockImplementationOnce(async () => {
+      const competing = await database.acquireImportLock({
+        lockKey,
+        ttlMs: 60_000
+      })
+      lockHeldDuringNotifications = competing === null
+      if (competing) {
+        await database.releaseImportLock({ lockKey, token: competing.token })
+      }
+    })
+
+    await syncBlueskyHome(database, actor)
+
+    expect(syncBlueskyNotifications).toHaveBeenCalledTimes(1)
+    expect(syncBlueskyNotifications).toHaveBeenCalledWith(
+      database,
+      actor,
+      expect.objectContaining({ did: 'did:plc:reader' })
+    )
+    expect(lockHeldDuringNotifications).toBe(true)
+  })
+
+  it('does not fail Home sync when notification sync throws', async () => {
+    get.mockResolvedValueOnce({ feed: [] })
+    vi.mocked(syncBlueskyNotifications).mockRejectedValueOnce(
+      new Error('notifications endpoint down')
+    )
+
+    const before = Date.now()
+    await expect(syncBlueskyHome(database, actor)).resolves.toBeUndefined()
+
+    const synced = await account()
+    expect(synced?.lastSyncedAt).toBeGreaterThanOrEqual(before)
+    expect(synced?.syncError).toBeNull()
   })
 })

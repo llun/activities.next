@@ -16,6 +16,7 @@ import { getBaseURL, getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { loadBlueskyThread } from '@/lib/services/bluesky/thread'
 import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
 import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
@@ -479,6 +480,9 @@ const Page: FC<Props> = async ({ params }) => {
       replies = replies.filter(isStatusPubliclyReadable)
     }
   } else if (statusId) {
+    if (currentActor && isStoredStatus && isBlueskyStatus(status)) {
+      await loadBlueskyThread(database, currentActor, statusId)
+    }
     const threadContext = await getStatusContext({
       database,
       statusId,
