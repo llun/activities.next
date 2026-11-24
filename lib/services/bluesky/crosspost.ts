@@ -93,6 +93,8 @@ export const BLUESKY_CROSSPOST_SESSION_ENDED_MESSAGE =
   'Bluesky ended this session.'
 export const BLUESKY_CROSSPOST_PARENT_NOT_READY_MESSAGE =
   'The parent post is not ready on Bluesky yet. Try again.'
+export const BLUESKY_CROSSPOST_COLLISION_MESSAGE =
+  'A different post already exists at this Bluesky record key.'
 
 type StrongRef = { uri: string; cid: string }
 
@@ -401,6 +403,15 @@ class BlueskyCrosspostRetryError extends Error {
   }
 }
 
+// A different Bluesky record already occupies this status's deterministic rkey:
+// never adopt it, never delete it, and do not retry.
+class BlueskyCrosspostCollisionError extends Error {
+  constructor(message = BLUESKY_CROSSPOST_COLLISION_MESSAGE) {
+    super(message)
+    this.name = 'BlueskyCrosspostCollisionError'
+  }
+}
+
 // Only a transient failure is worth another attempt: a 5xx/429 from the PDS, a
 // transport failure or timeout, the lock timeout, or a reply waiting on its
 // parent. Everything else (a refused request, a decode or format error, an
@@ -436,6 +447,7 @@ const failureMessage = (error: unknown): string => {
     return BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
   }
   if (error instanceof BlueskyCrosspostRetryError) return error.message
+  if (error instanceof BlueskyCrosspostCollisionError) return error.message
   if (error instanceof BlueskyActionError) return error.message
   return BLUESKY_CROSSPOST_FAILED_MESSAGE
 }
@@ -462,13 +474,31 @@ const isDuplicateRecordError = (error: unknown): boolean => {
   )
 }
 
+const matchesRecoveredRecord = (
+  value: unknown,
+  expected: Record<string, unknown>
+): boolean => {
+  if (!isRecord(value)) return false
+  if (value.$type !== POST_COLLECTION) return false
+  if (
+    typeof expected.createdAt !== 'string' ||
+    value.createdAt !== expected.createdAt
+  ) {
+    return false
+  }
+  if (typeof expected.text === 'string' && value.text !== expected.text) {
+    return false
+  }
+  return true
+}
+
 const createOrRecoverPostRecord = async (
   agent: BlueskyAgent,
   rkey: string,
   record: Record<string, unknown>
 ): Promise<{ uri: string; cid: string }> => {
   let nsid = 'com.atproto.repo.createRecord'
-  let answer: { uri?: unknown; cid?: unknown } | undefined
+  let answer: { uri?: unknown; cid?: unknown; value?: unknown } | undefined
   let recovered = false
   try {
     answer = await agent.post<{ uri?: unknown; cid?: unknown }>(nsid, {
@@ -483,7 +513,11 @@ const createOrRecoverPostRecord = async (
     }
     nsid = 'com.atproto.repo.getRecord'
     try {
-      answer = await agent.get<{ uri?: unknown; cid?: unknown }>(nsid, {
+      answer = await agent.get<{
+        uri?: unknown
+        cid?: unknown
+        value?: unknown
+      }>(nsid, {
         repo: agent.did,
         collection: POST_COLLECTION,
         rkey
@@ -509,9 +543,13 @@ const createOrRecoverPostRecord = async (
     !CID_V1_BASE32_PATTERN.test(cid) ||
     parsed?.did !== agent.did ||
     parsed.collection !== POST_COLLECTION ||
-    (recovered && parsed.rkey !== rkey)
+    parsed.rkey !== rkey
   ) {
     throw new BlueskyUnexpectedAnswerError(nsid)
+  }
+
+  if (recovered && !matchesRecoveredRecord(answer?.value, record)) {
+    throw new BlueskyCrosspostCollisionError()
   }
 
   return { uri, cid }
@@ -547,12 +585,17 @@ const deleteUnownedCrosspostRecord = async (
   database: Database,
   agent: BlueskyAgent,
   statusId: string,
-  uri: string
+  uri: string,
+  { allowOwnFailedRow = false }: { allowOwnFailedRow?: boolean } = {}
 ) => {
   let ownedByRow: BlueskyCrosspost | null = null
+  let statusRow: BlueskyCrosspost | null = null
   let ownershipChecked = false
   try {
-    ownedByRow = await database.getBlueskyCrosspostByUri({ uri })
+    ;[ownedByRow, statusRow] = await Promise.all([
+      database.getBlueskyCrosspostByUri({ uri }),
+      database.getBlueskyCrosspost({ statusId })
+    ])
     ownershipChecked = true
   } catch (lookupError) {
     logger.warn({
@@ -563,7 +606,9 @@ const deleteUnownedCrosspostRecord = async (
       err: toLoggableError(lookupError)
     })
   }
-  if (ownershipChecked && !ownedByRow) {
+  const statusRowAllowsDelete =
+    !statusRow || (allowOwnFailedRow && statusRow.state === 'failed')
+  if (ownershipChecked && !ownedByRow && statusRowAllowsDelete) {
     await deleteCrosspostRecord(agent, uri)
   }
 }
@@ -717,21 +762,24 @@ export const crosspostStatus = async (
         } catch (error) {
           // The record may still exist if cleanup fails (or belong to another
           // row), so mark failed rather than letting the queue retry
-          // createRecord, and delete the unrecorded copy best-effort unless
-          // another cross-post row already owns that URI.
+          // createRecord, and delete the unrecorded copy best-effort only if
+          // no row owns the URI and either the status row is gone or this
+          // attempt itself just marked it failed.
           logger.warn({
             message: 'Could not record a Bluesky cross-post',
             statusId,
             err: toLoggableError(error)
           })
-          await database
+          const markedFailed = await database
             .markBlueskyCrosspostFailed({
               statusId,
               attemptId: claimedAttemptId,
               error: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
             })
-            .catch(() => undefined)
-          await deleteUnownedCrosspostRecord(database, agent, statusId, uri)
+            .catch(() => false)
+          await deleteUnownedCrosspostRecord(database, agent, statusId, uri, {
+            allowOwnFailedRow: markedFailed
+          })
           throw new BlueskyUnexpectedAnswerError(
             'com.atproto.repo.createRecord'
           )
@@ -740,7 +788,8 @@ export const crosspostStatus = async (
         if (!posted) {
           // The post was deleted (or narrowed from public), or another attempt
           // took over after this one went stale, while its record was being
-          // created: remove the copy unless a cross-post row already owns it.
+          // created: delete only if the status row is gone and no row owns
+          // the URI.
           await deleteUnownedCrosspostRecord(database, agent, statusId, uri)
         }
       }

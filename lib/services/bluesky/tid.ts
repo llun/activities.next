@@ -11,6 +11,7 @@ export const TID_PATTERN = /^[234567ab][234567abcdefghijklmnopqrstuvwxyz]{12}$/
 const TID_LENGTH = 13
 const MAX_TIMESTAMP_US = (1n << 53n) - 1n
 const CLOCK_ID_MASK = 0x3ff
+const SUB_MS_US_MODULO = 1000
 
 const encodeBase32Sortable = (value: bigint): string => {
   let result = ''
@@ -24,18 +25,22 @@ const encodeBase32Sortable = (value: bigint): string => {
 
 /**
  * Derives a deterministic ATProto TID from a millisecond timestamp and a stable
- * identifier. The timestamp becomes the 53-bit microsecond field (ms × 1000,
- * clamped to `[0, 2^53 - 1]`) and the 10-bit clock id comes from a SHA-256 hash
- * of `seed`, so retries for the same status reuse the same record key.
+ * identifier. The 53-bit microsecond field is `ms × 1000 + subMsUs` (clamped to
+ * `[0, 2^53 - 1]`), where both the sub-millisecond offset (`0..999`) and the
+ * 10-bit clock id (`0..1023`) come from independent slices of the SHA-256 hash
+ * of `seed`. This preserves millisecond ordering while giving ~1,024,000
+ * distinct keys per millisecond so retries reuse the same record key without
+ * colliding with other statuses created in the same millisecond.
  */
 export const deterministicTid = (createdAtMs: number, seed: string): string => {
+  const hash = getHashFromString(seed)
+  const clockId = BigInt(parseInt(hash.slice(0, 4), 16) & CLOCK_ID_MASK)
+  const subMsUs = BigInt(parseInt(hash.slice(4, 12), 16) % SUB_MS_US_MODULO)
+
   let timestampUs = 0n
   if (Number.isFinite(createdAtMs) && createdAtMs > 0) {
-    const rawUs = BigInt(Math.trunc(createdAtMs)) * 1000n
+    const rawUs = BigInt(Math.trunc(createdAtMs)) * 1000n + subMsUs
     timestampUs = rawUs > MAX_TIMESTAMP_US ? MAX_TIMESTAMP_US : rawUs
   }
-  const clockId = BigInt(
-    parseInt(getHashFromString(seed).slice(0, 4), 16) & CLOCK_ID_MASK
-  )
   return encodeBase32Sortable((timestampUs << 10n) | clockId)
 }
