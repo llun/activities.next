@@ -5,6 +5,6 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "@upstash/qstash": "^2.12.1"
+    "@upstash/qstash": "^2.12.2"
   }
 }
