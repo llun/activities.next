@@ -158,7 +158,7 @@ describe('DELETE /api/v1/accounts/like', () => {
 
   it('unlikes a Bluesky post through unlikeBlueskyPost without sendUndoLike and maps errors', async () => {
     const statusId = `https://bsky.app/profile/did:plc:${'u'.repeat(24)}/post/3k`
-    mockGetReadableStatusForAction.mockResolvedValue({
+    mockDatabase.getStatus.mockResolvedValue({
       id: statusId,
       type: 'Note',
       network: 'bluesky'
@@ -176,13 +176,11 @@ describe('DELETE /api/v1/accounts/like', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ status: 'Accepted' })
-    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith({
-      database: mockDatabase,
+    expect(mockDatabase.getStatus).toHaveBeenCalledWith({
       statusId,
-      currentActor: mockCurrentActor,
       withReplies: false
     })
-    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
+    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
     expect(mockUnlikeBlueskyPost).toHaveBeenCalledWith(
       mockDatabase,
       mockCurrentActor,
@@ -262,6 +260,7 @@ describe('like and unlike of an existing status', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetReadableStatusForAction.mockReset().mockResolvedValue(status)
+    mockDatabase.getStatus.mockReset().mockResolvedValue(status)
     mockDatabase.createLike.mockResolvedValue(true)
     mockDatabase.deleteLike.mockResolvedValue(true)
   })
@@ -302,13 +301,12 @@ describe('like and unlike of an existing status', () => {
     // The route answers HTTP 200 carrying the Accepted body.
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ status: 'Accepted' })
-    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith({
-      database: mockDatabase,
+    // Like /unfavourite, a like is removable from a status no longer readable.
+    expect(mockDatabase.getStatus).toHaveBeenCalledWith({
       statusId: status.id,
-      currentActor: mockCurrentActor,
       withReplies: false
     })
-    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
+    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
     expect(mockDatabase.deleteLike).toHaveBeenCalledWith({
       actorId: mockCurrentActor.id,
       statusId: status.id
@@ -324,9 +322,10 @@ describe('like and unlike of an existing status', () => {
     { method: 'POST' as const, handler: POST },
     { method: 'DELETE' as const, handler: DELETE }
   ])(
-    '$method answers 404 and neither writes nor federates when the status is missing or unreadable',
+    '$method answers 404 and neither writes nor federates when the status is missing (POST: or unreadable)',
     async ({ method, handler }) => {
       mockGetReadableStatusForAction.mockResolvedValue(null)
+      mockDatabase.getStatus.mockResolvedValue(null)
 
       const response = await handler(
         jsonRequest(method, { statusId: 'missing' }),

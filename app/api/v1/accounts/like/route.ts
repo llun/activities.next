@@ -137,12 +137,9 @@ export const DELETE = traceApiRoute(
     }
 
     const { statusId } = parsed.data
-    const status = await getReadableStatusForAction({
-      database,
-      statusId,
-      currentActor,
-      withReplies: false
-    })
+    // Like /unfavourite: a like is removable even from a status the actor can
+    // no longer read.
+    const status = await database.getStatus({ statusId, withReplies: false })
     if (!status)
       return apiResponse({
         req,
