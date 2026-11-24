@@ -249,13 +249,14 @@ export interface BlueskyDatabase {
   }): Promise<BlueskyCrosspost | null>
   /**
    * Atomically deletes a cross-post row that has not been posted (pending,
-   * posting, failed, or posted without a uri) and returns null. Leaves a posted
-   * row with a uri intact and returns it so a non-database queue can publish
-   * the delete job before removing the row.
+   * posting, failed, or posted without a uri) and returns `{ crosspost, deleted: true }`.
+   * Leaves a posted row with a uri intact and returns `{ crosspost, deleted: false }`
+   * so a non-database queue can publish the delete job before removing the row.
+   * Returns null when no row exists.
    */
   deleteBlueskyCrosspostUnlessPosted(params: {
     statusId: string
-  }): Promise<BlueskyCrosspost | null>
+  }): Promise<{ crosspost: BlueskyCrosspost; deleted: boolean } | null>
   /**
    * Deletes a row only while it is 'pending' or a stale 'posting' row (older
    * than STALE_CROSSPOST_MS), never a fresh 'posting' or 'posted' row whose

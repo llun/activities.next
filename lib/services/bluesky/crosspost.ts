@@ -576,22 +576,14 @@ const deleteUnownedCrosspostRecord = async (
   database: Database,
   agent: BlueskyAgent,
   statusId: string,
-  uri: string,
-  { allowPosting = false }: { allowPosting?: boolean } = {}
+  uri: string
 ) => {
   try {
     const [ownedByRow, statusRow] = await Promise.all([
       database.getBlueskyCrosspostByUri({ uri }),
       database.getBlueskyCrosspost({ statusId })
     ])
-    if (ownedByRow) return
-    if (
-      statusRow &&
-      statusRow.state !== 'failed' &&
-      !(allowPosting && statusRow.state === 'posting')
-    ) {
-      return
-    }
+    if (ownedByRow || statusRow) return
   } catch (lookupError) {
     logger.warn({
       message:
@@ -752,16 +744,13 @@ export const crosspostStatus = async (
             cid
           })
         } catch (error) {
-          // Delete the unrecorded copy while this attempt still holds
-          // 'posting' (so Retry cannot reset and adopt it mid-delete), then
-          // mark the row failed rather than letting the queue retry.
+          // Leave the deterministic record in place and mark the row failed
+          // (fenced by attemptId) so Retry adopts the existing record; deleting
+          // or narrowing the post removes it via its deterministic URI.
           logger.warn({
             message: 'Could not record a Bluesky cross-post',
             statusId,
             err: toLoggableError(error)
-          })
-          await deleteUnownedCrosspostRecord(database, agent, statusId, uri, {
-            allowPosting: true
           })
           await database.markBlueskyCrosspostFailed({
             statusId,
@@ -772,9 +761,8 @@ export const crosspostStatus = async (
         }
 
         if (!posted) {
-          // The post was deleted (or narrowed from public), or another attempt
-          // took over after this one went stale: delete unless a row owns the
-          // URI or the status row is pending, posting, or posted.
+          // Delete only when no cross-post row exists for the status any more
+          // (the status was deleted or narrowed) and no row owns the URI.
           await deleteUnownedCrosspostRecord(database, agent, statusId, uri)
         }
       }

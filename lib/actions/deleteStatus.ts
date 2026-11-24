@@ -1,10 +1,11 @@
 import { getConfig } from '@/lib/config'
-import type { BlueskyCrosspost } from '@/lib/database/domains/bluesky/types'
+import type { DeletedBlueskyCrosspost } from '@/lib/database/domains/status/types'
 import { Database } from '@/lib/database/types'
 import {
   DELETE_BLUESKY_CROSSPOST_JOB_NAME,
   SEND_DELETE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { deterministicTid } from '@/lib/services/bluesky/tid'
 import { getQueue } from '@/lib/services/queue'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { CreateQueueJobParams } from '@/lib/types/database/operations'
@@ -54,25 +55,44 @@ export const deleteStatusFromUserInput = async ({
 
     // Decide from the cross-post row(s) taken inside the status-deletion
     // transaction:
-    // - posted with uri: queue DELETE_BLUESKY_CROSSPOST_JOB_NAME
-    // - posting: nothing to queue; the in-flight attempt's
-    //   markBlueskyCrosspostPosted will see the row gone (return false) and
-    //   delete the record it just created
-    // - pending / failed / absent: nothing reached Bluesky
+    // - posted with uri: queue DELETE_BLUESKY_CROSSPOST_JOB_NAME for that uri
+    // - pending / posting / failed: a prior attempt may have written the record
+    //   at the deterministic TID without recording it, so queue
+    //   DELETE_BLUESKY_CROSSPOST_JOB_NAME for that deterministic uri when a
+    //   Bluesky account is linked (DeleteBlueskyCrosspostJob tolerates
+    //   RecordNotFound); if no account is linked, skip
+    // - absent: nothing reached Bluesky
     const buildBlueskyCrosspostDeleteJobMessage = (
-      crosspost: BlueskyCrosspost
+      crosspost: DeletedBlueskyCrosspost,
+      linkedDid: string | null
     ) => {
-      if (crosspost.state !== 'posted' || !crosspost.uri) return null
+      let uri: string | null = null
+      if (crosspost.state === 'posted' && crosspost.uri) {
+        uri = crosspost.uri
+      } else if (linkedDid) {
+        const statusCreatedAt =
+          crosspost.statusCreatedAt ??
+          (crosspost.statusId === originalStatus.id
+            ? originalStatus.createdAt
+            : null)
+        if (statusCreatedAt !== null) {
+          uri = `at://${linkedDid}/app.bsky.feed.post/${deterministicTid(statusCreatedAt, crosspost.statusId)}`
+        }
+      }
+      if (!uri) return null
       return {
         id: getHashFromString(`${crosspost.statusId}#bluesky-crosspost-delete`),
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-        data: { actorId: currentActor.id, uri: crosspost.uri }
+        data: { actorId: currentActor.id, uri }
       }
     }
 
     if (isDatabaseQueue) {
       const maxRetries =
         config.queue?.type === 'database' ? (config.queue.maxRetries ?? 16) : 16
+      const linkedDid =
+        (await database.getBlueskyAccount({ actorId: currentActor.id }))?.did ??
+        null
 
       const queueJob: CreateQueueJobParams = {
         id: queueJobId,
@@ -99,7 +119,10 @@ export const deleteStatusFromUserInput = async ({
         queueJob,
         buildAdditionalQueueJobs: ({ blueskyCrossposts }) =>
           blueskyCrossposts.flatMap((crosspost) => {
-            const message = buildBlueskyCrosspostDeleteJobMessage(crosspost)
+            const message = buildBlueskyCrosspostDeleteJobMessage(
+              crosspost,
+              linkedDid
+            )
             if (!message) return []
             return [
               {
@@ -156,8 +179,29 @@ export const deleteStatusFromUserInput = async ({
       )
     }
 
+    let linkedDid: string | null = null
+    if (
+      blueskyCrossposts.some(
+        (crosspost) => crosspost.state !== 'posted' || !crosspost.uri
+      )
+    ) {
+      try {
+        linkedDid =
+          (await database.getBlueskyAccount({ actorId: currentActor.id }))
+            ?.did ?? null
+      } catch (error) {
+        logger.error(
+          { statusId, actorId: currentActor.id, err: toLoggableError(error) },
+          'Failed to look up Bluesky account for cross-post delete'
+        )
+      }
+    }
+
     for (const crosspost of blueskyCrossposts) {
-      const message = buildBlueskyCrosspostDeleteJobMessage(crosspost)
+      const message = buildBlueskyCrosspostDeleteJobMessage(
+        crosspost,
+        linkedDid
+      )
       if (!message) continue
       try {
         await queue.publish(message)

@@ -828,7 +828,7 @@ export const deleteBlueskyCrosspostWithQueueJob = async (
 export const deleteBlueskyCrosspostUnlessPosted = async (
   db: Db,
   { statusId }: { statusId: string }
-): Promise<BlueskyCrosspost | null> =>
+): Promise<{ crosspost: BlueskyCrosspost; deleted: boolean } | null> =>
   inTransaction(db, async (trx) => {
     const deleted = await trx
       .deleteFrom('bluesky_crossposts')
@@ -840,12 +840,15 @@ export const deleteBlueskyCrosspostUnlessPosted = async (
           eb('uri', '=', '')
         ])
       )
+      .returningAll()
       .executeTakeFirst()
-    if (Number(deleted.numDeletedRows ?? 0) > 0) {
-      return null
+    if (deleted) {
+      return { crosspost: toBlueskyCrosspost(deleted), deleted: true }
     }
     const remaining = await getBlueskyCrosspost(trx, { statusId })
-    return remaining?.state === 'posted' && remaining.uri ? remaining : null
+    return remaining?.state === 'posted' && remaining.uri
+      ? { crosspost: remaining, deleted: false }
+      : null
   })
 
 export const deleteBlueskyCrosspostIfAttemptable = async (

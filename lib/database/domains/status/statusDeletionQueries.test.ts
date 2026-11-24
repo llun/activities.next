@@ -1432,7 +1432,7 @@ describe('deleteStatus', () => {
 const STATEMENTS: StatementNames = [
   [/^(begin|commit|rollback)$/, () => ''],
   [
-    /^select "id", "actorId", "type", "reply", "content", "originalStatusId" from "statuses"/,
+    /^select "id", "actorId", "type", "reply", "content", "originalStatusId", "createdAt" from "statuses"/,
     (b) => `read statuses ${b.join(',')}`
   ],
   [

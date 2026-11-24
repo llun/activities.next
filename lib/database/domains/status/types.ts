@@ -415,9 +415,15 @@ export type DeleteStatusParams = {
   statusId: string
   actorId?: string
 }
+export type DeletedBlueskyCrosspost = BlueskyCrosspost & {
+  // The deleted status's own creation timestamp (ms), needed to derive the
+  // deterministic ATProto record key for an unrecorded (pending/posting/failed)
+  // cross-post row, including replies removed with the status.
+  statusCreatedAt?: number
+}
 export type DeleteStatusResult = {
   deleted: boolean
-  blueskyCrossposts: BlueskyCrosspost[]
+  blueskyCrossposts: DeletedBlueskyCrosspost[]
 }
 export type DiscardUnpublishedStatusParams = {
   actorId: string

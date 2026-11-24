@@ -10,6 +10,7 @@ import {
   DELETE_BLUESKY_CROSSPOST_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { deterministicTid } from '@/lib/services/bluesky/tid'
 import { getQueue } from '@/lib/services/queue'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { mockRequests } from '@/lib/stub/activities'
@@ -617,6 +618,141 @@ describe('Update note visibility action', () => {
         await getQueueJobById(
           db,
           getHashFromString(`${pendingStatusId}#bluesky-crosspost-delete`)
+        )
+      ).toBeNull()
+    })
+
+    it('queues DELETE_BLUESKY_CROSSPOST_JOB_NAME with deterministic uri when narrowing a pending cross-post on non-database and database queues, and skips when no account is linked', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const ownDid = `did:plc:${'f'.repeat(24)}`
+      await database.saveBlueskyAccount({
+        actorId: actor1.id,
+        did: ownDid,
+        handle: 'actor1.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+      try {
+        // Non-database queue: narrowing a pending row queues deterministic delete job.
+        const noqStatusId = `${ACTOR1_ID}/statuses/crosspost-pending-linked-noq`
+        const noqCreatedAt = 1_730_000_100_000
+        await database.createNote({
+          id: noqStatusId,
+          url: noqStatusId,
+          actorId: actor1.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Pending linked post (non-db queue)',
+          createdAt: noqCreatedAt
+        })
+        await database.claimBlueskyCrosspost({
+          statusId: noqStatusId,
+          actorId: actor1.id
+        })
+
+        await updateNoteVisibilityFromUserInput({
+          statusId: noqStatusId,
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })
+
+        const expectedNoqUri = `at://${ownDid}/app.bsky.feed.post/${deterministicTid(noqCreatedAt, noqStatusId)}`
+        expect(
+          await database.getBlueskyCrosspost({ statusId: noqStatusId })
+        ).toBeNull()
+        expect(getQueue().publish).toHaveBeenCalledWith({
+          id: getHashFromString(`${noqStatusId}#bluesky-crosspost-delete`),
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          data: { actorId: actor1.id, uri: expectedNoqUri }
+        })
+
+        // Database queue: narrowing a pending row inserts deterministic delete job atomically.
+        const queueConfig: DatabaseQueueConfig = {
+          type: 'database',
+          maxRetries: 9
+        }
+        vi.mocked(getConfig).mockReturnValue({
+          ...baseConfig,
+          queue: queueConfig
+        })
+        const dbQueue = new DatabaseQueue(queueConfig, database)
+        vi.mocked(getQueue).mockReturnValue(dbQueue)
+
+        const dbqStatusId = `${ACTOR1_ID}/statuses/crosspost-pending-linked-dbq`
+        const dbqCreatedAt = 1_730_000_200_000
+        await database.createNote({
+          id: dbqStatusId,
+          url: dbqStatusId,
+          actorId: actor1.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Pending linked post (db queue)',
+          createdAt: dbqCreatedAt
+        })
+        await database.claimBlueskyCrosspost({
+          statusId: dbqStatusId,
+          actorId: actor1.id
+        })
+
+        await updateNoteVisibilityFromUserInput({
+          statusId: dbqStatusId,
+          currentActor: actor1,
+          visibility: 'unlisted',
+          database
+        })
+
+        const expectedDbqUri = `at://${ownDid}/app.bsky.feed.post/${deterministicTid(dbqCreatedAt, dbqStatusId)}`
+        const expectedDbqJobId = getHashFromString(
+          `${dbqStatusId}#bluesky-crosspost-delete`
+        )
+        expect(
+          await database.getBlueskyCrosspost({ statusId: dbqStatusId })
+        ).toBeNull()
+        expect(await getQueueJobById(db, expectedDbqJobId)).toMatchObject({
+          id: expectedDbqJobId,
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          status: 'pending',
+          maxRetries: 9,
+          payload: {
+            id: expectedDbqJobId,
+            name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+            data: { actorId: actor1.id, uri: expectedDbqUri }
+          }
+        })
+      } finally {
+        await database.deleteBlueskyAccount({ actorId: actor1.id })
+      }
+
+      // With no linked Bluesky account, narrowing a pending row drops it without queuing a job.
+      const unlinkedStatusId = `${ACTOR1_ID}/statuses/crosspost-pending-unlinked-dbq`
+      await database.createNote({
+        id: unlinkedStatusId,
+        url: unlinkedStatusId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Pending unlinked post (db queue)'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId: unlinkedStatusId,
+        actorId: actor1.id
+      })
+      await updateNoteVisibilityFromUserInput({
+        statusId: unlinkedStatusId,
+        currentActor: actor1,
+        visibility: 'private',
+        database
+      })
+      expect(
+        await database.getBlueskyCrosspost({ statusId: unlinkedStatusId })
+      ).toBeNull()
+      expect(
+        await getQueueJobById(
+          db,
+          getHashFromString(`${unlinkedStatusId}#bluesky-crosspost-delete`)
         )
       ).toBeNull()
     })

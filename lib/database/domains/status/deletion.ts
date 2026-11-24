@@ -1,5 +1,4 @@
 import { toBlueskyCrosspost } from '@/lib/database/domains/bluesky/queries'
-import type { BlueskyCrosspost } from '@/lib/database/domains/bluesky/types'
 import { DELETED_ATTACHMENT_MEDIA_TTL_MS } from '@/lib/database/domains/media/types'
 import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
 import { searchQueries } from '@/lib/database/domains/search/queries'
@@ -11,6 +10,7 @@ import type {
   DeleteStatusParams,
   DeleteStatusResult,
   DeleteStatusWithQueueJobParams,
+  DeletedBlueskyCrosspost,
   DiscardUnpublishedStatusParams,
   GetStatusEditHistoryParams
 } from '@/lib/database/domains/status/types'
@@ -19,6 +19,7 @@ import {
   decreaseCounterValue,
   deleteCounterValues
 } from '@/lib/database/kysely/counter'
+import type { EpochMs } from '@/lib/database/kysely/db'
 import {
   forUpdate,
   jsonText,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/database/kysely/inList'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { CounterKey } from '@/lib/database/utils/counter'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { isBlueskyId } from '@/lib/utils/blueskyId'
@@ -54,6 +56,7 @@ type StatusDeletionRow = {
   reply: string | null
   content: unknown
   originalStatusId: string | null
+  createdAt: EpochMs | null
 }
 
 const statusReplyDeletionDepthError = (statusId: string) =>
@@ -118,7 +121,15 @@ const selectStatusDeletionRowsByIds = (trx: Db, statusIds: string[]) =>
   selectInChunks(trx, statusIds, (chunk) =>
     trx
       .selectFrom('statuses')
-      .select(['id', 'actorId', 'type', 'reply', 'content', 'originalStatusId'])
+      .select([
+        'id',
+        'actorId',
+        'type',
+        'reply',
+        'content',
+        'originalStatusId',
+        'createdAt'
+      ])
       .where('id', 'in', chunk)
       .$narrowType<StatusDeletionRow>()
       .execute()
@@ -582,9 +593,17 @@ const executeStatusDeletion = async ({
       .execute()
   )
   // The cross-post row follows its status inside this transaction so a rollback
-  // never orphans the remote Bluesky copy. Returning the deleted rows lets the
-  // delete action queue remote Bluesky deletions from what was actually removed.
-  const deletedBlueskyCrossposts: BlueskyCrosspost[] = []
+  // never orphans the remote Bluesky copy. Returning the deleted rows (with
+  // each status's own createdAt) lets the delete action queue remote Bluesky
+  // deletions from what was actually removed, including deterministic URIs for
+  // unrecorded rows.
+  const createdAtByStatusId = new Map<string, number>()
+  for (const status of statusesToDelete) {
+    if (status.createdAt !== null) {
+      createdAtByStatusId.set(status.id, getCompatibleTime(status.createdAt))
+    }
+  }
+  const deletedBlueskyCrossposts: DeletedBlueskyCrosspost[] = []
   await deleteByStatusIds(async (chunk) => {
     const deletedRows = await trx
       .deleteFrom('bluesky_crossposts')
@@ -592,7 +611,11 @@ const executeStatusDeletion = async ({
       .returningAll()
       .execute()
     for (const row of deletedRows) {
-      deletedBlueskyCrossposts.push(toBlueskyCrosspost(row))
+      const statusCreatedAt = createdAtByStatusId.get(row.statusId)
+      deletedBlueskyCrossposts.push({
+        ...toBlueskyCrosspost(row),
+        ...(statusCreatedAt !== undefined ? { statusCreatedAt } : null)
+      })
     }
   })
   // Emoji reactions follow the status, like favourites do. A remote status

@@ -1243,22 +1243,28 @@ describe('Bluesky', () => {
         await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
       ).toBeNull()
 
-      // Pending row -> deleted, returns null.
+      // Pending row -> deleted, returns deleted row with deleted: true.
       await database.claimBlueskyCrosspost({ statusId, actorId })
       expect(
         await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
-      ).toBeNull()
+      ).toMatchObject({
+        deleted: true,
+        crosspost: { statusId, state: 'pending', uri: null }
+      })
       expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
 
-      // Posting row -> deleted, returns null.
+      // Posting row -> deleted, returns deleted row with deleted: true.
       await database.claimBlueskyCrosspost({ statusId, actorId })
       await database.beginBlueskyCrosspostAttempt({ statusId })
       expect(
         await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
-      ).toBeNull()
+      ).toMatchObject({
+        deleted: true,
+        crosspost: { statusId, state: 'posting', uri: null }
+      })
       expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
 
-      // Failed row -> deleted, returns null.
+      // Failed row -> deleted, returns deleted row with deleted: true.
       await database.claimBlueskyCrosspost({ statusId, actorId })
       await database.markBlueskyCrosspostFailedIfAttemptable({
         statusId,
@@ -1266,10 +1272,13 @@ describe('Bluesky', () => {
       })
       expect(
         await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
-      ).toBeNull()
+      ).toMatchObject({
+        deleted: true,
+        crosspost: { statusId, state: 'failed', uri: null }
+      })
       expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
 
-      // Posted row with uri -> kept intact in DB and returned.
+      // Posted row with uri -> kept intact in DB and returned with deleted: false.
       await database.claimBlueskyCrosspost({ statusId, actorId })
       const attemptId = await database.beginBlueskyCrosspostAttempt({
         statusId
@@ -1283,9 +1292,8 @@ describe('Bluesky', () => {
       expect(
         await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
       ).toMatchObject({
-        statusId,
-        state: 'posted',
-        uri
+        deleted: false,
+        crosspost: { statusId, state: 'posted', uri }
       })
       expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
         statusId,

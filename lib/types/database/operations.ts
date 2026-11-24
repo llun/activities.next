@@ -101,6 +101,7 @@ export type {
   DeleteStatusResult,
   DeleteStatusTagsByTypeParams,
   DeleteStatusWithQueueJobParams,
+  DeletedBlueskyCrosspost,
   DiscardUnpublishedStatusParams,
   FavouritedByAccount,
   GetActorAnnouncedStatusIdParams,
