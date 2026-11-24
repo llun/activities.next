@@ -123,6 +123,13 @@ const isFollowedBy = (
         .where('follows.actorId', '=', followingActorId)
         .whereRef('follows.targetActorId', '=', 'actors.id')
         .where('follows.status', '=', FollowStatus.enum.Accepted)
+    ),
+    eb.exists(
+      eb
+        .selectFrom('bluesky_follows')
+        .select(sql.lit(1).as('one'))
+        .where('bluesky_follows.actorId', '=', followingActorId)
+        .whereRef('bluesky_follows.targetActorId', '=', 'actors.id')
     )
   ])
 

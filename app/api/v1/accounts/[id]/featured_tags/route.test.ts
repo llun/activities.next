@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -98,5 +98,23 @@ describe('GET /api/v1/accounts/:id/featured_tags', () => {
   it('returns 404 for an unknown account', async () => {
     const response = await invoke('https://llun.test/users/does-not-exist')
     expect(response.status).toBe(404)
+  })
+
+  it('answers 404 for a Bluesky account without a signed-in viewer and 200 with one', async () => {
+    const blueskyId = (await database.upsertBlueskyActor({
+      did: `did:plc:${'d'.repeat(24)}`,
+      handle: 'featured.bsky.social'
+    })) as string
+
+    mockGetServerSession.mockResolvedValue(null)
+    const anonResponse = await invoke(blueskyId)
+    expect(anonResponse.status).toBe(404)
+
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    const signedInResponse = await invoke(blueskyId)
+    expect(signedInResponse.status).toBe(200)
+    expect(await signedInResponse.json()).toEqual([])
   })
 })

@@ -209,6 +209,7 @@ export const unreactStatus = async ({
       currentActorId: currentActor.id
     }))
   if (!status) return { ok: false, reason: 'not-found' }
+  if (isBlueskyStatus(status)) return { ok: false, reason: 'bluesky' }
 
   // Removal accepts whatever is stored rather than re-validating: an emoji that
   // was legal when it was added must stay removable after an admin disables it.

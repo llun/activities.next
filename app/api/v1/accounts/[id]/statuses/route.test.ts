@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server'
 import { POST as pinStatus } from '@/app/api/v1/statuses/[id]/pin/route'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
+import { getPublicAuthorFeed } from '@/lib/services/bluesky/appview'
+import { blueskyPostId } from '@/lib/services/bluesky/records'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
@@ -30,6 +32,11 @@ const mockGetRemoteActorStatuses = vi.fn()
 vi.mock('@/lib/services/mastodon/getRemoteActorStatuses', () => ({
   getRemoteActorStatuses: (...params: unknown[]) =>
     mockGetRemoteActorStatuses(...params)
+}))
+
+vi.mock('@/lib/services/bluesky/appview', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/bluesky/appview')>()),
+  getPublicAuthorFeed: vi.fn()
 }))
 
 let mockDatabase: Database | null = null
@@ -1048,7 +1055,159 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       expect(response.status).toBe(200)
       const data = (await response.json()) as Array<{ uri: string }>
       expect(data.map((status) => status.uri)).toEqual([statusId])
+      expect(getPublicAuthorFeed).not.toHaveBeenCalled()
       expect(mockGetRemoteActorStatuses).not.toHaveBeenCalled()
+    })
+
+    it('loads the Bluesky author feed for a freshly resolved account when the viewer has a linked Bluesky account', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did: `did:plc:${'v'.repeat(24)}`,
+        handle: 'viewer.bsky.social',
+        pdsUrl: 'https://bsky.social',
+        authType: 'oauth',
+        domainHandle: false
+      })
+      const did = `did:plc:${'n'.repeat(24)}`
+      const blueskyId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'fresh.bsky.social'
+      })) as string
+      vi.mocked(getPublicAuthorFeed).mockResolvedValueOnce({
+        feed: [
+          {
+            post: {
+              uri: `at://${did}/app.bsky.feed.post/loaded1`,
+              cid: 'cid-loaded1',
+              author: {
+                did,
+                handle: 'fresh.bsky.social',
+                displayName: 'Fresh Sky'
+              },
+              record: {
+                $type: 'app.bsky.feed.post',
+                text: 'Loaded from AppView',
+                createdAt: '2026-06-01T12:00:00.000Z'
+              }
+            }
+          }
+        ]
+      })
+
+      try {
+        const response = await GET(
+          new NextRequest(
+            `https://llun.test/api/v1/accounts/${urlToId(blueskyId)}/statuses`
+          ),
+          { params: Promise.resolve({ id: urlToId(blueskyId) }) }
+        )
+
+        expect(response.status).toBe(200)
+        const data = (await response.json()) as Array<{
+          uri: string
+          content: string
+        }>
+        expect(data.map((status) => status.uri)).toEqual([
+          blueskyPostId(did, 'loaded1')
+        ])
+        expect(data[0].content).toContain('Loaded from AppView')
+        expect(getPublicAuthorFeed).toHaveBeenCalledWith(
+          did,
+          expect.objectContaining({ limit: expect.any(Number) })
+        )
+        expect(mockGetRemoteActorStatuses).not.toHaveBeenCalled()
+      } finally {
+        await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+      }
+    })
+
+    it('falls back to stored posts when loading the Bluesky author feed fails', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did: `did:plc:${'w'.repeat(24)}`,
+        handle: 'viewer2.bsky.social',
+        pdsUrl: 'https://bsky.social',
+        authType: 'oauth',
+        domainHandle: false
+      })
+      const did = `did:plc:${'e'.repeat(24)}`
+      const blueskyId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'failing.bsky.social'
+      })) as string
+      const { statusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/kept1`,
+        cid: 'cid-kept1',
+        did,
+        rkey: 'kept1',
+        actorId: blueskyId,
+        text: '<p>Already stored</p>',
+        createdAt: Date.now(),
+        attachments: []
+      })
+      vi.mocked(getPublicAuthorFeed).mockRejectedValueOnce(
+        new Error('AppView unavailable')
+      )
+
+      try {
+        const response = await GET(
+          new NextRequest(
+            `https://llun.test/api/v1/accounts/${urlToId(blueskyId)}/statuses`
+          ),
+          { params: Promise.resolve({ id: urlToId(blueskyId) }) }
+        )
+
+        expect(response.status).toBe(200)
+        const data = (await response.json()) as Array<{ uri: string }>
+        expect(data.map((status) => status.uri)).toEqual([statusId])
+      } finally {
+        await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+      }
+    })
+
+    it('does not call the Bluesky AppView when server federation policy blocks bsky.app', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did: `did:plc:${'p'.repeat(24)}`,
+        handle: 'policyviewer.bsky.social',
+        pdsUrl: 'https://bsky.social',
+        authType: 'oauth',
+        domainHandle: false
+      })
+      const did = `did:plc:${'x'.repeat(24)}`
+      const blueskyId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'blockedpolicy.bsky.social'
+      })) as string
+      const block = await database.createDomainBlock({
+        domain: 'bsky.app',
+        severity: 'suspend'
+      })
+
+      try {
+        const response = await GET(
+          new NextRequest(
+            `https://llun.test/api/v1/accounts/${urlToId(blueskyId)}/statuses`
+          ),
+          { params: Promise.resolve({ id: urlToId(blueskyId) }) }
+        )
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual([])
+        expect(getPublicAuthorFeed).not.toHaveBeenCalled()
+      } finally {
+        await database.deleteDomainBlock(block.id)
+        await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+      }
     })
 
     it('does not serve a Bluesky account to a signed-out viewer', async () => {

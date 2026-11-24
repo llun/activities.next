@@ -119,6 +119,40 @@ describe('GET /api/v1/statuses/[id]/source', () => {
     })
   })
 
+  it('returns plain text rather than stored HTML for a Bluesky post', async () => {
+    const did = `did:plc:${'s'.repeat(24)}`
+    const blueskyActorId = (await database.upsertBlueskyActor({
+      did,
+      handle: 'sourceuser.bsky.social'
+    })) as string
+    const { statusId } = await database.upsertBlueskyPost({
+      uri: `at://${did}/app.bsky.feed.post/src1`,
+      cid: 'cid-src1',
+      did,
+      rkey: 'src1',
+      actorId: blueskyActorId,
+      text: '<p>First line<br>See <a href="https://example.com/full/path" rel="nofollow noopener noreferrer" target="_blank">example.com/full...</a></p><p><a href="https://example.com/card" rel="nofollow noopener noreferrer" target="_blank">Card title</a></p>',
+      createdAt: Date.now(),
+      attachments: []
+    })
+
+    const response = await getStatusSource(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(statusId)}/source`
+      ),
+      { params: Promise.resolve({ id: urlToId(statusId) }) }
+    )
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.text).toBe(
+      'First line\nSee https://example.com/full/path\n\nCard title https://example.com/card'
+    )
+    expect(data.text).not.toContain('<p>')
+    expect(data.text).not.toContain('<br>')
+    expect(data.text).not.toContain('<a ')
+  })
+
   it('returns 404 for a non-existent status', async () => {
     const statusId = `${ACTOR1_ID}/statuses/api-source-missing`
     const response = await getStatusSource(

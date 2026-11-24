@@ -15,7 +15,8 @@ import { getStatusCommunityActorId } from '@/lib/services/federation/replyCommun
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
 import { CreateAction } from '@/lib/types/activitypub/activities'
-import { StatusType } from '@/lib/types/domain/status'
+import { StatusType, isBlueskyStatus } from '@/lib/types/domain/status'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -42,6 +43,9 @@ export const sendNoteJob: JobHandle = createJobHandle(
 
       if (!status || !actor) {
         span.recordException(new Error('Status or actor not found'))
+        return
+      }
+      if (isBlueskyStatus(status) || isBlueskyId(status.id)) {
         return
       }
 

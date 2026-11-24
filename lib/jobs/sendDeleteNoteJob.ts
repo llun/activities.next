@@ -6,6 +6,8 @@ import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { enqueueDeliveries } from '@/lib/services/federation/enqueueDeliveries'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import { withSpan } from '@/lib/utils/trace'
@@ -30,6 +32,9 @@ export const sendDeleteNoteJob: JobHandle = createJobHandle(
   async (database, message) => {
     await withSpan('job', 'sendDeleteNote', {}, async (span) => {
       const { actorId, statusId, to, cc } = JobData.parse(message.data)
+      if (isBlueskyId(statusId) || isBlueskyHostUrl(statusId)) {
+        return
+      }
       span.setAttribute('actorId', actorId)
       span.setAttribute('statusId', statusId)
 

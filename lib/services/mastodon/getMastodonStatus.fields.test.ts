@@ -261,7 +261,7 @@ describe('getMastodonStatus', () => {
         {
           id: expect.toBeString(),
           url: expect.toBeString(),
-          preview_url: null,
+          preview_url: expect.toBeString(),
           remote_url: null,
           description: '',
           blurhash: null,
@@ -278,7 +278,7 @@ describe('getMastodonStatus', () => {
         {
           id: expect.toBeString(),
           url: expect.toBeString(),
-          preview_url: null,
+          preview_url: expect.toBeString(),
           remote_url: null,
           description: '',
           blurhash: null,
@@ -294,6 +294,9 @@ describe('getMastodonStatus', () => {
         }
       ]
     })
+    for (const attachment of mastodonStatus?.media_attachments ?? []) {
+      expect(attachment.preview_url).toBe(attachment.url)
+    }
   })
 
   it('returns every attachment of a large photo set', async () => {
@@ -1109,6 +1112,37 @@ describe('getMastodonStatus', () => {
       )
 
       expect(mastodonStatus?.text).toBe('Plain text with **markdown**')
+    })
+
+    it('returns plain text rather than stored HTML in text for a Bluesky post', async () => {
+      const did = `did:plc:${'t'.repeat(24)}`
+      const blueskyActorId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'ownbsky.bsky.social'
+      })) as string
+      const { statusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/txt1`,
+        cid: 'cid-txt1',
+        did,
+        rkey: 'txt1',
+        actorId: blueskyActorId,
+        text: '<p>Line one<br>Read <a href="https://example.com/story" rel="nofollow noopener noreferrer" target="_blank">my story</a></p>',
+        createdAt: Date.now(),
+        attachments: []
+      })
+      const status = (await database.getStatus({ statusId })) as Status
+
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR1_ID
+      )
+
+      expect(mastodonStatus?.text).toBe(
+        'Line one\nRead my story https://example.com/story'
+      )
+      expect(mastodonStatus?.text).not.toContain('<p>')
+      expect(mastodonStatus?.content).toContain('<p>')
     })
   })
 

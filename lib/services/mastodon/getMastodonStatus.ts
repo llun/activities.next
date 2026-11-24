@@ -1,6 +1,7 @@
 import { addQuoteFallbackToContent } from '@/lib/activities/quoteNoteFields'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { pollHtmlToBlueskyPlainText } from '@/lib/services/bluesky/crosspostText'
 import { isConversationMutedForActor } from '@/lib/services/mastodon/conversationMute'
 import { getMastodonPreviewCard } from '@/lib/services/mastodon/getMastodonPreviewCard'
 import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
@@ -20,7 +21,8 @@ import {
   StatusPoll,
   StatusType,
   getOriginalStatus,
-  hasStatusBeenEdited
+  hasStatusBeenEdited,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
@@ -366,6 +368,7 @@ const addQuoteFollowerCandidateAuthorId = (
   const target =
     status.type === StatusType.enum.Announce ? status.originalStatus : status
   if (!target || target.type === StatusType.enum.Announce) return
+  if (isBlueskyStatus(target)) return
   if (target.actorId === currentActorId) return
   if (getEffectiveQuoteApprovalPolicy(target) === 'followers') {
     authorIds.add(target.actorId)
@@ -447,6 +450,13 @@ const getQuoteApproval = async (
   currentActorId?: string,
   options?: GetMastodonStatusOptions
 ) => {
+  if (isBlueskyStatus(status)) {
+    return {
+      automatic: [] as string[],
+      manual: [] as string[],
+      current_user: 'denied'
+    }
+  }
   const policy = getEffectiveQuoteApprovalPolicy(status)
   const automatic = QUOTE_POLICY_AUTOMATIC_AUDIENCE[policy]
   let currentUser: string
@@ -809,7 +819,9 @@ export const getMastodonStatus = async (
         }
       : null,
 
-    text: status.text,
+    text: isBlueskyStatus(status)
+      ? pollHtmlToBlueskyPlainText(status.text)
+      : status.text,
 
     reblog: null,
 

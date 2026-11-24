@@ -8,6 +8,7 @@ import { getFederationSigningActorSafe } from '@/lib/services/federation/getFede
 import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { Actor } from '@/lib/types/domain/actor'
 import { actorIdsMatch } from '@/lib/utils/activitypub'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { logger } from '@/lib/utils/logger'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -101,6 +102,8 @@ const fail = (
 ): OutgoingMoveFailure => ({ ok: false, status, error, cooldownUntil })
 
 const ALIAS_REQUIRED = 'Add this account as an alias on the new account first'
+export const BLUESKY_MOVE_UNSUPPORTED =
+  "Bluesky accounts can't be used for account moves."
 
 // The alias list is read from the target's own origin on every request (never
 // the cached row), as moveActorJob does for an inbound Move: a stale cache must
@@ -135,6 +138,9 @@ export const performOutgoingMove = async ({
   target: Actor
   kind: ActorMigrationKind
 }): Promise<{ ok: true } | OutgoingMoveFailure> => {
+  if (isBlueskyId(target.id)) {
+    return fail(422, BLUESKY_MOVE_UNSUPPORTED)
+  }
   // A deleting origin must not leave a Move or redirect behind.
   if (actor.deletionStatus) {
     return fail(422, 'This account is being deleted')

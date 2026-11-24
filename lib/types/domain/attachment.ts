@@ -173,31 +173,52 @@ export const getDocumentFromAttachment = (attachment: Attachment) =>
       : null)
   })
 
+const hasKnownDimensions = (
+  attachment: Pick<Attachment, 'width' | 'height'>
+): attachment is { width: number; height: number } =>
+  typeof attachment.width === 'number' &&
+  attachment.width > 0 &&
+  typeof attachment.height === 'number' &&
+  attachment.height > 0
+
 export const getMastodonAttachment = (attachment: Attachment) => {
+  const knownDimensions = hasKnownDimensions(attachment)
+    ? {
+        width: attachment.width,
+        height: attachment.height,
+        size: `${attachment.width}x${attachment.height}`,
+        aspect: attachment.width / attachment.height
+      }
+    : null
+
   if (
     attachment.mediaType.startsWith('image') &&
     (attachment.mediaType !== 'image/gif' || Boolean(attachment.mediaId))
   ) {
+    // Without a known size there is no meta at all (the schema needs
+    // `original`), as Mastodon does; a focus point alone is dropped.
+    const meta = knownDimensions && {
+      original: knownDimensions,
+      ...(attachment.focus ? { focus: attachment.focus } : {})
+    }
     return Mastodon.MediaTypes.Image.parse({
       id: attachment.id,
       url: attachment.url,
-      preview_url: attachment.thumbnailUrl ?? null,
+      preview_url: attachment.thumbnailUrl || attachment.url,
       remote_url: null,
       description: attachment.name,
       type: 'image',
-      meta: {
-        original: {
-          width: attachment.width ?? 0,
-          height: attachment.height ?? 0,
-          size: `${attachment.width}x${attachment.height}`,
-          aspect: (attachment.width ?? 0) / (attachment.height || 1)
-        },
-        ...(attachment.focus ? { focus: attachment.focus } : {})
-      },
+      ...(meta ? { meta } : {}),
       blurhash: attachment.blurhash ?? null
     })
   }
   if (attachment.playbackType === 'gifv') {
+    const meta = knownDimensions && {
+      ...knownDimensions,
+      original: knownDimensions,
+      ...(attachment.thumbnailUrl ? { small: knownDimensions } : {}),
+      ...(attachment.focus ? { focus: attachment.focus } : {})
+    }
     return Mastodon.MediaTypes.Gifv.parse({
       id: attachment.id,
       url: attachment.url,
@@ -205,33 +226,16 @@ export const getMastodonAttachment = (attachment: Attachment) => {
       remote_url: null,
       description: attachment.name,
       type: 'gifv',
-      meta: {
-        size: `${attachment.width ?? 0}x${attachment.height ?? 0}`,
-        width: attachment.width ?? 0,
-        height: attachment.height ?? 0,
-        aspect: (attachment.width ?? 0) / (attachment.height || 1),
-        original: {
-          width: attachment.width ?? 0,
-          height: attachment.height ?? 0,
-          size: `${attachment.width ?? 0}x${attachment.height ?? 0}`,
-          aspect: (attachment.width ?? 0) / (attachment.height || 1)
-        },
-        ...(attachment.thumbnailUrl
-          ? {
-              small: {
-                width: attachment.width ?? 0,
-                height: attachment.height ?? 0,
-                size: `${attachment.width ?? 0}x${attachment.height ?? 0}`,
-                aspect: (attachment.width ?? 0) / (attachment.height || 1)
-              }
-            }
-          : {}),
-        ...(attachment.focus ? { focus: attachment.focus } : {})
-      },
+      ...(meta ? { meta } : {}),
       blurhash: attachment.blurhash ?? null
     })
   }
   if (attachment.mediaType.startsWith('video')) {
+    const meta = knownDimensions && {
+      ...knownDimensions,
+      original: knownDimensions,
+      ...(attachment.focus ? { focus: attachment.focus } : {})
+    }
     return Mastodon.MediaTypes.Video.parse({
       id: attachment.id,
       url: attachment.url,
@@ -239,20 +243,7 @@ export const getMastodonAttachment = (attachment: Attachment) => {
       remote_url: null,
       description: attachment.name,
       type: 'video',
-      meta: {
-        size: `${attachment.width}x${attachment.height}`,
-        width: attachment.width ?? 0,
-        height: attachment.height ?? 0,
-        aspect: (attachment.width ?? 0) / (attachment.height || 1),
-        ...(attachment.focus ? { focus: attachment.focus } : {}),
-
-        original: {
-          width: attachment.width ?? 0,
-          height: attachment.height ?? 0,
-          size: `${attachment.width}x${attachment.height}`,
-          aspect: (attachment.width ?? 0) / (attachment.height || 1)
-        }
-      },
+      ...(meta ? { meta } : {}),
       blurhash: attachment.blurhash ?? null
     })
   }

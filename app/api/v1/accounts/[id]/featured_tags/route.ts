@@ -6,6 +6,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -29,11 +30,16 @@ export const GET = traceApiRoute(
   OptionalOAuthGuard<Params>(
     [Scope.enum.read, Scope.enum['read:accounts']],
     async (req, context) => {
-      const { database, params } = context
+      const { database, currentActor, params } = context
       const encodedAccountId = (await params).id
       if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
       const id = await resolveActorIdParam(database, encodedAccountId)
+      // Bluesky accounts are shown to signed-in viewers only, matching
+      // GET /api/v1/accounts/:id.
+      if (!currentActor && isBlueskyId(id)) {
+        return apiCorsError(req, CORS_HEADERS, 404)
+      }
       const actor = await database.getActorFromId({ id })
       if (!actor) return apiCorsError(req, CORS_HEADERS, 404)
 

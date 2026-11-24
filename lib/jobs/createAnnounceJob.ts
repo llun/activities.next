@@ -17,11 +17,14 @@ import {
 } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Announce } from '@/lib/types/activitypub'
+import { isBlueskyStatus } from '@/lib/types/domain/status'
 import {
   isSameActivityPubOrigin,
   normalizeActivityPubAnnounce,
   toRecipientArray
 } from '@/lib/utils/activitypub'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { toLoggableUrl } from '@/lib/utils/loggableUrl'
 import { logger } from '@/lib/utils/logger'
 
@@ -70,6 +73,10 @@ export const createAnnounceJob: JobHandle = createJobHandle(
     ) {
       object = (status.object as { id: string }).id
     } else {
+      return
+    }
+
+    if (isBlueskyId(object) || isBlueskyHostUrl(object)) {
       return
     }
 
@@ -151,7 +158,7 @@ export const createAnnounceJob: JobHandle = createJobHandle(
           withReplies: false
         }))
     }
-    if (!targetStatus) {
+    if (!targetStatus || isBlueskyStatus(targetStatus)) {
       return
     }
 

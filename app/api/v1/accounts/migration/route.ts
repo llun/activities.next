@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import {
+  BLUESKY_MOVE_UNSUPPORTED,
   getMigrationState,
   performOutgoingMove,
   verifyChallenge
@@ -12,6 +13,7 @@ import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget
 import { checkPasswordChangeRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { getQueue } from '@/lib/services/queue'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -140,6 +142,9 @@ export const POST = traceApiRoute(
     }
     if (result.type === 'not-found') {
       return errorResponse(req, 'Record not found', HTTP_STATUS.NOT_FOUND)
+    }
+    if (isBlueskyId(result.actor.id)) {
+      return errorResponse(req, BLUESKY_MOVE_UNSUPPORTED)
     }
 
     const outcome = await performOutgoingMove({

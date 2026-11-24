@@ -12,6 +12,7 @@ import {
 } from '@/lib/services/mastodon/remoteFollowCollection'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Actor } from '@/lib/types/domain/actor'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -109,6 +110,11 @@ export const handleFollowCollectionRequest = async ({
   if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
   const id = await resolveActorIdParam(database, encodedAccountId)
+  // Bluesky accounts are shown to signed-in viewers only, matching
+  // GET /api/v1/accounts/:id.
+  if (!currentActor && isBlueskyId(id)) {
+    return apiCorsError(req, CORS_HEADERS, 404)
+  }
   const actor = await database.getActorFromId({ id })
   if (!actor) return apiCorsError(req, CORS_HEADERS, 404)
 
@@ -139,7 +145,7 @@ export const handleFollowCollectionRequest = async ({
       ? minId
       : undefined
 
-  if (!isLocalActor && currentActor) {
+  if (!isLocalActor && !isBlueskyId(actor.id) && currentActor) {
     const remote = await serveRemoteCollection({
       req,
       database,

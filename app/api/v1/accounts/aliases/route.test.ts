@@ -240,6 +240,36 @@ describe('Accounts Aliases API route', () => {
       })
     })
 
+    it('refuses a Bluesky target with 422 before storing or federating', async () => {
+      const blueskyActor = Actor.parse({
+        ...MockActor({
+          id: 'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+        }),
+        username: 'alice.bsky.social',
+        domain: 'bsky.app',
+        inboxUrl: '',
+        sharedInboxUrl: '',
+        publicKey: '',
+        privateKey: undefined
+      })
+      actorRegistry.set(blueskyActor.id, blueskyActor)
+      vi.mocked(resolveAccountTarget).mockResolvedValueOnce({
+        type: 'resolved',
+        actor: blueskyActor
+      })
+
+      const res = await POST(
+        createPostRequest({ acct: 'alice.bsky.social@bsky.app' }),
+        { params: Promise.resolve({}) }
+      )
+      expect(res.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+      expect(await res.json()).toEqual({
+        error: "Bluesky accounts can't be used for account moves."
+      })
+      expect(mockDatabase.updateActorAliases).not.toHaveBeenCalled()
+      expect(publishActorUpdate).not.toHaveBeenCalled()
+    })
+
     it('adds an alias via URL, updates database, federates, and returns updated list', async () => {
       const remoteActor = MockActor({
         id: 'https://remote.test/users/alice'

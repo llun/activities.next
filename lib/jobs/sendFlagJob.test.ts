@@ -64,6 +64,27 @@ describe('sendFlagJob', () => {
     )
   })
 
+  it('leaves Bluesky status ids out of the forwarded Flag objects', async () => {
+    const database = createDatabase()
+
+    await runJob(database, {
+      reportId: 'report-mixed',
+      targetActorId: TARGET,
+      statusIds: [
+        'https://remote.test/statuses/1',
+        'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx/post/3kxyz'
+      ],
+      content: 'mixed'
+    })
+
+    expect(sendFlag).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetActorId: TARGET,
+        objects: [TARGET, 'https://remote.test/statuses/1']
+      })
+    )
+  })
+
   it('returns without forwarding or retrying for a Bluesky target', async () => {
     vi.mocked(sendFlag).mockResolvedValue({ ok: false, uri: 'flag-uri' })
 

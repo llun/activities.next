@@ -51,11 +51,96 @@ describe('enqueueDeliveries', () => {
       inboxes: [
         '',
         'https://bsky.app/profile/did:plc:abc',
-        'https://bsky.app/profile/did:plc:abc/inbox'
+        'https://bsky.app/profile/did:plc:abc/inbox',
+        'https://bsky.app/inbox'
       ]
     })
 
     expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('never queues a delivery for any activity whose object, object.object, or target names bsky.app', async () => {
+    const blueskyPostId = `https://bsky.app/profile/did:plc:${'a'.repeat(24)}/post/3k`
+    const blueskyActorId = `https://bsky.app/profile/did:plc:${'a'.repeat(24)}`
+    const bskyNonProfileUrl = 'https://bsky.app/stamps/1'
+
+    const forbiddenActivities: Record<string, unknown>[] = [
+      {
+        type: 'Create',
+        actor: 'https://local.test/users/alice',
+        object: { id: blueskyPostId, type: 'Note' }
+      },
+      {
+        type: 'Update',
+        actor: 'https://local.test/users/alice',
+        object: { id: blueskyPostId, type: 'Note' }
+      },
+      {
+        type: 'Like',
+        actor: 'https://local.test/users/alice',
+        object: blueskyPostId
+      },
+      {
+        type: 'Undo',
+        actor: 'https://local.test/users/alice',
+        object: {
+          type: 'Like',
+          actor: 'https://local.test/users/alice',
+          object: blueskyPostId
+        }
+      },
+      {
+        type: 'Move',
+        actor: 'https://local.test/users/alice',
+        object: 'https://local.test/users/alice',
+        target: blueskyActorId
+      },
+      {
+        type: 'Add',
+        actor: 'https://local.test/users/alice',
+        object: 'https://local.test/users/alice/statuses/1',
+        target: bskyNonProfileUrl
+      },
+      {
+        type: 'QuoteRequest',
+        actor: 'https://local.test/users/alice',
+        object: bskyNonProfileUrl
+      },
+      {
+        type: 'Flag',
+        actor: 'https://local.test/users/alice',
+        object: ['https://remote.example/users/bob', blueskyPostId]
+      }
+    ]
+
+    for (const [index, activity] of forbiddenActivities.entries()) {
+      await enqueueDeliveries({
+        database: mockDatabase,
+        parentMessageId: `msg-bsky-forbidden-${index}`,
+        actorId: 'https://local.test/users/alice',
+        activity,
+        inboxes: ['https://live.example/inbox']
+      })
+    }
+
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('still queues deliveries for non-bsky.app bridged hosts such as bsky.brid.gy', async () => {
+    await enqueueDeliveries({
+      database: mockDatabase,
+      parentMessageId: 'msg-bridgy',
+      actorId: 'https://local.test/users/alice',
+      activity: {
+        type: 'Like',
+        actor: 'https://local.test/users/alice',
+        object:
+          'https://bsky.brid.gy/convert/ap/at://did:plc:abc/app.bsky.feed.post/1'
+      },
+      inboxes: ['https://bsky.brid.gy/ap/did:plc:abc/inbox']
+    })
+
+    expect(publish).toHaveBeenCalledTimes(1)
   })
 
   it('never queues a delivery for an Announce, Undo Announce, or Delete targeting a Bluesky post', async () => {

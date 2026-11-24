@@ -375,6 +375,7 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.uri).toBe(statusId)
+      expect(data.text).toBe('Bluesky post 3kowndel1')
       expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
         repo: OWN_DID,
         collection: 'app.bsky.feed.post',

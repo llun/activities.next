@@ -20,6 +20,7 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { isDirectStatus } from '@/lib/utils/directStatus'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -137,6 +138,7 @@ export const followTimelineBackfillJob = createJobHandle(
       .safeParse(message.data)
     if (!parsed.success) return
     const { actorId, targetActorId } = parsed.data
+    if (isBlueskyId(targetActorId)) return
 
     const follower = await database.getActorFromId({ id: actorId })
     // Only a local follower has a home timeline here.

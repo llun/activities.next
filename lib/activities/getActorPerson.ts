@@ -1,6 +1,9 @@
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
-import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
+import {
+  ERR_BLUESKY_HOST_REFUSED,
+  signedActivityPubRequest
+} from '@/lib/activities/signedRequest'
 import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
@@ -166,6 +169,9 @@ export const getActorPerson: GetActorPersonFunction = ({
             return null
           } catch (error) {
             const nodeError = error as NodeJS.ErrnoException
+            if (nodeError.code === ERR_BLUESKY_HOST_REFUSED) {
+              return null
+            }
             if (nodeError.code === 'ERR_CROSS_HOST_REDIRECT') {
               span.setAttribute('crossHostRedirect', true)
               logger.warn({

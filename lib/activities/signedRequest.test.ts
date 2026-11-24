@@ -683,15 +683,43 @@ describe('signedActivityPubRequest', () => {
   })
 })
 
-describe('signedActivityPubRequest for a Bluesky id', () => {
-  it('throws before signing or sending anything', async () => {
+describe('signedActivityPubRequest for a Bluesky host', () => {
+  it.each([
+    'https://bsky.app/profile/did:plc:abc',
+    'https://bsky.app/stamps/1',
+    'https://bsky.app/actor#main-key',
+    'http://bsky.app/inbox',
+    'https://BSKY.APP/followers'
+  ])('throws before signing or sending for %s', async (url) => {
     mockRequest.mockClear()
     await expect(
       signedActivityPubRequest({
         method: 'GET',
-        url: 'https://bsky.app/profile/did:plc:abc'
+        url
       })
-    ).rejects.toThrow('Bluesky')
+    ).rejects.toMatchObject({
+      code: 'ERR_BLUESKY_HOST_REFUSED',
+      message: expect.stringContaining('Bluesky')
+    })
     expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'https://bsky.brid.gy/ap/did:plc:abc',
+    'https://brid.gy/publish',
+    'https://bsky.social/xrpc/com.atproto.server.describeServer'
+  ])('does not refuse non-bsky.app host %s', async (url) => {
+    mockRequest.mockClear()
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: {},
+      body: '{}'
+    })
+    const result = await signedActivityPubRequest({
+      method: 'GET',
+      url
+    })
+    expect(result.statusCode).toBe(200)
+    expect(mockRequest).toHaveBeenCalledTimes(1)
   })
 })

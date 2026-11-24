@@ -17,6 +17,7 @@ import { FederationPolicyUnavailableError } from '@/lib/services/federation/poli
 import { getQueue } from '@/lib/services/queue'
 import { publishSurfacingErrors } from '@/lib/services/queue/publishSurfacingErrors'
 import { JobHandle, JobMessage } from '@/lib/services/queue/type'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { withSpan } from '@/lib/utils/trace'
 
 const JobData = z.object({
@@ -62,6 +63,7 @@ export const runSendMove = async (
       return
     }
     const { migrationId, originActorId, targetActorId } = parsed.data
+    if (isBlueskyId(targetActorId)) return
     span.setAttribute('actorId', originActorId)
 
     const [origin, target] = await Promise.all([
