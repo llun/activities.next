@@ -31,7 +31,15 @@ const actor = { id: 'actor-follower', domain: 'social.example' } as Actor
 describe('Bluesky follow service', () => {
   const testDb = createTestDatabase()
   const { database } = testDb
-  const get = vi.fn()
+  const getProfile = vi.fn()
+  const getRecord = vi.fn()
+  // `get` answers by nsid: the AppView profile, then the follow record it
+  // names on the user's own PDS.
+  const get = vi.fn(async (nsid: string) => {
+    if (nsid === 'app.bsky.actor.getProfile') return getProfile()
+    if (nsid === 'com.atproto.repo.getRecord') return getRecord()
+    throw new Error(`Unexpected get ${nsid}`)
+  })
   const post = vi.fn()
 
   beforeAll(async () => {
@@ -61,8 +69,11 @@ describe('Bluesky follow service', () => {
 
   beforeEach(async () => {
     vi.mocked(getBlueskyAgent).mockReset()
-    get.mockReset()
-    get.mockResolvedValue({ viewer: {} })
+    get.mockClear()
+    getProfile.mockReset()
+    getProfile.mockResolvedValue({ viewer: {} })
+    getRecord.mockReset()
+    getRecord.mockResolvedValue({ value: { subject: TARGET_DID } })
     post.mockReset()
     vi.mocked(getBlueskyAgent).mockResolvedValue({
       did: OWN_DID,
@@ -113,7 +124,7 @@ describe('Bluesky follow service', () => {
 
   it('adopts an existing follow in the user repo without calling createRecord', async () => {
     const externalUri = `at://${OWN_DID}/app.bsky.graph.follow/3kexternal`
-    get.mockResolvedValue({ viewer: { following: externalUri } })
+    getProfile.mockResolvedValue({ viewer: { following: externalUri } })
 
     const follow = await followBlueskyActor(database, actor, TARGET_ID)
 
@@ -142,7 +153,7 @@ describe('Bluesky follow service', () => {
   })
 
   it('ignores a viewer.following URI in another repo and writes a record', async () => {
-    get.mockResolvedValue({
+    getProfile.mockResolvedValue({
       viewer: {
         following: 'at://did:plc:someone/app.bsky.graph.follow/3kother'
       }
@@ -164,7 +175,7 @@ describe('Bluesky follow service', () => {
   })
 
   it('refuses adoption when the account was relinked to another DID during getProfile', async () => {
-    get.mockImplementation(async () => {
+    getProfile.mockImplementation(async () => {
       await linkAccount('did:plc:relinked')
       return {
         viewer: {
@@ -183,6 +194,118 @@ describe('Bluesky follow service', () => {
         targetActorId: TARGET_ID
       })
     ).toBeNull()
+  })
+
+  it('writes a record when the profile lookup is refused', async () => {
+    getProfile.mockRejectedValue(
+      new BlueskyRequestError(
+        'app.bsky.actor.getProfile',
+        400,
+        'AccountDeactivated'
+      )
+    )
+    post.mockResolvedValue({ uri: FOLLOW_URI, cid: 'bafy' })
+
+    const follow = await followBlueskyActor(database, actor, TARGET_ID)
+
+    expect(post).toHaveBeenCalledWith('com.atproto.repo.createRecord', {
+      repo: OWN_DID,
+      collection: 'app.bsky.graph.follow',
+      record: {
+        $type: 'app.bsky.graph.follow',
+        subject: TARGET_DID,
+        createdAt: expect.any(String)
+      }
+    })
+    expect(follow.uri).toBe(FOLLOW_URI)
+  })
+
+  it('writes a record when the follow record the profile names is gone', async () => {
+    getProfile.mockResolvedValue({
+      viewer: {
+        following: `at://${OWN_DID}/app.bsky.graph.follow/3kstale`
+      }
+    })
+    getRecord.mockRejectedValue(
+      new BlueskyRequestError(
+        'com.atproto.repo.getRecord',
+        400,
+        'RecordNotFound'
+      )
+    )
+    post.mockResolvedValue({ uri: FOLLOW_URI, cid: 'bafy' })
+
+    const follow = await followBlueskyActor(database, actor, TARGET_ID)
+
+    expect(post).toHaveBeenCalledWith('com.atproto.repo.createRecord', {
+      repo: OWN_DID,
+      collection: 'app.bsky.graph.follow',
+      record: {
+        $type: 'app.bsky.graph.follow',
+        subject: TARGET_DID,
+        createdAt: expect.any(String)
+      }
+    })
+    expect(follow.uri).toBe(FOLLOW_URI)
+  })
+
+  it('writes a record when the follow record the profile names follows another account', async () => {
+    getProfile.mockResolvedValue({
+      viewer: {
+        following: `at://${OWN_DID}/app.bsky.graph.follow/3kstale`
+      }
+    })
+    getRecord.mockResolvedValue({ value: { subject: 'did:plc:someone' } })
+    post.mockResolvedValue({ uri: FOLLOW_URI, cid: 'bafy' })
+
+    const follow = await followBlueskyActor(database, actor, TARGET_ID)
+
+    expect(post).toHaveBeenCalledWith('com.atproto.repo.createRecord', {
+      repo: OWN_DID,
+      collection: 'app.bsky.graph.follow',
+      record: {
+        $type: 'app.bsky.graph.follow',
+        subject: TARGET_DID,
+        createdAt: expect.any(String)
+      }
+    })
+    expect(follow.uri).toBe(FOLLOW_URI)
+    expect(
+      await database.getBlueskyFollow({
+        actorId: actor.id,
+        targetActorId: TARGET_ID
+      })
+    ).toMatchObject({ uri: FOLLOW_URI })
+  })
+
+  it('writes a record when viewer.following is too long to store', async () => {
+    const longUri = `at://${OWN_DID}/app.bsky.graph.follow/${'k'.repeat(480)}`
+    expect(longUri.length).toBeGreaterThan(512)
+    getProfile.mockResolvedValue({ viewer: { following: longUri } })
+    post.mockResolvedValue({ uri: FOLLOW_URI, cid: 'bafy' })
+
+    const follow = await followBlueskyActor(database, actor, TARGET_ID)
+
+    expect(getRecord).not.toHaveBeenCalled()
+    expect(post).toHaveBeenCalledWith('com.atproto.repo.createRecord', {
+      repo: OWN_DID,
+      collection: 'app.bsky.graph.follow',
+      record: {
+        $type: 'app.bsky.graph.follow',
+        subject: TARGET_DID,
+        createdAt: expect.any(String)
+      }
+    })
+    expect(follow.uri).toBe(FOLLOW_URI)
+  })
+
+  it('propagates an error that is not a Bluesky refusal from the profile lookup', async () => {
+    getProfile.mockRejectedValue(new BlueskySessionEndedError())
+
+    await expect(
+      followBlueskyActor(database, actor, TARGET_ID)
+    ).rejects.toBeInstanceOf(BlueskySessionEndedError)
+    expect(post).not.toHaveBeenCalled()
   })
 
   it('writes one record when the same follow is sent twice at once', async () => {
@@ -320,7 +443,7 @@ describe('Bluesky follow service', () => {
   })
 
   it('deletes a Bluesky follow on unfollow even when no local row exists', async () => {
-    get.mockResolvedValue({
+    getProfile.mockResolvedValue({
       viewer: { following: `at://${OWN_DID}/app.bsky.graph.follow/3kexternal` }
     })
     post.mockResolvedValue({})
@@ -343,7 +466,7 @@ describe('Bluesky follow service', () => {
       targetActorId: TARGET_ID,
       uri: FOLLOW_URI
     })
-    get.mockResolvedValue({
+    getProfile.mockResolvedValue({
       viewer: { following: `at://${OWN_DID}/app.bsky.graph.follow/3kolder` }
     })
     post.mockResolvedValue({})
@@ -369,13 +492,58 @@ describe('Bluesky follow service', () => {
     ).toBeNull()
   })
 
+  it('drops the row when the profile lookup is refused during unfollow', async () => {
+    await database.createBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: TARGET_ID,
+      uri: FOLLOW_URI
+    })
+    getProfile.mockRejectedValue(
+      new BlueskyRequestError(
+        'app.bsky.actor.getProfile',
+        400,
+        'AccountDeactivated'
+      )
+    )
+    post.mockResolvedValue({})
+
+    await unfollowBlueskyActor(database, actor, TARGET_ID)
+
+    expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+      repo: OWN_DID,
+      collection: 'app.bsky.graph.follow',
+      rkey: '3kfollow'
+    })
+    expect(
+      await database.getBlueskyFollow({
+        actorId: actor.id,
+        targetActorId: TARGET_ID
+      })
+    ).toBeNull()
+  })
+
+  it('resolves without deleting anything when the profile lookup is refused and no row exists', async () => {
+    getProfile.mockRejectedValue(
+      new BlueskyRequestError(
+        'app.bsky.actor.getProfile',
+        400,
+        'AccountDeactivated'
+      )
+    )
+
+    await expect(
+      unfollowBlueskyActor(database, actor, TARGET_ID)
+    ).resolves.toBeUndefined()
+    expect(post).not.toHaveBeenCalled()
+  })
+
   it('does not delete the same record twice when getProfile still reports it after deletion', async () => {
     await database.createBlueskyFollow({
       actorId: actor.id,
       targetActorId: TARGET_ID,
       uri: FOLLOW_URI
     })
-    get.mockResolvedValue({ viewer: { following: FOLLOW_URI } })
+    getProfile.mockResolvedValue({ viewer: { following: FOLLOW_URI } })
     post.mockResolvedValue({})
 
     await unfollowBlueskyActor(database, actor, TARGET_ID)

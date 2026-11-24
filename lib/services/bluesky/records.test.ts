@@ -232,6 +232,35 @@ describe('blueskyEmbedLinksHtml', () => {
     }
   })
 
+  it('cuts an external card title to 300 characters', () => {
+    const title = '😀'.repeat(400)
+    expect(
+      blueskyEmbedLinksHtml(
+        {
+          $type: 'app.bsky.embed.external#view',
+          external: { uri: 'https://example.com/long-title', title }
+        },
+        postUrl
+      )
+    ).toBe(
+      `<p><a href="https://example.com/long-title" ${attrs}>${'😀'.repeat(300)}</a></p>`
+    )
+  })
+
+  it('drops an external card whose URI is longer than 2048 characters', () => {
+    const uri = `https://example.com/${'a'.repeat(2048)}`
+    expect(uri.length).toBeGreaterThan(2048)
+    expect(
+      blueskyEmbedLinksHtml(
+        {
+          $type: 'app.bsky.embed.external#view',
+          external: { uri, title: 'Long' }
+        },
+        postUrl
+      )
+    ).toBe('')
+  })
+
   it('skips an external card whose URI already appears as a link in the post HTML', () => {
     const text = 'See example.com'
     const postHtml = blueskyPostToHtml(text, [

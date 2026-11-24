@@ -14,7 +14,7 @@ import {
   getBlueskyAgent
 } from './agent'
 import { BlueskyLockTimeoutError, createBlueskyLock } from './client'
-import { blueskyActorId, parseAtUri } from './records'
+import { DID_PATTERN, blueskyActorId, parseAtUri } from './records'
 
 const FOLLOW_COLLECTION = 'app.bsky.graph.follow'
 
@@ -32,7 +32,7 @@ export class BlueskyFollowError extends Error {
 // id under bsky.app (a post id passes isBlueskyId too).
 const targetDid = (targetActorId: string) => {
   const did = targetActorId.slice('https://bsky.app/profile/'.length)
-  return did.startsWith('did:') && blueskyActorId(did) === targetActorId
+  return DID_PATTERN.test(did) && blueskyActorId(did) === targetActorId
     ? did
     : null
 }
@@ -61,21 +61,46 @@ const withFollowLock = <T>(
     fn
   )
 
-// Reads an existing follow record in the user's repo (e.g. made in another app).
+// bluesky_follows.uri is varchar(512).
+const MAX_FOLLOW_URI_LENGTH = 512
+
+/**
+ * The user's existing follow record of `did` (say, made in another app), or
+ * null. Best effort: the AppView's viewer state names it (and lags behind a
+ * delete, and answers 400 for a deactivated or deleted account), so the record
+ * is confirmed on the user's own PDS, following `did`, before it is used, and
+ * any refused lookup reads as no record rather than failing the change.
+ */
 const readViewerFollowUri = async (
   agent: BlueskyAgent,
   did: string
 ): Promise<string | null> => {
-  const profile = await agent.get<{ viewer?: { following?: unknown } }>(
-    'app.bsky.actor.getProfile',
-    { actor: did }
-  )
-  const uri = profile?.viewer?.following
-  if (typeof uri !== 'string') return null
-  const parsed = parseAtUri(uri)
-  return parsed?.did === agent.did && parsed.collection === FOLLOW_COLLECTION
-    ? uri
-    : null
+  try {
+    const profile = await agent.get<{ viewer?: { following?: unknown } }>(
+      'app.bsky.actor.getProfile',
+      { actor: did }
+    )
+    const uri = profile?.viewer?.following
+    if (typeof uri !== 'string' || uri.length > MAX_FOLLOW_URI_LENGTH) {
+      return null
+    }
+    const parsed = parseAtUri(uri)
+    if (parsed?.did !== agent.did || parsed.collection !== FOLLOW_COLLECTION) {
+      return null
+    }
+    const record = await agent.get<{ value?: { subject?: unknown } }>(
+      'com.atproto.repo.getRecord',
+      { repo: parsed.did, collection: parsed.collection, rkey: parsed.rkey }
+    )
+    return record?.value?.subject === did ? uri : null
+  } catch (error) {
+    if (!(error instanceof BlueskyRequestError)) throw error
+    logger.info({
+      message: 'Could not read an existing Bluesky follow',
+      err: toLoggableError(error)
+    })
+    return null
+  }
 }
 
 // Re-checks the linked DID before storing so a relink during a PDS call cannot
@@ -180,7 +205,7 @@ const deleteFollow = async (
     targetActorId
   })
   if (!existing) {
-    if (!did) return
+    if (!did || !(await database.getActorFromId({ id: targetActorId }))) return
     const agent = await getBlueskyAgent(database, actor)
     if (!agent) return
     // Remove a follow created in another Bluesky app even with no local row.

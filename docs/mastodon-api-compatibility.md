@@ -1301,10 +1301,13 @@ sharing. The code is in `lib/services/bluesky/`:
   session) they answer 422 with a message pointing to Settings; following the
   linked account itself is refused, and a record already deleted on Bluesky
   counts as unfollowed. A follow the account already has on Bluesky (made in
-  another app) is read from the PDS (`app.bsky.actor.getProfile` viewer state):
+  another app) is read through the PDS (`app.bsky.actor.getProfile` viewer
+  state, then the record itself on the PDS, which must follow that account):
   Follow adopts its record instead of writing a second one, and Unfollow
-  deletes it, even with no row here. Until Follow is pressed such a follow
-  reads as not following. A follow change that waits too long for another one
+  deletes it, even with no row here. The lookup is best effort: when it is
+  refused (an account deactivated or deleted on Bluesky, an AppView outage)
+  Follow writes a record and Unfollow still drops its own. Until Follow is
+  pressed such a follow reads as not following. A follow change that waits too long for another one
   on the same account answers 409 with a message to try again. The web follow
   button shows the route's `{ error }` message under the button. The account's Bluesky followers are not copied in, so
   `followed_by` is always false. The deprecated `/api/v1/accounts/follow`
@@ -1349,7 +1352,7 @@ sharing. The code is in `lib/services/bluesky/`:
   stored as the AppView returned them. A post it does not return (deleted,
   blocked) or that cannot be stored (an id too long for its column) is
   dropped, and one failed post never stops the rest; media URLs that are not
-  https are left out. Up to four images become attachments in their order;
+  https are left out. Images become attachments in their order;
   a link card, a quoted post and a video are added to the text as links (the
   card's own URL, the quoted post and the post itself on bsky.app). A sync
   stopped by a relink leaves no error on the new link. The original post of a repost is shown (no boost row

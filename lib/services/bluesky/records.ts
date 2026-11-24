@@ -13,7 +13,7 @@ import { isRecord } from '@/lib/utils/typeGuards'
 
 export { isBlueskyId } from '@/lib/utils/blueskyId'
 
-const DID_PATTERN = /^did:[a-z]+:[A-Za-z0-9._:%-]+$/
+export const DID_PATTERN = /^did:[a-z]+:[A-Za-z0-9._:%-]+$/
 // The atproto record-key syntax.
 const RKEY_PATTERN = /^[A-Za-z0-9._:~-]{1,512}$/
 // The actor and status id, username, name and media URL columns are
@@ -49,6 +49,9 @@ export const escapeHtml = (text: string) =>
     .replace(/'/g, '&#39;')
 
 const textToHtml = (text: string) => escapeHtml(text).replace(/\r?\n/g, '<br>')
+
+const MAX_CARD_URL_LENGTH = 2048
+const MAX_CARD_TITLE_LENGTH = 300
 
 const LINK_ATTRS = 'rel="nofollow noopener noreferrer" target="_blank"'
 
@@ -202,10 +205,14 @@ const externalLinkHtml = (
 ): string => {
   if (!isRecord(embed.external)) return ''
   const href = httpUrl(embed.external.uri)
-  if (!href) return ''
+  // The author picks the card: keep it to a sane size in the shared row.
+  if (!href || href.length > MAX_CARD_URL_LENGTH) return ''
   if (postHtml.includes(`href="${escapeHtml(href)}"`)) return ''
-  const title = optionalString(embed.external.title)?.trim() || href
-  return linkParagraph(href, title)
+  const title = optionalString(embed.external.title)?.trim()
+  return linkParagraph(
+    href,
+    title ? Array.from(title).slice(0, MAX_CARD_TITLE_LENGTH).join('') : href
+  )
 }
 
 const videoLinkHtml = (postUrl: string): string => {
