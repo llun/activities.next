@@ -1253,7 +1253,9 @@ sharing. The code is in `lib/services/bluesky/`:
   that started the sign-in: the OAuth `state` carries that actor's id and a
   callback finished by another actor is refused. Each served domain is its
   own client (`client_id` on that domain): sign-in starts and returns on the
-  domain the actor lives on, and later calls use that domain's client. A DID
+  domain the actor lives on (starting it from another served domain is refused
+  with a pointer there, since the session cookie would be missing on return),
+  and later calls use that domain's client. A DID
   another profile on the server holds is refused before the redirect, because
   finishing the sign-in makes the OAuth client revoke and replace the stored
   session for that DID; a user who switches accounts on the authorization

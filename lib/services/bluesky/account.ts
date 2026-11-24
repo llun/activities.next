@@ -197,12 +197,25 @@ export const getBlueskyAccountState = async (
   }
 }
 
-/** Returns the authorization URL to send the browser to. */
+/**
+ * Returns the authorization URL to send the browser to. `requestHost` is the
+ * served host the request arrived on.
+ */
 export const startBlueskyOAuth = async (
   database: Database,
   actor: Actor,
-  input: string
+  input: string,
+  requestHost?: string
 ): Promise<string> => {
+  // Sign-in returns to the actor's own domain, where the session cookie must
+  // be; one started on another served domain could not finish.
+  const domain = actor.domain.toLowerCase()
+  if (requestHost !== undefined && requestHost !== domain) {
+    throw new BlueskyLinkError(
+      `Open Settings on ${domain} to sign in with Bluesky, or use an app password.`,
+      400
+    )
+  }
   const client = getBlueskyOAuthClient(database, actor.domain)
   if (!client) {
     throw new BlueskyLinkError(

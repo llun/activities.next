@@ -303,6 +303,22 @@ describe('Bluesky account service', () => {
       expect(authorize).not.toHaveBeenCalled()
     })
 
+    it('starts sign-in only on the domain the actor lives on', async () => {
+      const authorize = vi.fn()
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({ authorize }) as never
+      )
+      await expect(
+        startBlueskyOAuth(
+          database,
+          actor('actor-a'),
+          'alice.example.com',
+          'primary.example'
+        )
+      ).rejects.toThrow('Open Settings on social.example')
+      expect(authorize).not.toHaveBeenCalled()
+    })
+
     it('reports a key that will not load as a server error', async () => {
       const keyError = new Error('Invalid key')
       const rejected = Promise.reject(keyError)
