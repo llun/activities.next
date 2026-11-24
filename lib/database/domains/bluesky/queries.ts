@@ -368,22 +368,23 @@ export const isBlueskyPostInHome = async (
       .executeTakeFirst()
   )
 
-export const isBoostOfStatusInHome = async (
+export const removeBoostsOfStatusFromHome = async (
   db: Db,
   { actorId, statusId }: { actorId: string; statusId: string }
-): Promise<boolean> =>
-  Boolean(
-    await db
-      .selectFrom('timelines')
-      .innerJoin('statuses', 'statuses.id', 'timelines.statusId')
-      .select('timelines.id')
-      .where('timelines.actorId', '=', actorId)
-      .where('timelines.timeline', '=', Timeline.MAIN)
-      .where('statuses.type', '=', StatusType.enum.Announce)
-      .where('statuses.originalStatusId', '=', statusId)
-      .limit(1)
-      .executeTakeFirst()
-  )
+): Promise<void> => {
+  await db
+    .deleteFrom('timelines')
+    .where('actorId', '=', actorId)
+    .where('timeline', '=', Timeline.MAIN)
+    .where('statusId', 'in', (eb) =>
+      eb
+        .selectFrom('statuses')
+        .select('statuses.id')
+        .where('statuses.type', '=', StatusType.enum.Announce)
+        .where('statuses.originalStatusId', '=', statusId)
+    )
+    .execute()
+}
 
 export const createBlueskyFollow = async (
   db: Db,
@@ -573,7 +574,7 @@ export const blueskyQueries = {
   getBlueskyRecordByStatusId,
   getBlueskyRecordByUri,
   isBlueskyPostInHome,
-  isBoostOfStatusInHome,
+  removeBoostsOfStatusFromHome,
   createBlueskyFollow,
   deleteBlueskyFollow,
   getBlueskyFollow,

@@ -366,7 +366,7 @@ describe('Bluesky', () => {
       expect(await inHome('https://local.test/users/other')).toBe(false)
     })
 
-    it("tells whether a boost of a status is in an actor's Home", async () => {
+    it("removes only boosts of the target status from the actor's Home, leaving the Announce statuses and other timelines intact", async () => {
       const statusId = blueskyPostId(did, '3kpost')
       const { statusId: otherStatusId } = await database.upsertBlueskyPost({
         uri: `at://${did}/app.bsky.feed.post/3kotherboost`,
@@ -380,23 +380,23 @@ describe('Bluesky', () => {
       })
       const reader = 'https://local.test/users/boost-reader'
       const booster = 'https://local.test/users/boost-booster'
+      const secondBooster = 'https://local.test/users/boost-second-booster'
       const otherReader = 'https://local.test/users/boost-other-reader'
 
-      const hasBoostInHome = (viewer: string, target = statusId) =>
-        database.isBoostOfStatusInHome({ actorId: viewer, statusId: target })
+      const timelineStatusIds = async (
+        viewer: string,
+        timeline: Timeline = Timeline.MAIN
+      ) =>
+        (
+          await testDb.db
+            .selectFrom('timelines')
+            .select('statusId')
+            .where('actorId', '=', viewer)
+            .where('timeline', '=', timeline)
+            .execute()
+        ).map((row) => row.statusId)
 
-      expect(await hasBoostInHome(reader)).toBe(false)
-
-      // The original status itself in Home is not a boost.
       const original = (await database.getStatus({ statusId })) as Status
-      await database.createTimelineStatus({
-        actorId: reader,
-        status: original,
-        timeline: Timeline.MAIN
-      })
-      expect(await hasBoostInHome(reader)).toBe(false)
-
-      // A boost of a different status in Home does not match.
       const otherBoost = (await database.createAnnounce({
         id: `${booster}/statuses/announce-other`,
         actorId: booster,
@@ -404,14 +404,6 @@ describe('Bluesky', () => {
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: []
       })) as Status
-      await database.createTimelineStatus({
-        actorId: reader,
-        status: otherBoost,
-        timeline: Timeline.MAIN
-      })
-      expect(await hasBoostInHome(reader)).toBe(false)
-
-      // A boost of this status in DIRECT or another actor's Home does not match.
       const boost = (await database.createAnnounce({
         id: `${booster}/statuses/announce-target`,
         actorId: booster,
@@ -419,6 +411,24 @@ describe('Bluesky', () => {
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: []
       })) as Status
+      const secondBoost = (await database.createAnnounce({
+        id: `${secondBooster}/statuses/announce-target-2`,
+        actorId: secondBooster,
+        originalStatusId: statusId,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })) as Status
+
+      // Reader's MAIN has the original, a boost of another post, and two boosts
+      // of the target post.
+      for (const status of [original, otherBoost, boost, secondBoost]) {
+        await database.createTimelineStatus({
+          actorId: reader,
+          status,
+          timeline: Timeline.MAIN
+        })
+      }
+      // Same boost also sits in reader's DIRECT and in another actor's MAIN.
       await database.createTimelineStatus({
         actorId: reader,
         status: boost,
@@ -429,16 +439,26 @@ describe('Bluesky', () => {
         status: boost,
         timeline: Timeline.MAIN
       })
-      expect(await hasBoostInHome(reader)).toBe(false)
-      expect(await hasBoostInHome(otherReader)).toBe(true)
 
-      // Once the boost is in the reader's MAIN timeline, it matches.
-      await database.createTimelineStatus({
+      await database.removeBoostsOfStatusFromHome({
         actorId: reader,
-        status: boost,
-        timeline: Timeline.MAIN
+        statusId
       })
-      expect(await hasBoostInHome(reader)).toBe(true)
+
+      expect((await timelineStatusIds(reader, Timeline.MAIN)).sort()).toEqual(
+        [original.id, otherBoost.id].sort()
+      )
+      expect(await timelineStatusIds(reader, Timeline.DIRECT)).toEqual([
+        boost.id
+      ])
+      expect(await timelineStatusIds(otherReader, Timeline.MAIN)).toEqual([
+        boost.id
+      ])
+      // The Announce status rows themselves stay intact.
+      expect(await database.getStatus({ statusId: boost.id })).not.toBeNull()
+      expect(
+        await database.getStatus({ statusId: secondBoost.id })
+      ).not.toBeNull()
     })
 
     it('stores a sensitive post and defaults to not sensitive', async () => {

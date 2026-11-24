@@ -87,13 +87,14 @@ export interface BlueskyDatabase {
     statusId: string
   }): Promise<boolean>
   /**
-   * Whether the actor's Home (the MAIN timeline) already holds a boost
-   * (Announce) of this status.
+   * Removes from the actor's Home (the MAIN timeline) any timeline row of a
+   * boost (Announce) whose original status is `statusId`. Leaves the Announce
+   * status itself and other timelines untouched.
    */
-  isBoostOfStatusInHome(params: {
+  removeBoostsOfStatusFromHome(params: {
     actorId: string
     statusId: string
-  }): Promise<boolean>
+  }): Promise<void>
 
   /** Replaces the record URI of an existing follow. */
   createBlueskyFollow(params: {

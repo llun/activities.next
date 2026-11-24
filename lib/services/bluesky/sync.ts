@@ -95,7 +95,9 @@ export const syncBlueskyHome = async (
   }
 }
 
-// Stores one Home entry and adds it to the actor's Home.
+// Stores one Home entry and adds it to the actor's Home, dropping any boost
+// (Announce) of the same post from that Home so the original wins and undoing
+// the boost later leaves the post in Home.
 const storeHomeItem = async (
   database: Database,
   actor: Actor,
@@ -104,17 +106,6 @@ const storeHomeItem = async (
 ) => {
   const statusId = await storeBlueskyPostView(database, post)
   if (!statusId) return
-  // Skip adding a Home item when the actor's Home already holds a boost
-  // (Announce) of this post (either their own local boost or a fanned-out
-  // boost from someone they follow).
-  if (
-    await database.isBoostOfStatusInHome({
-      actorId: actor.id,
-      statusId
-    })
-  ) {
-    return
-  }
   const status = await database.getStatus({ statusId })
   if (!status) return
   await database.createTimelineStatus({
@@ -125,6 +116,10 @@ const storeHomeItem = async (
     ...(item.repostedAt
       ? { createdAt: Math.min(item.repostedAt, Date.now()) }
       : null)
+  })
+  await database.removeBoostsOfStatusFromHome({
+    actorId: actor.id,
+    statusId
   })
 }
 
@@ -163,7 +158,8 @@ const runSync = async (database: Database, actor: Actor) => {
         // only one already in this actor's Home says this sync got there.
         // A boost (Announce) of a post can enter Home out-of-band (a local
         // repost or a fanned-out boost) before sync reaches older posts, so it
-        // does not stop the walk; storeHomeItem skips adding the original row.
+        // does not stop the walk; once sync adds the original post,
+        // storeHomeItem removes any boost row of it from this actor's Home.
         const reason = isRecord(item.reason) ? item.reason : null
         const repost = reason?.$type === REPOST_REASON
         if (

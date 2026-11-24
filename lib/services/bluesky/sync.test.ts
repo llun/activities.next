@@ -118,12 +118,12 @@ describe('syncBlueskyHome', () => {
     })
   })
 
-  const homeStatusIds = async () =>
+  const homeStatusIds = async (targetActorId = actor.id) =>
     (
       await testDb.db
         .selectFrom('timelines')
         .select('statusId')
-        .where('actorId', '=', actor.id)
+        .where('actorId', '=', targetActorId)
         .where('timeline', '=', 'main')
         .execute()
     ).map((row) => row.statusId)
@@ -698,7 +698,7 @@ describe('syncBlueskyHome', () => {
     })
   })
 
-  it('skips adding a Bluesky post to Home when an Announce of it is already in Home, and keeps posts without one', async () => {
+  it('adds the original post and removes the booster own boost row from Home, leaving the Announce on their profile and P in Home after undo', async () => {
     const locallyBoosted = postView('nina', 'n1')
     const externalReposted = postView('nina', 'n2')
     const boostedForOther = postView('nina', 'n3')
@@ -714,13 +714,15 @@ describe('syncBlueskyHome', () => {
       parseBlueskyPostView(boostedForOther)!
     )) as string
 
-    // n1 is boosted by this actor so its Announce is in actor's Home.
+    // n1 is boosted by this actor while not in Home, so its Announce enters Home.
     const ownAnnounce = await createLocalAnnounce({
       database,
       currentActor: actor,
       originalStatusId: locallyBoostedId
     })
     expect(ownAnnounce).not.toBeNull()
+    expect(await homeStatusIds()).toContain(ownAnnounce?.id)
+    expect(await homeStatusIds()).not.toContain(locallyBoostedId)
 
     // n2 has no Announce in actor's Home (e.g. reposted from another Bluesky
     // app, with only a local like interaction).
@@ -743,11 +745,12 @@ describe('syncBlueskyHome', () => {
     const unrelated = (await database.getActorFromId({
       id: `https://${TEST_DOMAIN}/users/unrelated`
     })) as Actor
-    await createLocalAnnounce({
+    const unrelatedAnnounce = await createLocalAnnounce({
       database,
       currentActor: unrelated,
       originalStatusId: boostedForOtherId
     })
+    expect(unrelatedAnnounce).not.toBeNull()
 
     get.mockResolvedValueOnce({
       feed: [
@@ -781,13 +784,24 @@ describe('syncBlueskyHome', () => {
     await syncBlueskyHome(database, actor)
 
     const home = await homeStatusIds()
-    expect(home).toContain(ownAnnounce?.id)
-    expect(home).not.toContain(locallyBoostedId)
+    expect(home).toContain(locallyBoostedId)
+    expect(home).not.toContain(ownAnnounce?.id)
     expect(home).toContain(externalRepostedId)
     expect(home).toContain(boostedForOtherId)
+    // The Announce status itself remains on the booster's profile, and other
+    // Homes are untouched.
+    expect(
+      await database.getStatus({ statusId: ownAnnounce!.id })
+    ).not.toBeNull()
+    expect(await homeStatusIds(unrelated.id)).toContain(unrelatedAnnounce?.id)
+
+    // Undoing the boost later leaves the original post in Home.
+    await database.deleteStatus({ statusId: ownAnnounce!.id })
+    expect(await homeStatusIds()).toContain(locallyBoostedId)
+    expect(await database.getStatus({ statusId: ownAnnounce!.id })).toBeNull()
   })
 
-  it('keeps a booster own boost in Home when bluesky-following the author, and sync skips the original without stopping before older posts', async () => {
+  it('replaces a booster own boost with the original on plain/repost sync without stopping before older posts, and undo leaves P in Home', async () => {
     const boostedPost = postView('olivia', 'o1', {
       createdAt: '2026-04-02T00:01:00.000Z'
     })
@@ -835,12 +849,22 @@ describe('syncBlueskyHome', () => {
     await syncBlueskyHome(database, actor)
 
     const home = await homeStatusIds()
-    expect(home).toContain(announce?.id)
-    expect(home).not.toContain(boostedPostId)
+    expect(home).toContain(boostedPostId)
+    expect(home).not.toContain(announce?.id)
     expect(home).toContain(olderPostId)
+    // The Announce status still exists on the booster's profile.
+    expect(await database.getStatus({ statusId: announce!.id })).not.toBeNull()
+    expect(
+      (await database.getActorStatuses({ actorId: actor.id })).map((s) => s.id)
+    ).toContain(announce!.id)
+
+    // Undoing the boost leaves the original post in Home.
+    await database.deleteStatus({ statusId: announce!.id })
+    expect(await homeStatusIds()).toContain(boostedPostId)
+    expect(await homeStatusIds()).toContain(olderPostId)
   })
 
-  it('does not add the original post when a follower already has a fanned-out boost of it in Home', async () => {
+  it('replaces a fanned-out boost in a follower Home with the original post, keeping the booster Home and profile intact and leaving P after undo', async () => {
     await database.createAccount({
       email: `localbooster@${TEST_DOMAIN}`,
       username: 'localbooster',
@@ -882,6 +906,7 @@ describe('syncBlueskyHome', () => {
     expect(fannedBoost).not.toBeNull()
     expect(await homeStatusIds()).toContain(fannedBoost?.id)
     expect(await homeStatusIds()).not.toContain(boostedPostId)
+    expect(await homeStatusIds(localBooster.id)).toContain(fannedBoost?.id)
 
     get.mockResolvedValueOnce({
       feed: [
@@ -901,8 +926,58 @@ describe('syncBlueskyHome', () => {
     await syncBlueskyHome(database, actor)
 
     const home = await homeStatusIds()
-    expect(home).toContain(fannedBoost?.id)
-    expect(home).not.toContain(boostedPostId)
+    expect(home).toContain(boostedPostId)
+    expect(home).not.toContain(fannedBoost?.id)
     expect(home).toContain(olderPostId)
+    // The Announce status and the booster's own Home row are untouched.
+    expect(
+      await database.getStatus({ statusId: fannedBoost!.id })
+    ).not.toBeNull()
+    expect(await homeStatusIds(localBooster.id)).toContain(fannedBoost?.id)
+
+    // When the booster later undoes the boost, P remains in the follower's Home.
+    await database.deleteStatus({ statusId: fannedBoost!.id })
+    expect(await homeStatusIds()).toContain(boostedPostId)
+    expect(await homeStatusIds()).toContain(olderPostId)
+    expect(await homeStatusIds(localBooster.id)).not.toContain(fannedBoost?.id)
+  })
+
+  it('keeps an existing boost in Home if inserting the original post into Home fails, then replaces it once the insert succeeds', async () => {
+    const post = postView('quinn', 'q1', {
+      createdAt: '2026-04-04T00:00:00.000Z'
+    })
+    publish(post)
+    const statusId = (await storeBlueskyPostView(
+      database,
+      parseBlueskyPostView(post)!
+    )) as string
+    const announce = await createLocalAnnounce({
+      database,
+      currentActor: actor,
+      originalStatusId: statusId
+    })
+    expect(announce).not.toBeNull()
+    expect(await homeStatusIds()).toContain(announce?.id)
+
+    get.mockResolvedValueOnce({ feed: [{ post }] })
+    const spy = vi
+      .spyOn(database, 'createTimelineStatus')
+      .mockRejectedValueOnce(new Error('timeline write failed'))
+    try {
+      await syncBlueskyHome(database, actor)
+    } finally {
+      spy.mockRestore()
+    }
+
+    expect(await homeStatusIds()).toContain(announce?.id)
+    expect(await homeStatusIds()).not.toContain(statusId)
+
+    // Once the insert succeeds on a retry, P enters Home and the boost leaves.
+    get.mockResolvedValueOnce({ feed: [{ post }] })
+    await syncBlueskyHome(database, actor)
+
+    const home = await homeStatusIds()
+    expect(home).toContain(statusId)
+    expect(home).not.toContain(announce?.id)
   })
 })
