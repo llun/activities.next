@@ -1350,6 +1350,49 @@ describe('Bluesky cross-post', () => {
         rkey: permanentRkey
       })
 
+      // 2b. Non-retryable failure (inline lost answer) after row deleted ->
+      // markFailed returns false -> getRecord finds a foreign record -> no
+      // deleteRecord.
+      post.mockClear()
+      get.mockReset()
+      const foreignInlineStatus = await claim(
+        await createNote({ text: 'Lost answer inline foreign row gone' })
+      )
+      const foreignInlineRkey = deterministicTid(
+        foreignInlineStatus.createdAt,
+        foreignInlineStatus.id
+      )
+      queue.runsInline = true
+      post.mockImplementationOnce(async () => {
+        await database.deleteBlueskyCrosspost({
+          statusId: foreignInlineStatus.id
+        })
+        throw new BlueskyRequestError('com.atproto.repo.createRecord', 502)
+      })
+      get.mockResolvedValueOnce({
+        uri: postUri(foreignInlineRkey),
+        cid: cid('f'),
+        value: {
+          $type: 'app.bsky.feed.post',
+          text: 'Foreign post',
+          createdAt: new Date(
+            foreignInlineStatus.createdAt - 60_000
+          ).toISOString()
+        }
+      })
+
+      await crosspostStatus(database, foreignInlineStatus.id)
+      expect(get).toHaveBeenCalledWith('com.atproto.repo.getRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey: foreignInlineRkey
+      })
+      expect(
+        post.mock.calls.filter(
+          ([nsid]) => nsid === 'com.atproto.repo.deleteRecord'
+        )
+      ).toHaveLength(0)
+
       // 3. getRecord fails transiently -> no deleteRecord.
       post.mockClear()
       get.mockReset()

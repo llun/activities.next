@@ -3,6 +3,7 @@ import { createActor } from '@/lib/database/domains/actor/writes'
 import { upsertBlueskyActor } from '@/lib/database/domains/bluesky/queries'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { getQueueJobById } from '@/lib/database/testing/fixtures'
+import { holdTransaction } from '@/lib/database/testing/heldTransaction'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import { Timeline } from '@/lib/services/timelines/types'
 import type { Status } from '@/lib/types/domain/status'
@@ -1284,6 +1285,23 @@ describe('Bluesky', () => {
       })
       await database.deleteBlueskyCrosspost({ statusId })
 
+      // Posted row without a uri (null or empty) -> deleted, returns deleted: true.
+      for (const emptyUri of [null, '']) {
+        await database.claimBlueskyCrosspost({ statusId, actorId })
+        await testDb.db
+          .updateTable('bluesky_crossposts')
+          .set({ state: 'posted', uri: emptyUri })
+          .where('statusId', '=', statusId)
+          .execute()
+        expect(
+          await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
+        ).toMatchObject({
+          deleted: true,
+          crosspost: { statusId, state: 'posted', uri: emptyUri }
+        })
+        expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      }
+
       // Posted row with uri -> kept intact in DB and returned with deleted: false.
       await database.claimBlueskyCrosspost({ statusId, actorId })
       const attemptId = await database.beginBlueskyCrosspostAttempt({
@@ -1308,20 +1326,79 @@ describe('Bluesky', () => {
       })
     })
 
-    it('deletes a row a concurrent Retry moved from failed to pending between the DELETE and the re-read', async () => {
+    it('locks the cross-post row with SELECT before deleting and never leaves a row behind with a null return', async () => {
+      // 1. In-flight row: SELECT (FOR UPDATE on PostgreSQL) runs before DELETE.
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      let deletedPending: Awaited<
+        ReturnType<typeof database.deleteBlueskyCrosspostUnlessPosted>
+      >
+      const pendingQueries = (
+        await testDb.captureQueries(async () => {
+          deletedPending = await database.deleteBlueskyCrosspostUnlessPosted({
+            statusId
+          })
+        })
+      ).map(({ sql }) => sql)
+      expect(deletedPending!).toMatchObject({
+        deleted: true,
+        crosspost: { statusId, state: 'pending' }
+      })
+      const selectIndex = pendingQueries.findIndex((sql) =>
+        /^\s*select\b.*\bfrom\s+["`]?bluesky_crossposts["`]?/i.test(sql)
+      )
+      const deleteIndex = pendingQueries.findIndex((sql) =>
+        /^\s*delete\s+from\s+["`]?bluesky_crossposts["`]?/i.test(sql)
+      )
+      expect(selectIndex).toBeGreaterThanOrEqual(0)
+      expect(deleteIndex).toBeGreaterThan(selectIndex)
+      if (testDb.backend === 'pg') {
+        expect(pendingQueries[selectIndex]).toMatch(/\bfor update$/i)
+      } else {
+        expect(pendingQueries[selectIndex]).not.toMatch(/\bfor update\b/i)
+      }
+
+      // 2. Failed row: locked SELECT only, no DELETE, and concurrent state
+      // transitions between statements can never produce a null return while a
+      // row remains.
       await database.claimBlueskyCrosspost({ statusId, actorId })
       await database.markBlueskyCrosspostFailedIfAttemptable({
         statusId,
         error: 'failed'
       })
+      let keptFailed: Awaited<
+        ReturnType<typeof database.deleteBlueskyCrosspostUnlessPosted>
+      >
+      const failedQueries = (
+        await testDb.captureQueries(async () => {
+          keptFailed = await database.deleteBlueskyCrosspostUnlessPosted({
+            statusId
+          })
+        })
+      ).map(({ sql }) => sql)
+      expect(keptFailed!).toMatchObject({
+        deleted: false,
+        crosspost: { statusId, state: 'failed' }
+      })
+      const failedSelects = failedQueries.filter((sql) =>
+        /^\s*select\b.*\bfrom\s+["`]?bluesky_crossposts["`]?/i.test(sql)
+      )
+      const failedDeletes = failedQueries.filter((sql) =>
+        /^\s*delete\s+from\s+["`]?bluesky_crossposts["`]?/i.test(sql)
+      )
+      expect(failedSelects).toHaveLength(1)
+      expect(failedDeletes).toHaveLength(0)
+      if (testDb.backend === 'pg') {
+        expect(failedSelects[0]).toMatch(/\bfor update$/i)
+      } else {
+        expect(failedSelects[0]).not.toMatch(/\bfor update\b/i)
+      }
 
-      // Stage the interleaving: the row is failed when the DELETE runs, and a
-      // concurrent Retry commits it back to pending before the re-read. On
-      // PostgreSQL READ COMMITTED the re-read sees that commit; here the change
-      // is made on the same connection, in the same transaction, in the window
-      // between the two statements.
+      // 3. Interleaving check: in the old DELETE -> re-read -> DELETE shape, a
+      // failed -> pending -> posted-with-uri sequence between statements made
+      // the second DELETE miss and return null while the posted row remained.
       const execute = InstrumentedConnection.prototype.executeQuery
-      let interfered = false
+      let deleteHits = 0
+      let selectHits = 0
       const spy = vi
         .spyOn(InstrumentedConnection.prototype, 'executeQuery')
         .mockImplementation(async function (
@@ -1332,12 +1409,12 @@ describe('Bluesky', () => {
         ) {
           const result = await execute.call(this, compiledQuery, options)
           if (
-            !interfered &&
+            deleteHits === 0 &&
             /^\s*delete\s+from\s+["`]?bluesky_crossposts/i.test(
               compiledQuery.sql
             )
           ) {
-            interfered = true
+            deleteHits += 1
             await execute.call(
               this,
               testDb.db
@@ -1347,22 +1424,85 @@ describe('Bluesky', () => {
                 .compile(),
               options
             )
+          } else if (
+            deleteHits > 0 &&
+            selectHits === 0 &&
+            /^\s*select\b.*\bfrom\s+["`]?bluesky_crossposts/i.test(
+              compiledQuery.sql
+            )
+          ) {
+            selectHits += 1
+            await execute.call(
+              this,
+              testDb.db
+                .updateTable('bluesky_crossposts')
+                .set({
+                  state: 'posted',
+                  uri,
+                  cid: 'bafyreipostedcid',
+                  error: null
+                })
+                .where('statusId', '=', statusId)
+                .compile(),
+              options
+            )
           }
           return result
         } as InstrumentedConnection['executeQuery'])
+      let racedResult: Awaited<
+        ReturnType<typeof database.deleteBlueskyCrosspostUnlessPosted>
+      >
       try {
-        expect(
-          await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
-        ).toMatchObject({
-          deleted: true,
-          crosspost: { statusId, state: 'pending' }
+        racedResult = await database.deleteBlueskyCrosspostUnlessPosted({
+          statusId
         })
       } finally {
         spy.mockRestore()
       }
+      const remaining = await database.getBlueskyCrosspost({ statusId })
+      expect(remaining).not.toBeNull()
+      expect(racedResult).not.toBeNull()
+      expect(racedResult).toMatchObject({
+        deleted: false,
+        crosspost: { statusId, state: 'failed' }
+      })
 
-      expect(interfered).toBe(true)
-      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      // 4. On PostgreSQL, a real concurrent Retry holding the row lock blocks
+      // SELECT ... FOR UPDATE until it commits, and deleteBlueskyCrosspostUnlessPosted
+      // then sees and deletes the newly pending row instead of returning stale state.
+      if (testDb.backend === 'pg') {
+        const held = await holdTransaction(testDb.db)
+        let committed = false
+        try {
+          await held.trx
+            .updateTable('bluesky_crossposts')
+            .set({ state: 'pending', error: null })
+            .where('statusId', '=', statusId)
+            .execute()
+
+          let resolved = false
+          const waitingDelete = database
+            .deleteBlueskyCrosspostUnlessPosted({ statusId })
+            .then((res) => {
+              resolved = true
+              return res
+            })
+
+          await new Promise((resolve) => setTimeout(resolve, 50))
+          expect(resolved).toBe(false)
+
+          await held.commit()
+          committed = true
+
+          expect(await waitingDelete).toMatchObject({
+            deleted: true,
+            crosspost: { statusId, state: 'pending' }
+          })
+          expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+        } finally {
+          if (!committed) await held.rollback()
+        }
+      }
     })
   })
 })

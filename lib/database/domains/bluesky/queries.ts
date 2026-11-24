@@ -1,4 +1,4 @@
-import { type ExpressionBuilder, type Selectable, sql } from 'kysely'
+import { type Selectable, sql } from 'kysely'
 
 import {
   getActorCounters,
@@ -26,8 +26,7 @@ import { setCounterValue } from '@/lib/database/kysely/counter'
 import type {
   BlueskyCrossposts,
   BlueskyInteractions,
-  BlueskyRecords,
-  DB
+  BlueskyRecords
 } from '@/lib/database/kysely/db'
 import { forUpdate, timestampValue } from '@/lib/database/kysely/dialect'
 import { selectInChunks } from '@/lib/database/kysely/inList'
@@ -826,52 +825,31 @@ export const deleteBlueskyCrosspostWithQueueJob = async (
     return deleted
   })
 
-// The rows a narrowing post may drop without a uri: an in-flight attempt, or a
-// posted row whose uri was never recorded.
-const isInFlightCrosspost = (eb: ExpressionBuilder<DB, 'bluesky_crossposts'>) =>
-  eb.or([
-    eb('state', 'in', ['pending', 'posting']),
-    eb.and([
-      eb('state', '=', 'posted'),
-      eb.or([eb('uri', 'is', null), eb('uri', '=', '')])
-    ])
-  ])
-
 export const deleteBlueskyCrosspostUnlessPosted = async (
   db: Db,
   { statusId }: { statusId: string }
 ): Promise<{ crosspost: BlueskyCrosspost; deleted: boolean } | null> =>
   inTransaction(db, async (trx) => {
-    const deleted = await trx
-      .deleteFrom('bluesky_crossposts')
-      .where('statusId', '=', statusId)
-      .where(isInFlightCrosspost)
-      .returningAll()
-      .executeTakeFirst()
-    if (deleted) {
-      return { crosspost: toBlueskyCrosspost(deleted), deleted: true }
-    }
-    const remaining = await getBlueskyCrosspost(trx, { statusId })
-    if (!remaining) return null
+    const row = await forUpdate(
+      trx,
+      trx
+        .selectFrom('bluesky_crossposts')
+        .selectAll()
+        .where('statusId', '=', statusId)
+    ).executeTakeFirst()
+    if (!row) return null
+    const crosspost = toBlueskyCrosspost(row)
     if (
-      remaining.state === 'failed' ||
-      (remaining.state === 'posted' && remaining.uri)
+      crosspost.state === 'failed' ||
+      (crosspost.state === 'posted' && Boolean(crosspost.uri))
     ) {
-      return { crosspost: remaining, deleted: false }
+      return { crosspost, deleted: false }
     }
-    // A concurrent Retry can move a failed row back to pending between the
-    // DELETE and this read (PostgreSQL READ COMMITTED sees that commit here),
-    // so the DELETE above missed it. Delete it now, under the same guard, and
-    // report it deleted so the caller queues the fixed-key delete for it.
-    const raced = await trx
+    await trx
       .deleteFrom('bluesky_crossposts')
       .where('statusId', '=', statusId)
-      .where(isInFlightCrosspost)
-      .returningAll()
-      .executeTakeFirst()
-    return raced
-      ? { crosspost: toBlueskyCrosspost(raced), deleted: true }
-      : null
+      .execute()
+    return { crosspost, deleted: true }
   })
 
 export const deleteBlueskyCrosspostIfAttemptable = async (
