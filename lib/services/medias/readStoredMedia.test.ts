@@ -97,6 +97,13 @@ describe('readStoredImage', () => {
     expect(await readStoredImage(database, 'medias/a')).toBeNull()
   })
 
+  it('refuses a reserved fitness path without reading it', async () => {
+    expect(
+      await readStoredImage(database, 'fitness/2026-07-30/a1b2c3d4e5f60718.gpx')
+    ).toBeNull()
+    expect(getMedia).not.toHaveBeenCalled()
+  })
+
   it('refuses a stream over the byte cap', async () => {
     vi.mocked(getMedia).mockResolvedValue({
       type: 'stream',

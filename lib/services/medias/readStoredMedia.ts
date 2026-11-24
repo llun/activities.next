@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { Database } from '@/lib/database/types'
 import { getMedia } from '@/lib/services/medias'
 import { MAX_IMAGE_INPUT_PIXELS } from '@/lib/services/medias/constants'
+import { isReservedFitnessMediaPath } from '@/lib/services/medias/reservedPaths'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 import { readResponseArrayBufferWithLimit } from '@/lib/utils/streamLimit'
 
@@ -56,6 +57,12 @@ export const readStoredImage = async (
   path: string,
   maxBytes = STORED_MEDIA_READ_MAX_BYTES
 ): Promise<StoredImage | null> => {
+  // Fitness uploads live under the media root and are owner-only through
+  // `GET /api/v1/fitness-files/:id`; reading one here would hand its bytes to
+  // whoever named the path (a cross-post, an alt-text backend). The files route
+  // refuses them the same way.
+  if (isReservedFitnessMediaPath(path)) return null
+
   const file = await getMedia(database, path)
   if (!file) return null
 

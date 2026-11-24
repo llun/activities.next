@@ -643,12 +643,13 @@ export const claimBlueskyCrosspost = async (
 export const markBlueskyCrosspostPosted = async (
   db: Db,
   { statusId, uri, cid }: { statusId: string; uri: string; cid: string }
-): Promise<void> => {
-  await db
+): Promise<boolean> => {
+  const result = await db
     .updateTable('bluesky_crossposts')
     .set({ uri, cid, state: 'posted', error: null, updatedAt: new Date() })
     .where('statusId', '=', statusId)
-    .execute()
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
 }
 
 export const markBlueskyCrosspostFailed = async (

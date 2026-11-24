@@ -2,6 +2,7 @@ import sharp from 'sharp'
 
 import {
   BLUESKY_MAX_IMAGE_BYTES,
+  BlueskyImageFormatError,
   buildCrosspostText,
   fitImageForBluesky,
   markdownToBlueskyPlainText
@@ -82,6 +83,26 @@ describe('markdownToBlueskyPlainText', () => {
     expect(
       markdownToBlueskyPlainText('![a cat](https://example.com/cat.png)')
     ).toBe('a cat https://example.com/cat.png')
+  })
+
+  it('strips heading, blockquote and list markers but keeps the text', () => {
+    expect(
+      markdownToBlueskyPlainText('# Title\n> quoted\n- one\n* two\n1. three')
+    ).toBe('Title\nquoted\none\ntwo\nthree')
+  })
+
+  it('turns an autolink into the bare URL', () => {
+    expect(markdownToBlueskyPlainText('See <https://example.com/a>')).toBe(
+      'See https://example.com/a'
+    )
+  })
+
+  it('resolves a reference link with its definition', () => {
+    expect(
+      markdownToBlueskyPlainText(
+        'Read [the post][1]\n\n[1]: https://example.com/post'
+      )
+    ).toBe('Read the post https://example.com/post')
   })
 })
 
@@ -203,6 +224,27 @@ describe('buildCrosspostText', () => {
     expect(result.truncated).toBe(true)
     expect(countBlueskyGraphemes(result.text)).toBeLessThanOrEqual(60)
   })
+
+  it('never cuts inside a URL', () => {
+    const longUrl = `https://example.com/${'x'.repeat(80)}`
+    const text = `${'a'.repeat(200)} ${longUrl}`
+    const result = buildCrosspostText({ text, fullUrl: URL })
+
+    expect(result.truncated).toBe(true)
+    expect(result.text).not.toContain('https://example.com')
+    expect(result.text.endsWith(`… ${URL}`)).toBe(true)
+  })
+
+  it('drops a URL that would be cut in the middle', () => {
+    // A post that is just a long link: no word boundary saves the cut, so the
+    // URL must be dropped rather than left broken.
+    const longUrl = `https://example.com/${'x'.repeat(400)}`
+    const result = buildCrosspostText({ text: longUrl, fullUrl: URL })
+
+    expect(result.truncated).toBe(true)
+    expect(result.text).not.toContain('https://example.com')
+    expect(result.text).toBe(URL)
+  })
 })
 
 describe('fitImageForBluesky', () => {
@@ -218,7 +260,7 @@ describe('fitImageForBluesky', () => {
       .png()
       .toBuffer()
 
-    const result = await fitImageForBluesky(png, 'image/png')
+    const result = await fitImageForBluesky(png)
     expect(result.mimeType).toBe('image/png')
     expect(result.bytes.equals(png)).toBe(true)
     expect(result.width).toBe(20)
@@ -237,7 +279,7 @@ describe('fitImageForBluesky', () => {
       .jpeg()
       .toBuffer()
 
-    const result = await fitImageForBluesky(jpeg, 'image/jpeg')
+    const result = await fitImageForBluesky(jpeg)
     expect(result.mimeType).toBe('image/jpeg')
     expect(result.bytes.equals(jpeg)).toBe(true)
   })
@@ -250,7 +292,7 @@ describe('fitImageForBluesky', () => {
       .toBuffer()
     expect(png.byteLength).toBeGreaterThan(BLUESKY_MAX_IMAGE_BYTES)
 
-    const result = await fitImageForBluesky(png, 'image/png')
+    const result = await fitImageForBluesky(png)
     expect(result.mimeType).toBe('image/jpeg')
     expect(result.bytes.byteLength).toBeLessThanOrEqual(BLUESKY_MAX_IMAGE_BYTES)
     expect(result.width).toBeLessThanOrEqual(1400)
@@ -264,8 +306,63 @@ describe('fitImageForBluesky', () => {
       .png()
       .toBuffer()
 
-    const result = await fitImageForBluesky(png, 'image/png')
+    const result = await fitImageForBluesky(png)
     expect(result.mimeType).toBe('image/jpeg')
     expect(result.bytes.byteLength).toBeLessThanOrEqual(BLUESKY_MAX_IMAGE_BYTES)
   })
+
+  it('rejects an SVG', async () => {
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>'
+    )
+
+    await expect(fitImageForBluesky(svg)).rejects.toBeInstanceOf(
+      BlueskyImageFormatError
+    )
+  })
+
+  it('re-encodes a GIF to a JPEG', async () => {
+    const gif = await sharp({
+      create: { width: 20, height: 10, channels: 3, background: '#0f0' }
+    })
+      .gif()
+      .toBuffer()
+
+    const result = await fitImageForBluesky(gif)
+    expect(result.mimeType).toBe('image/jpeg')
+  })
+
+  it('refuses an image over the pixel limit', async () => {
+    // A valid PNG whose IHDR declares 12000x12000 (144 MP): over this
+    // instance's 100 MP cap, but under sharp's own default, so only the
+    // explicit limit refuses it.
+    const png = await sharp({
+      create: { width: 4, height: 4, channels: 3, background: '#fff' }
+    })
+      .png()
+      .toBuffer()
+    const huge = Buffer.from(png)
+    huge.writeUInt32BE(12_000, 16)
+    huge.writeUInt32BE(12_000, 20)
+    huge.writeUInt32BE(pngCrc32(huge.subarray(12, 29)), 29)
+
+    await expect(fitImageForBluesky(huge)).rejects.toBeInstanceOf(
+      BlueskyImageFormatError
+    )
+  })
 })
+
+// CRC-32 of a PNG chunk, so a patched IHDR stays a readable PNG header.
+const pngCrc32 = (buffer: Buffer): number => {
+  const table: number[] = []
+  for (let n = 0; n < 256; n += 1) {
+    let c = n
+    for (let k = 0; k < 8; k += 1) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    }
+    table[n] = c >>> 0
+  }
+  let crc = 0xffffffff
+  for (const byte of buffer) crc = table[(crc ^ byte) & 0xff] ^ (crc >>> 8)
+  return (crc ^ 0xffffffff) >>> 0
+}

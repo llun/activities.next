@@ -14,8 +14,11 @@ import {
 } from '@/lib/services/bluesky/appview'
 import {
   BLUESKY_CROSSPOST_FAILED_MESSAGE,
+  BLUESKY_CROSSPOST_IMAGE_FORMAT_MESSAGE,
   BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE,
+  BLUESKY_CROSSPOST_QUEUE_FAILED_MESSAGE,
   BLUESKY_CROSSPOST_SESSION_ENDED_MESSAGE,
+  BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE,
   crosspostStatus,
   enqueueBlueskyCrosspost
 } from '@/lib/services/bluesky/crosspost'
@@ -138,6 +141,52 @@ describe('Bluesky cross-post', () => {
       actorId: status.actorId
     })
     return status
+  }
+
+  // A stored image the status's own actor owns, and the attachment pointing at
+  // it. The attachment URL is deliberately not the media's own path: the
+  // cross-post must read the media row, never the client-supplied URL.
+  const createImageAttachment = async ({
+    status,
+    index,
+    by = actor,
+    uploadState = 'verified',
+    isRouteMap = false,
+    mediaType = 'image/png'
+  }: {
+    status: StatusNote
+    index: number
+    by?: Actor
+    uploadState?: 'pending' | 'verified'
+    isRouteMap?: boolean
+    mediaType?: string
+  }) => {
+    const media = await database.createMedia({
+      actorId: by.id,
+      original: {
+        path: `medias/photo-${index}.png`,
+        bytes: png.length,
+        mimeType: 'image/png',
+        metaData: {
+          width: 4,
+          height: 2,
+          upload: { state: uploadState }
+        }
+      }
+    })
+    await database.createAttachment({
+      actorId: status.actorId,
+      statusId: status.id,
+      mediaType,
+      url: `https://media.test/files/elsewhere-${index}.png`,
+      width: 4,
+      height: 2,
+      name: `alt ${index}`,
+      mediaId: media!.id,
+      isRouteMap,
+      createdAt: Date.now() + index
+    })
+    return media!
   }
 
   const createdRecord = (call = 0) =>
@@ -276,16 +325,7 @@ describe('Bluesky cross-post', () => {
     it('uploads up to four images with alt text, and links to the post for what it leaves out', async () => {
       const status = await createNote({ text: 'Photos', sensitive: true })
       for (let index = 0; index < 5; index++) {
-        await database.createAttachment({
-          actorId: actor.id,
-          statusId: status.id,
-          mediaType: 'image/png',
-          url: `https://media.test/files/photo-${index}.png`,
-          width: 4,
-          height: 2,
-          name: `alt ${index}`,
-          createdAt: Date.now() + index
-        })
+        await createImageAttachment({ status, index })
       }
       await claim(status)
       vi.mocked(readStoredImage).mockResolvedValue({
@@ -297,6 +337,11 @@ describe('Bluesky cross-post', () => {
       await crosspostStatus(database, status.id)
 
       expect(uploadBlob).toHaveBeenCalledTimes(4)
+      // The media row's own stored path is read, not the attachment URL.
+      expect(readStoredImage).toHaveBeenCalledWith(
+        database,
+        'medias/photo-0.png'
+      )
       const record = createdRecord()
       expect(record.embed.$type).toBe('app.bsky.embed.images')
       expect(record.embed.images).toHaveLength(4)
@@ -311,6 +356,31 @@ describe('Bluesky cross-post', () => {
         $type: 'com.atproto.label.defs#selfLabels',
         values: [{ val: 'graphic-media' }]
       })
+    })
+
+    it('skips an image the status actor does not own, a pending upload and a route map', async () => {
+      const status = await createNote({ text: 'Mixed' })
+      // Owned by another actor: the media row is not the status actor's.
+      await createImageAttachment({ status, index: 0, by: unlinked })
+      // A presigned upload whose bytes are still the client's.
+      await createImageAttachment({ status, index: 1, uploadState: 'pending' })
+      // A fitness route map is never a Bluesky photo.
+      await createImageAttachment({ status, index: 2, isRouteMap: true })
+      await claim(status)
+      vi.mocked(readStoredImage).mockResolvedValue({
+        buffer: png,
+        mimeType: 'image/png'
+      } as Awaited<ReturnType<typeof readStoredImage>>)
+      answerCreate('3kskip')
+
+      await crosspostStatus(database, status.id)
+
+      expect(uploadBlob).not.toHaveBeenCalled()
+      expect(readStoredImage).not.toHaveBeenCalled()
+      const record = createdRecord()
+      expect(record).not.toHaveProperty('embed')
+      // Dropped media forces the link back to the post.
+      expect(record.text).toBe(`Mixed\n\n${status.url}`)
     })
 
     it('says only the content warning and the link, without images or label', async () => {
@@ -365,7 +435,9 @@ describe('Bluesky cross-post', () => {
       )
     })
 
-    it('quotes a Bluesky post as a record and a fediverse post as its link', async () => {
+    it('links a quote of a fediverse post and never embeds a Bluesky quote', async () => {
+      // Quoting a Bluesky post is refused when the quote is created, so a
+      // stored Bluesky quote is not embedded: it is only a URL in the text.
       const quotedActorId = (await database.upsertBlueskyActor({
         did: OTHER_DID,
         handle: 'other.bsky.social'
@@ -391,10 +463,7 @@ describe('Bluesky cross-post', () => {
 
       await crosspostStatus(database, bskyQuote.id)
 
-      expect(createdRecord(0).embed).toEqual({
-        $type: 'app.bsky.embed.record',
-        record: { uri: postUri('3kquoted', OTHER_DID), cid: cid('q') }
-      })
+      expect(createdRecord(0)).not.toHaveProperty('embed')
 
       const fediversePost = await createNote({ text: 'Original', by: unlinked })
       const fediQuote = await createNote({ text: 'Quoting' })
@@ -410,6 +479,43 @@ describe('Bluesky cross-post', () => {
 
       const record = createdRecord(1)
       expect(record.text).toBe(`Quoting\n\n${fediversePost.url}`)
+      expect(record).not.toHaveProperty('embed')
+    })
+
+    it('never embeds anything on a content-warning post, even with a quote', async () => {
+      // A Bluesky quote would be embedded by the old path; a content warning
+      // must still leave it out.
+      const quotedActorId = (await database.upsertBlueskyActor({
+        did: OTHER_DID,
+        handle: 'other.bsky.social'
+      })) as string
+      const quoted = await database.upsertBlueskyPost({
+        uri: postUri('3kcwquoted', OTHER_DID),
+        cid: cid('w'),
+        did: OTHER_DID,
+        rkey: '3kcwquoted',
+        actorId: quotedActorId,
+        text: '<p>Quoted</p>',
+        createdAt: Date.now() - 1000,
+        attachments: []
+      })
+      const status = await createNote({
+        text: 'Hidden',
+        summary: 'Spoilers',
+        sensitive: true
+      })
+      await database.createStatusQuote({
+        statusId: status.id,
+        quotedStatusId: quoted.statusId,
+        state: 'accepted'
+      })
+      await claim(status)
+      answerCreate('3kcwquote')
+
+      await crosspostStatus(database, status.id)
+
+      const record = createdRecord()
+      expect(record.text).toBe(`Spoilers\n\n${status.url}`)
       expect(record).not.toHaveProperty('embed')
     })
 
@@ -434,9 +540,10 @@ describe('Bluesky cross-post', () => {
               }
             : found
         })
+      // The header lies: the bytes are a PNG, so the blob must be image/png.
       vi.mocked(safeImageFetch).mockResolvedValue(
         new Response(new Uint8Array(png), {
-          headers: { 'content-type': 'image/png' }
+          headers: { 'content-type': 'image/jpeg' }
         })
       )
       answerCreate('3kcard')
@@ -447,6 +554,7 @@ describe('Bluesky cross-post', () => {
         spy.mockRestore()
       }
 
+      expect(uploadBlob).toHaveBeenCalledWith(expect.any(Buffer), 'image/png')
       expect(createdRecord().embed).toEqual({
         $type: 'app.bsky.embed.external',
         external: {
@@ -534,6 +642,116 @@ describe('Bluesky cross-post', () => {
       expect(post).toHaveBeenCalledTimes(1)
     })
 
+    it('deletes the new record when the post was deleted while it was created', async () => {
+      const status = await claim(await createNote({ text: 'Gone' }))
+      answerCreate('3kgone')
+      const spy = vi
+        .spyOn(database, 'markBlueskyCrosspostPosted')
+        .mockResolvedValue(false)
+      try {
+        await crosspostStatus(database, status.id)
+      } finally {
+        spy.mockRestore()
+      }
+
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey: '3kgone'
+      })
+    })
+
+    it('never retries createRecord when the record cannot be recorded', async () => {
+      const status = await claim(await createNote({ text: 'Unrecorded' }))
+      answerCreate('3kunrecorded')
+      const spy = vi
+        .spyOn(database, 'markBlueskyCrosspostPosted')
+        .mockRejectedValue(new Error('unique constraint'))
+      try {
+        await crosspostStatus(database, status.id)
+      } finally {
+        spy.mockRestore()
+      }
+
+      expect(post).toHaveBeenCalledTimes(1)
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
+      })
+    })
+
+    it('drops the row when the post stops being crosspostable before the lock runs', async () => {
+      const status = await claim(await createNote({ text: 'Changed' }))
+      const getStatus = database.getStatus.bind(database)
+      let calls = 0
+      const spy = vi
+        .spyOn(database, 'getStatus')
+        .mockImplementation(async (params) => {
+          const found = await getStatus(params)
+          calls += 1
+          return calls === 1 || !found
+            ? found
+            : { ...found, to: [`${actor.id}/followers`] }
+        })
+      try {
+        await crosspostStatus(database, status.id)
+      } finally {
+        spy.mockRestore()
+      }
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toBeNull()
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('drops the row when the actor can no longer act', async () => {
+      const status = await claim(await createNote({ text: 'Suspended' }))
+      const getActor = database.getActorFromId.bind(database)
+      let calls = 0
+      const spy = vi
+        .spyOn(database, 'getActorFromId')
+        .mockImplementation(async (params) => {
+          const found = await getActor(params)
+          calls += 1
+          return calls === 1 || !found
+            ? found
+            : { ...found, suspendedAt: Date.now() }
+        })
+      try {
+        await crosspostStatus(database, status.id)
+      } finally {
+        spy.mockRestore()
+      }
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toBeNull()
+      expect(post).not.toHaveBeenCalled()
+    })
+
+    it('marks a post failed when an image is not a format Bluesky accepts', async () => {
+      const status = await createNote({ text: 'SVG' })
+      await createImageAttachment({ status, index: 0 })
+      await claim(status)
+      vi.mocked(readStoredImage).mockResolvedValue({
+        buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),
+        mimeType: 'image/svg+xml'
+      } as Awaited<ReturnType<typeof readStoredImage>>)
+
+      await crosspostStatus(database, status.id)
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_IMAGE_FORMAT_MESSAGE
+      })
+      expect(post).not.toHaveBeenCalled()
+    })
+
     it('posts a failed status again once it is reset for a retry', async () => {
       const status = await claim(await createNote({ text: 'Retry me' }))
       post.mockRejectedValueOnce(
@@ -594,7 +812,16 @@ describe('Bluesky cross-post', () => {
       {
         name: 'an unexpected createRecord answer',
         answer: { uri: 'not-a-uri', cid: 'x' },
-        message: BLUESKY_CROSSPOST_FAILED_MESSAGE
+        message: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
+      },
+      {
+        name: 'an oversized createRecord answer',
+        // A valid rkey (500 chars) makes a uri over the 512-char cap.
+        answer: {
+          uri: `at://${OWN_DID}/app.bsky.feed.post/${'a'.repeat(500)}`,
+          cid: cid('c')
+        },
+        message: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
       }
     ])('marks $name failed', async ({ error, answer, message }) => {
       const status = await claim(await createNote({ text: 'Fails' }))
@@ -717,6 +944,29 @@ describe('Bluesky cross-post', () => {
       await expect(rowOf(unlisted)).resolves.toBeNull()
       await expect(rowOf(other)).resolves.toBeNull()
       await expect(rowOf(refused)).resolves.toBeNull()
+      expect(queue.publish).not.toHaveBeenCalled()
+    })
+
+    it('marks the row failed when the job cannot be queued', async () => {
+      const status = await createNote({ text: 'No queue' })
+      queue.publish.mockRejectedValueOnce(new Error('queue down'))
+
+      await enqueueBlueskyCrosspost(database, { actor, status })
+
+      await expect(rowOf(status)).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_QUEUE_FAILED_MESSAGE
+      })
+    })
+
+    it('skips a post whose actor can no longer act', async () => {
+      const status = await createNote({ text: 'Suspended' })
+      await enqueueBlueskyCrosspost(database, {
+        actor: { ...actor, suspendedAt: Date.now() },
+        status
+      })
+
+      await expect(rowOf(status)).resolves.toBeNull()
       expect(queue.publish).not.toHaveBeenCalled()
     })
 

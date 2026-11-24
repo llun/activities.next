@@ -816,6 +816,7 @@ export const createSafeRemoteFetch = ({
       redirectCount += 1
       if (response.statusCode === 303) {
         currentBody = undefined
+        currentBodyBytes = undefined
         currentMethod = 'GET'
       }
 

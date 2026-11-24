@@ -15,13 +15,18 @@ export const blueskyFetch = async (
 ): Promise<Response> => {
   const request = new Request(input, init)
   const method = request.method.toUpperCase()
+  // Read the body as bytes, not text: an uploadBlob body is binary, and
+  // `request.text()` would replace every invalid UTF-8 sequence with U+FFFD.
+  // A JSON body is still sent byte-for-byte, so string callers are unaffected.
   const body =
-    method === 'GET' || method === 'HEAD' ? undefined : await request.text()
+    method === 'GET' || method === 'HEAD'
+      ? undefined
+      : new Uint8Array(await request.arrayBuffer())
   const result = await safeRemoteFetch({
     url: request.url,
     method: method as 'GET',
     headers: Object.fromEntries(request.headers),
-    ...(body !== undefined ? { body } : {}),
+    ...(body !== undefined ? { bodyBytes: body } : {}),
     maxRedirects: request.redirect === 'follow' ? undefined : 0,
     allowCrossHostRedirects: false,
     signal: request.signal

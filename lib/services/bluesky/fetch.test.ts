@@ -29,15 +29,43 @@ describe('blueskyFetch', () => {
       expect.objectContaining({
         url: 'https://pds.example.net/token',
         method: 'POST',
-        body: 'grant_type=refresh_token',
+        bodyBytes: new TextEncoder().encode('grant_type=refresh_token'),
         headers: expect.objectContaining({ dpop: 'proof' }),
         maxRedirects: 0,
         allowCrossHostRedirects: false
       })
     )
+    expect(vi.mocked(safeRemoteFetch).mock.calls[0][0]).not.toHaveProperty(
+      'body'
+    )
     expect(response.status).toBe(201)
     expect(await response.json()).toEqual({ ok: true })
     expect(response.headers.get('set-cookie')).toBe('a, b')
+  })
+
+  it('sends a binary body byte-for-byte', async () => {
+    vi.mocked(safeRemoteFetch).mockResolvedValue({
+      body: '{"blob":{}}',
+      bodyTruncated: false,
+      headers: { 'content-type': 'application/json' },
+      statusCode: 200,
+      url: 'https://pds.example.net/xrpc/com.atproto.repo.uploadBlob'
+    })
+    // Bytes that are not valid UTF-8: `request.text()` would replace them.
+    const bytes = new Uint8Array([0xff, 0x00, 0xfe, 0x80, 0x41])
+
+    await blueskyFetch(
+      'https://pds.example.net/xrpc/com.atproto.repo.uploadBlob',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'image/png' },
+        body: bytes
+      }
+    )
+
+    const sent = vi.mocked(safeRemoteFetch).mock.calls[0][0]
+    expect(sent).not.toHaveProperty('body')
+    expect(Array.from(sent.bodyBytes ?? [])).toEqual(Array.from(bytes))
   })
 
   it('follows same-host redirects only when the caller allows them', async () => {

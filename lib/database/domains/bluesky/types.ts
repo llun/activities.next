@@ -179,11 +179,15 @@ export interface BlueskyDatabase {
     statusId: string
     actorId: string
   }): Promise<boolean>
+  /**
+   * Records the posted record. Returns whether a row was updated: false when
+   * the post was deleted while its record was being created.
+   */
   markBlueskyCrosspostPosted(params: {
     statusId: string
     uri: string
     cid: string
-  }): Promise<void>
+  }): Promise<boolean>
   markBlueskyCrosspostFailed(params: {
     statusId: string
     error: string
