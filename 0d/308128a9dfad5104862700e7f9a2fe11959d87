@@ -1,0 +1,23 @@
+lib/services/bluesky/notifications.ts
+  s_f193227df3df34::t_df70b32a7b2fbe 30-34,514-515,522-527,534-546,548
+lib/services/bluesky/notifications.test.ts
+  s_f193227df3df34::t_625f052b714423 783,834,842,866-934
+  s_f193227df3df34::t_5cf9e7cb0710f8 6
+  s_f193227df3df34::t_4d658b04400a21 935
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d308128a9dfad5104862700e7f9a2fe11959d87",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
