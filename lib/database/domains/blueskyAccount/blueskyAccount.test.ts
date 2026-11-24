@@ -69,10 +69,19 @@ describe('BlueskyAccount', () => {
       uri: 'at://did:plc:old/app.bsky.graph.follow/1'
     })
 
-  it('replaces an actor’s link and drops the old DID’s session and follows', async () => {
+  const like = (actorId: string) =>
+    database.createBlueskyInteraction({
+      actorId,
+      statusId: 'https://bsky.app/profile/did:plc:target/post/3k1',
+      kind: 'like',
+      uri: 'at://did:plc:old/app.bsky.feed.like/1'
+    })
+
+  it('replaces an actor’s link and drops the old DID’s session, follows and interactions', async () => {
     await link('actor-3', 'did:plc:old')
     await database.setBlueskySession({ did: 'did:plc:old', session: 'old' })
     await follow('actor-3')
+    await like('actor-3')
 
     expect(await link('actor-3', 'did:plc:new')).toBe('saved')
     expect(await database.getBlueskySession({ did: 'did:plc:old' })).toBeNull()
@@ -80,19 +89,70 @@ describe('BlueskyAccount', () => {
       await database.getBlueskyFollowTargetIds({ actorId: 'actor-3' })
     ).toEqual([])
     expect(
+      await database.getBlueskyInteractionsForStatuses({
+        actorId: 'actor-3',
+        statusIds: ['https://bsky.app/profile/did:plc:target/post/3k1']
+      })
+    ).toEqual([])
+    expect(
       (await database.getBlueskyAccount({ actorId: 'actor-3' }))?.did
     ).toBe('did:plc:new')
   })
 
-  it('keeps the session and follows when the same DID is linked again', async () => {
+  it('keeps the session, follows and interactions when the same DID is linked again', async () => {
     await link('actor-4', 'did:plc:same')
     await database.setBlueskySession({ did: 'did:plc:same', session: 's1' })
     await follow('actor-4')
+    await like('actor-4')
     await link('actor-4', 'did:plc:same')
     expect(await database.getBlueskySession({ did: 'did:plc:same' })).toBe('s1')
     expect(
       await database.getBlueskyFollowTargetIds({ actorId: 'actor-4' })
     ).toHaveLength(1)
+    expect(
+      await database.getBlueskyInteractionsForStatuses({
+        actorId: 'actor-4',
+        statusIds: ['https://bsky.app/profile/did:plc:target/post/3k1']
+      })
+    ).toHaveLength(1)
+  })
+
+  it('sets, reads and clears notificationsSeenAt', async () => {
+    await link('actor-notif', 'did:plc:notif')
+    expect(
+      (await database.getBlueskyAccount({ actorId: 'actor-notif' }))
+        ?.notificationsSeenAt
+    ).toBeNull()
+
+    const seenAt = Date.UTC(2026, 10, 24, 6, 0, 0)
+    await database.updateBlueskyNotificationsSeenAt({
+      actorId: 'actor-notif',
+      seenAt
+    })
+    expect(
+      (await database.getBlueskyAccount({ actorId: 'actor-notif' }))
+        ?.notificationsSeenAt
+    ).toBe(seenAt)
+    expect(
+      (await database.getBlueskyAccountByDid({ did: 'did:plc:notif' }))
+        ?.notificationsSeenAt
+    ).toBe(seenAt)
+
+    // Re-linking the same DID preserves notificationsSeenAt.
+    await link('actor-notif', 'did:plc:notif')
+    expect(
+      (await database.getBlueskyAccount({ actorId: 'actor-notif' }))
+        ?.notificationsSeenAt
+    ).toBe(seenAt)
+
+    await database.updateBlueskyNotificationsSeenAt({
+      actorId: 'actor-notif',
+      seenAt: null
+    })
+    expect(
+      (await database.getBlueskyAccount({ actorId: 'actor-notif' }))
+        ?.notificationsSeenAt
+    ).toBeNull()
   })
 
   it('keeps the last sync and clears its error when the same DID is linked again', async () => {
@@ -344,14 +404,21 @@ describe('BlueskyAccount', () => {
     })
   })
 
-  it('unlinks the account, its session and its follows', async () => {
+  it('unlinks the account, its session, its follows and its interactions', async () => {
     await link('actor-7', 'did:plc:seven')
     await database.setBlueskySession({ did: 'did:plc:seven', session: 's' })
     await follow('actor-7')
+    await like('actor-7')
     await database.deleteBlueskyAccount({ actorId: 'actor-7' })
     expect(await database.getBlueskyAccount({ actorId: 'actor-7' })).toBeNull()
     expect(
       await database.getBlueskyFollowTargetIds({ actorId: 'actor-7' })
+    ).toEqual([])
+    expect(
+      await database.getBlueskyInteractionsForStatuses({
+        actorId: 'actor-7',
+        statusIds: ['https://bsky.app/profile/did:plc:target/post/3k1']
+      })
     ).toEqual([])
     expect(
       await database.getBlueskySession({ did: 'did:plc:seven' })

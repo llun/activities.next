@@ -1376,6 +1376,7 @@ describe('statements', () => {
       'delete bluesky_accounts by actorId',
       'delete bluesky_follows by actorId',
       'delete bluesky_follows by targetActorId',
+      'delete bluesky_interactions by actorId',
       'delete idempotency_keys by actorId',
       'select poll_answers by actorId',
       'select poll_choices by statusId',

@@ -276,6 +276,7 @@ export interface BlueskyAccounts {
   handle: string
   instanceHandle: Nullable<string>
   lastSyncedAt: Nullable<Timestamp>
+  notificationsSeenAt: Nullable<Timestamp>
   pdsUrl: string
   syncError: Nullable<string>
   updatedAt: WithDefault<Timestamp>
@@ -285,6 +286,14 @@ export interface BlueskyFollows {
   actorId: string
   createdAt: WithDefault<Timestamp>
   targetActorId: string
+  uri: string
+}
+
+export interface BlueskyInteractions {
+  actorId: string
+  createdAt: WithDefault<Timestamp>
+  kind: string
+  statusId: string
   uri: string
 }
 
@@ -1615,6 +1624,7 @@ export interface DB {
   blocks: Blocks
   bluesky_accounts: BlueskyAccounts
   bluesky_follows: BlueskyFollows
+  bluesky_interactions: BlueskyInteractions
   bluesky_oauth_states: BlueskyOauthStates
   bluesky_records: BlueskyRecords
   bluesky_sessions: BlueskySessions

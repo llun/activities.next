@@ -21,6 +21,9 @@ const toAccount = (row: Selectable<BlueskyAccounts>): BlueskyAccount => ({
   instanceHandle: row.instanceHandle ?? null,
   lastSyncedAt: row.lastSyncedAt ? getCompatibleTime(row.lastSyncedAt) : null,
   syncError: row.syncError ?? null,
+  notificationsSeenAt: row.notificationsSeenAt
+    ? getCompatibleTime(row.notificationsSeenAt)
+    : null,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -110,9 +113,13 @@ export const saveBlueskyAccount = async (
           .deleteFrom('bluesky_sessions')
           .where('did', '=', previous.did)
           .execute()
-        // Follow records in the old DID's repository.
+        // Follow and interaction records in the old DID's repository.
         await trx
           .deleteFrom('bluesky_follows')
+          .where('actorId', '=', params.actorId)
+          .execute()
+        await trx
+          .deleteFrom('bluesky_interactions')
           .where('actorId', '=', params.actorId)
           .execute()
         await trx
@@ -151,6 +158,19 @@ export const updateBlueskyAccountIdentity = async (
   await db
     .updateTable('bluesky_accounts')
     .set({ handle, pdsUrl, domainHandle, updatedAt: new Date() })
+    .where('actorId', '=', actorId)
+    .execute()
+}
+
+export const updateBlueskyNotificationsSeenAt = async (
+  db: Db,
+  { actorId, seenAt }: { actorId: string; seenAt: number | null }
+): Promise<void> => {
+  await db
+    .updateTable('bluesky_accounts')
+    .set({
+      notificationsSeenAt: seenAt === null ? null : new Date(seenAt)
+    })
     .where('actorId', '=', actorId)
     .execute()
 }
@@ -233,6 +253,10 @@ export const deleteBlueskyAccount = async (
       .execute()
     await trx
       .deleteFrom('bluesky_follows')
+      .where('actorId', '=', actorId)
+      .execute()
+    await trx
+      .deleteFrom('bluesky_interactions')
       .where('actorId', '=', actorId)
       .execute()
     await trx
@@ -323,6 +347,7 @@ export const blueskyAccountQueries = {
   getBlueskyAccountByInstanceHandle,
   saveBlueskyAccount,
   updateBlueskyAccountIdentity,
+  updateBlueskyNotificationsSeenAt,
   setBlueskyInstanceHandle,
   listBlueskyAccountsToSync,
   deleteBlueskyAccount,

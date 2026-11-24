@@ -447,6 +447,223 @@ describe('Bluesky', () => {
     })
   })
 
+  describe('interactions', () => {
+    it('creates idempotently, reads and deletes likes and reposts', async () => {
+      const actorId = 'https://local.test/users/interactor'
+      const statusId = blueskyPostId('did:plc:poster', '3kinteract')
+      const likeUri = 'at://did:plc:me/app.bsky.feed.like/1'
+      const repostUri = 'at://did:plc:me/app.bsky.feed.repost/1'
+
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'like'
+        })
+      ).toBeNull()
+
+      await database.createBlueskyInteraction({
+        actorId,
+        statusId,
+        kind: 'like',
+        uri: likeUri
+      })
+      // Idempotent create keeps the original record URI on conflict.
+      await database.createBlueskyInteraction({
+        actorId,
+        statusId,
+        kind: 'like',
+        uri: 'at://did:plc:me/app.bsky.feed.like/2'
+      })
+      await database.createBlueskyInteraction({
+        actorId,
+        statusId,
+        kind: 'repost',
+        uri: repostUri
+      })
+
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'like'
+        })
+      ).toMatchObject({
+        actorId,
+        statusId,
+        kind: 'like',
+        uri: likeUri
+      })
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'repost'
+        })
+      ).toMatchObject({
+        actorId,
+        statusId,
+        kind: 'repost',
+        uri: repostUri
+      })
+
+      await database.deleteBlueskyInteraction({
+        actorId,
+        statusId,
+        kind: 'like'
+      })
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'like'
+        })
+      ).toBeNull()
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'repost'
+        })
+      ).toMatchObject({ uri: repostUri })
+    })
+
+    it('reads interactions in batches across chunk boundaries', async () => {
+      const actorId = 'https://local.test/users/batch-reader'
+      const otherActorId = 'https://local.test/users/batch-other'
+      const statusIds = Array.from({ length: 505 }, (_, index) =>
+        blueskyPostId('did:plc:batch', `3kbatch${index}`)
+      )
+      const firstId = statusIds[0]
+      const lastId = statusIds[statusIds.length - 1]
+
+      await database.createBlueskyInteraction({
+        actorId,
+        statusId: firstId,
+        kind: 'like',
+        uri: 'at://did:plc:me/app.bsky.feed.like/first'
+      })
+      await database.createBlueskyInteraction({
+        actorId,
+        statusId: firstId,
+        kind: 'repost',
+        uri: 'at://did:plc:me/app.bsky.feed.repost/first'
+      })
+      await database.createBlueskyInteraction({
+        actorId,
+        statusId: lastId,
+        kind: 'like',
+        uri: 'at://did:plc:me/app.bsky.feed.like/last'
+      })
+      await database.createBlueskyInteraction({
+        actorId: otherActorId,
+        statusId: firstId,
+        kind: 'like',
+        uri: 'at://did:plc:other/app.bsky.feed.like/first'
+      })
+
+      expect(
+        await database.getBlueskyInteractionsForStatuses({
+          actorId,
+          statusIds: []
+        })
+      ).toEqual([])
+
+      const found = await database.getBlueskyInteractionsForStatuses({
+        actorId,
+        statusIds: [...statusIds, firstId]
+      })
+      expect(found).toHaveLength(3)
+      expect(
+        found.map(({ statusId, kind, uri }) => ({ statusId, kind, uri }))
+      ).toEqual(
+        expect.arrayContaining([
+          {
+            statusId: firstId,
+            kind: 'like',
+            uri: 'at://did:plc:me/app.bsky.feed.like/first'
+          },
+          {
+            statusId: firstId,
+            kind: 'repost',
+            uri: 'at://did:plc:me/app.bsky.feed.repost/first'
+          },
+          {
+            statusId: lastId,
+            kind: 'like',
+            uri: 'at://did:plc:me/app.bsky.feed.like/last'
+          }
+        ])
+      )
+    })
+  })
+
+  describe('setBlueskyPostCounts', () => {
+    it('sets counters read back by status hydration and skips invalid values', async () => {
+      const did = 'did:plc:counter-author'
+      const actorId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'counter-author.bsky.social'
+      })) as string
+      const { statusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/3kcounts`,
+        cid: 'bafycounts',
+        did,
+        rkey: '3kcounts',
+        actorId,
+        text: '<p>Counts</p>',
+        createdAt: Date.UTC(2026, 10, 7),
+        attachments: []
+      })
+
+      await database.setBlueskyPostCounts({
+        statusId,
+        likes: 12,
+        reposts: 4,
+        replies: 7
+      })
+      expect(await database.getStatus({ statusId })).toMatchObject({
+        totalLikes: 12,
+        totalShares: 4
+      })
+      expect(await database.getStatusReblogsCount({ statusId })).toBe(4)
+      expect(await database.getStatusRepliesCount({ statusId })).toBe(7)
+
+      // Negative, non-integer, non-finite and missing values leave existing
+      // counters intact.
+      await database.setBlueskyPostCounts({
+        statusId,
+        likes: -1,
+        reposts: 2.5,
+        replies: Number.NaN
+      })
+      await database.setBlueskyPostCounts({
+        statusId,
+        likes: Number.POSITIVE_INFINITY,
+        reposts: null,
+        replies: undefined
+      })
+      expect(await database.getStatus({ statusId })).toMatchObject({
+        totalLikes: 12,
+        totalShares: 4
+      })
+      expect(await database.getStatusRepliesCount({ statusId })).toBe(7)
+
+      // Zero is a valid count.
+      await database.setBlueskyPostCounts({
+        statusId,
+        likes: 0,
+        reposts: 0,
+        replies: 0
+      })
+      expect(await database.getStatus({ statusId })).toMatchObject({
+        totalLikes: 0,
+        totalShares: 0
+      })
+      expect(await database.getStatusRepliesCount({ statusId })).toBe(0)
+    })
+  })
+
   describe('updateBlueskyAccountSync', () => {
     it('sets and clears the sync state', async () => {
       const actorId = 'https://local.test/users/syncer'

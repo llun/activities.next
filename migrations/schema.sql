@@ -253,12 +253,21 @@ CREATE TABLE public.bluesky_accounts (
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "lastSyncedAt" timestamp with time zone,
-    "syncError" text
+    "syncError" text,
+    "notificationsSeenAt" timestamp with time zone
 );
 
 CREATE TABLE public.bluesky_follows (
     "actorId" character varying(255) NOT NULL,
     "targetActorId" character varying(255) NOT NULL,
+    uri character varying(512) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.bluesky_interactions (
+    "actorId" character varying(255) NOT NULL,
+    "statusId" character varying(255) NOT NULL,
+    kind character varying(16) NOT NULL,
     uri character varying(512) NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -1801,6 +1810,9 @@ ALTER TABLE ONLY public.bluesky_accounts
 ALTER TABLE ONLY public.bluesky_follows
     ADD CONSTRAINT bluesky_follows_pkey PRIMARY KEY ("actorId", "targetActorId");
 
+ALTER TABLE ONLY public.bluesky_interactions
+    ADD CONSTRAINT bluesky_interactions_pkey PRIMARY KEY ("actorId", "statusId", kind);
+
 ALTER TABLE ONLY public.bluesky_oauth_states
     ADD CONSTRAINT bluesky_oauth_states_pkey PRIMARY KEY (key);
 
@@ -2290,6 +2302,8 @@ CREATE INDEX blocks_actor_created ON public.blocks USING btree ("actorId", "crea
 CREATE INDEX blocks_target ON public.blocks USING btree ("targetActorId");
 
 CREATE INDEX bluesky_follows_target_idx ON public.bluesky_follows USING btree ("targetActorId");
+
+CREATE INDEX bluesky_interactions_status_idx ON public.bluesky_interactions USING btree ("statusId");
 
 CREATE INDEX bluesky_oauth_states_expires_at_idx ON public.bluesky_oauth_states USING btree ("expiresAt");
 
