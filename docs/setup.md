@@ -494,6 +494,8 @@ The app (`yarn migrate`) runs the migrations, but the test suite does **not** â€
        > migrations/schema.sqlite.sql
      ```
 
+     The committed dump is what CI's `sqlite3` prints, which keeps `CREATE TABLE IF NOT EXISTS` for a table a migration created with `.ifNotExists()`. The `sqlite3` on macOS (and Homebrew's) prints those as plain `CREATE TABLE` and rewrites older rows the same way, so on a Mac compare the new lines with the existing ones and keep the `IF NOT EXISTS` spelling rather than committing the whole re-dump.
+
   3. Sanity-check that the result loads cleanly into a fresh database:
 
      ```bash
