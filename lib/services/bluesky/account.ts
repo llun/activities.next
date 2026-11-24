@@ -517,6 +517,9 @@ export const checkBlueskyHandle = async (
 ): Promise<BlueskyHandleCheck> => {
   const account = await database.getBlueskyAccount({ actorId: actor.id })
   if (!account) throw new BlueskyLinkError('No Bluesky account is linked.', 400)
+  if (!(await isBlueskyAllowed(database))) {
+    throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
   await limitOutboundAction(database, actor)
   const identity = await resolveIdentity(account.did, true)
   const { handle, verified } = identity

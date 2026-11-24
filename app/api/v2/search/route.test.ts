@@ -2365,5 +2365,26 @@ describe('GET /api/v2/search', () => {
         account: 'river.bsky.social@bsky.brid.gy'
       })
     })
+
+    it('keeps the Bridgy Fed path when the server does not allow Bluesky', async () => {
+      const bridgedActorId =
+        'https://bsky.brid.gy/ap/did:plc:abcdefghijklmnopqrstuvwx'
+      mockGetDomainBlockForDomain.mockImplementation(async (domain) =>
+        domain === 'bsky.app' ? { domain, severity: 'suspend' } : null
+      )
+      mockGetWebfingerSelf.mockResolvedValue(bridgedActorId)
+      mockRecordActorIfNeeded.mockResolvedValue({ id: bridgedActorId })
+
+      const response = await searchAccounts('river.bsky.social')
+
+      expect(response.status).toBe(200)
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
+      expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+        account: 'river.bsky.social@bsky.brid.gy'
+      })
+      expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+        ids: [bridgedActorId, 'https://remote.test/users/alice']
+      })
+    })
   })
 })

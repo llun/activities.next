@@ -8,6 +8,7 @@ import {
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
 import {
+  hasLinkedAccount,
   parseBlueskyProfileInput,
   resolveBlueskyProfile
 } from '@/lib/services/bluesky/profiles'
@@ -120,9 +121,7 @@ export const GET = traceApiRoute(
         firstResolvePage &&
         !directActor &&
         parseBlueskyProfileInput(query) !== null &&
-        (await database.getBlueskyAccount({
-          actorId: context.currentActor.id
-        })) !== null
+        (await hasLinkedAccount(database, context.currentActor))
       const directHandle =
         firstResolvePage && !directActor && !nativeBluesky
           ? (parseAccountHandle(query) ?? parseAccountUrlHandle(query))

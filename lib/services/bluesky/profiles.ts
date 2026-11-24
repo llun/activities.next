@@ -37,7 +37,7 @@ type Json = Record<string, unknown>
 
 // The owner's rule: only a viewer with a linked Bluesky account (on a server
 // that allows Bluesky) makes this server contact Bluesky for a profile.
-const hasLinkedAccount = async (database: Database, viewer: Actor) =>
+export const hasLinkedAccount = async (database: Database, viewer: Actor) =>
   (await isBlueskyAllowed(database)) &&
   !!(await database.getBlueskyAccount({ actorId: viewer.id }))
 

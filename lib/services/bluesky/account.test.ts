@@ -710,6 +710,27 @@ describe('Bluesky account service', () => {
       ).toBe('alice.example.org')
     })
 
+    it('refuses a handle check when federation policy disallows Bluesky', async () => {
+      await linkAlice()
+      const block = await database.createDomainBlock({
+        domain: 'bsky.app',
+        severity: 'suspend'
+      })
+      try {
+        await expect(
+          checkBlueskyHandle(database, actor('actor-a'))
+        ).rejects.toMatchObject({
+          status: 422,
+          message: 'This server does not allow Bluesky.'
+        })
+        expect(resolve).not.toHaveBeenCalled()
+        expect(safeRemoteFetch).not.toHaveBeenCalled()
+        expect(resolveTxt).not.toHaveBeenCalled()
+      } finally {
+        await database.deleteDomainBlock(block.id)
+      }
+    })
+
     it('lowercases a claimed handle and refuses one that is not a handle', async () => {
       await linkAlice()
       vi.mocked(resolveTxt).mockResolvedValue([])

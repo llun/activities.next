@@ -12,6 +12,7 @@ import {
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
 import {
+  hasLinkedAccount,
   parseBlueskyProfileInput,
   resolveBlueskyProfile
 } from '@/lib/services/bluesky/profiles'
@@ -417,7 +418,7 @@ const resolveAccountIdOrBlueskyBridge = async (
     params.resolve &&
     currentActor &&
     parseBlueskyProfileInput(query) !== null &&
-    (await database.getBlueskyAccount({ actorId: currentActor.id }))
+    (await hasLinkedAccount(database, currentActor))
   ) {
     const localName = query.replace(/^@/, '')
     const localId =
