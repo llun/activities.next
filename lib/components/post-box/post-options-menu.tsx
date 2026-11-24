@@ -4,6 +4,7 @@ import {
   BarChart3,
   Check,
   Eye,
+  Share2,
   SlidersHorizontal
 } from 'lucide-react'
 import { FC, ReactNode, useId } from 'react'
@@ -54,6 +55,14 @@ interface Props {
 
   previewShowing: boolean
   onTogglePreview: () => void
+
+  /** "Also post to Bluesky": shown only when the actor has a linked account. */
+  blueskyCrosspost?: {
+    checked: boolean
+    /** Why it cannot apply to this post (e.g. not public). */
+    disabledReason?: string
+    onToggle: () => void
+  }
 }
 
 const QUOTE_POLL_EXPLANATION = 'A quote post cannot include a poll'
@@ -128,8 +137,14 @@ export const PostOptionsMenu: FC<Props> = ({
   contentWarningVisible,
   onToggleContentWarning,
   previewShowing,
-  onTogglePreview
+  onTogglePreview,
+  blueskyCrosspost
 }) => {
+  const crosspostLabelId = useId()
+  const crosspostDescriptionId = useId()
+  const crosspostDisabledReason = blueskyCrosspost?.disabledReason
+  const crosspostChecked =
+    Boolean(blueskyCrosspost?.checked) && !crosspostDisabledReason
   const pollLabelId = useId()
   const pollDescriptionId = useId()
   const cwLabelId = useId()
@@ -310,6 +325,36 @@ export const PostOptionsMenu: FC<Props> = ({
           </MenuRowText>
           <SwitchIndicator checked={!blueskyReply && contentWarningVisible} />
         </DropdownMenuItem>
+        {blueskyCrosspost ? (
+          <DropdownMenuItem
+            role="menuitemcheckbox"
+            aria-checked={crosspostChecked}
+            disabled={disabled || Boolean(crosspostDisabledReason)}
+            aria-labelledby={crosspostLabelId}
+            aria-describedby={
+              crosspostDisabledReason ? crosspostDescriptionId : undefined
+            }
+            onSelect={(event) => {
+              event.preventDefault()
+              blueskyCrosspost.onToggle()
+            }}
+            className={cn(
+              ITEM_CLASS,
+              crosspostDisabledReason && 'data-[disabled]:opacity-100'
+            )}
+          >
+            <Share2 className={cn(crosspostDisabledReason && 'opacity-50')} />
+            <MenuRowText
+              description={crosspostDisabledReason}
+              labelId={crosspostLabelId}
+              descriptionId={crosspostDescriptionId}
+              dimmed={Boolean(crosspostDisabledReason)}
+            >
+              Also post to Bluesky
+            </MenuRowText>
+            <SwitchIndicator checked={crosspostChecked} />
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           role="menuitemcheckbox"
           aria-checked={previewShowing}

@@ -9,10 +9,12 @@ import { type FormEvent, useEffect, useState } from 'react'
 import {
   checkBlueskyHandle,
   linkBlueskyAppPassword,
+  setBlueskyCrosspostByDefault,
   setBlueskyInstanceHandle,
   startBlueskySignIn,
   unlinkBlueskyAccount
 } from '@/lib/client'
+import { updateLinkedBlueskyAccount } from '@/lib/components/bluesky/blueskyAccountStore'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow, formRowHintId } from '@/lib/components/surface/FormRow'
@@ -20,6 +22,7 @@ import { Frame } from '@/lib/components/surface/Frame'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
+import { Switch } from '@/lib/components/ui/switch'
 import {
   type BlueskyAccountState,
   type BlueskyHandleCheck,
@@ -256,6 +259,38 @@ export const BlueskyAccountForm = ({
         </FormRow>
         <FormRow label="Server" hint="The PDS that holds this account.">
           <code className="text-xs break-all">{account.pdsUrl}</code>
+        </FormRow>
+        <FormRow
+          label="Post to Bluesky by default"
+          htmlFor="bluesky-crosspost-default"
+          inline
+          hint="New public posts also go to your Bluesky account. You can turn it off for one post in the post box."
+        >
+          {({ describedBy }) => (
+            <Switch
+              id="bluesky-crosspost-default"
+              aria-describedby={describedBy}
+              checked={account.crosspostByDefault}
+              disabled={busy !== null}
+              onCheckedChange={(next) =>
+                void run('crosspost', async () => {
+                  await setBlueskyCrosspostByDefault(next)
+                  setState((current) =>
+                    current.account
+                      ? {
+                          ...current,
+                          account: {
+                            ...current.account,
+                            crosspostByDefault: next
+                          }
+                        }
+                      : current
+                  )
+                  updateLinkedBlueskyAccount({ crosspostByDefault: next })
+                })
+              }
+            />
+          )}
         </FormRow>
         <FormRow
           label="Home sync"

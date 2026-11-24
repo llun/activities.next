@@ -54,6 +54,7 @@ export interface DraftContent {
   visibility: MastodonVisibility
   quoteApprovalPolicy: QuoteApprovalPolicy
   language?: string
+  blueskyCrosspost?: boolean
   poll?: DraftPoll
   attachments: Omit<DraftAttachment, 'hasBlob'>[]
   fitnessFile?: Omit<DraftFitnessFile, 'hasBlob'>
@@ -200,6 +201,7 @@ const assemble = (snap: Snapshot, content: DraftContent): DraftRecord => ({
   visibility: content.visibility,
   quoteApprovalPolicy: content.quoteApprovalPolicy,
   language: content.language,
+  blueskyCrosspost: content.blueskyCrosspost,
   replyTo: snap.replyTo,
   quoteOf: snap.quoteOf,
   poll: content.poll,

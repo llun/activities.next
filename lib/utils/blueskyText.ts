@@ -16,6 +16,9 @@ export const BLUESKY_REPLY_QUEUE_DISABLED_REASON =
 export const BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE =
   'Images in Bluesky replies are not supported yet. Remove them to post.'
 
+export const BLUESKY_CROSSPOST_CUT_MESSAGE =
+  "Longer than Bluesky's 300 characters: the Bluesky copy is cut at a sentence end, with a link to this post."
+
 const graphemeSegmenter = new Intl.Segmenter(undefined, {
   granularity: 'grapheme'
 })
@@ -78,3 +81,12 @@ export const getBlueskyReplyLengthState = (
     errorMessage
   }
 }
+
+/**
+ * Whether a cross-post of this text would be cut. Counts the raw text: the
+ * server strips Markdown markers first, so this can only warn early (and the
+ * warning never blocks posting), never miss a cut.
+ */
+export const isOverBlueskyLimit = (text: string): boolean =>
+  countBlueskyUtf8Bytes(text) > BLUESKY_MAX_UTF8_BYTES ||
+  countBlueskyGraphemes(text) > BLUESKY_MAX_GRAPHEMES

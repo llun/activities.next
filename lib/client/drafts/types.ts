@@ -119,6 +119,8 @@ export interface DraftRecord {
   visibility: MastodonVisibility
   quoteApprovalPolicy: QuoteApprovalPolicy
   language?: string
+  /** "Also post to Bluesky" when a Bluesky account is linked; else unset. */
+  blueskyCrosspost?: boolean
   /** `cleanJson` snapshot: list preview and editor seed. */
   replyTo?: Status
   quoteOf?: Status

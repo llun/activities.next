@@ -28,6 +28,7 @@ import {
   repostStatus,
   resetTranslationCapabilityForTesting,
   resetTranslationLanguagesForTesting,
+  retryBlueskyCrosspost,
   retryFitnessProcessing,
   revokeStatusQuote,
   translateStatus,
@@ -1841,6 +1842,71 @@ describe('client statuses module', () => {
       await expect(retryFitnessProcessing('status-123')).rejects.toThrow(
         'Processing retry failed'
       )
+    })
+  })
+
+  describe('bluesky_crosspost on creates', () => {
+    const sentBody = () =>
+      JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as Record<
+        string,
+        unknown
+      >
+
+    it('sends the choice with a note and a poll, false included', async () => {
+      fetchMock.mockResponse(JSON.stringify({}), { status: 200 })
+      // The minimal answer may not adapt; only the request matters here.
+      await createNote({ message: 'hi', blueskyCrosspost: false }).catch(
+        () => undefined
+      )
+      expect(sentBody()).toMatchObject({ bluesky_crosspost: false })
+
+      fetchMock.mockClear()
+      await createPoll({
+        message: 'q',
+        choices: ['a', 'b'],
+        durationInSeconds: 300,
+        blueskyCrosspost: true
+      })
+      expect(sentBody()).toMatchObject({ bluesky_crosspost: true })
+    })
+
+    it('leaves it out when unset, so the server applies the default', async () => {
+      fetchMock.mockResponse(JSON.stringify({}), { status: 200 })
+      await createNote({ message: 'hi' }).catch(() => undefined)
+      expect(sentBody()).not.toHaveProperty('bluesky_crosspost')
+    })
+  })
+
+  describe('retryBlueskyCrosspost', () => {
+    it('posts the retry and answers the new cross-post state', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-1',
+          bluesky_crosspost: { state: 'pending', url: null, error: null }
+        })
+      )
+      expect(await retryBlueskyCrosspost('status-1')).toEqual({
+        state: 'pending',
+        url: null,
+        error: null
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/status-1/bluesky_crosspost/retry',
+        { method: 'POST' }
+      )
+    })
+
+    it('throws ApiRequestError with the server message', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'This post was not cross-posted.' }),
+        { status: 422 }
+      )
+      const error = await retryBlueskyCrosspost('status-1').catch((e) => e)
+      expect(error).toBeInstanceOf(ApiRequestError)
+      expect(error).toMatchObject({
+        message: 'This post was not cross-posted.',
+        status: 422
+      })
     })
   })
 

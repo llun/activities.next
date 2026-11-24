@@ -11,10 +11,16 @@ import {
 import {
   checkBlueskyHandle,
   linkBlueskyAppPassword,
+  setBlueskyCrosspostByDefault,
   setBlueskyInstanceHandle,
   startBlueskySignIn,
   unlinkBlueskyAccount
 } from '@/lib/client'
+import {
+  resetBlueskyAccountStore,
+  setLinkedBlueskyAccount,
+  useLinkedBlueskyAccount
+} from '@/lib/components/bluesky/blueskyAccountStore'
 import type {
   BlueskyAccountState,
   BlueskyLinkedAccount
@@ -25,6 +31,7 @@ import { BlueskyAccountForm } from './BlueskyAccountForm'
 vi.mock('@/lib/client', () => ({
   checkBlueskyHandle: vi.fn(),
   linkBlueskyAppPassword: vi.fn(),
+  setBlueskyCrosspostByDefault: vi.fn(),
   setBlueskyInstanceHandle: vi.fn(),
   startBlueskySignIn: vi.fn(),
   unlinkBlueskyAccount: vi.fn()
@@ -39,7 +46,8 @@ const account: BlueskyLinkedAccount = {
   domainHandle: true,
   sessionActive: true,
   lastSyncedAt: null,
-  syncError: null
+  syncError: null,
+  crosspostByDefault: true
 }
 
 const unlinkedState: BlueskyAccountState = {
@@ -264,5 +272,64 @@ describe('BlueskyAccountForm', () => {
         'This Bluesky account is already linked to another profile on this server.'
       )
     ).toBeInTheDocument()
+  })
+
+  describe('Post to Bluesky by default', () => {
+    const ACTOR = 'https://activities.local/users/alice'
+    // Reads the store the way an open composer does.
+    const ComposerDefault = () => {
+      const linked = useLinkedBlueskyAccount(ACTOR)
+      return <p>composer default: {String(linked?.crosspostByDefault)}</p>
+    }
+    const switchRow = () =>
+      screen.getByRole('switch', { name: 'Post to Bluesky by default' })
+
+    beforeEach(() => {
+      setLinkedBlueskyAccount(ACTOR, account)
+    })
+    afterEach(() => {
+      resetBlueskyAccountStore()
+    })
+
+    it('turns the default off and open composers follow it', async () => {
+      vi.mocked(setBlueskyCrosspostByDefault).mockResolvedValue()
+      render(
+        <>
+          <BlueskyAccountForm initialState={linkedState()} />
+          <ComposerDefault />
+        </>
+      )
+      expect(switchRow()).toBeChecked()
+      expect(switchRow()).toHaveAccessibleDescription(
+        'New public posts also go to your Bluesky account. You can turn it off for one post in the post box.'
+      )
+
+      fireEvent.click(switchRow())
+      await waitFor(() => expect(switchRow()).not.toBeChecked())
+      expect(setBlueskyCrosspostByDefault).toHaveBeenCalledWith(false)
+      expect(screen.getByText('composer default: false')).toBeInTheDocument()
+    })
+
+    it('keeps the switch and shows an alert when saving fails', async () => {
+      vi.mocked(setBlueskyCrosspostByDefault).mockRejectedValue(
+        new Error('Unable to update the Bluesky setting.')
+      )
+      render(
+        <>
+          <BlueskyAccountForm
+            initialState={linkedState({ crosspostByDefault: false })}
+          />
+          <ComposerDefault />
+        </>
+      )
+      expect(switchRow()).not.toBeChecked()
+
+      fireEvent.click(switchRow())
+      expect(
+        await screen.findByText('Unable to update the Bluesky setting.')
+      ).toBeInTheDocument()
+      expect(switchRow()).not.toBeChecked()
+      expect(screen.getByText('composer default: true')).toBeInTheDocument()
+    })
   })
 })
