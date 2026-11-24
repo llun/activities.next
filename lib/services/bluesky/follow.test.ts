@@ -166,6 +166,30 @@ describe('Bluesky follow service', () => {
     ).toBeNull()
   })
 
+  it('refuses a follow when the account was unlinked during the call', async () => {
+    post.mockImplementation(async () => {
+      // The user unlinks the account while createRecord is in flight.
+      await database.deleteBlueskyAccount({ actorId: actor.id })
+      return { uri: FOLLOW_URI }
+    })
+
+    const error = await followBlueskyActor(database, actor, TARGET_ID).catch(
+      (caught: unknown) => caught
+    )
+
+    expect(error).toBeInstanceOf(BlueskyFollowError)
+    expect(error).not.toBeInstanceOf(BlueskySessionChangedError)
+    expect((error as Error).message).toBe(
+      'Link a Bluesky account in Settings › Other networks to follow Bluesky accounts.'
+    )
+    expect(
+      await database.getBlueskyFollow({
+        actorId: actor.id,
+        targetActorId: TARGET_ID
+      })
+    ).toBeNull()
+  })
+
   it('refuses a follow without a linked account', async () => {
     vi.mocked(getBlueskyAgent).mockResolvedValue(null)
 

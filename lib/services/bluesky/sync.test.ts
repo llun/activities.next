@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   BlueskyRequestError,
+  BlueskySessionChangedError,
   BlueskySessionEndedError,
   getBlueskyAgent
 } from '@/lib/services/bluesky/agent'
@@ -548,6 +549,24 @@ describe('syncBlueskyHome', () => {
     // The next good sync clears it.
     get.mockResolvedValue({ feed: [] })
     await syncBlueskyHome(database, actor)
+    expect((await account())?.syncError).toBeNull()
+  })
+
+  it('records no error when the account was relinked during the run', async () => {
+    await database.updateBlueskyAccountSync({
+      actorId: actor.id,
+      syncError: null
+    })
+    const update = vi.spyOn(database, 'updateBlueskyAccountSync')
+    get.mockRejectedValue(new BlueskySessionChangedError())
+
+    try {
+      await expect(syncBlueskyHome(database, actor)).resolves.toBeUndefined()
+    } finally {
+      update.mockRestore()
+    }
+
+    expect(update).not.toHaveBeenCalled()
     expect((await account())?.syncError).toBeNull()
   })
 

@@ -16,6 +16,7 @@ import { isRecord } from '@/lib/utils/typeGuards'
 
 import {
   BlueskyRequestError,
+  BlueskySessionChangedError,
   BlueskySessionEndedError,
   getBlueskyAgent
 } from './agent'
@@ -209,6 +210,15 @@ const runSync = async (database: Database, actor: Actor) => {
       syncError: null
     })
   } catch (error) {
+    // Relinked while this run worked: the new link starts clean and its own
+    // sync comes on the next sweep, so leave no error on it.
+    if (error instanceof BlueskySessionChangedError) {
+      logger.info({
+        message: 'Bluesky Home sync stopped by a relink',
+        actorId: actor.id
+      })
+      return
+    }
     const syncError = syncErrorMessage(error)
     const log =
       error instanceof BlueskySessionEndedError ? logger.info : logger.warn

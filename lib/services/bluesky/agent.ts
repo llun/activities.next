@@ -11,6 +11,7 @@ import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import {
   createBlueskyLock,
+  deleteStoredBlueskySession,
   getBlueskyOAuthClient,
   readStoredBlueskySession,
   writeStoredBlueskySession
@@ -245,7 +246,7 @@ export const getBlueskyAgent = async (
     } catch (error) {
       // Settings shows "Bluesky ended this session" once the session is gone.
       if (error instanceof BlueskySessionEndedError) {
-        await database.deleteBlueskySession({ did })
+        await deleteStoredBlueskySession(database, did, stored.type)
       }
       throw error
     }

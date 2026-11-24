@@ -37,13 +37,12 @@ const targetDid = (targetActorId: string) => {
     : null
 }
 
+const NOT_LINKED =
+  'Link a Bluesky account in Settings › Other networks to follow Bluesky accounts.'
+
 const requireAgent = async (database: Database, actor: Actor) => {
   const agent = await getBlueskyAgent(database, actor)
-  if (!agent) {
-    throw new BlueskyFollowError(
-      'Link a Bluesky account in Settings › Other networks to follow Bluesky accounts.'
-    )
-  }
+  if (!agent) throw new BlueskyFollowError(NOT_LINKED)
   return agent
 }
 
@@ -103,11 +102,9 @@ const writeFollow = async (
   // not show a follow made from the old account.
   // shortcut: a relink between this check and the insert still slips through;
   // take the follow lock in relink if that ever shows up.
-  if (
-    (await database.getBlueskyAccount({ actorId: actor.id }))?.did !== agent.did
-  ) {
-    throw new BlueskySessionChangedError()
-  }
+  const link = await database.getBlueskyAccount({ actorId: actor.id })
+  if (!link) throw new BlueskyFollowError(NOT_LINKED)
+  if (link.did !== agent.did) throw new BlueskySessionChangedError()
   await database.createBlueskyFollow({ actorId: actor.id, targetActorId, uri })
   return (await database.getBlueskyFollow({
     actorId: actor.id,
