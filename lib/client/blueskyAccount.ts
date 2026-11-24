@@ -23,6 +23,17 @@ const send = async <T>(
   return response.json()
 }
 
+/** Returns the viewer's linked Bluesky account state, or null on failure. */
+export const getBlueskyAccount =
+  async (): Promise<BlueskyAccountState | null> => {
+    const response = await fetch('/api/v1/bluesky/account', {
+      method: 'GET',
+      headers: { Accept: 'application/json' }
+    })
+    if (!response.ok) return null
+    return response.json()
+  }
+
 /** Returns the Bluesky authorization URL to open. */
 export const startBlueskySignIn = async (handle: string): Promise<string> =>
   (

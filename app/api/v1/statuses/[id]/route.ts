@@ -5,6 +5,14 @@ import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
 import { updatePollFromUserInput } from '@/lib/actions/updatePoll'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
+import { blueskyActionFailure } from '@/lib/services/bluesky/actionErrors'
+import { blueskyActorId } from '@/lib/services/bluesky/records'
+import {
+  BLUESKY_DELETE_BUSY_MESSAGE,
+  BLUESKY_EDIT_REFUSED_MESSAGE,
+  BLUESKY_REPLY_LOCK_PREFIX,
+  deleteOwnBlueskyPost
+} from '@/lib/services/bluesky/reply'
 import {
   annotateMastodonStatusesWithFilters,
   getActiveFilters
@@ -40,7 +48,7 @@ import {
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
-import { StatusType } from '@/lib/types/domain/status'
+import { StatusType, isBlueskyStatus } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -269,6 +277,14 @@ export const PUT = traceApiRoute(
         }
 
         const existingStatus = await database.getStatus({ statusId })
+        if (existingStatus && isBlueskyStatus(existingStatus)) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: BLUESKY_EDIT_REFUSED_MESSAGE },
+            responseStatusCode: 422
+          })
+        }
         if (
           !existingStatus ||
           (existingStatus.type !== StatusType.enum.Note &&
@@ -755,6 +771,50 @@ export const DELETE = traceApiRoute(
       const statusId = await resolveStatusIdParam(database, encodedStatusId)
       const status = await database.getStatus({ statusId, withReplies: false })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
+
+      if (isBlueskyStatus(status)) {
+        const blueskyAccount = await database.getBlueskyAccount({
+          actorId: currentActor.id
+        })
+        if (
+          !blueskyAccount ||
+          blueskyActorId(blueskyAccount.did) !== status.actorId
+        ) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_403,
+            responseStatusCode: 403
+          })
+        }
+        const mastodonStatus = await getMastodonStatus(
+          database,
+          status,
+          currentActor.id
+        )
+        try {
+          await deleteOwnBlueskyPost(database, currentActor, statusId)
+        } catch (error) {
+          const failure = blueskyActionFailure(error, {
+            lockPrefix: BLUESKY_REPLY_LOCK_PREFIX,
+            busy: BLUESKY_DELETE_BUSY_MESSAGE
+          })
+          if (failure) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: failure.error },
+              responseStatusCode: failure.status
+            })
+          }
+          throw error
+        }
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: mastodonStatus ?? {}
+        })
+      }
 
       // Only owner can delete
       if (status.actorId !== currentActor.id) {
