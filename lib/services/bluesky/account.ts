@@ -91,7 +91,11 @@ const normalizeIdentifier = (input: string) => {
 // cannot be claimed.
 const getClaimableHost = (actor: Actor) => {
   const host = getServedAuthority(actor.domain)
-  return !host || host.includes(':') ? null : host
+  // The holder check matches lower(actors.domain); a row spelled any other
+  // way (a default port, a trailing dot) could claim but never be served.
+  return !host || host.includes(':') || host !== actor.domain.toLowerCase()
+    ? null
+    : host
 }
 
 // A handle needs its own DNS record unless it sits under a domain the PDS

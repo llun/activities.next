@@ -709,6 +709,20 @@ describe('Bluesky account service', () => {
       ).toBe(DID)
     })
 
+    it('never offers a domain spelled other than its canonical form', async () => {
+      await linkAlice()
+      for (const domain of ['social.example:443', 'social.example.']) {
+        expect(
+          (
+            await getBlueskyAccountState(
+              database,
+              actor('actor-a', 'admin', domain)
+            )
+          ).instanceHandle
+        ).toBeNull()
+      }
+    })
+
     it('never offers a host with a port', async () => {
       await linkAlice()
       const local = actor('actor-a', 'admin', 'localhost:3000')
