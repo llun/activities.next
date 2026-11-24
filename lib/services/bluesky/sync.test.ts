@@ -114,7 +114,8 @@ describe('syncBlueskyHome', () => {
       did: 'did:plc:reader',
       pdsUrl: 'https://pds.example.net/',
       get,
-      post: vi.fn()
+      post: vi.fn(),
+      uploadBlob: vi.fn()
     })
   })
 

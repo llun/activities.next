@@ -602,6 +602,11 @@ export const deleteActorData = async (
       .deleteFrom('bluesky_interactions')
       .where('actorId', '=', actorId)
       .execute()
+    // and the cross-posts it made to Bluesky
+    await trx
+      .deleteFrom('bluesky_crossposts')
+      .where('actorId', '=', actorId)
+      .execute()
 
     // Delete this actor's idempotency keys (they hold a hash of each post body)
     await trx

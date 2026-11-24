@@ -6,6 +6,8 @@ import {
 } from '@/lib/database/domains/actor/counters'
 import { createActor, updateActor } from '@/lib/database/domains/actor/writes'
 import type {
+  BlueskyCrosspost,
+  BlueskyCrosspostState,
   BlueskyFollow,
   BlueskyInteraction,
   BlueskyInteractionKind,
@@ -20,6 +22,7 @@ import { createNoteWithResult } from '@/lib/database/domains/status/writes'
 import { type Db, inTransaction, isInTransaction } from '@/lib/database/kysely'
 import { setCounterValue } from '@/lib/database/kysely/counter'
 import type {
+  BlueskyCrossposts,
   BlueskyInteractions,
   BlueskyRecords
 } from '@/lib/database/kysely/db'
@@ -568,6 +571,98 @@ export const updateBlueskyAccountSync = async (
     .execute()
 }
 
+const toCrosspost = (row: Selectable<BlueskyCrossposts>): BlueskyCrosspost => ({
+  statusId: row.statusId,
+  actorId: row.actorId,
+  uri: row.uri ?? null,
+  cid: row.cid ?? null,
+  state: row.state as BlueskyCrosspostState,
+  error: row.error ?? null,
+  createdAt: getCompatibleTime(row.createdAt),
+  updatedAt: getCompatibleTime(row.updatedAt)
+})
+
+export const getBlueskyCrosspost = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<BlueskyCrosspost | null> => {
+  const row = await db
+    .selectFrom('bluesky_crossposts')
+    .selectAll()
+    .where('statusId', '=', statusId)
+    .executeTakeFirst()
+  return row ? toCrosspost(row) : null
+}
+
+export const getBlueskyCrosspostByUri = async (
+  db: Db,
+  { uri }: { uri: string }
+): Promise<BlueskyCrosspost | null> => {
+  const row = await db
+    .selectFrom('bluesky_crossposts')
+    .selectAll()
+    .where('uri', '=', uri)
+    .executeTakeFirst()
+  return row ? toCrosspost(row) : null
+}
+
+export const claimBlueskyCrosspost = async (
+  db: Db,
+  { statusId, actorId }: { statusId: string; actorId: string }
+): Promise<boolean> => {
+  const result = await db
+    .insertInto('bluesky_crossposts')
+    .values({ statusId, actorId, state: 'pending' })
+    .onConflict((oc) => oc.column('statusId').doNothing())
+    .executeTakeFirst()
+  return Number(result.numInsertedOrUpdatedRows ?? 0) > 0
+}
+
+export const markBlueskyCrosspostPosted = async (
+  db: Db,
+  { statusId, uri, cid }: { statusId: string; uri: string; cid: string }
+): Promise<void> => {
+  await db
+    .updateTable('bluesky_crossposts')
+    .set({ uri, cid, state: 'posted', error: null, updatedAt: new Date() })
+    .where('statusId', '=', statusId)
+    .execute()
+}
+
+export const markBlueskyCrosspostFailed = async (
+  db: Db,
+  { statusId, error }: { statusId: string; error: string }
+): Promise<void> => {
+  await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'failed', error, updatedAt: new Date() })
+    .where('statusId', '=', statusId)
+    .execute()
+}
+
+export const resetBlueskyCrosspostForRetry = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<boolean> => {
+  const result = await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'pending', error: null, updatedAt: new Date() })
+    .where('statusId', '=', statusId)
+    .where('state', '=', 'failed')
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
+}
+
+export const deleteBlueskyCrosspost = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<void> => {
+  await db
+    .deleteFrom('bluesky_crossposts')
+    .where('statusId', '=', statusId)
+    .execute()
+}
+
 export const blueskyQueries = {
   upsertBlueskyActor,
   upsertBlueskyPost,
@@ -583,5 +678,12 @@ export const blueskyQueries = {
   createBlueskyInteraction,
   deleteBlueskyInteraction,
   setBlueskyPostCounts,
-  updateBlueskyAccountSync
+  updateBlueskyAccountSync,
+  getBlueskyCrosspost,
+  getBlueskyCrosspostByUri,
+  claimBlueskyCrosspost,
+  markBlueskyCrosspostPosted,
+  markBlueskyCrosspostFailed,
+  resetBlueskyCrosspostForRetry,
+  deleteBlueskyCrosspost
 }

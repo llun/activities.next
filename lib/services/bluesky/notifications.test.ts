@@ -91,7 +91,8 @@ describe('syncBlueskyNotifications', () => {
     did: USER_DID,
     pdsUrl: 'https://pds.example.net/',
     get,
-    post: vi.fn()
+    post: vi.fn(),
+    uploadBlob: vi.fn()
   }
 
   const appViewPosts = new Map<string, unknown>()

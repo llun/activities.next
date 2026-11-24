@@ -30,7 +30,8 @@ export const MIGRATION_NAMES = [
   '20261121174116_add_accounts_email_change_code_index',
   '20261123212228_add_bluesky_accounts',
   '20261124004542_add_bluesky_network',
-  '20261124060051_add_bluesky_interactions'
+  '20261124060051_add_bluesky_interactions',
+  '20261124103009_add_bluesky_crossposts'
 ] as const
 
 export type MigrationName = (typeof MIGRATION_NAMES)[number]

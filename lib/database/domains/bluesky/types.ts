@@ -63,6 +63,20 @@ export type BlueskyInteraction = {
   createdAt: number
 }
 
+export type BlueskyCrosspostState = 'pending' | 'posted' | 'failed'
+
+export type BlueskyCrosspost = {
+  statusId: string
+  actorId: string
+  // The Bluesky record, once it exists.
+  uri: string | null
+  cid: string | null
+  state: BlueskyCrosspostState
+  error: string | null
+  createdAt: number
+  updatedAt: number
+}
+
 export interface BlueskyDatabase {
   /**
    * Creates or refreshes the actor row of a Bluesky account and returns its
@@ -146,4 +160,31 @@ export interface BlueskyDatabase {
     lastSyncedAt?: number | null
     syncError?: string | null
   }): Promise<void>
+
+  getBlueskyCrosspost(params: {
+    statusId: string
+  }): Promise<BlueskyCrosspost | null>
+  getBlueskyCrosspostByUri(params: {
+    uri: string
+  }): Promise<BlueskyCrosspost | null>
+  /**
+   * Inserts a 'pending' row for the status, or leaves the existing one alone.
+   * Returns whether this call created it, so only one caller posts the status.
+   */
+  claimBlueskyCrosspost(params: {
+    statusId: string
+    actorId: string
+  }): Promise<boolean>
+  markBlueskyCrosspostPosted(params: {
+    statusId: string
+    uri: string
+    cid: string
+  }): Promise<void>
+  markBlueskyCrosspostFailed(params: {
+    statusId: string
+    error: string
+  }): Promise<void>
+  /** Moves a failed cross-post back to 'pending'; false when it was not failed. */
+  resetBlueskyCrosspostForRetry(params: { statusId: string }): Promise<boolean>
+  deleteBlueskyCrosspost(params: { statusId: string }): Promise<void>
 }

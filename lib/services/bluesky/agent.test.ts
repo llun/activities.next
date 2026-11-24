@@ -5,6 +5,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   BlueskySessionChangedError,
   BlueskySessionEndedError,
+  BlueskyUnexpectedAnswerError,
   getBlueskyAgent
 } from '@/lib/services/bluesky/agent'
 import {
@@ -272,6 +273,57 @@ describe('getBlueskyAgent', () => {
       expect((error as Error).message).not.toContain('sent-body')
       expect(await database.getBlueskySession({ did: DID })).not.toBeNull()
     })
+
+    it('uploads raw bytes with their content type', async () => {
+      const cid = 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
+      vi.mocked(safeRemoteFetch).mockResolvedValue(
+        respond(200, {
+          blob: {
+            $type: 'blob',
+            ref: { $link: cid },
+            mimeType: 'image/jpeg',
+            size: 3
+          }
+        })
+      )
+      const agent = await getBlueskyAgent(database, actor)
+      const bytes = new Uint8Array([1, 2, 3])
+
+      expect(await agent!.uploadBlob(bytes, 'image/jpeg')).toEqual({
+        $type: 'blob',
+        ref: { $link: cid },
+        mimeType: 'image/jpeg',
+        size: 3
+      })
+      expect(safeRemoteFetch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: 'https://pds.example.net/xrpc/com.atproto.repo.uploadBlob',
+          method: 'POST',
+          bodyBytes: bytes,
+          headers: {
+            Authorization: 'Bearer access-1',
+            'Content-Type': 'image/jpeg'
+          }
+        })
+      )
+    })
+
+    it('rejects an upload answer without a blob reference', async () => {
+      vi.mocked(safeRemoteFetch).mockResolvedValue(
+        respond(200, {
+          blob: {
+            ref: { $link: 'not-a-cid' },
+            mimeType: 'image/jpeg',
+            size: 3
+          }
+        })
+      )
+      const agent = await getBlueskyAgent(database, actor)
+
+      await expect(
+        agent!.uploadBlob(new Uint8Array([1]), 'image/jpeg')
+      ).rejects.toBeInstanceOf(BlueskyUnexpectedAnswerError)
+    })
   })
 
   describe('OAuth', () => {
@@ -318,6 +370,40 @@ describe('getBlueskyAgent', () => {
         agent!.get('app.bsky.feed.getTimeline')
       ).rejects.toBeInstanceOf(BlueskySessionEndedError)
       expect(await database.getBlueskySession({ did: DID })).toBeNull()
+    })
+
+    it('uploads raw bytes through fetchHandler', async () => {
+      const cid = 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
+      fetchHandler.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            blob: {
+              $type: 'blob',
+              ref: { $link: cid },
+              mimeType: 'image/png',
+              size: 3
+            }
+          }),
+          { status: 200 }
+        )
+      )
+      const agent = await getBlueskyAgent(database, actor)
+      const bytes = new Uint8Array([1, 2, 3])
+
+      expect(await agent!.uploadBlob(bytes, 'image/png')).toEqual({
+        $type: 'blob',
+        ref: { $link: cid },
+        mimeType: 'image/png',
+        size: 3
+      })
+      expect(fetchHandler).toHaveBeenCalledWith(
+        '/xrpc/com.atproto.repo.uploadBlob',
+        {
+          method: 'POST',
+          body: bytes,
+          headers: { 'Content-Type': 'image/png' }
+        }
+      )
     })
 
     it('keeps a session relinked with an app password while the request ran', async () => {

@@ -20,6 +20,8 @@ export interface BlueskyAccount {
   syncError: string | null
   // When Bluesky notifications were last polled/seen for this account.
   notificationsSeenAt: number | null
+  // Whether new posts are cross-posted to Bluesky without asking each time.
+  crosspostByDefault: boolean
   createdAt: number
   updatedAt: number
 }
@@ -30,6 +32,7 @@ export type SaveBlueskyAccountParams = Omit<
   | 'lastSyncedAt'
   | 'syncError'
   | 'notificationsSeenAt'
+  | 'crosspostByDefault'
   | 'createdAt'
   | 'updatedAt'
 >
@@ -60,6 +63,10 @@ export interface BlueskyAccountDatabase {
   updateBlueskyNotificationsSeenAt(params: {
     actorId: string
     seenAt: number | null
+  }): Promise<void>
+  updateBlueskyCrosspostDefault(params: {
+    actorId: string
+    crosspostByDefault: boolean
   }): Promise<void>
   /**
    * `false` when another active admin's actor already answers for `host`; a

@@ -52,19 +52,43 @@ export class BlueskyRequestError extends Error {
   }
 }
 
+/** The PDS answered 2xx with a body that is not the expected shape. */
+export class BlueskyUnexpectedAnswerError extends Error {
+  constructor(nsid: string) {
+    super(`Bluesky ${nsid} gave an unexpected answer`)
+    this.name = 'BlueskyUnexpectedAnswerError'
+  }
+}
+
 export type BlueskyQueryParams = Record<
   string,
   string | number | boolean | string[] | undefined
 >
+
+/** A blob the PDS stored, as a record's image or video references it. */
+export type BlueskyBlobRef = {
+  $type: 'blob'
+  ref: { $link: string }
+  mimeType: string
+  size: number
+}
 
 export interface BlueskyAgent {
   did: string
   pdsUrl: string
   get<T>(nsid: string, params?: BlueskyQueryParams): Promise<T>
   post<T>(nsid: string, body: unknown): Promise<T>
+  /** Uploads raw bytes; the PDS answers with the blob reference to store. */
+  uploadBlob(bytes: Uint8Array, mimeType: string): Promise<BlueskyBlobRef>
 }
 
-type XrpcRequest = { method: 'GET' | 'POST'; path: string; body?: string }
+type XrpcRequest = {
+  method: 'GET' | 'POST'
+  path: string
+  body?: string | Uint8Array
+  // Defaults to application/json when a body is sent.
+  contentType?: string
+}
 type XrpcResponse = { status: number; text: string }
 
 export const readXrpcError = (text: string) => {
@@ -77,6 +101,36 @@ export const readXrpcError = (text: string) => {
     }
   } catch {
     return {}
+  }
+}
+
+// A CIDv1 in base32, the only form a PDS returns for a stored blob.
+const CID_V1_BASE32_PATTERN = /^b[a-z2-7]{50,}$/
+
+const parseBlobRef = (nsid: string, answer: unknown): BlueskyBlobRef => {
+  const blob = (answer as { blob?: unknown } | null | undefined)?.blob as
+    | {
+        ref?: { $link?: unknown }
+        mimeType?: unknown
+        size?: unknown
+      }
+    | null
+    | undefined
+  const link = blob?.ref?.$link
+  if (
+    !blob ||
+    typeof link !== 'string' ||
+    !CID_V1_BASE32_PATTERN.test(link) ||
+    typeof blob.mimeType !== 'string' ||
+    typeof blob.size !== 'number'
+  ) {
+    throw new BlueskyUnexpectedAnswerError(nsid)
+  }
+  return {
+    $type: 'blob',
+    ref: { $link: link },
+    mimeType: blob.mimeType,
+    size: blob.size
   }
 }
 
@@ -103,7 +157,12 @@ const createOAuthSend = (database: Database, actor: Actor, did: string) => {
     getServedAuthority(actor.domain) ?? actor.domain
   )
   if (!client) throw new Error('Bluesky sign-in is not set up on this server')
-  return async ({ method, path, body }: XrpcRequest): Promise<XrpcResponse> => {
+  return async ({
+    method,
+    path,
+    body,
+    contentType
+  }: XrpcRequest): Promise<XrpcResponse> => {
     let response: Response
     try {
       // fetchHandler handles DPoP, nonce retries and refresh under the lock.
@@ -111,7 +170,11 @@ const createOAuthSend = (database: Database, actor: Actor, did: string) => {
       response = await session.fetchHandler(path, {
         method,
         ...(body !== undefined
-          ? { body, headers: { 'Content-Type': 'application/json' } }
+          ? {
+              // A fresh view, so the DOM's BodyInit accepts the bytes.
+              body: body instanceof Uint8Array ? new Uint8Array(body) : body,
+              headers: { 'Content-Type': contentType ?? 'application/json' }
+            }
           : {})
       })
     } catch (error) {
@@ -150,7 +213,7 @@ const createAppPasswordSend = (
 ) => {
   let tokens = initial
   const xrpc = async (
-    { method, path, body }: XrpcRequest,
+    { method, path, body, contentType }: XrpcRequest,
     bearer: string
   ): Promise<XrpcResponse> => {
     const result = await safeRemoteFetch({
@@ -158,9 +221,15 @@ const createAppPasswordSend = (
       method,
       headers: {
         Authorization: `Bearer ${bearer}`,
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {})
+        ...(body !== undefined
+          ? { 'Content-Type': contentType ?? 'application/json' }
+          : {})
       },
-      ...(body !== undefined ? { body } : {}),
+      ...(typeof body === 'string'
+        ? { body }
+        : body !== undefined
+          ? { bodyBytes: body }
+          : {}),
       maxRedirects: 0,
       maxBodyBytes: MAX_BODY_BYTES
     })
@@ -262,6 +331,16 @@ export const getBlueskyAgent = async (
         method: 'POST',
         path: buildPath(nsid),
         body: JSON.stringify(body ?? {})
+      }),
+    uploadBlob: async (bytes, mimeType) => {
+      const nsid = 'com.atproto.repo.uploadBlob'
+      const answer = await run<unknown>(nsid, {
+        method: 'POST',
+        path: buildPath(nsid),
+        body: bytes,
+        contentType: mimeType
       })
+      return parseBlobRef(nsid, answer)
+    }
   }
 }

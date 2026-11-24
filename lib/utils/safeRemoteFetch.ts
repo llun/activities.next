@@ -64,6 +64,8 @@ export type ResolvedRemoteAddress = {
 
 export type SafeRemoteFetchTransportRequest = {
   body?: string
+  /** Raw bytes to send instead of `body` (a binary upload). */
+  bodyBytes?: Uint8Array
   connectTimeoutInMilliseconds: number
   headers: SafeRemoteFetchHeaders
   method: SafeRemoteFetchMethod
@@ -101,6 +103,8 @@ export type SafeRemoteFetchOptions = {
    */
   allowCrossHostRedirects?: CrossHostRedirectPolicy
   body?: string
+  /** Raw bytes to send instead of `body` (a binary upload). */
+  bodyBytes?: Uint8Array
   connectTimeoutInMilliseconds?: number
   headers?: SafeRemoteFetchHeaderSource
   maxBodyBytes?: number
@@ -382,6 +386,7 @@ export const createFixedDnsLookup = (
 
 const gotTransport: SafeRemoteFetchTransport = async ({
   body,
+  bodyBytes,
   connectTimeoutInMilliseconds,
   headers,
   method,
@@ -397,7 +402,7 @@ const gotTransport: SafeRemoteFetchTransport = async ({
     }
 
     const options: OptionsInit = {
-      body,
+      body: bodyBytes ? Buffer.from(bodyBytes) : body,
       dnsLookup: createFixedDnsLookup(resolvedAddresses),
       followRedirect: false,
       headers,
@@ -680,6 +685,7 @@ export const createSafeRemoteFetch = ({
   const fetchRemote = async ({
     allowCrossHostRedirects = true,
     body,
+    bodyBytes,
     connectTimeoutInMilliseconds,
     headers = {},
     maxBodyBytes = DEFAULT_SAFE_REMOTE_FETCH_MAX_BODY_BYTES,
@@ -698,6 +704,7 @@ export const createSafeRemoteFetch = ({
     currentUrl.password = ''
 
     let currentBody = body
+    let currentBodyBytes = bodyBytes
     let currentHeaders = headers
     let currentMethod = method
     let previousUrl: URL | undefined
@@ -743,6 +750,7 @@ export const createSafeRemoteFetch = ({
       const response = await awaitWithAbort(
         transport({
           body: currentBody,
+          bodyBytes: currentBodyBytes,
           connectTimeoutInMilliseconds: connectTimeout,
           headers: requestHeaders,
           method: currentMethod,

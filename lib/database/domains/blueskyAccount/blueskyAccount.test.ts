@@ -157,6 +157,30 @@ describe('BlueskyAccount', () => {
     ).toBeNull()
   })
 
+  it('defaults cross-posting on and updates it', async () => {
+    await link('actor-crosspost', 'did:plc:crosspost')
+    expect(
+      (await database.getBlueskyAccount({ actorId: 'actor-crosspost' }))
+        ?.crosspostByDefault
+    ).toBe(true)
+
+    await database.updateBlueskyCrosspostDefault({
+      actorId: 'actor-crosspost',
+      crosspostByDefault: false
+    })
+    expect(
+      (await database.getBlueskyAccount({ actorId: 'actor-crosspost' }))
+        ?.crosspostByDefault
+    ).toBe(false)
+
+    // Re-linking the same DID keeps the choice.
+    await link('actor-crosspost', 'did:plc:crosspost')
+    expect(
+      (await database.getBlueskyAccount({ actorId: 'actor-crosspost' }))
+        ?.crosspostByDefault
+    ).toBe(false)
+  })
+
   it('keeps the last sync and clears its error when the same DID is linked again', async () => {
     await link('actor-sync', 'did:plc:sync')
     await database.updateBlueskyAccountSync({

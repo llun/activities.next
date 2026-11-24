@@ -729,4 +729,82 @@ describe('Bluesky', () => {
       })
     })
   })
+
+  describe('crossposts', () => {
+    const statusId = 'https://local.test/users/crossposter/statuses/1'
+    const actorId = 'https://local.test/users/crossposter'
+    const uri = 'at://did:plc:crossposter/app.bsky.feed.post/3k1'
+
+    it('claims a status once and leaves the existing row alone', async () => {
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+
+      expect(await database.claimBlueskyCrosspost({ statusId, actorId })).toBe(
+        true
+      )
+      expect(await database.claimBlueskyCrosspost({ statusId, actorId })).toBe(
+        false
+      )
+
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        statusId,
+        actorId,
+        uri: null,
+        cid: null,
+        state: 'pending',
+        error: null
+      })
+    })
+
+    it('marks a cross-post posted and reads it back by URI', async () => {
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        uri,
+        cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
+      })
+
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        state: 'posted',
+        uri,
+        error: null
+      })
+      expect(await database.getBlueskyCrosspostByUri({ uri })).toMatchObject({
+        statusId,
+        state: 'posted'
+      })
+      expect(
+        await database.getBlueskyCrosspostByUri({ uri: 'at://missing' })
+      ).toBeNull()
+    })
+
+    it('marks a cross-post failed and resets it for a retry', async () => {
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      await database.markBlueskyCrosspostFailed({
+        statusId,
+        error: 'Bluesky refused the post'
+      })
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        state: 'failed',
+        error: 'Bluesky refused the post'
+      })
+
+      expect(await database.resetBlueskyCrosspostForRetry({ statusId })).toBe(
+        true
+      )
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        state: 'pending',
+        error: null
+      })
+      // Only a failed cross-post can be reset.
+      expect(await database.resetBlueskyCrosspostForRetry({ statusId })).toBe(
+        false
+      )
+    })
+
+    it('deletes a cross-post', async () => {
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      await database.deleteBlueskyCrosspost({ statusId })
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+    })
+  })
 })
