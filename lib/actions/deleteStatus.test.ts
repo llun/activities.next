@@ -606,8 +606,8 @@ describe('deleteStatusFromUserInput', () => {
       )
     })
 
-    it('queues no Bluesky delete for a pending or failed row that has no uri', async () => {
-      for (const state of ['pending', 'failed'] as const) {
+    it('queues no Bluesky delete for a pending, posting or failed row that has no uri', async () => {
+      for (const state of ['pending', 'posting', 'failed'] as const) {
         const status = createMockStatus({
           id: `https://llun.test/users/me/statuses/${state}-crosspost`,
           actorId: CURRENT_ACTOR.id

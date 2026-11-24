@@ -40,10 +40,10 @@ import { BLUESKY_DOMAIN, BLUESKY_PROFILE_PREFIX } from '@/lib/utils/blueskyId'
 
 const BLUESKY_NETWORK = 'bluesky'
 
-// A 'pending' cross-post row older than this has no job left to finish it: the
-// queue dead-letters a job after its retries, leaving the row pending forever.
-// The owner's Retry treats such a row as stuck, and hydration reports it as
-// failed so the post menu offers that Retry.
+// A 'pending' or 'posting' cross-post row older than this has no job left to
+// finish it: either the queue dead-lettered the job after its retries or the
+// worker crashed mid-attempt. The owner's Retry treats such a row as stuck,
+// and hydration reports it as failed so the post menu offers that Retry.
 export const STALE_CROSSPOST_MS = 30 * 60 * 1000
 export const STALE_CROSSPOST_ERROR = 'Bluesky did not answer. Try again.'
 
@@ -649,6 +649,44 @@ export const claimBlueskyCrosspost = async (
   return Number(result.numInsertedOrUpdatedRows ?? 0) > 0
 }
 
+export const beginBlueskyCrosspostAttempt = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<boolean> => {
+  const now = new Date()
+  const result = await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'posting', updatedAt: now })
+    .where('statusId', '=', statusId)
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'pending'),
+        eb.and([
+          eb('state', '=', 'posting'),
+          eb(
+            'updatedAt',
+            '<',
+            timestampValue(now.getTime() - STALE_CROSSPOST_MS)
+          )
+        ])
+      ])
+    )
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
+}
+
+export const releaseBlueskyCrosspostAttempt = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<void> => {
+  await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'pending', updatedAt: new Date() })
+    .where('statusId', '=', statusId)
+    .where('state', '=', 'posting')
+    .execute()
+}
+
 export const markBlueskyCrosspostPosted = async (
   db: Db,
   { statusId, uri, cid }: { statusId: string; uri: string; cid: string }
@@ -657,6 +695,7 @@ export const markBlueskyCrosspostPosted = async (
     .updateTable('bluesky_crossposts')
     .set({ uri, cid, state: 'posted', error: null, updatedAt: new Date() })
     .where('statusId', '=', statusId)
+    .where('state', 'in', ['pending', 'posting'])
     .executeTakeFirst()
   return Number(result.numUpdatedRows ?? 0) > 0
 }
@@ -669,11 +708,13 @@ export const markBlueskyCrosspostFailed = async (
     .updateTable('bluesky_crossposts')
     .set({ state: 'failed', error, updatedAt: new Date() })
     .where('statusId', '=', statusId)
+    .where('state', 'in', ['pending', 'posting'])
     .execute()
 }
 
-// Moves a failed cross-post, or a pending one whose job never finished (older
-// than STALE_CROSSPOST_MS), back to pending. Returns whether a row was reset.
+// Moves a failed cross-post, or a pending/posting one whose job never finished
+// (older than STALE_CROSSPOST_MS), back to pending. Returns whether a row was
+// reset.
 export const resetBlueskyCrosspostForRetry = async (
   db: Db,
   { statusId }: { statusId: string }
@@ -687,7 +728,7 @@ export const resetBlueskyCrosspostForRetry = async (
       eb.or([
         eb('state', '=', 'failed'),
         eb.and([
-          eb('state', '=', 'pending'),
+          eb('state', 'in', ['pending', 'posting']),
           eb(
             'updatedAt',
             '<',
@@ -703,11 +744,13 @@ export const resetBlueskyCrosspostForRetry = async (
 export const deleteBlueskyCrosspost = async (
   db: Db,
   { statusId }: { statusId: string }
-): Promise<void> => {
-  await db
+): Promise<BlueskyCrosspost | null> => {
+  const deleted = await db
     .deleteFrom('bluesky_crossposts')
     .where('statusId', '=', statusId)
-    .execute()
+    .returningAll()
+    .executeTakeFirst()
+  return deleted ? toCrosspost(deleted) : null
 }
 
 export const blueskyQueries = {
@@ -730,6 +773,8 @@ export const blueskyQueries = {
   getBlueskyCrosspostByUri,
   getBlueskyCrosspostsByStatusIds,
   claimBlueskyCrosspost,
+  beginBlueskyCrosspostAttempt,
+  releaseBlueskyCrosspostAttempt,
   markBlueskyCrosspostPosted,
   markBlueskyCrosspostFailed,
   resetBlueskyCrosspostForRetry,

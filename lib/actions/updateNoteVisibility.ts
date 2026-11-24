@@ -29,23 +29,26 @@ interface UpdateNoteVisibilityFromUserInput {
   database: Database
 }
 
-// Drops the Bluesky copy of a post that is no longer public. A posted record is
-// deleted on Bluesky through the queue first, then the row goes; a pending or
-// failed row never reached Bluesky, so it is just deleted. Never throws: a
-// Bluesky failure must not fail the visibility edit.
+// Drops the Bluesky copy of a post that is no longer public. The row is
+// deleted atomically: if it had already been posted, the returned URI is
+// deleted on Bluesky through the queue; if a cross-post attempt was in flight
+// ('posting'), deleting the row makes markBlueskyCrosspostPosted return false
+// so crosspostStatus immediately deletes the newly created Bluesky record; a
+// pending or failed row never reached Bluesky, so it is just dropped. Never
+// throws: a Bluesky failure must not fail the visibility edit.
 const removeBlueskyCrosspost = async (
   database: Database,
   { statusId, actorId }: { statusId: string; actorId: string }
 ) => {
   try {
-    const crosspost = await database.getBlueskyCrosspost({ statusId })
-    if (!crosspost) return
-    if (crosspost.state === 'posted' && crosspost.uri) {
+    const deleted = await database.deleteBlueskyCrosspost({ statusId })
+    if (!deleted) return
+    if (deleted.state === 'posted' && deleted.uri) {
       try {
         await getQueue().publish({
           id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
           name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-          data: { actorId, uri: crosspost.uri }
+          data: { actorId, uri: deleted.uri }
         })
       } catch (error) {
         logger.error(
@@ -54,7 +57,6 @@ const removeBlueskyCrosspost = async (
         )
       }
     }
-    await database.deleteBlueskyCrosspost({ statusId })
   } catch (error) {
     logger.error(
       { statusId, actorId, err: toLoggableError(error) },

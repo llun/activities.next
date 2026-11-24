@@ -63,7 +63,7 @@ export type BlueskyInteraction = {
   createdAt: number
 }
 
-export type BlueskyCrosspostState = 'pending' | 'posted' | 'failed'
+export type BlueskyCrosspostState = 'pending' | 'posting' | 'posted' | 'failed'
 
 export type BlueskyCrosspost = {
   statusId: string
@@ -180,8 +180,20 @@ export interface BlueskyDatabase {
     actorId: string
   }): Promise<boolean>
   /**
-   * Records the posted record. Returns whether a row was updated: false when
-   * the post was deleted while its record was being created.
+   * Atomically claims an exclusive posting attempt for a 'pending' row (or a
+   * stale 'posting' row older than STALE_CROSSPOST_MS). Returns false when
+   * another attempt owns it or it is already done/failed.
+   */
+  beginBlueskyCrosspostAttempt(params: { statusId: string }): Promise<boolean>
+  /**
+   * Moves a 'posting' row back to 'pending' with a fresh updatedAt so the next
+   * retry can begin and the row does not look stale while retrying.
+   */
+  releaseBlueskyCrosspostAttempt(params: { statusId: string }): Promise<void>
+  /**
+   * Records the posted record for a 'pending' or 'posting' row. Returns whether
+   * a row was updated: false when the post was deleted while its record was
+   * being created.
    */
   markBlueskyCrosspostPosted(params: {
     statusId: string
@@ -192,7 +204,15 @@ export interface BlueskyDatabase {
     statusId: string
     error: string
   }): Promise<void>
-  /** Moves a failed cross-post back to 'pending'; false when it was not failed. */
+  /**
+   * Moves a failed cross-post, or a stale pending/posting one (older than
+   * STALE_CROSSPOST_MS), back to 'pending'; false otherwise.
+   */
   resetBlueskyCrosspostForRetry(params: { statusId: string }): Promise<boolean>
-  deleteBlueskyCrosspost(params: { statusId: string }): Promise<void>
+  /**
+   * Deletes the cross-post row and returns what was deleted, or null if absent.
+   */
+  deleteBlueskyCrosspost(params: {
+    statusId: string
+  }): Promise<BlueskyCrosspost | null>
 }

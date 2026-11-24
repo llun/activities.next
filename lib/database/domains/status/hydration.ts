@@ -705,10 +705,12 @@ export const hydrateStatusRow = async (
     },
     data.type === StatusType.enum.Poll
   )
-  // A pending cross-post whose job never finished (the queue dead-lettered it
-  // after its retries) reads as failed, so the owner's post menu offers Retry.
+  // A pending or posting cross-post whose job never finished (the queue
+  // dead-lettered it or the worker crashed) reads as failed, so the owner's
+  // post menu offers Retry. An active 'posting' attempt shows as 'pending'.
   const staleCrosspost =
-    blueskyCrosspost?.state === 'pending' &&
+    (blueskyCrosspost?.state === 'pending' ||
+      blueskyCrosspost?.state === 'posting') &&
     blueskyCrosspost.updatedAt < Date.now() - STALE_CROSSPOST_MS
   const base = {
     id: data.id,
@@ -740,7 +742,11 @@ export const hydrateStatusRow = async (
       ? {
           blueskyCrosspost: blueskyCrosspost
             ? {
-                state: staleCrosspost ? 'failed' : blueskyCrosspost.state,
+                state: staleCrosspost
+                  ? ('failed' as const)
+                  : blueskyCrosspost.state === 'posting'
+                    ? ('pending' as const)
+                    : blueskyCrosspost.state,
                 url: blueskyPostWebUrl(blueskyCrosspost.uri ?? ''),
                 error: staleCrosspost
                   ? STALE_CROSSPOST_ERROR

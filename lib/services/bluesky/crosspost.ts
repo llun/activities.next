@@ -3,6 +3,8 @@
 // card are built from the local status only. A cross-post is claimed once
 // (bluesky_crossposts) and its uri is recorded before anything after
 // createRecord can throw, so a retry never posts it twice.
+import { STALE_CROSSPOST_MS } from '@/lib/database/domains/bluesky/queries'
+import type { BlueskyCrosspost } from '@/lib/database/domains/bluesky/types'
 import type { Database } from '@/lib/database/types'
 import { CROSSPOST_BLUESKY_JOB_NAME } from '@/lib/jobs/names'
 import {
@@ -77,6 +79,12 @@ type StrongRef = { uri: string; cid: string }
 
 type PostStatus = StatusNote | StatusPoll
 
+// A row can be attempted while it is 'pending', or when a prior 'posting'
+// attempt went stale (older than STALE_CROSSPOST_MS, e.g. worker crashed).
+const isCrosspostAttemptable = (row: BlueskyCrosspost): boolean =>
+  row.state === 'pending' ||
+  (row.state === 'posting' && row.updatedAt < Date.now() - STALE_CROSSPOST_MS)
+
 // A boost is never cross-posted: only the author's own public Note or Poll.
 const isCrosspostableStatus = (status: Status): status is PostStatus =>
   status.type !== StatusType.enum.Announce &&
@@ -131,7 +139,12 @@ const resolveReplyRefs = async (
     statusId: parent.id
   })
   if (!parentCrosspost) return null
-  if (parentCrosspost.state === 'pending') return 'retry'
+  if (
+    parentCrosspost.state === 'pending' ||
+    parentCrosspost.state === 'posting'
+  ) {
+    return 'retry'
+  }
   if (
     parentCrosspost.state !== 'posted' ||
     !parentCrosspost.uri ||
@@ -394,7 +407,7 @@ export const crosspostStatus = async (
   statusId: string
 ): Promise<void> => {
   const row = await database.getBlueskyCrosspost({ statusId })
-  if (!row || row.state !== 'pending') return
+  if (!row || !isCrosspostAttemptable(row)) return
   const status = await database.getStatus({ statusId, withReplies: false })
   if (!status || !isCrosspostableStatus(status)) {
     // Made non-public (or gone) before the job ran: nothing to post.
@@ -426,14 +439,16 @@ export const crosspostStatus = async (
     return
   }
 
+  let attemptStarted = false
   try {
     await createBlueskyLock(database)(
       `${BLUESKY_CROSSPOST_LOCK_PREFIX}${status.actorId}`,
       async () => {
-        // Re-check inside the lock: another run may have posted it already,
-        // and the post or the actor may have changed since the job was queued.
+        // Re-check inside the lock: another run may have posted it already or
+        // may still be posting it, and the post or the actor may have changed
+        // since the job was queued.
         const current = await database.getBlueskyCrosspost({ statusId })
-        if (!current || current.state !== 'pending') return
+        if (!current || !isCrosspostAttemptable(current)) return
 
         const currentStatus = await database.getStatus({
           statusId,
@@ -476,6 +491,15 @@ export const crosspostStatus = async (
           }
           replyRefs = resolved
         }
+
+        // Atomically claim the exclusive posting attempt right before uploading
+        // media and creating the record: if the per-actor lock later expires
+        // during slow uploads, a second job sees 'posting' and stops instead of
+        // calling createRecord twice.
+        if (!(await database.beginBlueskyCrosspostAttempt({ statusId }))) {
+          return
+        }
+        attemptStarted = true
 
         const record = await buildRecord(
           database,
@@ -536,8 +560,9 @@ export const crosspostStatus = async (
         }
 
         if (!posted) {
-          // The post was deleted while its record was being created: remove
-          // the copy so Bluesky does not keep a post this server dropped.
+          // The post was deleted (or narrowed from public) while its record was
+          // being created: remove the copy so Bluesky does not keep a post this
+          // server dropped.
           await deleteCrosspostRecord(agent, uri)
         }
       }
@@ -547,11 +572,22 @@ export const crosspostStatus = async (
     // marked failed too: the owner's Retry is then the way to post it.
     // shortcut: the job runner does not expose the attempt number or the last
     // attempt, so a real queue's final attempt is not detected here. A
-    // retryable error is rethrown for the queue to retry; when the queue
-    // dead-letters the job the row stays pending, and once it is older than
+    // retryable error releases a 'posting' attempt back to 'pending' with a
+    // fresh updatedAt (so active queue retries past 30 min do not look stale)
+    // and rethrows for the queue to retry; when the queue dead-letters the job
+    // the row stays pending, and once updatedAt is older than
     // STALE_CROSSPOST_MS hydration reports it as failed and the owner's Retry
     // resets it (resetBlueskyCrosspostForRetry).
-    if (isRetryableCrosspostError(error) && !getQueue().runsInline) throw error
+    if (isRetryableCrosspostError(error) && !getQueue().runsInline) {
+      if (attemptStarted) {
+        await database.releaseBlueskyCrosspostAttempt({ statusId })
+      }
+      throw error
+    }
+    if (!attemptStarted && error instanceof BlueskyLockTimeoutError) {
+      const latest = await database.getBlueskyCrosspost({ statusId })
+      if (latest && !isCrosspostAttemptable(latest)) return
+    }
     logger.warn({
       message: 'Bluesky cross-post failed',
       statusId,
@@ -591,7 +627,8 @@ export const enqueueBlueskyCrosspost = async (
     if (
       !parentCrosspost ||
       (parentCrosspost.state !== 'posted' &&
-        parentCrosspost.state !== 'pending')
+        parentCrosspost.state !== 'pending' &&
+        parentCrosspost.state !== 'posting')
     ) {
       return
     }

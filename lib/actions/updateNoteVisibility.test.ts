@@ -191,6 +191,47 @@ describe('Update note visibility action', () => {
       )
     })
 
+    it('drops a posting Bluesky cross-post when the post stops being public so in-flight createRecord cleans up', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const statusId = `${ACTOR1_ID}/statuses/crosspost-posting-narrow`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Public post'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId,
+        actorId: actor1.id
+      })
+      await database.beginBlueskyCrosspostAttempt({ statusId })
+
+      const result = await updateNoteVisibilityFromUserInput({
+        statusId,
+        currentActor: actor1,
+        visibility: 'private',
+        database
+      })
+
+      expect(result).not.toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      // No uri yet; when the in-flight createRecord finishes, markBlueskyCrosspostPosted
+      // sees the row gone (returns false) and deletes the record directly.
+      expect(
+        await database.markBlueskyCrosspostPosted({
+          statusId,
+          uri: 'at://did:plc:actor1/app.bsky.feed.post/3kinflight',
+          cid: 'bafyinflight'
+        })
+      ).toBe(false)
+      expect(getQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
+      )
+    })
+
     it('deletes a posted Bluesky copy when the post stops being public', async () => {
       if (!actor1) fail('Actor1 is required')
 

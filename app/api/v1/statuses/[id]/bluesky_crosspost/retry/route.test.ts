@@ -154,6 +154,34 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
     })
   })
 
+  it('accepts a stale posting cross-post whose worker crashed, and refuses a fresh posting one', async () => {
+    const fresh = await seed('posting-fresh')
+    await database.beginBlueskyCrosspostAttempt({ statusId: fresh.id })
+
+    const freshResponse = await callRetry(fresh.id)
+    expect(freshResponse.status).toBe(422)
+    expect(getQueue().publish).not.toHaveBeenCalled()
+
+    const stale = await seed('posting-stale')
+    await database.beginBlueskyCrosspostAttempt({ statusId: stale.id })
+    await db
+      .updateTable('bluesky_crossposts')
+      .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+      .where('statusId', '=', stale.id)
+      .execute()
+
+    const staleResponse = await callRetry(stale.id)
+    expect(staleResponse.status).toBe(200)
+    await expect(staleResponse.json()).resolves.toMatchObject({
+      uri: stale.id,
+      bluesky_crosspost: { state: 'pending', url: null, error: null }
+    })
+    await expect(
+      database.getBlueskyCrosspost({ statusId: stale.id })
+    ).resolves.toMatchObject({ state: 'pending', error: null })
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+  })
+
   it('answers 422 when the post is no longer public', async () => {
     const status = await seed('narrowed')
     await database.markBlueskyCrosspostFailed({
