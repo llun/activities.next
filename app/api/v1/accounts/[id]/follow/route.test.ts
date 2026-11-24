@@ -648,6 +648,16 @@ describe('Account Action Endpoints', () => {
 
     beforeAll(async () => {
       await database.upsertBlueskyActor({ did, handle: 'route.bsky.social' })
+      // The follow is only stored while the actor is still linked to the DID
+      // that wrote the record.
+      await database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did: 'did:plc:llun',
+        handle: 'llun.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
     })
 
     beforeEach(() => {

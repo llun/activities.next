@@ -99,6 +99,15 @@ const writeFollow = async (
   if (parsed?.did !== agent.did || parsed.collection !== FOLLOW_COLLECTION) {
     throw new Error('Bluesky createRecord gave an unexpected answer')
   }
+  // Relinked to another DID while the record was written: the new link must
+  // not show a follow made from the old account.
+  // shortcut: a relink between this check and the insert still slips through;
+  // take the follow lock in relink if that ever shows up.
+  if (
+    (await database.getBlueskyAccount({ actorId: actor.id }))?.did !== agent.did
+  ) {
+    throw new BlueskySessionChangedError()
+  }
   await database.createBlueskyFollow({ actorId: actor.id, targetActorId, uri })
   return (await database.getBlueskyFollow({
     actorId: actor.id,

@@ -119,6 +119,12 @@ const createOAuthSend = (database: Database, actor: Actor, did: string) => {
         error instanceof TokenRevokedError ||
         error instanceof TokenInvalidError
       ) {
+        // Relinked with an app password while this request ran: the library
+        // sees no OAuth session, but the new one is fine, so keep it.
+        const stored = await readStoredBlueskySession(database, did)
+        if (stored && stored.type !== 'oauth') {
+          throw new BlueskySessionChangedError()
+        }
         throw new BlueskySessionEndedError()
       }
       throw error

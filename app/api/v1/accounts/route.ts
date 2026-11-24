@@ -17,6 +17,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { resolveActorIdParams } from '@/lib/services/mastodon/resolveClientId'
 import { issueAccessToken } from '@/lib/services/oauth/issueAccessToken'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -107,7 +108,11 @@ export const GET = traceApiRoute(
     }
 
     // One batched publicId lookup for the whole list, not one per id.
-    const ids = await resolveActorIdParams(database, encodedIds)
+    // Bluesky accounts are for signed-in viewers (GET /api/v1/accounts/:id);
+    // this public endpoint leaves them out.
+    const ids = (await resolveActorIdParams(database, encodedIds)).filter(
+      (id) => !isBlueskyId(id)
+    )
     const accounts = await database.getMastodonActorsFromIds({ ids })
 
     return apiResponse({

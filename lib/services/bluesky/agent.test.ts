@@ -319,5 +319,28 @@ describe('getBlueskyAgent', () => {
       ).rejects.toBeInstanceOf(BlueskySessionEndedError)
       expect(await database.getBlueskySession({ did: DID })).toBeNull()
     })
+
+    it('keeps a session relinked with an app password while the request ran', async () => {
+      restore.mockImplementation(async () => {
+        // The user relinks with an app password between the request and its
+        // refresh, so the library no longer sees an OAuth session.
+        await writeStoredBlueskySession(database, DID, {
+          type: 'app_password',
+          accessJwt: 'access-2',
+          refreshJwt: 'refresh-2'
+        })
+        throw new TokenRefreshError(DID, 'refused')
+      })
+      const agent = await getBlueskyAgent(database, actor)
+
+      const error = await agent!
+        .get('app.bsky.feed.getTimeline')
+        .catch((caught: unknown) => caught)
+      expect(error).toBeInstanceOf(BlueskySessionChangedError)
+      expect(await readStoredBlueskySession(database, DID)).toMatchObject({
+        type: 'app_password',
+        accessJwt: 'access-2'
+      })
+    })
   })
 })

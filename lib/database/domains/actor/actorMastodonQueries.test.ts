@@ -261,6 +261,26 @@ describe('getLocalMastodonActors', () => {
     )
   })
 
+  it('leaves Bluesky actors out of the local=false directory', async () => {
+    const domain = `dirbsky-${suffix()}.test`
+    const remote = await insertActor(testDb, 'bsky-remote')
+    const blueskyId = await database.upsertBlueskyActor({
+      did: 'did:plc:directory',
+      handle: 'directory.bsky.social'
+    })
+    expect(blueskyId).not.toBeNull()
+
+    const accounts = await database.getLocalMastodonActors({
+      localDomain: domain,
+      local: false,
+      order: 'new',
+      limit: 1000
+    })
+    const urls = accounts.map((account) => account.url)
+    expect(urls).toContain(remote)
+    expect(urls).not.toContain(blueskyId)
+  })
+
   it('orders active profiles by their last status, never-posted last, then newest', async () => {
     const domain = `dirord-${suffix()}.test`
     const add = async (

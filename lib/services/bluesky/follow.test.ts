@@ -47,6 +47,16 @@ describe('Bluesky follow service', () => {
     await database.destroy()
   })
 
+  const linkAccount = (did: string) =>
+    database.saveBlueskyAccount({
+      actorId: actor.id,
+      did,
+      handle: 'me.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
+
   beforeEach(async () => {
     vi.mocked(getBlueskyAgent).mockReset()
     post.mockReset()
@@ -56,6 +66,7 @@ describe('Bluesky follow service', () => {
       get: vi.fn(),
       post
     } as unknown as BlueskyAgent)
+    await linkAccount(OWN_DID)
     await database.deleteBlueskyFollow({
       actorId: actor.id,
       targetActorId: TARGET_ID
@@ -134,6 +145,26 @@ describe('Bluesky follow service', () => {
       ).toBeNull()
     }
   )
+
+  it('refuses a follow when the account was relinked to another DID during the call', async () => {
+    post.mockImplementation(async () => {
+      // The user relinks to another DID while createRecord is in flight.
+      await linkAccount('did:plc:relinked')
+      return { uri: FOLLOW_URI }
+    })
+
+    const error = await followBlueskyActor(database, actor, TARGET_ID).catch(
+      (caught: unknown) => caught
+    )
+
+    expect(error).toBeInstanceOf(BlueskySessionChangedError)
+    expect(
+      await database.getBlueskyFollow({
+        actorId: actor.id,
+        targetActorId: TARGET_ID
+      })
+    ).toBeNull()
+  })
 
   it('refuses a follow without a linked account', async () => {
     vi.mocked(getBlueskyAgent).mockResolvedValue(null)

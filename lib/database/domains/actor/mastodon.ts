@@ -133,6 +133,9 @@ export const getLocalMastodonActors = async (
     // The directory never lists suspended or silenced actors on any surface.
     .where('actors.suspendedAt', 'is', null)
     .where('actors.silencedAt', 'is', null)
+    // Bluesky accounts are for signed-in viewers, and one user's Home sync
+    // would otherwise fill everyone's directory with the people they follow.
+    .where('actors.network', 'is', null)
     // local=false lists every known profile (Mastodon's default directory);
     // local=true keeps only this server's account-backed actors.
     .$if(local, (qb) =>
