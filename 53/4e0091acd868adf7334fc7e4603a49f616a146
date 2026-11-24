@@ -1,0 +1,27 @@
+lib/services/bluesky/records.ts
+  s_f193227df3df34::t_6029c0f2d5f132 16,53-55,208-209,211-215
+lib/services/bluesky/follow.ts
+  s_f193227df3df34::t_6029c0f2d5f132 17,35,64-73,78-103,208
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_5e323fcca08ffa 1304-1305,1307-1310,1355
+lib/services/bluesky/follow.test.ts
+  s_f193227df3df34::t_0a7960b5c2d22b 34-42,72-76,127,156,178,199-310,446,469,495-539,546
+lib/services/bluesky/records.test.ts
+  s_f193227df3df34::t_dd9d4847f1547c 234-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "534e0091acd868adf7334fc7e4603a49f616a146",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
