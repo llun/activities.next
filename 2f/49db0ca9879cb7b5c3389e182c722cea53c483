@@ -1,0 +1,32 @@
+lib/services/bluesky/client.ts
+  s_f193227df3df34::t_3a2ea1850ba5e2 63-75,107
+lib/services/bluesky/follow.ts
+  s_f193227df3df34::t_a62befd2d3e0ce 105-107
+  s_f193227df3df34::t_77079321904c36 40-42,45
+lib/services/bluesky/sync.ts
+  s_f193227df3df34::t_77079321904c36 19,213-221
+lib/services/bluesky/agent.ts
+  s_f193227df3df34::t_3a2ea1850ba5e2 14,249
+lib/services/bluesky/client.test.ts
+  s_f193227df3df34::t_a9868e8bc8d6e6 7,82-142
+lib/services/bluesky/follow.test.ts
+  s_f193227df3df34::t_f5c410b050081f 169-192
+lib/services/bluesky/sync.test.ts
+  s_f193227df3df34::t_6e04f616e997af 6,555-572
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f49db0ca9879cb7b5c3389e182c722cea53c483",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
