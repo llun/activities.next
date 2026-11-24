@@ -1,0 +1,51 @@
+app/api/v1/accounts/like/route.ts
+  s_f193227df3df34::t_a105f5d7c8bb2c 7-11,13,71-86,90,142-164
+app/api/v1/statuses/[id]/favourite/route.ts
+  s_f193227df3df34::t_b4fb6ca09348c3 2-5,11,42-58,60-63
+app/api/v1/statuses/[id]/reblog/route.ts
+  s_f193227df3df34::t_70bd75047c8efb 5-8,11-14,17-21,90-107,109-112
+app/api/v1/statuses/[id]/unfavourite/route.ts
+  s_f193227df3df34::t_6ccbdad8c2e6ba 2-5,11,13,55-80
+app/api/v1/statuses/[id]/unreblog/route.ts
+  s_f193227df3df34::t_48ade7d99c9621 2-5,11-15,46,57,73-109
+lib/actions/undoAnnounce.ts
+  s_f193227df3df34::t_045dc5998e87ee 5,24-28
+lib/activities/index.ts
+  s_f193227df3df34::t_22fc844a38d301 54-55,454
+lib/client/statuses.ts
+  s_f193227df3df34::t_cc71e18bd6663f 27-65,724-727,746-749,845-849,1003-1007
+lib/components/posts/actions/actions.tsx
+  s_f193227df3df34::t_22f6ff80f86d3a 120,185-201
+lib/components/posts/actions/like-button.test.tsx
+  s_f193227df3df34::t_8e91844c5e8972 8,169-188
+lib/components/posts/actions/like-button.tsx
+  s_f193227df3df34::t_a6a18cf1a5676e 5,111-116
+lib/components/posts/actions/repost-button.tsx
+  s_f193227df3df34::t_c6e44087ae6e72 5,91-96,111-116
+lib/jobs/sendAnnounceJob.test.ts
+  s_f193227df3df34::t_94c2bd74217340 9,179-206
+lib/jobs/sendAnnounceJob.ts
+  s_f193227df3df34::t_e49a38d237c33b 10,31-34
+lib/jobs/sendUndoAnnounceJob.ts
+  s_f193227df3df34::t_8fd656fff75583 9,33-36
+lib/services/bluesky/records.ts
+  s_f193227df3df34::t_bbd0b2b8b6fc68 436-441
+lib/services/federation/enqueueDeliveries.ts
+  s_f193227df3df34::t_464aa563bcc856 10,60-82,92-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "689e60d4b48be15cfb81e7deff034b803e06282f",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
