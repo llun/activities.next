@@ -1,0 +1,37 @@
+app/api/v1/statuses/route.test.ts
+  s_f193227df3df34::t_0f16b80fdf77e1 2133-2196
+app/api/v1/statuses/route.ts
+  s_f193227df3df34::t_0688f6e728ad05 332-333
+lib/actions/createNote.blueskyCrosspost.test.ts
+  s_f193227df3df34::t_15bcee61215eef 1-4,6-9,13-15,23,250-590
+lib/actions/createNote.ts
+  s_f193227df3df34::t_2ff99773066626 14-17,175,183,221-240,262,270,297,348,355-356,392-393,398-399,402-411,427-428,433,450-451,916-917,1087-1088,1285,1301-1304
+lib/actions/createPoll.ts
+  s_f193227df3df34::t_26dd633e7757fe 80-81,218-219,281-282,285,288
+lib/actions/updateNoteVisibility.test.ts
+  s_f193227df3df34::t_2d1f9e06b132f6 3,5-6,8,14,22,26-29,31,35-36,62-66,356-622
+lib/actions/updateNoteVisibility.ts
+  s_f193227df3df34::t_6dd2ac1856f97c 5,13,34-45,51-95,97-98
+lib/database/domains/bluesky/bluesky.test.ts
+  s_f193227df3df34::t_a415990747fae3 4,1143-1295
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_d90e645b34a4cb 19-20,808-850,903-904
+lib/database/domains/bluesky/types.ts
+  s_f193227df3df34::t_a94d103585c109 5,241-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a54b814987d76e2487b250162c82a1455ca38848",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
