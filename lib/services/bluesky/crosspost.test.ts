@@ -607,7 +607,7 @@ describe('Bluesky cross-post', () => {
       })
     })
 
-    it('resolves and embeds a cached link preview when the note is not linked to one yet', async () => {
+    it('resolves and embeds a cached link preview before acquiring the per-actor lock', async () => {
       const url = 'https://cached.test/article'
       await database.upsertLinkPreview({
         urlHash: getHashFromString(url),
@@ -621,9 +621,31 @@ describe('Bluesky cross-post', () => {
       const status = await claim(await createNote({ text: `Read ${url}` }))
       answerCreate('3kcachedcard')
 
-      await crosspostStatus(database, status.id)
+      const order: string[] = []
+      const originalLink = database.linkStatusLinkPreview.bind(database)
+      const originalAcquire = database.acquireImportLock.bind(database)
+      const linkSpy = vi
+        .spyOn(database, 'linkStatusLinkPreview')
+        .mockImplementation(async (params) => {
+          order.push('linkStatusLinkPreview')
+          return originalLink(params)
+        })
+      const lockSpy = vi
+        .spyOn(database, 'acquireImportLock')
+        .mockImplementation(async (params) => {
+          order.push('acquireImportLock')
+          return originalAcquire(params)
+        })
+
+      try {
+        await crosspostStatus(database, status.id)
+      } finally {
+        linkSpy.mockRestore()
+        lockSpy.mockRestore()
+      }
 
       expect(safeRemoteFetch).not.toHaveBeenCalled()
+      expect(order).toEqual(['linkStatusLinkPreview', 'acquireImportLock'])
       expect(createdRecord().embed).toEqual({
         $type: 'app.bsky.embed.external',
         external: {
@@ -631,6 +653,15 @@ describe('Bluesky cross-post', () => {
           title: 'Cached Article',
           description: 'Already in cache'
         }
+      })
+      const updated = (await database.getStatus({
+        statusId: status.id,
+        withReplies: false
+      })) as StatusNote | null
+      expect(updated?.linkPreview).toMatchObject({
+        url,
+        title: 'Cached Article',
+        description: 'Already in cache'
       })
     })
 

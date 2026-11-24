@@ -1,3 +1,9 @@
+import { htmlToDOM } from 'html-react-parser'
+import type {
+  DOMNode,
+  Element as HtmlElement,
+  Text as HtmlText
+} from 'html-react-parser'
 import sharp from 'sharp'
 
 import {
@@ -10,7 +16,6 @@ import {
   countBlueskyGraphemes,
   countBlueskyUtf8Bytes
 } from '@/lib/utils/blueskyText'
-import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 // Turning a local post into a Bluesky post: its Markdown text as plain text,
 // the text cut to Bluesky's limits with a link back to the original, and an
@@ -207,20 +212,222 @@ const cutToRoom = (text: string, room: number, byteRoom: number): string => {
   return graphemes.slice(0, limit).join('').trimEnd()
 }
 
-// A poll stores rendered HTML (convertMarkdownText): keep its paragraphs and
-// line breaks, and let htmlToPlainText drop the tags and decode entities.
-export const pollHtmlToBlueskyPlainText = (html: string): string =>
-  html
-    .split(/<\/p\s*>/i)
-    .map((paragraph) =>
-      paragraph
-        .split(/<br\s*\/?>/i)
-        .map(htmlToPlainText)
-        .join('\n')
-        .trim()
-    )
-    .filter(Boolean)
-    .join('\n\n')
+type HtmlDomNode = DOMNode | HtmlElement['children'][number]
+
+const POLL_BLOCK_TAGS = new Set([
+  'blockquote',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ol',
+  'p',
+  'pre',
+  'ul'
+])
+
+const MENTION_HREF_PATH_PATTERN = /^\/(@[^/\s@]+@[^/\s@]+)$/
+
+const isHtmlText = (node: HtmlDomNode): node is HtmlText => node.type === 'text'
+
+const isHtmlElement = (node: HtmlDomNode): node is HtmlElement =>
+  node.type === 'tag'
+
+const hasClass = (node: HtmlElement, className: string): boolean => {
+  const value = node.attribs?.class
+  if (!value) return false
+  return value.split(/\s+/).includes(className)
+}
+
+const mentionFromHref = (href: string | undefined): string | null => {
+  if (!href) return null
+  try {
+    const parsed = new URL(href.trim(), 'https://placeholder.invalid')
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null
+    }
+    const match = MENTION_HREF_PATH_PATTERN.exec(parsed.pathname)
+    return match ? match[1] : null
+  } catch {
+    return null
+  }
+}
+
+const isDisplayTextForHref = (label: string, href: string): boolean => {
+  if (label === href) return true
+  const candidates = new Set<string>([href])
+  const withoutScheme = href.replace(/^https?:\/\//i, '')
+  candidates.add(withoutScheme)
+  candidates.add(withoutScheme.replace(/^www\./i, ''))
+  try {
+    const parsed = new URL(href)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      const host = parsed.host
+      const bareHost = host.startsWith('www.') ? host.slice(4) : host
+      const pathAndSearch = `${parsed.pathname}${parsed.search}`
+      const suffix = pathAndSearch === '/' ? '' : pathAndSearch
+      candidates.add(`${host}${suffix}`)
+      candidates.add(`${bareHost}${suffix}`)
+      if (parsed.hash) {
+        candidates.add(`${host}${suffix}${parsed.hash}`)
+        candidates.add(`${bareHost}${suffix}${parsed.hash}`)
+      }
+    }
+  } catch {
+    // Non-URL or relative href: keep the string candidates collected above.
+  }
+
+  if (candidates.has(label)) return true
+  const truncated = label.endsWith('…')
+    ? label.slice(0, -1)
+    : label.endsWith('...')
+      ? label.slice(0, -3)
+      : null
+  if (truncated) {
+    for (const candidate of candidates) {
+      if (candidate.startsWith(truncated)) return true
+    }
+  }
+  return false
+}
+
+const anchorToText = (node: HtmlElement): string => {
+  const visible = walkPollHtmlNodes(node.children, false).trim()
+  if (hasClass(node, 'mention')) {
+    return mentionFromHref(node.attribs?.href) ?? visible
+  }
+  if (hasClass(node, 'hashtag')) {
+    return visible
+  }
+  const href = node.attribs?.href?.trim() ?? ''
+  if (!href) return visible
+  if (!visible || isDisplayTextForHref(visible, href)) return href
+  return `${visible} ${href}`
+}
+
+const walkPollHtmlNodes = (nodes: HtmlDomNode[], inPre: boolean): string => {
+  let out = ''
+
+  const trimTrailingHorizontalSpace = () => {
+    out = out.replace(/[ \t]+$/, '')
+  }
+
+  const ensureNewlines = (count: number, trimTrailing = true) => {
+    if (!out) return
+    if (trimTrailing) trimTrailingHorizontalSpace()
+    if (!out) return
+    let trailing = 0
+    while (trailing < out.length && out[out.length - 1 - trailing] === '\n') {
+      trailing += 1
+    }
+    if (trailing < count) {
+      out += '\n'.repeat(count - trailing)
+    }
+  }
+
+  const appendCollapsedText = (raw: string) => {
+    const collapsed = raw.replace(/\s+/g, ' ')
+    if (!collapsed) return
+    if (collapsed === ' ') {
+      if (!out || out.endsWith('\n') || out.endsWith(' ')) return
+      out += ' '
+      return
+    }
+    if (
+      collapsed.startsWith(' ') &&
+      (!out || out.endsWith('\n') || out.endsWith(' '))
+    ) {
+      out += collapsed.slice(1)
+      return
+    }
+    out += collapsed
+  }
+
+  const visit = (list: HtmlDomNode[], pre: boolean) => {
+    for (const node of list) {
+      if (isHtmlText(node)) {
+        if (pre) {
+          out += node.data
+        } else {
+          appendCollapsedText(node.data)
+        }
+        continue
+      }
+
+      if (!isHtmlElement(node)) continue
+
+      const tag = node.name.toLowerCase()
+
+      if (tag === 'br') {
+        if (!pre) trimTrailingHorizontalSpace()
+        out += '\n'
+        continue
+      }
+
+      if (tag === 'img') {
+        const alt = (node.attribs?.alt ?? '').trim()
+        const src = (node.attribs?.src ?? '').trim()
+        const text = src ? linkToText(alt, src) : alt
+        if (text) appendCollapsedText(text)
+        continue
+      }
+
+      if (tag === 'a') {
+        const text = anchorToText(node)
+        if (text) {
+          if (pre) {
+            out += text
+          } else {
+            appendCollapsedText(text)
+          }
+        }
+        continue
+      }
+
+      if (tag === 'pre') {
+        ensureNewlines(2)
+        const preText = walkPollHtmlNodes(node.children, true).replace(
+          /\n$/,
+          ''
+        )
+        out += preText
+        if (preText) ensureNewlines(2, false)
+        continue
+      }
+
+      if (tag === 'li') {
+        ensureNewlines(1)
+        visit(node.children, pre)
+        ensureNewlines(1)
+        continue
+      }
+
+      if (POLL_BLOCK_TAGS.has(tag)) {
+        ensureNewlines(2)
+        visit(node.children, pre)
+        ensureNewlines(2)
+        continue
+      }
+
+      visit(node.children, pre)
+    }
+  }
+
+  visit(nodes, inPre)
+  return out
+}
+
+// A poll stores rendered HTML (convertMarkdownText): walk the parsed DOM to
+// recover full link/image URLs, full remote mention handles, block and list
+// breaks, and decoded entities consistent with markdownToBlueskyPlainText.
+export const pollHtmlToBlueskyPlainText = (html: string): string => {
+  if (!html) return ''
+  return walkPollHtmlNodes(htmlToDOM(html), false)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
 
 export type BuildCrosspostTextParams = {
   text: string

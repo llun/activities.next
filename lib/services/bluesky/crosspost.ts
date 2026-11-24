@@ -231,6 +231,37 @@ const uploadLinkPreviewThumb = async (
   }
 }
 
+// createNote runs syncStatusLinkPreview after publishCreatedStatus so
+// federation never waits on a third-party fetch; under NoQueue or an async
+// queue race (or idempotent recovery) the cross-post runs first. Resolve and
+// link the card before taking the per-actor cross-post lock so slow remote
+// fetches never hold the lock; failures stay local and simply omit the card.
+const ensureCrosspostLinkPreview = async (
+  database: Database,
+  status: PostStatus
+): Promise<void> => {
+  if (
+    status.linkPreview ||
+    status.type !== StatusType.enum.Note ||
+    Boolean(status.summary?.trim()) ||
+    status.attachments.some(isCrosspostImage)
+  ) {
+    return
+  }
+  try {
+    const previewUrl = await resolveStatusPreviewUrl({ database, status })
+    if (previewUrl) {
+      await syncStatusLinkPreview({ database, status })
+    }
+  } catch (error) {
+    logger.warn({
+      message: 'Could not resolve link preview for a Bluesky cross-post',
+      statusId: status.id,
+      err: toLoggableError(error)
+    })
+  }
+}
+
 const buildRecord = async (
   database: Database,
   agent: BlueskyAgent,
@@ -307,27 +338,7 @@ const buildRecord = async (
   if (images.length > 0) {
     embed = { $type: 'app.bsky.embed.images', images }
   } else if (!hasContentWarning) {
-    let preview = status.linkPreview
-    if (!preview && status.type === StatusType.enum.Note) {
-      // createNote runs syncStatusLinkPreview after publishCreatedStatus so
-      // federation never waits on a third-party fetch; under NoQueue or an
-      // async queue race (or idempotent recovery) the cross-post runs first.
-      // Resolve it here when the note carries a previewable URL; preview
-      // failures stay local and simply omit the card.
-      try {
-        const previewUrl = await resolveStatusPreviewUrl({ database, status })
-        if (previewUrl) {
-          const synced = await syncStatusLinkPreview({ database, status })
-          preview = synced.linkPreview
-        }
-      } catch (error) {
-        logger.warn({
-          message: 'Could not resolve link preview for a Bluesky cross-post',
-          statusId: status.id,
-          err: toLoggableError(error)
-        })
-      }
-    }
+    const preview = status.linkPreview
     if (preview?.title) {
       const thumb = await uploadLinkPreviewThumb(agent, preview.imageUrl)
       embed = {
@@ -481,6 +492,10 @@ export const crosspostStatus = async (
       error: BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE
     })
     return
+  }
+
+  if (isActorUsable(actor)) {
+    await ensureCrosspostLinkPreview(database, status)
   }
 
   let attemptId: string | null = null

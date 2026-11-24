@@ -8,12 +8,14 @@ import {
   markdownToBlueskyPlainText,
   pollHtmlToBlueskyPlainText
 } from '@/lib/services/bluesky/crosspostText'
+import { buildBlueskyFacets } from '@/lib/services/bluesky/richText'
 import {
   BLUESKY_MAX_GRAPHEMES,
   BLUESKY_MAX_UTF8_BYTES,
   countBlueskyGraphemes,
   countBlueskyUtf8Bytes
 } from '@/lib/utils/blueskyText'
+import { convertMarkdownText } from '@/lib/utils/text/convertMarkdownText'
 
 const URL = 'https://social.example/users/alice/statuses/1'
 
@@ -108,6 +110,8 @@ describe('markdownToBlueskyPlainText', () => {
 })
 
 describe('pollHtmlToBlueskyPlainText', () => {
+  const renderPollHtml = convertMarkdownText('llun.test')
+
   it.each([
     {
       description: 'keeps paragraphs as blank lines',
@@ -132,6 +136,104 @@ describe('pollHtmlToBlueskyPlainText', () => {
     }
   ])('$description', ({ html, expected }) => {
     expect(pollHtmlToBlueskyPlainText(html)).toBe(expected)
+  })
+
+  it('keeps https:// on a bare short URL and produces a link facet', async () => {
+    const markdown = 'Check https://example.com/docs for info'
+    const text = pollHtmlToBlueskyPlainText(renderPollHtml(markdown))
+
+    expect(text).toBe('Check https://example.com/docs for info')
+    expect(text).toBe(markdownToBlueskyPlainText(markdown))
+    await expect(buildBlueskyFacets(text)).resolves.toEqual([
+      {
+        index: { byteStart: 6, byteEnd: 30 },
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#link',
+            uri: 'https://example.com/docs'
+          }
+        ]
+      }
+    ])
+  })
+
+  it.each([
+    {
+      description: 'does not truncate a long bare URL',
+      markdown:
+        'Read https://www.example.com/very/long/path/that/exceeds/thirty/characters?a=1&b=2',
+      expected:
+        'Read https://www.example.com/very/long/path/that/exceeds/thirty/characters?a=1&b=2'
+    },
+    {
+      description: 'keeps label and URL for markdown links',
+      markdown: 'See [the docs](https://example.com/docs) for details',
+      expected: 'See the docs https://example.com/docs for details'
+    },
+    {
+      description: 'turns an image with alt text into alt and src',
+      markdown: '![a cat](https://example.com/cat.png)',
+      expected: 'a cat https://example.com/cat.png'
+    },
+    {
+      description: 'turns an image without alt text into its src',
+      markdown: '![](https://example.com/cat.png)',
+      expected: 'https://example.com/cat.png'
+    },
+    {
+      description: 'puts each list item on its own line',
+      markdown: '- one\n- two\n- three',
+      expected: 'one\ntwo\nthree'
+    },
+    {
+      description:
+        'separates fenced code from a following paragraph and keeps indentation',
+      markdown: '```js\nconst a = 1\n  const b = 2\n```\n\nAfter code',
+      expected: 'const a = 1\n  const b = 2\n\nAfter code'
+    },
+    {
+      description: 'separates a heading from a following paragraph',
+      markdown: '# Poll question\n\nPick an option',
+      expected: 'Poll question\n\nPick an option'
+    },
+    {
+      description: 'keeps remote mention domains intact',
+      markdown: 'Ask @alice@mastodon.social about this',
+      expected: 'Ask @alice@mastodon.social about this'
+    },
+    {
+      description: 'decodes entities alongside hashtags',
+      markdown: 'Best #tea & coffee?',
+      expected: 'Best #tea & coffee?'
+    },
+    {
+      description: 'keeps blockquotes separated from following paragraphs',
+      markdown: '> quoted line\n\nAfter quote',
+      expected: 'quoted line\n\nAfter quote'
+    }
+  ])('$description (via convertMarkdownText)', ({ markdown, expected }) => {
+    const html = renderPollHtml(markdown)
+    const text = pollHtmlToBlueskyPlainText(html)
+    expect(text).toBe(expected)
+    expect(text).toBe(markdownToBlueskyPlainText(markdown))
+  })
+
+  it('does not leak markup when a link title contains <br> and </p>', () => {
+    const markdown =
+      'See [the docs](https://example.com/docs "line <br> break </p> end") for details'
+    const text = pollHtmlToBlueskyPlainText(renderPollHtml(markdown))
+
+    expect(text).toBe('See the docs https://example.com/docs for details')
+    expect(text).not.toContain('<br>')
+    expect(text).not.toContain('</p>')
+    expect(text).not.toContain('title=')
+  })
+
+  it('keeps &lt;script&gt; as literal <script> text', () => {
+    const markdown = 'Use &lt;script&gt; carefully'
+    const text = pollHtmlToBlueskyPlainText(renderPollHtml(markdown))
+
+    expect(text).toBe('Use <script> carefully')
   })
 })
 
