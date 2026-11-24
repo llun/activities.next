@@ -10,7 +10,7 @@ import type {
   CreateTimelineStatusParams,
   GetTimelineParams
 } from '@/lib/database/domains/timeline/types'
-import { type Db, inTransaction } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
 import {
   type StoredKeysetCursor,
   pastStoredKeyset
@@ -393,10 +393,11 @@ export const getLocalPublicStatusesCount = async (
 
 /**
  * Adds a status to one actor's materialized timeline once: a status already
- * there is left as it is. A missing actorId throws before any query runs:
- * without that, the existence check below compares `actorId = NULL`, which
- * never matches, so it would insert a `timelines` row with a NULL actorId on
- * every call (the unique key treats NULLs as distinct).
+ * there is left as it is. One insert that skips a duplicate on the
+ * (actorId, timeline, statusId) unique key, so two concurrent writers of the
+ * same row cannot fail each other. A missing actorId throws before any query
+ * runs: the unique key treats NULLs as distinct, so every call would insert
+ * another `timelines` row with a NULL actorId.
  */
 export const createTimelineStatus = async (
   db: Db,
@@ -406,28 +407,20 @@ export const createTimelineStatus = async (
     throw new Error('createTimelineStatus requires an actorId')
   }
 
-  await inTransaction(db, async (trx) => {
-    const exists = await trx
-      .selectFrom('timelines')
-      .select((eb) => eb.fn.countAll().as('count'))
-      .where('actorId', '=', actorId)
-      .where('statusId', '=', status.id)
-      .where('timeline', '=', timeline)
-      .executeTakeFirst()
-    if (exists && Number(exists.count)) return
-
-    await trx
-      .insertInto('timelines')
-      .values({
-        actorId,
-        statusId: status.id,
-        statusActorId: status.actorId,
-        timeline,
-        createdAt: new Date(createdAt ?? status.createdAt),
-        updatedAt: new Date()
-      })
-      .execute()
-  })
+  await db
+    .insertInto('timelines')
+    .values({
+      actorId,
+      statusId: status.id,
+      statusActorId: status.actorId,
+      timeline,
+      createdAt: new Date(createdAt ?? status.createdAt),
+      updatedAt: new Date()
+    })
+    .onConflict((conflict) =>
+      conflict.columns(['actorId', 'timeline', 'statusId']).doNothing()
+    )
+    .execute()
 }
 
 /**

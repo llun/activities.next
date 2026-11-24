@@ -94,6 +94,45 @@ describe('Bluesky follow service', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
+  it('writes one record when the same follow is sent twice at once', async () => {
+    post.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ uri: FOLLOW_URI }), 50)
+        )
+    )
+
+    const [first, second] = await Promise.all([
+      followBlueskyActor(database, actor, TARGET_ID),
+      followBlueskyActor(database, actor, TARGET_ID)
+    ])
+
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(first.uri).toBe(FOLLOW_URI)
+    expect(second.uri).toBe(FOLLOW_URI)
+  })
+
+  it.each([
+    ['another repo', `at://did:plc:someone/app.bsky.graph.follow/3kfollow`],
+    ['another collection', `at://${OWN_DID}/app.bsky.feed.like/3kfollow`],
+    ['no uri', undefined]
+  ])(
+    'refuses a createRecord answer naming %s and stores nothing',
+    async (_label, uri) => {
+      post.mockResolvedValue({ uri })
+
+      await expect(
+        followBlueskyActor(database, actor, TARGET_ID)
+      ).rejects.toThrow('Bluesky createRecord gave an unexpected answer')
+      expect(
+        await database.getBlueskyFollow({
+          actorId: actor.id,
+          targetActorId: TARGET_ID
+        })
+      ).toBeNull()
+    }
+  )
+
   it('refuses a follow without a linked account', async () => {
     vi.mocked(getBlueskyAgent).mockResolvedValue(null)
 
@@ -137,6 +176,24 @@ describe('Bluesky follow service', () => {
       collection: 'app.bsky.graph.follow',
       rkey: '3kfollow'
     })
+    expect(
+      await database.getBlueskyFollow({
+        actorId: actor.id,
+        targetActorId: TARGET_ID
+      })
+    ).toBeNull()
+  })
+
+  it('drops the row without calling Bluesky when the record is in another repo', async () => {
+    await database.createBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: TARGET_ID,
+      uri: 'at://did:plc:previous/app.bsky.graph.follow/3kfollow'
+    })
+
+    await unfollowBlueskyActor(database, actor, TARGET_ID)
+
+    expect(post).not.toHaveBeenCalled()
     expect(
       await database.getBlueskyFollow({
         actorId: actor.id,

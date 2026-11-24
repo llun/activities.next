@@ -448,6 +448,16 @@ scheduled again). A process that never runs `instrumentation.ts` (a serverless
 deployment on the in-process queue) has no sweep, so delayed deletions need a
 real queue there.
 
+**Bluesky Home sync.** `instrumentation.ts` also starts `startBlueskySyncSweep`
+(`lib/services/bluesky/syncSweep.ts`), which every five minutes publishes a
+`SyncBlueskyHomeJob` for each linked Bluesky account that may sync (see
+[Linked Bluesky accounts](mastodon-api-compatibility.md#linked-bluesky-accounts)).
+Its job ids name the actor and the interval so a deduping queue runs each actor
+once per interval; the sync itself also takes a per-actor lock row and skips a
+run that finds it held, so queues that ignore job ids (Cloud Tasks) and several
+instances never sync one actor twice at once. A process that never runs
+`instrumentation.ts` does not sync Bluesky Homes except right after linking.
+
 #### Status Deletion & Transactional Outbox Semantics
 
 Status deletion (`deleteStatusFromUserInput`) adapts its federation queue dispatching to the configured queue backend:

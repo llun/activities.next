@@ -12,6 +12,7 @@ import {
   BlueskySessionEndedError,
   getBlueskyAgent
 } from './agent'
+import { createBlueskyLock } from './client'
 import { blueskyActorId, parseAtUri } from './records'
 
 const FOLLOW_COLLECTION = 'app.bsky.graph.follow'
@@ -45,7 +46,17 @@ const requireAgent = async (database: Database, actor: Actor) => {
   return agent
 }
 
-export const followBlueskyActor = async (
+// One follow change per (actor, target) at a time, across instances: a double
+// tap must not write two follow records to the PDS.
+const withFollowLock = <T>(
+  database: Database,
+  actor: Actor,
+  targetActorId: string,
+  fn: () => Promise<T>
+) =>
+  createBlueskyLock(database)(`bluesky-follow:${actor.id}:${targetActorId}`, fn)
+
+const writeFollow = async (
   database: Database,
   actor: Actor,
   targetActorId: string
@@ -89,7 +100,7 @@ export const followBlueskyActor = async (
   })) as BlueskyFollow
 }
 
-export const unfollowBlueskyActor = async (
+const deleteFollow = async (
   database: Database,
   actor: Actor,
   targetActorId: string
@@ -101,7 +112,9 @@ export const unfollowBlueskyActor = async (
   if (!existing) return
   const agent = await requireAgent(database, actor)
   const parsed = parseAtUri(existing.uri)
-  if (parsed) {
+  // A record in another repo (the account was relinked to a different DID)
+  // cannot be deleted with this session: only the row is ours to drop.
+  if (parsed?.did === agent.did) {
     try {
       await agent.post('com.atproto.repo.deleteRecord', {
         repo: parsed.did,
@@ -120,6 +133,24 @@ export const unfollowBlueskyActor = async (
   }
   await database.deleteBlueskyFollow({ actorId: actor.id, targetActorId })
 }
+
+export const followBlueskyActor = async (
+  database: Database,
+  actor: Actor,
+  targetActorId: string
+): Promise<BlueskyFollow> =>
+  withFollowLock(database, actor, targetActorId, () =>
+    writeFollow(database, actor, targetActorId)
+  )
+
+export const unfollowBlueskyActor = async (
+  database: Database,
+  actor: Actor,
+  targetActorId: string
+): Promise<void> =>
+  withFollowLock(database, actor, targetActorId, () =>
+    deleteFollow(database, actor, targetActorId)
+  )
 
 /**
  * The status and `{ error }` message the follow routes answer for a failure,

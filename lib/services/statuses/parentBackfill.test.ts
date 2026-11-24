@@ -97,6 +97,10 @@ describe('queueMissingParentFetch', () => {
       description: 'a parent on this instance',
       reply: `https://${TEST_DOMAIN}/users/test1/statuses/gone`
     },
+    {
+      description: 'a Bluesky parent',
+      reply: 'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx/post/3k'
+    },
     { description: 'a non-https reference', reply: 'http://remote.example/1' },
     { description: 'no reference', reply: '' }
   ])('queues nothing for $description', async ({ reply }) => {

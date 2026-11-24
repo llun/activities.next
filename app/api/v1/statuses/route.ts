@@ -61,7 +61,11 @@ import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
-import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
+import {
+  QuoteApprovalPolicy,
+  Status,
+  isBlueskyStatus
+} from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -460,6 +464,16 @@ export const POST = traceApiRoute(
                 responseStatusCode: 404
               })
             }
+            if (isBlueskyStatus(replyStatus)) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: {
+                  error: 'Replying to Bluesky posts is not supported yet.'
+                },
+                responseStatusCode: 422
+              })
+            }
           }
 
           // When the client omits visibility, a reply inherits its parent's
@@ -582,6 +596,16 @@ export const POST = traceApiRoute(
               responseStatusCode: 404
             })
           }
+          if (isBlueskyStatus(targetStatus)) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: {
+                error: 'Replying to Bluesky posts is not supported yet.'
+              },
+              responseStatusCode: 422
+            })
+          }
           replyStatusId = targetStatus.id
         }
 
@@ -640,7 +664,9 @@ export const POST = traceApiRoute(
               data:
                 quoteResolution.reason === 'not_found'
                   ? { error: 'Record not found' }
-                  : { error: 'Quoting is not allowed for this post' },
+                  : quoteResolution.reason === 'bluesky'
+                    ? { error: 'Quoting Bluesky posts is not supported yet.' }
+                    : { error: 'Quoting is not allowed for this post' },
               responseStatusCode:
                 quoteResolution.reason === 'not_found' ? 404 : 422
             })

@@ -3,7 +3,7 @@ import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
 import { fetchQuoteTargetForCreate } from '@/lib/services/quotes/fetchQuoteTargetForCreate'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/domain/actor'
-import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
+import { QuoteApprovalPolicy, isBlueskyStatus } from '@/lib/types/domain/status'
 
 type ResolveQuoteForCreateParams = {
   database: Database
@@ -24,7 +24,8 @@ export type ResolveQuoteForCreateResult =
       // actor's default (undefined leaves the per-status visibility fallback).
       quoteApprovalPolicy?: QuoteApprovalPolicy
     }
-  | { ok: false; reason: 'not_found' | 'denied' }
+  // `bluesky`: quoting a Bluesky post is not supported yet.
+  | { ok: false; reason: 'not_found' | 'denied' | 'bluesky' }
 
 /**
  * Shared quote authorization + policy defaulting for the status-create paths.
@@ -60,6 +61,7 @@ export const resolveQuoteForCreate = async ({
     ) {
       return { ok: false, reason: 'not_found' }
     }
+    if (isBlueskyStatus(quotedStatus)) return { ok: false, reason: 'bluesky' }
     const verdict = await canQuoteStatus({
       database,
       quotedStatus,

@@ -1,6 +1,11 @@
 /** @vitest-size medium */
 import { NextRequest } from 'next/server'
 
+import {
+  SEARCH_RESOLVE_LIMIT,
+  checkSearchResolveRateLimit,
+  resetSearchResolveRateLimitForTests
+} from '@/app/api/v2/search/rateLimit'
 import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
 
 import { GET } from './route'
@@ -830,6 +835,19 @@ describe('GET /api/v1/accounts/search', () => {
       expect(mockSearchAccountIds).toHaveBeenCalledWith(
         expect.objectContaining({ q, exactActorIds: [blueskyId] })
       )
+    })
+
+    it('counts AppView resolves against the search resolve limit', async () => {
+      resetSearchResolveRateLimitForTests()
+      for (let i = 0; i < SEARCH_RESOLVE_LIMIT; i++) {
+        checkSearchResolveRateLimit(oauthActor.id)
+      }
+
+      const response = await search('river.bsky.social@bsky.app')
+      resetSearchResolveRateLimitForTests()
+
+      expect(response.status).toBe(429)
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
     })
 
     it('still prefers a local dotted username', async () => {

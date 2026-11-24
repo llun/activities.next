@@ -6,6 +6,7 @@ import { SEND_FLAG_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
@@ -25,6 +26,8 @@ export const sendFlagJob: JobHandle = createJobHandle(
       span.setAttribute('reportId', reportId)
       span.setAttribute('targetActorId', targetActorId)
 
+      // A Bluesky account has no ActivityPub inbox: nothing to forward to.
+      if (isBlueskyId(targetActorId)) return
       if (!(await canFederateWithDomain(database, targetActorId))) {
         return
       }

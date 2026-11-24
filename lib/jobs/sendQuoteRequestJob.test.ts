@@ -145,6 +145,22 @@ describe('sendQuoteRequestJob', () => {
     })
   })
 
+  it('returns without sending for a Bluesky quoted post', async () => {
+    const statusId = await seedQuotingStatus()
+
+    await expect(
+      runJob(
+        jobData(
+          statusId,
+          'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx/post/3k'
+        )
+      )
+    ).resolves.not.toThrow()
+
+    expect(canFederateWithDomain).not.toHaveBeenCalled()
+    expect(sendQuoteRequest).not.toHaveBeenCalled()
+  })
+
   it('dereferences the quoted note for its author when it is not cached locally', async () => {
     const statusId = await seedQuotingStatus()
     const uncachedId = 'https://other.test/users/someone/statuses/uncached'

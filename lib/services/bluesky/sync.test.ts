@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   BlueskyRequestError,
@@ -220,7 +222,7 @@ describe('syncBlueskyHome', () => {
     )
   })
 
-  it('stops at a post an earlier sync stored', async () => {
+  it("stops at a post already in this actor's Home", async () => {
     publish(postView('alice', 'a3'), postView('alice', 'a0'))
     get.mockResolvedValueOnce({
       feed: [
@@ -240,6 +242,126 @@ describe('syncBlueskyHome', () => {
         uri: postView('alice', 'a0').uri
       })
     ).toBeNull()
+  })
+
+  it("does not stop at a post another actor's sync stored", async () => {
+    await database.createAccount({
+      email: `second@${TEST_DOMAIN}`,
+      username: 'second',
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: 'privateKey-second',
+      publicKey: 'publicKey-second'
+    })
+    const second = (await database.getActorFromId({
+      id: `https://${TEST_DOMAIN}/users/second`
+    })) as Actor
+    await database.saveBlueskyAccount({
+      actorId: second.id,
+      did: 'did:plc:second',
+      handle: 'second.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
+    // a2 and a3 are stored rows and in the first reader's Home already.
+    get.mockResolvedValueOnce({
+      feed: [
+        { post: postView('alice', 'a3') },
+        { post: postView('alice', 'a2') },
+        { post: postView('alice', 'a0') }
+      ]
+    })
+
+    await syncBlueskyHome(database, second)
+
+    const home = (
+      await testDb.db
+        .selectFrom('timelines')
+        .select('statusId')
+        .where('actorId', '=', second.id)
+        .where('timeline', '=', 'main')
+        .execute()
+    ).map((row) => row.statusId)
+    expect(home.sort()).toEqual(
+      ['a0', 'a2', 'a3'].map((rkey) => blueskyPostId(did('alice'), rkey)).sort()
+    )
+  })
+
+  it('skips a post that cannot be stored and stores the rest', async () => {
+    const broken = postView('ivan', 'i1')
+    const fine = postView('ivan', 'i2')
+    publish(broken, fine)
+    get.mockResolvedValue({ feed: [{ post: fine }, { post: broken }] })
+    const upsert = database.upsertBlueskyPost
+    const spy = vi
+      .spyOn(database, 'upsertBlueskyPost')
+      .mockImplementation(async (params) => {
+        if (params.uri === broken.uri) throw new Error('value too long')
+        return upsert(params)
+      })
+    try {
+      await syncBlueskyHome(database, actor)
+    } finally {
+      spy.mockRestore()
+    }
+
+    const home = await homeStatusIds()
+    expect(home).toContain(blueskyPostId(did('ivan'), 'i2'))
+    expect(home).not.toContain(blueskyPostId(did('ivan'), 'i1'))
+    expect((await account())?.syncError).toBeNull()
+
+    // Never in Home, so the next sync does not stop before it.
+    get.mockResolvedValue({ feed: [{ post: broken }] })
+    await syncBlueskyHome(database, actor)
+    expect(await homeStatusIds()).toContain(blueskyPostId(did('ivan'), 'i1'))
+  })
+
+  it('reads at most 50 items a page and 150 in all, whatever the PDS returns', async () => {
+    let page = 0
+    get.mockImplementation(async () => {
+      page++
+      return {
+        feed: Array.from({ length: 60 }, (_, index) => ({
+          post: postView('judy', `p${page}x${index}`)
+        })),
+        cursor: `p${page}`
+      }
+    })
+    vi.mocked(getPublicPosts).mockClear()
+
+    await syncBlueskyHome(database, actor)
+
+    expect(get).toHaveBeenCalledTimes(3)
+    const uris = vi.mocked(getPublicPosts).mock.calls[0][0]
+    expect(uris).toHaveLength(150)
+    expect(uris).not.toContain(postView('judy', 'p1x50').uri)
+  })
+
+  it('skips the run while another sync of the same actor holds its lock', async () => {
+    const lockKey = `bluesky-sync:${crypto.createHash('sha256').update(actor.id).digest('hex')}`
+    const lock = await database.acquireImportLock({ lockKey, ttlMs: 60_000 })
+    expect(lock).not.toBeNull()
+    get.mockResolvedValue({ feed: [] })
+    try {
+      await syncBlueskyHome(database, actor)
+      expect(get).not.toHaveBeenCalled()
+    } finally {
+      await database.releaseImportLock({
+        lockKey,
+        token: lock?.token as string
+      })
+    }
+
+    await syncBlueskyHome(database, actor)
+    expect(get).toHaveBeenCalledTimes(1)
+    // Released after the run.
+    const again = await database.acquireImportLock({ lockKey, ttlMs: 60_000 })
+    expect(again).not.toBeNull()
+    await database.releaseImportLock({
+      lockKey,
+      token: again?.token as string
+    })
   })
 
   it('reads at most three pages', async () => {

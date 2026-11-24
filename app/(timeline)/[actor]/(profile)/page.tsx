@@ -106,6 +106,13 @@ export const generateMetadata = async ({
         }
       }
     }
+    // A Bluesky profile, shown to signed-in viewers only, is never indexed.
+    if (domain.toLowerCase() === 'bsky.app') {
+      return {
+        title: decodedActorHandle,
+        robots: { index: false, follow: false }
+      }
+    }
   }
 
   return {

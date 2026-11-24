@@ -37,6 +37,22 @@ describe('syncBlueskyHomeJob', () => {
     expect(syncBlueskyHome).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['suspended', { suspendedAt: 1 }],
+    ['being deleted', { deletionStatus: 'scheduled' }],
+    ['disabled', { account: { disabledAt: 1 } }],
+    [
+      'unconfirmed',
+      { account: { verificationCode: 'code', emailVerified: false } }
+    ]
+  ])('skips an actor that is %s', async (_, state) => {
+    await run({
+      getActorFromId: vi.fn().mockResolvedValue({ ...actor, ...state }),
+      getBlueskyAccount: vi.fn().mockResolvedValue({ actorId: actor.id })
+    })
+    expect(syncBlueskyHome).not.toHaveBeenCalled()
+  })
+
   it('skips an actor that is gone, and malformed data', async () => {
     const database = {
       getActorFromId: vi.fn().mockResolvedValue(null),

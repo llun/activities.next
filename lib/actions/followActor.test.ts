@@ -55,4 +55,20 @@ describe('followActor', () => {
     expect(await run()).toEqual({ type: 'ok', targetActorId })
     expect(follow).not.toHaveBeenCalled()
   })
+
+  it('refuses a Bluesky account without recording or following it', async () => {
+    const blueskyId =
+      'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+    vi.mocked(recordActorIfNeeded).mockResolvedValue({ id: blueskyId } as Actor)
+
+    expect(
+      await followActor({
+        database: database as unknown as Database,
+        currentActor,
+        requestedActorId: blueskyId
+      })
+    ).toEqual({ type: 'forbidden' })
+    expect(database.createFollow).not.toHaveBeenCalled()
+    expect(follow).not.toHaveBeenCalled()
+  })
 })

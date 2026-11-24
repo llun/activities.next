@@ -1051,6 +1051,33 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       expect(mockGetRemoteActorStatuses).not.toHaveBeenCalled()
     })
 
+    it('does not serve a Bluesky account to a signed-out viewer', async () => {
+      const did = `did:plc:${'a'.repeat(24)}`
+      const blueskyId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'anonymous.bsky.social'
+      })) as string
+      await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/one`,
+        cid: 'cid-anon',
+        did,
+        rkey: 'one',
+        actorId: blueskyId,
+        text: '<p>Stored Bluesky post</p>',
+        createdAt: Date.now(),
+        attachments: []
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(blueskyId)}/statuses`
+        ),
+        { params: Promise.resolve({ id: urlToId(blueskyId) }) }
+      )
+
+      expect(response.status).toBe(404)
+    })
+
     it('does not fetch remote statuses for anonymous viewers', async () => {
       const response = await GET(createRemoteRequest(), {
         params: Promise.resolve({ id: urlToId(EXTERNAL_ACTOR1) })

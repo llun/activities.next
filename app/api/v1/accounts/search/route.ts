@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { checkSearchResolveRateLimit } from '@/app/api/v2/search/rateLimit'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { localizeAccounts } from '@/lib/services/accounts/localizeAccount'
 import {
@@ -23,7 +24,12 @@ import {
 } from '@/lib/utils/accountHandle'
 import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_400,
+  apiRateLimitedResponse,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -136,6 +142,18 @@ export const GET = traceApiRoute(
               domain: accessDomain
             })
           : null
+      // Each native resolve is an AppView request: the /api/v2/search
+      // resolve budget applies.
+      if (nativeBluesky && !localNamesake) {
+        const rateLimit = checkSearchResolveRateLimit(context.currentActor.id)
+        if (!rateLimit.allowed) {
+          return apiRateLimitedResponse(
+            req,
+            rateLimit.retryAfterSeconds,
+            CORS_HEADERS
+          )
+        }
+      }
       const nativeBlueskyId =
         nativeBluesky && !localNamesake
           ? await resolveBlueskyProfile(database, context.currentActor, query)

@@ -9,6 +9,7 @@ import { Database } from '@/lib/database/types'
 import { SEND_BLOCK_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -65,6 +66,8 @@ export const blockActor = async ({
       uri
     })
 
+    // A Bluesky account is blocked here only: it has no ActivityPub inbox.
+    if (isBlueskyId(targetActorId)) return { type: 'ok', targetActorId }
     getQueue()
       .publish({
         id: getHashFromString(block.uri),

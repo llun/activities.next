@@ -83,7 +83,10 @@ export const GET = traceApiRoute(
       const id = await resolveActorIdParam(database, encodedAccountId)
 
       const actor = await database.getActorFromId({ id })
-      if (!actor) return apiCorsError(req, CORS_HEADERS, 404)
+      // Bluesky accounts and posts are shown to signed-in viewers only.
+      if (!actor || (!currentActor && isBlueskyId(actor.id))) {
+        return apiCorsError(req, CORS_HEADERS, 404)
+      }
 
       const url = new URL(req.url)
       const queryParams = Object.fromEntries(url.searchParams.entries())

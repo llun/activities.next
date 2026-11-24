@@ -212,6 +212,16 @@ describe('Bluesky profiles', () => {
       expect(refreshed).toMatchObject({ name: 'Alice Again' })
       // A detailed profile without a banner clears the stored one.
       expect(refreshed?.headerImageUrl ?? '').toBe('')
+
+      // An unchanged profile does not move updatedAt, so the read itself is
+      // what holds the next one off.
+      await testDb.db
+        .updateTable('actors')
+        .set({ updatedAt: new Date(Date.now() - 11 * 60 * 1000) })
+        .where('id', '=', actorId)
+        .execute()
+      await refreshBlueskyProfile(database, viewer, actorId)
+      expect(getPublicProfile).toHaveBeenCalledTimes(1)
     })
 
     it('ignores an id that is not a Bluesky actor', async () => {
@@ -286,6 +296,16 @@ describe('Bluesky profiles', () => {
           uri: `at://${DID}/app.bsky.feed.post/repost`
         })
       ).toBeNull()
+      // Another account's post in this author's feed is not stored.
+      expect(
+        await database.getBlueskyRecordByUri({
+          uri: `at://${OTHER_DID}/app.bsky.feed.post/other`
+        })
+      ).toBeNull()
+
+      // One AppView read per author per ten minutes, whoever views it.
+      await loadBlueskyAuthorFeed(database, viewer, actorId, { limit: 20 })
+      expect(getPublicAuthorFeed).toHaveBeenCalledTimes(1)
     })
 
     it('does nothing without a linked account', async () => {

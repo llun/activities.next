@@ -54,10 +54,14 @@ export type BlueskyFollow = {
 export interface BlueskyDatabase {
   /**
    * Creates or refreshes the actor row of a Bluesky account and returns its
-   * id, or null when a non-Bluesky row already holds that id.
+   * id, or null when a non-Bluesky row already holds that id. Writes nothing
+   * when every given value is already stored.
    */
   upsertBlueskyActor(params: UpsertBlueskyActorParams): Promise<string | null>
-  /** Idempotent on `uri`: `created` is false when the post was stored. */
+  /**
+   * Idempotent on `uri`: `created` is false when the post was stored. A record
+   * whose status is gone is replaced.
+   */
   upsertBlueskyPost(
     params: UpsertBlueskyPostParams
   ): Promise<{ statusId: string; created: boolean }>
@@ -65,6 +69,11 @@ export interface BlueskyDatabase {
     statusId: string
   }): Promise<BlueskyRecord | null>
   getBlueskyRecordByUri(params: { uri: string }): Promise<BlueskyRecord | null>
+  /** Whether the status is in the actor's Home (the MAIN timeline). */
+  isBlueskyPostInHome(params: {
+    actorId: string
+    statusId: string
+  }): Promise<boolean>
 
   /** Replaces the record URI of an existing follow. */
   createBlueskyFollow(params: {

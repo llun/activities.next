@@ -502,9 +502,39 @@ describe('createTimelineStatus', () => {
     )
   })
 
-  // A missing actor throws before any query. Without the check the existence
-  // count compares `actorId = NULL`, which never matches, and every call
-  // inserts another row with a NULL actorId.
+  // Two writers of the same row (two syncs, a sync and a backfill) can both
+  // find it missing, so the row is written by one insert that skips a
+  // duplicate on the unique key rather than a check followed by an insert.
+  // A race SQLite's single connection cannot stage, hence the statement check.
+  it('writes the row with one insert that skips a duplicate', async () => {
+    const prefix = nextPrefix()
+    const viewer = actorIn('home.test', `${prefix}-viewer`)
+    const status = {
+      id: `${prefix}-status`,
+      actorId: actorIn('remote.test', `${prefix}-author`),
+      createdAt: BASE
+    } as unknown as Status
+    const statements = (
+      await testDb.captureQueries(() =>
+        createTimelineStatus(db, {
+          actorId: viewer,
+          timeline: Timeline.MAIN,
+          status
+        })
+      )
+    ).map(({ sql }) => sql.replaceAll('`', '').replaceAll('"', ''))
+    const timelineStatements = statements.filter((sql) =>
+      sql.includes('timelines')
+    )
+    expect(timelineStatements).toHaveLength(1)
+    expect(timelineStatements[0]).toMatch(
+      /^insert into timelines .* on conflict \(actorId, timeline, statusId\) do nothing$/
+    )
+  })
+
+  // A missing actor throws before any query. Without the check every call
+  // inserts another row with a NULL actorId: the unique key treats NULLs as
+  // distinct.
   it('throws without an actor and writes no timelines row', async () => {
     const prefix = nextPrefix()
     const author = actorIn('remote.test', `${prefix}-author`)

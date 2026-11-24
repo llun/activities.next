@@ -1,6 +1,11 @@
 /** @vitest-size medium */
 import { NextRequest } from 'next/server'
 
+import {
+  SEARCH_RESOLVE_LIMIT,
+  checkSearchResolveRateLimit,
+  resetSearchResolveRateLimitForTests
+} from '@/app/api/v2/search/rateLimit'
 import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
 import type { Actor } from '@/lib/types/domain/actor'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
@@ -781,6 +786,41 @@ describe('GET /api/v1/accounts/lookup', () => {
         expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
       }
     )
+
+    it('does not show a stored Bluesky account to a signed-out viewer', async () => {
+      mockGetActorFromUsername.mockResolvedValue(blueskyActor)
+      mockGetMastodonActorFromId.mockResolvedValue(account)
+
+      const response = await GET(
+        new NextRequest(
+          'https://llun.test/api/v1/accounts/lookup?acct=river.bsky.social@bsky.app'
+        )
+      )
+
+      expect(response.status).toBe(404)
+      expect(mockGetMastodonActorFromId).not.toHaveBeenCalled()
+    })
+
+    it('counts AppView resolves against the search resolve limit', async () => {
+      resetSearchResolveRateLimitForTests()
+      for (let i = 0; i < SEARCH_RESOLVE_LIMIT; i++) {
+        checkSearchResolveRateLimit(sessionViewer.id)
+      }
+      mockGetActorFromUsername.mockResolvedValue(null)
+      mockResolveBlueskyProfile.mockResolvedValue(blueskyActor.id)
+      signIn()
+
+      const response = await GET(
+        new NextRequest(
+          'https://llun.test/api/v1/accounts/lookup?acct=river.bsky.social@bsky.app&resolve=true'
+        )
+      )
+      resetSearchResolveRateLimitForTests()
+
+      expect(response.status).toBe(429)
+      expect(response.headers.get('Retry-After')).toBeTruthy()
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
+    })
 
     it('answers 404 for an unknown Bluesky handle when signed out', async () => {
       mockGetActorFromUsername.mockResolvedValue(null)

@@ -3,6 +3,7 @@ import { Database } from '@/lib/database/types'
 import { SEND_UNBLOCK_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -41,6 +42,8 @@ export const unblockActor = async ({
       targetActorId
     })
 
+    // A Bluesky account was blocked here only: no Undo to send.
+    if (isBlueskyId(targetActorId)) return true
     getQueue()
       .publish({
         id: getHashFromString(`${existingBlock.uri}/undo`),

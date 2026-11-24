@@ -1,10 +1,19 @@
-import { isBlueskyId } from '@/lib/utils/blueskyId'
+import {
+  BLUESKY_DOMAIN,
+  BLUESKY_PROFILE_PREFIX,
+  isBlueskyId
+} from '@/lib/utils/blueskyId'
 
 describe('isBlueskyId', () => {
   it.each([
     'https://bsky.app/profile/did:plc:abc',
     'https://bsky.app/profile/did:plc:abc/post/3k44'
   ])('accepts %s', (id) => expect(isBlueskyId(id)).toBe(true))
+
+  it('accepts an id built from the shared prefix', () => {
+    expect(BLUESKY_PROFILE_PREFIX).toBe(`https://${BLUESKY_DOMAIN}/profile/`)
+    expect(isBlueskyId(`${BLUESKY_PROFILE_PREFIX}did:plc:abc`)).toBe(true)
+  })
 
   it.each([
     null,

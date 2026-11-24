@@ -7,6 +7,7 @@ import {
   unreactStatus
 } from '@/lib/services/reactions/reactStatus'
 import { MAX_REACTIONS_PER_ACTOR } from '@/lib/services/statuses/reactionLimits'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
@@ -176,6 +177,26 @@ describe('reactStatus', () => {
     })
 
     expect(result).toEqual({ ok: false, reason: 'not-found' })
+  })
+
+  it('refuses a Bluesky post and stores nothing', async () => {
+    const { statusId } = await storeBlueskyPost(database, 'react')
+
+    const result = await reactStatus({
+      database,
+      currentActor: reactor,
+      statusId,
+      name: '🔥'
+    })
+
+    expect(result).toEqual({ ok: false, reason: 'bluesky' })
+    expect(
+      await database.getStatusReactionRollups({
+        statusIds: [statusId],
+        currentActorId: reactor.id
+      })
+    ).toEqual([])
+    expect(mockSendReaction).not.toHaveBeenCalled()
   })
 
   it('notifies the author of a local status instead of federating', async () => {

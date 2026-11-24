@@ -62,22 +62,37 @@ describe('BlueskyAccount', () => {
     ).toMatchObject({ actorId: 'actor-1' })
   })
 
-  it('replaces an actor’s link and drops the old DID’s session', async () => {
+  const follow = (actorId: string) =>
+    database.createBlueskyFollow({
+      actorId,
+      targetActorId: 'https://bsky.app/profile/did:plc:target',
+      uri: 'at://did:plc:old/app.bsky.graph.follow/1'
+    })
+
+  it('replaces an actor’s link and drops the old DID’s session and follows', async () => {
     await link('actor-3', 'did:plc:old')
     await database.setBlueskySession({ did: 'did:plc:old', session: 'old' })
+    await follow('actor-3')
 
     expect(await link('actor-3', 'did:plc:new')).toBe('saved')
     expect(await database.getBlueskySession({ did: 'did:plc:old' })).toBeNull()
+    expect(
+      await database.getBlueskyFollowTargetIds({ actorId: 'actor-3' })
+    ).toEqual([])
     expect(
       (await database.getBlueskyAccount({ actorId: 'actor-3' }))?.did
     ).toBe('did:plc:new')
   })
 
-  it('keeps the session when the same DID is linked again', async () => {
+  it('keeps the session and follows when the same DID is linked again', async () => {
     await link('actor-4', 'did:plc:same')
     await database.setBlueskySession({ did: 'did:plc:same', session: 's1' })
+    await follow('actor-4')
     await link('actor-4', 'did:plc:same')
     expect(await database.getBlueskySession({ did: 'did:plc:same' })).toBe('s1')
+    expect(
+      await database.getBlueskyFollowTargetIds({ actorId: 'actor-4' })
+    ).toHaveLength(1)
   })
 
   it('keeps the last sync and clears its error when the same DID is linked again', async () => {
@@ -100,12 +115,62 @@ describe('BlueskyAccount', () => {
   })
 
   it('lists the linked accounts that still have a session to sync', async () => {
-    await link('actor-listed', 'did:plc:listed')
-    await database.setBlueskySession({ did: 'did:plc:listed', session: 's' })
-    await link('actor-no-session', 'did:plc:no-session')
+    const linked = async (username: string) => {
+      const actor = await createAdmin(username)
+      await link(actor.actorId, `did:plc:${username}`)
+      await database.setBlueskySession({
+        did: `did:plc:${username}`,
+        session: 's'
+      })
+      return actor
+    }
+    const listed = await linked('sync-listed')
+    // Confirmed: better-auth already treats the account as verified.
+    const confirmed = await linked('sync-confirmed')
+    await testDb.db
+      .updateTable('accounts')
+      .set({ verificationCode: 'code', emailVerified: true })
+      .where('id', '=', confirmed.accountId)
+      .execute()
+    const noSession = await createAdmin('sync-no-session')
+    await link(noSession.actorId, 'did:plc:sync-no-session')
+    const suspended = await linked('sync-suspended')
+    await testDb.db
+      .updateTable('actors')
+      .set({ suspendedAt: new Date() })
+      .where('id', '=', suspended.actorId)
+      .execute()
+    const deleting = await linked('sync-deleting')
+    await testDb.db
+      .updateTable('actors')
+      .set({ deletionStatus: 'scheduled' })
+      .where('id', '=', deleting.actorId)
+      .execute()
+    const disabled = await linked('sync-disabled')
+    await testDb.db
+      .updateTable('accounts')
+      .set({ disabledAt: new Date() })
+      .where('id', '=', disabled.accountId)
+      .execute()
+    const unconfirmed = await linked('sync-unconfirmed')
+    await testDb.db
+      .updateTable('accounts')
+      .set({ verificationCode: 'code', emailVerified: false })
+      .where('id', '=', unconfirmed.accountId)
+      .execute()
+
     const actorIds = await database.listBlueskyAccountsToSync()
-    expect(actorIds).toContain('actor-listed')
-    expect(actorIds).not.toContain('actor-no-session')
+    expect(actorIds).toContain(listed.actorId)
+    expect(actorIds).toContain(confirmed.actorId)
+    for (const skipped of [
+      noSession,
+      suspended,
+      deleting,
+      disabled,
+      unconfirmed
+    ]) {
+      expect(actorIds).not.toContain(skipped.actorId)
+    }
   })
 
   it('lets one active admin actor at a time answer for a host', async () => {
@@ -263,11 +328,15 @@ describe('BlueskyAccount', () => {
     })
   })
 
-  it('unlinks the account and its session', async () => {
+  it('unlinks the account, its session and its follows', async () => {
     await link('actor-7', 'did:plc:seven')
     await database.setBlueskySession({ did: 'did:plc:seven', session: 's' })
+    await follow('actor-7')
     await database.deleteBlueskyAccount({ actorId: 'actor-7' })
     expect(await database.getBlueskyAccount({ actorId: 'actor-7' })).toBeNull()
+    expect(
+      await database.getBlueskyFollowTargetIds({ actorId: 'actor-7' })
+    ).toEqual([])
     expect(
       await database.getBlueskySession({ did: 'did:plc:seven' })
     ).toBeNull()

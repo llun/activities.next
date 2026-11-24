@@ -248,6 +248,35 @@ describe('[actor] page redirects and non-local handles', () => {
       })
     })
 
+    it('never indexes a Bluesky profile, even for a signed-in viewer', async () => {
+      mockGetServerAuthSession.mockResolvedValue({
+        user: { email: 'user@llun.social' }
+      } as never)
+      mockGetActorFromSession.mockResolvedValue({
+        id: 'https://llun.social/users/user'
+      } as never)
+
+      const metadata = await generateMetadata({
+        params: Promise.resolve({ actor: '@river.bsky.social@bsky.app' })
+      })
+
+      expect(metadata).toEqual({
+        title: '@river.bsky.social@bsky.app',
+        robots: { index: false, follow: false }
+      })
+    })
+
+    it('sends a signed-out visitor of a Bluesky profile to bsky.app', async () => {
+      const element = await Page({
+        params: Promise.resolve({ actor: '@river.bsky.social@bsky.app' })
+      })
+      render(element)
+
+      expect(
+        screen.getByRole('link', { name: /continue to bsky\.app/i })
+      ).toHaveAttribute('href', 'https://bsky.app/profile/river.bsky.social')
+    })
+
     // The same gate applies to metadata: a suspended session is anonymous, so
     // the non-local actor gets the no-index canonical metadata a logged-out
     // visitor gets, not the signed-in standard title.

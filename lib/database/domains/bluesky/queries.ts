@@ -1,6 +1,9 @@
 import { type Selectable, sql } from 'kysely'
 
-import { setActorCounters } from '@/lib/database/domains/actor/counters'
+import {
+  getActorCounters,
+  setActorCounters
+} from '@/lib/database/domains/actor/counters'
 import { createActor, updateActor } from '@/lib/database/domains/actor/writes'
 import type {
   BlueskyFollow,
@@ -15,13 +18,15 @@ import { createNoteWithResult } from '@/lib/database/domains/status/writes'
 import { type Db, inTransaction, isInTransaction } from '@/lib/database/kysely'
 import type { BlueskyRecords } from '@/lib/database/kysely/db'
 import { forUpdate } from '@/lib/database/kysely/dialect'
+import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
+import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { BLUESKY_DOMAIN, BLUESKY_PROFILE_PREFIX } from '@/lib/utils/blueskyId'
 
 const BLUESKY_NETWORK = 'bluesky'
-const BLUESKY_DOMAIN = 'bsky.app'
 
 // Frees `handle` from any other Bluesky actor row (the handle moved to another
 // DID), the way updateRemoteActorHandle displaces a stale remote row, so the
@@ -37,16 +42,77 @@ const releaseHandle = async (trx: Db, actorId: string, handle: string) => {
     .execute()
   for (const holder of holders) {
     if (!holder.id) continue
+    // The row's own DID, which no other row can hold: the username an
+    // unverified handle gets.
     await trx
       .updateTable('actors')
-      .set({ username: `!${holder.id.slice(-254)}`, updatedAt: new Date() })
+      .set({
+        username: holder.id.slice(BLUESKY_PROFILE_PREFIX.length),
+        updatedAt: new Date()
+      })
       .where('id', '=', holder.id)
       .execute()
     await indexActorSearchDocument(trx, { id: holder.id })
   }
 }
 
+// Whether a stored row already holds every given value (undefined keeps a
+// value, so it matches anything).
+const isActorUnchanged = async (
+  trx: Db,
+  actorId: string,
+  row: {
+    username: string | null
+    name: string | null
+    summary: string | null
+    settings: unknown
+  },
+  params: UpsertBlueskyActorParams & { handle: string }
+) => {
+  const settings =
+    getCompatibleJSON<{ iconUrl?: string; headerImageUrl?: string }>(
+      row.settings as string
+    ) ?? {}
+  const same = (given: string | null | undefined, stored?: string | null) =>
+    given === undefined || (given ?? '') === (stored ?? '')
+  if (
+    row.username !== params.handle ||
+    !same(params.name, row.name) ||
+    !same(params.summary, row.summary) ||
+    !same(params.iconUrl, settings.iconUrl) ||
+    !same(params.headerImageUrl, settings.headerImageUrl)
+  ) {
+    return false
+  }
+  const counters = await getActorCounters(trx, actorId)
+  const sameCount = (given: number | null | undefined, stored: number) =>
+    given == null || given === stored
+  return (
+    sameCount(params.followersCount, counters.followersCount) &&
+    sameCount(params.followingCount, counters.followingCount) &&
+    sameCount(params.postsCount, counters.statusCount)
+  )
+}
+
+/**
+ * Creates or refreshes a Bluesky actor row. A concurrent creator of the same
+ * row (or one taking the same handle) can win between the read and the
+ * insert; the write is then run again against the row it left.
+ */
 export const upsertBlueskyActor = async (
+  db: Db,
+  params: UpsertBlueskyActorParams
+): Promise<string | null> => {
+  try {
+    return await writeBlueskyActor(db, params)
+  } catch (error) {
+    // Inside a caller's transaction PostgreSQL aborted it: the caller's error.
+    if (!isUniqueConstraintError(error) || isInTransaction(db)) throw error
+    return writeBlueskyActor(db, params)
+  }
+}
+
+const writeBlueskyActor = async (
   db: Db,
   {
     did,
@@ -67,11 +133,30 @@ export const upsertBlueskyActor = async (
       trx,
       trx
         .selectFrom('actors')
-        .select(['network', 'username'])
+        .select(['network', 'username', 'name', 'summary', 'settings'])
         .where('id', '=', actorId)
         .limit(1)
     ).executeTakeFirst()
     if (row && row.network !== BLUESKY_NETWORK) return false
+    // Every post of an author passes through here: an unchanged row is not
+    // rewritten, re-indexed or given a new updatedAt (which also dates the
+    // last full profile refresh).
+    if (
+      row &&
+      (await isActorUnchanged(trx, actorId, row, {
+        did,
+        handle,
+        name,
+        summary,
+        iconUrl,
+        headerImageUrl,
+        followersCount,
+        followingCount,
+        postsCount
+      }))
+    ) {
+      return true
+    }
     if (row?.username !== handle) await releaseHandle(trx, actorId, handle)
 
     if (!row) {
@@ -159,7 +244,19 @@ export const upsertBlueskyPost = async (
   }: UpsertBlueskyPostParams
 ): Promise<{ statusId: string; created: boolean }> => {
   const stored = await getBlueskyRecordByUri(db, { uri })
-  if (stored) return { statusId: stored.statusId, created: false }
+  if (stored) {
+    const status = await db
+      .selectFrom('statuses')
+      .select('id')
+      .where('id', '=', stored.statusId)
+      .executeTakeFirst()
+    if (status) return { statusId: stored.statusId, created: false }
+    // The status was deleted and its record left behind: store it again.
+    await db
+      .deleteFrom('bluesky_records')
+      .where('statusId', '=', stored.statusId)
+      .execute()
+  }
 
   const statusId = blueskyPostId(did, rkey)
   try {
@@ -241,6 +338,20 @@ export const getBlueskyRecordByUri = async (
     .executeTakeFirst()
   return row ? toRecord(row) : null
 }
+
+export const isBlueskyPostInHome = async (
+  db: Db,
+  { actorId, statusId }: { actorId: string; statusId: string }
+): Promise<boolean> =>
+  Boolean(
+    await db
+      .selectFrom('timelines')
+      .select('id')
+      .where('actorId', '=', actorId)
+      .where('timeline', '=', Timeline.MAIN)
+      .where('statusId', '=', statusId)
+      .executeTakeFirst()
+  )
 
 export const createBlueskyFollow = async (
   db: Db,
@@ -334,6 +445,7 @@ export const blueskyQueries = {
   upsertBlueskyPost,
   getBlueskyRecordByStatusId,
   getBlueskyRecordByUri,
+  isBlueskyPostInHome,
   createBlueskyFollow,
   deleteBlueskyFollow,
   getBlueskyFollow,

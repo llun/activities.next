@@ -5,6 +5,7 @@ import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { JobData } from '@/lib/jobs/sendAnnounceJob'
 import { getQueue } from '@/lib/services/queue'
 import * as timelinesService from '@/lib/services/timelines'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
@@ -193,6 +194,19 @@ describe('Announce action', () => {
 
       expect(result).toBeNull()
       await expectNothingAnnounced(note.id)
+    })
+
+    it('refuses a Bluesky post', async () => {
+      const { statusId } = await storeBlueskyPost(database, 'announce')
+
+      const result = await userAnnounce({
+        currentActor: actor1,
+        statusId,
+        database
+      })
+
+      expect(result).toBeNull()
+      await expectNothingAnnounced(statusId)
     })
 
     it('refuses a direct status addressed to the booster', async () => {

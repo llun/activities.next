@@ -110,6 +110,11 @@ export const saveBlueskyAccount = async (
           .deleteFrom('bluesky_sessions')
           .where('did', '=', previous.did)
           .execute()
+        // Follow records in the old DID's repository.
+        await trx
+          .deleteFrom('bluesky_follows')
+          .where('actorId', '=', params.actorId)
+          .execute()
         await trx
           .deleteFrom('bluesky_accounts')
           .where('actorId', '=', params.actorId)
@@ -191,7 +196,21 @@ export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
       'bluesky_sessions.did',
       'bluesky_accounts.did'
     )
+    .innerJoin('actors', 'actors.id', 'bluesky_accounts.actorId')
+    .innerJoin('accounts', 'accounts.id', 'actors.accountId')
     .select('bluesky_accounts.actorId')
+    // An actor that may not act (isActorModerationBlocked,
+    // isActorConfirmationPending) or is being deleted is not synced.
+    .where('actors.suspendedAt', 'is', null)
+    .where('actors.deletionStatus', 'is', null)
+    .where('accounts.disabledAt', 'is', null)
+    .where((eb) =>
+      eb.or([
+        eb('accounts.verificationCode', 'is', null),
+        eb('accounts.verificationCode', '=', ''),
+        eb('accounts.emailVerified', '=', true)
+      ])
+    )
     .orderBy('bluesky_accounts.actorId')
     .execute()
   return rows.map((row) => row.actorId)
@@ -211,6 +230,10 @@ export const deleteBlueskyAccount = async (
     await trx
       .deleteFrom('bluesky_sessions')
       .where('did', '=', row.did)
+      .execute()
+    await trx
+      .deleteFrom('bluesky_follows')
+      .where('actorId', '=', actorId)
       .execute()
     await trx
       .deleteFrom('bluesky_accounts')

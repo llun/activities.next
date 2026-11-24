@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { sendLike } from '@/lib/activities'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -153,6 +154,21 @@ describe('POST /api/v1/statuses/[id]/favourite', () => {
     const response = await favourite(statusId)
 
     expect(response.status).toBe(404)
+    await expect(
+      database.isActorLikedStatus({ actorId: ACTOR1_ID, statusId })
+    ).resolves.toBeFalse()
+    expect(sendLike).not.toHaveBeenCalled()
+  })
+
+  it('returns 422 and records nothing for a Bluesky post', async () => {
+    const { statusId } = await storeBlueskyPost(database, 'favourite')
+
+    const response = await favourite(statusId)
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Liking Bluesky posts is not supported yet.'
+    })
     await expect(
       database.isActorLikedStatus({ actorId: ACTOR1_ID, statusId })
     ).resolves.toBeFalse()

@@ -14,6 +14,7 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 
 // Relays forward third-party posts as a MINIMAL Announce. The common
 // Announce-style relays (Pleroma `relay`, barkshark ActivityRelay) send only
@@ -74,7 +75,9 @@ export const createRelayAnnounceJob: JobHandle = createJobHandle(
     const objectId = getAnnouncedObjectId(parsed.data.object)
     // Guard against a malformed/non-URL object id so we never make a junk
     // origin fetch for it.
-    if (!objectId || !isHttpUrl(objectId)) return
+    // A Bluesky post is shown to signed-in viewers only, never on the public
+    // Federated timeline.
+    if (!objectId || !isHttpUrl(objectId) || isBlueskyId(objectId)) return
 
     // Skip our own posts relayed back to us, on any domain this server serves
     // (the primary host or a concrete trusted host).

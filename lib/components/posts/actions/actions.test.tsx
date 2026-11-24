@@ -129,18 +129,25 @@ const gearItem: PostMenuExtraItem = {
 // it — the hook has to run inside a component.
 const ActionsHarness = ({
   extraMenuItems,
-  isPinned
+  isPinned,
+  target = status
 }: {
   extraMenuItems?: PostMenuExtraItem[]
   isPinned?: boolean
+  target?: StatusNote
 }) => {
-  const reactionState = useReactionState({ currentActor: actor, status })
+  const reactionState = useReactionState({
+    currentActor: actor,
+    status: target
+  })
   return (
     <Actions
       host="activities.local"
       currentActor={actor}
       currentTime={currentTime}
-      status={status}
+      status={target}
+      onReply={vi.fn()}
+      onQuote={vi.fn()}
       showActions
       editable
       reactionState={reactionState}
@@ -181,6 +188,66 @@ describe('Actions', () => {
 
       await openMenu()
       expect(preloadReactionPicker).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('a Bluesky post', () => {
+    const blueskyAuthor: ActorProfile = {
+      ...actor,
+      id: `https://bsky.app/profile/did:plc:${'a'.repeat(24)}`,
+      username: 'river.bsky.social',
+      domain: 'bsky.app',
+      name: 'River'
+    }
+    const blueskyPost: StatusNote = {
+      ...status,
+      id: `${blueskyAuthor.id}/post/3k`,
+      url: `${blueskyAuthor.id}/post/3k`,
+      actorId: blueskyAuthor.id,
+      actor: blueskyAuthor,
+      isLocalActor: false,
+      network: 'bluesky'
+    }
+    const rowButtons = () =>
+      within(screen.getByRole('group', { name: 'Post actions' }))
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label') ?? '')
+
+    it('offers only bookmark and the menu in the row', async () => {
+      observeWidth(900)
+      render(<ActionsHarness target={blueskyPost} />)
+
+      expect(rowButtons()).toEqual(['Bookmark', 'More actions'])
+      const menu = await openMenu()
+      expect(
+        within(menu).queryByRole('menuitem', { name: 'Quote post' })
+      ).not.toBeInTheDocument()
+      expect(
+        within(menu).queryByRole('menuitem', { name: /Mention/ })
+      ).not.toBeInTheDocument()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Open original' })
+      ).toBeInTheDocument()
+    })
+
+    it('keeps reacting out of the compact menu', async () => {
+      observeWidth(320)
+      render(<ActionsHarness target={blueskyPost} />)
+
+      const menu = await openMenu()
+      expect(
+        within(menu).queryByRole('menuitem', { name: 'React to post' })
+      ).not.toBeInTheDocument()
+      expect(
+        within(menu).getByRole('menuitem', { name: 'Bookmark' })
+      ).toBeInTheDocument()
+    })
+
+    it('still offers every action on an ActivityPub post', async () => {
+      observeWidth(900)
+      render(<ActionsHarness />)
+
+      expect(rowButtons().length).toBeGreaterThan(2)
     })
   })
 

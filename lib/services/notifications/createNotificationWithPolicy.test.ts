@@ -43,6 +43,18 @@ describe('createNotificationWithPolicy block and mute suppression', () => {
   const stored = () =>
     database.getNotifications({ actorId: recipientId, limit: 40 })
 
+  it('creates no notification addressed to a Bluesky account', async () => {
+    const blueskyId =
+      'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+
+    expect(
+      await notify(NotificationType.enum.like, blueskyId, sourceId)
+    ).toBeNull()
+    expect(
+      await database.getNotifications({ actorId: blueskyId, limit: 40 })
+    ).toEqual([])
+  })
+
   it.each([
     NotificationType.enum.follow,
     NotificationType.enum.follow_request,

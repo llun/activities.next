@@ -1,5 +1,14 @@
+import { createActor } from '@/lib/database/domains/actor/writes'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
+import { Timeline } from '@/lib/services/timelines/types'
+import type { Status } from '@/lib/types/domain/status'
+
+vi.mock('@/lib/database/domains/actor/writes', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/database/domains/actor/writes')>()
+  return { ...actual, createActor: vi.fn(actual.createActor) }
+})
 
 describe('Bluesky', () => {
   const testDb = createTestDatabase()
@@ -87,7 +96,73 @@ describe('Bluesky', () => {
         id: blueskyActorId('did:plc:old')
       })
       expect(newer?.username).toBe('moved.bsky.social')
-      expect(older?.username).not.toBe('moved.bsky.social')
+      // The displaced row falls back to its DID, like an unverified handle.
+      expect(older?.username).toBe('did:plc:old')
+    })
+
+    it('writes nothing when every given value is already stored', async () => {
+      const params = {
+        did: 'did:plc:steady',
+        handle: 'steady.bsky.social',
+        name: 'Steady',
+        summary: '<p>Same</p>',
+        iconUrl: 'https://cdn.bsky.app/steady.jpg',
+        headerImageUrl: 'https://cdn.bsky.app/steady-banner.jpg',
+        followersCount: 5,
+        followingCount: 6,
+        postsCount: 7
+      }
+      const actorId = blueskyActorId(params.did)
+      await database.upsertBlueskyActor(params)
+      const stale = new Date(Date.now() - 60 * 60 * 1000)
+      const setUpdatedAt = () =>
+        testDb.db
+          .updateTable('actors')
+          .set({ updatedAt: stale })
+          .where('id', '=', actorId)
+          .execute()
+      const updatedAt = async () =>
+        (await database.getActorFromId({ id: actorId }))?.updatedAt
+      await setUpdatedAt()
+
+      await database.upsertBlueskyActor(params)
+      // A post's author view: no summary, banner or counts, which keep.
+      await database.upsertBlueskyActor({
+        did: params.did,
+        handle: params.handle,
+        name: params.name,
+        iconUrl: params.iconUrl
+      })
+      expect(await updatedAt()).toBe(stale.getTime())
+
+      for (const change of [
+        { name: 'Changed' },
+        { iconUrl: null },
+        { followersCount: 8 }
+      ]) {
+        await setUpdatedAt()
+        await database.upsertBlueskyActor({ ...params, ...change })
+        expect(await updatedAt()).toBeGreaterThan(stale.getTime())
+      }
+      expect(
+        await database.getMastodonActorFromId({ id: actorId })
+      ).toMatchObject({ display_name: 'Steady', followers_count: 8 })
+    })
+
+    it('recovers when a concurrent sync creates the same actor first', async () => {
+      vi.mocked(createActor).mockImplementationOnce(async () => {
+        throw Object.assign(new Error('duplicate key'), { code: '23505' })
+      })
+      expect(
+        await database.upsertBlueskyActor({
+          did: 'did:plc:racer',
+          handle: 'racer.bsky.social',
+          name: 'Racer'
+        })
+      ).toBe(blueskyActorId('did:plc:racer'))
+      expect(
+        await database.getActorFromId({ id: blueskyActorId('did:plc:racer') })
+      ).toMatchObject({ username: 'racer.bsky.social', name: 'Racer' })
     })
 
     it('leaves a non-Bluesky row with the same id alone', async () => {
@@ -181,6 +256,54 @@ describe('Bluesky', () => {
       expect(
         await database.getBlueskyRecordByUri({ uri: `${uri}-missing` })
       ).toBeNull()
+    })
+
+    it('stores a post again when its status was deleted', async () => {
+      const params = {
+        uri: `at://${did}/app.bsky.feed.post/3kgone`,
+        cid: 'bafygone',
+        did,
+        rkey: '3kgone',
+        actorId,
+        text: '<p>Gone</p>',
+        createdAt: Date.UTC(2026, 10, 3),
+        attachments: []
+      }
+      const { statusId } = await database.upsertBlueskyPost(params)
+      await testDb.db
+        .deleteFrom('statuses')
+        .where('id', '=', statusId)
+        .execute()
+
+      expect(await database.upsertBlueskyPost(params)).toEqual({
+        statusId,
+        created: true
+      })
+      expect(await database.getStatus({ statusId })).toMatchObject({
+        text: '<p>Gone</p>'
+      })
+    })
+
+    it("tells whether a post is in an actor's Home", async () => {
+      const statusId = blueskyPostId(did, '3kpost')
+      const reader = 'https://local.test/users/home-reader'
+      const inHome = (actor: string) =>
+        database.isBlueskyPostInHome({ actorId: actor, statusId })
+      expect(await inHome(reader)).toBe(false)
+      const status = (await database.getStatus({ statusId })) as Status
+      await database.createTimelineStatus({
+        actorId: reader,
+        status,
+        timeline: Timeline.DIRECT
+      })
+      expect(await inHome(reader)).toBe(false)
+      await database.createTimelineStatus({
+        actorId: reader,
+        status,
+        timeline: Timeline.MAIN
+      })
+      expect(await inHome(reader)).toBe(true)
+      expect(await inHome('https://local.test/users/other')).toBe(false)
     })
 
     it('stores a reply to a stored post', async () => {

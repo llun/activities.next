@@ -8,16 +8,22 @@ import {
   BLUESKY_DID_PATTERN,
   parseBlueskyActorQuery
 } from '@/lib/utils/accountHandle'
+import { BLUESKY_DOMAIN, BLUESKY_PROFILE_PREFIX } from '@/lib/utils/blueskyId'
+import { isRecord } from '@/lib/utils/typeGuards'
 
 export { isBlueskyId } from '@/lib/utils/blueskyId'
 
-const PROFILE_BASE = 'https://bsky.app/profile/'
 const DID_PATTERN = /^did:[a-z]+:[A-Za-z0-9._:%-]+$/
+// The atproto record-key syntax.
+const RKEY_PATTERN = /^[A-Za-z0-9._:~-]{1,512}$/
+// The actor and status id, username, name and media URL columns are
+// varchar(255) on PostgreSQL: a longer value would fail the whole write.
+const MAX_COLUMN_LENGTH = 255
 
-export const blueskyActorId = (did: string) => `${PROFILE_BASE}${did}`
+export const blueskyActorId = (did: string) => `${BLUESKY_PROFILE_PREFIX}${did}`
 
 export const blueskyPostId = (did: string, rkey: string) =>
-  `${PROFILE_BASE}${did}/post/${rkey}`
+  `${BLUESKY_PROFILE_PREFIX}${did}/post/${rkey}`
 
 // at://<did>/<collection>/<rkey>; an authority that is a handle is refused,
 // since the stored ids are keyed on the DID.
@@ -25,11 +31,16 @@ export const parseAtUri = (
   uri: string
 ): { did: string; collection: string; rkey: string } | null => {
   const match = /^at:\/\/([^/?#]+)\/([^/?#]+)\/([^/?#]+)$/.exec(uri)
-  if (!match || !DID_PATTERN.test(match[1])) return null
+  if (!match || !DID_PATTERN.test(match[1]) || !RKEY_PATTERN.test(match[3])) {
+    return null
+  }
   return { did: match[1], collection: match[2], rkey: match[3] }
 }
 
-const escapeHtml = (text: string) =>
+export const optionalString = (value: unknown) =>
+  typeof value === 'string' ? value : undefined
+
+export const escapeHtml = (text: string) =>
   text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -38,9 +49,6 @@ const escapeHtml = (text: string) =>
     .replace(/'/g, '&#39;')
 
 const textToHtml = (text: string) => escapeHtml(text).replace(/\r?\n/g, '<br>')
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null
 
 const httpUrl = (value: unknown): string | null => {
   if (typeof value !== 'string') return null
@@ -52,6 +60,15 @@ const httpUrl = (value: unknown): string | null => {
   } catch {
     return null
   }
+}
+
+// A stored media URL (avatar, banner, image): https only, and short enough
+// for its column.
+const mediaUrl = (value: unknown): string | null => {
+  const url = httpUrl(value)
+  return url?.startsWith('https:') && url.length <= MAX_COLUMN_LENGTH
+    ? url
+    : null
 }
 
 // The href a facet links its text to, or null when it has no feature this
@@ -73,7 +90,7 @@ const facetHref = (features: unknown): string | null => {
         break
       case 'app.bsky.richtext.facet#tag':
         if (typeof feature.tag === 'string' && feature.tag) {
-          return `https://bsky.app/hashtag/${encodeURIComponent(feature.tag)}`
+          return `https://${BLUESKY_DOMAIN}/hashtag/${encodeURIComponent(feature.tag)}`
         }
         break
     }
@@ -138,7 +155,7 @@ const imagesFromView = (view: unknown): BlueskyPostAttachment[] => {
   }
   return view.images.flatMap((image): BlueskyPostAttachment[] => {
     if (!isRecord(image)) return []
-    const url = httpUrl(image.fullsize)
+    const url = mediaUrl(image.fullsize)
     if (!url) return []
     const aspectRatio = isRecord(image.aspectRatio) ? image.aspectRatio : {}
     const width = positiveInteger(aspectRatio.width)
@@ -146,7 +163,7 @@ const imagesFromView = (view: unknown): BlueskyPostAttachment[] => {
     return [
       {
         url,
-        thumbnailUrl: httpUrl(image.thumb),
+        thumbnailUrl: mediaUrl(image.thumb),
         // The Bluesky CDN serves feed images as JPEG.
         mediaType: 'image/jpeg',
         ...(width && height ? { width, height } : null),
@@ -173,9 +190,6 @@ export const blueskyImagesFromEmbed = (
 const POST_COLLECTION = 'app.bsky.feed.post'
 const INVALID_HANDLE = 'handle.invalid'
 
-const optionalString = (value: unknown) =>
-  typeof value === 'string' ? value : undefined
-
 const optionalCount = (value: unknown) =>
   Number.isInteger(value) && (value as number) >= 0
     ? (value as number)
@@ -195,7 +209,13 @@ export const storeBlueskyAuthor = async (
 ): Promise<string | null> => {
   if (!isRecord(profile)) return null
   const did = optionalString(profile.did)
-  if (!did || !BLUESKY_DID_PATTERN.test(did)) return null
+  if (
+    !did ||
+    !BLUESKY_DID_PATTERN.test(did) ||
+    blueskyActorId(did).length > MAX_COLUMN_LENGTH
+  ) {
+    return null
+  }
   // The AppView only reports a handle whose DNS or well-known record points
   // back at this DID (and whose DID document names the handle), so its handle
   // is trusted. An unverified one (`handle.invalid`) or one that is not a
@@ -209,17 +229,18 @@ export const storeBlueskyAuthor = async (
       ? claimed
       : did
   const description = optionalString(profile.description)
-  const banner = optionalString(profile.banner)
+  const banner = mediaUrl(profile.banner)
+  const name = optionalString(profile.displayName)
   return database.upsertBlueskyActor({
     did,
     handle,
-    name: optionalString(profile.displayName) ?? null,
+    name: name ? Array.from(name).slice(0, MAX_COLUMN_LENGTH).join('') : null,
     summary: description
       ? blueskyPostToHtml(description)
       : full
         ? null
         : undefined,
-    iconUrl: optionalString(profile.avatar) ?? null,
+    iconUrl: mediaUrl(profile.avatar),
     headerImageUrl: banner ?? (full ? null : undefined),
     followersCount: optionalCount(profile.followersCount),
     followingCount: optionalCount(profile.followsCount),
@@ -257,20 +278,28 @@ export type BlueskyPostView = NonNullable<
 
 /**
  * Stores an AppView post view and its author, and returns the status id; null
- * when the author cannot be stored. A reply links to its parent's status id
- * whether or not the parent is stored.
+ * when the author or post cannot be stored (an id too long for its column). A
+ * reply links to its parent's status id whether or not the parent is stored.
  */
 export const storeBlueskyPostView = async (
   database: Database,
   post: BlueskyPostView
 ): Promise<string | null> => {
-  const actorId = await storeBlueskyAuthor(database, post.author)
-  if (!actorId) return null
   const { record } = post
   const parent =
     isRecord(record.reply) && isRecord(record.reply.parent)
       ? parseAtUri(optionalString(record.reply.parent.uri) ?? '')
       : null
+  const replyToStatusId = parent ? blueskyPostId(parent.did, parent.rkey) : null
+  if (
+    blueskyPostId(post.at.did, post.at.rkey).length > MAX_COLUMN_LENGTH ||
+    (replyToStatusId?.length ?? 0) > MAX_COLUMN_LENGTH ||
+    post.cid.length > MAX_COLUMN_LENGTH
+  ) {
+    return null
+  }
+  const actorId = await storeBlueskyAuthor(database, post.author)
+  if (!actorId) return null
   const now = Date.now()
   const createdAt =
     Date.parse(optionalString(record.createdAt) ?? '') ||
@@ -285,7 +314,7 @@ export const storeBlueskyPostView = async (
     text: blueskyPostToHtml(optionalString(record.text) ?? '', record.facets),
     // A clock ahead of ours must not pin the post to the top of a feed.
     createdAt: Math.min(createdAt, now),
-    replyToStatusId: parent ? blueskyPostId(parent.did, parent.rkey) : null,
+    replyToStatusId,
     attachments: blueskyImagesFromEmbed(post.view.embed)
   })
   return statusId

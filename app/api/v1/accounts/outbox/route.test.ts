@@ -406,6 +406,72 @@ describe('POST /api/v1/accounts/outbox', () => {
     )
   })
 
+  describe('a Bluesky post as the target', () => {
+    const blueskyPostId = `https://bsky.app/profile/did:plc:${'o'.repeat(24)}/post/3k`
+    const post = (body: Record<string, unknown>) =>
+      POST(
+        new NextRequest('http://localhost/api/v1/accounts/outbox', {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://test.llun.dev'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    beforeEach(() => {
+      storedRemoteParents.set(blueskyPostId, {
+        id: blueskyPostId,
+        type: 'Note',
+        actorId: `https://bsky.app/profile/did:plc:${'o'.repeat(24)}`,
+        network: 'bluesky',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    })
+
+    it.each([
+      { type: 'note', message: 'a reply', inReplyToId: blueskyPostId },
+      {
+        type: 'poll',
+        message: 'a poll reply',
+        inReplyToId: blueskyPostId,
+        choices: ['A', 'B'],
+        durationInSeconds: 300
+      }
+    ])('refuses a $type reply with 422', async (body) => {
+      const res = await post(body)
+
+      expect(res.status).toBe(422)
+      await expect(res.json()).resolves.toEqual({
+        error: 'Replying to Bluesky posts is not supported yet.'
+      })
+      expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+      expect(mockCreatePollFromUserInput).not.toHaveBeenCalled()
+    })
+
+    it('explains a refused quote', async () => {
+      mockResolveQuoteForCreate.mockResolvedValueOnce({
+        ok: false,
+        reason: 'bluesky'
+      })
+
+      const res = await post({
+        type: 'note',
+        message: 'a quote',
+        quotedStatusId: blueskyPostId
+      })
+
+      expect(res.status).toBe(422)
+      await expect(res.json()).resolves.toEqual({
+        error: 'Quoting Bluesky posts is not supported yet.'
+      })
+      expect(mockCreateNoteFromUserInput).not.toHaveBeenCalled()
+    })
+  })
+
   it('returns 422 when a poll request fails validation in the action', async () => {
     mockCreatePollFromUserInput.mockResolvedValueOnce(null)
     const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {

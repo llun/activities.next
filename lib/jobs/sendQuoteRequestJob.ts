@@ -9,6 +9,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
 import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -26,6 +27,8 @@ export const sendQuoteRequestJob: JobHandle = createJobHandle(
     await withSpan('job', 'sendQuoteRequest', {}, async (span) => {
       const { actorId, statusId, quotedStatusId } = JobData.parse(message.data)
 
+      // A Bluesky post is never quoted over ActivityPub.
+      if (isBlueskyId(quotedStatusId)) return
       if (!(await canFederateWithDomain(database, quotedStatusId))) {
         return
       }

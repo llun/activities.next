@@ -14,7 +14,11 @@ import { MAX_REACTIONS_PER_ACTOR } from '@/lib/services/statuses/reactionLimits'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { CustomEmojiData } from '@/lib/types/domain/customEmoji'
-import { Status, getOriginalStatus } from '@/lib/types/domain/status'
+import {
+  Status,
+  getOriginalStatus,
+  isBlueskyStatus
+} from '@/lib/types/domain/status'
 
 import { getReactionGroupKey } from './reactionGroupKey'
 
@@ -37,6 +41,8 @@ export type ReactStatusResult =
   // Reported rather than silently dropped: the storage layer would no-op, and
   // the client would see a 200 whose Status does not contain its reaction.
   | { ok: false; reason: 'cap-reached' }
+  // A Bluesky post: reacting to one is not supported yet.
+  | { ok: false; reason: 'bluesky' }
 
 type ResolvedReaction = { name: string; customEmoji: CustomEmojiData | null }
 
@@ -133,6 +139,7 @@ export const reactStatus = async ({
     withReplies: false
   })
   if (!status) return { ok: false, reason: 'not-found' }
+  if (isBlueskyStatus(status)) return { ok: false, reason: 'bluesky' }
 
   // Reacting to a boost reacts to the post it boosts. The serializer renders an
   // Announce wrapper with empty reactions by design (they belong to the

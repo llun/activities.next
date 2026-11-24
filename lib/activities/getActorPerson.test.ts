@@ -453,9 +453,13 @@ describe('getActorPerson', () => {
 
   it('refuses a Bluesky id without any request', async () => {
     fetchMock.resetMocks()
+    // Without the guard the signer refuses the id and the lookup logs it as a
+    // failure; the guard returns before any lookup starts.
+    const errorSpy = vi.spyOn(logger, 'error')
     await expect(
       getActorPerson({ actorId: 'https://bsky.app/profile/did:plc:abc' })
     ).resolves.toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
+    expect(errorSpy).not.toHaveBeenCalled()
   })
 })

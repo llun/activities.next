@@ -16,7 +16,8 @@ import { Actor } from '@/lib/types/domain/actor'
 import {
   Status,
   StatusType,
-  getOriginalStatus
+  getOriginalStatus,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -121,7 +122,12 @@ export const userAnnounce = async ({
       database.getActorAnnounceStatus({ statusId, actorId: currentActor.id })
     ])
 
-    if (!originalStatus || actorAnnounceStatus) {
+    // A Bluesky post cannot be boosted as ActivityPub (not supported yet).
+    if (
+      !originalStatus ||
+      actorAnnounceStatus ||
+      isBlueskyStatus(originalStatus)
+    ) {
       return null
     }
 

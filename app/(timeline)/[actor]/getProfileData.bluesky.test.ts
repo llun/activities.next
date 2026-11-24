@@ -67,8 +67,8 @@ describe('getProfileData for a Bluesky account', () => {
     const profile = await getProfileData(
       database,
       '@river.bsky.social@bsky.app',
-      false,
-      { currentActor: null }
+      true,
+      { currentActor: viewer }
     )
 
     expect(profile).toMatchObject({
@@ -81,7 +81,21 @@ describe('getProfileData for a Bluesky account', () => {
     ])
     expect(getActorPerson).not.toHaveBeenCalled()
     expect(getWebfingerSelf).not.toHaveBeenCalled()
-    // A signed-out visitor contacts nothing.
+  })
+
+  it('shows a signed-out visitor nothing and contacts nobody', async () => {
+    const profile = await getProfileData(
+      database,
+      '@river.bsky.social@bsky.app',
+      false,
+      { currentActor: null }
+    )
+
+    // The page answers null with the redirect card to bsky.app.
+    expect(profile).toBeNull()
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect(getWebfingerSelf).not.toHaveBeenCalled()
+    expect(resolveBlueskyProfile).not.toHaveBeenCalled()
     expect(refreshBlueskyProfile).not.toHaveBeenCalled()
     expect(loadBlueskyAuthorFeed).not.toHaveBeenCalled()
   })

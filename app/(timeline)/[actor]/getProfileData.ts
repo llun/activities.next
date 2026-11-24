@@ -168,17 +168,20 @@ export const getProfileData = async (
 const isBlueskyHandle = (actorHandle: string) =>
   actorHandle.split('@')[2]?.toLowerCase() === 'bsky.app'
 
-// A Bluesky account (`@handle@bsky.app`) is never fetched as ActivityPub. A
-// viewer with a linked Bluesky account resolves, refreshes and loads its
-// recent posts through that account (best-effort: a failure shows what is
-// stored); everyone else sees the stored row and posts. Its posts are all
-// public and paged from the store, as a local profile's are.
+// A Bluesky account (`@handle@bsky.app`) is never fetched as ActivityPub, and
+// is shown to signed-in viewers only: a signed-out visitor gets null, which
+// the page answers with the redirect card to bsky.app. A viewer with a linked
+// Bluesky account resolves, refreshes and loads its recent posts through that
+// account (best-effort: a failure shows what is stored); other viewers see
+// the stored row and posts. Its posts are all public and paged from the
+// store, as a local profile's are.
 const getBlueskyProfileData = async (
   database: Database,
   actorHandle: string,
   options: ProfileDataOptions
 ): Promise<ProfileData | null> => {
   const viewer = options.currentActor
+  if (!viewer) return null
   const [username] = actorHandle.split('@').slice(1)
   const known = await database.getActorFromUsername({
     username,
@@ -187,24 +190,20 @@ const getBlueskyProfileData = async (
   const actorId =
     known && isBlueskyId(known.id)
       ? known.id
-      : viewer
-        ? await resolveBlueskyProfile(database, viewer, username)
-        : null
+      : await resolveBlueskyProfile(database, viewer, username)
   if (!actorId) return null
-  if (viewer) {
-    await Promise.all([
-      refreshBlueskyProfile(database, viewer, actorId),
-      loadBlueskyAuthorFeed(database, viewer, actorId, {
-        limit: PER_PAGE_LIMIT
-      })
-    ]).catch((error: unknown) => {
-      logger.warn({
-        message: 'Failed to load Bluesky profile posts',
-        actorId,
-        err: toLoggableError(error)
-      })
+  await Promise.all([
+    refreshBlueskyProfile(database, viewer, actorId),
+    loadBlueskyAuthorFeed(database, viewer, actorId, {
+      limit: PER_PAGE_LIMIT
     })
-  }
+  ]).catch((error: unknown) => {
+    logger.warn({
+      message: 'Failed to load Bluesky profile posts',
+      actorId,
+      err: toLoggableError(error)
+    })
+  })
   const stored = await database.getActorFromId({ id: actorId })
   if (!stored) return null
   // The person is for display only. A Bluesky row has no inbox or followers

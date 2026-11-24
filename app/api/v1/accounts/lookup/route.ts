@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { checkSearchResolveRateLimit } from '@/app/api/v2/search/rateLimit'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getDatabase } from '@/lib/database'
 import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
@@ -22,11 +23,13 @@ import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { Scope } from '@/lib/types/database/operations'
 import type { Actor } from '@/lib/types/domain/actor'
 import { parseAccountUrlHandle } from '@/lib/utils/accountHandle'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_404,
   ERROR_500,
+  apiRateLimitedResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -196,6 +199,17 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     // Resolved through the viewer's linked Bluesky account; without one (or
     // signed out) the answer is the 404 an unresolvable handle gets.
     const auth = await getRemoteFetchAuth()
+    // Each resolve is an AppView request: the /api/v2/search resolve budget.
+    if (auth.authorized) {
+      const rateLimit = checkSearchResolveRateLimit(auth.actor.id)
+      if (!rateLimit.allowed) {
+        return apiRateLimitedResponse(
+          req,
+          rateLimit.retryAfterSeconds,
+          CORS_HEADERS
+        )
+      }
+    }
     const blueskyId = auth.authorized
       ? await resolveBlueskyProfile(database, auth.actor, trimmedAcct)
       : null
@@ -225,7 +239,11 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       : null
   }
 
-  if (!actor)
+  // Bluesky accounts are shown to signed-in viewers only.
+  if (
+    !actor ||
+    (isBlueskyId(actor.id) && !(await getRemoteFetchAuth()).authorized)
+  )
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,

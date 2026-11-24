@@ -6,7 +6,8 @@ import { ReactionState } from '@/lib/components/posts/useReactionState'
 import {
   Status,
   StatusType,
-  getOriginalStatus
+  getOriginalStatus,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
@@ -116,6 +117,9 @@ export const Actions: FC<Props> = ({
     Boolean(actualStatus.isLocalActor) &&
     currentActor.id === actualStatus.actorId
   const hasEditHistory = actualStatus.edits.length > 0
+  // Replying to, boosting, liking, reacting to and quoting a Bluesky post are
+  // not supported yet; bookmarks and the link to the original still work.
+  const isBluesky = isBlueskyStatus(actualStatus)
 
   // Too narrow to seat every control at a comfortable hit size, so the two
   // least-used ones move into the menu that is already there. Both are
@@ -123,27 +127,27 @@ export const Actions: FC<Props> = ({
   // replace, a menu item has no busy styling, so without this a tap during a
   // pending write would be swallowed by the state's single-flight guard with
   // nothing on screen to explain it.
+  const reactItem: PostMenuExtraItem = {
+    key: 'react',
+    icon: <SmilePlus className="size-4" />,
+    label: targetLabel ? `React to ${targetLabel}` : 'React to post',
+    disabled: reactionState.pendingName !== null,
+    // The picker takes focus once it is placed, so it has to open after
+    // the menu has finished handing focus back.
+    deferUntilClosed: true,
+    // Toggles, like the trigger, so selecting it again closes the
+    // "Couldn't load" message a failed picker chunk leaves open. The
+    // menu does not restore focus on close, so closing hands it back to
+    // the trigger itself.
+    onSelect: () => {
+      if (!reactionState.isPicking) return reactionState.setIsPicking(true)
+      reactionState.setIsPicking(false)
+      reactionState.focusTrigger()
+    }
+  }
   const compactItems: PostMenuExtraItem[] = isCompact
     ? [
-        {
-          key: 'react',
-          icon: <SmilePlus className="size-4" />,
-          label: targetLabel ? `React to ${targetLabel}` : 'React to post',
-          disabled: reactionState.pendingName !== null,
-          // The picker takes focus once it is placed, so it has to open after
-          // the menu has finished handing focus back.
-          deferUntilClosed: true,
-          // Toggles, like the trigger, so selecting it again closes the
-          // "Couldn't load" message a failed picker chunk leaves open. The
-          // menu does not restore focus on close, so closing hands it back to
-          // the trigger itself.
-          onSelect: () => {
-            if (!reactionState.isPicking)
-              return reactionState.setIsPicking(true)
-            reactionState.setIsPicking(false)
-            reactionState.focusTrigger()
-          }
-        },
+        ...(isBluesky ? [] : [reactItem]),
         {
           key: 'bookmark',
           icon: (
@@ -179,33 +183,39 @@ export const Actions: FC<Props> = ({
         fullBleed && '-ml-13 mt-3'
       )}
     >
-      <ReplyButton
-        status={replyStatus}
-        targetLabel={splitTargets?.replyLabel}
-        onReply={onReply}
-      />
-      <RepostButton
-        currentActor={currentActor}
-        status={actualStatus}
-        targetLabel={targetLabel}
-      />
-      <LikeButton
-        key={`${actualStatus.id}-like`}
-        currentActor={currentActor}
-        status={actualStatus}
-        targetLabel={targetLabel}
-        onLikeChanged={onLikeChanged}
-      />
+      {isBluesky ? null : (
+        <>
+          <ReplyButton
+            status={replyStatus}
+            targetLabel={splitTargets?.replyLabel}
+            onReply={onReply}
+          />
+          <RepostButton
+            currentActor={currentActor}
+            status={actualStatus}
+            targetLabel={targetLabel}
+          />
+          <LikeButton
+            key={`${actualStatus.id}-like`}
+            currentActor={currentActor}
+            status={actualStatus}
+            targetLabel={targetLabel}
+            onLikeChanged={onLikeChanged}
+          />
+        </>
+      )}
       {isCompact ? null : (
         <BookmarkButton state={bookmark} targetLabel={targetLabel} />
       )}
       {/* Still mounted when compact: the picker it renders is portalled, and
           the menu item that opens it needs somewhere for it to live. */}
-      <ReactionButton
-        state={reactionState}
-        hideTrigger={isCompact}
-        targetLabel={targetLabel}
-      />
+      {isBluesky ? null : (
+        <ReactionButton
+          state={reactionState}
+          hideTrigger={isCompact}
+          targetLabel={targetLabel}
+        />
+      )}
       {isCompact ? (
         // Those two buttons are gone from the row but their failures are not,
         // and each button was the only thing that rendered its own error. The
@@ -250,9 +260,9 @@ export const Actions: FC<Props> = ({
         onMenuOpen={isCompact ? preloadReactionPicker : undefined}
         viewerId={currentActor.id}
         isBookmarked={bookmark.isBookmarked}
-        onReply={onReply}
+        onReply={isBluesky ? undefined : onReply}
         onEdit={onEdit}
-        onQuote={onQuote}
+        onQuote={isBluesky ? undefined : onQuote}
         onPostDeleted={onPostDeleted}
         onBookmarkFolderChanged={(target, folderId) => {
           bookmark.markBookmarked()

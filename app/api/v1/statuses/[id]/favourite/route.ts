@@ -4,8 +4,9 @@ import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyStatus } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { apiCorsError, defaultOptions } from '@/lib/utils/response'
+import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -33,6 +34,15 @@ export const POST = traceApiRoute(
         withReplies: false
       })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
+      // Liking on Bluesky (a like record) is not built yet.
+      if (isBlueskyStatus(status)) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Liking Bluesky posts is not supported yet.' },
+          responseStatusCode: 422
+        })
+      }
 
       // The write decides whether this is a new like, so a repeat or a
       // concurrent unfavourite never leaves the remote out of step.

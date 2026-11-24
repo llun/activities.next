@@ -5,11 +5,14 @@
 // The rows are shared by every user, so the user's PDS only says which posts
 // are in that user's Home; what is stored is read from the public AppView
 // (./appview), never from the PDS's answer.
+import crypto from 'node:crypto'
+
 import type { Database } from '@/lib/database/types'
 import { Timeline } from '@/lib/services/timelines/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
+import { isRecord } from '@/lib/utils/typeGuards'
 
 import {
   BlueskyRequestError,
@@ -19,6 +22,8 @@ import {
 import { getPublicPosts } from './appview'
 import {
   type BlueskyPostView,
+  blueskyPostId,
+  optionalString,
   parseAtUri,
   parseBlueskyPostView,
   storeBlueskyPostView
@@ -28,16 +33,11 @@ const PAGE_LIMIT = 50
 const MAX_PAGES = 3
 const POST_COLLECTION = 'app.bsky.feed.post'
 const REPOST_REASON = 'app.bsky.feed.defs#reasonRepost'
+// One sweep interval: a crashed holder blocks the actor's sync no longer.
+const SYNC_LOCK_TTL_MS = 5 * 60 * 1000
 
-type Json = Record<string, unknown>
 // One Home entry as the PDS lists it: the post, and when it was reposted.
 type HomeItem = { uri: string; repostedAt?: number }
-
-const isRecord = (value: unknown): value is Json =>
-  typeof value === 'object' && value !== null
-
-const optionalString = (value: unknown) =>
-  typeof value === 'string' ? value : undefined
 
 // The AppView's views of `uris`, keyed by uri; a post it does not return is
 // missing.
@@ -69,14 +69,53 @@ const syncErrorMessage = (error: unknown) => {
 
 /**
  * Stores the newest posts of the actor's Bluesky Home (up to three pages,
- * stopping at a post an earlier sync stored) and adds them to the actor's
- * Home. Records the outcome on the linked account and never throws for a
- * remote failure: Settings shows the error and the next sync tries again.
+ * stopping at a post already in this actor's Home) and adds them to the
+ * actor's Home. Records the outcome on the linked account and never throws for
+ * a remote failure: Settings shows the error and the next sync tries again.
+ * Skips the run while another one for the same actor holds its lock, on any
+ * instance.
  */
 export const syncBlueskyHome = async (
   database: Database,
   actor: Actor
 ): Promise<void> => {
+  const lockKey = `bluesky-sync:${crypto.createHash('sha256').update(actor.id).digest('hex')}`
+  const lock = await database.acquireImportLock({
+    lockKey,
+    ttlMs: SYNC_LOCK_TTL_MS
+  })
+  if (!lock) return
+  try {
+    await runSync(database, actor)
+  } finally {
+    await database.releaseImportLock({ lockKey, token: lock.token })
+  }
+}
+
+// Stores one Home entry and adds it to the actor's Home.
+const storeHomeItem = async (
+  database: Database,
+  actor: Actor,
+  item: HomeItem,
+  post: BlueskyPostView
+) => {
+  // A repost shows the original post; there is no boost row for it yet.
+  const statusId = await storeBlueskyPostView(database, post)
+  if (!statusId) return
+  const status = await database.getStatus({ statusId })
+  if (!status) return
+  await database.createTimelineStatus({
+    actorId: actor.id,
+    status,
+    timeline: Timeline.MAIN,
+    // A repost sits in Home at the time it was reposted.
+    ...(item.repostedAt
+      ? { createdAt: Math.min(item.repostedAt, Date.now()) }
+      : null)
+  })
+}
+
+const runSync = async (database: Database, actor: Actor) => {
   try {
     const agent = await getBlueskyAgent(database, actor)
     // No link, or no session to use: Settings already says so.
@@ -88,16 +127,29 @@ export const syncBlueskyHome = async (
         'app.bsky.feed.getTimeline',
         { limit: PAGE_LIMIT, cursor }
       )
-      const feed = Array.isArray(response?.feed) ? response.feed : []
+      // A PDS may answer more than it was asked for.
+      const feed = (Array.isArray(response?.feed) ? response.feed : []).slice(
+        0,
+        PAGE_LIMIT
+      )
       for (const item of feed) {
         if (!isRecord(item) || !isRecord(item.post)) continue
         const uri = optionalString(item.post.uri)
-        if (!uri || parseAtUri(uri)?.collection !== POST_COLLECTION) continue
+        const at = uri ? parseAtUri(uri) : null
+        if (!uri || at?.collection !== POST_COLLECTION) continue
         // A repost of an older post says nothing about where the last sync
-        // stopped, so only an original post ends the walk.
+        // stopped, so only an original post ends the walk. The posts are
+        // shared rows (another user's Home, a reply's parent, a profile), so
+        // only one already in this actor's Home says this sync got there.
         const reason = isRecord(item.reason) ? item.reason : null
         const repost = reason?.$type === REPOST_REASON
-        if (!repost && (await database.getBlueskyRecordByUri({ uri }))) {
+        if (
+          !repost &&
+          (await database.isBlueskyPostInHome({
+            actorId: actor.id,
+            statusId: blueskyPostId(at.did, at.rkey)
+          }))
+        ) {
           break pages
         }
         items.push({
@@ -120,7 +172,20 @@ export const syncBlueskyHome = async (
         .filter((uri): uri is string => !!uri && !views.has(uri))
     )
 
-    const now = Date.now()
+    // One post that cannot be stored must not cost the rest of the Home.
+    // It is never in Home, so the next sync does not stop at it either.
+    const skipOnError = async (uri: string, store: () => Promise<unknown>) => {
+      try {
+        await store()
+      } catch (error) {
+        logger.warn({
+          message: 'Skipped a Bluesky post that could not be stored',
+          actorId: actor.id,
+          uri,
+          err: toLoggableError(error)
+        })
+      }
+    }
     // Oldest first, so Home gets them in the order they were posted.
     for (const item of items.reverse()) {
       const post = views.get(item.uri)
@@ -129,21 +194,14 @@ export const syncBlueskyHome = async (
       const parentView = parent
         ? (views.get(parent) ?? parents.get(parent))
         : undefined
-      if (parentView) await storeBlueskyPostView(database, parentView)
-      // A repost shows the original post; there is no boost row for it yet.
-      const statusId = await storeBlueskyPostView(database, post)
-      if (!statusId) continue
-      const status = await database.getStatus({ statusId })
-      if (!status) continue
-      await database.createTimelineStatus({
-        actorId: actor.id,
-        status,
-        timeline: Timeline.MAIN,
-        // A repost sits in Home at the time it was reposted.
-        ...(item.repostedAt
-          ? { createdAt: Math.min(item.repostedAt, now) }
-          : null)
-      })
+      if (parentView) {
+        await skipOnError(parentView.uri, () =>
+          storeBlueskyPostView(database, parentView)
+        )
+      }
+      await skipOnError(item.uri, () =>
+        storeHomeItem(database, actor, item, post)
+      )
     }
     await database.updateBlueskyAccountSync({
       actorId: actor.id,

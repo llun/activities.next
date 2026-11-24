@@ -40,6 +40,13 @@ describe('Bluesky ids', () => {
       null
     )
     expect(parseAtUri(`at://${DID}/app.bsky.feed.post`)).toBeNull()
+    expect(parseAtUri(`at://${DID}/app.bsky.feed.post/a b`)).toBeNull()
+    expect(
+      parseAtUri(`at://${DID}/app.bsky.feed.post/${'k'.repeat(513)}`)
+    ).toBeNull()
+    expect(
+      parseAtUri(`at://${DID}/app.bsky.feed.post/${'k'.repeat(512)}`)
+    ).not.toBeNull()
     expect(parseAtUri(`https://${DID}/a/b`)).toBeNull()
   })
 })
@@ -232,6 +239,68 @@ describe('storing AppView views', () => {
       text: '<p>A reply</p>',
       reply: blueskyPostId(MALLORY, 'p1')
     })
+  })
+
+  it('keeps only https media URLs that fit their column and clamps the name', async () => {
+    const BOB = `did:plc:${'b'.repeat(24)}`
+    const long = `https://cdn.bsky.app/${'x'.repeat(250)}.jpg`
+    await storeBlueskyAuthor(
+      database,
+      {
+        did: BOB,
+        handle: 'bob.bsky.social',
+        displayName: `${'😀'.repeat(300)}`,
+        avatar: 'http://cdn.bsky.app/bob.jpg',
+        banner: long
+      },
+      { full: true }
+    )
+    const actor = await database.getActorFromId({ id: blueskyActorId(BOB) })
+    expect(Array.from(actor?.name ?? '')).toHaveLength(255)
+    expect(actor?.iconUrl ?? '').toBe('')
+    expect(actor?.headerImageUrl ?? '').toBe('')
+
+    expect(
+      blueskyImagesFromEmbed({
+        $type: 'app.bsky.embed.images#view',
+        images: [
+          { fullsize: 'http://cdn.bsky.app/a.jpg' },
+          { fullsize: long },
+          {
+            fullsize: 'https://cdn.bsky.app/ok.jpg',
+            thumb: 'http://cdn.bsky.app/thumb.jpg'
+          }
+        ]
+      })
+    ).toEqual([
+      {
+        url: 'https://cdn.bsky.app/ok.jpg',
+        thumbnailUrl: null,
+        mediaType: 'image/jpeg'
+      }
+    ])
+  })
+
+  it('stores nothing for an author or post whose id is too long', async () => {
+    const longDid = `did:web:${'w'.repeat(220)}.example`
+    expect(
+      await storeBlueskyAuthor(database, { did: longDid, handle: longDid })
+    ).toBeNull()
+
+    const nearDid = `did:web:${'n'.repeat(200)}.example`
+    const post = parseBlueskyPostView({
+      uri: `at://${nearDid}/app.bsky.feed.post/${'r'.repeat(40)}`,
+      cid: 'cid-long',
+      author: { did: nearDid, handle: 'near.bsky.social' },
+      record: { $type: 'app.bsky.feed.post', text: 'Too long an id' }
+    })
+    expect(post).not.toBeNull()
+    expect(
+      await storeBlueskyPostView(database, post as NonNullable<typeof post>)
+    ).toBeNull()
+    expect(
+      await database.getActorFromId({ id: blueskyActorId(nearDid) })
+    ).toBeNull()
   })
 
   it('refuses a post view whose author is not the record owner', () => {

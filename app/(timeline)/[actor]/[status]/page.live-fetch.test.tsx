@@ -845,4 +845,72 @@ describe('Page live-fetch security', () => {
 
     expect(mockPublish).not.toHaveBeenCalled()
   })
+
+  describe('Bluesky posts', () => {
+    const BLUESKY_AUTHOR_ID = `https://bsky.app/profile/did:plc:${'b'.repeat(24)}`
+    const BLUESKY_POST_ID = `${BLUESKY_AUTHOR_ID}/post/3kpost`
+    const signIn = () => {
+      mockGetServerAuthSession.mockResolvedValue({
+        user: { email: 'admin@activities.local' }
+      } as never)
+      mockGetActorFromSession.mockResolvedValue(LOCAL_ADMIN)
+    }
+    const open = () =>
+      Page({
+        params: Promise.resolve({
+          actor: '@river.bsky.social@bsky.app',
+          status: encodeURIComponent(BLUESKY_POST_ID)
+        })
+      })
+
+    it('404s an unstored Bluesky post instead of queueing a fetch', async () => {
+      signIn()
+
+      await expect(open()).rejects.toThrow('NEXT_NOT_FOUND')
+
+      expect(mockGetNote).not.toHaveBeenCalled()
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('404s an unstored Bluesky post when federation policy is unavailable', async () => {
+      signIn()
+      mockIsLocalFederationDomain.mockRejectedValue(
+        new FederationPolicyUnavailableError()
+      )
+
+      await expect(open()).rejects.toThrow('NEXT_NOT_FOUND')
+
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('sends a signed-out visitor of a stored Bluesky post to bsky.app', async () => {
+      const blueskyAuthor = {
+        ...REMOTE_AUTHOR,
+        id: BLUESKY_AUTHOR_ID,
+        username: 'river.bsky.social',
+        domain: 'bsky.app'
+      }
+      mockGetActorFromUsername.mockResolvedValue(blueskyAuthor)
+      mockGetActorFromId.mockResolvedValue(blueskyAuthor)
+      mockGetStatus.mockResolvedValue({
+        ...makeRemoteNote({ id: BLUESKY_POST_ID }),
+        actorId: BLUESKY_AUTHOR_ID,
+        actor: blueskyAuthor,
+        url: BLUESKY_POST_ID,
+        text: 'Stored Bluesky post',
+        reply: '',
+        replies: [],
+        edits: [],
+        isLocalActor: false,
+        network: 'bluesky',
+        attachments: [],
+        tags: [],
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      await expect(open()).rejects.toThrow(`NEXT_REDIRECT:${BLUESKY_POST_ID}`)
+      expect(PagedStatusThread).not.toHaveBeenCalled()
+    })
+  })
 })
