@@ -132,6 +132,31 @@ describe('Bluesky account service', () => {
   })
 
   describe('linkBlueskyAppPassword', () => {
+    it('refuses a new link when federation policy disallows Bluesky', async () => {
+      const block = await database.createDomainBlock({
+        domain: 'bsky.app',
+        severity: 'suspend'
+      })
+      try {
+        await expect(
+          linkBlueskyAppPassword(database, actor('actor-a'), {
+            identifier: 'alice.example.com',
+            password: 'abcd-efgh-ijkl-mnop'
+          })
+        ).rejects.toMatchObject({
+          status: 422,
+          message: 'This server does not allow Bluesky.'
+        })
+        expect(resolve).not.toHaveBeenCalled()
+        expect(safeRemoteFetch).not.toHaveBeenCalled()
+        expect(
+          await database.getBlueskyAccount({ actorId: 'actor-a' })
+        ).toBeNull()
+      } finally {
+        await database.deleteDomainBlock(block.id)
+      }
+    })
+
     it('refuses anything but the app-password shape before any request', async () => {
       await expect(
         linkBlueskyAppPassword(database, actor('actor-a'), {
@@ -291,6 +316,42 @@ describe('Bluesky account service', () => {
   })
 
   describe('OAuth', () => {
+    it('refuses starting or finishing sign-in when federation policy disallows Bluesky', async () => {
+      const authorize = vi.fn()
+      const callback = vi.fn()
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({ authorize, callback }) as never
+      )
+      const block = await database.createDomainBlock({
+        domain: 'bsky.app',
+        severity: 'suspend'
+      })
+      try {
+        await expect(
+          startBlueskyOAuth(database, actor('actor-a'), 'alice.example.com')
+        ).rejects.toMatchObject({
+          status: 422,
+          message: 'This server does not allow Bluesky.'
+        })
+        expect(resolve).not.toHaveBeenCalled()
+        expect(authorize).not.toHaveBeenCalled()
+
+        expect(
+          await completeBlueskyOAuth(
+            database,
+            actor('actor-a'),
+            new URLSearchParams('code=c&state=s')
+          )
+        ).toBe('failed')
+        expect(callback).not.toHaveBeenCalled()
+        expect(
+          await database.getBlueskyAccount({ actorId: 'actor-a' })
+        ).toBeNull()
+      } finally {
+        await database.deleteDomainBlock(block.id)
+      }
+    })
+
     it('starts sign-in with the actor as state', async () => {
       const authorize = vi
         .fn()

@@ -102,6 +102,27 @@ describe('Bluesky profiles', () => {
       expect(getPublicProfile).not.toHaveBeenCalled()
     })
 
+    it('is null when federation policy disallows Bluesky', async () => {
+      const block = await database.createDomainBlock({
+        domain: 'bsky.app',
+        severity: 'suspend'
+      })
+      vi.mocked(getPublicProfile).mockResolvedValue(
+        profileView({
+          did: `did:plc:${'e'.repeat(24)}`,
+          handle: 'blocked.bsky.social'
+        })
+      )
+      try {
+        expect(
+          await resolveBlueskyProfile(database, viewer, 'blocked.bsky.social')
+        ).toBeNull()
+        expect(getPublicProfile).not.toHaveBeenCalled()
+      } finally {
+        await database.deleteDomainBlock(block.id)
+      }
+    })
+
     it('stores a fetched profile and returns its actor id', async () => {
       vi.mocked(getPublicProfile).mockResolvedValue(profileView())
 
@@ -232,6 +253,34 @@ describe('Bluesky profiles', () => {
       )
       expect(getPublicProfile).not.toHaveBeenCalled()
     })
+
+    it('skips refreshing a stale actor when federation policy disallows Bluesky', async () => {
+      const staleDid = `did:plc:${'e'.repeat(24)}`
+      await database.upsertBlueskyActor({
+        did: staleDid,
+        handle: 'stale.bsky.social'
+      })
+      const actorId = blueskyActorId(staleDid)
+      await testDb.db
+        .updateTable('actors')
+        .set({ updatedAt: new Date(Date.now() - 11 * 60 * 1000) })
+        .where('id', '=', actorId)
+        .execute()
+      vi.mocked(getPublicProfile).mockResolvedValue(
+        profileView({ did: staleDid, handle: 'stale.bsky.social' })
+      )
+
+      const block = await database.createDomainBlock({
+        domain: 'bsky.app',
+        severity: 'suspend'
+      })
+      try {
+        await refreshBlueskyProfile(database, viewer, actorId)
+        expect(getPublicProfile).not.toHaveBeenCalled()
+      } finally {
+        await database.deleteDomainBlock(block.id)
+      }
+    })
   })
 
   describe('loadBlueskyAuthorFeed', () => {
@@ -315,6 +364,24 @@ describe('Bluesky profiles', () => {
         })
       ).resolves.toBeUndefined()
       expect(getPublicAuthorFeed).not.toHaveBeenCalled()
+    })
+
+    it('does nothing when federation policy disallows Bluesky', async () => {
+      const feedDid = `did:plc:${'f'.repeat(24)}`
+      const block = await database.createDomainBlock({
+        domain: 'bsky.app',
+        severity: 'suspend'
+      })
+      try {
+        await expect(
+          loadBlueskyAuthorFeed(database, viewer, blueskyActorId(feedDid), {
+            limit: 10
+          })
+        ).resolves.toBeUndefined()
+        expect(getPublicAuthorFeed).not.toHaveBeenCalled()
+      } finally {
+        await database.deleteDomainBlock(block.id)
+      }
     })
   })
 })

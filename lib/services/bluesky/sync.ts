@@ -21,6 +21,7 @@ import {
   getBlueskyAgent
 } from './agent'
 import { getPublicPosts } from './appview'
+import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 import {
   type BlueskyPostView,
   blueskyPostId,
@@ -118,6 +119,13 @@ const storeHomeItem = async (
 
 const runSync = async (database: Database, actor: Actor) => {
   try {
+    if (!(await isBlueskyAllowed(database))) {
+      await database.updateBlueskyAccountSync({
+        actorId: actor.id,
+        syncError: BLUESKY_NOT_ALLOWED_MESSAGE
+      })
+      return
+    }
     const agent = await getBlueskyAgent(database, actor)
     // No link, or no session to use: Settings already says so.
     if (!agent) return

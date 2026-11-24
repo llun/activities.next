@@ -81,6 +81,22 @@ export const up = async (db: Kysely<any>): Promise<void> => {
 
 // oxlint-disable-next-line typescript/no-explicit-any
 export const down = async (db: Kysely<any>): Promise<void> => {
+  // Without the column, stored Bluesky rows would read as ActivityPub ones
+  // (public, fetchable, delivered to). This migration only adds, so the
+  // previous release runs on top of it: refuse rather than delete data here.
+  for (const table of ['actors', 'statuses']) {
+    const row = await db
+      .selectFrom(table)
+      .select('id')
+      .where('network', '=', 'bluesky')
+      .limit(1)
+      .executeTakeFirst()
+    if (row) {
+      throw new Error(
+        `${table} has Bluesky rows; delete them before rolling back past this migration`
+      )
+    }
+  }
   await db.schema
     .alterTable('bluesky_accounts')
     .dropColumn('syncError')

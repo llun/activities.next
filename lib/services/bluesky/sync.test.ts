@@ -575,4 +575,23 @@ describe('syncBlueskyHome', () => {
     await syncBlueskyHome(database, actor)
     expect(get).not.toHaveBeenCalled()
   })
+
+  it('records an error and skips the agent when federation policy disallows Bluesky', async () => {
+    const block = await database.createDomainBlock({
+      domain: 'bsky.app',
+      severity: 'suspend'
+    })
+    vi.mocked(getBlueskyAgent).mockClear()
+    try {
+      await syncBlueskyHome(database, actor)
+    } finally {
+      await database.deleteDomainBlock(block.id)
+    }
+
+    expect(getBlueskyAgent).not.toHaveBeenCalled()
+    expect(get).not.toHaveBeenCalled()
+    expect((await account())?.syncError).toBe(
+      'This server does not allow Bluesky.'
+    )
+  })
 })

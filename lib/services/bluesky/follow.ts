@@ -14,6 +14,7 @@ import {
   getBlueskyAgent
 } from './agent'
 import { BlueskyLockTimeoutError, createBlueskyLock } from './client'
+import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 import { DID_PATTERN, blueskyActorId, parseAtUri } from './records'
 
 const FOLLOW_COLLECTION = 'app.bsky.graph.follow'
@@ -167,6 +168,9 @@ const writeFollow = async (
   actor: Actor,
   targetActorId: string
 ): Promise<BlueskyFollow> => {
+  if (!(await isBlueskyAllowed(database))) {
+    throw new BlueskyFollowError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
   const did = targetDid(targetActorId)
   if (!did || !(await database.getActorFromId({ id: targetActorId }))) {
     throw new BlueskyFollowError('Record not found', 404)

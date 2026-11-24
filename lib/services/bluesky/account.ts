@@ -29,6 +29,7 @@ import {
   getBlueskyOAuthClient,
   writeStoredBlueskySession
 } from './client'
+import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 
 const INVALID_HANDLE = 'handle.invalid'
 
@@ -227,6 +228,9 @@ export const startBlueskyOAuth = async (
   input: string,
   requestHost?: string
 ): Promise<string> => {
+  if (!(await isBlueskyAllowed(database))) {
+    throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
   // Sign-in returns to the actor's own domain, where the session cookie must
   // be; one started on another served domain could not finish.
   const domain = getServedAuthority(actor.domain) ?? actor.domain
@@ -340,6 +344,7 @@ export const completeBlueskyOAuth = async (
   actor: Actor,
   params: URLSearchParams
 ): Promise<BlueskyCallbackResult> => {
+  if (!(await isBlueskyAllowed(database))) return 'failed'
   // The same canonical domain startBlueskyOAuth used: the session is tied to
   // that client_id.
   const client = getBlueskyOAuthClient(
@@ -403,6 +408,9 @@ export const linkBlueskyAppPassword = async (
   actor: Actor,
   input: { identifier: string; password: string }
 ) => {
+  if (!(await isBlueskyAllowed(database))) {
+    throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
   // Only the app-password shape: a main password must never be stored.
   if (!BLUESKY_APP_PASSWORD_PATTERN.test(input.password.trim())) {
     throw new BlueskyLinkError(

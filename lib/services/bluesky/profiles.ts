@@ -22,6 +22,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { isRecord } from '@/lib/utils/typeGuards'
 
 import { getPublicAuthorFeed, getPublicProfile } from './appview'
+import { isBlueskyAllowed } from './policy'
 import {
   blueskyActorId,
   parseBlueskyPostView,
@@ -34,9 +35,10 @@ const MAX_FEED_LIMIT = 100
 
 type Json = Record<string, unknown>
 
-// The owner's rule: only a viewer with a linked Bluesky account makes this
-// server contact Bluesky for a profile.
+// The owner's rule: only a viewer with a linked Bluesky account (on a server
+// that allows Bluesky) makes this server contact Bluesky for a profile.
 const hasLinkedAccount = async (database: Database, viewer: Actor) =>
+  (await isBlueskyAllowed(database)) &&
   !!(await database.getBlueskyAccount({ actorId: viewer.id }))
 
 /**

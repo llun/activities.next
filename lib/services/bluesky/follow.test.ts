@@ -423,6 +423,46 @@ describe('Bluesky follow service', () => {
     )
   })
 
+  it('refuses a follow with 422 when federation policy disallows Bluesky, while unfollow still works', async () => {
+    await database.createBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: TARGET_ID,
+      uri: FOLLOW_URI
+    })
+    const block = await database.createDomainBlock({
+      domain: 'bsky.app',
+      severity: 'suspend'
+    })
+    try {
+      const error = await followBlueskyActor(database, actor, TARGET_ID).catch(
+        (caught: unknown) => caught
+      )
+      expect(error).toBeInstanceOf(BlueskyFollowError)
+      expect(blueskyFollowFailure(error)).toEqual({
+        status: 422,
+        error: 'This server does not allow Bluesky.'
+      })
+      expect(getBlueskyAgent).not.toHaveBeenCalled()
+      expect(post).not.toHaveBeenCalled()
+
+      post.mockResolvedValue({})
+      await unfollowBlueskyActor(database, actor, TARGET_ID)
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.graph.follow',
+        rkey: '3kfollow'
+      })
+      expect(
+        await database.getBlueskyFollow({
+          actorId: actor.id,
+          targetActorId: TARGET_ID
+        })
+      ).toBeNull()
+    } finally {
+      await database.deleteDomainBlock(block.id)
+    }
+  })
+
   it('refuses to follow the linked account itself', async () => {
     await expect(
       followBlueskyActor(database, actor, blueskyActorId(OWN_DID))
