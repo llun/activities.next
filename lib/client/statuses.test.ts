@@ -1875,6 +1875,39 @@ describe('client statuses module', () => {
       await createNote({ message: 'hi' }).catch(() => undefined)
       expect(sentBody()).not.toHaveProperty('bluesky_crosspost')
     })
+
+    it('copies bluesky_crosspost from the created status response onto blueskyCrosspost', async () => {
+      const pending = { state: 'pending' as const, url: null, error: null }
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'status-1',
+          uri: 'https://llun.test/users/me/statuses/1',
+          created_at: '2026-11-24T00:00:00.000Z',
+          bluesky_crosspost: pending
+        }),
+        { status: 200 }
+      )
+      const created = await createNote({
+        message: 'hi',
+        blueskyCrosspost: true
+      })
+      expect(created.status).toMatchObject({ blueskyCrosspost: pending })
+
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'status-2',
+          uri: 'https://llun.test/users/me/statuses/2',
+          created_at: '2026-11-24T00:00:00.000Z',
+          bluesky_crosspost: null
+        }),
+        { status: 200 }
+      )
+      const notCrossposted = await createNote({
+        message: 'local only',
+        blueskyCrosspost: false
+      })
+      expect(notCrossposted.status).toMatchObject({ blueskyCrosspost: null })
+    })
   })
 
   describe('retryBlueskyCrosspost', () => {

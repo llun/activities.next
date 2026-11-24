@@ -16,6 +16,7 @@ import {
   BLUESKY_CROSSPOST_FAILED_MESSAGE,
   BLUESKY_CROSSPOST_IMAGE_FORMAT_MESSAGE,
   BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE,
+  BLUESKY_CROSSPOST_PARENT_NOT_READY_MESSAGE,
   BLUESKY_CROSSPOST_QUEUE_FAILED_MESSAGE,
   BLUESKY_CROSSPOST_SESSION_ENDED_MESSAGE,
   BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE,
@@ -566,8 +567,36 @@ describe('Bluesky cross-post', () => {
       })
     })
 
-    it("replies in the thread of the author's own cross-posted post", async () => {
+    it('uses parent as root without calling AppView when replying to a top-level cross-posted post', async () => {
       const parent = await claim(await createNote({ text: 'Thread start' }))
+      const parentAttemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId: parent.id
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId: parent.id,
+        attemptId: parentAttemptId!,
+        uri: postUri('3ktopparent'),
+        cid: cid('p')
+      })
+      const reply = await claim(
+        await createNote({ text: 'Direct reply', reply: parent.id })
+      )
+      answerCreate('3kdirectreply')
+
+      await crosspostStatus(database, reply.id)
+
+      expect(getPublicPosts).not.toHaveBeenCalled()
+      expect(createdRecord().reply).toEqual({
+        root: { uri: postUri('3ktopparent'), cid: cid('p') },
+        parent: { uri: postUri('3ktopparent'), cid: cid('p') }
+      })
+    })
+
+    it("replies in the thread of the author's own cross-posted reply using the AppView root", async () => {
+      const rootPost = await createNote({ text: 'Thread start' })
+      const parent = await claim(
+        await createNote({ text: 'Second part', reply: rootPost.id })
+      )
       const parentAttemptId = await database.beginBlueskyCrosspostAttempt({
         statusId: parent.id
       })
@@ -584,7 +613,7 @@ describe('Bluesky cross-post', () => {
           author: { did: OWN_DID, handle: 'me.bsky.social' },
           record: {
             $type: 'app.bsky.feed.post',
-            text: 'Thread start',
+            text: 'Second part',
             createdAt: new Date().toISOString(),
             reply: {
               root: { uri: postUri('3kroot'), cid: cid('r') },
@@ -595,7 +624,7 @@ describe('Bluesky cross-post', () => {
         }
       ])
       const reply = await claim(
-        await createNote({ text: 'Second part', reply: parent.id })
+        await createNote({ text: 'Third part', reply: parent.id })
       )
       answerCreate('3kreply')
 
@@ -604,6 +633,67 @@ describe('Bluesky cross-post', () => {
       expect(createdRecord().reply).toEqual({
         root: { uri: postUri('3kroot'), cid: cid('r') },
         parent: { uri: postUri('3kparent'), cid: cid('p') }
+      })
+    })
+
+    it('retries when replying to a cross-posted reply not yet indexed on AppView, and marks failed once stale or inline', async () => {
+      const rootPost = await createNote({ text: 'Thread start' })
+      const parent = await claim(
+        await createNote({ text: 'Second part', reply: rootPost.id })
+      )
+      const parentAttemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId: parent.id
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId: parent.id,
+        attemptId: parentAttemptId!,
+        uri: postUri('3kunindexed'),
+        cid: cid('u')
+      })
+      vi.mocked(getPublicPosts).mockResolvedValue([])
+
+      const reply = await claim(
+        await createNote({ text: 'Third part', reply: parent.id })
+      )
+
+      // Fresh row on an async queue rethrows so the queue retries later.
+      await expect(crosspostStatus(database, reply.id)).rejects.toThrow(
+        BLUESKY_CROSSPOST_PARENT_NOT_READY_MESSAGE
+      )
+      expect(post).not.toHaveBeenCalled()
+      await expect(
+        database.getBlueskyCrosspost({ statusId: reply.id })
+      ).resolves.toMatchObject({ state: 'pending' })
+
+      // Once older than STALE_CROSSPOST_MS, stops retrying and marks failed
+      // with a clear message instead of spinning forever or staying stuck.
+      await testDb.db
+        .updateTable('bluesky_crossposts')
+        .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+        .where('statusId', '=', reply.id)
+        .execute()
+
+      await crosspostStatus(database, reply.id)
+      expect(post).not.toHaveBeenCalled()
+      await expect(
+        database.getBlueskyCrosspost({ statusId: reply.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_PARENT_NOT_READY_MESSAGE
+      })
+
+      // Inline queue (NoQueue) marks failed immediately with the clear message.
+      const inlineReply = await claim(
+        await createNote({ text: 'Inline third part', reply: parent.id })
+      )
+      queue.runsInline = true
+      await crosspostStatus(database, inlineReply.id)
+      expect(post).not.toHaveBeenCalled()
+      await expect(
+        database.getBlueskyCrosspost({ statusId: inlineReply.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_PARENT_NOT_READY_MESSAGE
       })
     })
 
@@ -793,24 +883,72 @@ describe('Bluesky cross-post', () => {
       })
     })
 
-    it('never retries createRecord when the record cannot be recorded', async () => {
+    it('never retries createRecord and deletes the orphan when the record cannot be recorded', async () => {
       const status = await claim(await createNote({ text: 'Unrecorded' }))
       answerCreate('3kunrecorded')
+      post.mockResolvedValueOnce({}) // deleteRecord
       const spy = vi
         .spyOn(database, 'markBlueskyCrosspostPosted')
-        .mockRejectedValue(new Error('unique constraint'))
+        .mockRejectedValue(new Error('db write failed'))
       try {
         await crosspostStatus(database, status.id)
       } finally {
         spy.mockRestore()
       }
 
-      expect(post).toHaveBeenCalledTimes(1)
+      expect(
+        post.mock.calls.filter(
+          ([nsid]) => nsid === 'com.atproto.repo.createRecord'
+        )
+      ).toHaveLength(1)
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey: '3kunrecorded'
+      })
       await expect(
         database.getBlueskyCrosspost({ statusId: status.id })
       ).resolves.toMatchObject({
         state: 'failed',
         error: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
+      })
+    })
+
+    it('skips deleting the record after markBlueskyCrosspostPosted throws when another row already owns that uri', async () => {
+      const existing = await claim(await createNote({ text: 'Existing owner' }))
+      const existingAttempt = await database.beginBlueskyCrosspostAttempt({
+        statusId: existing.id
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId: existing.id,
+        attemptId: existingAttempt!,
+        uri: postUri('3kowned'),
+        cid: cid('e')
+      })
+
+      const status = await claim(await createNote({ text: 'Colliding uri' }))
+      // Simulate a hostile/buggy PDS returning the existing post's URI, which
+      // causes the unique-uri constraint in markBlueskyCrosspostPosted to throw.
+      answerCreate('3kowned')
+
+      await crosspostStatus(database, status.id)
+
+      expect(
+        post.mock.calls.filter(
+          ([nsid]) => nsid === 'com.atproto.repo.deleteRecord'
+        )
+      ).toHaveLength(0)
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
+      })
+      await expect(
+        database.getBlueskyCrosspost({ statusId: existing.id })
+      ).resolves.toMatchObject({
+        state: 'posted',
+        uri: postUri('3kowned')
       })
     })
 
@@ -1206,6 +1344,72 @@ describe('Bluesky cross-post', () => {
       await expect(
         database.getBlueskyCrosspost({ statusId: status2.id })
       ).resolves.toMatchObject({ state: 'posting', error: null })
+    })
+
+    it('cleans up or fails a stale posting row on pre-attempt exits and pre-attempt catch', async () => {
+      const makeStalePosting = async (statusId: string) => {
+        await database.beginBlueskyCrosspostAttempt({ statusId })
+        await testDb.db
+          .updateTable('bluesky_crossposts')
+          .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+          .where('statusId', '=', statusId)
+          .execute()
+      }
+
+      // Pre-attempt non-crosspostable exit deletes the stale posting row.
+      const nonPublic = await claim(
+        await createNote({
+          text: 'Stale followers only',
+          to: [`${actor.id}/followers`]
+        })
+      )
+      await makeStalePosting(nonPublic.id)
+      await crosspostStatus(database, nonPublic.id)
+      await expect(
+        database.getBlueskyCrosspost({ statusId: nonPublic.id })
+      ).resolves.toBeNull()
+
+      // Pre-attempt policy refusal marks the stale posting row failed and clears attemptId.
+      const disallowed = await claim(
+        await createNote({ text: 'Stale disallowed' })
+      )
+      await makeStalePosting(disallowed.id)
+      vi.mocked(isBlueskyAllowed).mockResolvedValueOnce(false)
+      await crosspostStatus(database, disallowed.id)
+      await expect(
+        database.getBlueskyCrosspost({ statusId: disallowed.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_NOT_ALLOWED_MESSAGE
+      })
+      const disallowedRow = await testDb.db
+        .selectFrom('bluesky_crossposts')
+        .select('attemptId')
+        .where('statusId', '=', disallowed.id)
+        .executeTakeFirst()
+      expect(disallowedRow?.attemptId).toBeNull()
+
+      // Pre-attempt catch (getBlueskyAgent throws before beginAttempt) marks the stale posting row failed.
+      const sessionEnded = await claim(
+        await createNote({ text: 'Stale session ended' })
+      )
+      await makeStalePosting(sessionEnded.id)
+      vi.mocked(getBlueskyAgent).mockRejectedValueOnce(
+        new BlueskySessionEndedError()
+      )
+      await crosspostStatus(database, sessionEnded.id)
+      await expect(
+        database.getBlueskyCrosspost({ statusId: sessionEnded.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_SESSION_ENDED_MESSAGE
+      })
+      const sessionEndedRow = await testDb.db
+        .selectFrom('bluesky_crossposts')
+        .select('attemptId')
+        .where('statusId', '=', sessionEnded.id)
+        .executeTakeFirst()
+      expect(sessionEndedRow?.attemptId).toBeNull()
     })
 
     it('leaves a posted row intact when not-crosspostable cleanup runs after a race (outside or inside lock)', async () => {

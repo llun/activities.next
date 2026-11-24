@@ -395,12 +395,20 @@ export const PostMenu: FC<Props> = ({
   }
 
   const loadPinnedState = async () => {
-    if (!isOwner || pinnedLoaded) return
+    if (!isOwner || (pinnedLoaded && crosspost?.state !== 'pending')) return
     try {
       const next = await getStatusById(status.id)
       if (next) {
-        setIsPinned(Boolean(next.pinned))
-        setPinnedLoaded(true)
+        if (!pinnedLoaded) {
+          setIsPinned(Boolean(next.pinned))
+          setPinnedLoaded(true)
+        }
+        if (next.bluesky_crosspost !== undefined) {
+          setCrosspost(next.bluesky_crosspost)
+          if (next.bluesky_crosspost?.state !== 'failed') {
+            setCrosspostRetryError(null)
+          }
+        }
       }
     } catch {
       // Leave pinnedLoaded false so the next menu open retries.
@@ -435,6 +443,11 @@ export const PostMenu: FC<Props> = ({
     if (!success) {
       setVisibility(previous)
       setActionError("Couldn't change post visibility. Please try again.")
+      return
+    }
+    if (previous === 'public' && next !== 'public') {
+      setCrosspost(null)
+      setCrosspostRetryError(null)
     }
   }
 

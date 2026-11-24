@@ -736,15 +736,28 @@ export const markBlueskyCrosspostFailed = async (
   return Number(result.numUpdatedRows ?? 0) > 0
 }
 
-export const markBlueskyCrosspostFailedIfPending = async (
+export const markBlueskyCrosspostFailedIfAttemptable = async (
   db: Db,
   { statusId, error }: { statusId: string; error: string }
 ): Promise<boolean> => {
+  const now = new Date()
   const result = await db
     .updateTable('bluesky_crossposts')
-    .set({ state: 'failed', attemptId: null, error, updatedAt: new Date() })
+    .set({ state: 'failed', attemptId: null, error, updatedAt: now })
     .where('statusId', '=', statusId)
-    .where('state', '=', 'pending')
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'pending'),
+        eb.and([
+          eb('state', '=', 'posting'),
+          eb(
+            'updatedAt',
+            '<',
+            timestampValue(now.getTime() - STALE_CROSSPOST_MS)
+          )
+        ])
+      ])
+    )
     .executeTakeFirst()
   return Number(result.numUpdatedRows ?? 0) > 0
 }
@@ -790,14 +803,27 @@ export const deleteBlueskyCrosspost = async (
   return deleted ? toBlueskyCrosspost(deleted) : null
 }
 
-export const deleteBlueskyCrosspostIfPending = async (
+export const deleteBlueskyCrosspostIfAttemptable = async (
   db: Db,
   { statusId }: { statusId: string }
 ): Promise<boolean> => {
+  const now = new Date()
   const result = await db
     .deleteFrom('bluesky_crossposts')
     .where('statusId', '=', statusId)
-    .where('state', '=', 'pending')
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'pending'),
+        eb.and([
+          eb('state', '=', 'posting'),
+          eb(
+            'updatedAt',
+            '<',
+            timestampValue(now.getTime() - STALE_CROSSPOST_MS)
+          )
+        ])
+      ])
+    )
     .executeTakeFirst()
   return Number(result.numDeletedRows ?? 0) > 0
 }
@@ -826,8 +852,8 @@ export const blueskyQueries = {
   releaseBlueskyCrosspostAttempt,
   markBlueskyCrosspostPosted,
   markBlueskyCrosspostFailed,
-  markBlueskyCrosspostFailedIfPending,
+  markBlueskyCrosspostFailedIfAttemptable,
   resetBlueskyCrosspostForRetry,
   deleteBlueskyCrosspost,
-  deleteBlueskyCrosspostIfPending
+  deleteBlueskyCrosspostIfAttemptable
 }

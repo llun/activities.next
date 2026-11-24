@@ -10,9 +10,14 @@ import {
   waitFor
 } from '@testing-library/react'
 
-import { retryBlueskyCrosspost } from '@/lib/client'
+import {
+  getStatusById,
+  retryBlueskyCrosspost,
+  updateStatusVisibility
+} from '@/lib/client'
 import { ApiRequestError } from '@/lib/client/http'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { PostMenu } from './post-menu'
@@ -169,6 +174,79 @@ describe('PostMenu Bluesky cross-post', () => {
     cleanup()
 
     await renderMenu({ state: 'posted', url: BSKY_URL, error: null }, false)
+    expect(screen.queryByText(/Bluesky/)).not.toBeInTheDocument()
+  })
+
+  it('refreshes cross-post state from getStatusById on open and clears it on null', async () => {
+    vi.mocked(getStatusById).mockResolvedValueOnce({
+      id: `${VIEWER_ID}/statuses/post-1`,
+      pinned: false,
+      bluesky_crosspost: { state: 'posted', url: BSKY_URL, error: null }
+    } as MastodonStatus)
+
+    await renderMenu({ state: 'pending', url: null, error: null })
+    expect(
+      await screen.findByRole('menuitem', { name: 'View on Bluesky' })
+    ).toHaveAttribute('href', BSKY_URL)
+    cleanup()
+
+    vi.mocked(getStatusById).mockResolvedValueOnce({
+      id: `${VIEWER_ID}/statuses/post-1`,
+      pinned: false,
+      bluesky_crosspost: null
+    } as MastodonStatus)
+
+    await renderMenu({ state: 'posted', url: BSKY_URL, error: null })
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('menuitem', { name: 'View on Bluesky' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it('clears the cross-post state after narrowing visibility away from public', async () => {
+    vi.mocked(updateStatusVisibility).mockResolvedValueOnce(false)
+    await renderMenu({ state: 'posted', url: BSKY_URL, error: null })
+    expect(
+      screen.getByRole('menuitem', { name: 'View on Bluesky' })
+    ).toBeInTheDocument()
+
+    // Failed visibility narrowing keeps the cross-post item intact.
+    fireEvent.keyDown(
+      screen.getByRole('menuitem', { name: 'Change visibility' }),
+      { key: 'ArrowRight' }
+    )
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Unlisted' }))
+    await waitFor(() =>
+      expect(updateStatusVisibility).toHaveBeenCalledWith({
+        statusId: `${VIEWER_ID}/statuses/post-1`,
+        visibility: 'unlisted'
+      })
+    )
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'ArrowDown'
+    })
+    await screen.findByRole('menu')
+    expect(
+      screen.getByRole('menuitem', { name: 'View on Bluesky' })
+    ).toBeInTheDocument()
+
+    // Successful visibility narrowing away from public clears the cross-post item.
+    vi.mocked(updateStatusVisibility).mockResolvedValueOnce(true)
+    fireEvent.keyDown(
+      screen.getByRole('menuitem', { name: 'Change visibility' }),
+      { key: 'ArrowRight' }
+    )
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Unlisted' }))
+    await waitFor(() => expect(updateStatusVisibility).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    )
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'More actions' }), {
+      key: 'ArrowDown'
+    })
+    await screen.findByRole('menu')
     expect(screen.queryByText(/Bluesky/)).not.toBeInTheDocument()
   })
 })

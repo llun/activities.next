@@ -218,10 +218,11 @@ export interface BlueskyDatabase {
     error: string
   }): Promise<boolean>
   /**
-   * Marks a 'pending' row failed without touching a 'posting' or 'posted' row
-   * (for failures before an attempt has been claimed).
+   * Marks a 'pending' row or a stale 'posting' row (older than
+   * STALE_CROSSPOST_MS) failed without touching a fresh 'posting' or 'posted'
+   * row (for failures before an attempt has been claimed).
    */
-  markBlueskyCrosspostFailedIfPending(params: {
+  markBlueskyCrosspostFailedIfAttemptable(params: {
     statusId: string
     error: string
   }): Promise<boolean>
@@ -237,10 +238,11 @@ export interface BlueskyDatabase {
     statusId: string
   }): Promise<BlueskyCrosspost | null>
   /**
-   * Deletes a row only while it is still 'pending' (never a posting/posted
-   * row, whose remote copies are owned by the delete/visibility handlers).
+   * Deletes a row only while it is 'pending' or a stale 'posting' row (older
+   * than STALE_CROSSPOST_MS), never a fresh 'posting' or 'posted' row whose
+   * remote copies are owned by an active attempt or delete/visibility handlers.
    */
-  deleteBlueskyCrosspostIfPending(params: {
+  deleteBlueskyCrosspostIfAttemptable(params: {
     statusId: string
   }): Promise<boolean>
 }

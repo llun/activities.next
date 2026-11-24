@@ -74,6 +74,8 @@ export const BLUESKY_CROSSPOST_QUEUE_FAILED_MESSAGE =
   'Could not queue the Bluesky post.'
 export const BLUESKY_CROSSPOST_SESSION_ENDED_MESSAGE =
   'Bluesky ended this session.'
+export const BLUESKY_CROSSPOST_PARENT_NOT_READY_MESSAGE =
+  'The parent post is not ready on Bluesky yet. Try again.'
 
 type StrongRef = { uri: string; cid: string }
 
@@ -123,8 +125,9 @@ const readReplyRoot = async (parent: StrongRef): Promise<StrongRef | null> => {
 }
 
 // The reply refs of a cross-posted reply, `'retry'` while the parent's own
-// cross-post is still pending, or null when the reply must not be cross-posted
-// (its parent is not the author's own cross-posted post).
+// cross-post is still pending or its thread root is not indexed on Bluesky
+// yet, or null when the reply must not be cross-posted (its parent is not the
+// author's own cross-posted post).
 const resolveReplyRefs = async (
   database: Database,
   status: PostStatus
@@ -134,7 +137,13 @@ const resolveReplyRefs = async (
     statusId: status.reply,
     withReplies: false
   })
-  if (!parent || parent.actorId !== status.actorId) return null
+  if (
+    !parent ||
+    parent.type === StatusType.enum.Announce ||
+    parent.actorId !== status.actorId
+  ) {
+    return null
+  }
   const parentCrosspost = await database.getBlueskyCrosspost({
     statusId: parent.id
   })
@@ -156,7 +165,15 @@ const resolveReplyRefs = async (
     uri: parentCrosspost.uri,
     cid: parentCrosspost.cid
   }
-  const root = (await readReplyRoot(parentRef)) ?? parentRef
+  // A direct reply to a top-level local post uses that parent as the thread
+  // root without asking the AppView; only a reply to a reply needs the root
+  // from Bluesky, and if AppView has not indexed it yet we retry later instead
+  // of posting a broken thread.
+  if (!parent.reply) {
+    return { root: parentRef, parent: parentRef }
+  }
+  const root = await readReplyRoot(parentRef)
+  if (!root) return 'retry'
   return { root, parent: parentRef }
 }
 
@@ -365,6 +382,7 @@ const failureMessage = (error: unknown): string => {
   if (error instanceof BlueskyUnexpectedAnswerError) {
     return BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
   }
+  if (error instanceof BlueskyCrosspostRetryError) return error.message
   if (error instanceof BlueskyActionError) return error.message
   return BLUESKY_CROSSPOST_FAILED_MESSAGE
 }
@@ -410,21 +428,22 @@ export const crosspostStatus = async (
   if (!row || !isCrosspostAttemptable(row)) return
   const status = await database.getStatus({ statusId, withReplies: false })
   if (!status || !isCrosspostableStatus(status)) {
-    // Made non-public (or gone) before the job ran: drop only if still pending.
-    await database.deleteBlueskyCrosspostIfPending({ statusId })
+    // Made non-public (or gone) before the job ran: drop only if pending or a
+    // stale posting row (never a fresh concurrent attempt or posted row).
+    await database.deleteBlueskyCrosspostIfAttemptable({ statusId })
     return
   }
 
   const account = await database.getBlueskyAccount({ actorId: status.actorId })
   if (!account) {
-    await database.markBlueskyCrosspostFailedIfPending({
+    await database.markBlueskyCrosspostFailedIfAttemptable({
       statusId,
       error: BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE
     })
     return
   }
   if (!(await isBlueskyAllowed(database))) {
-    await database.markBlueskyCrosspostFailedIfPending({
+    await database.markBlueskyCrosspostFailedIfAttemptable({
       statusId,
       error: BLUESKY_NOT_ALLOWED_MESSAGE
     })
@@ -432,7 +451,7 @@ export const crosspostStatus = async (
   }
   const actor = await database.getActorFromId({ id: status.actorId })
   if (!actor) {
-    await database.markBlueskyCrosspostFailedIfPending({
+    await database.markBlueskyCrosspostFailedIfAttemptable({
       statusId,
       error: BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE
     })
@@ -463,14 +482,15 @@ export const crosspostStatus = async (
           !currentActor ||
           !isActorUsable(currentActor)
         ) {
-          // No longer crosspostable: drop only if still pending and post nothing.
-          await database.deleteBlueskyCrosspostIfPending({ statusId })
+          // No longer crosspostable: drop only if still attemptable (pending
+          // or stale posting) and post nothing.
+          await database.deleteBlueskyCrosspostIfAttemptable({ statusId })
           return
         }
 
         const agent = await getBlueskyAgent(database, currentActor)
         if (!agent) {
-          await database.markBlueskyCrosspostFailedIfPending({
+          await database.markBlueskyCrosspostFailedIfAttemptable({
             statusId,
             error: BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE
           })
@@ -481,12 +501,19 @@ export const crosspostStatus = async (
         if (currentStatus.reply) {
           const resolved = await resolveReplyRefs(database, currentStatus)
           if (resolved === 'retry') {
+            if (current.updatedAt < Date.now() - STALE_CROSSPOST_MS) {
+              await database.markBlueskyCrosspostFailedIfAttemptable({
+                statusId,
+                error: BLUESKY_CROSSPOST_PARENT_NOT_READY_MESSAGE
+              })
+              return
+            }
             throw new BlueskyCrosspostRetryError(
-              'The parent cross-post is not posted yet'
+              BLUESKY_CROSSPOST_PARENT_NOT_READY_MESSAGE
             )
           }
           if (!resolved) {
-            await database.deleteBlueskyCrosspostIfPending({ statusId })
+            await database.deleteBlueskyCrosspostIfAttemptable({ statusId })
             return
           }
           replyRefs = resolved
@@ -546,7 +573,10 @@ export const crosspostStatus = async (
             cid
           })
         } catch (error) {
-          // The record exists now, so a retry must never create it again.
+          // The record may still exist if cleanup fails (or belong to another
+          // row), so mark failed rather than letting the queue retry
+          // createRecord, and delete the unrecorded copy best-effort unless
+          // another cross-post row already owns that URI.
           logger.warn({
             message: 'Could not record a Bluesky cross-post',
             statusId,
@@ -559,6 +589,23 @@ export const crosspostStatus = async (
               error: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
             })
             .catch(() => undefined)
+          let ownedByRow: BlueskyCrosspost | null = null
+          let ownershipChecked = false
+          try {
+            ownedByRow = await database.getBlueskyCrosspostByUri({ uri })
+            ownershipChecked = true
+          } catch (lookupError) {
+            logger.warn({
+              message:
+                'Could not check ownership before deleting an unrecorded Bluesky cross-post',
+              statusId,
+              uri,
+              err: toLoggableError(lookupError)
+            })
+          }
+          if (ownershipChecked && !ownedByRow) {
+            await deleteCrosspostRecord(agent, uri)
+          }
           throw new BlueskyUnexpectedAnswerError(
             'com.atproto.repo.createRecord'
           )
@@ -601,7 +648,7 @@ export const crosspostStatus = async (
         error: failureMessage(error)
       })
     } else {
-      await database.markBlueskyCrosspostFailedIfPending({
+      await database.markBlueskyCrosspostFailedIfAttemptable({
         statusId,
         error: failureMessage(error)
       })
@@ -662,7 +709,7 @@ export const enqueueBlueskyCrosspost = async (
       err: toLoggableError(error)
     })
     await database
-      .markBlueskyCrosspostFailedIfPending({
+      .markBlueskyCrosspostFailedIfAttemptable({
         statusId: status.id,
         error: BLUESKY_CROSSPOST_QUEUE_FAILED_MESSAGE
       })

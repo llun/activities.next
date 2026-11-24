@@ -92,7 +92,7 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
 
   it('puts a failed cross-post back to pending and queues it under a fresh id', async () => {
     const status = await seed('failed')
-    await database.markBlueskyCrosspostFailedIfPending({
+    await database.markBlueskyCrosspostFailedIfAttemptable({
       statusId: status.id,
       error: 'Bluesky ended this session.'
     })
@@ -184,7 +184,7 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
 
   it('answers 422 when the post is no longer public', async () => {
     const status = await seed('narrowed')
-    await database.markBlueskyCrosspostFailedIfPending({
+    await database.markBlueskyCrosspostFailedIfAttemptable({
       statusId: status.id,
       error: 'Bluesky ended this session.'
     })
@@ -209,7 +209,7 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
 
   it("answers 404 for someone else's post", async () => {
     const status = await seed('theirs', ACTOR2_ID)
-    await database.markBlueskyCrosspostFailedIfPending({
+    await database.markBlueskyCrosspostFailedIfAttemptable({
       statusId: status.id,
       error: 'x'
     })
@@ -224,7 +224,7 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
 
   it('keeps it failed with its reason when the job cannot be queued', async () => {
     const status = await seed('queue-down')
-    await database.markBlueskyCrosspostFailedIfPending({
+    await database.markBlueskyCrosspostFailedIfAttemptable({
       statusId: status.id,
       error: 'Bluesky ended this session.'
     })
@@ -243,7 +243,7 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
 
   it('leaves a posting row untouched when queue publish fails after a worker already started it', async () => {
     const status = await seed('queue-race')
-    await database.markBlueskyCrosspostFailedIfPending({
+    await database.markBlueskyCrosspostFailedIfAttemptable({
       statusId: status.id,
       error: 'Bluesky ended this session.'
     })

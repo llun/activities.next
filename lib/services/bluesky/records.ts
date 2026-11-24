@@ -410,9 +410,13 @@ export const storeBlueskyPostView = async (
       : ''
   const parent = parentUri ? parseAtUri(parentUri) : null
   const isPostParent = parent?.collection === POST_COLLECTION
-  // A reply to the Bluesky copy of a local post shows under the local post.
+  // A reply to the Bluesky copy of a local post shows under the local post,
+  // unless the post itself is a local cross-post (its local original already
+  // replies to the local parent).
   const crosspostParent = isPostParent
-    ? await database.getBlueskyCrosspostByUri({ uri: parentUri })
+    ? (await database.getBlueskyCrosspostByUri({ uri: post.uri }))
+      ? null
+      : await database.getBlueskyCrosspostByUri({ uri: parentUri })
     : null
   const replyToStatusId =
     crosspostParent?.statusId ??

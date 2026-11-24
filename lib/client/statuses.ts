@@ -406,6 +406,9 @@ const toCreatedNoteResult = (
     ...(resolvedQuotePolicy
       ? { quoteApprovalPolicy: resolvedQuotePolicy }
       : {}),
+    ...(mastodonStatus.bluesky_crosspost !== undefined
+      ? { blueskyCrosspost: mastodonStatus.bluesky_crosspost }
+      : {}),
     createdAt,
     updatedAt
   }

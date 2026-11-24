@@ -878,4 +878,103 @@ describe('storing AppView views', () => {
       reply: blueskyPostId(BOB, '3k2')
     })
   })
+
+  it('does not re-parent a local cross-post reply under the local parent', async () => {
+    const aliceActorId = 'https://llun.test/users/alice'
+    const l1Id = `${aliceActorId}/statuses/l1`
+    const l2Id = `${aliceActorId}/statuses/l2`
+    const b1Uri = `at://${ALICE}/app.bsky.feed.post/3kb1`
+    const b2Uri = `at://${ALICE}/app.bsky.feed.post/3kb2`
+
+    await database.createNote({
+      id: l1Id,
+      url: l1Id,
+      actorId: aliceActorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'Alice post 1'
+    })
+    await database.createNote({
+      id: l2Id,
+      url: l2Id,
+      actorId: aliceActorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'Alice reply 2',
+      reply: l1Id
+    })
+
+    for (const [statusId, uri, cid] of [
+      [l1Id, b1Uri, 'cid-b1'],
+      [l2Id, b2Uri, 'cid-b2']
+    ] as const) {
+      await database.claimBlueskyCrosspost({ statusId, actorId: aliceActorId })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid
+      })
+    }
+
+    // Storing B2's view (as another local user's Home sync does) keeps B2
+    // replying to B1 on Bluesky instead of attaching a duplicate reply under L1.
+    const b2View = parseBlueskyPostView({
+      uri: b2Uri,
+      cid: 'cid-b2',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Alice reply 2',
+        createdAt: '2026-01-01T00:01:00.000Z',
+        reply: {
+          root: { uri: b1Uri, cid: 'cid-b1' },
+          parent: { uri: b1Uri, cid: 'cid-b1' }
+        }
+      }
+    })
+    expect(b2View).not.toBeNull()
+    const b2StatusId = (await storeBlueskyPostView(
+      database,
+      b2View as NonNullable<typeof b2View>
+    )) as string
+
+    expect(await database.getStatus({ statusId: b2StatusId })).toMatchObject({
+      type: 'Note',
+      reply: blueskyPostId(ALICE, '3kb1')
+    })
+    const repliesToL1 = await database.getStatusReplies({ statusId: l1Id })
+    expect(repliesToL1.map((status) => status.id)).toEqual([l2Id])
+
+    // A non-cross-post Bluesky reply to B1 still re-parents under L1.
+    const BOB = `did:plc:${'b'.repeat(24)}`
+    const remoteReply = parseBlueskyPostView({
+      uri: `at://${BOB}/app.bsky.feed.post/3kremote`,
+      cid: 'cid-remote',
+      author: { did: BOB, handle: 'bob.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Remote reply',
+        createdAt: '2026-01-01T00:02:00.000Z',
+        reply: {
+          root: { uri: b1Uri, cid: 'cid-b1' },
+          parent: { uri: b1Uri, cid: 'cid-b1' }
+        }
+      }
+    })
+    expect(remoteReply).not.toBeNull()
+    const remoteStatusId = (await storeBlueskyPostView(
+      database,
+      remoteReply as NonNullable<typeof remoteReply>
+    )) as string
+    expect(
+      await database.getStatus({ statusId: remoteStatusId })
+    ).toMatchObject({
+      type: 'Note',
+      reply: l1Id
+    })
+  })
 })

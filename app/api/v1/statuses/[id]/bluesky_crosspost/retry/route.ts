@@ -84,7 +84,7 @@ export const POST = traceApiRoute(
           statusId,
           err: toLoggableError(error)
         })
-        await database.markBlueskyCrosspostFailedIfPending({
+        await database.markBlueskyCrosspostFailedIfAttemptable({
           statusId,
           error: crosspost?.error ?? BLUESKY_CROSSPOST_FAILED_MESSAGE
         })

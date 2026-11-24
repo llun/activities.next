@@ -660,6 +660,7 @@ describe('deleteStatusFromUserInput', () => {
       const uri = 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3k1'
       let deleteStatusResolved = false
       vi.mocked(database.deleteStatus).mockImplementation(async () => {
+        await Promise.resolve()
         deleteStatusResolved = true
         return {
           deleted: true,

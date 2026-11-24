@@ -957,54 +957,92 @@ describe('Bluesky', () => {
       )
     })
 
-    it('markBlueskyCrosspostFailedIfPending and deleteBlueskyCrosspostIfPending only touch pending rows', async () => {
+    it('markBlueskyCrosspostFailedIfAttemptable and deleteBlueskyCrosspostIfAttemptable touch pending and stale posting rows only', async () => {
       await database.claimBlueskyCrosspost({ statusId, actorId })
       const attemptId = await database.beginBlueskyCrosspostAttempt({
         statusId
       })
 
-      // Neither non-owner helper touches an actively posting row.
+      // Neither non-owner helper touches a fresh actively posting row.
       expect(
-        await database.markBlueskyCrosspostFailedIfPending({
+        await database.markBlueskyCrosspostFailedIfAttemptable({
           statusId,
           error: 'should not touch posting'
         })
       ).toBe(false)
-      expect(await database.deleteBlueskyCrosspostIfPending({ statusId })).toBe(
-        false
-      )
+      expect(
+        await database.deleteBlueskyCrosspostIfAttemptable({ statusId })
+      ).toBe(false)
       expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
         state: 'posting',
         error: null
       })
       expect(await readAttemptId()).toBe(attemptId)
 
+      // A stale posting row (worker crashed past STALE_CROSSPOST_MS) CAN be failed.
+      await testDb.db
+        .updateTable('bluesky_crossposts')
+        .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+        .where('statusId', '=', statusId)
+        .execute()
+      expect(
+        await database.markBlueskyCrosspostFailedIfAttemptable({
+          statusId,
+          error: 'stale posting failed'
+        })
+      ).toBe(true)
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        state: 'failed',
+        error: 'stale posting failed'
+      })
+      expect(await readAttemptId()).toBeNull()
+
+      // A stale posting row CAN also be deleted.
+      await database.resetBlueskyCrosspostForRetry({ statusId })
+      const staleAttemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      expect(staleAttemptId).toEqual(expect.any(String))
+      await testDb.db
+        .updateTable('bluesky_crossposts')
+        .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+        .where('statusId', '=', statusId)
+        .execute()
+      expect(
+        await database.deleteBlueskyCrosspostIfAttemptable({ statusId })
+      ).toBe(true)
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+
       // Neither touches a posted row.
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      const postedAttemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
       await database.markBlueskyCrosspostPosted({
         statusId,
-        attemptId: attemptId!,
+        attemptId: postedAttemptId!,
         uri,
         cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
       })
       expect(
-        await database.markBlueskyCrosspostFailedIfPending({
+        await database.markBlueskyCrosspostFailedIfAttemptable({
           statusId,
           error: 'should not touch posted'
         })
       ).toBe(false)
-      expect(await database.deleteBlueskyCrosspostIfPending({ statusId })).toBe(
-        false
-      )
+      expect(
+        await database.deleteBlueskyCrosspostIfAttemptable({ statusId })
+      ).toBe(false)
       expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
         state: 'posted',
         uri
       })
 
-      // Pending row can be failed by markBlueskyCrosspostFailedIfPending.
+      // Pending row can be failed by markBlueskyCrosspostFailedIfAttemptable.
       await database.deleteBlueskyCrosspost({ statusId })
       await database.claimBlueskyCrosspost({ statusId, actorId })
       expect(
-        await database.markBlueskyCrosspostFailedIfPending({
+        await database.markBlueskyCrosspostFailedIfAttemptable({
           statusId,
           error: 'queue down'
         })
@@ -1014,16 +1052,16 @@ describe('Bluesky', () => {
         error: 'queue down'
       })
 
-      // Failed row is not deleted by deleteBlueskyCrosspostIfPending.
-      expect(await database.deleteBlueskyCrosspostIfPending({ statusId })).toBe(
-        false
-      )
+      // Failed row is not deleted by deleteBlueskyCrosspostIfAttemptable.
+      expect(
+        await database.deleteBlueskyCrosspostIfAttemptable({ statusId })
+      ).toBe(false)
 
-      // Pending row is deleted by deleteBlueskyCrosspostIfPending.
+      // Pending row is deleted by deleteBlueskyCrosspostIfAttemptable.
       await database.resetBlueskyCrosspostForRetry({ statusId })
-      expect(await database.deleteBlueskyCrosspostIfPending({ statusId })).toBe(
-        true
-      )
+      expect(
+        await database.deleteBlueskyCrosspostIfAttemptable({ statusId })
+      ).toBe(true)
       expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
     })
 
