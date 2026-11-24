@@ -159,8 +159,11 @@ const createAppPasswordSend = (
       `bluesky-app-password-refresh:${did}`,
       async () => {
         const stored = await readStoredBlueskySession(database, did)
-        if (stored?.type !== 'app_password') {
-          throw new BlueskySessionEndedError()
+        if (!stored) throw new BlueskySessionEndedError()
+        // Relinked (say, with OAuth) while this request ran: the new session
+        // is fine, so fail this request without ending (deleting) it.
+        if (stored.type !== 'app_password') {
+          throw new Error('The Bluesky session changed; try again.')
         }
         if (stored.accessJwt !== staleAccessJwt) return stored
         const nsid = 'com.atproto.server.refreshSession'

@@ -217,6 +217,27 @@ describe('getBlueskyAgent', () => {
       expect(refreshes).toHaveLength(1)
     })
 
+    it('keeps a session relinked with OAuth while an expired request ran', async () => {
+      const agent = await getBlueskyAgent(database, actor)
+      vi.mocked(safeRemoteFetch).mockImplementation(async () => {
+        // The user relinks with OAuth between the request and its refresh.
+        await writeStoredBlueskySession(database, DID, {
+          type: 'oauth',
+          session: { relinked: true } as never
+        })
+        return respond(400, { error: 'ExpiredToken' })
+      })
+
+      const error = await agent!
+        .get('app.bsky.feed.getTimeline')
+        .catch((caught: unknown) => caught)
+      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBeInstanceOf(BlueskySessionEndedError)
+      expect(await readStoredBlueskySession(database, DID)).toMatchObject({
+        type: 'oauth'
+      })
+    })
+
     it('ends and deletes the session when the refresh is refused', async () => {
       // The request and the refresh both answer ExpiredToken.
       vi.mocked(safeRemoteFetch).mockResolvedValue(
