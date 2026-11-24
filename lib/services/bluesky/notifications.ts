@@ -30,11 +30,7 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { isRecord } from '@/lib/utils/typeGuards'
 
-import {
-  type BlueskyAgent,
-  BlueskyRequestError,
-  BlueskySessionChangedError
-} from './agent'
+import { type BlueskyAgent, BlueskySessionChangedError } from './agent'
 import { getPublicPosts, getPublicProfiles } from './appview'
 import { isBlueskyAllowed } from './policy'
 import {
