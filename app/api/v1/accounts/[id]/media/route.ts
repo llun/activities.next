@@ -8,6 +8,7 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { resolveActorStatusesAudience } from '@/lib/services/statusAccess'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -55,7 +56,8 @@ export const GET = traceApiRoute(
       const id = await resolveActorIdParam(database, encodedAccountId)
 
       const actor = await database.getActorFromId({ id })
-      if (!actor) {
+      // Bluesky accounts and posts are shown to signed-in viewers only.
+      if (!actor || (!currentActor && isBlueskyId(actor.id))) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

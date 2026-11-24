@@ -150,6 +150,51 @@ describe('GET /api/v1/accounts/:id/media', () => {
     expect(urls).not.toContain(DIRECT_MEDIA_URL)
   })
 
+  // Bluesky accounts and posts are shown to signed-in viewers only.
+  it('answers 404 for a Bluesky account without a viewer, and serves it to a signed-in one', async () => {
+    const did = 'did:plc:mediagallery'
+    const actorId = (await database.upsertBlueskyActor({
+      did,
+      handle: 'gallery.bsky.social'
+    })) as string
+    const statusId = `${actorId}/post/3kmedia`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId,
+      text: 'Bluesky photo',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.createAttachment({
+      actorId,
+      statusId,
+      mediaType: 'image/jpeg',
+      url: 'https://cdn.bsky.app/img/gallery.jpg',
+      width: 400,
+      height: 300
+    })
+    const request = () =>
+      GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(actorId)}/media`,
+          { method: 'GET' }
+        ),
+        { params: Promise.resolve({ id: urlToId(actorId) }) }
+      )
+
+    expect((await request()).status).toBe(404)
+
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    const response = await request()
+    expect(response.status).toBe(200)
+    expect(await mediaUrls(response)).toEqual([
+      'https://cdn.bsky.app/img/gallery.jpg'
+    ])
+  })
+
   it('withholds followers-only attachments from a signed-in non-follower', async () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor2.email }
