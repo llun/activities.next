@@ -2,8 +2,9 @@ import { z } from 'zod'
 
 import { startBlueskyOAuth } from '@/lib/services/bluesky/account'
 import { blueskyRouteResponse } from '@/lib/services/bluesky/routeResponse'
-import { getDomainCheckRequestHost } from '@/lib/services/domains/domainCheck'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { headerHost } from '@/lib/services/guards/headerHost'
+import { getServedAuthority } from '@/lib/utils/host'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -20,7 +21,9 @@ export const POST = traceApiRoute(
         database,
         currentActor,
         parsed.data.handle,
-        getDomainCheckRequestHost(req.headers)
+        // The served host, falling back to the primary one for a proxy's
+        // internal Host, like the metadata routes.
+        getServedAuthority(headerHost(req.headers)) ?? undefined
       )
     }))
   })

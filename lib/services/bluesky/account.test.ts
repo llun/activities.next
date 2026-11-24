@@ -69,7 +69,7 @@ describe('Bluesky account service', () => {
           id: `actor-${id}`,
           accountId: `account-${id}`,
           username: id,
-          domain: 'social.example'
+          domain: id === 'a' ? 'social.example' : 'other.example'
         })
         .execute()
     }
@@ -118,6 +118,8 @@ describe('Bluesky account service', () => {
     for (const id of ['actor-a', 'actor-b']) {
       await database.deleteBlueskyAccount({ actorId: id })
     }
+    // Each test starts with a fresh per-actor window.
+    await database.deleteRateLimits({ keyPrefix: 'app:bluesky:' })
     // Sessions a test stored without a link.
     for (const did of [DID, 'did:plc:other']) {
       await database.deleteBlueskySession({ did })
@@ -301,6 +303,22 @@ describe('Bluesky account service', () => {
         startBlueskyOAuth(database, actor('actor-a'), 'alice.example.com')
       ).rejects.toMatchObject({ status: 409 })
       expect(authorize).not.toHaveBeenCalled()
+    })
+
+    it('starts sign-in from the actor’s own domain', async () => {
+      const authorize = vi
+        .fn()
+        .mockResolvedValue(new URL('https://auth.example.net/authorize'))
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({ authorize }) as never
+      )
+      await startBlueskyOAuth(
+        database,
+        actor('actor-a', undefined, 'Social.Example'),
+        'alice.example.com',
+        'social.example'
+      )
+      expect(authorize).toHaveBeenCalled()
     })
 
     it('starts sign-in only on the domain the actor lives on', async () => {

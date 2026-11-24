@@ -89,18 +89,18 @@ describe('BlueskyAccount', () => {
     expect(
       await database.setBlueskyInstanceHandle({
         actorId: five.actorId,
-        host: 'Social.Example'
+        host: TEST_DOMAIN.toUpperCase()
       })
     ).toBe(true)
     expect(
       await database.setBlueskyInstanceHandle({
         actorId: six.actorId,
-        host: 'social.example'
+        host: TEST_DOMAIN
       })
     ).toBe(false)
     expect(
       await database.getBlueskyAccountByInstanceHandle({
-        host: 'social.example'
+        host: TEST_DOMAIN
       })
     ).toMatchObject({ actorId: five.actorId, did: 'did:plc:five' })
 
@@ -109,25 +109,25 @@ describe('BlueskyAccount', () => {
     expect(
       (await database.getBlueskyAccount({ actorId: five.actorId }))
         ?.instanceHandle
-    ).toBe('social.example')
+    ).toBe(TEST_DOMAIN)
 
     // A holder who is no longer an admin answers nothing, and the claim can
     // be taken.
     await setRole(five.accountId, null)
     expect(
       await database.getBlueskyAccountByInstanceHandle({
-        host: 'social.example'
+        host: TEST_DOMAIN
       })
     ).toBeNull()
     expect(
       await database.setBlueskyInstanceHandle({
         actorId: six.actorId,
-        host: 'social.example'
+        host: TEST_DOMAIN
       })
     ).toBe(true)
     expect(
       await database.getBlueskyAccountByInstanceHandle({
-        host: 'social.example'
+        host: TEST_DOMAIN
       })
     ).toMatchObject({ actorId: six.actorId })
     expect(
@@ -141,7 +141,7 @@ describe('BlueskyAccount', () => {
     })
     expect(
       await database.getBlueskyAccountByInstanceHandle({
-        host: 'social.example'
+        host: TEST_DOMAIN
       })
     ).toBeNull()
   })
@@ -151,10 +151,10 @@ describe('BlueskyAccount', () => {
     await link(seven.actorId, 'did:plc:seven-claim')
     await database.setBlueskyInstanceHandle({
       actorId: seven.actorId,
-      host: 'seven.example'
+      host: TEST_DOMAIN
     })
     const lookup = () =>
-      database.getBlueskyAccountByInstanceHandle({ host: 'seven.example' })
+      database.getBlueskyAccountByInstanceHandle({ host: TEST_DOMAIN })
     expect(await lookup()).toMatchObject({ actorId: seven.actorId })
 
     await testDb.db
@@ -175,6 +175,30 @@ describe('BlueskyAccount', () => {
       .where('id', '=', seven.actorId)
       .execute()
     expect(await lookup()).toBeNull()
+  })
+
+  it('stops serving a claim once its holder moves to another domain', async () => {
+    const eight = await createAdmin('bsky-eight')
+    await link(eight.actorId, 'did:plc:eight-claim')
+    await database.setBlueskyInstanceHandle({
+      actorId: eight.actorId,
+      host: TEST_DOMAIN
+    })
+    expect(
+      await database.getBlueskyAccountByInstanceHandle({ host: TEST_DOMAIN })
+    ).toMatchObject({ actorId: eight.actorId })
+    await testDb.db
+      .updateTable('actors')
+      .set({ domain: 'moved.example' })
+      .where('id', '=', eight.actorId)
+      .execute()
+    expect(
+      await database.getBlueskyAccountByInstanceHandle({ host: TEST_DOMAIN })
+    ).toBeNull()
+    await database.setBlueskyInstanceHandle({
+      actorId: eight.actorId,
+      host: null
+    })
   })
 
   it('unlinks the account and its session', async () => {

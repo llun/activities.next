@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
-import { getDomainCheckRequestHost } from '@/lib/services/domains/domainCheck'
+import { headerHost } from '@/lib/services/guards/headerHost'
+import { getServedAuthority } from '@/lib/utils/host'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 export const dynamic = 'force-dynamic'
@@ -14,9 +15,10 @@ export const GET = traceApiRoute('atprotoDid', async (req: NextRequest) => {
   const database = getDatabase()
   const account = database
     ? await database.getBlueskyAccountByInstanceHandle({
-        // The authority the request arrived on, never the primary-host
-        // fallback headerHost() uses, so an IP or a stranger's name gets 404.
-        host: getDomainCheckRequestHost(req.headers)
+        // The served host, or the primary one for an untrusted Host (a
+        // proxy's internal name): the DID is public, and a verifier always
+        // asks with the real name.
+        host: getServedAuthority(headerHost(req.headers)) ?? ''
       })
     : null
   return new Response(account ? account.did : 'Not Found', {

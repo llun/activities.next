@@ -47,14 +47,15 @@ export const getBlueskyAccountByDid = async (
   return row ? toAccount(row) : null
 }
 
-// Actors whose account may hold a domain claim now: an admin, not disabled,
-// not suspended. A claim whose holder lost that answers nothing and can be
-// taken.
-const activeAdminActorIds = (db: Db) =>
+// Actors who may hold the claim on `host` now: on that domain (an actor can
+// move to another), with an admin account, neither disabled nor suspended. A
+// claim whose holder lost any of that answers nothing and can be taken.
+const eligibleClaimHolderIds = (db: Db, host: string) =>
   db
     .selectFrom('actors')
     .innerJoin('accounts', 'accounts.id', 'actors.accountId')
     .select('actors.id')
+    .where('actors.domain', '=', host)
     .where('accounts.role', '=', 'admin')
     .where('accounts.disabledAt', 'is', null)
     .where('actors.suspendedAt', 'is', null)
@@ -67,7 +68,7 @@ export const getBlueskyAccountByInstanceHandle = async (
     .selectFrom('bluesky_accounts')
     .selectAll()
     .where('instanceHandle', '=', host.toLowerCase())
-    .where('actorId', 'in', activeAdminActorIds(db))
+    .where('actorId', 'in', eligibleClaimHolderIds(db, host.toLowerCase()))
     .executeTakeFirst()
   return row ? toAccount(row) : null
 }
@@ -159,7 +160,11 @@ export const setBlueskyInstanceHandle = async (
           .updateTable('bluesky_accounts')
           .set({ instanceHandle: null, updatedAt: new Date() })
           .where('instanceHandle', '=', instanceHandle)
-          .where('actorId', 'not in', activeAdminActorIds(trx))
+          .where(
+            'actorId',
+            'not in',
+            eligibleClaimHolderIds(trx, instanceHandle)
+          )
           .execute()
       }
       await trx

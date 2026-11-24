@@ -1296,12 +1296,13 @@ sharing. The code is in `lib/services/bluesky/`:
 - **A served domain as a handle.** An admin's linked profile can claim the
   served domain it lives on (never one with a port), one profile per domain:
   each domain under Admin › Served domains has its own. A claim counts only
-  while its holder's account is an admin and neither it nor the actor is
-  disabled or suspended; otherwise it answers nothing and another admin can
-  take it, and the holder can always let it go. `GET
-/.well-known/atproto-did` answers the claiming profile's DID as `text/plain`
-  for a request whose own authority is that domain, and 404 otherwise, so the
-  handle can be set in the Bluesky app without DNS access.
+  while its holder still lives on that domain and its account is an admin,
+  with neither the account nor the actor disabled or suspended; otherwise it
+  answers nothing, another admin can take it, and the holder can always let
+  it go. `GET /.well-known/atproto-did` answers the claiming profile's DID as
+  `text/plain` for the served host the request is for (the primary host when
+  a proxy rewrites `Host` to an internal name, as everywhere else), and 404
+  otherwise, so the handle can be set in the Bluesky app without DNS access.
 
 ### Multi-actor & account management
 
