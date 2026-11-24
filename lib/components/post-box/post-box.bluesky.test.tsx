@@ -11,7 +11,9 @@ import {
   waitFor
 } from '@testing-library/react'
 
+import { uploadAttachment } from '@/lib/client'
 import { getBlueskyAccount } from '@/lib/client/blueskyAccount'
+import type { DraftRecord } from '@/lib/client/drafts'
 import { ApiRequestError } from '@/lib/client/http'
 import {
   resetBlueskyAccountStore,
@@ -19,11 +21,13 @@ import {
 } from '@/lib/components/bluesky/blueskyAccountStore'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
+import * as useComposerDraftModule from '@/lib/components/post-box/useComposerDraft'
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import {
+  BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE,
   BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
   BLUESKY_REPLY_QUEUE_DISABLED_REASON,
   BLUESKY_TOO_LONG_MESSAGE
@@ -342,5 +346,119 @@ describe('PostBox replying to a Bluesky post', () => {
     expect(
       screen.getByText(BLUESKY_REPLY_QUEUE_DISABLED_REASON)
     ).toBeInTheDocument()
+  })
+
+  it('blocks submit and does not upload or drop attachments when a Bluesky reply draft carries media', async () => {
+    const file = new File(['img-bytes'], 'draft-photo.png', {
+      type: 'image/png'
+    })
+    const originalCreateObjectURL = URL.createObjectURL
+    const originalRevokeObjectURL = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:postbox-draft-photo')
+    URL.revokeObjectURL = vi.fn()
+    const loadFilesSpy = vi
+      .spyOn(useComposerDraftModule, 'loadDraftFiles')
+      .mockResolvedValue(
+        new Map([['local-pb-1', { file, mimeType: 'image/png' }]])
+      )
+
+    const draftWithAttachment: DraftRecord = {
+      id: 'draft-postbox-bsky-media',
+      accountId: 'account-1',
+      actorId: profile.id,
+      revision: 1,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      composer: 'post-box',
+      text: 'PostBox Bluesky reply with photo',
+      contentWarning: '',
+      contentWarningVisible: false,
+      visibility: 'public',
+      quoteApprovalPolicy: 'public',
+      replyTo: blueskyReplyTarget,
+      attachments: [
+        {
+          localId: 'local-pb-1',
+          owned: true,
+          mediaType: 'image/png',
+          fileName: 'draft-photo.png',
+          description: '',
+          decorative: false,
+          hasBlob: true
+        }
+      ]
+    }
+
+    try {
+      const { container } = render(
+        <InstanceLimitsProvider maxStatusCharacters={500}>
+          <PostBox
+            host="activities.local"
+            profile={profile}
+            replyStatus={blueskyReplyTarget}
+            draft={draftWithAttachment}
+            isMediaUploadEnabled
+            onDiscardReply={vi.fn()}
+            onPostCreated={vi.fn()}
+            onPostUpdated={vi.fn()}
+            onDiscardEdit={vi.fn()}
+          />
+        </InstanceLimitsProvider>
+      )
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE)
+        ).toBeInTheDocument()
+      })
+      const postButton = screen.getByRole('button', { name: 'Post' })
+      expect(postButton).toBeDisabled()
+      // Restoring a Bluesky reply draft must not start uploading its attachment.
+      expect(uploadAttachment).not.toHaveBeenCalled()
+
+      // Direct form submit and Ctrl+Enter are blocked without uploading or posting.
+      const form = container.querySelector('form') as HTMLFormElement
+      fireEvent.submit(form)
+      fireEvent.keyDown(screen.getByRole('textbox'), {
+        ctrlKey: true,
+        code: 'Enter'
+      })
+      expect(uploadAttachment).not.toHaveBeenCalled()
+      expect(createNoteMock).not.toHaveBeenCalled()
+      expect(screen.getByRole('textbox')).toHaveValue(
+        'PostBox Bluesky reply with photo'
+      )
+
+      // Removing the attachment clears the warning and lets the reply post.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove media draft-photo.png' })
+      )
+      expect(
+        screen.queryByText(BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE)
+      ).not.toBeInTheDocument()
+      expect(postButton).toBeEnabled()
+
+      createNoteMock.mockResolvedValueOnce({
+        status: {
+          ...blueskyReplyTarget,
+          id: 'https://bsky.app/profile/did:plc:me/post/3kpostboxok'
+        },
+        attachments: []
+      })
+      fireEvent.click(postButton)
+      await waitFor(() => {
+        expect(createNoteMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: 'PostBox Bluesky reply with photo',
+            attachments: []
+          })
+        )
+      })
+      expect(uploadAttachment).not.toHaveBeenCalled()
+    } finally {
+      loadFilesSpy.mockRestore()
+      URL.createObjectURL = originalCreateObjectURL
+      URL.revokeObjectURL = originalRevokeObjectURL
+    }
   })
 })

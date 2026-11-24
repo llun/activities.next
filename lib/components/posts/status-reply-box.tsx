@@ -72,6 +72,7 @@ import {
 } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import {
+  BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE,
   BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
   BLUESKY_TOO_LONG_MESSAGE,
   getBlueskyReplyLengthState
@@ -267,6 +268,8 @@ export const StatusReplyBox: FC<Props> = ({
   const hasContent =
     text.trim().length > 0 ||
     (!isBlueskyReply && postExtension.attachments.length > 0)
+  const hasBlueskyAttachments =
+    isBlueskyReply && postExtension.attachments.length > 0
   const withinLengthLimits = blueskyLengthState
     ? blueskyLengthState.withinLimits
     : text.length <= maxStatusCharacters
@@ -520,6 +523,16 @@ export const StatusReplyBox: FC<Props> = ({
       return
     }
     if (!allowPost || (isBlueskyReply && draftLockedRef.current)) {
+      return
+    }
+    // A Bluesky reply restored from a draft that carries attachments must not
+    // upload or silently drop them: keep the draft and attachments until the
+    // user removes them.
+    if (
+      isBlueskyReply &&
+      (postExtension.attachments.length > 0 ||
+        postExtensionRef.current.attachments.length > 0)
+    ) {
       return
     }
     // A new target not applied yet (the re-target effect runs after the render
@@ -785,6 +798,7 @@ export const StatusReplyBox: FC<Props> = ({
     event.preventDefault()
     // Offline the shortcut follows the primary button, never a live send.
     if (offlineSplit) return void onHandOff(!queueDisabledReason)
+    if (hasBlueskyAttachments) return
     await onPost()
   }
 
@@ -956,6 +970,12 @@ export const StatusReplyBox: FC<Props> = ({
               />
             </div>
 
+            {hasBlueskyAttachments ? (
+              <div role="alert" className="text-xs text-destructive-text mt-2">
+                {BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE}
+              </div>
+            ) : null}
+
             {warningMsg ? (
               <div role="alert" className="text-xs text-destructive-text mt-2">
                 {warningMsg}
@@ -1105,7 +1125,7 @@ export const StatusReplyBox: FC<Props> = ({
                   />
                 ) : (
                   <Button
-                    disabled={!allowPost || isPosting}
+                    disabled={!allowPost || isPosting || hasBlueskyAttachments}
                     type="submit"
                     size="sm"
                   >

@@ -86,6 +86,7 @@ import { Tag } from '@/lib/types/domain/tag'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import { cn } from '@/lib/utils'
 import {
+  BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE,
   BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
   BLUESKY_TOO_LONG_MESSAGE,
   getBlueskyReplyLengthState
@@ -893,6 +894,7 @@ export const PostBox: FC<Props> = ({
   // progress, the server reads the file's details, and Post only has to wait
   // for whatever is still in flight.
   const startUpload = (attachment: PostBoxAttachment) => {
+    if (isBlueskyReply) return
     const { file, posterFile } = attachment
     if (!file) return
     const tempId = attachment.id
@@ -1274,6 +1276,16 @@ export const PostBox: FC<Props> = ({
     event?.preventDefault()
     if (!allowPost) return
     if (isBlueskyReply && draftLockedRef.current) return
+    // A Bluesky reply restored from a draft that carries attachments must not
+    // upload or silently drop them: keep the draft and attachments until the
+    // user removes them.
+    if (
+      isBlueskyReply &&
+      (postExtension.attachments.length > 0 ||
+        postExtensionRef.current.attachments.length > 0)
+    ) {
+      return
+    }
     if (missingDescription || settingsLoading) return
     if (!draftLocked && !isWithinPostLengthLimit(textRef.current)) return
     if (submitInFlightRef.current) return
@@ -1997,9 +2009,17 @@ export const PostBox: FC<Props> = ({
           if (!item.owned) postedMediaIdsRef.current.add(item.mediaId)
           continue
         }
-        const attachment: PostBoxAttachment = { ...restored, isLoading: true }
+        const attachment: PostBoxAttachment = {
+          ...restored,
+          isLoading: !isBlueskyReply
+        }
         attachments.push(attachment)
-        pending.push(attachment)
+        if (isBlueskyReply) {
+          names[attachment.id] = item.fileName
+          keys[attachment.id] = item.localId
+        } else {
+          pending.push(attachment)
+        }
       }
 
       let fitnessFile:
@@ -2309,6 +2329,8 @@ export const PostBox: FC<Props> = ({
   const blueskyLengthState = isBlueskyReply
     ? getBlueskyReplyLengthState(text, maxStatusCharacters)
     : null
+  const hasBlueskyAttachments =
+    isBlueskyReply && postExtension.attachments.length > 0
   const remainingCharacters = blueskyLengthState
     ? blueskyLengthState.remaining
     : maxStatusCharacters - text.length
@@ -2576,6 +2598,7 @@ export const PostBox: FC<Props> = ({
                   isPosting ||
                   missingDescription ||
                   settingsLoading ||
+                  hasBlueskyAttachments ||
                   (isBlueskyReply && draftLocked)
                 }
                 type="submit"
@@ -2593,6 +2616,11 @@ export const PostBox: FC<Props> = ({
             queueDisabledReason={queueDisabledReason}
             reasonId={reasonId}
           />
+        ) : null}
+        {hasBlueskyAttachments ? (
+          <div role="alert" className="mt-3 text-xs text-destructive-text">
+            {BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE}
+          </div>
         ) : null}
         {warningMsg ? (
           <div role="alert" className="mt-3 text-xs text-destructive-text">
@@ -2618,7 +2646,7 @@ export const PostBox: FC<Props> = ({
             </Button>
           </div>
         ) : null}
-        {missingDescription ? (
+        {missingDescription && !hasBlueskyAttachments ? (
           <div className="mt-3 text-xs text-destructive-text" role="status">
             Add a description to every item, or mark it decorative
           </div>

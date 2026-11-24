@@ -74,6 +74,7 @@ import {
   Status,
   isBlueskyStatus
 } from '@/lib/types/domain/status'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -648,7 +649,8 @@ export const POST = traceApiRoute(
                   poll: note.poll,
                   spoilerText: note.spoiler_text,
                   sensitive: note.sensitive,
-                  language: note.language
+                  language: note.language,
+                  idempotency
                 }
               )
               blueskyReplyPosted = true
@@ -837,6 +839,14 @@ export const POST = traceApiRoute(
           })
         }
         if (error instanceof IdempotencyDeletedError) {
+          if (isBlueskyId(error.statusId)) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE },
+              responseStatusCode: 503
+            })
+          }
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,

@@ -680,6 +680,239 @@ describe('POST /api/v1/statuses', () => {
       })
       expect(replyToBlueskyPost).not.toHaveBeenCalled()
     })
+
+    it('replays a Bluesky reply with the same Idempotency-Key without reposting or enqueueing ActivityPub delivery', async () => {
+      const { statusId: parentId } = await storeBlueskyPost(
+        database,
+        'replyidemp'
+      )
+      const parentRecord = await database.getBlueskyRecordByStatusId({
+        statusId: parentId
+      })
+      if (!parentRecord) throw new Error('Expected parent bluesky record')
+      const { uri: parentUri, cid: parentCid } = parentRecord
+      const ownDid = `did:plc:${'i'.repeat(24)}`
+      const replyRkey = '3kidempreply'
+      const replyUri = `at://${ownDid}/app.bsky.feed.post/${replyRkey}`
+      const replyCid = `bafyrei${'i'.repeat(52)}`
+      const key = 'bsky-reply-idemp-stored'
+      await database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did: ownDid,
+        handle: 'idempuser.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+      const post = vi.fn().mockResolvedValue({ uri: replyUri, cid: replyCid })
+      vi.mocked(getBlueskyAgent).mockResolvedValue({
+        did: ownDid,
+        pdsUrl: 'https://pds.example.net/',
+        get: vi.fn(),
+        post
+      } as unknown as BlueskyAgent)
+      const parentDid = parentUri.slice('at://'.length).split('/')[0]
+      vi.mocked(getPublicPosts)
+        .mockResolvedValueOnce([
+          {
+            uri: parentUri,
+            cid: parentCid,
+            author: { did: parentDid, handle: 'parent.bsky.social' },
+            record: {
+              $type: 'app.bsky.feed.post',
+              text: 'Parent',
+              createdAt: '2026-11-24T07:00:00.000Z'
+            }
+          }
+        ])
+        .mockResolvedValueOnce([
+          {
+            uri: replyUri,
+            cid: replyCid,
+            author: { did: ownDid, handle: 'idempuser.bsky.social' },
+            record: {
+              $type: 'app.bsky.feed.post',
+              text: 'Idempotent Bluesky reply',
+              reply: {
+                root: { uri: parentUri, cid: parentCid },
+                parent: { uri: parentUri, cid: parentCid }
+              },
+              createdAt: '2026-11-24T07:01:00.000Z'
+            }
+          }
+        ])
+
+      const postWithKey = (body: Record<string, unknown>, idempKey: string) =>
+        POST(
+          new NextRequest('https://llun.test/api/v1/statuses', {
+            method: 'POST',
+            body: JSON.stringify(body),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test',
+              'Idempotency-Key': idempKey
+            }
+          }),
+          { params: Promise.resolve({}) }
+        )
+
+      try {
+        const body = {
+          status: 'Idempotent Bluesky reply',
+          in_reply_to_id: parentId,
+          visibility: 'public'
+        }
+        const first = await postWithKey(body, key)
+        expect(first.status).toBe(200)
+        const firstData = await first.json()
+        const expectedId = blueskyPostId(ownDid, replyRkey)
+        expect(firstData.uri).toBe(expectedId)
+        expect(post).toHaveBeenCalledTimes(1)
+
+        // Retry with the same key returns the original status (200) without reposting.
+        const replay = await postWithKey(body, key)
+        expect(replay.status).toBe(200)
+        const replayData = await replay.json()
+        expect(replayData.uri).toBe(expectedId)
+        expect(replayData.id).toBe(firstData.id)
+        expect(post).toHaveBeenCalledTimes(1)
+        expect(getQueue().publish).not.toHaveBeenCalled()
+
+        // Retry with the same key and different content fails with 422.
+        const conflict = await postWithKey(
+          { ...body, status: 'Changed text' },
+          key
+        )
+        expect(conflict.status).toBe(422)
+        expect(post).toHaveBeenCalledTimes(1)
+
+        // Even if the Bluesky key were somehow in a non-complete state, replay
+        // must never enqueue an ActivityPub send job.
+        await db
+          .updateTable('idempotency_keys')
+          .set({ state: 'publish_failed' })
+          .where('actorId', '=', ACTOR1_ID)
+          .where('key', '=', key)
+          .execute()
+        const replayNonComplete = await postWithKey(body, key)
+        expect(replayNonComplete.status).toBe(200)
+        expect(getQueue().publish).not.toHaveBeenCalled()
+      } finally {
+        vi.mocked(getBlueskyAgent).mockResolvedValue(null)
+        await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+      }
+    })
+
+    it('answers 503 posted-not-stored on retry when a Bluesky reply was not stored locally yet, then 200 once stored', async () => {
+      const { statusId: parentId } = await storeBlueskyPost(
+        database,
+        'replyidemplag'
+      )
+      const parentRecord = await database.getBlueskyRecordByStatusId({
+        statusId: parentId
+      })
+      if (!parentRecord) throw new Error('Expected parent bluesky record')
+      const { uri: parentUri, cid: parentCid } = parentRecord
+      const ownDid = `did:plc:${'l'.repeat(24)}`
+      const replyRkey = '3klagreply'
+      const replyUri = `at://${ownDid}/app.bsky.feed.post/${replyRkey}`
+      const replyCid = `bafyrei${'l'.repeat(52)}`
+      const key = 'bsky-reply-idemp-lag'
+      await database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did: ownDid,
+        handle: 'laguser.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+      const post = vi.fn().mockResolvedValue({ uri: replyUri, cid: replyCid })
+      vi.mocked(getBlueskyAgent).mockResolvedValue({
+        did: ownDid,
+        pdsUrl: 'https://pds.example.net/',
+        get: vi.fn(),
+        post
+      } as unknown as BlueskyAgent)
+      const parentDid = parentUri.slice('at://'.length).split('/')[0]
+      vi.mocked(getPublicPosts)
+        .mockResolvedValueOnce([
+          {
+            uri: parentUri,
+            cid: parentCid,
+            author: { did: parentDid, handle: 'parent.bsky.social' },
+            record: {
+              $type: 'app.bsky.feed.post',
+              text: 'Parent',
+              createdAt: '2026-11-24T07:00:00.000Z'
+            }
+          }
+        ])
+        .mockResolvedValue([])
+
+      const postWithKey = (body: Record<string, unknown>, idempKey: string) =>
+        POST(
+          new NextRequest('https://llun.test/api/v1/statuses', {
+            method: 'POST',
+            body: JSON.stringify(body),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test',
+              'Idempotency-Key': idempKey
+            }
+          }),
+          { params: Promise.resolve({}) }
+        )
+
+      try {
+        const body = {
+          status: 'Lagging idempotent reply',
+          in_reply_to_id: parentId,
+          visibility: 'public'
+        }
+        const first = await postWithKey(body, key)
+        expect(first.status).toBe(503)
+        await expect(first.json()).resolves.toEqual({
+          error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
+        })
+        expect(post).toHaveBeenCalledTimes(1)
+
+        // Retry before sync stores the copy returns 503 (not 410) and does not repost.
+        const retryBeforeSync = await postWithKey(body, key)
+        expect(retryBeforeSync.status).toBe(503)
+        await expect(retryBeforeSync.json()).resolves.toEqual({
+          error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
+        })
+        expect(post).toHaveBeenCalledTimes(1)
+
+        // Once sync stores the Bluesky reply locally, retrying with the same key returns 200.
+        const ownActorId = await database.upsertBlueskyActor({
+          did: ownDid,
+          handle: 'laguser.bsky.social'
+        })
+        if (!ownActorId) throw new Error('Expected own Bluesky actor')
+        await database.upsertBlueskyPost({
+          uri: replyUri,
+          cid: replyCid,
+          did: ownDid,
+          rkey: replyRkey,
+          actorId: ownActorId,
+          text: '<p>Lagging idempotent reply</p>',
+          createdAt: Date.now(),
+          replyToStatusId: parentId,
+          attachments: []
+        })
+
+        const retryAfterSync = await postWithKey(body, key)
+        expect(retryAfterSync.status).toBe(200)
+        const syncedData = await retryAfterSync.json()
+        expect(syncedData.uri).toBe(blueskyPostId(ownDid, replyRkey))
+        expect(post).toHaveBeenCalledTimes(1)
+        expect(getQueue().publish).not.toHaveBeenCalled()
+      } finally {
+        vi.mocked(getBlueskyAgent).mockResolvedValue(null)
+        await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+      }
+    })
   })
 
   describe('in_reply_to_id resolution', () => {

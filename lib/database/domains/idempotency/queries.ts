@@ -1,5 +1,6 @@
 import {
   type ClaimIdempotencyKeyPublishParams,
+  type CreateCompletedIdempotencyKeyParams,
   type DeleteExpiredIdempotencyKeysParams,
   type GetIdempotencyKeyParams,
   IDEMPOTENCY_KEY_TTL_MS,
@@ -30,6 +31,26 @@ export const getIdempotencyKey = async (
     state: row.state as IdempotencyKeyState,
     createdAt: row.createdAt ?? null
   }
+}
+
+export const createCompletedIdempotencyKey = async (
+  db: Db,
+  { actorId, key, statusId, contentHash }: CreateCompletedIdempotencyKeyParams
+): Promise<void> => {
+  const now = new Date()
+  await db
+    .insertInto('idempotency_keys')
+    .values({
+      actorId,
+      key,
+      statusId,
+      contentHash,
+      state: 'complete',
+      createdAt: now,
+      stateChangedAt: now
+    })
+    .onConflict((oc) => oc.columns(['actorId', 'key']).doNothing())
+    .execute()
 }
 
 export const setIdempotencyKeyState = async (
@@ -98,6 +119,7 @@ export const deleteExpiredIdempotencyKeys = async (
 
 export const idempotencyQueries = {
   getIdempotencyKey,
+  createCompletedIdempotencyKey,
   setIdempotencyKeyState,
   claimIdempotencyKeyPublish,
   deleteExpiredIdempotencyKeys

@@ -1,3 +1,4 @@
+import { IdempotencyConflictError } from '@/lib/database/domains/idempotency/types'
 import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { BlueskyActionError } from '@/lib/services/bluesky/actionErrors'
@@ -836,6 +837,152 @@ describe('Bluesky reply & delete service', () => {
         message: BLUESKY_NOT_ALLOWED_MESSAGE
       })
       expect(post).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('replyToBlueskyPost idempotency', () => {
+    it('records a completed idempotency key after createRecord and replays without reposting', async () => {
+      post.mockResolvedValue({ uri: REPLY_URI, cid: REPLY_CID })
+      vi.mocked(getPublicPosts)
+        .mockResolvedValueOnce([
+          makePostView({
+            uri: PARENT_URI,
+            cid: APPVIEW_PARENT_CID,
+            did: PARENT_DID,
+            handle: 'parent.bsky.social',
+            text: 'Parent'
+          })
+        ])
+        .mockResolvedValueOnce([
+          makePostView({
+            uri: REPLY_URI,
+            cid: REPLY_CID,
+            did: OWN_DID,
+            handle: 'me.bsky.social',
+            text: 'Idempotent reply',
+            reply: {
+              root: { uri: PARENT_URI, cid: APPVIEW_PARENT_CID },
+              parent: { uri: PARENT_URI, cid: APPVIEW_PARENT_CID }
+            }
+          })
+        ])
+
+      const idempotency = {
+        key: 'service-reply-key-1',
+        contentHash: 'hash-reply-1'
+      }
+      const first = await replyToBlueskyPost(
+        database,
+        actor,
+        {
+          parentStatusId,
+          text: 'Idempotent reply',
+          idempotency
+        },
+        { wait: noWait }
+      )
+      const expectedStatusId = blueskyPostId(OWN_DID, REPLY_RKEY)
+      expect(first).toEqual({ stored: true, statusId: expectedStatusId })
+      expect(post).toHaveBeenCalledTimes(1)
+
+      await expect(
+        database.getIdempotencyKey({ actorId: actor.id, key: idempotency.key })
+      ).resolves.toMatchObject({
+        statusId: expectedStatusId,
+        contentHash: idempotency.contentHash,
+        state: 'complete'
+      })
+
+      // A replay with the same key and content returns the stored reply without posting again.
+      const second = await replyToBlueskyPost(
+        database,
+        actor,
+        {
+          parentStatusId,
+          text: 'Idempotent reply',
+          idempotency
+        },
+        { wait: noWait }
+      )
+      expect(second).toEqual({ stored: true, statusId: expectedStatusId })
+      expect(post).toHaveBeenCalledTimes(1)
+
+      // A replay with the same key and different contentHash throws IdempotencyConflictError.
+      await expect(
+        replyToBlueskyPost(
+          database,
+          actor,
+          {
+            parentStatusId,
+            text: 'Different reply',
+            idempotency: {
+              key: idempotency.key,
+              contentHash: 'hash-different'
+            }
+          },
+          { wait: noWait }
+        )
+      ).rejects.toBeInstanceOf(IdempotencyConflictError)
+      expect(post).toHaveBeenCalledTimes(1)
+    })
+
+    it('records the deterministic statusId even when AppView readback lags and deduplicates concurrent retries', async () => {
+      let releaseCreate!: (value: { uri: string; cid: string }) => void
+      const createPromise = new Promise<{ uri: string; cid: string }>(
+        (resolve) => {
+          releaseCreate = resolve
+        }
+      )
+      post.mockImplementationOnce(() => createPromise)
+      // Parent lookup succeeds, AppView readback returns empty (not indexed yet).
+      vi.mocked(getPublicPosts)
+        .mockResolvedValueOnce([
+          makePostView({
+            uri: PARENT_URI,
+            cid: APPVIEW_PARENT_CID,
+            did: PARENT_DID,
+            handle: 'parent.bsky.social',
+            text: 'Parent'
+          })
+        ])
+        .mockResolvedValue([])
+
+      const idempotency = {
+        key: 'service-concurrent-key',
+        contentHash: 'hash-concurrent'
+      }
+      const req1 = replyToBlueskyPost(
+        database,
+        actor,
+        { parentStatusId, text: 'Concurrent reply', idempotency },
+        { wait: noWait }
+      )
+      const req2 = replyToBlueskyPost(
+        database,
+        actor,
+        { parentStatusId, text: 'Concurrent reply', idempotency },
+        { wait: noWait }
+      )
+
+      // Release createRecord once req1 has called it.
+      await vi.waitFor(() => {
+        expect(post).toHaveBeenCalledTimes(1)
+      })
+      releaseCreate({ uri: REPLY_URI, cid: REPLY_CID })
+
+      const [res1, res2] = await Promise.all([req1, req2])
+      expect(res1).toEqual({ stored: false })
+      expect(res2).toEqual({ stored: false })
+      expect(post).toHaveBeenCalledTimes(1)
+
+      const expectedStatusId = blueskyPostId(OWN_DID, REPLY_RKEY)
+      await expect(
+        database.getIdempotencyKey({ actorId: actor.id, key: idempotency.key })
+      ).resolves.toMatchObject({
+        statusId: expectedStatusId,
+        contentHash: idempotency.contentHash,
+        state: 'complete'
+      })
     })
   })
 })

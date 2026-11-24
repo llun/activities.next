@@ -5,10 +5,15 @@
 // delivery.
 import crypto from 'node:crypto'
 
+import {
+  IdempotencyConflictError,
+  IdempotencyDeletedError
+} from '@/lib/database/domains/idempotency/types'
 import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import { isBlueskyStatus } from '@/lib/types/domain/status'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import {
   BLUESKY_MAX_GRAPHEMES,
   BLUESKY_MAX_UTF8_BYTES,
@@ -33,6 +38,7 @@ import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 import {
   type BlueskyPostView,
   blueskyActorId,
+  blueskyPostId,
   optionalString,
   parseAtUri,
   parseBlueskyPostView,
@@ -95,6 +101,10 @@ export interface ReplyToBlueskyPostInput {
   spoilerText?: string | null
   sensitive?: boolean
   language?: string | null
+  idempotency?: {
+    key: string
+    contentHash: string
+  }
 }
 
 export interface ReplyToBlueskyPostOptions {
@@ -209,6 +219,36 @@ const writeReply = async (
   input: ReplyToBlueskyPostInput,
   wait: (ms: number) => Promise<void>
 ): Promise<ReplyToBlueskyPostResult> => {
+  // Re-check Idempotency-Key inside the per-actor reply lock so a concurrent
+  // retry that arrived while the first request was posting sees the recorded
+  // key instead of creating a second reply on Bluesky.
+  if (input.idempotency) {
+    const existingKey = await database.getIdempotencyKey({
+      actorId: actor.id,
+      key: input.idempotency.key
+    })
+    if (existingKey) {
+      if (
+        existingKey.contentHash !== null &&
+        existingKey.contentHash !== input.idempotency.contentHash
+      ) {
+        throw new IdempotencyConflictError()
+      }
+      const existingStatus = await database.getStatus({
+        statusId: existingKey.statusId,
+        currentActorId: actor.id,
+        withReplies: false
+      })
+      if (existingStatus) {
+        return { stored: true, statusId: existingStatus.id }
+      }
+      if (isBlueskyId(existingKey.statusId)) {
+        return { stored: false }
+      }
+      throw new IdempotencyDeletedError(existingKey.statusId)
+    }
+  }
+
   if (!(await isBlueskyAllowed(database))) {
     throw new BlueskyActionError(BLUESKY_NOT_ALLOWED_MESSAGE)
   }
@@ -288,6 +328,25 @@ const writeReply = async (
         cid
       })
       return { stored: false }
+    }
+
+    const deterministicStatusId = blueskyPostId(parsed.did, parsed.rkey)
+    if (input.idempotency) {
+      try {
+        await database.createCompletedIdempotencyKey({
+          actorId: actor.id,
+          key: input.idempotency.key,
+          statusId: deterministicStatusId,
+          contentHash: input.idempotency.contentHash
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to record Idempotency-Key for Bluesky reply',
+          actorId: actor.id,
+          statusId: deterministicStatusId,
+          err: toLoggableError(error)
+        })
+      }
     }
 
     const postView = await readBackReplyFromAppView(uri, agent.did, wait)

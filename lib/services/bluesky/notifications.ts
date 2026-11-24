@@ -519,12 +519,14 @@ export const syncBlueskyNotifications = async (
           }
         } catch (error) {
           if (error instanceof BlueskySessionChangedError) throw error
-          logger.warn({
-            message: 'Skipped a Bluesky notification that could not be stored',
+          logger.error({
+            message:
+              'Failed to store a Bluesky notification; stopping before advancing seenAt',
             actorId: actor.id,
             uri: candidate.postUri,
             err: toLoggableError(error)
           })
+          throw error
         }
       }
     }

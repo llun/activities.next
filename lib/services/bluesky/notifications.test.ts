@@ -778,4 +778,88 @@ describe('syncBlueskyNotifications', () => {
     ).rejects.toBeInstanceOf(BlueskySessionChangedError)
     expect(get).not.toHaveBeenCalled()
   })
+
+  it('stops advancing seenAt past a failed notification so the next run retries it and subsequent items once', async () => {
+    const t0 = Date.parse('2026-03-06T00:00:00.000Z')
+    const t1 = Date.parse('2026-03-06T00:01:00.000Z')
+    const t2 = Date.parse('2026-03-06T00:02:00.000Z')
+    const t3 = Date.parse('2026-03-06T00:03:00.000Z')
+    await database.updateBlueskyNotificationsSeenAt({
+      actorId: actor.id,
+      seenAt: t0
+    })
+
+    const myPost = postView('reader', 'retry1')
+    publishPost(myPost)
+    publishProfile(
+      profileView('alice'),
+      profileView('bob'),
+      profileView('carol')
+    )
+
+    const page = {
+      notifications: [
+        {
+          uri: `at://${did('carol')}/app.bsky.feed.like/r3`,
+          author: profileView('carol'),
+          reason: 'like',
+          reasonSubject: myPost.uri,
+          indexedAt: new Date(t3).toISOString()
+        },
+        {
+          uri: `at://${did('bob')}/app.bsky.feed.like/r2`,
+          author: profileView('bob'),
+          reason: 'like',
+          reasonSubject: myPost.uri,
+          indexedAt: new Date(t2).toISOString()
+        },
+        {
+          uri: `at://${did('alice')}/app.bsky.feed.like/r1`,
+          author: profileView('alice'),
+          reason: 'like',
+          reasonSubject: myPost.uri,
+          indexedAt: new Date(t1).toISOString()
+        }
+      ]
+    }
+    get.mockResolvedValue(page)
+
+    const originalCreateNotification =
+      database.createNotification.bind(database)
+    const createSpy = vi
+      .spyOn(database, 'createNotification')
+      .mockImplementation(async (params) => {
+        if (params.sourceActorId === blueskyActorId(did('bob'))) {
+          throw new Error('transient DB write failure')
+        }
+        return originalCreateNotification(params)
+      })
+
+    try {
+      await expect(
+        syncBlueskyNotifications(database, actor, agent)
+      ).rejects.toThrow('transient DB write failure')
+    } finally {
+      createSpy.mockRestore()
+    }
+
+    // 1st notification was created, seenAt advanced to t1 (before the failed 2nd).
+    const afterFirstRun = await notifications()
+    expect(afterFirstRun).toHaveLength(1)
+    expect(afterFirstRun[0].sourceActorId).toBe(blueskyActorId(did('alice')))
+    expect((await account())?.notificationsSeenAt).toBe(t1)
+
+    // Next run succeeds and creates the 2nd and 3rd once, without duplicating the 1st.
+    await syncBlueskyNotifications(database, actor, agent)
+
+    const afterSecondRun = await notifications()
+    expect(afterSecondRun).toHaveLength(3)
+    expect(afterSecondRun.map((n) => n.sourceActorId)).toEqual([
+      blueskyActorId(did('carol')),
+      blueskyActorId(did('bob')),
+      blueskyActorId(did('alice'))
+    ])
+    expect((await account())?.notificationsSeenAt).toBe(t3)
+    expect(sendNotificationAlerts).toHaveBeenCalledTimes(3)
+  })
 })

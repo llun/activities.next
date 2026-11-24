@@ -13,6 +13,9 @@ export const BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE =
 export const BLUESKY_REPLY_QUEUE_DISABLED_REASON =
   'Bluesky replies are posted right away, not queued.'
 
+export const BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE =
+  'Images in Bluesky replies are not supported yet. Remove them to post.'
+
 const graphemeSegmenter = new Intl.Segmenter(undefined, {
   granularity: 'grapheme'
 })
