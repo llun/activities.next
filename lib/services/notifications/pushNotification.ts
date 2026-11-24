@@ -1,4 +1,4 @@
-import webpush from 'web-push'
+import * as webpush from 'web-push'
 
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'

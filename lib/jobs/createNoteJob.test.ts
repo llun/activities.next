@@ -395,8 +395,7 @@ describe('createNoteJob', () => {
       // Declared as English (the mock's default contentMap key), but the
       // content itself is unambiguously Thai — the mislabeled-post scenario
       // the Translate gate needs to recover from.
-      content:
-        '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>'
+      content: '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>'
     })
     await createNoteJob(database, {
       id: 'id-detected-thai',
