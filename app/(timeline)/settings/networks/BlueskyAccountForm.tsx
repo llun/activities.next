@@ -325,6 +325,12 @@ export const BlueskyAccountForm = ({
                       handle in your Bluesky app.
                     </span>
                   ) : null}
+                  {instance.status === 'inactive' ? (
+                    <span className="text-muted-foreground">
+                      Your claim on {instance.host} is not in use: only an
+                      admin’s profile on that domain can hold it.
+                    </span>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
@@ -334,15 +340,17 @@ export const BlueskyAccountForm = ({
                       void run('instance', async () =>
                         applyState(
                           await setBlueskyInstanceHandle(
-                            instance.status !== 'yours'
+                            instance.status === 'free'
                           )
                         )
                       )
                     }
                   >
-                    {instance.status === 'yours'
-                      ? 'Stop answering'
-                      : `Use ${instance.host}`}
+                    {instance.status === 'free'
+                      ? `Use ${instance.host}`
+                      : instance.status === 'yours'
+                        ? 'Stop answering'
+                        : 'Let it go'}
                   </Button>
                 </>
               )}

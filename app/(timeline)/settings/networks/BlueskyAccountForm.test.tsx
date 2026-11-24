@@ -216,6 +216,23 @@ describe('BlueskyAccountForm', () => {
     ).toBeInTheDocument()
   })
 
+  it('lets go of a claim this profile can no longer hold', async () => {
+    vi.mocked(setBlueskyInstanceHandle).mockResolvedValue(linkedState())
+    show(
+      linkedState(
+        {},
+        { instanceHandle: { host: 'social.example', status: 'inactive' } }
+      )
+    )
+    expect(
+      screen.getByText(/Your claim on social.example is not in use/)
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Let it go' }))
+    await waitFor(() =>
+      expect(setBlueskyInstanceHandle).toHaveBeenCalledWith(false)
+    )
+  })
+
   it('shows the already-linked error from the callback', () => {
     show(unlinkedState, 'did_taken')
     expect(

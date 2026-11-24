@@ -186,6 +186,15 @@ export const getBlueskyAccountState = async (
       status: !holder ? 'free' : holder.actorId === actor.id ? 'yours' : 'taken'
     }
   }
+  // A claim this actor can no longer hold (not an admin now, or moved to
+  // another domain) answers nothing; still show it so it can be let go.
+  if (
+    account?.instanceHandle &&
+    (instanceHandle?.host !== account.instanceHandle ||
+      instanceHandle.status !== 'yours')
+  ) {
+    instanceHandle = { host: account.instanceHandle, status: 'inactive' }
+  }
   return {
     oauthAvailable: Boolean(getConfig().bluesky),
     account: account
@@ -221,7 +230,7 @@ export const startBlueskyOAuth = async (
       400
     )
   }
-  const client = getBlueskyOAuthClient(database, actor.domain)
+  const client = getBlueskyOAuthClient(database, domain)
   if (!client) {
     throw new BlueskyLinkError(
       'Bluesky sign-in is not set up on this server. Use an app password.',
@@ -307,7 +316,12 @@ export const completeBlueskyOAuth = async (
   actor: Actor,
   params: URLSearchParams
 ): Promise<BlueskyCallbackResult> => {
-  const client = getBlueskyOAuthClient(database, actor.domain)
+  // The same canonical domain startBlueskyOAuth used: the session is tied to
+  // that client_id.
+  const client = getBlueskyOAuthClient(
+    database,
+    getServedAuthority(actor.domain) ?? actor.domain
+  )
   if (!client) return 'failed'
   // The callback stores a session for the DID before we decide; on any
   // outcome but a link, drop it unless a link uses the DID.

@@ -21,7 +21,9 @@ export interface BlueskyAccountState {
   // answer /.well-known/atproto-did for, and who holds it now.
   instanceHandle: {
     host: string
-    status: 'yours' | 'free' | 'taken'
+    // inactive: this profile's own claim, which counts for nothing now (it
+    // is no longer an admin, or lives on another domain); it can be let go.
+    status: 'yours' | 'free' | 'taken' | 'inactive'
   } | null
 }
 

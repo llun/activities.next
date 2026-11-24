@@ -677,6 +677,30 @@ describe('Bluesky account service', () => {
       ).toBeNull()
     })
 
+    it('shows a claim the actor can no longer hold, so it can be let go', async () => {
+      await linkAlice()
+      await setBlueskyInstanceHandle(database, actor('actor-a', 'admin'), true)
+      // No longer an admin: the claim answers nothing but is still shown.
+      expect(
+        (await getBlueskyAccountState(database, actor('actor-a')))
+          .instanceHandle
+      ).toEqual({ host: 'social.example', status: 'inactive' })
+      // Moved to another domain: the same.
+      expect(
+        (
+          await getBlueskyAccountState(
+            database,
+            actor('actor-a', 'admin', 'moved.example')
+          )
+        ).instanceHandle
+      ).toEqual({ host: 'social.example', status: 'inactive' })
+      await setBlueskyInstanceHandle(database, actor('actor-a'), false)
+      expect(
+        (await getBlueskyAccountState(database, actor('actor-a')))
+          .instanceHandle
+      ).toBeNull()
+    })
+
     it('claims each served domain separately', async () => {
       await linkAlice()
       await database.saveBlueskyAccount({

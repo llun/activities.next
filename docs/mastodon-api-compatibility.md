@@ -1299,7 +1299,8 @@ sharing. The code is in `lib/services/bluesky/`:
   while its holder still lives on that domain and its account is an admin,
   with neither the account nor the actor disabled or suspended; otherwise it
   answers nothing, another admin can take it, and the holder can always let
-  it go. `GET /.well-known/atproto-did` answers the claiming profile's DID as
+  it go (Settings keeps showing such a claim as not in use, with a button to
+  release it). `GET /.well-known/atproto-did` answers the claiming profile's DID as
   `text/plain` for the served host the request is for (the primary host when
   a proxy rewrites `Host` to an internal name, as everywhere else), and 404
   otherwise, so the handle can be set in the Bluesky app without DNS access.
