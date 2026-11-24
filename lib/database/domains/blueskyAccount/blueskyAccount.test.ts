@@ -195,8 +195,42 @@ describe('BlueskyAccount', () => {
     expect(
       await database.getBlueskyAccountByInstanceHandle({ host: TEST_DOMAIN })
     ).toBeNull()
+    // An admin still on the domain can take the claim over.
+    const nine = await createAdmin('bsky-nine')
+    await link(nine.actorId, 'did:plc:nine-claim')
+    expect(
+      await database.setBlueskyInstanceHandle({
+        actorId: nine.actorId,
+        host: TEST_DOMAIN
+      })
+    ).toBe(true)
+    expect(
+      (await database.getBlueskyAccount({ actorId: eight.actorId }))
+        ?.instanceHandle
+    ).toBeNull()
     await database.setBlueskyInstanceHandle({
-      actorId: eight.actorId,
+      actorId: nine.actorId,
+      host: null
+    })
+  })
+
+  it('serves a claim whose holder’s domain row keeps an old spelling', async () => {
+    const ten = await createAdmin('bsky-ten')
+    await link(ten.actorId, 'did:plc:ten-claim')
+    await testDb.db
+      .updateTable('actors')
+      .set({ domain: TEST_DOMAIN.toUpperCase() })
+      .where('id', '=', ten.actorId)
+      .execute()
+    await database.setBlueskyInstanceHandle({
+      actorId: ten.actorId,
+      host: TEST_DOMAIN
+    })
+    expect(
+      await database.getBlueskyAccountByInstanceHandle({ host: TEST_DOMAIN })
+    ).toMatchObject({ actorId: ten.actorId })
+    await database.setBlueskyInstanceHandle({
+      actorId: ten.actorId,
       host: null
     })
   })

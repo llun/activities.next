@@ -1,4 +1,4 @@
-import type { Selectable } from 'kysely'
+import { type Selectable, sql } from 'kysely'
 
 import type {
   BlueskyAccount,
@@ -55,7 +55,8 @@ const eligibleClaimHolderIds = (db: Db, host: string) =>
     .selectFrom('actors')
     .innerJoin('accounts', 'accounts.id', 'actors.accountId')
     .select('actors.id')
-    .where('actors.domain', '=', host)
+    // Rows written before domains were normalized may keep their spelling.
+    .where(sql`lower(${sql.ref('actors.domain')})`, '=', host)
     .where('accounts.role', '=', 'admin')
     .where('accounts.disabledAt', 'is', null)
     .where('actors.suspendedAt', 'is', null)

@@ -16,6 +16,7 @@ import {
   type BlueskyHandleCheck,
   getBlueskyDnsRecord
 } from '@/lib/utils/blueskyAccount'
+import { getServedAuthority } from '@/lib/utils/host'
 import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -89,8 +90,8 @@ const normalizeIdentifier = (input: string) => {
 // /.well-known/atproto-did for. A handle carries no port, so a host with one
 // cannot be claimed.
 const getClaimableHost = (actor: Actor) => {
-  const host = actor.domain.toLowerCase()
-  return host.includes(':') ? null : host
+  const host = getServedAuthority(actor.domain)
+  return !host || host.includes(':') ? null : host
 }
 
 // A handle needs its own DNS record unless it sits under a domain the PDS
@@ -209,7 +210,7 @@ export const startBlueskyOAuth = async (
 ): Promise<string> => {
   // Sign-in returns to the actor's own domain, where the session cookie must
   // be; one started on another served domain could not finish.
-  const domain = actor.domain.toLowerCase()
+  const domain = getServedAuthority(actor.domain) ?? actor.domain
   if (requestHost !== undefined && requestHost !== domain) {
     throw new BlueskyLinkError(
       `Open Settings on ${domain} to sign in with Bluesky, or use an app password.`,
