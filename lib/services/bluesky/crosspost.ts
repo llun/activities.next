@@ -410,21 +410,21 @@ export const crosspostStatus = async (
   if (!row || !isCrosspostAttemptable(row)) return
   const status = await database.getStatus({ statusId, withReplies: false })
   if (!status || !isCrosspostableStatus(status)) {
-    // Made non-public (or gone) before the job ran: nothing to post.
-    await database.deleteBlueskyCrosspost({ statusId })
+    // Made non-public (or gone) before the job ran: drop only if still pending.
+    await database.deleteBlueskyCrosspostIfPending({ statusId })
     return
   }
 
   const account = await database.getBlueskyAccount({ actorId: status.actorId })
   if (!account) {
-    await database.markBlueskyCrosspostFailed({
+    await database.markBlueskyCrosspostFailedIfPending({
       statusId,
       error: BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE
     })
     return
   }
   if (!(await isBlueskyAllowed(database))) {
-    await database.markBlueskyCrosspostFailed({
+    await database.markBlueskyCrosspostFailedIfPending({
       statusId,
       error: BLUESKY_NOT_ALLOWED_MESSAGE
     })
@@ -432,14 +432,14 @@ export const crosspostStatus = async (
   }
   const actor = await database.getActorFromId({ id: status.actorId })
   if (!actor) {
-    await database.markBlueskyCrosspostFailed({
+    await database.markBlueskyCrosspostFailedIfPending({
       statusId,
       error: BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE
     })
     return
   }
 
-  let attemptStarted = false
+  let attemptId: string | null = null
   try {
     await createBlueskyLock(database)(
       `${BLUESKY_CROSSPOST_LOCK_PREFIX}${status.actorId}`,
@@ -463,14 +463,14 @@ export const crosspostStatus = async (
           !currentActor ||
           !isActorUsable(currentActor)
         ) {
-          // No longer crosspostable: drop the row and post nothing.
-          await database.deleteBlueskyCrosspost({ statusId })
+          // No longer crosspostable: drop only if still pending and post nothing.
+          await database.deleteBlueskyCrosspostIfPending({ statusId })
           return
         }
 
         const agent = await getBlueskyAgent(database, currentActor)
         if (!agent) {
-          await database.markBlueskyCrosspostFailed({
+          await database.markBlueskyCrosspostFailedIfPending({
             statusId,
             error: BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE
           })
@@ -486,7 +486,7 @@ export const crosspostStatus = async (
             )
           }
           if (!resolved) {
-            await database.deleteBlueskyCrosspost({ statusId })
+            await database.deleteBlueskyCrosspostIfPending({ statusId })
             return
           }
           replyRefs = resolved
@@ -496,10 +496,13 @@ export const crosspostStatus = async (
         // media and creating the record: if the per-actor lock later expires
         // during slow uploads, a second job sees 'posting' and stops instead of
         // calling createRecord twice.
-        if (!(await database.beginBlueskyCrosspostAttempt({ statusId }))) {
+        const claimedAttemptId = await database.beginBlueskyCrosspostAttempt({
+          statusId
+        })
+        if (!claimedAttemptId) {
           return
         }
-        attemptStarted = true
+        attemptId = claimedAttemptId
 
         const record = await buildRecord(
           database,
@@ -538,6 +541,7 @@ export const crosspostStatus = async (
         try {
           posted = await database.markBlueskyCrosspostPosted({
             statusId,
+            attemptId: claimedAttemptId,
             uri,
             cid
           })
@@ -551,6 +555,7 @@ export const crosspostStatus = async (
           await database
             .markBlueskyCrosspostFailed({
               statusId,
+              attemptId: claimedAttemptId,
               error: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
             })
             .catch(() => undefined)
@@ -560,9 +565,9 @@ export const crosspostStatus = async (
         }
 
         if (!posted) {
-          // The post was deleted (or narrowed from public) while its record was
-          // being created: remove the copy so Bluesky does not keep a post this
-          // server dropped.
+          // The post was deleted (or narrowed from public), or another attempt
+          // took over after this one went stale, while its record was being
+          // created: remove the copy so Bluesky does not keep an orphaned post.
           await deleteCrosspostRecord(agent, uri)
         }
       }
@@ -579,24 +584,28 @@ export const crosspostStatus = async (
     // STALE_CROSSPOST_MS hydration reports it as failed and the owner's Retry
     // resets it (resetBlueskyCrosspostForRetry).
     if (isRetryableCrosspostError(error) && !getQueue().runsInline) {
-      if (attemptStarted) {
-        await database.releaseBlueskyCrosspostAttempt({ statusId })
+      if (attemptId) {
+        await database.releaseBlueskyCrosspostAttempt({ statusId, attemptId })
       }
       throw error
-    }
-    if (!attemptStarted && error instanceof BlueskyLockTimeoutError) {
-      const latest = await database.getBlueskyCrosspost({ statusId })
-      if (latest && !isCrosspostAttemptable(latest)) return
     }
     logger.warn({
       message: 'Bluesky cross-post failed',
       statusId,
       err: toLoggableError(error)
     })
-    await database.markBlueskyCrosspostFailed({
-      statusId,
-      error: failureMessage(error)
-    })
+    if (attemptId) {
+      await database.markBlueskyCrosspostFailed({
+        statusId,
+        attemptId,
+        error: failureMessage(error)
+      })
+    } else {
+      await database.markBlueskyCrosspostFailedIfPending({
+        statusId,
+        error: failureMessage(error)
+      })
+    }
   }
 }
 
@@ -653,7 +662,7 @@ export const enqueueBlueskyCrosspost = async (
       err: toLoggableError(error)
     })
     await database
-      .markBlueskyCrosspostFailed({
+      .markBlueskyCrosspostFailedIfPending({
         statusId: status.id,
         error: BLUESKY_CROSSPOST_QUEUE_FAILED_MESSAGE
       })

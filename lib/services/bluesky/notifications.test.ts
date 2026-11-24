@@ -608,8 +608,12 @@ describe('syncBlueskyNotifications', () => {
       statusId: localId,
       actorId: actor.id
     })
+    const attemptId = await database.beginBlueskyCrosspostAttempt({
+      statusId: localId
+    })
     await database.markBlueskyCrosspostPosted({
       statusId: localId,
+      attemptId: attemptId!,
       uri: copy.uri,
       cid: copy.cid
     })

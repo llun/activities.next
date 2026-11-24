@@ -21,6 +21,7 @@ export const up = async (db: Kysely<any>): Promise<void> => {
     .addColumn('uri', 'varchar(512)', (col) => col.unique())
     .addColumn('cid', 'varchar(255)')
     .addColumn('state', 'varchar(16)', (col) => col.notNull())
+    .addColumn('attemptId', 'varchar(64)')
     .addColumn('error', 'text')
     .addColumn('createdAt', timestampType, (col) =>
       col.notNull().defaultTo(sql`CURRENT_TIMESTAMP`)

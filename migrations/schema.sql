@@ -264,6 +264,7 @@ CREATE TABLE public.bluesky_crossposts (
     uri character varying(512),
     cid character varying(255),
     state character varying(16) NOT NULL,
+    "attemptId" character varying(64),
     error text,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL

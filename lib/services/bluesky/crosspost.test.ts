@@ -568,8 +568,12 @@ describe('Bluesky cross-post', () => {
 
     it("replies in the thread of the author's own cross-posted post", async () => {
       const parent = await claim(await createNote({ text: 'Thread start' }))
+      const parentAttemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId: parent.id
+      })
       await database.markBlueskyCrosspostPosted({
         statusId: parent.id,
+        attemptId: parentAttemptId!,
         uri: postUri('3kparent'),
         cid: cid('p')
       })
@@ -615,7 +619,9 @@ describe('Bluesky cross-post', () => {
       ).resolves.toMatchObject({ state: 'pending' })
 
       // Parent actively posting must also keep the reply retrying, never drop it.
-      await database.beginBlueskyCrosspostAttempt({ statusId: parent.id })
+      const parentAttemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId: parent.id
+      })
       await expect(crosspostStatus(database, reply.id)).rejects.toThrow()
       await expect(
         database.getBlueskyCrosspost({ statusId: reply.id })
@@ -623,6 +629,7 @@ describe('Bluesky cross-post', () => {
 
       await database.markBlueskyCrosspostFailed({
         statusId: parent.id,
+        attemptId: parentAttemptId!,
         error: 'x'
       })
       await crosspostStatus(database, reply.id)
@@ -1014,6 +1021,268 @@ describe('Bluesky cross-post', () => {
       ).resolves.toBeNull()
       expect(post).not.toHaveBeenCalled()
     })
+
+    it('fences an old attempt after a stale takeover: old markPosted deletes its copy and old release/markFailed leave the new owner untouched', async () => {
+      // Case 1: old attempt's createRecord finishes after a new attempt took over.
+      const status1 = await claim(await createNote({ text: 'Takeover posted' }))
+      let resolveOldCreate!: (value: { uri: string; cid: string }) => void
+      let oldEntered!: () => void
+      const entered1 = new Promise<void>((resolve) => {
+        oldEntered = resolve
+      })
+      post.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOldCreate = resolve
+            oldEntered()
+          })
+      )
+      const oldRun1 = crosspostStatus(database, status1.id)
+      await entered1
+
+      // Expire the per-actor lock and make the posting row stale so a new attempt takes over.
+      await testDb.db
+        .updateTable('fitness_import_locks')
+        .set({ expiresAt: Date.now() - 1_000 })
+        .execute()
+      await testDb.db
+        .updateTable('bluesky_crossposts')
+        .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+        .where('statusId', '=', status1.id)
+        .execute()
+
+      const takeoverToken1 = await database.beginBlueskyCrosspostAttempt({
+        statusId: status1.id
+      })
+      expect(takeoverToken1).toEqual(expect.any(String))
+
+      // Old attempt finishes createRecord: markPosted returns false, deletes its
+      // duplicate record, and leaves the new owner's posting row untouched.
+      post.mockResolvedValueOnce({}) // deleteRecord
+      resolveOldCreate({ uri: postUri('3koldcopy'), cid: cid('o') })
+      await oldRun1
+
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey: '3koldcopy'
+      })
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status1.id })
+      ).resolves.toMatchObject({ state: 'posting', uri: null, error: null })
+      const dbRow1 = await testDb.db
+        .selectFrom('bluesky_crossposts')
+        .select('attemptId')
+        .where('statusId', '=', status1.id)
+        .executeTakeFirst()
+      expect(dbRow1?.attemptId).toBe(takeoverToken1)
+
+      // Case 2: old attempt hits a transient error (503) after takeover -> release does nothing.
+      const status2 = await claim(await createNote({ text: 'Takeover retry' }))
+      let rejectOldTransient!: (error: unknown) => void
+      let oldEntered2!: () => void
+      const entered2 = new Promise<void>((resolve) => {
+        oldEntered2 = resolve
+      })
+      post.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectOldTransient = reject
+            oldEntered2()
+          })
+      )
+      const oldRun2 = crosspostStatus(database, status2.id)
+      await entered2
+
+      await testDb.db
+        .updateTable('bluesky_crossposts')
+        .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+        .where('statusId', '=', status2.id)
+        .execute()
+      const takeoverToken2 = await database.beginBlueskyCrosspostAttempt({
+        statusId: status2.id
+      })
+      expect(takeoverToken2).toEqual(expect.any(String))
+
+      const transientError = new BlueskyRequestError(
+        'com.atproto.repo.createRecord',
+        503
+      )
+      rejectOldTransient(transientError)
+      await expect(oldRun2).rejects.toBe(transientError)
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status2.id })
+      ).resolves.toMatchObject({ state: 'posting', error: null })
+      const dbRow2 = await testDb.db
+        .selectFrom('bluesky_crossposts')
+        .select('attemptId')
+        .where('statusId', '=', status2.id)
+        .executeTakeFirst()
+      expect(dbRow2?.attemptId).toBe(takeoverToken2)
+
+      // Case 3: old attempt hits a permanent error (400) after takeover -> markFailed does nothing.
+      const status3 = await claim(await createNote({ text: 'Takeover fail' }))
+      let rejectOldPermanent!: (error: unknown) => void
+      let oldEntered3!: () => void
+      const entered3 = new Promise<void>((resolve) => {
+        oldEntered3 = resolve
+      })
+      post.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectOldPermanent = reject
+            oldEntered3()
+          })
+      )
+      const oldRun3 = crosspostStatus(database, status3.id)
+      await entered3
+
+      await testDb.db
+        .updateTable('bluesky_crossposts')
+        .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+        .where('statusId', '=', status3.id)
+        .execute()
+      const takeoverToken3 = await database.beginBlueskyCrosspostAttempt({
+        statusId: status3.id
+      })
+      expect(takeoverToken3).toEqual(expect.any(String))
+
+      rejectOldPermanent(
+        new BlueskyRequestError(
+          'com.atproto.repo.createRecord',
+          400,
+          'InvalidRequest'
+        )
+      )
+      await oldRun3
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status3.id })
+      ).resolves.toMatchObject({ state: 'posting', error: null })
+      const dbRow3 = await testDb.db
+        .selectFrom('bluesky_crossposts')
+        .select('attemptId')
+        .where('statusId', '=', status3.id)
+        .executeTakeFirst()
+      expect(dbRow3?.attemptId).toBe(takeoverToken3)
+    })
+
+    it('leaves a posting row untouched when a non-owner failure occurs before an attempt begins', async () => {
+      // Pre-lock failure: row transitions to 'posting' before isBlueskyAllowed returns false.
+      const status = await claim(await createNote({ text: 'Pre-lock race' }))
+      vi.mocked(isBlueskyAllowed).mockImplementationOnce(async () => {
+        await database.beginBlueskyCrosspostAttempt({ statusId: status.id })
+        return false
+      })
+
+      await crosspostStatus(database, status.id)
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({ state: 'posting', error: null })
+
+      // Inside-lock pre-attempt failure (getBlueskyAgent throws) when row is already 'posting'.
+      const status2 = await claim(await createNote({ text: 'Agent race' }))
+      const originalGet = database.getBlueskyCrosspost.bind(database)
+      const initialRow = await originalGet({ statusId: status2.id })
+      const getSpy = vi
+        .spyOn(database, 'getBlueskyCrosspost')
+        .mockImplementation(async (params) =>
+          params.statusId === status2.id && initialRow
+            ? { ...initialRow, state: 'pending' }
+            : originalGet(params)
+        )
+      vi.mocked(getBlueskyAgent).mockImplementationOnce(async () => {
+        await database.beginBlueskyCrosspostAttempt({ statusId: status2.id })
+        throw new BlueskySessionEndedError()
+      })
+      try {
+        await crosspostStatus(database, status2.id)
+      } finally {
+        getSpy.mockRestore()
+      }
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status2.id })
+      ).resolves.toMatchObject({ state: 'posting', error: null })
+    })
+
+    it('leaves a posted row intact when not-crosspostable cleanup runs after a race (outside or inside lock)', async () => {
+      // Outside the lock: initial read sees 'pending', then row becomes 'posted'
+      // before getStatus returns a non-public status.
+      const statusOut = await claim(
+        await createNote({
+          text: 'Outside lock race',
+          to: [`${actor.id}/followers`]
+        })
+      )
+      const originalGetStatus = database.getStatus.bind(database)
+      const outSpy = vi
+        .spyOn(database, 'getStatus')
+        .mockImplementationOnce(async (params) => {
+          const token = await database.beginBlueskyCrosspostAttempt({
+            statusId: statusOut.id
+          })
+          await database.markBlueskyCrosspostPosted({
+            statusId: statusOut.id,
+            attemptId: token!,
+            uri: postUri('3koutposted'),
+            cid: cid('u')
+          })
+          return originalGetStatus(params)
+        })
+      try {
+        await crosspostStatus(database, statusOut.id)
+      } finally {
+        outSpy.mockRestore()
+      }
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: statusOut.id })
+      ).resolves.toMatchObject({
+        state: 'posted',
+        uri: postUri('3koutposted')
+      })
+
+      // Inside the lock: row becomes 'posted' after the lock's getBlueskyCrosspost
+      // read, right before the not-crosspostable cleanup executes.
+      const statusIn = await claim(
+        await createNote({ text: 'Inside lock race' })
+      )
+      let getStatusCalls = 0
+      const inSpy = vi
+        .spyOn(database, 'getStatus')
+        .mockImplementation(async (params) => {
+          const found = await originalGetStatus(params)
+          getStatusCalls += 1
+          if (getStatusCalls === 2 && found) {
+            const token = await database.beginBlueskyCrosspostAttempt({
+              statusId: statusIn.id
+            })
+            await database.markBlueskyCrosspostPosted({
+              statusId: statusIn.id,
+              attemptId: token!,
+              uri: postUri('3kinposted'),
+              cid: cid('i')
+            })
+            return { ...found, to: [`${actor.id}/followers`] }
+          }
+          return found
+        })
+      try {
+        await crosspostStatus(database, statusIn.id)
+      } finally {
+        inSpy.mockRestore()
+      }
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: statusIn.id })
+      ).resolves.toMatchObject({
+        state: 'posted',
+        uri: postUri('3kinposted')
+      })
+    })
   })
 
   describe('enqueueBlueskyCrosspost', () => {
@@ -1110,6 +1379,21 @@ describe('Bluesky cross-post', () => {
       await expect(rowOf(status)).resolves.toMatchObject({
         state: 'failed',
         error: BLUESKY_CROSSPOST_QUEUE_FAILED_MESSAGE
+      })
+    })
+
+    it('leaves a posting row untouched when queue publish throws after a worker already began it', async () => {
+      const status = await createNote({ text: 'Queue timeout after delivery' })
+      queue.publish.mockImplementationOnce(async () => {
+        await database.beginBlueskyCrosspostAttempt({ statusId: status.id })
+        throw new Error('queue publish timed out')
+      })
+
+      await enqueueBlueskyCrosspost(database, { actor, status })
+
+      await expect(rowOf(status)).resolves.toMatchObject({
+        state: 'posting',
+        error: null
       })
     })
 

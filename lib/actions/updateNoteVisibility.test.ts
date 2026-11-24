@@ -207,7 +207,9 @@ describe('Update note visibility action', () => {
         statusId,
         actorId: actor1.id
       })
-      await database.beginBlueskyCrosspostAttempt({ statusId })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
 
       const result = await updateNoteVisibilityFromUserInput({
         statusId,
@@ -223,6 +225,7 @@ describe('Update note visibility action', () => {
       expect(
         await database.markBlueskyCrosspostPosted({
           statusId,
+          attemptId: attemptId!,
           uri: 'at://did:plc:actor1/app.bsky.feed.post/3kinflight',
           cid: 'bafyinflight'
         })
@@ -248,9 +251,13 @@ describe('Update note visibility action', () => {
         statusId,
         actorId: actor1.id
       })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
       const uri = 'at://did:plc:actor1/app.bsky.feed.post/3knarrow'
       await database.markBlueskyCrosspostPosted({
         statusId,
+        attemptId: attemptId!,
         uri,
         cid: 'bafynarrow'
       })
@@ -263,6 +270,68 @@ describe('Update note visibility action', () => {
       })
 
       expect(result).not.toBeNull()
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
+        name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+        data: { actorId: actor1.id, uri }
+      })
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+    })
+
+    it('decides Bluesky deletion from the DELETE ... RETURNING row rather than a stale pre-read', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const statusId = `${ACTOR1_ID}/statuses/crosspost-narrow-race`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Public post'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId,
+        actorId: actor1.id
+      })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      const uri = 'at://did:plc:actor1/app.bsky.feed.post/3kracenarrow'
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid: 'bafyracenarrow'
+      })
+
+      // A stale pre-read via getBlueskyCrosspost would see 'posting' with no uri;
+      // updateNoteVisibility must decide from deleteBlueskyCrosspost's returned row.
+      const getSpy = vi
+        .spyOn(database, 'getBlueskyCrosspost')
+        .mockResolvedValue({
+          statusId,
+          actorId: actor1.id,
+          uri: null,
+          cid: null,
+          state: 'posting',
+          error: null,
+          createdAt: 0,
+          updatedAt: 0
+        })
+      try {
+        const result = await updateNoteVisibilityFromUserInput({
+          statusId,
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })
+        expect(result).not.toBeNull()
+        expect(getSpy).not.toHaveBeenCalled()
+      } finally {
+        getSpy.mockRestore()
+      }
+
       expect(getQueue().publish).toHaveBeenCalledWith({
         id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,

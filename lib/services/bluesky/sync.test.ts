@@ -451,8 +451,12 @@ describe('syncBlueskyHome', () => {
       statusId: localId,
       actorId: actor.id
     })
+    const attemptId = await database.beginBlueskyCrosspostAttempt({
+      statusId: localId
+    })
     await database.markBlueskyCrosspostPosted({
       statusId: localId,
+      attemptId: attemptId!,
       uri: copy.uri,
       cid: copy.cid
     })
@@ -507,8 +511,12 @@ describe('syncBlueskyHome', () => {
       statusId: otherLocalId,
       actorId: otherActorId
     })
+    const attemptId = await database.beginBlueskyCrosspostAttempt({
+      statusId: otherLocalId
+    })
     await database.markBlueskyCrosspostPosted({
       statusId: otherLocalId,
+      attemptId: attemptId!,
       uri: copy.uri,
       cid: copy.cid
     })
@@ -540,8 +548,12 @@ describe('syncBlueskyHome', () => {
       statusId: otherLocalId,
       actorId: otherActorId
     })
+    const attemptId = await database.beginBlueskyCrosspostAttempt({
+      statusId: otherLocalId
+    })
     await database.markBlueskyCrosspostPosted({
       statusId: otherLocalId,
+      attemptId: attemptId!,
       uri: copy.uri,
       cid: copy.cid
     })

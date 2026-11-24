@@ -368,5 +368,5 @@ CREATE TABLE IF NOT EXISTS "bluesky_follows" ("actorId" varchar(255) not null, "
 CREATE INDEX "bluesky_follows_target_idx" on "bluesky_follows" ("targetActorId");
 CREATE TABLE IF NOT EXISTS "bluesky_interactions" ("actorId" varchar(255) not null, "statusId" varchar(255) not null, "kind" varchar(16) not null, "uri" varchar(512) not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, constraint "bluesky_interactions_pkey" primary key ("actorId", "statusId", "kind"));
 CREATE INDEX "bluesky_interactions_status_idx" on "bluesky_interactions" ("statusId");
-CREATE TABLE IF NOT EXISTS "bluesky_crossposts" ("statusId" varchar(255) primary key, "actorId" varchar(255) not null, "uri" varchar(512) unique, "cid" varchar(255), "state" varchar(16) not null, "error" text, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
+CREATE TABLE IF NOT EXISTS "bluesky_crossposts" ("statusId" varchar(255) primary key, "actorId" varchar(255) not null, "uri" varchar(512) unique, "cid" varchar(255), "state" varchar(16) not null, "attemptId" varchar(64), "error" text, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
 CREATE INDEX "bluesky_crossposts_actor_idx" on "bluesky_crossposts" ("actorId");

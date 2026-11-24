@@ -181,29 +181,50 @@ export interface BlueskyDatabase {
   }): Promise<boolean>
   /**
    * Atomically claims an exclusive posting attempt for a 'pending' row (or a
-   * stale 'posting' row older than STALE_CROSSPOST_MS). Returns false when
-   * another attempt owns it or it is already done/failed.
+   * stale 'posting' row older than STALE_CROSSPOST_MS) and returns the new
+   * attempt token, or null when another attempt owns it or it is already
+   * done/failed.
    */
-  beginBlueskyCrosspostAttempt(params: { statusId: string }): Promise<boolean>
+  beginBlueskyCrosspostAttempt(params: {
+    statusId: string
+  }): Promise<string | null>
   /**
-   * Moves a 'posting' row back to 'pending' with a fresh updatedAt so the next
-   * retry can begin and the row does not look stale while retrying.
+   * Moves the attempt owner's 'posting' row back to 'pending' with a fresh
+   * updatedAt and clears attemptId so the next retry can begin. No-op when
+   * another attempt owns it or the row is no longer 'posting'.
    */
-  releaseBlueskyCrosspostAttempt(params: { statusId: string }): Promise<void>
+  releaseBlueskyCrosspostAttempt(params: {
+    statusId: string
+    attemptId: string
+  }): Promise<boolean>
   /**
-   * Records the posted record for a 'pending' or 'posting' row. Returns whether
-   * a row was updated: false when the post was deleted while its record was
-   * being created.
+   * Records the posted record for the attempt owner's 'posting' row and clears
+   * attemptId. Returns whether a row was updated: false when the post was
+   * deleted or another attempt took over while the record was being created.
    */
   markBlueskyCrosspostPosted(params: {
     statusId: string
+    attemptId: string
     uri: string
     cid: string
   }): Promise<boolean>
+  /**
+   * Marks the attempt owner's 'posting' row failed and clears attemptId.
+   * No-op when another attempt took over or the row is no longer 'posting'.
+   */
   markBlueskyCrosspostFailed(params: {
     statusId: string
+    attemptId: string
     error: string
-  }): Promise<void>
+  }): Promise<boolean>
+  /**
+   * Marks a 'pending' row failed without touching a 'posting' or 'posted' row
+   * (for failures before an attempt has been claimed).
+   */
+  markBlueskyCrosspostFailedIfPending(params: {
+    statusId: string
+    error: string
+  }): Promise<boolean>
   /**
    * Moves a failed cross-post, or a stale pending/posting one (older than
    * STALE_CROSSPOST_MS), back to 'pending'; false otherwise.
@@ -215,4 +236,11 @@ export interface BlueskyDatabase {
   deleteBlueskyCrosspost(params: {
     statusId: string
   }): Promise<BlueskyCrosspost | null>
+  /**
+   * Deletes a row only while it is still 'pending' (never a posting/posted
+   * row, whose remote copies are owned by the delete/visibility handlers).
+   */
+  deleteBlueskyCrosspostIfPending(params: {
+    statusId: string
+  }): Promise<boolean>
 }

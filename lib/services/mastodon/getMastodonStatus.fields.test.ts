@@ -80,9 +80,11 @@ describe('getMastodonStatus', () => {
       cc: []
     })
     await database.claimBlueskyCrosspost({ statusId, actorId: ACTOR1_ID })
+    const attemptId = await database.beginBlueskyCrosspostAttempt({ statusId })
     const did = `did:plc:${'a'.repeat(24)}`
     await database.markBlueskyCrosspostPosted({
       statusId,
+      attemptId: attemptId!,
       uri: `at://${did}/app.bsky.feed.post/3kcopy`,
       cid: `bafyrei${'c'.repeat(52)}`
     })

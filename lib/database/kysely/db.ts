@@ -285,6 +285,7 @@ export interface BlueskyAccounts {
 
 export interface BlueskyCrossposts {
   actorId: string
+  attemptId: Nullable<string>
   cid: Nullable<string>
   createdAt: WithDefault<Timestamp>
   error: Nullable<string>

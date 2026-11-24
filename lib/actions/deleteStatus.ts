@@ -51,14 +51,23 @@ export const deleteStatusFromUserInput = async ({
 
     const queueJobId = getHashFromString(`${statusId}#delete`)
 
-    // Read the cross-post before the status (and its row) is deleted, so the
-    // Bluesky copy can be removed after the local delete. Best effort: it
-    // never stops the local delete.
+    // Atomically take the cross-post row before deleting the status:
+    // - posted with uri: queue DELETE_BLUESKY_CROSSPOST_JOB_NAME after the local delete
+    // - posting: nothing to queue; the in-flight attempt's markBlueskyCrosspostPosted
+    //   will see the row gone (return false) and delete the record it just created
+    // - pending / failed / absent: nothing reached Bluesky
+    // Best effort: it never stops the local delete.
     const crosspost = await database
-      .getBlueskyCrosspost({ statusId })
-      .catch(() => null)
+      .deleteBlueskyCrosspost({ statusId })
+      .catch((error) => {
+        logger.error(
+          { statusId, actorId: currentActor.id, err: toLoggableError(error) },
+          'Failed to remove the Bluesky cross-post of a deleted status'
+        )
+        return null
+      })
     const publishBlueskyCrosspostDelete = async () => {
-      if (!crosspost?.uri) return
+      if (crosspost?.state !== 'posted' || !crosspost.uri) return
       try {
         await queue.publish({
           id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),

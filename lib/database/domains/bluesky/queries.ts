@@ -652,11 +652,12 @@ export const claimBlueskyCrosspost = async (
 export const beginBlueskyCrosspostAttempt = async (
   db: Db,
   { statusId }: { statusId: string }
-): Promise<boolean> => {
+): Promise<string | null> => {
   const now = new Date()
+  const attemptId = crypto.randomUUID()
   const result = await db
     .updateTable('bluesky_crossposts')
-    .set({ state: 'posting', updatedAt: now })
+    .set({ state: 'posting', attemptId, updatedAt: now })
     .where('statusId', '=', statusId)
     .where((eb) =>
       eb.or([
@@ -672,44 +673,78 @@ export const beginBlueskyCrosspostAttempt = async (
       ])
     )
     .executeTakeFirst()
-  return Number(result.numUpdatedRows ?? 0) > 0
+  return Number(result.numUpdatedRows ?? 0) > 0 ? attemptId : null
 }
 
 export const releaseBlueskyCrosspostAttempt = async (
   db: Db,
-  { statusId }: { statusId: string }
-): Promise<void> => {
-  await db
+  { statusId, attemptId }: { statusId: string; attemptId: string }
+): Promise<boolean> => {
+  const result = await db
     .updateTable('bluesky_crossposts')
-    .set({ state: 'pending', updatedAt: new Date() })
+    .set({ state: 'pending', attemptId: null, updatedAt: new Date() })
     .where('statusId', '=', statusId)
     .where('state', '=', 'posting')
-    .execute()
+    .where('attemptId', '=', attemptId)
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
 }
 
 export const markBlueskyCrosspostPosted = async (
   db: Db,
-  { statusId, uri, cid }: { statusId: string; uri: string; cid: string }
+  {
+    statusId,
+    attemptId,
+    uri,
+    cid
+  }: { statusId: string; attemptId: string; uri: string; cid: string }
 ): Promise<boolean> => {
   const result = await db
     .updateTable('bluesky_crossposts')
-    .set({ uri, cid, state: 'posted', error: null, updatedAt: new Date() })
+    .set({
+      uri,
+      cid,
+      state: 'posted',
+      attemptId: null,
+      error: null,
+      updatedAt: new Date()
+    })
     .where('statusId', '=', statusId)
-    .where('state', 'in', ['pending', 'posting'])
+    .where('state', '=', 'posting')
+    .where('attemptId', '=', attemptId)
     .executeTakeFirst()
   return Number(result.numUpdatedRows ?? 0) > 0
 }
 
 export const markBlueskyCrosspostFailed = async (
   db: Db,
-  { statusId, error }: { statusId: string; error: string }
-): Promise<void> => {
-  await db
+  {
+    statusId,
+    attemptId,
+    error
+  }: { statusId: string; attemptId: string; error: string }
+): Promise<boolean> => {
+  const result = await db
     .updateTable('bluesky_crossposts')
-    .set({ state: 'failed', error, updatedAt: new Date() })
+    .set({ state: 'failed', attemptId: null, error, updatedAt: new Date() })
     .where('statusId', '=', statusId)
-    .where('state', 'in', ['pending', 'posting'])
-    .execute()
+    .where('state', '=', 'posting')
+    .where('attemptId', '=', attemptId)
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
+}
+
+export const markBlueskyCrosspostFailedIfPending = async (
+  db: Db,
+  { statusId, error }: { statusId: string; error: string }
+): Promise<boolean> => {
+  const result = await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'failed', attemptId: null, error, updatedAt: new Date() })
+    .where('statusId', '=', statusId)
+    .where('state', '=', 'pending')
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
 }
 
 // Moves a failed cross-post, or a pending/posting one whose job never finished
@@ -722,7 +757,7 @@ export const resetBlueskyCrosspostForRetry = async (
   const now = new Date()
   const result = await db
     .updateTable('bluesky_crossposts')
-    .set({ state: 'pending', error: null, updatedAt: now })
+    .set({ state: 'pending', attemptId: null, error: null, updatedAt: now })
     .where('statusId', '=', statusId)
     .where((eb) =>
       eb.or([
@@ -753,6 +788,18 @@ export const deleteBlueskyCrosspost = async (
   return deleted ? toCrosspost(deleted) : null
 }
 
+export const deleteBlueskyCrosspostIfPending = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<boolean> => {
+  const result = await db
+    .deleteFrom('bluesky_crossposts')
+    .where('statusId', '=', statusId)
+    .where('state', '=', 'pending')
+    .executeTakeFirst()
+  return Number(result.numDeletedRows ?? 0) > 0
+}
+
 export const blueskyQueries = {
   upsertBlueskyActor,
   upsertBlueskyPost,
@@ -777,6 +824,8 @@ export const blueskyQueries = {
   releaseBlueskyCrosspostAttempt,
   markBlueskyCrosspostPosted,
   markBlueskyCrosspostFailed,
+  markBlueskyCrosspostFailedIfPending,
   resetBlueskyCrosspostForRetry,
-  deleteBlueskyCrosspost
+  deleteBlueskyCrosspost,
+  deleteBlueskyCrosspostIfPending
 }

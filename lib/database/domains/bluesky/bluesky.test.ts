@@ -759,14 +759,26 @@ describe('Bluesky', () => {
       })
     })
 
-    it('marks a cross-post posted from pending or posting and reads it back by URI', async () => {
+    const readAttemptId = async () => {
+      const row = await testDb.db
+        .selectFrom('bluesky_crossposts')
+        .select('attemptId')
+        .where('statusId', '=', statusId)
+        .executeTakeFirst()
+      return row?.attemptId ?? null
+    }
+
+    it('marks a cross-post posted only with its owning attempt token and reads it back by URI', async () => {
       await database.claimBlueskyCrosspost({ statusId, actorId })
-      expect(await database.beginBlueskyCrosspostAttempt({ statusId })).toBe(
-        true
-      )
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      expect(attemptId).toEqual(expect.any(String))
+      expect(await readAttemptId()).toBe(attemptId)
       expect(
         await database.markBlueskyCrosspostPosted({
           statusId,
+          attemptId: attemptId!,
           uri,
           cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
         })
@@ -777,10 +789,12 @@ describe('Bluesky', () => {
         uri,
         error: null
       })
+      expect(await readAttemptId()).toBeNull()
       // Already posted: cannot be marked posted again.
       expect(
         await database.markBlueskyCrosspostPosted({
           statusId,
+          attemptId: attemptId!,
           uri: 'at://did:plc:crossposter/app.bsky.feed.post/3k2',
           cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
         })
@@ -794,21 +808,23 @@ describe('Bluesky', () => {
       ).toBeNull()
     })
 
-    it('begins an attempt exclusively and releases it back to pending with a fresh updatedAt', async () => {
+    it('begins an attempt exclusively, fences stale takeovers by token, and releases back to pending with a fresh updatedAt', async () => {
       await database.claimBlueskyCrosspost({ statusId, actorId })
 
-      expect(await database.beginBlueskyCrosspostAttempt({ statusId })).toBe(
-        true
-      )
+      const firstToken = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      expect(firstToken).toEqual(expect.any(String))
       expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
         state: 'posting'
       })
+      expect(await readAttemptId()).toBe(firstToken)
       // A fresh posting row is owned by the running attempt.
-      expect(await database.beginBlueskyCrosspostAttempt({ statusId })).toBe(
-        false
-      )
+      expect(
+        await database.beginBlueskyCrosspostAttempt({ statusId })
+      ).toBeNull()
 
-      // Release moves posting back to pending and refreshes updatedAt.
+      // Release moves posting back to pending, clears attemptId, and refreshes updatedAt.
       const staleTime = Date.now() - 20 * 60 * 1000
       await testDb.db
         .updateTable('bluesky_crossposts')
@@ -816,39 +832,93 @@ describe('Bluesky', () => {
         .where('statusId', '=', statusId)
         .execute()
 
-      await database.releaseBlueskyCrosspostAttempt({ statusId })
+      expect(
+        await database.releaseBlueskyCrosspostAttempt({
+          statusId,
+          attemptId: firstToken!
+        })
+      ).toBe(true)
       const released = await database.getBlueskyCrosspost({ statusId })
       expect(released).toMatchObject({ state: 'pending' })
       expect(released!.updatedAt).toBeGreaterThan(staleTime)
+      expect(await readAttemptId()).toBeNull()
 
-      // Next attempt can begin again, and a stale posting row (> 30 min) can be taken over.
-      expect(await database.beginBlueskyCrosspostAttempt({ statusId })).toBe(
-        true
-      )
+      // Next attempt begins, goes stale (> 30 min), and is taken over with a new token.
+      const staleToken = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      expect(staleToken).toEqual(expect.any(String))
       await testDb.db
         .updateTable('bluesky_crossposts')
         .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
         .where('statusId', '=', statusId)
         .execute()
-      expect(await database.beginBlueskyCrosspostAttempt({ statusId })).toBe(
-        true
-      )
-      // Once taken over, updatedAt is fresh so a second caller is refused.
-      expect(await database.beginBlueskyCrosspostAttempt({ statusId })).toBe(
-        false
-      )
-
-      // Mark posted: begin, release and markFailed leave posted rows untouched.
-      await database.markBlueskyCrosspostPosted({
-        statusId,
-        uri,
-        cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
+      const takeoverToken = await database.beginBlueskyCrosspostAttempt({
+        statusId
       })
-      expect(await database.beginBlueskyCrosspostAttempt({ statusId })).toBe(
-        false
-      )
-      await database.releaseBlueskyCrosspostAttempt({ statusId })
-      await database.markBlueskyCrosspostFailed({ statusId, error: 'ignored' })
+      expect(takeoverToken).toEqual(expect.any(String))
+      expect(takeoverToken).not.toBe(staleToken)
+      expect(await readAttemptId()).toBe(takeoverToken)
+      // Once taken over, updatedAt is fresh so another caller is refused.
+      expect(
+        await database.beginBlueskyCrosspostAttempt({ statusId })
+      ).toBeNull()
+
+      // The old attempt's release, markFailed and markPosted with its old token change nothing.
+      expect(
+        await database.releaseBlueskyCrosspostAttempt({
+          statusId,
+          attemptId: staleToken!
+        })
+      ).toBe(false)
+      expect(
+        await database.markBlueskyCrosspostFailed({
+          statusId,
+          attemptId: staleToken!,
+          error: 'stale failure'
+        })
+      ).toBe(false)
+      expect(
+        await database.markBlueskyCrosspostPosted({
+          statusId,
+          attemptId: staleToken!,
+          uri: 'at://did:plc:crossposter/app.bsky.feed.post/3kstale',
+          cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
+        })
+      ).toBe(false)
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        state: 'posting',
+        uri: null,
+        error: null
+      })
+      expect(await readAttemptId()).toBe(takeoverToken)
+
+      // Mark posted with the owning token: begin, release and markFailed leave posted rows untouched.
+      expect(
+        await database.markBlueskyCrosspostPosted({
+          statusId,
+          attemptId: takeoverToken!,
+          uri,
+          cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
+        })
+      ).toBe(true)
+      expect(await readAttemptId()).toBeNull()
+      expect(
+        await database.beginBlueskyCrosspostAttempt({ statusId })
+      ).toBeNull()
+      expect(
+        await database.releaseBlueskyCrosspostAttempt({
+          statusId,
+          attemptId: takeoverToken!
+        })
+      ).toBe(false)
+      expect(
+        await database.markBlueskyCrosspostFailed({
+          statusId,
+          attemptId: takeoverToken!,
+          error: 'ignored'
+        })
+      ).toBe(false)
       expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
         state: 'posted',
         uri,
@@ -858,11 +928,17 @@ describe('Bluesky', () => {
 
     it('marks a cross-post failed and resets it for a retry', async () => {
       await database.claimBlueskyCrosspost({ statusId, actorId })
-      await database.beginBlueskyCrosspostAttempt({ statusId })
-      await database.markBlueskyCrosspostFailed({
-        statusId,
-        error: 'Bluesky refused the post'
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
       })
+      expect(
+        await database.markBlueskyCrosspostFailed({
+          statusId,
+          attemptId: attemptId!,
+          error: 'Bluesky refused the post'
+        })
+      ).toBe(true)
+      expect(await readAttemptId()).toBeNull()
       expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
         state: 'failed',
         error: 'Bluesky refused the post'
@@ -879,6 +955,76 @@ describe('Bluesky', () => {
       expect(await database.resetBlueskyCrosspostForRetry({ statusId })).toBe(
         false
       )
+    })
+
+    it('markBlueskyCrosspostFailedIfPending and deleteBlueskyCrosspostIfPending only touch pending rows', async () => {
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+
+      // Neither non-owner helper touches an actively posting row.
+      expect(
+        await database.markBlueskyCrosspostFailedIfPending({
+          statusId,
+          error: 'should not touch posting'
+        })
+      ).toBe(false)
+      expect(await database.deleteBlueskyCrosspostIfPending({ statusId })).toBe(
+        false
+      )
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        state: 'posting',
+        error: null
+      })
+      expect(await readAttemptId()).toBe(attemptId)
+
+      // Neither touches a posted row.
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
+      })
+      expect(
+        await database.markBlueskyCrosspostFailedIfPending({
+          statusId,
+          error: 'should not touch posted'
+        })
+      ).toBe(false)
+      expect(await database.deleteBlueskyCrosspostIfPending({ statusId })).toBe(
+        false
+      )
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        state: 'posted',
+        uri
+      })
+
+      // Pending row can be failed by markBlueskyCrosspostFailedIfPending.
+      await database.deleteBlueskyCrosspost({ statusId })
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      expect(
+        await database.markBlueskyCrosspostFailedIfPending({
+          statusId,
+          error: 'queue down'
+        })
+      ).toBe(true)
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        state: 'failed',
+        error: 'queue down'
+      })
+
+      // Failed row is not deleted by deleteBlueskyCrosspostIfPending.
+      expect(await database.deleteBlueskyCrosspostIfPending({ statusId })).toBe(
+        false
+      )
+
+      // Pending row is deleted by deleteBlueskyCrosspostIfPending.
+      await database.resetBlueskyCrosspostForRetry({ statusId })
+      expect(await database.deleteBlueskyCrosspostIfPending({ statusId })).toBe(
+        true
+      )
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
     })
 
     it('resets a stale pending or stale posting cross-post, but not a fresh one', async () => {
@@ -908,14 +1054,14 @@ describe('Bluesky', () => {
       )
 
       // A fresh posting row is actively in flight and must not be reset.
-      expect(await database.beginBlueskyCrosspostAttempt({ statusId })).toBe(
-        true
+      expect(await database.beginBlueskyCrosspostAttempt({ statusId })).toEqual(
+        expect.any(String)
       )
       expect(await database.resetBlueskyCrosspostForRetry({ statusId })).toBe(
         false
       )
 
-      // A stale posting row (worker crashed mid-attempt) can be reset.
+      // A stale posting row (worker crashed mid-attempt) can be reset and clears attemptId.
       await testDb.db
         .updateTable('bluesky_crossposts')
         .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
@@ -924,6 +1070,7 @@ describe('Bluesky', () => {
       expect(await database.resetBlueskyCrosspostForRetry({ statusId })).toBe(
         true
       )
+      expect(await readAttemptId()).toBeNull()
       expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
         state: 'pending',
         error: null
@@ -935,8 +1082,12 @@ describe('Bluesky', () => {
 
     it('deletes a cross-post and returns the deleted row', async () => {
       await database.claimBlueskyCrosspost({ statusId, actorId })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
       await database.markBlueskyCrosspostPosted({
         statusId,
+        attemptId: attemptId!,
         uri,
         cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
       })
