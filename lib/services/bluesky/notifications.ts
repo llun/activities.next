@@ -27,7 +27,11 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { isRecord } from '@/lib/utils/typeGuards'
 
-import { type BlueskyAgent, BlueskySessionChangedError } from './agent'
+import {
+  type BlueskyAgent,
+  BlueskyRequestError,
+  BlueskySessionChangedError
+} from './agent'
 import { getPublicPosts, getPublicProfiles } from './appview'
 import { isBlueskyAllowed } from './policy'
 import {
@@ -507,26 +511,45 @@ export const syncBlueskyNotifications = async (
                 }
               )
               if (notification && !notification.filtered) {
+                // The notification is saved: a failed push or email must not
+                // undo or block it.
                 await dispatchNotificationAlerts(database, {
                   actor,
                   type,
                   sourceActorId,
                   statusId,
                   notificationId: notification.id
+                }).catch((error: unknown) => {
+                  logger.warn({
+                    message: 'Could not send a Bluesky notification alert',
+                    actorId: actor.id,
+                    err: toLoggableError(error)
+                  })
                 })
               }
             }
           }
         } catch (error) {
           if (error instanceof BlueskySessionChangedError) throw error
+          // A Bluesky read that failed is retried next run (the watermark stays
+          // before it); anything else is about this one notification, so it is
+          // skipped rather than blocking every later one.
+          if (error instanceof BlueskyRequestError) {
+            logger.warn({
+              message:
+                'Could not read a Bluesky notification; stopping before advancing seenAt',
+              actorId: actor.id,
+              uri: candidate.postUri,
+              err: toLoggableError(error)
+            })
+            throw error
+          }
           logger.error({
-            message:
-              'Failed to store a Bluesky notification; stopping before advancing seenAt',
+            message: 'Skipped a Bluesky notification that could not be stored',
             actorId: actor.id,
             uri: candidate.postUri,
             err: toLoggableError(error)
           })
-          throw error
         }
       }
     }
