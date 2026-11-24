@@ -1,0 +1,51 @@
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_711b19fe047718 1392
+app/api/v1/statuses/route.test.ts
+  s_f193227df3df34::t_9a01c092dc44d7 1997-2051
+lib/actions/deleteStatus.test.ts
+  s_f193227df3df34::t_a2864988ec7a45 608-638
+lib/database/domains/actor/actorDeletionQueries.test.ts
+  s_f193227df3df34::t_54d5b467233a1f 1183-1246
+lib/database/domains/actor/deletion.ts
+  s_f193227df3df34::t_42dc06fd9e2415 19,159-166
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_3b9ff5fd9b896a 611-613,616,620-621,625-626
+lib/database/domains/status/hydration.ts
+  s_f193227df3df34::t_231a7fb211b970 370-372,375-376,655-658
+lib/database/domains/status/statusReadQueries.test.ts
+  s_f193227df3df34::t_7f0b2c053e675c 3335-3441
+lib/jobs/deleteBlueskyCrosspostJob.test.ts
+  s_f193227df3df34::t_5a2e543a99cbc1 2-5,94-123
+lib/jobs/deleteBlueskyCrosspostJob.ts
+  s_f193227df3df34::t_33bd71b3f17a08 15-24
+lib/jobs/importStravaActivityJob.test.ts
+  s_f193227df3df34::t_eae95fe39169df 835-837
+lib/jobs/importStravaActivityJob.ts
+  s_f193227df3df34::t_29c9fdc42851f9 406-415
+lib/jobs/processFitnessFileJob.test.ts
+  s_f193227df3df34::t_6c87eb13c072b2 507-541
+lib/jobs/processFitnessFileJob.ts
+  s_f193227df3df34::t_880426477534cd 330-331,341-344,377-379,1114-1117
+lib/services/bluesky/crosspost.test.ts
+  s_f193227df3df34::t_931d5fd3b51ee6 645-668,917-927
+lib/services/statuses/scheduledStatusSerializer.test.ts
+  s_f193227df3df34::t_7ebdf51f050ee9 41,46-50
+lib/services/statuses/scheduledStatusSerializer.ts
+  s_f193227df3df34::t_6794464c8cc66f 75-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "abacf67f216ba14c19ecacb0d6c6704b201733f2",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
