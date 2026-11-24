@@ -94,6 +94,14 @@ const createSessionStore = (database: Database): NodeSavedSessionStore => ({
   del: (did) => database.deleteBlueskySession({ did })
 })
 
+// Another holder kept the lock past the wait; `lockName` says which lock.
+export class BlueskyLockTimeoutError extends Error {
+  constructor(readonly lockName: string) {
+    super('Timed out waiting for a Bluesky lock')
+    this.name = 'BlueskyLockTimeoutError'
+  }
+}
+
 // Refresh tokens are single use, so two processes refreshing one session at
 // once would revoke it. The lock is a row in the shared lock table, so it
 // holds across every instance of the server.
@@ -115,7 +123,7 @@ export const createBlueskyLock =
         }
       }
       if (Date.now() > deadline) {
-        throw new Error('Timed out waiting for the Bluesky session lock')
+        throw new BlueskyLockTimeoutError(name)
       }
       await new Promise((resolve) => setTimeout(resolve, LOCK_POLL_MS))
     }

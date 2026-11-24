@@ -76,6 +76,29 @@ describe('POST /api/v1/accounts/like', () => {
     expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockSendLike).not.toHaveBeenCalled()
   })
+
+  it('refuses a Bluesky post with 422', async () => {
+    const statusId = `https://bsky.app/profile/did:plc:${'l'.repeat(24)}/post/3k`
+    mockDatabase.getStatus.mockResolvedValue({
+      id: statusId,
+      type: 'Note',
+      network: 'bluesky'
+    })
+    const request = new NextRequest('https://llun.test/api/v1/accounts/like', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ statusId })
+    })
+
+    const response = await POST(request, { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({
+      error: 'Liking Bluesky posts is not supported yet.'
+    })
+    expect(mockDatabase.createLike).not.toHaveBeenCalled()
+    expect(mockSendLike).not.toHaveBeenCalled()
+  })
 })
 
 describe('DELETE /api/v1/accounts/like', () => {

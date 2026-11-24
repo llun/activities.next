@@ -318,12 +318,12 @@ const Page: FC<Props> = async ({ params }) => {
       // the fetch job below, an anonymous visitor gets a 404. A URL on this
       // instance is never queued.
       status = null
-      canFetchRemote =
-        !isBlueskyId(fullStatusId) &&
-        !isOwnInstanceHost(
-          new URL(fullStatusId).host,
-          getServedHostConfig(config)
-        )
+      // A Bluesky id never reaches here: its check above returns before
+      // anything that can throw.
+      canFetchRemote = !isOwnInstanceHost(
+        new URL(fullStatusId).host,
+        getServedHostConfig(config)
+      )
     }
   }
 

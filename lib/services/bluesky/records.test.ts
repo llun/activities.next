@@ -303,6 +303,43 @@ describe('storing AppView views', () => {
     ).toBeNull()
   })
 
+  it.each([
+    {
+      case: 'a reply parent whose post id is too long',
+      key: 'p',
+      cid: 'cid-parent-long',
+      parentUri: `at://did:web:${'p'.repeat(220)}.example/app.bsky.feed.post/${'q'.repeat(40)}`
+    },
+    {
+      case: 'a cid that is too long',
+      key: 'c',
+      cid: 'c'.repeat(256),
+      parentUri: undefined
+    }
+  ])('stores nothing for $case', async ({ key, cid, parentUri }) => {
+    const did = `did:plc:${key.repeat(24)}`
+    const post = parseBlueskyPostView({
+      uri: `at://${did}/app.bsky.feed.post/long`,
+      cid,
+      author: { did, handle: `${key}.bsky.social` },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Too long',
+        ...(parentUri ? { reply: { parent: { uri: parentUri } } } : null)
+      }
+    })
+    expect(post).not.toBeNull()
+    expect(
+      await storeBlueskyPostView(database, post as NonNullable<typeof post>)
+    ).toBeNull()
+    expect(
+      await database.getStatus({ statusId: blueskyPostId(did, 'long') })
+    ).toBeNull()
+    expect(
+      await database.getActorFromId({ id: blueskyActorId(did) })
+    ).toBeNull()
+  })
+
   it('refuses a post view whose author is not the record owner', () => {
     expect(
       parseBlueskyPostView({

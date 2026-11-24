@@ -5,6 +5,7 @@ import {
   BlueskySessionEndedError,
   getBlueskyAgent
 } from '@/lib/services/bluesky/agent'
+import { BlueskyLockTimeoutError } from '@/lib/services/bluesky/client'
 import {
   BlueskyFollowError,
   blueskyFollowFailure,
@@ -257,5 +258,34 @@ describe('Bluesky follow service', () => {
       error: 'No'
     })
     expect(blueskyFollowFailure(new Error('boom'))).toBeNull()
+    // A session-refresh lock timing out is not a follow change in progress.
+    expect(
+      blueskyFollowFailure(new BlueskyLockTimeoutError('refresh:did:plc:me'))
+    ).toBeNull()
+  })
+
+  it('answers 409 when the follow lock stays held past the wait', async () => {
+    vi.spyOn(database, 'acquireImportLock').mockResolvedValue(null)
+    const start = Date.now()
+    // The first read sets the deadline; every later one is past it.
+    vi.spyOn(Date, 'now')
+      .mockReturnValueOnce(start)
+      .mockReturnValue(start + 60_000)
+
+    try {
+      const error = await followBlueskyActor(database, actor, TARGET_ID).catch(
+        (caught: unknown) => caught
+      )
+
+      expect(error).toBeInstanceOf(BlueskyLockTimeoutError)
+      expect(blueskyFollowFailure(error)).toEqual({
+        status: 409,
+        error:
+          'Another follow change for this account is in progress. Try again in a moment.'
+      })
+      expect(post).not.toHaveBeenCalled()
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 })

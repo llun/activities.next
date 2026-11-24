@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { resetRefreshRemoteActorStateForTesting } from '@/lib/services/actors/refreshRemoteActor'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -79,6 +80,20 @@ describe('GET /api/v1/accounts/:id', () => {
     expect(data.id).toBe(await actorPublicId(database, ACTOR1_ID))
     expect(data).toHaveProperty('acct')
     expect(data).toHaveProperty('followers_count')
+  })
+
+  it('answers 404 for a Bluesky account without a viewer', async () => {
+    const { actorId } = await storeBlueskyPost(database, 'accountbsky')
+    const get = () =>
+      GET(createRequest(actorId), {
+        params: Promise.resolve({ id: urlToId(actorId) })
+      })
+
+    expect((await get()).status).toBe(404)
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    expect((await get()).status).toBe(200)
   })
 
   it('returns the same body for a publicId-form id as for the colon-form id', async () => {

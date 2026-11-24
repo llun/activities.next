@@ -1,4 +1,5 @@
 import { createActor } from '@/lib/database/domains/actor/writes'
+import { upsertBlueskyActor } from '@/lib/database/domains/bluesky/queries'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -135,14 +136,24 @@ describe('Bluesky', () => {
       })
       expect(await updatedAt()).toBe(stale.getTime())
 
+      // Each value alone rewrites the row: the stored values are put back
+      // before each change, so no earlier change is reverted along with it.
       for (const change of [
+        { handle: 'steady-moved.bsky.social' },
         { name: 'Changed' },
+        { summary: '<p>Changed</p>' },
         { iconUrl: null },
+        { headerImageUrl: 'https://cdn.bsky.app/other-banner.jpg' },
+        { followingCount: 9 },
+        { postsCount: 10 },
         { followersCount: 8 }
       ]) {
+        await database.upsertBlueskyActor(params)
         await setUpdatedAt()
         await database.upsertBlueskyActor({ ...params, ...change })
-        expect(await updatedAt()).toBeGreaterThan(stale.getTime())
+        expect(await updatedAt(), JSON.stringify(change)).toBeGreaterThan(
+          stale.getTime()
+        )
       }
       expect(
         await database.getMastodonActorFromId({ id: actorId })
@@ -163,6 +174,23 @@ describe('Bluesky', () => {
       expect(
         await database.getActorFromId({ id: blueskyActorId('did:plc:racer') })
       ).toMatchObject({ username: 'racer.bsky.social', name: 'Racer' })
+    })
+
+    it("rethrows a concurrent create inside a caller's transaction instead of retrying", async () => {
+      vi.mocked(createActor).mockClear()
+      vi.mocked(createActor).mockImplementationOnce(async () => {
+        throw Object.assign(new Error('duplicate key'), { code: '23505' })
+      })
+
+      await expect(
+        testDb.db.transaction().execute((trx) =>
+          upsertBlueskyActor(trx, {
+            did: 'did:plc:intrx',
+            handle: 'intrx.bsky.social'
+          })
+        )
+      ).rejects.toThrow('duplicate key')
+      expect(createActor).toHaveBeenCalledTimes(1)
     })
 
     it('leaves a non-Bluesky row with the same id alone', async () => {

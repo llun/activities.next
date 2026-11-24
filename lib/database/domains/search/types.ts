@@ -56,6 +56,9 @@ export type SearchAccountsParams = {
   localDomain?: string | null
   followingActorId?: string | null
   exactActorIds?: string[]
+  // Leave out Bluesky accounts (`actors.network = 'bluesky'`): they are for
+  // signed-in viewers only.
+  excludeBluesky?: boolean
 }
 
 export type SearchHashtagsParams = {

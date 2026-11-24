@@ -132,6 +132,20 @@ describe('BlueskyAccount', () => {
       .set({ verificationCode: 'code', emailVerified: true })
       .where('id', '=', confirmed.accountId)
       .execute()
+    // No pending code, NULL or empty, also counts as confirmed, whatever
+    // emailVerified says.
+    const nullCode = await linked('sync-null-code')
+    const emptyCode = await linked('sync-empty-code')
+    for (const [{ accountId }, verificationCode] of [
+      [nullCode, null],
+      [emptyCode, '']
+    ] as const) {
+      await testDb.db
+        .updateTable('accounts')
+        .set({ verificationCode, emailVerified: false })
+        .where('id', '=', accountId)
+        .execute()
+    }
     const noSession = await createAdmin('sync-no-session')
     await link(noSession.actorId, 'did:plc:sync-no-session')
     const suspended = await linked('sync-suspended')
@@ -162,6 +176,8 @@ describe('BlueskyAccount', () => {
     const actorIds = await database.listBlueskyAccountsToSync()
     expect(actorIds).toContain(listed.actorId)
     expect(actorIds).toContain(confirmed.actorId)
+    expect(actorIds).toContain(nullCode.actorId)
+    expect(actorIds).toContain(emptyCode.actorId)
     for (const skipped of [
       noSession,
       suspended,

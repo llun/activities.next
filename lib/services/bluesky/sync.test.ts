@@ -463,6 +463,61 @@ describe('syncBlueskyHome', () => {
     expect(Number(row?.createdAt)).toBe(Date.parse(repostedAt))
   })
 
+  it('stores a reply whose parent cannot be stored', async () => {
+    const parent = postView('kate', 'k1')
+    const reply = postView('liam', 'l1', {
+      reply: { root: { uri: parent.uri }, parent: { uri: parent.uri } }
+    })
+    publish(parent, reply)
+    get.mockResolvedValue({ feed: [{ post: reply }] })
+    const upsert = database.upsertBlueskyPost
+    const spy = vi
+      .spyOn(database, 'upsertBlueskyPost')
+      .mockImplementation(async (params) => {
+        if (params.uri === parent.uri) throw new Error('value too long')
+        return upsert(params)
+      })
+    try {
+      await syncBlueskyHome(database, actor)
+    } finally {
+      spy.mockRestore()
+    }
+
+    expect(await homeStatusIds()).toContain(blueskyPostId(did('liam'), 'l1'))
+    expect(
+      await database.getStatus({ statusId: blueskyPostId(did('kate'), 'k1') })
+    ).toBeNull()
+    expect((await account())?.syncError).toBeNull()
+  })
+
+  it('dates a repost from the future at now in Home', async () => {
+    const reposted = postView('mona', 'm1')
+    publish(reposted)
+    get.mockResolvedValue({
+      feed: [
+        {
+          post: reposted,
+          reason: {
+            $type: 'app.bsky.feed.defs#reasonRepost',
+            by: author('gina'),
+            indexedAt: '2999-01-01T00:00:00.000Z'
+          }
+        }
+      ]
+    })
+
+    await syncBlueskyHome(database, actor)
+
+    const row = await testDb.db
+      .selectFrom('timelines')
+      .select('createdAt')
+      .where('actorId', '=', actor.id)
+      .where('statusId', '=', blueskyPostId(did('mona'), 'm1'))
+      .executeTakeFirst()
+    expect(row).toBeDefined()
+    expect(Number(row?.createdAt)).toBeLessThanOrEqual(Date.now())
+  })
+
   it('records an ended session without throwing', async () => {
     const lastSyncedAt = (await account())?.lastSyncedAt
     get.mockRejectedValue(new BlueskySessionEndedError())

@@ -12,7 +12,7 @@ import {
   BlueskySessionEndedError,
   getBlueskyAgent
 } from './agent'
-import { createBlueskyLock } from './client'
+import { BlueskyLockTimeoutError, createBlueskyLock } from './client'
 import { blueskyActorId, parseAtUri } from './records'
 
 const FOLLOW_COLLECTION = 'app.bsky.graph.follow'
@@ -48,13 +48,18 @@ const requireAgent = async (database: Database, actor: Actor) => {
 
 // One follow change per (actor, target) at a time, across instances: a double
 // tap must not write two follow records to the PDS.
+const FOLLOW_LOCK_PREFIX = 'bluesky-follow:'
+
 const withFollowLock = <T>(
   database: Database,
   actor: Actor,
   targetActorId: string,
   fn: () => Promise<T>
 ) =>
-  createBlueskyLock(database)(`bluesky-follow:${actor.id}:${targetActorId}`, fn)
+  createBlueskyLock(database)(
+    `${FOLLOW_LOCK_PREFIX}${actor.id}:${targetActorId}`,
+    fn
+  )
 
 const writeFollow = async (
   database: Database,
@@ -158,9 +163,21 @@ export const unfollowBlueskyActor = async (
  */
 export const blueskyFollowFailure = (
   error: unknown
-): { status: 404 | 422 | 502; error: string } | null => {
+): { status: 404 | 409 | 422 | 502; error: string } | null => {
   if (error instanceof BlueskyFollowError) {
     return { status: error.status, error: error.message }
+  }
+  // Only the follow lock: a session-refresh lock timing out is not a follow
+  // change in progress.
+  if (
+    error instanceof BlueskyLockTimeoutError &&
+    error.lockName.startsWith(FOLLOW_LOCK_PREFIX)
+  ) {
+    return {
+      status: 409,
+      error:
+        'Another follow change for this account is in progress. Try again in a moment.'
+    }
   }
   if (error instanceof BlueskySessionEndedError) {
     return {

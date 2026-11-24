@@ -880,6 +880,8 @@ describe('Page live-fetch security', () => {
 
       await expect(open()).rejects.toThrow('NEXT_NOT_FOUND')
 
+      // The Bluesky check returns before the federation lookups can throw.
+      expect(mockIsLocalFederationDomain).not.toHaveBeenCalled()
       expect(mockPublish).not.toHaveBeenCalled()
     })
 
@@ -910,6 +912,34 @@ describe('Page live-fetch security', () => {
       })
 
       await expect(open()).rejects.toThrow(`NEXT_REDIRECT:${BLUESKY_POST_ID}`)
+      expect(PagedStatusThread).not.toHaveBeenCalled()
+    })
+
+    it('404s a signed-out visitor when a Bluesky row has no bsky.app id', async () => {
+      const blueskyAuthor = {
+        ...REMOTE_AUTHOR,
+        id: BLUESKY_AUTHOR_ID,
+        username: 'river.bsky.social',
+        domain: 'bsky.app'
+      }
+      mockGetActorFromUsername.mockResolvedValue(blueskyAuthor)
+      mockGetActorFromId.mockResolvedValue(blueskyAuthor)
+      mockGetStatus.mockResolvedValue({
+        ...makeRemoteNote({ id: 'https://elsewhere.test/notes/1' }),
+        actorId: BLUESKY_AUTHOR_ID,
+        actor: blueskyAuthor,
+        reply: '',
+        replies: [],
+        edits: [],
+        isLocalActor: false,
+        network: 'bluesky',
+        attachments: [],
+        tags: [],
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      await expect(open()).rejects.toThrow('NEXT_NOT_FOUND')
       expect(PagedStatusThread).not.toHaveBeenCalled()
     })
   })

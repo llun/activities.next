@@ -131,13 +131,15 @@ const getExactAccountIds = async ({
   q,
   localDomain,
   exactActorIds,
-  followingActorId
+  followingActorId,
+  excludeBluesky
 }: {
   db: Db
   q: string
   localDomain?: string | null
   exactActorIds: string[]
   followingActorId?: string | null
+  excludeBluesky?: boolean
 }) => {
   const trimmedQuery = q.trim()
   const handle = parseAccountHandle(trimmedQuery)
@@ -188,6 +190,7 @@ const getExactAccountIds = async ({
   if (followingActorId) {
     query = query.where((eb) => isFollowedBy(eb, followingActorId))
   }
+  if (excludeBluesky) query = query.where('actors.network', 'is', null)
 
   const rows = await query.execute()
   const visibleActorIds = new Set(rows.map((row) => row.id))
@@ -292,7 +295,8 @@ export const searchAccountIds = async (
     offset = 0,
     localDomain,
     followingActorId,
-    exactActorIds = []
+    exactActorIds = [],
+    excludeBluesky = false
   }: SearchAccountsParams
 ): Promise<string[]> => {
   const normalizedQuery = q.trim().replace(/^@/, '').toLowerCase()
@@ -304,7 +308,8 @@ export const searchAccountIds = async (
     q,
     localDomain,
     exactActorIds: normalizedExactActorIds,
-    followingActorId
+    followingActorId,
+    excludeBluesky
   })
   const exactPageIds = exactResultIds.slice(offset, offset + limit)
   const indexedLimit = limit - exactPageIds.length
@@ -321,6 +326,7 @@ export const searchAccountIds = async (
   if (exactResultIds.length > 0) {
     query = query.where('search_documents.entityId', 'not in', exactResultIds)
   }
+  if (excludeBluesky) query = query.where('actors.network', 'is', null)
   if (followingActorId) {
     query = query.where((eb) => isFollowedBy(eb, followingActorId))
   } else {

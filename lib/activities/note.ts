@@ -16,6 +16,7 @@ import {
   type Tag,
   VideoContent
 } from '@/lib/types/activitypub'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 import {
@@ -105,9 +106,11 @@ export const getStatusUrl = (object: BaseNote): string | undefined => {
 
 type ReplyValue = string | { id?: string } | null | undefined
 
+// A Bluesky post is never an ActivityPub status's parent: an inbound reply to
+// one is stored without the link, so it never shows as an ancestor.
 export const getReply = (reply: ReplyValue): string | undefined => {
-  if (typeof reply === 'string') return reply
-  return reply?.id
+  const id = typeof reply === 'string' ? reply : reply?.id
+  return isBlueskyId(id) ? undefined : id
 }
 
 /**

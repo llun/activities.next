@@ -1276,11 +1276,13 @@ sharing. The code is in `lib/services/bluesky/`:
 - **Storage.** `bluesky_accounts` holds one link per actor and one actor per
   DID (linking a DID another profile on the server holds is refused).
   `bluesky_sessions` holds the session by DID and `bluesky_oauth_states` the
-  pending sign-ins, both encrypted with the server
+  pending sign-ins (expiring after an hour), both encrypted with the server
   secret (`lib/utils/crypto`). Each stored session is tagged with its kind
-  (`oauth` or `app_password`); readers go by that tag. Refresh tokens are single use, so the OAuth
-  client's refresh lock is a row in the shared lock table
-  (`fitness_import_locks`, one per DID), held across instances.
+  (`oauth` or `app_password`); readers go by that tag. Session refreshes,
+  Home syncs and follow changes are serialized with rows in the shared lock
+  table (`fitness_import_locks`, keys prefixed `bluesky`), held across
+  instances: one refresh per DID (refresh tokens are single use), one sync
+  per actor and one follow change per actor and target.
   When the PDS refuses the session the account shows "Bluesky ended this
   session" until it is linked again. Unlinking (and deleting the actor), or
   linking another DID, removes the link, the stored session and the follows
@@ -1298,8 +1300,9 @@ sharing. The code is in `lib/services/bluesky/`:
   `bluesky_follows`. Without a linked account (or after Bluesky ended the
   session) they answer 422 with a message pointing to Settings; following the
   linked account itself is refused, and a record already deleted on Bluesky
-  counts as unfollowed. The web follow button shows the route's `{ error }`
-  message under the button. The account's Bluesky followers are not copied in, so
+  counts as unfollowed. A follow change that waits too long for another one
+  on the same account answers 409 with a message to try again. The web follow
+  button shows the route's `{ error }` message under the button. The account's Bluesky followers are not copied in, so
   `followed_by` is always false. The deprecated `/api/v1/accounts/follow`
   refuses Bluesky targets.
 - **Profiles and search.** Bluesky accounts are stored as actors with the id
@@ -1368,8 +1371,8 @@ sharing. The code is in `lib/services/bluesky/`:
   a proxy rewrites `Host` to an internal name, as everywhere else), and 404
   otherwise, so the handle can be set in the Bluesky app without DNS access.
 
-- **What stays local.** Replying to, quoting, boosting, liking and reacting to a Bluesky post are refused with 422 and an `{ error }` saying it is not supported yet (the reblog, favourite and reaction routes, `in_reply_to_id` / `quoted_status_id` on `POST /api/v1/statuses` and `/api/v1/accounts/outbox`); the web action bar hides those buttons and keeps Bookmark and Open original. Inbound ActivityPub likes and reactions aimed at a Bluesky post are dropped, and a boost of one is never publicly readable. Blocking, unblocking and reporting a Bluesky account stay local (no SendBlock, SendUnblock or SendFlag job; those jobs and SendQuoteRequest return without error for a Bluesky target), notifications are never addressed to a Bluesky account, bulk-import follows refuse Bluesky ids, and an unstored Bluesky post is never fetched (parent backfill skips it; its status page 404s).
-- **Signed-in viewers only.** Bluesky accounts and posts are shown to signed-in viewers: a signed-out visitor of a Bluesky profile gets the redirect card to bsky.app, a Bluesky status page redirects to the post on bsky.app, and without a viewer `GET /api/v1/statuses/:id`, `GET /api/v1/accounts/:id/statuses` and `GET /api/v1/accounts/lookup` answer 404 for Bluesky rows. Bluesky profile and status pages are never indexed. `resolve=true` lookups of a Bluesky handle on v1 lookup and search share the v2 search resolve budget.
+- **What stays local.** Replying to, quoting, boosting, liking and reacting to a Bluesky post are refused with 422 and an `{ error }` saying it is not supported yet (the reblog, favourite and reaction routes, the deprecated `POST /api/v1/accounts/like`, `in_reply_to_id` / `quoted_status_id` on `POST /api/v1/statuses` and `/api/v1/accounts/outbox`); the web action bar hides those buttons and keeps Bookmark and Open original. Inbound ActivityPub likes and reactions aimed at a Bluesky post are dropped, and an inbound ActivityPub reply to one is stored without the reply link, so a Bluesky post is never an ancestor of an ActivityPub status. Blocking, unblocking and reporting a Bluesky account stay local (no SendBlock, SendUnblock or SendFlag job; those jobs and SendQuoteRequest return without error for a Bluesky target), notifications are never addressed to a Bluesky account, bulk-import follows refuse Bluesky ids, and an unstored Bluesky post is never fetched (parent backfill skips it; its status page 404s).
+- **Signed-in viewers only.** Bluesky accounts and posts are shown to signed-in viewers. The rule lives in the shared status readability check (`isStatusPubliclyReadable`, which `canActorReadStatus` uses for a missing viewer, in `lib/services/statusAccess.ts`): a Bluesky post or a boost of one is never publicly readable (for a boost the SQL `publiclyReadable` forms agree), so every status surface that goes through it (a status and its history, context, thread, favourited-by, reblogged-by and quotes, and a status page's ancestors and replies) hides them without a viewer. A signed-out visitor of a Bluesky profile gets the redirect card to bsky.app and a Bluesky status page redirects to the post on bsky.app. Without a viewer (a session or a valid token), `GET /api/v1/accounts/:id`, `GET /api/v1/accounts/:id/statuses` and `GET /api/v1/accounts/lookup` answer 404 for a Bluesky account, and `GET /api/v2/search` leaves Bluesky accounts out (its status search already needs a viewer). Bluesky profile and status pages are never indexed. `resolve=true` lookups of a Bluesky handle on v1 lookup and search share the v2 search resolve budget.
 
 ### Multi-actor & account management
 

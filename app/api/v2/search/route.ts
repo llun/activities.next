@@ -581,6 +581,8 @@ const searchAccounts = async ({
       limit,
       offset,
       localDomain: accessDomain,
+      // Bluesky accounts are for signed-in viewers only.
+      ...(currentActor ? {} : { excludeBluesky: true }),
       ...(params.following && currentActor
         ? { followingActorId: currentActor.id }
         : {})

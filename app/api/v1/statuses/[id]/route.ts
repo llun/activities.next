@@ -40,7 +40,7 @@ import {
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
-import { StatusType, isBlueskyStatus } from '@/lib/types/domain/status'
+import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -83,10 +83,7 @@ export const GET = traceApiRoute(
         statusId,
         currentActorId: currentActor?.id
       })
-      // Bluesky posts are shown to signed-in viewers only.
-      if (!status || (!currentActor && isBlueskyStatus(status))) {
-        return apiCorsError(req, CORS_HEADERS, 404)
-      }
+      if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
       const hasAccess = await canActorReadStatus({
         database,

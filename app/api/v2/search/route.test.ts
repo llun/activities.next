@@ -246,7 +246,7 @@ describe('GET /api/v2/search', () => {
     mockGetFederationSigningActor.mockResolvedValue(mockInstanceActor)
   })
 
-  it('allows anonymous account and hashtag search but omits statuses', async () => {
+  it('allows anonymous account and hashtag search but omits statuses and Bluesky accounts', async () => {
     const response = await GET(
       new NextRequest('https://llun.test/api/v2/search?q=trail&limit=3'),
       context
@@ -258,7 +258,8 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 3,
       offset: 0,
-      localDomain: 'llun.test'
+      localDomain: 'llun.test',
+      excludeBluesky: true
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -482,7 +483,8 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 20,
       offset: 0,
-      localDomain: 'llun.test'
+      localDomain: 'llun.test',
+      excludeBluesky: true
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -543,7 +545,8 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 20,
       offset: 0,
-      localDomain: 'llun.test'
+      localDomain: 'llun.test',
+      excludeBluesky: true
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -1829,7 +1832,8 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 40,
       offset: 0,
-      localDomain: 'llun.test'
+      localDomain: 'llun.test',
+      excludeBluesky: true
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',

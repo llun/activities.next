@@ -361,6 +361,20 @@ describe('createPollJob', () => {
     })
   })
 
+  it('stores a poll replying to a Bluesky post without the reply link', async () => {
+    const question = MockActivityPubQuestion({
+      inReplyTo: `https://bsky.app/profile/did:plc:${'r'.repeat(24)}/post/3k`
+    })
+    await createPollJob(database, {
+      id: 'id',
+      name: CREATE_POLL_JOB_NAME,
+      data: question
+    })
+
+    const status = await database.getStatus({ statusId: question.id })
+    expect(status).toMatchObject({ reply: '' })
+  })
+
   it('creates poll with emoji tags', async () => {
     const question = MockActivityPubQuestion({
       tags: [

@@ -7,6 +7,7 @@ import {
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -34,6 +35,10 @@ export const GET = traceApiRoute(
       const encodedAccountId = (await params).id
       if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
       const id = await resolveActorIdParam(database, encodedAccountId)
+      // Bluesky accounts are shown to signed-in viewers only, as in lookup.
+      if (!currentActor && isBlueskyId(id)) {
+        return apiCorsError(req, CORS_HEADERS, 404)
+      }
 
       // Opening a profile is the moment a client needs current remote data
       // (display name, bio, lock state, follower/following/status counts), so

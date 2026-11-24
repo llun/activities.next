@@ -219,38 +219,40 @@ describe('generateMetadata', () => {
     expect(metadata.robots).toEqual({ index: false, follow: false })
   })
 
-  it('never indexes a Bluesky post or puts its text in the description', async () => {
-    const { getDatabase } = await import('@/lib/database')
-    const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
-    const postId = `https://bsky.app/profile/did:plc:${'b'.repeat(24)}/post/3k`
-    vi.mocked(getDatabase).mockReturnValueOnce({} as never)
-    vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
-      pathActor: { username: 'river.bsky.social', domain: 'bsky.app' },
-      status: {
-        id: postId,
-        url: postId,
-        actor: { username: 'river.bsky.social', domain: 'bsky.app' },
-        isLocalActor: false,
-        network: 'bluesky',
-        type: 'Note',
-        text: '<p>Bluesky words</p>',
-        summary: '',
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
-        cc: []
-      }
-    } as never)
+  // Under a bare handle the page URL starts out as the canonical one, so only
+  // the Bluesky branch can drop it.
+  it.each(['@river.bsky.social@bsky.app', 'river'])(
+    'never indexes a Bluesky post or puts its text in the description (path %s)',
+    async (actorParam) => {
+      const { getDatabase } = await import('@/lib/database')
+      const { resolveStatusFromPath } = await import('./resolveStatusFromPath')
+      const postId = `https://bsky.app/profile/did:plc:${'b'.repeat(24)}/post/3k`
+      vi.mocked(getDatabase).mockReturnValueOnce({} as never)
+      vi.mocked(resolveStatusFromPath).mockResolvedValueOnce({
+        pathActor: { username: 'river.bsky.social', domain: 'bsky.app' },
+        status: {
+          id: postId,
+          url: postId,
+          actor: { username: 'river.bsky.social', domain: 'bsky.app' },
+          isLocalActor: false,
+          network: 'bluesky',
+          type: 'Note',
+          text: '<p>Bluesky words</p>',
+          summary: '',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: []
+        }
+      } as never)
 
-    const metadata = await generateMetadata({
-      params: Promise.resolve({
-        actor: '@river.bsky.social@bsky.app',
-        status: '3k'
+      const metadata = await generateMetadata({
+        params: Promise.resolve({ actor: actorParam, status: '3k' })
       })
-    })
 
-    expect(metadata.robots).toEqual({ index: false, follow: false })
-    expect(metadata.description).not.toContain('Bluesky words')
-    expect(metadata.alternates?.canonical).toBeUndefined()
-  })
+      expect(metadata.robots).toEqual({ index: false, follow: false })
+      expect(metadata.description).not.toContain('Bluesky words')
+      expect(metadata.alternates?.canonical).toBeUndefined()
+    }
+  )
 
   it('omits self canonical and sets noindex when a remote status is not stored locally', async () => {
     const { getDatabase } = await import('@/lib/database')
