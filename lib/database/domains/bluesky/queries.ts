@@ -285,7 +285,7 @@ export const upsertBlueskyPost = async (
         .insertInto('bluesky_records')
         .values({ statusId, uri, cid })
         .execute()
-      for (const attachment of attachments) {
+      for (const [index, attachment] of attachments.entries()) {
         await createAttachment(trx, {
           actorId,
           statusId,
@@ -295,7 +295,9 @@ export const upsertBlueskyPost = async (
           width: attachment.width,
           height: attachment.height,
           name: attachment.description,
-          createdAt
+          // Attachments read back by createdAt then a random id: keep the
+          // post's image order, as createNote does.
+          createdAt: createdAt + index
         })
       }
     })

@@ -1,6 +1,7 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   blueskyActorId,
+  blueskyEmbedLinksHtml,
   blueskyImagesFromEmbed,
   blueskyPostId,
   blueskyPostToHtml,
@@ -159,6 +160,191 @@ describe('blueskyImagesFromEmbed', () => {
   })
 })
 
+describe('blueskyEmbedLinksHtml', () => {
+  const attrs = 'rel="nofollow noopener noreferrer" target="_blank"'
+  const postUrl = blueskyPostId(DID, '3kpost')
+
+  it('renders an external link card with its title or URI fallback', () => {
+    expect(
+      blueskyEmbedLinksHtml(
+        {
+          $type: 'app.bsky.embed.external#view',
+          external: {
+            uri: 'https://example.com/article',
+            title: 'Example Article'
+          }
+        },
+        postUrl
+      )
+    ).toBe(
+      `<p><a href="https://example.com/article" ${attrs}>Example Article</a></p>`
+    )
+
+    expect(
+      blueskyEmbedLinksHtml(
+        {
+          $type: 'app.bsky.embed.external#view',
+          external: {
+            uri: 'https://example.com/no-title',
+            title: ''
+          }
+        },
+        postUrl
+      )
+    ).toBe(
+      `<p><a href="https://example.com/no-title" ${attrs}>https://example.com/no-title</a></p>`
+    )
+  })
+
+  it('escapes HTML in external card titles and URIs', () => {
+    expect(
+      blueskyEmbedLinksHtml(
+        {
+          $type: 'app.bsky.embed.external#view',
+          external: {
+            uri: 'https://example.com/a?x=1&y=2',
+            title: 'See <script>"xss"</script> & more'
+          }
+        },
+        postUrl
+      )
+    ).toBe(
+      `<p><a href="https://example.com/a?x=1&amp;y=2" ${attrs}>See &lt;script&gt;&quot;xss&quot;&lt;/script&gt; &amp; more</a></p>`
+    )
+  })
+
+  it('drops external cards with non-http(s) URIs', () => {
+    for (const uri of [
+      'javascript:alert(1)',
+      'ftp://example.com/file',
+      'data:text/html,hi',
+      'not a url'
+    ]) {
+      expect(
+        blueskyEmbedLinksHtml(
+          {
+            $type: 'app.bsky.embed.external#view',
+            external: { uri, title: 'Unsafe' }
+          },
+          postUrl
+        )
+      ).toBe('')
+    }
+  })
+
+  it('skips an external card whose URI already appears as a link in the post HTML', () => {
+    const text = 'See example.com'
+    const postHtml = blueskyPostToHtml(text, [
+      {
+        index: byteRange(text, 'example.com'),
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#link',
+            uri: 'https://example.com/?a=1&b=2'
+          }
+        ]
+      }
+    ])
+    expect(
+      blueskyEmbedLinksHtml(
+        {
+          $type: 'app.bsky.embed.external#view',
+          external: {
+            uri: 'https://example.com/?a=1&b=2',
+            title: 'Example'
+          }
+        },
+        postUrl,
+        postHtml
+      )
+    ).toBe('')
+    expect(
+      blueskyEmbedLinksHtml(
+        {
+          $type: 'app.bsky.embed.external#view',
+          external: {
+            uri: 'https://other.example/page',
+            title: 'Other'
+          }
+        },
+        postUrl,
+        postHtml
+      )
+    ).toBe(`<p><a href="https://other.example/page" ${attrs}>Other</a></p>`)
+  })
+
+  it('renders a quoted post link for record views and ignores other record kinds', () => {
+    expect(
+      blueskyEmbedLinksHtml(
+        {
+          $type: 'app.bsky.embed.record#view',
+          record: {
+            $type: 'app.bsky.embed.record#viewRecord',
+            uri: `at://${DID}/app.bsky.feed.post/3kquoted`
+          }
+        },
+        postUrl
+      )
+    ).toBe(
+      `<p><a href="https://bsky.app/profile/${DID}/post/3kquoted" ${attrs}>Quoted post</a></p>`
+    )
+
+    for (const record of [
+      {
+        $type: 'app.bsky.feed.defs#generatorView',
+        uri: `at://${DID}/app.bsky.feed.generator/whats-hot`
+      },
+      {
+        $type: 'app.bsky.graph.defs#listView',
+        uri: `at://${DID}/app.bsky.graph.list/3klist`
+      },
+      { $type: 'app.bsky.embed.record#viewBlocked' },
+      { $type: 'app.bsky.embed.record#viewNotFound' },
+      {
+        $type: 'app.bsky.embed.record#viewRecord',
+        uri: `at://${DID}/app.bsky.graph.list/3klist`
+      }
+    ]) {
+      expect(
+        blueskyEmbedLinksHtml(
+          { $type: 'app.bsky.embed.record#view', record },
+          postUrl
+        )
+      ).toBe('')
+    }
+  })
+
+  it('renders the quoted post link for recordWithMedia views', () => {
+    expect(
+      blueskyEmbedLinksHtml(
+        {
+          $type: 'app.bsky.embed.recordWithMedia#view',
+          media: { $type: 'app.bsky.embed.images#view', images: [] },
+          record: {
+            record: {
+              $type: 'app.bsky.embed.record#viewRecord',
+              uri: `at://${DID}/app.bsky.feed.post/3kquoted`
+            }
+          }
+        },
+        postUrl
+      )
+    ).toBe(
+      `<p><a href="https://bsky.app/profile/${DID}/post/3kquoted" ${attrs}>Quoted post</a></p>`
+    )
+  })
+
+  it('renders a link to the Bluesky post for video views', () => {
+    expect(
+      blueskyEmbedLinksHtml({ $type: 'app.bsky.embed.video#view' }, postUrl)
+    ).toBe(`<p><a href="${postUrl}" ${attrs}>Video on Bluesky</a></p>`)
+    expect(
+      blueskyEmbedLinksHtml({ $type: 'app.bsky.embed.images#view' }, postUrl)
+    ).toBe('')
+    expect(blueskyEmbedLinksHtml(undefined, postUrl)).toBe('')
+  })
+})
+
 describe('storing AppView views', () => {
   const testDb = createTestDatabase()
   const { database } = testDb
@@ -238,6 +424,77 @@ describe('storing AppView views', () => {
     ).toMatchObject({
       text: '<p>A reply</p>',
       reply: blueskyPostId(MALLORY, 'p1')
+    })
+  })
+
+  it('stores embed links for a card-only post and skips duplicate card links', async () => {
+    const attrs = 'rel="nofollow noopener noreferrer" target="_blank"'
+    const cardOnly = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/card1`,
+      cid: 'cid-card1',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: '',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      embed: {
+        $type: 'app.bsky.embed.external#view',
+        external: {
+          uri: 'https://example.com/card',
+          title: 'Card title'
+        }
+      }
+    })
+    expect(cardOnly).not.toBeNull()
+    const cardStatusId = await storeBlueskyPostView(
+      database,
+      cardOnly as NonNullable<typeof cardOnly>
+    )
+    expect(
+      await database.getStatus({ statusId: cardStatusId as string })
+    ).toMatchObject({
+      text: `<p><a href="https://example.com/card" ${attrs}>Card title</a></p>`
+    })
+
+    const text = 'Read example.com/card'
+    const dupCard = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/card2`,
+      cid: 'cid-card2',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text,
+        facets: [
+          {
+            index: byteRange(text, 'example.com/card'),
+            features: [
+              {
+                $type: 'app.bsky.richtext.facet#link',
+                uri: 'https://example.com/card'
+              }
+            ]
+          }
+        ],
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      embed: {
+        $type: 'app.bsky.embed.external#view',
+        external: {
+          uri: 'https://example.com/card',
+          title: 'Card title'
+        }
+      }
+    })
+    expect(dupCard).not.toBeNull()
+    const dupStatusId = await storeBlueskyPostView(
+      database,
+      dupCard as NonNullable<typeof dupCard>
+    )
+    expect(
+      await database.getStatus({ statusId: dupStatusId as string })
+    ).toMatchObject({
+      text: `<p>Read <a href="https://example.com/card" ${attrs}>example.com/card</a></p>`
     })
   })
 

@@ -288,6 +288,36 @@ describe('Bluesky', () => {
       ).toBeNull()
     })
 
+    it('reads a multi-image post back in its stored order', async () => {
+      const urls = ['a', 'b', 'c', 'd'].map(
+        (name) => `https://cdn.bsky.app/${name}.jpg`
+      )
+      // Attachments read back by createdAt then a random uuid id: without a
+      // distinct createdAt per image the order is random, so store several
+      // posts and check each one.
+      for (let index = 0; index < 10; index++) {
+        const { statusId } = await database.upsertBlueskyPost({
+          uri: `at://${did}/app.bsky.feed.post/3korder${index}`,
+          cid: `bafyorder${index}`,
+          did,
+          rkey: `3korder${index}`,
+          actorId,
+          text: '<p>Order</p>',
+          createdAt: Date.UTC(2026, 10, 4),
+          attachments: urls.map((url) => ({
+            url,
+            thumbnailUrl: `${url}?thumb`,
+            mediaType: 'image/jpeg',
+            width: 1,
+            height: 1,
+            description: url
+          }))
+        })
+        const attachments = await database.getAttachments({ statusId })
+        expect(attachments.map((attachment) => attachment.url)).toEqual(urls)
+      }
+    })
+
     it('stores a post again when its status was deleted', async () => {
       const params = {
         uri: `at://${did}/app.bsky.feed.post/3kgone`,

@@ -1,6 +1,5 @@
-// Following a Bluesky account writes an app.bsky.graph.follow record to the
-// user's own PDS; bluesky_follows keeps the record's at:// URI so unfollowing
-// can delete it again.
+// Following a Bluesky account adopts or writes an app.bsky.graph.follow record
+// in the user's own PDS; bluesky_follows keeps its at:// URI for unfollowing.
 import type { BlueskyFollow } from '@/lib/database/domains/bluesky/types'
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
@@ -8,6 +7,7 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import {
+  type BlueskyAgent,
   BlueskyRequestError,
   BlueskySessionChangedError,
   BlueskySessionEndedError,
@@ -61,6 +61,68 @@ const withFollowLock = <T>(
     fn
   )
 
+// Reads an existing follow record in the user's repo (e.g. made in another app).
+const readViewerFollowUri = async (
+  agent: BlueskyAgent,
+  did: string
+): Promise<string | null> => {
+  const profile = await agent.get<{ viewer?: { following?: unknown } }>(
+    'app.bsky.actor.getProfile',
+    { actor: did }
+  )
+  const uri = profile?.viewer?.following
+  if (typeof uri !== 'string') return null
+  const parsed = parseAtUri(uri)
+  return parsed?.did === agent.did && parsed.collection === FOLLOW_COLLECTION
+    ? uri
+    : null
+}
+
+// Re-checks the linked DID before storing so a relink during a PDS call cannot
+// attach a follow from the old account.
+// shortcut: a relink between this check and the insert still slips through;
+// take the follow lock in relink if that ever shows up.
+const storeFollow = async (
+  database: Database,
+  actor: Actor,
+  targetActorId: string,
+  agentDid: string,
+  uri: string
+): Promise<BlueskyFollow> => {
+  const link = await database.getBlueskyAccount({ actorId: actor.id })
+  if (!link) throw new BlueskyFollowError(NOT_LINKED)
+  if (link.did !== agentDid) throw new BlueskySessionChangedError()
+  await database.createBlueskyFollow({ actorId: actor.id, targetActorId, uri })
+  return (await database.getBlueskyFollow({
+    actorId: actor.id,
+    targetActorId
+  })) as BlueskyFollow
+}
+
+const deleteFollowRecord = async (agent: BlueskyAgent, uri: string) => {
+  const parsed = parseAtUri(uri)
+  // A record in another repo (the account was relinked to a different DID)
+  // cannot be deleted with this session: only the row is ours to drop.
+  if (parsed?.did !== agent.did || parsed.collection !== FOLLOW_COLLECTION) {
+    return
+  }
+  try {
+    await agent.post('com.atproto.repo.deleteRecord', {
+      repo: parsed.did,
+      collection: parsed.collection,
+      rkey: parsed.rkey
+    })
+  } catch (error) {
+    // Already deleted on Bluesky (from another app): only the row is left.
+    if (
+      !(error instanceof BlueskyRequestError) ||
+      error.error !== 'RecordNotFound'
+    ) {
+      throw error
+    }
+  }
+}
+
 const writeFollow = async (
   database: Database,
   actor: Actor,
@@ -81,6 +143,12 @@ const writeFollow = async (
   })
   if (existing) return existing
 
+  // Adopt a follow already in the user's repo instead of writing a duplicate.
+  const remoteUri = await readViewerFollowUri(agent, did)
+  if (remoteUri) {
+    return storeFollow(database, actor, targetActorId, agent.did, remoteUri)
+  }
+
   const answer = await agent.post<{ uri?: unknown }>(
     'com.atproto.repo.createRecord',
     {
@@ -98,18 +166,7 @@ const writeFollow = async (
   if (parsed?.did !== agent.did || parsed.collection !== FOLLOW_COLLECTION) {
     throw new Error('Bluesky createRecord gave an unexpected answer')
   }
-  // Relinked to another DID while the record was written: the new link must
-  // not show a follow made from the old account.
-  // shortcut: a relink between this check and the insert still slips through;
-  // take the follow lock in relink if that ever shows up.
-  const link = await database.getBlueskyAccount({ actorId: actor.id })
-  if (!link) throw new BlueskyFollowError(NOT_LINKED)
-  if (link.did !== agent.did) throw new BlueskySessionChangedError()
-  await database.createBlueskyFollow({ actorId: actor.id, targetActorId, uri })
-  return (await database.getBlueskyFollow({
-    actorId: actor.id,
-    targetActorId
-  })) as BlueskyFollow
+  return storeFollow(database, actor, targetActorId, agent.did, uri)
 }
 
 const deleteFollow = async (
@@ -117,30 +174,27 @@ const deleteFollow = async (
   actor: Actor,
   targetActorId: string
 ): Promise<void> => {
+  const did = targetDid(targetActorId)
   const existing = await database.getBlueskyFollow({
     actorId: actor.id,
     targetActorId
   })
-  if (!existing) return
+  if (!existing) {
+    if (!did) return
+    const agent = await getBlueskyAgent(database, actor)
+    if (!agent) return
+    // Remove a follow created in another Bluesky app even with no local row.
+    const remoteUri = await readViewerFollowUri(agent, did)
+    if (remoteUri) await deleteFollowRecord(agent, remoteUri)
+    return
+  }
   const agent = await requireAgent(database, actor)
-  const parsed = parseAtUri(existing.uri)
-  // A record in another repo (the account was relinked to a different DID)
-  // cannot be deleted with this session: only the row is ours to drop.
-  if (parsed?.did === agent.did) {
-    try {
-      await agent.post('com.atproto.repo.deleteRecord', {
-        repo: parsed.did,
-        collection: parsed.collection,
-        rkey: parsed.rkey
-      })
-    } catch (error) {
-      // Already deleted on Bluesky (from another app): only the row is left.
-      if (
-        !(error instanceof BlueskyRequestError) ||
-        error.error !== 'RecordNotFound'
-      ) {
-        throw error
-      }
+  await deleteFollowRecord(agent, existing.uri)
+  // Also remove a leftover duplicate follow record created before adoption.
+  if (did) {
+    const leftover = await readViewerFollowUri(agent, did)
+    if (leftover && leftover !== existing.uri) {
+      await deleteFollowRecord(agent, leftover)
     }
   }
   await database.deleteBlueskyFollow({ actorId: actor.id, targetActorId })

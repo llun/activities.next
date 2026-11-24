@@ -50,6 +50,11 @@ export const escapeHtml = (text: string) =>
 
 const textToHtml = (text: string) => escapeHtml(text).replace(/\r?\n/g, '<br>')
 
+const LINK_ATTRS = 'rel="nofollow noopener noreferrer" target="_blank"'
+
+const linkParagraph = (href: string, label: string) =>
+  `<p><a href="${escapeHtml(href)}" ${LINK_ATTRS}>${escapeHtml(label)}</a></p>`
+
 const httpUrl = (value: unknown): string | null => {
   if (typeof value !== 'string') return null
   try {
@@ -133,7 +138,7 @@ export const blueskyPostToHtml = (text: string, facets?: unknown): string => {
     // Overlapping facets: the earlier one wins.
     if (link.start < cursor) continue
     html += textToHtml(slice(cursor, link.start))
-    html += `<a href="${escapeHtml(link.href)}" rel="nofollow noopener noreferrer" target="_blank">${textToHtml(slice(link.start, link.end))}</a>`
+    html += `<a href="${escapeHtml(link.href)}" ${LINK_ATTRS}>${textToHtml(slice(link.start, link.end))}</a>`
     cursor = link.end
   }
   html += textToHtml(slice(cursor, bytes.length))
@@ -175,8 +180,9 @@ const imagesFromView = (view: unknown): BlueskyPostAttachment[] => {
   })
 }
 
-// The images of a post's embed view, also inside a quote's media. Other
-// embeds (video, external cards, quotes alone) give none for now.
+// The images of a post's embed view, also inside a quote's media. Non-image
+// embeds (external cards, quotes, videos) are rendered as links by
+// `blueskyEmbedLinksHtml` instead of media attachments.
 export const blueskyImagesFromEmbed = (
   embed: unknown
 ): BlueskyPostAttachment[] => {
@@ -189,6 +195,74 @@ export const blueskyImagesFromEmbed = (
 
 const POST_COLLECTION = 'app.bsky.feed.post'
 const INVALID_HANDLE = 'handle.invalid'
+
+const externalLinkHtml = (
+  embed: Record<string, unknown>,
+  postHtml: string
+): string => {
+  if (!isRecord(embed.external)) return ''
+  const href = httpUrl(embed.external.uri)
+  if (!href) return ''
+  if (postHtml.includes(`href="${escapeHtml(href)}"`)) return ''
+  const title = optionalString(embed.external.title)?.trim() || href
+  return linkParagraph(href, title)
+}
+
+const videoLinkHtml = (postUrl: string): string => {
+  const href = httpUrl(postUrl)
+  return href ? linkParagraph(href, 'Video on Bluesky') : ''
+}
+
+const quotedPostLinkHtml = (recordView: unknown): string => {
+  if (!isRecord(recordView) || !isRecord(recordView.record)) return ''
+  const quoted = recordView.record
+  if (quoted.$type !== 'app.bsky.embed.record#viewRecord') return ''
+  const at = parseAtUri(optionalString(quoted.uri) ?? '')
+  if (!at || at.collection !== POST_COLLECTION) return ''
+  return linkParagraph(blueskyPostId(at.did, at.rkey), 'Quoted post')
+}
+
+const mediaEmbedLinkHtml = (
+  media: unknown,
+  postUrl: string,
+  postHtml: string
+): string => {
+  if (!isRecord(media)) return ''
+  switch (media.$type) {
+    case 'app.bsky.embed.external#view':
+      return externalLinkHtml(media, postHtml)
+    case 'app.bsky.embed.video#view':
+      return videoLinkHtml(postUrl)
+    default:
+      return ''
+  }
+}
+
+// Extra HTML paragraphs appended to a post for non-image embeds (external link
+// cards, quoted posts, videos). Skips an external card whose URI already
+// appears as a link in `postHtml`.
+export const blueskyEmbedLinksHtml = (
+  embed: unknown,
+  postUrl: string,
+  postHtml = ''
+): string => {
+  if (!isRecord(embed)) return ''
+  switch (embed.$type) {
+    case 'app.bsky.embed.external#view':
+      return externalLinkHtml(embed, postHtml)
+    case 'app.bsky.embed.record#view':
+      return quotedPostLinkHtml(embed)
+    case 'app.bsky.embed.recordWithMedia#view':
+      return (
+        mediaEmbedLinkHtml(embed.media, postUrl, postHtml) +
+        quotedPostLinkHtml(embed.record)
+      )
+    case 'app.bsky.embed.video#view':
+      return videoLinkHtml(postUrl)
+    default:
+      return ''
+  }
+}
 
 const optionalCount = (value: unknown) =>
   Number.isInteger(value) && (value as number) >= 0
@@ -291,8 +365,9 @@ export const storeBlueskyPostView = async (
       ? parseAtUri(optionalString(record.reply.parent.uri) ?? '')
       : null
   const replyToStatusId = parent ? blueskyPostId(parent.did, parent.rkey) : null
+  const postUrl = blueskyPostId(post.at.did, post.at.rkey)
   if (
-    blueskyPostId(post.at.did, post.at.rkey).length > MAX_COLUMN_LENGTH ||
+    postUrl.length > MAX_COLUMN_LENGTH ||
     (replyToStatusId?.length ?? 0) > MAX_COLUMN_LENGTH ||
     post.cid.length > MAX_COLUMN_LENGTH
   ) {
@@ -305,13 +380,17 @@ export const storeBlueskyPostView = async (
     Date.parse(optionalString(record.createdAt) ?? '') ||
     Date.parse(optionalString(post.view.indexedAt) ?? '') ||
     now
+  const postHtml = blueskyPostToHtml(
+    optionalString(record.text) ?? '',
+    record.facets
+  )
   const { statusId } = await database.upsertBlueskyPost({
     uri: post.uri,
     cid: post.cid,
     did: post.at.did,
     rkey: post.at.rkey,
     actorId,
-    text: blueskyPostToHtml(optionalString(record.text) ?? '', record.facets),
+    text: postHtml + blueskyEmbedLinksHtml(post.view.embed, postUrl, postHtml),
     // A clock ahead of ours must not pin the post to the top of a feed.
     createdAt: Math.min(createdAt, now),
     replyToStatusId,
