@@ -837,38 +837,44 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
   // A new post composed in the top box, or a quote created inline from a
   // feed row, is prepended so it appears immediately.
-  const onStatusCreated = useCallback((status: Status) => {
-    const page = stagedPageRef.current
-    if (page) {
-      stagedPageRef.current = null
-      setStagedCount(0)
-      setStagedHasGap(false)
-      void applyFreshPageRef.current?.(
-        page,
-        { fromHeld: true },
-        scrollResetRevisionRef.current
-      )
-    }
-    setSegments((prev) => {
-      if (prev.length === 0) {
+  const onStatusCreated = useCallback(
+    (status: Status) => {
+      const page = stagedPageRef.current
+      if (page) {
+        stagedPageRef.current = null
+        setStagedCount(0)
+        setStagedHasGap(false)
+        void applyFreshPageRef.current?.(
+          page,
+          { fromHeld: true },
+          scrollResetRevisionRef.current
+        )
+      }
+      // A post written here is an ActivityPub post (posting to Bluesky is not
+      // supported yet), so the Bluesky-only feed does not show or cache it.
+      if (network === 'bluesky') return
+      setSegments((prev) => {
+        if (prev.length === 0) {
+          return [
+            {
+              statuses: [status],
+              nextMaxStatusId: null,
+              prevMinStatusId: status.id
+            }
+          ]
+        }
         return [
           {
-            statuses: [status],
-            nextMaxStatusId: null,
+            ...prev[0],
+            statuses: [status, ...prev[0].statuses],
             prevMinStatusId: status.id
-          }
+          },
+          ...prev.slice(1)
         ]
-      }
-      return [
-        {
-          ...prev[0],
-          statuses: [status, ...prev[0].statuses],
-          prevMinStatusId: status.id
-        },
-        ...prev.slice(1)
-      ]
-    })
-  }, [])
+      })
+    },
+    [network]
+  )
 
   // When a reply is created inline from a feed row, update the parent status's
   // reply count and insert the reply directly next to the replied message in the feed.

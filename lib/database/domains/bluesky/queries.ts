@@ -175,6 +175,9 @@ const writeBlueskyActor = async (
         inboxUrl: '',
         sharedInboxUrl: '',
         followersUrl: '',
+        // Anyone can follow a Bluesky account; without this, Mastodon clients
+        // read the default (locked) and show "request to follow".
+        manuallyApprovesFollowers: false,
         publicKey: '',
         createdAt: Date.now()
       })

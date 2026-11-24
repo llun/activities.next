@@ -54,6 +54,8 @@ describe('Bluesky', () => {
       })
       expect(account).toMatchObject({
         acct: 'alice.bsky.social@bsky.app',
+        // Anyone can follow a Bluesky account.
+        locked: false,
         display_name: 'Alice',
         avatar: 'https://cdn.bsky.app/avatar.jpg',
         followers_count: 10,
