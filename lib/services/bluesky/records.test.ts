@@ -1,10 +1,14 @@
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   blueskyActorId,
   blueskyImagesFromEmbed,
   blueskyPostId,
   blueskyPostToHtml,
   isBlueskyId,
-  parseAtUri
+  parseAtUri,
+  parseBlueskyPostView,
+  storeBlueskyAuthor,
+  storeBlueskyPostView
 } from '@/lib/services/bluesky/records'
 
 const DID = 'did:plc:abc123'
@@ -145,5 +149,99 @@ describe('blueskyImagesFromEmbed', () => {
       blueskyImagesFromEmbed({ $type: 'app.bsky.embed.external#view' })
     ).toEqual([])
     expect(blueskyImagesFromEmbed(undefined)).toEqual([])
+  })
+})
+
+describe('storing AppView views', () => {
+  const testDb = createTestDatabase()
+  const { database } = testDb
+  const ALICE = `did:plc:${'a'.repeat(24)}`
+  const MALLORY = `did:plc:${'m'.repeat(24)}`
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await database.migrate()
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  it('stores an author with its handle and an escaped HTML description', async () => {
+    expect(
+      await storeBlueskyAuthor(database, {
+        did: ALICE,
+        handle: 'Alice.bsky.social',
+        displayName: 'Alice',
+        description: 'Hi <b>',
+        avatar: 'https://cdn.bsky.app/a.jpg'
+      })
+    ).toBe(blueskyActorId(ALICE))
+    expect(
+      await database.getActorFromId({ id: blueskyActorId(ALICE) })
+    ).toMatchObject({
+      username: 'alice.bsky.social',
+      name: 'Alice',
+      summary: '<p>Hi &lt;b&gt;</p>'
+    })
+  })
+
+  it.each(['handle.invalid', 'alice.bsky.social/x', ''])(
+    'stores an author with handle %j under its DID, never taking another handle',
+    async (handle) => {
+      await storeBlueskyAuthor(database, { did: MALLORY, handle })
+      expect(
+        await database.getActorFromId({ id: blueskyActorId(MALLORY) })
+      ).toMatchObject({ username: MALLORY, domain: 'bsky.app' })
+      expect(
+        await database.getActorFromId({ id: blueskyActorId(ALICE) })
+      ).toMatchObject({ username: 'alice.bsky.social' })
+    }
+  )
+
+  it('refuses an author without a valid DID', async () => {
+    expect(
+      await storeBlueskyAuthor(database, {
+        did: 'did:plc:short',
+        handle: 'x.bsky.social'
+      })
+    ).toBeNull()
+  })
+
+  it('stores a post view and links a reply to its parent', async () => {
+    const post = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/r1`,
+      cid: 'cid-r1',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'A reply',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        reply: { parent: { uri: `at://${MALLORY}/app.bsky.feed.post/p1` } }
+      }
+    })
+    expect(post).not.toBeNull()
+    const statusId = await storeBlueskyPostView(
+      database,
+      post as NonNullable<typeof post>
+    )
+    expect(statusId).toBe(blueskyPostId(ALICE, 'r1'))
+    expect(
+      await database.getStatus({ statusId: statusId as string })
+    ).toMatchObject({
+      text: '<p>A reply</p>',
+      reply: blueskyPostId(MALLORY, 'p1')
+    })
+  })
+
+  it('refuses a post view whose author is not the record owner', () => {
+    expect(
+      parseBlueskyPostView({
+        uri: `at://${ALICE}/app.bsky.feed.post/x`,
+        cid: 'cid',
+        author: { did: MALLORY, handle: 'm.bsky.social' },
+        record: { $type: 'app.bsky.feed.post', text: 'x' }
+      })
+    ).toBeNull()
   })
 })

@@ -1,8 +1,8 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
-  type BlueskyAgent,
-  getBlueskyAgent
-} from '@/lib/services/bluesky/agent'
+  getPublicAuthorFeed,
+  getPublicProfile
+} from '@/lib/services/bluesky/appview'
 import {
   loadBlueskyAuthorFeed,
   parseBlueskyProfileInput,
@@ -12,14 +12,16 @@ import {
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import type { Actor } from '@/lib/types/domain/actor'
 
-vi.mock('@/lib/services/bluesky/agent', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  getBlueskyAgent: vi.fn()
+vi.mock('@/lib/services/bluesky/appview', () => ({
+  getPublicProfile: vi.fn(),
+  getPublicAuthorFeed: vi.fn()
 }))
 
 const DID = `did:plc:${'a'.repeat(24)}`
 const OTHER_DID = `did:plc:${'b'.repeat(24)}`
 const viewer = { id: 'https://local.test/users/viewer' } as Actor
+// No linked Bluesky account: nothing is fetched for this viewer.
+const unlinked = { id: 'https://local.test/users/unlinked' } as Actor
 
 const profileView = (overrides: Record<string, unknown> = {}) => ({
   did: DID,
@@ -33,14 +35,6 @@ const profileView = (overrides: Record<string, unknown> = {}) => ({
   postsCount: 40,
   ...overrides
 })
-
-const mockAgent = (get: BlueskyAgent['get']) =>
-  vi.mocked(getBlueskyAgent).mockResolvedValue({
-    did: OTHER_DID,
-    pdsUrl: 'https://pds.example.net/',
-    get,
-    post: vi.fn()
-  })
 
 describe('parseBlueskyProfileInput', () => {
   it.each([
@@ -73,6 +67,14 @@ describe('Bluesky profiles', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    await database.saveBlueskyAccount({
+      actorId: viewer.id,
+      did: OTHER_DID,
+      handle: 'viewer.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
   })
 
   afterAll(async () => {
@@ -80,7 +82,8 @@ describe('Bluesky profiles', () => {
   })
 
   beforeEach(() => {
-    vi.mocked(getBlueskyAgent).mockReset()
+    vi.mocked(getPublicProfile).mockReset()
+    vi.mocked(getPublicAuthorFeed).mockReset()
   })
 
   describe('resolveBlueskyProfile', () => {
@@ -88,19 +91,19 @@ describe('Bluesky profiles', () => {
       expect(
         await resolveBlueskyProfile(database, viewer, 'alice@mastodon.social')
       ).toBeNull()
-      expect(getBlueskyAgent).not.toHaveBeenCalled()
+      expect(getPublicProfile).not.toHaveBeenCalled()
     })
 
     it('is null without a linked account', async () => {
-      vi.mocked(getBlueskyAgent).mockResolvedValue(null)
+      vi.mocked(getPublicProfile).mockResolvedValue(profileView())
       expect(
-        await resolveBlueskyProfile(database, viewer, 'nobody.bsky.social')
+        await resolveBlueskyProfile(database, unlinked, 'alice.bsky.social')
       ).toBeNull()
+      expect(getPublicProfile).not.toHaveBeenCalled()
     })
 
     it('stores a fetched profile and returns its actor id', async () => {
-      const get = vi.fn().mockResolvedValue(profileView())
-      mockAgent(get)
+      vi.mocked(getPublicProfile).mockResolvedValue(profileView())
 
       const actorId = await resolveBlueskyProfile(
         database,
@@ -109,9 +112,7 @@ describe('Bluesky profiles', () => {
       )
 
       expect(actorId).toBe(blueskyActorId(DID))
-      expect(get).toHaveBeenCalledWith('app.bsky.actor.getProfile', {
-        actor: 'alice.bsky.social'
-      })
+      expect(getPublicProfile).toHaveBeenCalledWith('alice.bsky.social')
       const actor = await database.getActorFromId({ id: actorId as string })
       expect(actor).toMatchObject({
         username: 'alice.bsky.social',
@@ -124,8 +125,6 @@ describe('Bluesky profiles', () => {
     })
 
     it('answers a stored account without a fetch while it is fresh', async () => {
-      const get = vi.fn()
-      mockAgent(get)
       expect(
         await resolveBlueskyProfile(
           database,
@@ -133,11 +132,13 @@ describe('Bluesky profiles', () => {
           'alice.bsky.social@bsky.app'
         )
       ).toBe(blueskyActorId(DID))
-      expect(get).not.toHaveBeenCalled()
+      expect(getPublicProfile).not.toHaveBeenCalled()
     })
 
     it('refuses a profile for another account than the one asked for', async () => {
-      mockAgent(vi.fn().mockResolvedValue(profileView({ did: OTHER_DID })))
+      vi.mocked(getPublicProfile).mockResolvedValue(
+        profileView({ did: OTHER_DID })
+      )
       expect(
         await resolveBlueskyProfile(
           database,
@@ -145,12 +146,8 @@ describe('Bluesky profiles', () => {
           `did:plc:${'c'.repeat(24)}`
         )
       ).toBeNull()
-      mockAgent(
-        vi
-          .fn()
-          .mockResolvedValue(
-            profileView({ did: OTHER_DID, handle: 'bob.bsky.social' })
-          )
+      vi.mocked(getPublicProfile).mockResolvedValue(
+        profileView({ did: OTHER_DID, handle: 'bob.bsky.social' })
       )
       expect(
         await resolveBlueskyProfile(database, viewer, 'carol.bsky.social')
@@ -160,37 +157,61 @@ describe('Bluesky profiles', () => {
       ).toBeNull()
     })
 
-    it('is null when Bluesky fails', async () => {
-      mockAgent(vi.fn().mockRejectedValue(new Error('Profile not found')))
+    it('is null when Bluesky fails or has no such account', async () => {
+      vi.mocked(getPublicProfile).mockRejectedValueOnce(new Error('down'))
       expect(
         await resolveBlueskyProfile(database, viewer, 'gone.bsky.social')
       ).toBeNull()
+      vi.mocked(getPublicProfile).mockResolvedValueOnce(null)
+      expect(
+        await resolveBlueskyProfile(database, viewer, 'gone.bsky.social')
+      ).toBeNull()
+    })
+
+    it('stores an account whose handle Bluesky could not verify under its DID', async () => {
+      const did = `did:plc:${'d'.repeat(24)}`
+      vi.mocked(getPublicProfile).mockResolvedValue(
+        profileView({ did, handle: 'handle.invalid' })
+      )
+      expect(await resolveBlueskyProfile(database, viewer, did)).toBe(
+        blueskyActorId(did)
+      )
+      expect(
+        await database.getActorFromId({ id: blueskyActorId(did) })
+      ).toMatchObject({ username: did, domain: 'bsky.app' })
+      // The real holder of a handle keeps it.
+      expect(
+        await database.getActorFromUsername({
+          username: 'alice.bsky.social',
+          domain: 'bsky.app'
+        })
+      ).toMatchObject({ id: blueskyActorId(DID) })
     })
   })
 
   describe('refreshBlueskyProfile', () => {
     it('refreshes a stale actor and skips a fresh one', async () => {
       const actorId = blueskyActorId(DID)
-      const get = vi
-        .fn()
-        .mockResolvedValue(profileView({ displayName: 'Alice Again' }))
-      mockAgent(get)
+      vi.mocked(getPublicProfile).mockResolvedValue(
+        profileView({ displayName: 'Alice Again', banner: undefined })
+      )
 
       await refreshBlueskyProfile(database, viewer, actorId)
-      expect(get).not.toHaveBeenCalled()
+      expect(getPublicProfile).not.toHaveBeenCalled()
 
       await testDb.db
         .updateTable('actors')
         .set({ updatedAt: new Date(Date.now() - 11 * 60 * 1000) })
         .where('id', '=', actorId)
         .execute()
+      await refreshBlueskyProfile(database, unlinked, actorId)
+      expect(getPublicProfile).not.toHaveBeenCalled()
       await refreshBlueskyProfile(database, viewer, actorId)
-      expect(get).toHaveBeenCalledWith('app.bsky.actor.getProfile', {
-        actor: DID
-      })
-      expect(await database.getActorFromId({ id: actorId })).toMatchObject({
-        name: 'Alice Again'
-      })
+      expect(getPublicProfile).toHaveBeenCalledWith(DID)
+      const refreshed = await database.getActorFromId({ id: actorId })
+      expect(refreshed).toMatchObject({ name: 'Alice Again' })
+      // A detailed profile without a banner clears the stored one.
+      expect(refreshed?.headerImageUrl ?? '').toBe('')
     })
 
     it('ignores an id that is not a Bluesky actor', async () => {
@@ -199,7 +220,7 @@ describe('Bluesky profiles', () => {
         viewer,
         'https://remote.test/users/alice'
       )
-      expect(getBlueskyAgent).not.toHaveBeenCalled()
+      expect(getPublicProfile).not.toHaveBeenCalled()
     })
   })
 
@@ -220,7 +241,7 @@ describe('Bluesky profiles', () => {
         },
         ...extra
       })
-      const get = vi.fn().mockResolvedValue({
+      vi.mocked(getPublicAuthorFeed).mockResolvedValue({
         feed: [
           post('one'),
           post('repost', {
@@ -237,6 +258,7 @@ describe('Bluesky profiles', () => {
             post: {
               ...post('reply').post,
               record: {
+                $type: 'app.bsky.feed.post',
                 text: 'A reply',
                 createdAt: '2026-11-02T00:00:00.000Z',
                 reply: {
@@ -247,14 +269,10 @@ describe('Bluesky profiles', () => {
           }
         ]
       })
-      mockAgent(get)
 
       await loadBlueskyAuthorFeed(database, viewer, actorId, { limit: 500 })
 
-      expect(get).toHaveBeenCalledWith('app.bsky.feed.getAuthorFeed', {
-        actor: DID,
-        limit: 100
-      })
+      expect(getPublicAuthorFeed).toHaveBeenCalledWith(DID, { limit: 100 })
       const statuses = await database.getActorStatuses({ actorId, limit: 10 })
       expect(statuses.map((status) => status.id).sort()).toEqual(
         [blueskyPostId(DID, 'one'), blueskyPostId(DID, 'reply')].sort()
@@ -271,12 +289,12 @@ describe('Bluesky profiles', () => {
     })
 
     it('does nothing without a linked account', async () => {
-      vi.mocked(getBlueskyAgent).mockResolvedValue(null)
       await expect(
-        loadBlueskyAuthorFeed(database, viewer, blueskyActorId(DID), {
+        loadBlueskyAuthorFeed(database, unlinked, blueskyActorId(DID), {
           limit: 10
         })
       ).resolves.toBeUndefined()
+      expect(getPublicAuthorFeed).not.toHaveBeenCalled()
     })
   })
 })

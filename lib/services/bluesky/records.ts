@@ -1,7 +1,13 @@
-// Pure mapping from Bluesky (atproto) records and views to the ids, HTML and
-// attachments this server stores them as. Everything here reads data from
-// another server, so each value is checked before it is used.
+// Mapping from Bluesky (atproto) records and views to the ids, HTML and
+// attachments this server stores them as, and the one place that stores an
+// AppView post or profile view. Everything here reads data from another
+// server, so each value is checked before it is used.
 import type { BlueskyPostAttachment } from '@/lib/database/domains/bluesky/types'
+import type { Database } from '@/lib/database/types'
+import {
+  BLUESKY_DID_PATTERN,
+  parseBlueskyActorQuery
+} from '@/lib/utils/accountHandle'
 
 export { isBlueskyId } from '@/lib/utils/blueskyId'
 
@@ -162,4 +168,125 @@ export const blueskyImagesFromEmbed = (
     return imagesFromView(embed.media)
   }
   return imagesFromView(embed)
+}
+
+const POST_COLLECTION = 'app.bsky.feed.post'
+const INVALID_HANDLE = 'handle.invalid'
+
+const optionalString = (value: unknown) =>
+  typeof value === 'string' ? value : undefined
+
+const optionalCount = (value: unknown) =>
+  Number.isInteger(value) && (value as number) >= 0
+    ? (value as number)
+    : undefined
+
+/**
+ * Stores the author of an AppView profile view (app.bsky.actor.defs#profileView
+ * and its basic and detailed forms) and returns its actor id; null when the
+ * view names no valid DID. Pass `full` for a detailed view (getProfiles): its
+ * missing description or banner then clears the stored one, where a basic view
+ * (a post's author) carries neither and keeps them.
+ */
+export const storeBlueskyAuthor = async (
+  database: Database,
+  profile: unknown,
+  { full = false }: { full?: boolean } = {}
+): Promise<string | null> => {
+  if (!isRecord(profile)) return null
+  const did = optionalString(profile.did)
+  if (!did || !BLUESKY_DID_PATTERN.test(did)) return null
+  // The AppView only reports a handle whose DNS or well-known record points
+  // back at this DID (and whose DID document names the handle), so its handle
+  // is trusted. An unverified one (`handle.invalid`) or one that is not a
+  // hostname stores the DID as the username instead: it never takes a handle
+  // from another row.
+  const claimed = optionalString(profile.handle)?.toLowerCase()
+  const handle =
+    claimed &&
+    claimed !== INVALID_HANDLE &&
+    parseBlueskyActorQuery(claimed) === claimed
+      ? claimed
+      : did
+  const description = optionalString(profile.description)
+  const banner = optionalString(profile.banner)
+  return database.upsertBlueskyActor({
+    did,
+    handle,
+    name: optionalString(profile.displayName) ?? null,
+    summary: description
+      ? blueskyPostToHtml(description)
+      : full
+        ? null
+        : undefined,
+    iconUrl: optionalString(profile.avatar) ?? null,
+    headerImageUrl: banner ?? (full ? null : undefined),
+    followersCount: optionalCount(profile.followersCount),
+    followingCount: optionalCount(profile.followsCount),
+    postsCount: optionalCount(profile.postsCount)
+  })
+}
+
+/**
+ * A post view (app.bsky.feed.defs#postView) whose record is a post by the
+ * view's author; null for anything else (a not-found or blocked post, another
+ * record type).
+ */
+export const parseBlueskyPostView = (value: unknown) => {
+  if (!isRecord(value) || !isRecord(value.author) || !isRecord(value.record)) {
+    return null
+  }
+  const { uri, cid, author, record } = value
+  if (
+    typeof uri !== 'string' ||
+    typeof cid !== 'string' ||
+    record.$type !== POST_COLLECTION
+  ) {
+    return null
+  }
+  const at = parseAtUri(uri)
+  if (!at || at.collection !== POST_COLLECTION || at.did !== author.did) {
+    return null
+  }
+  return { uri, cid, at, author, record, view: value }
+}
+
+export type BlueskyPostView = NonNullable<
+  ReturnType<typeof parseBlueskyPostView>
+>
+
+/**
+ * Stores an AppView post view and its author, and returns the status id; null
+ * when the author cannot be stored. A reply links to its parent's status id
+ * whether or not the parent is stored.
+ */
+export const storeBlueskyPostView = async (
+  database: Database,
+  post: BlueskyPostView
+): Promise<string | null> => {
+  const actorId = await storeBlueskyAuthor(database, post.author)
+  if (!actorId) return null
+  const { record } = post
+  const parent =
+    isRecord(record.reply) && isRecord(record.reply.parent)
+      ? parseAtUri(optionalString(record.reply.parent.uri) ?? '')
+      : null
+  const now = Date.now()
+  const createdAt =
+    Date.parse(optionalString(record.createdAt) ?? '') ||
+    Date.parse(optionalString(post.view.indexedAt) ?? '') ||
+    now
+  const { statusId } = await database.upsertBlueskyPost({
+    uri: post.uri,
+    cid: post.cid,
+    did: post.at.did,
+    rkey: post.at.rkey,
+    actorId,
+    text: blueskyPostToHtml(optionalString(record.text) ?? '', record.facets),
+    // A clock ahead of ours must not pin the post to the top of a feed.
+    createdAt: Math.min(createdAt, now),
+    replyToStatusId: parent ? blueskyPostId(parent.did, parent.rkey) : null,
+    attachments: blueskyImagesFromEmbed(post.view.embed)
+  })
+  return statusId
 }

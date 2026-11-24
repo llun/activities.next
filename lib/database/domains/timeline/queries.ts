@@ -400,7 +400,7 @@ export const getLocalPublicStatusesCount = async (
  */
 export const createTimelineStatus = async (
   db: Db,
-  { actorId, status, timeline }: CreateTimelineStatusParams
+  { actorId, status, timeline, createdAt }: CreateTimelineStatusParams
 ): Promise<void> => {
   if (actorId === undefined || actorId === null) {
     throw new Error('createTimelineStatus requires an actorId')
@@ -423,7 +423,7 @@ export const createTimelineStatus = async (
         statusId: status.id,
         statusActorId: status.actorId,
         timeline,
-        createdAt: new Date(status.createdAt),
+        createdAt: new Date(createdAt ?? status.createdAt),
         updatedAt: new Date()
       })
       .execute()

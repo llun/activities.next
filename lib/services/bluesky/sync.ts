@@ -1,6 +1,10 @@
 // Pulls the Bluesky Home timeline of an actor's linked account into this
 // server: each post and its author are stored as `network = 'bluesky'` rows
 // and the post is added to the actor's Home. Run by syncBlueskyHomeJob.
+//
+// The rows are shared by every user, so the user's PDS only says which posts
+// are in that user's Home; what is stored is read from the public AppView
+// (./appview), never from the PDS's answer.
 import type { Database } from '@/lib/database/types'
 import { Timeline } from '@/lib/services/timelines/types'
 import type { Actor } from '@/lib/types/domain/actor'
@@ -12,10 +16,12 @@ import {
   BlueskySessionEndedError,
   getBlueskyAgent
 } from './agent'
+import { getPublicPosts } from './appview'
 import {
-  blueskyImagesFromEmbed,
-  blueskyPostToHtml,
-  parseAtUri
+  type BlueskyPostView,
+  parseAtUri,
+  parseBlueskyPostView,
+  storeBlueskyPostView
 } from './records'
 
 const PAGE_LIMIT = 50
@@ -24,6 +30,8 @@ const POST_COLLECTION = 'app.bsky.feed.post'
 const REPOST_REASON = 'app.bsky.feed.defs#reasonRepost'
 
 type Json = Record<string, unknown>
+// One Home entry as the PDS lists it: the post, and when it was reposted.
+type HomeItem = { uri: string; repostedAt?: number }
 
 const isRecord = (value: unknown): value is Json =>
   typeof value === 'object' && value !== null
@@ -31,66 +39,22 @@ const isRecord = (value: unknown): value is Json =>
 const optionalString = (value: unknown) =>
   typeof value === 'string' ? value : undefined
 
-// A post view (app.bsky.feed.defs#postView) whose record is a post; null for
-// anything else (a not-found or blocked parent, another record type).
-const asPostView = (value: unknown) => {
-  if (!isRecord(value) || !isRecord(value.author) || !isRecord(value.record)) {
-    return null
+// The AppView's views of `uris`, keyed by uri; a post it does not return is
+// missing.
+const readPublicPosts = async (uris: string[]) => {
+  const views = new Map<string, BlueskyPostView>()
+  if (uris.length === 0) return views
+  for (const value of await getPublicPosts(uris)) {
+    const post = parseBlueskyPostView(value)
+    if (post) views.set(post.uri, post)
   }
-  const { uri, cid, author, record } = value
-  if (
-    typeof uri !== 'string' ||
-    typeof cid !== 'string' ||
-    typeof author.did !== 'string' ||
-    typeof author.handle !== 'string' ||
-    record.$type !== POST_COLLECTION
-  ) {
-    return null
-  }
-  const at = parseAtUri(uri)
-  if (!at || at.collection !== POST_COLLECTION || at.did !== author.did) {
-    return null
-  }
-  return { uri, cid, at, author, record, value }
+  return views
 }
 
-type PostView = NonNullable<ReturnType<typeof asPostView>>
-
-const storePost = async (
-  database: Database,
-  post: PostView,
-  replyToStatusId?: string
-): Promise<string | null> => {
-  const { author, record } = post
-  // The feed's author view carries no description or banner: undefined keeps
-  // what a fuller profile fetch stored.
-  const actorId = await database.upsertBlueskyActor({
-    did: author.did as string,
-    handle: author.handle as string,
-    name: optionalString(author.displayName) ?? null,
-    summary: optionalString(author.description),
-    iconUrl: optionalString(author.avatar) ?? null,
-    headerImageUrl: optionalString(author.banner)
-  })
-  if (!actorId) return null
-  const now = Date.now()
-  const createdAt =
-    Date.parse(optionalString(record.createdAt) ?? '') ||
-    Date.parse(optionalString(post.value.indexedAt) ?? '') ||
-    now
-  const { statusId } = await database.upsertBlueskyPost({
-    uri: post.uri,
-    cid: post.cid,
-    did: post.at.did,
-    rkey: post.at.rkey,
-    actorId,
-    text: blueskyPostToHtml(optionalString(record.text) ?? '', record.facets),
-    // A clock ahead of ours must not pin the post to the top of Home.
-    createdAt: Math.min(createdAt, now),
-    replyToStatusId,
-    attachments: blueskyImagesFromEmbed(post.value.embed)
-  })
-  return statusId
+const parentUri = (post: BlueskyPostView) => {
+  const { reply } = post.record
+  if (!isRecord(reply) || !isRecord(reply.parent)) return undefined
+  return optionalString(reply.parent.uri)
 }
 
 const syncErrorMessage = (error: unknown) => {
@@ -117,7 +81,7 @@ export const syncBlueskyHome = async (
     const agent = await getBlueskyAgent(database, actor)
     // No link, or no session to use: Settings already says so.
     if (!agent) return
-    const items: Json[] = []
+    const items: HomeItem[] = []
     let cursor: string | undefined
     pages: for (let page = 0; page < MAX_PAGES; page++) {
       const response = await agent.get<{ feed?: unknown; cursor?: unknown }>(
@@ -126,42 +90,59 @@ export const syncBlueskyHome = async (
       )
       const feed = Array.isArray(response?.feed) ? response.feed : []
       for (const item of feed) {
-        if (!isRecord(item)) continue
-        const post = asPostView(item.post)
+        if (!isRecord(item) || !isRecord(item.post)) continue
+        const uri = optionalString(item.post.uri)
+        if (!uri || parseAtUri(uri)?.collection !== POST_COLLECTION) continue
         // A repost of an older post says nothing about where the last sync
         // stopped, so only an original post ends the walk.
-        const repost =
-          isRecord(item.reason) && item.reason.$type === REPOST_REASON
-        if (
-          post &&
-          !repost &&
-          (await database.getBlueskyRecordByUri({ uri: post.uri }))
-        ) {
+        const reason = isRecord(item.reason) ? item.reason : null
+        const repost = reason?.$type === REPOST_REASON
+        if (!repost && (await database.getBlueskyRecordByUri({ uri }))) {
           break pages
         }
-        items.push(item)
+        items.push({
+          uri,
+          repostedAt: repost
+            ? Date.parse(optionalString(reason?.indexedAt) ?? '') || undefined
+            : undefined
+        })
       }
       cursor = optionalString(response?.cursor)
       if (!cursor || feed.length === 0) break
     }
 
+    // A post the AppView does not return (deleted, blocked) is dropped. The
+    // parents of replies come from the AppView's own records.
+    const views = await readPublicPosts(items.map((item) => item.uri))
+    const parents = await readPublicPosts(
+      [...views.values()]
+        .map(parentUri)
+        .filter((uri): uri is string => !!uri && !views.has(uri))
+    )
+
+    const now = Date.now()
     // Oldest first, so Home gets them in the order they were posted.
     for (const item of items.reverse()) {
-      const post = asPostView(item.post)
+      const post = views.get(item.uri)
       if (!post) continue
-      // A repost shows the original post; there is no boost row for it yet.
-      const parent = isRecord(item.reply) ? asPostView(item.reply.parent) : null
-      const replyToStatusId = parent
-        ? ((await storePost(database, parent)) ?? undefined)
+      const parent = parentUri(post)
+      const parentView = parent
+        ? (views.get(parent) ?? parents.get(parent))
         : undefined
-      const statusId = await storePost(database, post, replyToStatusId)
+      if (parentView) await storeBlueskyPostView(database, parentView)
+      // A repost shows the original post; there is no boost row for it yet.
+      const statusId = await storeBlueskyPostView(database, post)
       if (!statusId) continue
       const status = await database.getStatus({ statusId })
       if (!status) continue
       await database.createTimelineStatus({
         actorId: actor.id,
         status,
-        timeline: Timeline.MAIN
+        timeline: Timeline.MAIN,
+        // A repost sits in Home at the time it was reposted.
+        ...(item.repostedAt
+          ? { createdAt: Math.min(item.repostedAt, now) }
+          : null)
       })
     }
     await database.updateBlueskyAccountSync({

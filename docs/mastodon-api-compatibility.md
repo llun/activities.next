@@ -1298,32 +1298,45 @@ sharing. The code is in `lib/services/bluesky/`:
   `bluesky_follows`. Without a linked account (or after Bluesky ended the
   session) they answer 422 with a message pointing to Settings; following the
   linked account itself is refused, and a record already deleted on Bluesky
-  counts as unfollowed. The account's Bluesky followers are not copied in, so
+  counts as unfollowed. The web follow button shows the route's `{ error }`
+  message under the button. The account's Bluesky followers are not copied in, so
   `followed_by` is always false. The deprecated `/api/v1/accounts/follow`
   refuses Bluesky targets.
 - **Profiles and search.** Bluesky accounts are stored as actors with the id
   `https://bsky.app/profile/<did>` and the handle `<handle>@bsky.app`, and are
-  never fetched as ActivityPub. For a signed-in actor with a linked account,
+  never fetched as ActivityPub. Stored Bluesky posts and accounts are shared
+  by every user, so their content is read from Bluesky's public AppView
+  (`https://public.api.bsky.app`, `lib/services/bluesky/appview.ts`), never
+  from a user's PDS, which could answer anything for any DID. The AppView
+  verifies a handle against its DID both ways; an account whose handle it
+  could not verify (`handle.invalid`) is stored under its DID
+  (`<did>@bsky.app`). For a signed-in actor with a linked account,
   account search with `resolve=true` (`GET /api/v1/accounts/search`, the
   accounts part of `GET /api/v2/search`) and `GET /api/v1/accounts/lookup`
   with `resolve=true` resolve a Bluesky handle (also as `<handle>@bsky.app`),
-  DID or `https://bsky.app/profile/…` link through that account
-  (`app.bsky.actor.getProfile`) and put it first; a bare handle that is a
+  DID or `https://bsky.app/profile/…` link from the AppView
+  (`app.bsky.actor.getProfiles`; an answer for another account than the one
+  asked for is refused) and put it first; a bare handle that is a
   local username still finds the local account, and lookup reads a bare name
   as a local username only. A stored `<handle>@bsky.app` is found without
   contacting Bluesky. The profile page `/@<handle>@bsky.app` shows the stored
   account and posts with a Bluesky badge; for a viewer with a linked account it
   also refreshes the account (at most every ten minutes) and stores its newest
-  posts (`app.bsky.feed.getAuthorFeed`), keeping the stored data when Bluesky
+  posts (the AppView's `app.bsky.feed.getAuthorFeed`), keeping the stored data when Bluesky
   fails. `GET /api/v1/accounts/:id/statuses` serves a Bluesky account's
-  stored posts. Code: `lib/services/bluesky/profiles.ts`.
+  stored posts. A signed-out visit to a Bluesky account this server has not
+  stored is sent to `https://bsky.app/profile/<handle>`. Code:
+  `lib/services/bluesky/profiles.ts`.
 - **Home sync.** Every five minutes (`startBlueskySyncSweep`, started in
   `instrumentation.ts`), and once right after an account is linked, a
   `SyncBlueskyHomeJob` per linked account with a session reads its Bluesky Home
-  (`app.bsky.feed.getTimeline`, up to three pages of 50, stopping at a post an
-  earlier sync stored), stores each post and its author (with a reply's parent
-  when the feed carries it, and the original post of a repost; no boost row
-  yet) and adds the post to the actor's Home. Settings shows when Home last
+  (`app.bsky.feed.getTimeline` through the user's PDS, up to three pages of 50,
+  stopping at a post an earlier sync stored). The PDS only decides which posts
+  are in that user's Home: each post, its author and a reply's parent are read
+  from the AppView (`app.bsky.feed.getPosts`) and stored as the AppView
+  returned them, and a post it does not return (deleted, blocked) is dropped.
+  The original post of a repost is shown (no boost row yet), sitting in Home
+  at the time it was reposted. Each post is then added to the actor's Home. Settings shows when Home last
   synced and why the latest sync failed (`bluesky_accounts.lastSyncedAt` and
   `syncError`); a failure never fails the job, and the next sync tries again.
   Code: `lib/services/bluesky/sync.ts`.

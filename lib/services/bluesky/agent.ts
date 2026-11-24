@@ -58,7 +58,7 @@ export interface BlueskyAgent {
 type XrpcRequest = { method: 'GET' | 'POST'; path: string; body?: string }
 type XrpcResponse = { status: number; text: string }
 
-const readXrpcError = (text: string) => {
+export const readXrpcError = (text: string) => {
   try {
     const value: unknown = JSON.parse(text)
     const { error, message } = (value ?? {}) as Record<string, unknown>
@@ -75,7 +75,7 @@ const isTokenError = (response: XrpcResponse, codes: string[]) =>
   (response.status === 400 || response.status === 401) &&
   codes.includes(readXrpcError(response.text).error ?? '')
 
-const buildPath = (nsid: string, params?: BlueskyQueryParams) => {
+export const buildPath = (nsid: string, params?: BlueskyQueryParams) => {
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value === undefined) continue

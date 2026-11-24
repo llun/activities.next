@@ -1,7 +1,8 @@
-// Bluesky profiles opened through a viewer's linked account: resolving a
-// handle, DID or bsky.app link to a stored actor, refreshing that actor, and
-// storing its recent posts for the profile page. Every call goes through the
-// viewer's own agent, so a viewer without a linked account fetches nothing.
+// Bluesky profiles: resolving a handle, DID or bsky.app link to a stored
+// actor, refreshing that actor, and storing its recent posts for the profile
+// page. What is stored is read from the public AppView (./appview), never from
+// a user's PDS; only a viewer with a linked Bluesky account makes this server
+// fetch anything.
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import {
@@ -12,18 +13,16 @@ import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-import { type BlueskyAgent, getBlueskyAgent } from './agent'
+import { getPublicAuthorFeed, getPublicProfile } from './appview'
 import {
   blueskyActorId,
-  blueskyImagesFromEmbed,
-  blueskyPostId,
-  blueskyPostToHtml,
-  parseAtUri
+  parseBlueskyPostView,
+  storeBlueskyAuthor,
+  storeBlueskyPostView
 } from './records'
 
 const BLUESKY_DOMAIN = 'bsky.app'
 const PROFILE_PREFIX = `https://${BLUESKY_DOMAIN}/profile/`
-const POST_COLLECTION = 'app.bsky.feed.post'
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000
 const MAX_FEED_LIMIT = 100
 
@@ -32,13 +31,10 @@ type Json = Record<string, unknown>
 const isRecord = (value: unknown): value is Json =>
   typeof value === 'object' && value !== null
 
-const optionalString = (value: unknown) =>
-  typeof value === 'string' ? value : undefined
-
-const optionalCount = (value: unknown) =>
-  Number.isInteger(value) && (value as number) >= 0
-    ? (value as number)
-    : undefined
+// The owner's rule: only a viewer with a linked Bluesky account makes this
+// server contact Bluesky for a profile.
+const hasLinkedAccount = async (database: Database, viewer: Actor) =>
+  !!(await database.getBlueskyAccount({ actorId: viewer.id }))
 
 /**
  * The handle or DID a query names: a handle (`alice.bsky.social`,
@@ -57,61 +53,33 @@ export const parseBlueskyProfileInput = (input: string): string | null => {
   )
 }
 
-// Stores an app.bsky.actor.defs#profileViewDetailed when it is the account
-// that was asked for; null otherwise.
-const storeProfile = async (
+// Stores the AppView's profile of `actor` when the answer is the account that
+// was asked for; null otherwise.
+const fetchProfile = async (
   database: Database,
-  requested: string,
-  profile: unknown
+  actor: string
 ): Promise<string | null> => {
+  const profile = await getPublicProfile(actor)
   if (!isRecord(profile)) return null
-  const did = optionalString(profile.did)
-  const handle = optionalString(profile.handle)?.toLowerCase()
-  // The answer names its own account: it must be the one asked for, and a
-  // handle Bluesky could not verify (`handle.invalid`) is not stored.
+  const { did, handle } = profile
   if (
-    !did ||
-    !BLUESKY_DID_PATTERN.test(did) ||
-    !handle ||
-    parseBlueskyActorQuery(handle) !== handle ||
-    handle === 'handle.invalid' ||
-    (requested !== did && requested.toLowerCase() !== handle)
+    typeof did !== 'string' ||
+    (actor !== did &&
+      (typeof handle !== 'string' || actor !== handle.toLowerCase()))
   ) {
     return null
   }
-  const description = optionalString(profile.description)
-  return database.upsertBlueskyActor({
-    did,
-    handle,
-    name: optionalString(profile.displayName) ?? null,
-    summary: description ? blueskyPostToHtml(description) : null,
-    iconUrl: optionalString(profile.avatar) ?? null,
-    headerImageUrl: optionalString(profile.banner) ?? null,
-    followersCount: optionalCount(profile.followersCount),
-    followingCount: optionalCount(profile.followsCount),
-    postsCount: optionalCount(profile.postsCount)
-  })
+  return storeBlueskyAuthor(database, profile, { full: true })
 }
-
-const fetchProfile = async (
-  database: Database,
-  agent: BlueskyAgent,
-  actor: string
-) =>
-  storeProfile(
-    database,
-    actor,
-    await agent.get<unknown>('app.bsky.actor.getProfile', { actor })
-  )
 
 const logFailure = (message: string, err: unknown, extra: Json) => {
   logger.warn({ message, ...extra, err: toLoggableError(err) })
 }
 
 /**
- * The stored actor id of the Bluesky account `input` names, fetched through
- * the viewer's linked account when it is not stored yet. A stored one is
- * refreshed at most every ten minutes. Null when the input is not a Bluesky
+ * The stored actor id of the Bluesky account `input` names, fetched from the
+ * AppView when it is not stored yet. A stored one is refreshed at most every
+ * ten minutes. Null when the input is not a Bluesky
  * handle, DID or link, the viewer has no linked account, or Bluesky has no
  * such account.
  */
@@ -133,8 +101,8 @@ export const resolveBlueskyProfile = async (
     return stored.id
   }
   try {
-    const agent = await getBlueskyAgent(database, viewer)
-    return agent ? await fetchProfile(database, agent, actor) : null
+    if (!(await hasLinkedAccount(database, viewer))) return null
+    return await fetchProfile(database, actor)
   } catch (error) {
     logFailure('Failed to resolve Bluesky profile', error, { actor })
     return null
@@ -142,9 +110,9 @@ export const resolveBlueskyProfile = async (
 }
 
 /**
- * Refreshes a stored Bluesky actor through the viewer's linked account, at
- * most once per ten minutes per actor (the row's updatedAt). Best-effort: a
- * failure keeps the stored row.
+ * Refreshes a stored Bluesky actor from the AppView for a viewer with a
+ * linked account, at most once per ten minutes per actor (the row's
+ * updatedAt). Best-effort: a failure keeps the stored row.
  */
 export const refreshBlueskyProfile = async (
   database: Database,
@@ -157,17 +125,19 @@ export const refreshBlueskyProfile = async (
   const stored = await database.getActorFromId({ id: actorId })
   if (!stored || Date.now() - stored.updatedAt < REFRESH_INTERVAL_MS) return
   try {
-    const agent = await getBlueskyAgent(database, viewer)
-    if (agent) await fetchProfile(database, agent, did)
+    if (await hasLinkedAccount(database, viewer)) {
+      await fetchProfile(database, did)
+    }
   } catch (error) {
     logFailure('Failed to refresh Bluesky profile', error, { actorId })
   }
 }
 
 /**
- * Stores the newest posts of a stored Bluesky actor (app.bsky.feed.getAuthorFeed
- * through the viewer's linked account) for its profile page. Reposts and posts
- * by anyone else are skipped, and nothing is added to a Home timeline.
+ * Stores the newest posts of a stored Bluesky actor (the AppView's
+ * app.bsky.feed.getAuthorFeed, for a viewer with a linked account) for its
+ * profile page. Reposts and posts by anyone else are skipped, and nothing is
+ * added to a Home timeline.
  */
 export const loadBlueskyAuthorFeed = async (
   database: Database,
@@ -178,47 +148,15 @@ export const loadBlueskyAuthorFeed = async (
   if (!actorId.startsWith(PROFILE_PREFIX)) return
   const did = actorId.slice(PROFILE_PREFIX.length)
   if (!BLUESKY_DID_PATTERN.test(did)) return
-  const agent = await getBlueskyAgent(database, viewer)
-  if (!agent) return
-  const response = await agent.get<{ feed?: unknown }>(
-    'app.bsky.feed.getAuthorFeed',
-    { actor: did, limit: Math.min(Math.max(limit, 1), MAX_FEED_LIMIT) }
-  )
+  if (!(await hasLinkedAccount(database, viewer))) return
+  const response = await getPublicAuthorFeed(did, {
+    limit: Math.min(Math.max(limit, 1), MAX_FEED_LIMIT)
+  })
   const feed = Array.isArray(response?.feed) ? response.feed : []
-  const now = Date.now()
   for (const item of feed) {
-    if (!isRecord(item) || item.reason || !isRecord(item.post)) continue
-    const { uri, cid, author, record, embed, indexedAt } = item.post
-    if (
-      typeof uri !== 'string' ||
-      typeof cid !== 'string' ||
-      !isRecord(author) ||
-      author.did !== did ||
-      !isRecord(record)
-    ) {
-      continue
-    }
-    const at = parseAtUri(uri)
-    if (!at || at.did !== did || at.collection !== POST_COLLECTION) continue
-    const parent =
-      isRecord(record.reply) && isRecord(record.reply.parent)
-        ? parseAtUri(optionalString(record.reply.parent.uri) ?? '')
-        : null
-    const createdAt =
-      Date.parse(optionalString(record.createdAt) ?? '') ||
-      Date.parse(optionalString(indexedAt) ?? '') ||
-      now
-    await database.upsertBlueskyPost({
-      uri,
-      cid,
-      did,
-      rkey: at.rkey,
-      actorId,
-      text: blueskyPostToHtml(optionalString(record.text) ?? '', record.facets),
-      // A clock ahead of ours must not pin the post to the top of the profile.
-      createdAt: Math.min(createdAt, now),
-      replyToStatusId: parent ? blueskyPostId(parent.did, parent.rkey) : null,
-      attachments: blueskyImagesFromEmbed(embed)
-    })
+    if (!isRecord(item) || item.reason) continue
+    const post = parseBlueskyPostView(item.post)
+    if (!post || post.at.did !== did) continue
+    await storeBlueskyPostView(database, post)
   }
 }

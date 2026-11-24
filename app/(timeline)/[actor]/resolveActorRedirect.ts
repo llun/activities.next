@@ -44,5 +44,11 @@ export const getNonLocalActorRedirectTarget = async (
     }
   )
   if (isLocal) return null
+  // A Bluesky account (`@handle@bsky.app`) opens on bsky.app, whose profile
+  // pages are /profile/<handle> and whose following list is /follows.
+  if (domain.toLowerCase() === 'bsky.app') {
+    const page = subpath === '/following' ? '/follows' : subpath
+    return `https://bsky.app/profile/${encodeURIComponent(username)}${page}`
+  }
   return `https://${domain}/@${username}${subpath}`
 }

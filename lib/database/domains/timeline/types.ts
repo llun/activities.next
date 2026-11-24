@@ -22,6 +22,9 @@ export type CreateTimelineStatusParams = {
   timeline: Timeline
   actorId: string
   status: Status
+  // When the status entered this timeline, if not when it was posted (a
+  // Bluesky repost is dated at the repost).
+  createdAt?: number
 }
 export type AddStatusToFederatedTimelineParams = {
   statusId: string
