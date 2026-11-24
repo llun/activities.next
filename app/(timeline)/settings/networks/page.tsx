@@ -2,33 +2,60 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { Section } from '@/lib/components/surface/Section'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { getBlueskyAccountState } from '@/lib/services/bluesky/account'
 import { getBlueskySharingState } from '@/lib/services/blueskySharing'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
+import { BlueskyAccountForm } from './BlueskyAccountForm'
 import { BlueskySharingForm } from './BlueskySharingForm'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Other networks' }
 
-const Page = async () => {
+const Page = async ({
+  searchParams
+}: {
+  searchParams?: Promise<{ bluesky?: string | string[] }>
+} = {}) => {
   const database = getDatabase()
   if (!database) throw new Error('Fail to load database')
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
   if (!actor?.account) return redirect('/auth/signin')
+  const callbackResult = (await searchParams)?.bluesky
+
+  const [accountState, sharingState] = await Promise.all([
+    getBlueskyAccountState(database, actor),
+    getBlueskySharingState(database, actor)
+  ])
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Bluesky"
-        description="Share this profile’s public posts on Bluesky through Bridgy Fed."
+        description="Link your Bluesky account, or share this profile’s public posts through Bridgy Fed."
       />
-      <BlueskySharingForm
-        key={actor.id}
-        initialState={await getBlueskySharingState(database, actor)}
-      />
+      <Section
+        title="Your Bluesky account"
+        description="An account on bsky.social or any other Bluesky server."
+      >
+        <BlueskyAccountForm
+          key={actor.id}
+          initialState={accountState}
+          callbackResult={
+            typeof callbackResult === 'string' ? callbackResult : null
+          }
+        />
+      </Section>
+      <Section
+        title="Share through Bridgy Fed"
+        description="Copies this profile’s public posts to a bridged Bluesky account."
+      >
+        <BlueskySharingForm key={actor.id} initialState={sharingState} />
+      </Section>
     </div>
   )
 }

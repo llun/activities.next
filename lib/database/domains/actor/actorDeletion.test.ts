@@ -220,6 +220,48 @@ describe('ActorDatabase deletion', () => {
         ).toEqual([])
       })
 
+      it('unlinks the deleted actor’s Bluesky account and keeps other links', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-bsky-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        const peerActorId = `https://${TEST_DOMAIN}/users/delete-bsky-peer-${suffix}`
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+        for (const [id, did] of [
+          [actorId, `did:plc:gone${suffix}`],
+          [peerActorId, `did:plc:kept${suffix}`]
+        ]) {
+          await database.saveBlueskyAccount({
+            actorId: id,
+            did,
+            handle: `${suffix}.example.com`,
+            pdsUrl: 'https://pds.example.net/',
+            authType: 'oauth',
+            domainHandle: true
+          })
+          await database.setBlueskySession({ did, session: 'stored' })
+        }
+
+        await database.deleteActorData({ actorId })
+
+        expect(await database.getBlueskyAccount({ actorId })).toBeNull()
+        expect(
+          await database.getBlueskySession({ did: `did:plc:gone${suffix}` })
+        ).toBeNull()
+        expect(
+          await database.getBlueskyAccount({ actorId: peerActorId })
+        ).toMatchObject({ did: `did:plc:kept${suffix}` })
+        expect(
+          await database.getBlueskySession({ did: `did:plc:kept${suffix}` })
+        ).toBe('stored')
+      })
+
       it('removes account notes referencing the deleted actor on either side', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-note-${suffix}`

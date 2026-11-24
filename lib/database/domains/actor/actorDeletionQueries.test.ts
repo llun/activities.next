@@ -1372,6 +1372,8 @@ describe('statements', () => {
       'delete bookmarks by actorId',
       'delete bookmark_folders by actorId',
       'delete markers by actorId',
+      'delete bluesky_sessions by did',
+      'delete bluesky_accounts by actorId',
       'delete idempotency_keys by actorId',
       'select poll_answers by actorId',
       'select poll_choices by statusId',

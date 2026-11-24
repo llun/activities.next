@@ -75,3 +75,4 @@ export * from './client/webVitals'
 // --- HTTP & Base Utilities ---
 export * from './client/http'
 export { updateBlueskySharing } from '@/lib/client/blueskySharing'
+export * from '@/lib/client/blueskyAccount'

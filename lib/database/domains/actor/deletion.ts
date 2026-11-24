@@ -573,6 +573,23 @@ export const deleteActorData = async (
     // Delete markers made by this actor
     await trx.deleteFrom('markers').where('actorId', '=', actorId).execute()
 
+    // Unlink this actor's Bluesky account and drop its stored session
+    await trx
+      .deleteFrom('bluesky_sessions')
+      .where(
+        'did',
+        'in',
+        trx
+          .selectFrom('bluesky_accounts')
+          .select('did')
+          .where('actorId', '=', actorId)
+      )
+      .execute()
+    await trx
+      .deleteFrom('bluesky_accounts')
+      .where('actorId', '=', actorId)
+      .execute()
+
     // Delete this actor's idempotency keys (they hold a hash of each post body)
     await trx
       .deleteFrom('idempotency_keys')

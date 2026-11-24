@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import { isAbortError } from '@/lib/utils/isAbortError'
 import {
   ResolvedRemoteAddress,
+  SafeRemoteFetchError,
   SafeRemoteFetchTransport,
   createSafeRemoteFetch
 } from '@/lib/utils/safeRemoteFetch'
@@ -64,6 +65,42 @@ describe('safeRemoteFetch', () => {
       safeRemoteFetch({ url: 'https://safe.example/actor' })
     ).rejects.toThrow('Unsafe remote address')
     expect(transport).toHaveBeenCalledTimes(1)
+  })
+
+  it('never hands callers the request a transport error carries', async () => {
+    // Shaped like got's RequestError, whose enumerable `options` the logger
+    // would serialize: the body and headers of the failed request.
+    const transportError = Object.assign(new Error('connect ECONNREFUSED'), {
+      code: 'ECONNREFUSED',
+      options: {
+        body: '{"password":"abcd-efgh-ijkl-mnop"}',
+        headers: { authorization: 'DPoP secret-token' }
+      }
+    })
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async () => {
+        throw transportError
+      }
+    })
+
+    const error = await safeRemoteFetch({
+      url: 'https://safe.example/xrpc/com.atproto.server.createSession',
+      method: 'POST',
+      body: '{"password":"abcd-efgh-ijkl-mnop"}'
+    }).catch((caught: unknown) => caught)
+
+    expect(error).toMatchObject({
+      message: 'connect ECONNREFUSED',
+      code: 'ECONNREFUSED'
+    })
+    expect(error).not.toHaveProperty('options')
+    // A transport failure, not one of this helper's own refusals: callers
+    // that retry on the former must still see it as retryable.
+    expect(error).not.toBeInstanceOf(SafeRemoteFetchError)
+    const serialized = JSON.stringify(error, Object.getOwnPropertyNames(error))
+    expect(serialized).not.toContain('abcd-efgh-ijkl-mnop')
+    expect(serialized).not.toContain('secret-token')
   })
 
   it('stops reading when response body exceeds the byte limit', async () => {

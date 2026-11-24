@@ -9,6 +9,7 @@ import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 import { AltTextConfig, getAltTextConfig } from './altText'
 import { AuthConfig, getAuthConfig } from './auth'
+import { BlueskyConfig, getBlueskyConfig } from './bluesky'
 import { type DatabaseConfig, getDatabaseConfig } from './database'
 import {
   EmailConfig,
@@ -75,6 +76,7 @@ const Config = z.object({
   translation: TranslationConfig.optional(),
   searchEmbeddings: SearchEmbeddingsConfig.optional(),
   altText: AltTextConfig.optional(),
+  bluesky: BlueskyConfig.optional(),
   // Always present, defaults applied; see lib/config/gallery.ts.
   gallery: GalleryLookupConfig
 })
@@ -164,6 +166,7 @@ const getConfigFromEnvironment = () => {
       ...getTranslationConfig(),
       ...getSearchEmbeddingsConfig(),
       ...altTextConfig,
+      ...getBlueskyConfig(),
       ...getGalleryConfig(altTextConfig?.altText)
     })
   } catch (error) {

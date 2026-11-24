@@ -27,6 +27,7 @@ import * as addMediaSubjectTaxonRank from './20261105210627_add_media_subject_ta
 import * as addRemoteSignatureSchemes from './20261106094910_add_remote_signature_schemes'
 import * as addBookmarkFolders from './20261106120000_add_bookmark_folders'
 import * as addAccountsEmailChangeCodeIndex from './20261121174116_add_accounts_email_change_code_index'
+import * as addBlueskyAccounts from './20261123212228_add_bluesky_accounts'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -64,5 +65,6 @@ export const migrations: MigrationRegistry = {
   '20261106094910_add_remote_signature_schemes': addRemoteSignatureSchemes,
   '20261106120000_add_bookmark_folders': addBookmarkFolders,
   '20261121174116_add_accounts_email_change_code_index':
-    addAccountsEmailChangeCodeIndex
+    addAccountsEmailChangeCodeIndex,
+  '20261123212228_add_bluesky_accounts': addBlueskyAccounts
 } satisfies Record<MigrationName, MigrationModule>

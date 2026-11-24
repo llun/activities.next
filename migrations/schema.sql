@@ -241,6 +241,31 @@ CREATE TABLE public.blocks (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE public.bluesky_accounts (
+    "actorId" character varying(255) NOT NULL,
+    did character varying(255) NOT NULL,
+    handle character varying(255) NOT NULL,
+    "pdsUrl" character varying(2048) NOT NULL,
+    "authType" character varying(16) NOT NULL,
+    "domainHandle" boolean DEFAULT false NOT NULL,
+    "instanceHandle" character varying(255),
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.bluesky_oauth_states (
+    key character varying(255) NOT NULL,
+    state text NOT NULL,
+    "expiresAt" timestamp with time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.bluesky_sessions (
+    did character varying(255) NOT NULL,
+    session text NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.bookmark_folders (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1746,6 +1771,21 @@ ALTER TABLE ONLY public.blocks
 ALTER TABLE ONLY public.blocks
     ADD CONSTRAINT blocks_uri_unique UNIQUE (uri);
 
+ALTER TABLE ONLY public.bluesky_accounts
+    ADD CONSTRAINT bluesky_accounts_did_key UNIQUE (did);
+
+ALTER TABLE ONLY public.bluesky_accounts
+    ADD CONSTRAINT "bluesky_accounts_instanceHandle_key" UNIQUE ("instanceHandle");
+
+ALTER TABLE ONLY public.bluesky_accounts
+    ADD CONSTRAINT bluesky_accounts_pkey PRIMARY KEY ("actorId");
+
+ALTER TABLE ONLY public.bluesky_oauth_states
+    ADD CONSTRAINT bluesky_oauth_states_pkey PRIMARY KEY (key);
+
+ALTER TABLE ONLY public.bluesky_sessions
+    ADD CONSTRAINT bluesky_sessions_pkey PRIMARY KEY (did);
+
 ALTER TABLE ONLY public.bookmark_folders
     ADD CONSTRAINT bookmark_folders_actor_name_unique UNIQUE ("actorId", name);
 
@@ -2221,6 +2261,8 @@ CREATE INDEX "attachments_mediaId_idx" ON public.attachments USING btree ("media
 CREATE INDEX blocks_actor_created ON public.blocks USING btree ("actorId", "createdAt");
 
 CREATE INDEX blocks_target ON public.blocks USING btree ("targetActorId");
+
+CREATE INDEX bluesky_oauth_states_expires_at_idx ON public.bluesky_oauth_states USING btree ("expiresAt");
 
 CREATE INDEX bookmark_folders_actor_created ON public.bookmark_folders USING btree ("actorId", "createdAt");
 

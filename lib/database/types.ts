@@ -3,6 +3,7 @@ import { AccountExportDatabase } from '@/lib/database/domains/accountExport/type
 import { AccountImportDatabase } from '@/lib/database/domains/accountImport/types'
 import { ActorHandleDatabase } from '@/lib/database/domains/actorHandle/types'
 import { ActorMigrationDatabase } from '@/lib/database/domains/actorMigration/types'
+import { BlueskyAccountDatabase } from '@/lib/database/domains/blueskyAccount/types'
 import { BulkImportDatabase } from '@/lib/database/domains/bulkImport/types'
 import { DeliveryInboxesDatabase } from '@/lib/database/domains/deliveryInboxes/types'
 import { FitnessBestEffortDatabase } from '@/lib/database/domains/fitnessBestEffort/types'
@@ -102,6 +103,7 @@ export type Database = AccountDatabase &
   GalleryMediaDatabase &
   GalleryLookupCacheDatabase &
   ImportLockDatabase &
+  BlueskyAccountDatabase &
   RateLimitDatabase &
   StravaArchiveImportDatabase &
   WahooImportDatabase &

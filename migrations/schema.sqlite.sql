@@ -359,3 +359,7 @@ CREATE TABLE IF NOT EXISTS "bookmark_folders" ("id" varchar(255) primary key, "a
 CREATE INDEX "bookmark_folders_actor_created" on "bookmark_folders" ("actorId", "createdAt");
 CREATE INDEX "bookmarks_actor_folder_created_id" on "bookmarks" ("actorId", "folderId", "createdAt", "id");
 CREATE INDEX "emailChangeCodeIndex" on "accounts" ("emailChangeCode");
+CREATE TABLE IF NOT EXISTS "bluesky_accounts" ("actorId" varchar(255) primary key, "did" varchar(255) not null unique, "handle" varchar(255) not null, "pdsUrl" varchar(2048) not null, "authType" varchar(16) not null, "domainHandle" boolean default false not null, "instanceHandle" varchar(255) unique, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
+CREATE TABLE IF NOT EXISTS "bluesky_sessions" ("did" varchar(255) primary key, "session" text not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
+CREATE TABLE IF NOT EXISTS "bluesky_oauth_states" ("key" varchar(255) primary key, "state" text not null, "expiresAt" datetime not null, "createdAt" datetime default CURRENT_TIMESTAMP not null);
+CREATE INDEX "bluesky_oauth_states_expires_at_idx" on "bluesky_oauth_states" ("expiresAt");
