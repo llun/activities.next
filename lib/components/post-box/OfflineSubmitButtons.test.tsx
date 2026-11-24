@@ -11,9 +11,10 @@ import {
 } from './OfflineSubmitButtons'
 
 const REASON = "Videos stay as drafts. Post this when you're back online."
+const BLUESKY_REASON = 'Bluesky replies are posted right away, not queued.'
 
 describe('getQueueDisabledReason', () => {
-  it('blocks the queue only when a video is attached', () => {
+  it('blocks the queue for videos and Bluesky replies', () => {
     expect(getQueueDisabledReason([])).toBeUndefined()
     expect(getQueueDisabledReason([{ mediaType: 'image/png' }])).toBeUndefined()
     expect(
@@ -22,6 +23,9 @@ describe('getQueueDisabledReason', () => {
         { mediaType: 'video/mp4' }
       ])
     ).toBe(REASON)
+    expect(getQueueDisabledReason([], { blueskyReply: true })).toBe(
+      BLUESKY_REASON
+    )
   })
 })
 

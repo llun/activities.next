@@ -1,15 +1,21 @@
 // Replying to a Bluesky post and deleting the viewer's own Bluesky post.
 // Writes go to the user's linked PDS; stored content (parent lookup, mention
-// DIDs, reply readback and fallback author profile) always comes from the
-// public AppView, never from the PDS. Never creates an ActivityPub note or
-// enqueues an ActivityPub delivery.
+// DIDs, and reply readback) always comes from the public AppView, never from
+// the PDS. Never creates an ActivityPub note or enqueues an ActivityPub
+// delivery.
+import crypto from 'node:crypto'
+
+import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import { isBlueskyStatus } from '@/lib/types/domain/status'
 import {
   BLUESKY_MAX_GRAPHEMES,
+  BLUESKY_MAX_UTF8_BYTES,
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
   BLUESKY_TOO_LONG_MESSAGE,
-  countBlueskyGraphemes
+  countBlueskyGraphemes,
+  countBlueskyUtf8Bytes
 } from '@/lib/utils/blueskyText'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -21,7 +27,7 @@ import {
   BlueskySessionChangedError,
   getBlueskyAgent
 } from './agent'
-import { getPublicPosts, getPublicProfiles } from './appview'
+import { getPublicPosts } from './appview'
 import { createBlueskyLock } from './client'
 import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 import {
@@ -32,9 +38,12 @@ import {
   parseBlueskyPostView,
   storeBlueskyPostView
 } from './records'
-import { buildBlueskyFacets } from './richText'
+import { buildBlueskyFacets, normalizeBlueskyMentions } from './richText'
+
+export { BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE }
 
 const POST_COLLECTION = 'app.bsky.feed.post'
+const CID_V1_BASE32_PATTERN = /^b[a-z2-7]{50,}$/
 
 export const BLUESKY_REPLY_LOCK_PREFIX = 'bluesky-reply:'
 export const BLUESKY_REPLY_BUSY_MESSAGE =
@@ -42,6 +51,24 @@ export const BLUESKY_REPLY_BUSY_MESSAGE =
 export const BLUESKY_DELETE_BUSY_MESSAGE =
   'Another Bluesky change is in progress. Try again in a moment.'
 export const BLUESKY_EDIT_REFUSED_MESSAGE = 'Edits are not sent to Bluesky.'
+export const BLUESKY_REPLY_RATE_LIMIT_MESSAGE =
+  'Too many Bluesky replies. Try again in a few minutes.'
+export const BLUESKY_REPLY_RATE_LIMIT = {
+  limit: 30,
+  windowMs: 15 * 60 * 1000
+}
+
+export class BlueskyReplyRateLimitError extends Error {
+  readonly status = 429 as const
+
+  constructor(message = BLUESKY_REPLY_RATE_LIMIT_MESSAGE) {
+    super(message)
+    this.name = 'BlueskyReplyRateLimitError'
+  }
+}
+
+export type ReplyToBlueskyPostResult =
+  { stored: true; statusId: string } | { stored: false }
 
 const NOT_LINKED_REPLY =
   'Link a Bluesky account in Settings › Other networks to reply to Bluesky posts.'
@@ -98,7 +125,10 @@ const requireAgent = async (
   return agent
 }
 
-const validateReplyInput = (input: ReplyToBlueskyPostInput) => {
+const validateReplyInput = (
+  input: ReplyToBlueskyPostInput,
+  normalizedText: string
+) => {
   if (
     input.visibility !== undefined &&
     input.visibility !== 'public' &&
@@ -115,10 +145,13 @@ const validateReplyInput = (input: ReplyToBlueskyPostInput) => {
   if (input.spoilerText && input.spoilerText.trim().length > 0) {
     throw new BlueskyActionError(SPOILER_REFUSED)
   }
-  if (!input.text || input.text.trim().length === 0) {
+  if (!normalizedText || normalizedText.trim().length === 0) {
     throw new BlueskyActionError(EMPTY_TEXT_REFUSED)
   }
-  if (countBlueskyGraphemes(input.text) > BLUESKY_MAX_GRAPHEMES) {
+  if (
+    countBlueskyGraphemes(normalizedText) > BLUESKY_MAX_GRAPHEMES ||
+    countBlueskyUtf8Bytes(normalizedText) > BLUESKY_MAX_UTF8_BYTES
+  ) {
     throw new BlueskyActionError(BLUESKY_TOO_LONG_MESSAGE)
   }
 }
@@ -147,16 +180,12 @@ const readPublicPostByUri = async (
 }
 
 // Reads the newly written post back from the public AppView (retrying briefly
-// for indexing lag) and falls back to building a post view from the AppView's
-// author profile and the record we wrote.
-const resolveStoredPostView = async (
+// for indexing lag). Never constructs a stored view from PDS or local input.
+const readBackReplyFromAppView = async (
   uri: string,
-  cid: string,
   authorDid: string,
-  record: Record<string, unknown>,
-  indexedAt: string,
   wait: (ms: number) => Promise<void>
-): Promise<BlueskyPostView> => {
+): Promise<BlueskyPostView | null> => {
   for (let attempt = 0; attempt <= READBACK_RETRIES; attempt += 1) {
     if (attempt > 0) await wait(READBACK_RETRY_DELAY_MS)
     try {
@@ -171,25 +200,7 @@ const resolveStoredPostView = async (
       })
     }
   }
-
-  const profiles = await getPublicProfiles([authorDid])
-  const author = profiles.find(
-    (profile): profile is Record<string, unknown> =>
-      isRecord(profile) && profile.did === authorDid
-  )
-  const fallback = author
-    ? parseBlueskyPostView({
-        uri,
-        cid,
-        author,
-        record,
-        indexedAt
-      })
-    : null
-  if (!fallback) {
-    throw new Error('Could not load Bluesky author profile for stored reply')
-  }
-  return fallback
+  return null
 }
 
 const writeReply = async (
@@ -197,11 +208,12 @@ const writeReply = async (
   actor: Actor,
   input: ReplyToBlueskyPostInput,
   wait: (ms: number) => Promise<void>
-): Promise<string> => {
+): Promise<ReplyToBlueskyPostResult> => {
   if (!(await isBlueskyAllowed(database))) {
     throw new BlueskyActionError(BLUESKY_NOT_ALLOWED_MESSAGE)
   }
-  validateReplyInput(input)
+  const text = normalizeBlueskyMentions(input.text)
+  validateReplyInput(input, text)
 
   const parentStatus = await database.getStatus({
     statusId: input.parentStatusId,
@@ -215,21 +227,31 @@ const writeReply = async (
     throw new BlueskyActionError('Record not found', 404)
   }
 
+  const actorDigest = crypto.createHash('sha256').update(actor.id).digest('hex')
+  const budget = await database.consumeRateLimit({
+    key: `${APP_RATE_LIMIT_KEY_PREFIX}bluesky-reply:${actorDigest}`,
+    keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+    ...BLUESKY_REPLY_RATE_LIMIT
+  })
+  if (!budget.allowed) {
+    throw new BlueskyReplyRateLimitError()
+  }
+
   const agent = await requireAgent(database, actor, NOT_LINKED_REPLY)
 
   const parentView = await readPublicPostByUri(parentRecord.uri)
   if (!parentView) {
     throw new BlueskyActionError(PARENT_NOT_ON_APPVIEW)
   }
-  const parent: StrongRef = { uri: parentRecord.uri, cid: parentRecord.cid }
+  const parent: StrongRef = { uri: parentRecord.uri, cid: parentView.cid }
   const root: StrongRef = extractReplyRoot(parentView.record) ?? parent
 
-  const facets = await buildBlueskyFacets(input.text)
+  const facets = await buildBlueskyFacets(text)
   const createdAt = new Date().toISOString()
   const language = input.language?.trim()
   const record: Record<string, unknown> = {
     $type: POST_COLLECTION,
-    text: input.text,
+    text,
     ...(facets.length > 0 ? { facets } : {}),
     reply: { root, parent },
     createdAt,
@@ -244,49 +266,80 @@ const writeReply = async (
       record
     }
   )
-  const uri = typeof answer?.uri === 'string' ? answer.uri : ''
-  const cid = typeof answer?.cid === 'string' ? answer.cid : ''
-  const parsed = parseAtUri(uri)
-  if (
-    !cid ||
-    parsed?.did !== agent.did ||
-    parsed.collection !== POST_COLLECTION
-  ) {
-    throw new Error('Bluesky createRecord gave an unexpected answer')
+
+  // Once createRecord has succeeded, the reply may exist on Bluesky. Nothing
+  // after this point may throw a retryable error (a retry would post a
+  // duplicate reply); any readback, validation, relink, or storage issue
+  // signals `{ stored: false }` so the caller tells the user it is on Bluesky.
+  try {
+    const uri = typeof answer?.uri === 'string' ? answer.uri : ''
+    const cid = typeof answer?.cid === 'string' ? answer.cid : ''
+    const parsed = parseAtUri(uri)
+    if (
+      !CID_V1_BASE32_PATTERN.test(cid) ||
+      parsed?.did !== agent.did ||
+      parsed.collection !== POST_COLLECTION
+    ) {
+      logger.warn({
+        message:
+          'Bluesky createRecord returned an unexpected uri or cid; skipping local storage',
+        actorId: actor.id,
+        uri,
+        cid
+      })
+      return { stored: false }
+    }
+
+    const postView = await readBackReplyFromAppView(uri, agent.did, wait)
+    if (!postView) {
+      return { stored: false }
+    }
+
+    // Re-check the linked DID before storing so a relink during the PDS/AppView
+    // calls cannot attribute the reply to a replaced session.
+    const link = await database.getBlueskyAccount({ actorId: actor.id })
+    if (!link || link.did !== agent.did) {
+      logger.warn({
+        message:
+          'Bluesky link changed after createRecord; skipping local storage',
+        actorId: actor.id,
+        uri
+      })
+      return { stored: false }
+    }
+
+    const statusId = await storeBlueskyPostView(database, postView)
+    if (!statusId) {
+      logger.warn({
+        message: 'Could not store Bluesky reply locally after createRecord',
+        actorId: actor.id,
+        uri
+      })
+      return { stored: false }
+    }
+    return { stored: true, statusId }
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to store Bluesky reply locally after createRecord',
+      actorId: actor.id,
+      err: toLoggableError(error)
+    })
+    return { stored: false }
   }
-
-  const postView = await resolveStoredPostView(
-    uri,
-    cid,
-    agent.did,
-    record,
-    createdAt,
-    wait
-  )
-
-  // Re-check the linked DID before storing so a relink during the PDS/AppView
-  // calls cannot attribute the reply to a replaced session.
-  const link = await database.getBlueskyAccount({ actorId: actor.id })
-  if (!link) throw new BlueskyActionError(NOT_LINKED_REPLY)
-  if (link.did !== agent.did) throw new BlueskySessionChangedError()
-
-  const statusId = await storeBlueskyPostView(database, postView)
-  if (!statusId) {
-    throw new Error('Could not store Bluesky reply')
-  }
-  return statusId
 }
 
 /**
  * Publishes a reply to a stored Bluesky post on the actor's linked PDS and
- * stores the resulting Bluesky post locally. Returns the stored status id.
+ * stores the resulting AppView post locally when available. Returns
+ * `{ stored: true, statusId }` when stored, or `{ stored: false }` when the
+ * reply reached Bluesky but could not be read back or stored locally yet.
  */
 export const replyToBlueskyPost = async (
   database: Database,
   actor: Actor,
   input: ReplyToBlueskyPostInput,
   options?: ReplyToBlueskyPostOptions
-): Promise<string> =>
+): Promise<ReplyToBlueskyPostResult> =>
   withReplyLock(database, actor, () =>
     writeReply(database, actor, input, options?.wait ?? defaultWait)
   )

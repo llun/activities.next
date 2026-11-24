@@ -1,6 +1,10 @@
 import {
   BLUESKY_MAX_GRAPHEMES,
-  countBlueskyGraphemes
+  BLUESKY_MAX_UTF8_BYTES,
+  BLUESKY_TOO_LONG_MESSAGE,
+  countBlueskyGraphemes,
+  countBlueskyUtf8Bytes,
+  getBlueskyReplyLengthState
 } from '@/lib/utils/blueskyText'
 
 describe('countBlueskyGraphemes', () => {
@@ -14,5 +18,62 @@ describe('countBlueskyGraphemes', () => {
     // Thai with combining vowel + tone mark.
     expect(countBlueskyGraphemes('สวัสดี')).toBe(4)
     expect(countBlueskyGraphemes('🚀'.repeat(BLUESKY_MAX_GRAPHEMES))).toBe(300)
+  })
+})
+
+describe('countBlueskyUtf8Bytes', () => {
+  it('counts UTF-8 byte length accurately for ASCII and multibyte emoji', () => {
+    expect(countBlueskyUtf8Bytes('hello')).toBe(5)
+    // ZWJ family emoji is 25 UTF-8 bytes; 120 fits 3000 bytes, 121 exceeds it.
+    expect(countBlueskyUtf8Bytes('👨‍👩‍👧‍👦'.repeat(120))).toBe(BLUESKY_MAX_UTF8_BYTES)
+    expect(countBlueskyUtf8Bytes('👨‍👩‍👧‍👦'.repeat(121))).toBe(3025)
+  })
+})
+
+describe('getBlueskyReplyLengthState', () => {
+  it('enforces both the instance .length limit and Bluesky grapheme/byte limits', () => {
+    expect(getBlueskyReplyLengthState('', 500)).toEqual({
+      remaining: 300,
+      overBlueskyLimit: false,
+      overInstanceLimit: false,
+      withinLimits: true,
+      errorMessage: null
+    })
+
+    // Instance limit tighter than 300.
+    expect(getBlueskyReplyLengthState('a'.repeat(201), 200)).toEqual({
+      remaining: -1,
+      overBlueskyLimit: false,
+      overInstanceLimit: true,
+      withinLimits: false,
+      errorMessage: 'Text character limit of 200 exceeded'
+    })
+
+    // Over 300 graphemes but within instance limit.
+    expect(getBlueskyReplyLengthState('a'.repeat(301), 500)).toEqual({
+      remaining: -1,
+      overBlueskyLimit: true,
+      overInstanceLimit: false,
+      withinLimits: false,
+      errorMessage: BLUESKY_TOO_LONG_MESSAGE
+    })
+
+    // Within 300 graphemes (50) but over 500 UTF-16 code units (550).
+    expect(getBlueskyReplyLengthState('👨‍👩‍👧‍👦'.repeat(50), 500)).toEqual({
+      remaining: -50,
+      overBlueskyLimit: false,
+      overInstanceLimit: true,
+      withinLimits: false,
+      errorMessage: 'Text character limit of 500 exceeded'
+    })
+
+    // Within 300 graphemes (121) and within large instance limit (5000), but over 3000 UTF-8 bytes.
+    expect(getBlueskyReplyLengthState('👨‍👩‍👧‍👦'.repeat(121), 5000)).toEqual({
+      remaining: 179,
+      overBlueskyLimit: true,
+      overInstanceLimit: false,
+      withinLimits: false,
+      errorMessage: BLUESKY_TOO_LONG_MESSAGE
+    })
   })
 })

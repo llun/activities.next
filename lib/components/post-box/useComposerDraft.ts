@@ -22,7 +22,11 @@ import {
   useDrafts
 } from '@/lib/components/drafts/DraftsProvider'
 import type { PostBoxAttachment } from '@/lib/types/domain/attachment'
-import type { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
+import {
+  type QuoteApprovalPolicy,
+  type Status,
+  isBlueskyStatus
+} from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import type { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
@@ -866,6 +870,13 @@ export const useComposerDraft = ({
         live.current.isSeeding?.() ||
         d.conflicted ||
         d.blobFailures.size > 0
+      if (
+        queue &&
+        live.current.replyTo &&
+        isBlueskyStatus(live.current.replyTo)
+      ) {
+        return false
+      }
       // Nothing worth keeping (an untouched composer, a reply holding only its
       // mention): never an empty record.
       if (blocked() || live.current.getContent() === null) return false

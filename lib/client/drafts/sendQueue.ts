@@ -22,6 +22,11 @@ import type {
   getStatusIfReadable
 } from '@/lib/client/statuses'
 import { EXPECTED_ACTOR_MISMATCH_ERROR } from '@/lib/services/statuses/expectedActor'
+import { isBlueskyStatus } from '@/lib/types/domain/status'
+import {
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
+  BLUESKY_REPLY_QUEUE_DISABLED_REASON
+} from '@/lib/utils/blueskyText'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 import { blobRecordToFile, blobRecordToPosterFile } from './draftMedia'
@@ -175,6 +180,31 @@ export const classifySendOutcome = (
   draft: DraftRecord,
   { now, preflight = false }: { now: number; preflight?: boolean }
 ): Outcome => {
+  // Bluesky replies are never queued or retried automatically (each retry
+  // could post a duplicate reply on Bluesky).
+  if (draft.replyTo && isBlueskyStatus(draft.replyTo)) {
+    if (preflight) {
+      return needsReview(BLUESKY_REPLY_QUEUE_DISABLED_REASON)
+    }
+    const status = error instanceof ApiRequestError ? error.status : undefined
+    const reason =
+      error instanceof Error && error.message
+        ? error.message
+        : BLUESKY_REPLY_QUEUE_DISABLED_REASON
+    return {
+      kind: 'couldnt_send',
+      reason,
+      ...(status === 503
+        ? {
+            lockedMessage:
+              (error as Error).message ||
+              BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
+          }
+        : draft.lockedMessage
+          ? { lockedMessage: draft.lockedMessage }
+          : {})
+    }
+  }
   const attempts = draft.queue?.attempts ?? 0
   const status = error instanceof ApiRequestError ? error.status : undefined
   // Before anything that reads 409 as "kept".
@@ -299,6 +329,9 @@ export const preflight = async (
   now: number,
   signal?: AbortSignal
 ): Promise<Outcome | null> => {
+  if (draft.replyTo && isBlueskyStatus(draft.replyTo)) {
+    return needsReview(BLUESKY_REPLY_QUEUE_DISABLED_REASON)
+  }
   if (draft.queue && now - draft.queue.queuedAt > MAX_QUEUE_AGE_MS) {
     return needsReview('Waited more than 24 hours. Check it, then send it.')
   }
@@ -512,6 +545,12 @@ const sendOne = async (
   let draft = claimed
   let posting = false
   try {
+    if (draft.replyTo && isBlueskyStatus(draft.replyTo)) {
+      return {
+        draft,
+        outcome: needsReview(BLUESKY_REPLY_QUEUE_DISABLED_REASON)
+      }
+    }
     const firstAttemptAt = draft.queue?.firstAttemptAt
     if (!firstAttemptAt) {
       const blocked = await preflight(draft, deps, now, signal)

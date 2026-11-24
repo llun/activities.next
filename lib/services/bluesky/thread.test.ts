@@ -1,3 +1,4 @@
+import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { getPublicPostThread } from '@/lib/services/bluesky/appview'
 import {
@@ -5,7 +6,10 @@ import {
   parseBlueskyPostView,
   storeBlueskyPostView
 } from '@/lib/services/bluesky/records'
-import { loadBlueskyThread } from '@/lib/services/bluesky/thread'
+import {
+  BLUESKY_THREAD_VIEWER_RATE_LIMIT,
+  loadBlueskyThread
+} from '@/lib/services/bluesky/thread'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import type { Actor } from '@/lib/types/domain/actor'
@@ -102,8 +106,12 @@ describe('loadBlueskyThread', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.mocked(getPublicPostThread).mockReset()
+    await database.deleteRateLimits({
+      keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+      before: Date.now() + 24 * 60 * 60 * 1000
+    })
   })
 
   const storeView = async (view: ReturnType<typeof postView>) => {
@@ -272,5 +280,28 @@ describe('loadBlueskyThread', () => {
     expect(
       await database.getStatus({ statusId: blueskyPostId(did('bob'), 'mr1') })
     ).toBeNull()
+  })
+
+  it('enforces a per-viewer rate limit and silently skips AppView reads once over budget', async () => {
+    vi.mocked(getPublicPostThread).mockResolvedValue({ thread: null })
+
+    for (let i = 0; i < BLUESKY_THREAD_VIEWER_RATE_LIMIT.limit; i += 1) {
+      const view = postView('alice', `budget${i}`)
+      const id = await storeView(view)
+      await loadBlueskyThread(database, linkedViewer, id)
+    }
+    expect(getPublicPostThread).toHaveBeenCalledTimes(
+      BLUESKY_THREAD_VIEWER_RATE_LIMIT.limit
+    )
+
+    // The 31st distinct post is silently skipped without calling AppView or throwing.
+    const extraView = postView('alice', 'budgetover')
+    const extraId = await storeView(extraView)
+    await expect(
+      loadBlueskyThread(database, linkedViewer, extraId)
+    ).resolves.toBeUndefined()
+    expect(getPublicPostThread).toHaveBeenCalledTimes(
+      BLUESKY_THREAD_VIEWER_RATE_LIMIT.limit
+    )
   })
 })

@@ -124,6 +124,38 @@ const findLinks = (text: string): LinkCandidate[] => {
 const HANDLE_TLD_REGEX = /^[a-zA-Z][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?$/
 const MENTION_REGEX =
   /(^|[^\p{L}\p{N}_.@/-])(@([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+))/gu
+const BSKY_ACCT_MENTION_REGEX =
+  /(^|[^\p{L}\p{N}_.@/-])(@([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+))@bsky\.app(?![a-zA-Z0-9@-]|\.[a-zA-Z0-9])/giu
+
+/**
+ * Rewrites Mastodon-style `@<handle>@bsky.app` mentions (prefilled by Mastodon
+ * clients from a Bluesky account's `handle@bsky.app` acct) to `@<handle>`,
+ * skipping URLs and invalid handles.
+ */
+export const normalizeBlueskyMentions = (text: string): string => {
+  if (!text.toLowerCase().includes('@bsky.app')) return text
+  const links = findLinks(text)
+  return text.replace(
+    BSKY_ACCT_MENTION_REGEX,
+    (
+      match,
+      prefix: string,
+      mention: string,
+      handle: string,
+      offset: number
+    ) => {
+      const start = offset + prefix.length
+      const end = offset + match.length
+      if (links.some((link) => overlaps(link, { start, end }))) {
+        return match
+      }
+      if (handle.length > MAX_HANDLE_LENGTH) return match
+      const tld = handle.slice(handle.lastIndexOf('.') + 1)
+      if (!HANDLE_TLD_REGEX.test(tld)) return match
+      return `${prefix}${mention}`
+    }
+  )
+}
 
 const findMentions = (
   text: string,

@@ -668,5 +668,32 @@ describe('GET /api/v1/statuses/[id]/context', () => {
       expect(localRes.status).toBe(200)
       expect(getPublicPostThread).not.toHaveBeenCalled()
     })
+
+    it('resolves a fediverse status publicId only once for a signed-in viewer', async () => {
+      const localId = `${ACTOR1_ID}/statuses/single-resolve`
+      await database.createNote({
+        id: localId,
+        url: localId,
+        actorId: ACTOR1_ID,
+        text: 'Fediverse status',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const publicId = await statusPublicId(database, localId)
+      const lookupSpy = vi.spyOn(database, 'getStatusIdByPublicId')
+      try {
+        const res = await getStatusContext(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${publicId}/context`
+          ),
+          { params: Promise.resolve({ id: publicId }) }
+        )
+        expect(res.status).toBe(200)
+        expect(lookupSpy).toHaveBeenCalledTimes(1)
+        expect(getPublicPostThread).not.toHaveBeenCalled()
+      } finally {
+        lookupSpy.mockRestore()
+      }
+    })
   })
 })

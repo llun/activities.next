@@ -766,4 +766,56 @@ describe('storing AppView views', () => {
     expect(await database.getStatusReblogsCount({ statusId })).toBe(0)
     expect(await database.getStatusRepliesCount({ statusId })).toBe(5)
   })
+
+  it('links a reply parent only when the parent URI collection is app.bsky.feed.post', async () => {
+    const BOB = `did:plc:${'b'.repeat(24)}`
+    const nonPostParent = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/replynonpost`,
+      cid: 'cid-replynonpost',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Reply to non-post record',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        reply: {
+          root: { uri: `at://${BOB}/app.bsky.feed.like/3k1`, cid: 'cid-like' },
+          parent: { uri: `at://${BOB}/app.bsky.feed.like/3k1`, cid: 'cid-like' }
+        }
+      }
+    })
+    expect(nonPostParent).not.toBeNull()
+    const nonPostStatusId = (await storeBlueskyPostView(
+      database,
+      nonPostParent as NonNullable<typeof nonPostParent>
+    )) as string
+    const nonPostStatus = await database.getStatus({
+      statusId: nonPostStatusId
+    })
+    expect(nonPostStatus).toMatchObject({ type: 'Note', reply: '' })
+
+    const postParent = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/replypost`,
+      cid: 'cid-replypost',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Reply to actual post',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        reply: {
+          root: { uri: `at://${BOB}/app.bsky.feed.post/3k2`, cid: 'cid-p' },
+          parent: { uri: `at://${BOB}/app.bsky.feed.post/3k2`, cid: 'cid-p' }
+        }
+      }
+    })
+    expect(postParent).not.toBeNull()
+    const postStatusId = (await storeBlueskyPostView(
+      database,
+      postParent as NonNullable<typeof postParent>
+    )) as string
+    const postStatus = await database.getStatus({ statusId: postStatusId })
+    expect(postStatus).toMatchObject({
+      type: 'Note',
+      reply: blueskyPostId(BOB, '3k2')
+    })
+  })
 })

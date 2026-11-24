@@ -11,6 +11,7 @@ import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import { Scope } from '@/lib/types/database/operations'
 import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { isPublicId } from '@/lib/utils/publicId'
 import {
   ERROR_404,
   apiCorsError,
@@ -38,6 +39,7 @@ export const GET = traceApiRoute(
 
       const { database, currentActor } = context
 
+      let contextStatusId = encodedStatusId
       if (currentActor) {
         const resolvedStatusId = await resolveStatusIdParam(
           database,
@@ -45,6 +47,16 @@ export const GET = traceApiRoute(
         )
         if (isBlueskyId(resolvedStatusId)) {
           await loadBlueskyThread(database, currentActor, resolvedStatusId)
+        }
+        // Reuse the resolved canonical URI when a publicId resolved, so
+        // getStatusContext does not repeat the publicId lookup for fediverse
+        // or Bluesky statuses. Keep the original param otherwise so legacy
+        // raw-id fallbacks stay intact.
+        if (
+          isPublicId(encodedStatusId) &&
+          resolvedStatusId !== encodedStatusId
+        ) {
+          contextStatusId = resolvedStatusId
         }
       }
 
@@ -55,7 +67,7 @@ export const GET = traceApiRoute(
         missingParentId
       } = await getStatusContext({
         database,
-        statusId: encodedStatusId,
+        statusId: contextStatusId,
         currentActor
       })
 

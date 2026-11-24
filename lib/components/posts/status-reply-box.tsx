@@ -16,7 +16,11 @@ import { createNote, uploadAttachment } from '@/lib/client'
 import { reportRequestFailure } from '@/lib/client/connection'
 import type { DraftRecord } from '@/lib/client/drafts'
 import { replyBoxFingerprint } from '@/lib/client/drafts/submitRequest'
-import { DRAFT_LOCKED_NOTICE, classifyFailedPost } from '@/lib/client/http'
+import {
+  ApiRequestError,
+  DRAFT_LOCKED_NOTICE,
+  classifyFailedPost
+} from '@/lib/client/http'
 import { syncPendingLinkPreviewForStatus } from '@/lib/client/pendingLinkPreviews'
 import {
   loadLinkedBlueskyAccount,
@@ -68,9 +72,9 @@ import {
 } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import {
-  BLUESKY_MAX_GRAPHEMES,
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
   BLUESKY_TOO_LONG_MESSAGE,
-  countBlueskyGraphemes
+  getBlueskyReplyLengthState
 } from '@/lib/utils/blueskyText'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
@@ -108,9 +112,6 @@ export const StatusReplyBox: FC<Props> = ({
   // a draft grow past the limit and only fail on submit.
   const { maxStatusCharacters, maxMediaAttachments } = useInstanceLimits()
   const isBlueskyReply = isBlueskyStatus(replyStatus)
-  const effectiveMaxCharacters = isBlueskyReply
-    ? BLUESKY_MAX_GRAPHEMES
-    : maxStatusCharacters
   const linkedBlueskyAccount = useLinkedBlueskyAccount(
     isBlueskyReply ? profile.id : undefined
   )
@@ -250,19 +251,32 @@ export const StatusReplyBox: FC<Props> = ({
 
   // Allow posting if text has content OR if there are media attachments
   // (permitting valid attachment-only replies per repository guidelines).
-  const currentLength = isBlueskyReply
-    ? countBlueskyGraphemes(text)
-    : text.length
-  const remainingCharacters = effectiveMaxCharacters - currentLength
-  const isOverBlueskyLimit =
-    isBlueskyReply && !draftLocked && remainingCharacters < 0
+  const blueskyLengthState = isBlueskyReply
+    ? getBlueskyReplyLengthState(text, maxStatusCharacters)
+    : null
+  const remainingCharacters = blueskyLengthState
+    ? blueskyLengthState.remaining
+    : maxStatusCharacters - text.length
+  const blueskyLengthError =
+    blueskyLengthState && !draftLocked ? blueskyLengthState.errorMessage : null
+  const isBlueskyLimitWarning =
+    Boolean(blueskyLengthError) &&
+    blueskyLengthError === BLUESKY_TOO_LONG_MESSAGE
+  const isInstanceLimitError =
+    Boolean(blueskyLengthError) && !isBlueskyLimitWarning
   const hasContent =
     text.trim().length > 0 ||
     (!isBlueskyReply && postExtension.attachments.length > 0)
+  const withinLengthLimits = blueskyLengthState
+    ? blueskyLengthState.withinLimits
+    : text.length <= maxStatusCharacters
   // A locked draft replays server-side before any content-limit check, so a
-  // lowered limit must not block its retry.
+  // lowered limit must not block its retry. A locked Bluesky reply was already
+  // posted on Bluesky and must not be resent.
   const allowPost =
-    hasContent && (draftLocked || currentLength <= effectiveMaxCharacters)
+    hasContent &&
+    !(isBlueskyReply && draftLocked) &&
+    (draftLocked || withinLengthLimits)
 
   const drafts = useDrafts()
   const connectionState = useConnectionStatus().state
@@ -271,7 +285,10 @@ export const StatusReplyBox: FC<Props> = ({
   // online.
   const offlineSplit =
     drafts !== null && connectionState !== 'online' ? connectionState : null
-  const queueDisabledReason = getQueueDisabledReason(postExtension.attachments)
+  const queueDisabledReason = getQueueDisabledReason(
+    postExtension.attachments,
+    { blueskyReply: isBlueskyReply }
+  )
 
   // Offline an implicit submit (Enter in a lone text field, such as the
   // content warning) follows the primary button too, never a live send.
@@ -461,7 +478,7 @@ export const StatusReplyBox: FC<Props> = ({
     }
     // Nothing worth keeping (only the mention pre-fill): no empty record.
     if (getDraftContent() === null) return
-    if (queue && !allowPost) return
+    if (queue && (!allowPost || isBlueskyReply)) return
     isSubmittingRef.current = true
     let handedOff = false
     setIsPosting(true)
@@ -500,6 +517,9 @@ export const StatusReplyBox: FC<Props> = ({
 
     // Double-submit prevention: synchronously reject if already submitting
     if (isSubmittingRef.current || isPosting) {
+      return
+    }
+    if (!allowPost || (isBlueskyReply && draftLockedRef.current)) {
       return
     }
     // A new target not applied yet (the re-target effect runs after the render
@@ -662,6 +682,21 @@ export const StatusReplyBox: FC<Props> = ({
       isSubmittingRef.current = false
       setIsPosting(false)
       reportRequestFailure(error)
+      if (
+        isBlueskyReply &&
+        error instanceof ApiRequestError &&
+        error.status === 503
+      ) {
+        const postedMessage =
+          error.message || BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
+        setLockedMessage(postedMessage)
+        setWarningMsg(null)
+        void composerDraft.recordLock(
+          postedMessage,
+          submitIdempotencyRef.current
+        )
+        return
+      }
       // Surface the server's message without wiping user draft, CW, or attachments.
       const { action, message: failureMessage } = classifyFailedPost(error, {
         retryingLocked: retryingLockedDraft,
@@ -929,7 +964,9 @@ export const StatusReplyBox: FC<Props> = ({
 
             {lockedMessage ? (
               <div role="status" className="text-xs text-muted-foreground mt-2">
-                {lockedMessage} {DRAFT_LOCKED_NOTICE}
+                {isBlueskyReply
+                  ? lockedMessage
+                  : `${lockedMessage} ${DRAFT_LOCKED_NOTICE}`}
               </div>
             ) : null}
 
@@ -1023,17 +1060,26 @@ export const StatusReplyBox: FC<Props> = ({
                       : 'Replying on Bluesky · public'}
                   </span>
                 ) : null}
-                {isOverBlueskyLimit ? (
-                  <span role="alert" className="text-xs text-warning-text">
-                    {BLUESKY_TOO_LONG_MESSAGE}
+                {blueskyLengthError ? (
+                  <span
+                    role="alert"
+                    className={cn(
+                      'text-xs',
+                      isBlueskyLimitWarning
+                        ? 'text-warning-text'
+                        : 'text-destructive-text'
+                    )}
+                  >
+                    {blueskyLengthError}
                   </span>
                 ) : null}
                 <span
                   className={cn(
                     'font-mono text-xs tabular-nums',
-                    isOverBlueskyLimit
+                    isBlueskyLimitWarning
                       ? 'text-warning-text'
-                      : !draftLocked && remainingCharacters < 0
+                      : isInstanceLimitError ||
+                          (!draftLocked && remainingCharacters < 0)
                         ? 'text-destructive'
                         : 'text-muted-foreground'
                   )}

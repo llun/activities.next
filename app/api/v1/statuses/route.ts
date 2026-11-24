@@ -20,6 +20,8 @@ import { blueskyActionFailure } from '@/lib/services/bluesky/actionErrors'
 import {
   BLUESKY_REPLY_BUSY_MESSAGE,
   BLUESKY_REPLY_LOCK_PREFIX,
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
+  BlueskyReplyRateLimitError,
   replyToBlueskyPost
 } from '@/lib/services/bluesky/reply'
 import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
@@ -633,8 +635,9 @@ export const POST = traceApiRoute(
                 responseStatusCode: 422
               })
             }
+            let blueskyReplyPosted = false
             try {
-              const blueskyStatusId = await replyToBlueskyPost(
+              const replyResult = await replyToBlueskyPost(
                 database,
                 currentActor,
                 {
@@ -648,8 +651,17 @@ export const POST = traceApiRoute(
                   language: note.language
                 }
               )
+              blueskyReplyPosted = true
+              if (!replyResult.stored) {
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: { error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE },
+                  responseStatusCode: 503
+                })
+              }
               const blueskyStatus = await database.getStatus({
-                statusId: blueskyStatusId,
+                statusId: replyResult.statusId,
                 currentActorId: currentActor.id
               })
               if (!blueskyStatus) {
@@ -670,6 +682,26 @@ export const POST = traceApiRoute(
                 data: mastodonStatus
               })
             } catch (error) {
+              if (blueskyReplyPosted) {
+                logger.error(
+                  { err: toLoggableError(error) },
+                  'createStatus: request failed after the Bluesky reply was posted'
+                )
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: { error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE },
+                  responseStatusCode: 503
+                })
+              }
+              if (error instanceof BlueskyReplyRateLimitError) {
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: { error: error.message },
+                  responseStatusCode: error.status
+                })
+              }
               const failure = blueskyActionFailure(error, {
                 lockPrefix: BLUESKY_REPLY_LOCK_PREFIX,
                 busy: BLUESKY_REPLY_BUSY_MESSAGE

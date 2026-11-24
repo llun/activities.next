@@ -400,7 +400,10 @@ export const storeBlueskyPostView = async (
     isRecord(record.reply) && isRecord(record.reply.parent)
       ? parseAtUri(optionalString(record.reply.parent.uri) ?? '')
       : null
-  const replyToStatusId = parent ? blueskyPostId(parent.did, parent.rkey) : null
+  const replyToStatusId =
+    parent && parent.collection === POST_COLLECTION
+      ? blueskyPostId(parent.did, parent.rkey)
+      : null
   const postUrl = blueskyPostId(post.at.did, post.at.rkey)
   if (
     postUrl.length > MAX_COLUMN_LENGTH ||

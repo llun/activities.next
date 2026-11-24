@@ -37,6 +37,7 @@ import {
   postBoxPollFingerprint
 } from '@/lib/client/drafts/submitRequest'
 import {
+  ApiRequestError,
   DRAFT_LOCKED_NOTICE,
   classifyFailedPost,
   isPostKeptByServer
@@ -85,9 +86,9 @@ import { Tag } from '@/lib/types/domain/tag'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import { cn } from '@/lib/utils'
 import {
-  BLUESKY_MAX_GRAPHEMES,
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
   BLUESKY_TOO_LONG_MESSAGE,
-  countBlueskyGraphemes
+  getBlueskyReplyLengthState
 } from '@/lib/utils/blueskyText'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getStatusVisibility } from '@/lib/utils/getVisibility'
@@ -259,13 +260,26 @@ export const PostBox: FC<Props> = ({
   const isBlueskyReply = Boolean(
     replyStatus && !editStatus && isBlueskyStatus(replyStatus)
   )
-  const effectiveMaxCharacters = isBlueskyReply
-    ? BLUESKY_MAX_GRAPHEMES
-    : maxStatusCharacters
-  const countCharacters = useCallback(
+  const isWithinPostLengthLimit = useCallback(
     (value: string) =>
-      isBlueskyReply ? countBlueskyGraphemes(value) : value.length,
-    [isBlueskyReply]
+      isBlueskyReply
+        ? getBlueskyReplyLengthState(value, maxStatusCharacters).withinLimits
+        : isWithinLengthLimit(value, maxStatusCharacters),
+    [isBlueskyReply, maxStatusCharacters]
+  )
+  const canSubmitNewPost = useCallback(
+    (
+      value: string,
+      extension: {
+        attachments: Pick<PostBoxAttachment, 'id'>[]
+        fitnessFile?: unknown
+      }
+    ) =>
+      isBlueskyReply
+        ? value.trim().length > 0 &&
+          getBlueskyReplyLengthState(value, maxStatusCharacters).withinLimits
+        : hasNewPostContent(value, extension, maxStatusCharacters),
+    [isBlueskyReply, maxStatusCharacters]
   )
   const linkedBlueskyAccount = useLinkedBlueskyAccount(
     isBlueskyReply ? profile.id : undefined
@@ -620,21 +634,20 @@ export const PostBox: FC<Props> = ({
     // A locked draft is already saved on the server and replays before any
     // content-limit check, so a limit lowered since it locked must not block
     // its retry (the text is read-only; Discard would leave the post unsent).
+    // A locked Bluesky reply was already posted on Bluesky and must not be
+    // resent.
     setAllowPost(
-      draftLocked ||
-        hasNewPostContent(
-          textRef.current,
-          postExtensionRef.current,
-          effectiveMaxCharacters,
-          countCharacters
-        )
+      isBlueskyReply && draftLocked
+        ? false
+        : draftLocked ||
+            canSubmitNewPost(textRef.current, postExtensionRef.current)
     )
     // Deliberately keyed only on the limit, the in-flight flag, the edit target
     // (to pick the predicate) and the draft lock: the draft itself is read from
     // refs, and every draft edit already recomputes `allowPost` in its handler.
   }, [
-    effectiveMaxCharacters,
-    countCharacters,
+    canSubmitNewPost,
+    isBlueskyReply,
     isPosting,
     editStatus,
     draftLocked,
@@ -1204,15 +1217,9 @@ export const PostBox: FC<Props> = ({
     // Nothing worth keeping (an untouched composer): no empty record.
     if (getDraftContent() === null) return
     if (queue) {
+      if (isBlueskyReply) return
       if (!allowPost) return
-      if (
-        !draftLocked &&
-        !isWithinLengthLimit(
-          textRef.current,
-          effectiveMaxCharacters,
-          countCharacters
-        )
-      ) {
+      if (!draftLocked && !isWithinPostLengthLimit(textRef.current)) {
         return
       }
       if (postExtension.poll.showing && postExtension.fitnessFile) {
@@ -1266,16 +1273,9 @@ export const PostBox: FC<Props> = ({
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
     if (!allowPost) return
+    if (isBlueskyReply && draftLockedRef.current) return
     if (missingDescription || settingsLoading) return
-    if (
-      !draftLocked &&
-      !isWithinLengthLimit(
-        textRef.current,
-        effectiveMaxCharacters,
-        countCharacters
-      )
-    )
-      return
+    if (!draftLocked && !isWithinPostLengthLimit(textRef.current)) return
     if (submitInFlightRef.current) return
     // New props not applied yet (the re-target effect runs after the render
     // that brought them): never send this composer's content under them.
@@ -1543,8 +1543,23 @@ export const PostBox: FC<Props> = ({
       sent = true
     } catch (error) {
       setIsPosting(false)
-      setAllowPost(true)
       reportRequestFailure(error)
+      if (
+        isBlueskyReply &&
+        error instanceof ApiRequestError &&
+        error.status === 503
+      ) {
+        const postedMessage =
+          error.message || BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
+        setLockedMessage(postedMessage)
+        setAllowPost(false)
+        void composerDraft.recordLock(
+          postedMessage,
+          submitIdempotencyRef.current
+        )
+        return
+      }
+      setAllowPost(true)
       const fallbackMessage = editStatus
         ? 'Fail to update the post'
         : 'Fail to create a post'
@@ -1665,14 +1680,7 @@ export const PostBox: FC<Props> = ({
       setAllowPost(isEditSubmittable(textRef.current, nextExtension))
       return
     }
-    setAllowPost(
-      hasNewPostContent(
-        textRef.current,
-        nextExtension,
-        effectiveMaxCharacters,
-        countCharacters
-      )
-    )
+    setAllowPost(canSubmitNewPost(textRef.current, nextExtension))
   }
 
   const onRemoveFitnessFile = useCallback(async () => {
@@ -1688,14 +1696,7 @@ export const PostBox: FC<Props> = ({
         fitnessFile: undefined
       }
       postExtensionRef.current = nextExtension
-      setAllowPost(
-        hasNewPostContent(
-          textRef.current,
-          nextExtension,
-          effectiveMaxCharacters,
-          countCharacters
-        )
-      )
+      setAllowPost(canSubmitNewPost(textRef.current, nextExtension))
     }
 
     const uploadedId = fitnessFile.uploadedId
@@ -1742,7 +1743,7 @@ export const PostBox: FC<Props> = ({
     }
 
     return cleanupPromise
-  }, [effectiveMaxCharacters, countCharacters])
+  }, [canSubmitNewPost])
 
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
@@ -1763,14 +1764,7 @@ export const PostBox: FC<Props> = ({
       setAllowPost(isEditSubmittable(value))
       return
     }
-    setAllowPost(
-      hasNewPostContent(
-        value,
-        postExtensionRef.current,
-        effectiveMaxCharacters,
-        countCharacters
-      )
-    )
+    setAllowPost(canSubmitNewPost(value, postExtensionRef.current))
   }
 
   const onContentWarningChange = (value: string) => {
@@ -2298,7 +2292,10 @@ export const PostBox: FC<Props> = ({
     drafts !== null && !editStatus && connectionState !== 'online'
       ? connectionState
       : null
-  const queueDisabledReason = getQueueDisabledReason(postExtension.attachments)
+  const queueDisabledReason = getQueueDisabledReason(
+    postExtension.attachments,
+    { blueskyReply: isBlueskyReply }
+  )
 
   // Offline an implicit submit (Enter in a lone text field, such as the
   // content warning) follows the primary button too, never a live send.
@@ -2309,9 +2306,19 @@ export const PostBox: FC<Props> = ({
     void onHandOff(!queueDisabledReason)
   }
 
-  const remainingCharacters = effectiveMaxCharacters - countCharacters(text)
-  const isOverBlueskyLimit =
-    isBlueskyReply && !draftLocked && remainingCharacters < 0
+  const blueskyLengthState = isBlueskyReply
+    ? getBlueskyReplyLengthState(text, maxStatusCharacters)
+    : null
+  const remainingCharacters = blueskyLengthState
+    ? blueskyLengthState.remaining
+    : maxStatusCharacters - text.length
+  const blueskyLengthError =
+    blueskyLengthState && !draftLocked ? blueskyLengthState.errorMessage : null
+  const isBlueskyLimitWarning =
+    Boolean(blueskyLengthError) &&
+    blueskyLengthError === BLUESKY_TOO_LONG_MESSAGE
+  const isInstanceLimitError =
+    Boolean(blueskyLengthError) && !isBlueskyLimitWarning
 
   const form = (
     <>
@@ -2511,17 +2518,26 @@ export const PostBox: FC<Props> = ({
                   : 'Replying on Bluesky · public'}
               </span>
             ) : null}
-            {isOverBlueskyLimit ? (
-              <span role="alert" className="text-xs text-warning-text">
-                {BLUESKY_TOO_LONG_MESSAGE}
+            {blueskyLengthError ? (
+              <span
+                role="alert"
+                className={cn(
+                  'text-xs',
+                  isBlueskyLimitWarning
+                    ? 'text-warning-text'
+                    : 'text-destructive-text'
+                )}
+              >
+                {blueskyLengthError}
               </span>
             ) : null}
             <span
               className={cn(
                 'font-mono text-xs tabular-nums',
-                isOverBlueskyLimit
+                isBlueskyLimitWarning
                   ? 'text-warning-text'
-                  : !draftLocked && remainingCharacters < 0
+                  : isInstanceLimitError ||
+                      (!draftLocked && remainingCharacters < 0)
                     ? 'text-destructive'
                     : 'text-muted-foreground'
               )}
@@ -2545,7 +2561,9 @@ export const PostBox: FC<Props> = ({
             ) : null}
             {offlineSplit ? (
               <OfflineSubmitButtons
-                disabled={!allowPost || isPosting}
+                disabled={
+                  !allowPost || isPosting || (isBlueskyReply && draftLocked)
+                }
                 queueDisabledReason={queueDisabledReason}
                 reasonId={reasonId}
                 onSaveDraft={() => void onHandOff(false)}
@@ -2557,7 +2575,8 @@ export const PostBox: FC<Props> = ({
                   !allowPost ||
                   isPosting ||
                   missingDescription ||
-                  settingsLoading
+                  settingsLoading ||
+                  (isBlueskyReply && draftLocked)
                 }
                 type="submit"
                 size="sm"
@@ -2583,7 +2602,9 @@ export const PostBox: FC<Props> = ({
         {lockedMessage ? (
           <div className="mt-3 flex items-center justify-between gap-2">
             <div role="status" className="text-xs text-muted-foreground">
-              {lockedMessage} {DRAFT_LOCKED_NOTICE}
+              {isBlueskyReply
+                ? lockedMessage
+                : `${lockedMessage} ${DRAFT_LOCKED_NOTICE}`}
             </div>
             <Button
               type="button"

@@ -4,14 +4,20 @@ import { FC } from 'react'
 
 import type { ConnectionState } from '@/lib/client/connection'
 import { Button } from '@/lib/components/ui/button'
+import { BLUESKY_REPLY_QUEUE_DISABLED_REASON } from '@/lib/utils/blueskyText'
 
-/** Video is never queued (too large to hold for a later send). */
+/** Video and Bluesky replies are never queued. */
 export const getQueueDisabledReason = (
-  attachments: ReadonlyArray<{ mediaType: string }>
-): string | undefined =>
-  attachments.some((item) => item.mediaType.startsWith('video/'))
+  attachments: ReadonlyArray<{ mediaType: string }>,
+  { blueskyReply = false }: { blueskyReply?: boolean } = {}
+): string | undefined => {
+  if (blueskyReply) {
+    return BLUESKY_REPLY_QUEUE_DISABLED_REASON
+  }
+  return attachments.some((item) => item.mediaType.startsWith('video/'))
     ? "Videos stay as drafts. Post this when you're back online."
     : undefined
+}
 
 interface ButtonsProps {
   onSaveDraft: () => void

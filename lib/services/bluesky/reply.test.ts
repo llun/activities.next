@@ -1,9 +1,9 @@
+import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { BlueskyActionError } from '@/lib/services/bluesky/actionErrors'
 import {
   type BlueskyAgent,
   BlueskyRequestError,
-  BlueskySessionChangedError,
   getBlueskyAgent
 } from '@/lib/services/bluesky/agent'
 import {
@@ -16,6 +16,9 @@ import {
 } from '@/lib/services/bluesky/policy'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import {
+  BLUESKY_REPLY_RATE_LIMIT,
+  BLUESKY_REPLY_RATE_LIMIT_MESSAGE,
+  BlueskyReplyRateLimitError,
   deleteOwnBlueskyPost,
   replyToBlueskyPost
 } from '@/lib/services/bluesky/reply'
@@ -42,14 +45,15 @@ const ROOT_DID = `did:plc:${'c'.repeat(24)}`
 
 const PARENT_RKEY = '3kparent'
 const PARENT_URI = `at://${PARENT_DID}/app.bsky.feed.post/${PARENT_RKEY}`
-const PARENT_CID = 'bafyparent'
+const PARENT_CID = `bafyrei${'p'.repeat(52)}`
+const APPVIEW_PARENT_CID = `bafyrei${'q'.repeat(52)}`
 
 const ROOT_URI = `at://${ROOT_DID}/app.bsky.feed.post/3kroot`
-const ROOT_CID = 'bafyroot'
+const ROOT_CID = `bafyrei${'r'.repeat(52)}`
 
 const REPLY_RKEY = '3kreply1'
 const REPLY_URI = `at://${OWN_DID}/app.bsky.feed.post/${REPLY_RKEY}`
-const REPLY_CID = 'bafyreply1'
+const REPLY_CID = `bafyrei${'s'.repeat(52)}`
 
 const actor = { id: 'actor-replier', domain: 'social.example' } as Actor
 const noWait = vi.fn().mockResolvedValue(undefined)
@@ -149,6 +153,10 @@ describe('Bluesky reply & delete service', () => {
       post
     } as unknown as BlueskyAgent)
     vi.mocked(getPublicProfiles).mockResolvedValue([])
+    await database.deleteRateLimits({
+      keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+      before: Date.now() + 24 * 60 * 60 * 1000
+    })
     await linkAccount(OWN_DID)
     // Remove any previously stored reply row.
     await database.deleteStatus({
@@ -253,8 +261,20 @@ describe('Bluesky reply & delete service', () => {
       })
     })
 
-    it('counts graphemes so 300 ZWJ emoji are accepted', async () => {
-      const emojiText = '👨‍👩‍👧‍👦'.repeat(300)
+    it('counts graphemes so 300 emoji within 3000 UTF-8 bytes are accepted, and rejects over 3000 UTF-8 bytes', async () => {
+      await expect(
+        replyToBlueskyPost(database, actor, {
+          parentStatusId,
+          // 121 ZWJ family emoji = 121 graphemes (<= 300), but 3025 UTF-8 bytes (> 3000).
+          text: '👨‍👩‍👧‍👦'.repeat(121)
+        })
+      ).rejects.toMatchObject({
+        status: 422,
+        message: 'Bluesky allows 300 characters. Shorten the reply to post it.'
+      })
+      expect(post).not.toHaveBeenCalled()
+
+      const emojiText = '🚀'.repeat(300)
       vi.mocked(getPublicPosts)
         .mockResolvedValueOnce([
           makePostView({
@@ -280,13 +300,110 @@ describe('Bluesky reply & delete service', () => {
         ])
       post.mockResolvedValue({ uri: REPLY_URI, cid: REPLY_CID })
 
-      const statusId = await replyToBlueskyPost(
+      const result = await replyToBlueskyPost(
         database,
         actor,
         { parentStatusId, text: emojiText },
         { wait: noWait }
       )
-      expect(statusId).toBe(blueskyPostId(OWN_DID, REPLY_RKEY))
+      expect(result).toEqual({
+        stored: true,
+        statusId: blueskyPostId(OWN_DID, REPLY_RKEY)
+      })
+    })
+
+    it('rewrites @<handle>@bsky.app mentions before counting graphemes and building facets', async () => {
+      vi.mocked(getPublicProfiles).mockResolvedValue([
+        { did: PARENT_DID, handle: 'parent.bsky.social' }
+      ])
+      // 28 chars for `@parent.bsky.social@bsky.app` + 1 space + 280 'a' = 309 graphemes before rewrite,
+      // 19 chars for `@parent.bsky.social` + 1 space + 280 'a' = 300 graphemes after rewrite.
+      const rawText = `@parent.bsky.social@bsky.app ${'a'.repeat(280)}`
+      const rewrittenText = `@parent.bsky.social ${'a'.repeat(280)}`
+      vi.mocked(getPublicPosts)
+        .mockResolvedValueOnce([
+          makePostView({
+            uri: PARENT_URI,
+            cid: PARENT_CID,
+            did: PARENT_DID,
+            handle: 'parent.bsky.social',
+            text: 'Parent'
+          })
+        ])
+        .mockResolvedValueOnce([
+          makePostView({
+            uri: REPLY_URI,
+            cid: REPLY_CID,
+            did: OWN_DID,
+            handle: 'me.bsky.social',
+            text: rewrittenText,
+            reply: {
+              root: { uri: PARENT_URI, cid: PARENT_CID },
+              parent: { uri: PARENT_URI, cid: PARENT_CID }
+            }
+          })
+        ])
+      post.mockResolvedValue({ uri: REPLY_URI, cid: REPLY_CID })
+
+      const result = await replyToBlueskyPost(
+        database,
+        actor,
+        { parentStatusId, text: rawText },
+        { wait: noWait }
+      )
+      expect(result).toEqual({
+        stored: true,
+        statusId: blueskyPostId(OWN_DID, REPLY_RKEY)
+      })
+      expect(post).toHaveBeenCalledWith(
+        'com.atproto.repo.createRecord',
+        expect.objectContaining({
+          record: expect.objectContaining({
+            text: rewrittenText,
+            facets: [
+              {
+                index: { byteStart: 0, byteEnd: '@parent.bsky.social'.length },
+                features: [
+                  {
+                    $type: 'app.bsky.richtext.facet#mention',
+                    did: PARENT_DID
+                  }
+                ]
+              }
+            ]
+          })
+        })
+      )
+    })
+
+    it('enforces a per-actor reply rate limit before AppView reads and throws 429', async () => {
+      vi.mocked(getPublicPosts).mockResolvedValue([])
+      for (let i = 0; i < BLUESKY_REPLY_RATE_LIMIT.limit; i += 1) {
+        await expect(
+          replyToBlueskyPost(database, actor, {
+            parentStatusId,
+            text: 'Hello'
+          })
+        ).rejects.toBeInstanceOf(BlueskyActionError)
+      }
+      expect(getPublicPosts).toHaveBeenCalledTimes(
+        BLUESKY_REPLY_RATE_LIMIT.limit
+      )
+
+      await expect(
+        replyToBlueskyPost(database, actor, {
+          parentStatusId,
+          text: 'One too many'
+        })
+      ).rejects.toMatchObject({
+        name: BlueskyReplyRateLimitError.name,
+        status: 429,
+        message: BLUESKY_REPLY_RATE_LIMIT_MESSAGE
+      })
+      // Did not hit AppView on the rate-limited attempt.
+      expect(getPublicPosts).toHaveBeenCalledTimes(
+        BLUESKY_REPLY_RATE_LIMIT.limit
+      )
     })
 
     it('returns 404 when the parent is not a stored Bluesky post with a bluesky_records row', async () => {
@@ -344,7 +461,7 @@ describe('Bluesky reply & delete service', () => {
         ])
       post.mockResolvedValue({ uri: REPLY_URI, cid: REPLY_CID })
 
-      const statusId = await replyToBlueskyPost(
+      const result = await replyToBlueskyPost(
         database,
         actor,
         {
@@ -356,7 +473,11 @@ describe('Bluesky reply & delete service', () => {
         { wait: noWait }
       )
 
-      expect(statusId).toBe(blueskyPostId(OWN_DID, REPLY_RKEY))
+      expect(result).toEqual({
+        stored: true,
+        statusId: blueskyPostId(OWN_DID, REPLY_RKEY)
+      })
+      const statusId = result.stored ? result.statusId : ''
       expect(post).toHaveBeenCalledWith('com.atproto.repo.createRecord', {
         repo: OWN_DID,
         collection: 'app.bsky.feed.post',
@@ -450,7 +571,53 @@ describe('Bluesky reply & delete service', () => {
       )
     })
 
-    it('retries AppView readback 3 times then falls back to AppView author profile', async () => {
+    it('uses parentView.cid from AppView rather than the stored bluesky_records cid', async () => {
+      vi.mocked(getPublicPosts)
+        .mockResolvedValueOnce([
+          makePostView({
+            uri: PARENT_URI,
+            cid: APPVIEW_PARENT_CID,
+            did: PARENT_DID,
+            handle: 'parent.bsky.social',
+            text: 'Parent with fresher AppView cid'
+          })
+        ])
+        .mockResolvedValueOnce([
+          makePostView({
+            uri: REPLY_URI,
+            cid: REPLY_CID,
+            did: OWN_DID,
+            handle: 'me.bsky.social',
+            text: 'Reply using AppView parent cid',
+            reply: {
+              root: { uri: PARENT_URI, cid: APPVIEW_PARENT_CID },
+              parent: { uri: PARENT_URI, cid: APPVIEW_PARENT_CID }
+            }
+          })
+        ])
+      post.mockResolvedValue({ uri: REPLY_URI, cid: REPLY_CID })
+
+      await replyToBlueskyPost(
+        database,
+        actor,
+        { parentStatusId, text: 'Reply using AppView parent cid' },
+        { wait: noWait }
+      )
+
+      expect(post).toHaveBeenCalledWith(
+        'com.atproto.repo.createRecord',
+        expect.objectContaining({
+          record: expect.objectContaining({
+            reply: {
+              root: { uri: PARENT_URI, cid: APPVIEW_PARENT_CID },
+              parent: { uri: PARENT_URI, cid: APPVIEW_PARENT_CID }
+            }
+          })
+        })
+      )
+    })
+
+    it('retries AppView readback 3 times then stores nothing and signals posted-not-stored without calling getPublicProfiles', async () => {
       vi.mocked(getPublicPosts)
         .mockResolvedValueOnce([
           makePostView({
@@ -463,12 +630,9 @@ describe('Bluesky reply & delete service', () => {
         ])
         // Initial readback + 3 retries all miss
         .mockResolvedValue([])
-      vi.mocked(getPublicProfiles).mockResolvedValue([
-        { did: OWN_DID, handle: 'me.bsky.social', displayName: 'Me' }
-      ])
       post.mockResolvedValue({ uri: REPLY_URI, cid: REPLY_CID })
 
-      const statusId = await replyToBlueskyPost(
+      const result = await replyToBlueskyPost(
         database,
         actor,
         { parentStatusId, text: 'Lagging reply' },
@@ -478,15 +642,17 @@ describe('Bluesky reply & delete service', () => {
       // 1 parent lookup + 4 readback attempts = 5 calls; 3 waits between retries.
       expect(getPublicPosts).toHaveBeenCalledTimes(5)
       expect(noWait).toHaveBeenCalledTimes(3)
-      expect(getPublicProfiles).toHaveBeenCalledWith([OWN_DID])
-      expect(statusId).toBe(blueskyPostId(OWN_DID, REPLY_RKEY))
+      expect(getPublicProfiles).not.toHaveBeenCalled()
+      expect(result).toEqual({ stored: false })
 
-      const stored = await database.getStatus({ statusId })
-      expect(stored?.actorId).toBe(blueskyActorId(OWN_DID))
-      expect(stored?.network).toBe('bluesky')
+      expect(
+        await database.getStatus({
+          statusId: blueskyPostId(OWN_DID, REPLY_RKEY)
+        })
+      ).toBeNull()
     })
 
-    it('refuses to store if the actor relinked to another DID mid-request', async () => {
+    it('stores nothing and signals posted-not-stored without throwing if the actor relinked mid-request', async () => {
       vi.mocked(getPublicPosts)
         .mockResolvedValueOnce([
           makePostView({
@@ -515,15 +681,14 @@ describe('Bluesky reply & delete service', () => {
         return { uri: REPLY_URI, cid: REPLY_CID }
       })
 
-      await expect(
-        replyToBlueskyPost(
-          database,
-          actor,
-          { parentStatusId, text: 'Relink race' },
-          { wait: noWait }
-        )
-      ).rejects.toBeInstanceOf(BlueskySessionChangedError)
+      const result = await replyToBlueskyPost(
+        database,
+        actor,
+        { parentStatusId, text: 'Relink race' },
+        { wait: noWait }
+      )
 
+      expect(result).toEqual({ stored: false })
       expect(
         await database.getStatus({
           statusId: blueskyPostId(OWN_DID, REPLY_RKEY)
@@ -531,7 +696,7 @@ describe('Bluesky reply & delete service', () => {
       ).toBeNull()
     })
 
-    it('rejects an unexpected createRecord URI from another repo', async () => {
+    it('treats an invalid createRecord cid or mismatched repo URI as posted-not-stored without storing or throwing', async () => {
       vi.mocked(getPublicPosts).mockResolvedValueOnce([
         makePostView({
           uri: PARENT_URI,
@@ -541,19 +706,51 @@ describe('Bluesky reply & delete service', () => {
           text: 'Parent'
         })
       ])
-      post.mockResolvedValue({
-        uri: `at://${PARENT_DID}/app.bsky.feed.post/hijack`,
-        cid: 'bafyhijack'
+      post.mockResolvedValueOnce({
+        uri: REPLY_URI,
+        cid: 'not-a-valid-cid'
       })
 
-      await expect(
-        replyToBlueskyPost(
-          database,
-          actor,
-          { parentStatusId, text: 'Hello' },
-          { wait: noWait }
-        )
-      ).rejects.toThrow('Bluesky createRecord gave an unexpected answer')
+      const badCid = await replyToBlueskyPost(
+        database,
+        actor,
+        { parentStatusId, text: 'Bad cid' },
+        { wait: noWait }
+      )
+      expect(badCid).toEqual({ stored: false })
+      expect(getPublicPosts).toHaveBeenCalledTimes(1)
+      expect(
+        await database.getStatus({
+          statusId: blueskyPostId(OWN_DID, REPLY_RKEY)
+        })
+      ).toBeNull()
+
+      vi.mocked(getPublicPosts).mockResolvedValueOnce([
+        makePostView({
+          uri: PARENT_URI,
+          cid: PARENT_CID,
+          did: PARENT_DID,
+          handle: 'parent.bsky.social',
+          text: 'Parent'
+        })
+      ])
+      post.mockResolvedValueOnce({
+        uri: `at://${PARENT_DID}/app.bsky.feed.post/hijack`,
+        cid: REPLY_CID
+      })
+
+      const badUri = await replyToBlueskyPost(
+        database,
+        actor,
+        { parentStatusId, text: 'Hijacked uri' },
+        { wait: noWait }
+      )
+      expect(badUri).toEqual({ stored: false })
+      expect(
+        await database.getStatus({
+          statusId: blueskyPostId(PARENT_DID, 'hijack')
+        })
+      ).toBeNull()
     })
   })
 

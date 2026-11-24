@@ -1,5 +1,8 @@
 import { getPublicProfiles } from '@/lib/services/bluesky/appview'
-import { buildBlueskyFacets } from '@/lib/services/bluesky/richText'
+import {
+  buildBlueskyFacets,
+  normalizeBlueskyMentions
+} from '@/lib/services/bluesky/richText'
 
 vi.mock('@/lib/services/bluesky/appview', () => ({
   getPublicProfiles: vi.fn()
@@ -124,10 +127,48 @@ describe('buildBlueskyFacets', () => {
   })
 
   it('does not treat Fediverse double-@ mentions as Bluesky handle mentions', async () => {
-    const text = 'Reply to @alice.bsky.social@bsky.app'
+    const text = 'Reply to @alice.bsky.social@mastodon.social'
     const facets = await buildBlueskyFacets(text)
 
     expect(getPublicProfiles).not.toHaveBeenCalled()
     expect(facets).toEqual([])
+  })
+})
+
+describe('normalizeBlueskyMentions', () => {
+  it('rewrites @<handle>@bsky.app mentions to @<handle> while leaving other mentions, emails, and URLs intact', () => {
+    expect(normalizeBlueskyMentions('@alice.bsky.social@bsky.app hello!')).toBe(
+      '@alice.bsky.social hello!'
+    )
+    expect(
+      normalizeBlueskyMentions(
+        'Thanks @Alice.Bsky.Social@BSKY.APP, @bob.example.com@bsky.app.'
+      )
+    ).toBe('Thanks @Alice.Bsky.Social, @bob.example.com.')
+    expect(
+      normalizeBlueskyMentions(
+        'Keep @alice@mastodon.social @alice.bsky.social@mastodon.social @alice.bsky.social@bsky.app.evil.com user@alice.bsky.social@bsky.app and https://example.com/?q=@alice.bsky.social@bsky.app'
+      )
+    ).toBe(
+      'Keep @alice@mastodon.social @alice.bsky.social@mastodon.social @alice.bsky.social@bsky.app.evil.com user@alice.bsky.social@bsky.app and https://example.com/?q=@alice.bsky.social@bsky.app'
+    )
+  })
+
+  it('produces valid mention facets when normalized text is passed to buildBlueskyFacets', async () => {
+    vi.mocked(getPublicProfiles).mockResolvedValue([
+      { did: 'did:plc:alice123', handle: 'alice.bsky.social' }
+    ])
+    const normalized = normalizeBlueskyMentions(
+      '@alice.bsky.social@bsky.app nice post'
+    )
+    expect(normalized).toBe('@alice.bsky.social nice post')
+    const facets = await buildBlueskyFacets(normalized)
+
+    expect(getPublicProfiles).toHaveBeenCalledWith(['alice.bsky.social'])
+    expect(facets).toHaveLength(1)
+    expect(sliceFacet(normalized, facets[0].index)).toBe('@alice.bsky.social')
+    expect(facets[0].features).toEqual([
+      { $type: 'app.bsky.richtext.facet#mention', did: 'did:plc:alice123' }
+    ])
   })
 })

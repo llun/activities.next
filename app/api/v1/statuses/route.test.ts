@@ -25,6 +25,9 @@ import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import {
   BLUESKY_REPLY_BUSY_MESSAGE,
   BLUESKY_REPLY_LOCK_PREFIX,
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
+  BLUESKY_REPLY_RATE_LIMIT_MESSAGE,
+  BlueskyReplyRateLimitError,
   replyToBlueskyPost
 } from '@/lib/services/bluesky/reply'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
@@ -470,7 +473,7 @@ describe('POST /api/v1/statuses', () => {
       const ownDid = `did:plc:${'r'.repeat(24)}`
       const replyRkey = '3kroutereply'
       const replyUri = `at://${ownDid}/app.bsky.feed.post/${replyRkey}`
-      const replyCid = 'bafyroutereply'
+      const replyCid = `bafyrei${'r'.repeat(52)}`
       await database.saveBlueskyAccount({
         actorId: ACTOR1_ID,
         did: ownDid,
@@ -573,6 +576,109 @@ describe('POST /api/v1/statuses', () => {
       await expect(upstream.json()).resolves.toEqual({
         error: 'Bluesky did not accept the change. Please try again.'
       })
+
+      vi.mocked(replyToBlueskyPost).mockRejectedValueOnce(
+        new BlueskyReplyRateLimitError()
+      )
+      const limited = await postStatus({
+        status: 'Too many replies',
+        in_reply_to_id: parentId
+      })
+      expect(limited.status).toBe(429)
+      await expect(limited.json()).resolves.toEqual({
+        error: BLUESKY_REPLY_RATE_LIMIT_MESSAGE
+      })
+    })
+
+    it('answers 503 with posted-not-stored message when the Bluesky reply reached Bluesky but was not stored locally yet', async () => {
+      const { statusId: parentId } = await storeBlueskyPost(
+        database,
+        'replylag'
+      )
+
+      vi.mocked(replyToBlueskyPost).mockResolvedValueOnce({ stored: false })
+      const lagRes = await postStatus({
+        status: 'Lagging reply',
+        in_reply_to_id: parentId
+      })
+      expect(lagRes.status).toBe(503)
+      await expect(lagRes.json()).resolves.toEqual({
+        error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
+      })
+
+      // Also when serialization fails after replyToBlueskyPost succeeded.
+      vi.mocked(replyToBlueskyPost).mockResolvedValueOnce({
+        stored: true,
+        statusId: 'https://bsky.app/profile/did:plc:missing/post/3kmissing'
+      })
+      const loadFailRes = await postStatus({
+        status: 'Load failed after post',
+        in_reply_to_id: parentId
+      })
+      expect(loadFailRes.status).toBe(503)
+      await expect(loadFailRes.json()).resolves.toEqual({
+        error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
+      })
+    })
+
+    it('refuses quoted_status_id in a Bluesky reply with 422', async () => {
+      const { statusId: parentId } = await storeBlueskyPost(
+        database,
+        'replyquote'
+      )
+      vi.mocked(replyToBlueskyPost).mockClear()
+
+      const response = await postStatus({
+        status: 'Reply with quote',
+        in_reply_to_id: parentId,
+        quoted_status_id: `${ACTOR1_ID}/statuses/post-1`
+      })
+
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Quoting in Bluesky replies is not supported yet.'
+      })
+      expect(replyToBlueskyPost).not.toHaveBeenCalled()
+    })
+
+    it('refuses fitness_file_id in a Bluesky reply with 422', async () => {
+      const { statusId: parentId } = await storeBlueskyPost(
+        database,
+        'replyfitness'
+      )
+      vi.mocked(replyToBlueskyPost).mockClear()
+
+      const response = await postStatus({
+        status: 'Reply with fitness file',
+        in_reply_to_id: parentId,
+        fitness_file_id: 'fitness-file-123'
+      })
+
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Fitness files in Bluesky replies are not supported.'
+      })
+      expect(replyToBlueskyPost).not.toHaveBeenCalled()
+    })
+
+    it('refuses backdated created_at in a Bluesky reply with 422', async () => {
+      const { statusId: parentId } = await storeBlueskyPost(
+        database,
+        'replybackdate'
+      )
+      vi.mocked(replyToBlueskyPost).mockClear()
+
+      const response = await postStatus({
+        status: 'Backdated reply',
+        in_reply_to_id: parentId,
+        created_at: '2025-01-01T00:00:00.000Z'
+      })
+
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Backdating Bluesky replies is not supported.'
+      })
+      expect(replyToBlueskyPost).not.toHaveBeenCalled()
     })
   })
 

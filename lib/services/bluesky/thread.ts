@@ -4,6 +4,9 @@
 // Only a signed-in viewer with a linked Bluesky account (on a server that
 // allows Bluesky) makes this server contact Bluesky. Reads are rate-limited
 // per post and never throw to the caller.
+import crypto from 'node:crypto'
+
+import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import { isBlueskyId } from '@/lib/utils/blueskyId'
@@ -27,6 +30,10 @@ const THREAD_PARENT_HEIGHT = 20
 // Cap the posts stored from one thread fetch so a viral thread cannot trigger
 // unbounded writes during a single context or page request.
 const MAX_THREAD_POSTS = 200
+export const BLUESKY_THREAD_VIEWER_RATE_LIMIT = {
+  limit: 30,
+  windowMs: 15 * 60 * 1000
+}
 
 const isThreadViewPost = (value: unknown): value is Record<string, unknown> =>
   isRecord(value) &&
@@ -51,6 +58,16 @@ export const loadBlueskyThread = async (
     const at = parseAtUri(record.uri)
     if (!at || at.collection !== POST_COLLECTION) return
     if (!(await hasLinkedAccount(database, viewer))) return
+    const viewerDigest = crypto
+      .createHash('sha256')
+      .update(viewer.id)
+      .digest('hex')
+    const viewerBudget = await database.consumeRateLimit({
+      key: `${APP_RATE_LIMIT_KEY_PREFIX}bluesky-thread-viewer:${viewerDigest}`,
+      keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+      ...BLUESKY_THREAD_VIEWER_RATE_LIMIT
+    })
+    if (!viewerBudget.allowed) return
     if (!(await claimAppViewRead(database, 'thread', statusId))) return
 
     const response = await getPublicPostThread(record.uri, {

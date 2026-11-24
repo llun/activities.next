@@ -12,15 +12,22 @@ import {
 
 import { createNote } from '@/lib/client'
 import { getBlueskyAccount } from '@/lib/client/blueskyAccount'
+import { ApiRequestError } from '@/lib/client/http'
 import {
   resetBlueskyAccountStore,
   setLinkedBlueskyAccount
 } from '@/lib/components/bluesky/blueskyAccountStore'
+import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
-import { BLUESKY_TOO_LONG_MESSAGE } from '@/lib/utils/blueskyText'
+import {
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
+  BLUESKY_REPLY_QUEUE_DISABLED_REASON,
+  BLUESKY_TOO_LONG_MESSAGE
+} from '@/lib/utils/blueskyText'
 
 import { StatusReplyBox } from './status-reply-box'
 
@@ -31,6 +38,15 @@ vi.mock('@/lib/client', () => ({
 
 vi.mock('@/lib/client/blueskyAccount', () => ({
   getBlueskyAccount: vi.fn().mockResolvedValue(null)
+}))
+
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: vi.fn(() => ({ state: 'online' }))
+}))
+
+vi.mock('@/lib/components/drafts/DraftsProvider', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useDrafts: vi.fn(() => null)
 }))
 
 const now = new Date('2026-11-24T07:00:00.000Z').getTime()
@@ -89,6 +105,8 @@ describe('StatusReplyBox replying to a Bluesky post', () => {
     vi.clearAllMocks()
     resetBlueskyAccountStore()
     vi.mocked(getBlueskyAccount).mockResolvedValue(null)
+    vi.mocked(useConnectionStatus).mockReturnValue({ state: 'online' } as never)
+    vi.mocked(useDrafts).mockReturnValue(null)
   })
 
   afterEach(() => {
@@ -165,5 +183,122 @@ describe('StatusReplyBox replying to a Bluesky post', () => {
         })
       )
     })
+  })
+
+  it('enforces both the instance .length limit and 300 graphemes and shows whichever message applies', () => {
+    const first = render(
+      <InstanceLimitsProvider maxStatusCharacters={200}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={blueskyStatus}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+    expect(screen.getByText('200')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'a'.repeat(201) }
+    })
+    expect(
+      screen.getByText('Text character limit of 200 exceeded')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    first.unmount()
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={500}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={blueskyStatus}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: '👨‍👩‍👧‍👦'.repeat(50) }
+    })
+    expect(
+      screen.getByText('Text character limit of 500 exceeded')
+    ).toBeInTheDocument()
+    expect(screen.getByText('-50')).toHaveClass('text-destructive')
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+  })
+
+  it('locks with the posted-not-stored message on 503 and disables Post so it cannot resend', async () => {
+    vi.mocked(createNote).mockRejectedValueOnce(
+      new ApiRequestError(BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE, 503)
+    )
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={500}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={blueskyStatus}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    const textarea = screen.getByRole('textbox')
+    fireEvent.change(textarea, { target: { value: 'Already on Bluesky' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE)
+      ).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByText(/Press Post again to retry/i)
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/Editing is locked until it is sent/i)
+    ).not.toBeInTheDocument()
+    expect(textarea).toHaveAttribute('readonly')
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+  })
+
+  it('disables Send when online while offline with the Bluesky reply reason', () => {
+    vi.mocked(useConnectionStatus).mockReturnValue({
+      state: 'offline'
+    } as never)
+    vi.mocked(useDrafts).mockReturnValue({
+      accountId: 'account-1',
+      actorId: viewerProfile.id,
+      count: 0,
+      available: true,
+      refresh: vi.fn()
+    } as never)
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={500}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={blueskyStatus}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Offline reply' }
+    })
+
+    const queueButton = screen.getByRole('button', { name: 'Send when online' })
+    expect(queueButton).toHaveAttribute('aria-disabled', 'true')
+    expect(queueButton).toHaveAccessibleDescription(
+      BLUESKY_REPLY_QUEUE_DISABLED_REASON
+    )
+    expect(
+      screen.getByText(BLUESKY_REPLY_QUEUE_DISABLED_REASON)
+    ).toBeInTheDocument()
   })
 })

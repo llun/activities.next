@@ -12,15 +12,22 @@ import {
 } from '@testing-library/react'
 
 import { getBlueskyAccount } from '@/lib/client/blueskyAccount'
+import { ApiRequestError } from '@/lib/client/http'
 import {
   resetBlueskyAccountStore,
   setLinkedBlueskyAccount
 } from '@/lib/components/bluesky/blueskyAccountStore'
+import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
+import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
-import { BLUESKY_TOO_LONG_MESSAGE } from '@/lib/utils/blueskyText'
+import {
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
+  BLUESKY_REPLY_QUEUE_DISABLED_REASON,
+  BLUESKY_TOO_LONG_MESSAGE
+} from '@/lib/utils/blueskyText'
 
 import { PostBox } from './post-box'
 import { createNoteMock, currentTime, profile } from './post-box.testUtils'
@@ -46,6 +53,15 @@ vi.mock('@/lib/client/blueskyAccount', () => ({
 
 vi.mock('@/lib/utils/resizeImage', () => ({
   resizeImage: vi.fn()
+}))
+
+vi.mock('@/lib/hooks/useConnectionStatus', () => ({
+  useConnectionStatus: vi.fn(() => ({ state: 'online' }))
+}))
+
+vi.mock('@/lib/components/drafts/DraftsProvider', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useDrafts: vi.fn(() => null)
 }))
 
 const blueskyAuthor: ActorProfile = {
@@ -82,9 +98,9 @@ const blueskyReplyTarget: StatusNote = {
   tags: []
 }
 
-const renderPostBox = async () => {
+const renderPostBox = async (maxStatusCharacters = 500) => {
   const result = render(
-    <InstanceLimitsProvider maxStatusCharacters={500}>
+    <InstanceLimitsProvider maxStatusCharacters={maxStatusCharacters}>
       <PostBox
         host="activities.local"
         profile={profile}
@@ -108,6 +124,8 @@ describe('PostBox replying to a Bluesky post', () => {
     vi.clearAllMocks()
     resetBlueskyAccountStore()
     vi.mocked(getBlueskyAccount).mockResolvedValue(null)
+    vi.mocked(useConnectionStatus).mockReturnValue({ state: 'online' } as never)
+    vi.mocked(useDrafts).mockReturnValue(null)
   })
 
   afterEach(() => {
@@ -131,23 +149,23 @@ describe('PostBox replying to a Bluesky post', () => {
       instanceHandle: null
     })
 
-    await renderPostBox()
+    await renderPostBox(1000)
 
     await waitFor(() => {
       expect(
         screen.getByText('Replying on Bluesky as me.bsky.social · public')
       ).toBeInTheDocument()
     })
-    // Counts to 300 instead of the 500 instance limit.
+    // Counts to 300 instead of the 1000 instance limit.
     expect(screen.getByText('300')).toBeInTheDocument()
 
     const textarea = screen.getByRole('textbox')
     // Does not prefill a Fediverse @user@bsky.app mention.
     expect(textarea).toHaveValue('')
 
-    // 300 ZWJ family emoji = 300 graphemes (3300 UTF-16 code units) -> still 0 remaining and allowed.
+    // 300 emoji = 300 graphemes (600 UTF-16 code units <= 1000, 1200 UTF-8 bytes <= 3000) -> still 0 remaining and allowed.
     fireEvent.change(textarea, {
-      target: { value: '👨‍👩‍👧‍👦'.repeat(300) }
+      target: { value: '🚀'.repeat(300) }
     })
     expect(screen.getByText('0')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
@@ -241,5 +259,88 @@ describe('PostBox replying to a Bluesky post', () => {
         })
       )
     })
+  })
+
+  it('enforces the instance .length limit alongside the 300-grapheme limit and shows the matching message', async () => {
+    // 1) Instance limit < 300: 201 ASCII chars hits the instance limit.
+    const first = await renderPostBox(200)
+    expect(screen.getByText('200')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'a'.repeat(201) }
+    })
+    expect(
+      screen.getByText('Text character limit of 200 exceeded')
+    ).toBeInTheDocument()
+    expect(screen.getByText('-1')).toHaveClass('text-destructive')
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    first.unmount()
+
+    // 2) Within 300 graphemes (50 ZWJ emoji) but over 500 UTF-16 code units (550).
+    await renderPostBox(500)
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: '👨‍👩‍👧‍👦'.repeat(50) }
+    })
+    expect(
+      screen.getByText('Text character limit of 500 exceeded')
+    ).toBeInTheDocument()
+    expect(screen.getByText('-50')).toHaveClass('text-destructive')
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+  })
+
+  it('locks the draft with the posted-not-stored message on 503 and does not offer to resend', async () => {
+    createNoteMock.mockRejectedValueOnce(
+      new ApiRequestError(BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE, 503)
+    )
+
+    await renderPostBox()
+
+    const textarea = screen.getByRole('textbox')
+    fireEvent.change(textarea, { target: { value: 'Sent to Bluesky' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE)
+      ).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByText(/Press Post again to retry/i)
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/Editing is locked until it is sent/i)
+    ).not.toBeInTheDocument()
+    expect(textarea).toHaveAttribute('readonly')
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Retry' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('disables Send when online when offline with the Bluesky reply reason', async () => {
+    vi.mocked(useConnectionStatus).mockReturnValue({
+      state: 'offline'
+    } as never)
+    vi.mocked(useDrafts).mockReturnValue({
+      accountId: 'account-1',
+      actorId: profile.id,
+      count: 0,
+      available: true,
+      refresh: vi.fn()
+    } as never)
+
+    await renderPostBox()
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Offline Bluesky reply' }
+    })
+
+    const queueButton = screen.getByRole('button', { name: 'Send when online' })
+    expect(queueButton).toHaveAttribute('aria-disabled', 'true')
+    expect(queueButton).toHaveAccessibleDescription(
+      BLUESKY_REPLY_QUEUE_DISABLED_REASON
+    )
+    expect(
+      screen.getByText(BLUESKY_REPLY_QUEUE_DISABLED_REASON)
+    ).toBeInTheDocument()
   })
 })
