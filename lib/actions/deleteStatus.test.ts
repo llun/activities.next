@@ -421,23 +421,26 @@ describe('deleteStatusFromUserInput', () => {
         .spyOn(logger, 'error')
         .mockImplementation(() => logger)
 
-      await expect(
-        deleteStatusFromUserInput({
-          currentActor: CURRENT_ACTOR,
-          statusId: status.id,
-          database
-        })
-      ).resolves.toBeUndefined()
+      try {
+        await expect(
+          deleteStatusFromUserInput({
+            currentActor: CURRENT_ACTOR,
+            statusId: status.id,
+            database
+          })
+        ).resolves.toBeUndefined()
 
-      expect(database.deleteStatus).toHaveBeenCalledTimes(1)
-      expect(loggerSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          statusId: status.id,
-          actorId: CURRENT_ACTOR.id
-        }),
-        'Failed to queue status delete federation'
-      )
-      loggerSpy.mockRestore()
+        expect(database.deleteStatus).toHaveBeenCalledTimes(1)
+        expect(loggerSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            statusId: status.id,
+            actorId: CURRENT_ACTOR.id
+          }),
+          'Failed to queue status delete federation'
+        )
+      } finally {
+        loggerSpy.mockRestore()
+      }
     })
   })
 
@@ -549,16 +552,19 @@ describe('deleteStatusFromUserInput', () => {
         .spyOn(logger, 'error')
         .mockImplementation(() => logger)
 
-      await expect(
-        deleteStatusFromUserInput({
-          currentActor: CURRENT_ACTOR,
-          statusId: status.id,
-          database
-        })
-      ).resolves.toBeUndefined()
+      try {
+        await expect(
+          deleteStatusFromUserInput({
+            currentActor: CURRENT_ACTOR,
+            statusId: status.id,
+            database
+          })
+        ).resolves.toBeUndefined()
 
-      expect(loggerSpy).toHaveBeenCalled()
-      loggerSpy.mockRestore()
+        expect(loggerSpy).toHaveBeenCalled()
+      } finally {
+        loggerSpy.mockRestore()
+      }
     })
   })
 
@@ -652,20 +658,30 @@ describe('deleteStatusFromUserInput', () => {
       })
       const database = createDatabase(status)
       const uri = 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3k1'
-      vi.mocked(database.deleteStatus).mockResolvedValue({
-        deleted: true,
-        blueskyCrossposts: [
-          {
-            statusId: status.id,
-            actorId: CURRENT_ACTOR.id,
-            uri,
-            cid: 'bafy',
-            state: 'posted',
-            error: null,
-            createdAt: 0,
-            updatedAt: 0
-          }
-        ]
+      let deleteStatusResolved = false
+      vi.mocked(database.deleteStatus).mockImplementation(async () => {
+        deleteStatusResolved = true
+        return {
+          deleted: true,
+          blueskyCrossposts: [
+            {
+              statusId: status.id,
+              actorId: CURRENT_ACTOR.id,
+              uri,
+              cid: 'bafy',
+              state: 'posted',
+              error: null,
+              createdAt: 0,
+              updatedAt: 0
+            }
+          ]
+        }
+      })
+      // Record whether the local delete had already resolved when each publish
+      // ran, so a publish reordered ahead of it cannot slip through.
+      const publishSawResolvedDelete: boolean[] = []
+      vi.mocked(noQueue.publish).mockImplementation(async () => {
+        publishSawResolvedDelete.push(deleteStatusResolved)
       })
 
       await deleteStatusFromUserInput({
@@ -681,9 +697,16 @@ describe('deleteStatusFromUserInput', () => {
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
         data: { actorId: CURRENT_ACTOR.id, uri }
       })
+      // Both the delete-note job and the Bluesky delete must be published only
+      // after deleteStatus resolved, whatever order they are published in.
+      expect(publishSawResolvedDelete).toEqual([true, true])
       expect(
-        vi.mocked(database.deleteStatus).mock.invocationCallOrder[0]
-      ).toBeLessThan(vi.mocked(noQueue.publish).mock.invocationCallOrder[1])
+        vi
+          .mocked(noQueue.publish)
+          .mock.calls.some(
+            ([message]) => message.name === DELETE_BLUESKY_CROSSPOST_JOB_NAME
+          )
+      ).toBe(true)
     })
 
     it('swallows and logs a failed Bluesky cross-post delete publish after local delete committed', async () => {
@@ -716,22 +739,25 @@ describe('deleteStatusFromUserInput', () => {
         .spyOn(logger, 'error')
         .mockImplementation(() => logger)
 
-      await expect(
-        deleteStatusFromUserInput({
-          currentActor: CURRENT_ACTOR,
-          statusId: status.id,
-          database
-        })
-      ).resolves.toBeUndefined()
+      try {
+        await expect(
+          deleteStatusFromUserInput({
+            currentActor: CURRENT_ACTOR,
+            statusId: status.id,
+            database
+          })
+        ).resolves.toBeUndefined()
 
-      expect(loggerSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          statusId: status.id,
-          actorId: CURRENT_ACTOR.id
-        }),
-        'Failed to queue Bluesky cross-post delete'
-      )
-      loggerSpy.mockRestore()
+        expect(loggerSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            statusId: status.id,
+            actorId: CURRENT_ACTOR.id
+          }),
+          'Failed to queue Bluesky cross-post delete'
+        )
+      } finally {
+        loggerSpy.mockRestore()
+      }
     })
 
     it('queues no Bluesky delete when deleteStatus returns no cross-post rows', async () => {
@@ -831,6 +857,52 @@ describe('deleteStatusFromUserInput', () => {
     afterEach(async () => {
       await database.destroy()
     })
+
+    // A parent note and a same-actor reply, both with a posted cross-post row,
+    // so deleting the parent must queue a Bluesky delete for both uris.
+    const createCrosspostedReplyTree = async () => {
+      const parentStatusId = `${actor.id}/statuses/integration-crosspost-tree-parent`
+      const replyStatusId = `${actor.id}/statuses/integration-crosspost-tree-reply`
+      const parentUri =
+        'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3ktreeparent'
+      const replyUri =
+        'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3ktreereply'
+
+      await database.createNote({
+        id: parentStatusId,
+        url: parentStatusId,
+        actorId: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Cross-posted parent'
+      })
+      await database.createNote({
+        id: replyStatusId,
+        url: replyStatusId,
+        actorId: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Cross-posted reply',
+        reply: parentStatusId
+      })
+      for (const [statusId, uri] of [
+        [parentStatusId, parentUri],
+        [replyStatusId, replyUri]
+      ] as const) {
+        await database.claimBlueskyCrosspost({ statusId, actorId: actor.id })
+        const attemptId = await database.beginBlueskyCrosspostAttempt({
+          statusId
+        })
+        await database.markBlueskyCrosspostPosted({
+          statusId,
+          attemptId: attemptId!,
+          uri,
+          cid: `bafy-${statusId.slice(-6)}`
+        })
+      }
+
+      return { parentStatusId, replyStatusId, parentUri, replyUri }
+    }
 
     it('immediately deletes status and persists pending queue job in the database', async () => {
       const statusId = `${actor.id}/statuses/integration-delete-test`
@@ -1015,6 +1087,66 @@ describe('deleteStatusFromUserInput', () => {
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
         data: { actorId: actor.id, uri }
       })
+    })
+
+    it('queues a Bluesky delete for the parent and its same-actor reply on the database queue', async () => {
+      const { parentStatusId, replyStatusId, parentUri, replyUri } =
+        await createCrosspostedReplyTree()
+
+      await deleteStatusFromUserInput({
+        currentActor: actor,
+        statusId: parentStatusId,
+        database
+      })
+
+      for (const [statusId, uri] of [
+        [parentStatusId, parentUri],
+        [replyStatusId, replyUri]
+      ] as const) {
+        const job = await getQueueJobById(
+          db,
+          getHashFromString(`${statusId}#bluesky-crosspost-delete`)
+        )
+        expect(job).not.toBeNull()
+        expect(job?.name).toBe(DELETE_BLUESKY_CROSSPOST_JOB_NAME)
+        expect(job?.payload).toMatchObject({
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          data: { actorId: actor.id, uri }
+        })
+        expect(await database.getStatus({ statusId })).toBeNull()
+        expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      }
+    })
+
+    it('queues a Bluesky delete for the parent and its same-actor reply on a non-database queue', async () => {
+      currentMockConfig = { queue: undefined }
+      const noQueue = new NoQueue()
+      const publishSpy = vi
+        .spyOn(noQueue, 'publish')
+        .mockResolvedValue(undefined)
+      vi.mocked(getQueue).mockReturnValue(noQueue)
+
+      const { parentStatusId, replyStatusId, parentUri, replyUri } =
+        await createCrosspostedReplyTree()
+
+      await deleteStatusFromUserInput({
+        currentActor: actor,
+        statusId: parentStatusId,
+        database
+      })
+
+      for (const [statusId, uri] of [
+        [parentStatusId, parentUri],
+        [replyStatusId, replyUri]
+      ] as const) {
+        expect(publishSpy).toHaveBeenCalledWith({
+          id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          data: { actorId: actor.id, uri }
+        })
+        expect(await database.getStatus({ statusId })).toBeNull()
+        expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      }
     })
 
     it('keeps the bluesky_crossposts row when deleteStatusWithQueueJob rolls back so a retry still queues the Bluesky delete', async () => {
