@@ -248,9 +248,9 @@ export interface BlueskyDatabase {
     buildQueueJob: (crosspost: BlueskyCrosspost) => CreateQueueJobParams | null
   }): Promise<BlueskyCrosspost | null>
   /**
-   * Atomically deletes a cross-post row that has not been posted (pending,
-   * posting, failed, or posted without a uri) and returns `{ crosspost, deleted: true }`.
-   * Leaves a posted row with a uri intact and returns `{ crosspost, deleted: false }`
+   * Atomically deletes an in-flight cross-post row (pending, posting, or posted
+   * without a uri) and returns `{ crosspost, deleted: true }`. Leaves a failed
+   * row or a posted row with a uri intact and returns `{ crosspost, deleted: false }`
    * so a non-database queue can publish the delete job before removing the row.
    * Returns null when no row exists.
    */

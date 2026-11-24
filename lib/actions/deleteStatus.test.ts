@@ -16,6 +16,7 @@ import {
   DELETE_BLUESKY_CROSSPOST_JOB_NAME,
   SEND_DELETE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { BLUESKY_CROSSPOST_COLLISION_MESSAGE } from '@/lib/services/bluesky/crosspost'
 import { deterministicTid } from '@/lib/services/bluesky/tid'
 import { getQueue } from '@/lib/services/queue'
 import { CloudTasksQueue } from '@/lib/services/queue/cloudtasks'
@@ -277,7 +278,8 @@ describe('deleteStatusFromUserInput', () => {
             name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
             data: {
               actorId: CURRENT_ACTOR.id,
-              uri: expectedDeterministicUri
+              uri: expectedDeterministicUri,
+              expectedCreatedAt: new Date(status.createdAt).toISOString()
             }
           },
           attempts: 0,
@@ -286,6 +288,25 @@ describe('deleteStatusFromUserInput', () => {
           status: 'pending'
         }
       ])
+
+      // A failed row with the collision message must never queue a deterministic delete.
+      expect(
+        linkedBuilder({
+          deleted: true,
+          blueskyCrossposts: [
+            {
+              statusId: status.id,
+              actorId: CURRENT_ACTOR.id,
+              uri: null,
+              cid: null,
+              state: 'failed',
+              error: BLUESKY_CROSSPOST_COLLISION_MESSAGE,
+              createdAt: 0,
+              updatedAt: 0
+            }
+          ]
+        })
+      ).toEqual([])
     })
 
     it('respects custom maxRetries from DatabaseQueueConfig', async () => {
@@ -1504,7 +1525,11 @@ describe('deleteStatusFromUserInput', () => {
         payload: {
           id: expectedJobId,
           name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-          data: { actorId: actor.id, uri: expectedUri }
+          data: {
+            actorId: actor.id,
+            uri: expectedUri,
+            expectedCreatedAt: new Date(createdAt).toISOString()
+          }
         }
       })
     })
@@ -1555,8 +1580,100 @@ describe('deleteStatusFromUserInput', () => {
       expect(publishSpy).toHaveBeenCalledWith({
         id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-        data: { actorId: actor.id, uri: expectedUri }
+        data: {
+          actorId: actor.id,
+          uri: expectedUri,
+          expectedCreatedAt: new Date(createdAt).toISOString()
+        }
       })
+    })
+
+    it('skips queuing DELETE_BLUESKY_CROSSPOST_JOB_NAME when deleting a status with a collision-failed cross-post row on both queues', async () => {
+      const ownDid = `did:plc:${'9'.repeat(24)}`
+      await database.saveBlueskyAccount({
+        actorId: actor.id,
+        did: ownDid,
+        handle: 'author.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+
+      // Database queue
+      const dbqStatusId = `${actor.id}/statuses/integration-collision-dbq`
+      await database.createNote({
+        id: dbqStatusId,
+        url: dbqStatusId,
+        actorId: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Collision failed on DB queue',
+        createdAt: 1_730_000_005_000
+      })
+      await database.claimBlueskyCrosspost({
+        statusId: dbqStatusId,
+        actorId: actor.id
+      })
+      await database.markBlueskyCrosspostFailedIfAttemptable({
+        statusId: dbqStatusId,
+        error: BLUESKY_CROSSPOST_COLLISION_MESSAGE
+      })
+
+      await deleteStatusFromUserInput({
+        currentActor: actor,
+        statusId: dbqStatusId,
+        database
+      })
+
+      expect(
+        await database.getBlueskyCrosspost({ statusId: dbqStatusId })
+      ).toBeNull()
+      expect(
+        await getQueueJobById(
+          db,
+          getHashFromString(`${dbqStatusId}#bluesky-crosspost-delete`)
+        )
+      ).toBeNull()
+
+      // Non-database queue
+      currentMockConfig = { queue: undefined }
+      const noQueue = new NoQueue()
+      const publishSpy = vi
+        .spyOn(noQueue, 'publish')
+        .mockResolvedValue(undefined)
+      vi.mocked(getQueue).mockReturnValue(noQueue)
+
+      const noqStatusId = `${actor.id}/statuses/integration-collision-noq`
+      await database.createNote({
+        id: noqStatusId,
+        url: noqStatusId,
+        actorId: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Collision failed on NoQueue',
+        createdAt: 1_730_000_006_000
+      })
+      await database.claimBlueskyCrosspost({
+        statusId: noqStatusId,
+        actorId: actor.id
+      })
+      await database.markBlueskyCrosspostFailedIfAttemptable({
+        statusId: noqStatusId,
+        error: BLUESKY_CROSSPOST_COLLISION_MESSAGE
+      })
+
+      await deleteStatusFromUserInput({
+        currentActor: actor,
+        statusId: noqStatusId,
+        database
+      })
+
+      expect(
+        await database.getBlueskyCrosspost({ statusId: noqStatusId })
+      ).toBeNull()
+      expect(publishSpy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
+      )
     })
 
     it('queues DELETE_BLUESKY_CROSSPOST_JOB_NAME with each reply own createdAt when deleting a reply tree with a failed reply row', async () => {
@@ -1631,7 +1748,11 @@ describe('deleteStatusFromUserInput', () => {
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
         payload: {
           name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-          data: { actorId: actor.id, uri: expectedReplyUri }
+          data: {
+            actorId: actor.id,
+            uri: expectedReplyUri,
+            expectedCreatedAt: new Date(replyCreatedAt).toISOString()
+          }
         }
       })
     })

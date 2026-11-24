@@ -646,7 +646,10 @@ export const crosspostStatus = async (
     await ensureCrosspostLinkPreview(database, status)
   }
 
-  let attemptId: string | null = null
+  const state: {
+    attemptId: string | null
+    createAttempt: { agent: BlueskyAgent; uri: string } | null
+  } = { attemptId: null, createAttempt: null }
   try {
     await createBlueskyLock(database)(
       `${BLUESKY_CROSSPOST_LOCK_PREFIX}${status.actorId}`,
@@ -717,7 +720,7 @@ export const crosspostStatus = async (
         if (!claimedAttemptId) {
           return
         }
-        attemptId = claimedAttemptId
+        state.attemptId = claimedAttemptId
 
         const record = await buildRecord(
           database,
@@ -727,6 +730,10 @@ export const crosspostStatus = async (
           replyRefs
         )
         const rkey = deterministicTid(currentStatus.createdAt, currentStatus.id)
+        state.createAttempt = {
+          agent,
+          uri: `at://${agent.did}/${POST_COLLECTION}/${rkey}`
+        }
         const { uri, cid } = await createOrRecoverPostRecord(
           agent,
           rkey,
@@ -746,19 +753,28 @@ export const crosspostStatus = async (
         } catch (error) {
           // Leave the deterministic record in place and mark the row failed
           // (fenced by attemptId) so Retry adopts the existing record; deleting
-          // or narrowing the post removes it via its deterministic URI.
+          // or narrowing the post removes it via its deterministic URI. If the
+          // row is already gone, delete the unowned record best-effort.
           logger.warn({
             message: 'Could not record a Bluesky cross-post',
             statusId,
             err: toLoggableError(error)
           })
-          await database.markBlueskyCrosspostFailed({
+          const markedFailed = await database.markBlueskyCrosspostFailed({
             statusId,
             attemptId: claimedAttemptId,
             error: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
           })
+          state.attemptId = null
+          state.createAttempt = null
+          if (!markedFailed) {
+            await deleteUnownedCrosspostRecord(database, agent, statusId, uri)
+          }
           return
         }
+
+        state.attemptId = null
+        state.createAttempt = null
 
         if (!posted) {
           // Delete only when no cross-post row exists for the status any more
@@ -778,9 +794,21 @@ export const crosspostStatus = async (
     // the row stays pending, and once updatedAt is older than
     // STALE_CROSSPOST_MS hydration reports it as failed and the owner's Retry
     // resets it (resetBlueskyCrosspostForRetry).
+    const { attemptId, createAttempt } = state
     if (isRetryableCrosspostError(error) && !getQueue().runsInline) {
       if (attemptId) {
-        await database.releaseBlueskyCrosspostAttempt({ statusId, attemptId })
+        const released = await database.releaseBlueskyCrosspostAttempt({
+          statusId,
+          attemptId
+        })
+        if (!released && createAttempt) {
+          await deleteUnownedCrosspostRecord(
+            database,
+            createAttempt.agent,
+            statusId,
+            createAttempt.uri
+          )
+        }
       }
       throw error
     }
@@ -790,11 +818,23 @@ export const crosspostStatus = async (
       err: toLoggableError(error)
     })
     if (attemptId) {
-      await database.markBlueskyCrosspostFailed({
+      const markedFailed = await database.markBlueskyCrosspostFailed({
         statusId,
         attemptId,
         error: failureMessage(error)
       })
+      if (
+        !markedFailed &&
+        createAttempt &&
+        !(error instanceof BlueskyCrosspostCollisionError)
+      ) {
+        await deleteUnownedCrosspostRecord(
+          database,
+          createAttempt.agent,
+          statusId,
+          createAttempt.uri
+        )
+      }
     } else {
       await database.markBlueskyCrosspostFailedIfAttemptable({
         statusId,

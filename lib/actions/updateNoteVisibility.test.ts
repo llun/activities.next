@@ -10,6 +10,7 @@ import {
   DELETE_BLUESKY_CROSSPOST_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { BLUESKY_CROSSPOST_COLLISION_MESSAGE } from '@/lib/services/bluesky/crosspost'
 import { deterministicTid } from '@/lib/services/bluesky/tid'
 import { getQueue } from '@/lib/services/queue'
 import { DatabaseQueue } from '@/lib/services/queue/database'
@@ -666,7 +667,11 @@ describe('Update note visibility action', () => {
         expect(getQueue().publish).toHaveBeenCalledWith({
           id: getHashFromString(`${noqStatusId}#bluesky-crosspost-delete`),
           name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-          data: { actorId: actor1.id, uri: expectedNoqUri }
+          data: {
+            actorId: actor1.id,
+            uri: expectedNoqUri,
+            expectedCreatedAt: new Date(noqCreatedAt).toISOString()
+          }
         })
 
         // Database queue: narrowing a pending row inserts deterministic delete job atomically.
@@ -719,7 +724,11 @@ describe('Update note visibility action', () => {
           payload: {
             id: expectedDbqJobId,
             name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-            data: { actorId: actor1.id, uri: expectedDbqUri }
+            data: {
+              actorId: actor1.id,
+              uri: expectedDbqUri,
+              expectedCreatedAt: new Date(dbqCreatedAt).toISOString()
+            }
           }
         })
       } finally {
@@ -755,6 +764,252 @@ describe('Update note visibility action', () => {
           getHashFromString(`${unlinkedStatusId}#bluesky-crosspost-delete`)
         )
       ).toBeNull()
+    })
+
+    it('keeps a failed Bluesky cross-post row until publish succeeds on non-database queues, preserves it on publish failure, and deletes without publishing when unlinked or collision-failed', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const ownDid = `did:plc:${'8'.repeat(24)}`
+      await database.saveBlueskyAccount({
+        actorId: actor1.id,
+        did: ownDid,
+        handle: 'actor1.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+      try {
+        // 1. Failed row with linked account: publish runs BEFORE row is deleted;
+        //    if publish fails, the failed row stays for a later status delete.
+        const failStatusId = `${ACTOR1_ID}/statuses/crosspost-failed-pubfail-noq`
+        const failCreatedAt = 1_730_000_300_000
+        await database.createNote({
+          id: failStatusId,
+          url: failStatusId,
+          actorId: actor1.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Failed post publish failure',
+          createdAt: failCreatedAt
+        })
+        await database.claimBlueskyCrosspost({
+          statusId: failStatusId,
+          actorId: actor1.id
+        })
+        await database.markBlueskyCrosspostFailedIfAttemptable({
+          statusId: failStatusId,
+          error: 'Bluesky gave an unexpected answer.'
+        })
+
+        let rowDuringFailedPublish: unknown = null
+        defaultQueue.publish.mockImplementationOnce(async () => {
+          rowDuringFailedPublish = await database.getBlueskyCrosspost({
+            statusId: failStatusId
+          })
+          throw new Error('Queue unavailable')
+        })
+        const loggerSpy = vi
+          .spyOn(logger, 'error')
+          .mockImplementation(() => logger)
+        try {
+          await updateNoteVisibilityFromUserInput({
+            statusId: failStatusId,
+            currentActor: actor1,
+            visibility: 'private',
+            database
+          })
+        } finally {
+          loggerSpy.mockRestore()
+        }
+
+        expect(rowDuringFailedPublish).toMatchObject({
+          statusId: failStatusId,
+          state: 'failed'
+        })
+        // Publish failed -> row kept intact!
+        expect(
+          await database.getBlueskyCrosspost({ statusId: failStatusId })
+        ).toMatchObject({
+          statusId: failStatusId,
+          state: 'failed'
+        })
+
+        // 2. Failed row with linked account when publish succeeds: row exists
+        //    during publish and is deleted only after publish resolves.
+        const okStatusId = `${ACTOR1_ID}/statuses/crosspost-failed-pubok-noq`
+        const okCreatedAt = 1_730_000_400_000
+        await database.createNote({
+          id: okStatusId,
+          url: okStatusId,
+          actorId: actor1.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Failed post publish ok',
+          createdAt: okCreatedAt
+        })
+        await database.claimBlueskyCrosspost({
+          statusId: okStatusId,
+          actorId: actor1.id
+        })
+        await database.markBlueskyCrosspostFailedIfAttemptable({
+          statusId: okStatusId,
+          error: 'Bluesky gave an unexpected answer.'
+        })
+
+        let rowDuringOkPublish: unknown = null
+        defaultQueue.publish.mockImplementationOnce(async () => {
+          rowDuringOkPublish = await database.getBlueskyCrosspost({
+            statusId: okStatusId
+          })
+        })
+        await updateNoteVisibilityFromUserInput({
+          statusId: okStatusId,
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })
+
+        const expectedOkUri = `at://${ownDid}/app.bsky.feed.post/${deterministicTid(okCreatedAt, okStatusId)}`
+        expect(rowDuringOkPublish).toMatchObject({
+          statusId: okStatusId,
+          state: 'failed'
+        })
+        expect(defaultQueue.publish).toHaveBeenCalledWith({
+          id: getHashFromString(`${okStatusId}#bluesky-crosspost-delete`),
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          data: {
+            actorId: actor1.id,
+            uri: expectedOkUri,
+            expectedCreatedAt: new Date(okCreatedAt).toISOString()
+          }
+        })
+        expect(
+          await database.getBlueskyCrosspost({ statusId: okStatusId })
+        ).toBeNull()
+
+        // 3. Collision-failed row with linked account: skips deterministic delete
+        //    on both non-database and database queues and removes the row.
+        defaultQueue.publish.mockClear()
+        const collisionNoqId = `${ACTOR1_ID}/statuses/crosspost-collision-narrow-noq`
+        await database.createNote({
+          id: collisionNoqId,
+          url: collisionNoqId,
+          actorId: actor1.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Collision narrow noq',
+          createdAt: 1_730_000_500_000
+        })
+        await database.claimBlueskyCrosspost({
+          statusId: collisionNoqId,
+          actorId: actor1.id
+        })
+        await database.markBlueskyCrosspostFailedIfAttemptable({
+          statusId: collisionNoqId,
+          error: BLUESKY_CROSSPOST_COLLISION_MESSAGE
+        })
+
+        await updateNoteVisibilityFromUserInput({
+          statusId: collisionNoqId,
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })
+
+        expect(
+          await database.getBlueskyCrosspost({ statusId: collisionNoqId })
+        ).toBeNull()
+        expect(defaultQueue.publish).not.toHaveBeenCalledWith(
+          expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
+        )
+
+        const queueConfig: DatabaseQueueConfig = {
+          type: 'database',
+          maxRetries: 9
+        }
+        vi.mocked(getConfig).mockReturnValue({
+          ...baseConfig,
+          queue: queueConfig
+        })
+        const dbQueue = new DatabaseQueue(queueConfig, database)
+        vi.mocked(getQueue).mockReturnValue(dbQueue)
+
+        const collisionDbqId = `${ACTOR1_ID}/statuses/crosspost-collision-narrow-dbq`
+        await database.createNote({
+          id: collisionDbqId,
+          url: collisionDbqId,
+          actorId: actor1.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Collision narrow dbq',
+          createdAt: 1_730_000_600_000
+        })
+        await database.claimBlueskyCrosspost({
+          statusId: collisionDbqId,
+          actorId: actor1.id
+        })
+        await database.markBlueskyCrosspostFailedIfAttemptable({
+          statusId: collisionDbqId,
+          error: BLUESKY_CROSSPOST_COLLISION_MESSAGE
+        })
+
+        await updateNoteVisibilityFromUserInput({
+          statusId: collisionDbqId,
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })
+
+        expect(
+          await database.getBlueskyCrosspost({ statusId: collisionDbqId })
+        ).toBeNull()
+        expect(
+          await getQueueJobById(
+            db,
+            getHashFromString(`${collisionDbqId}#bluesky-crosspost-delete`)
+          )
+        ).toBeNull()
+      } finally {
+        await database.deleteBlueskyAccount({ actorId: actor1.id })
+      }
+
+      // 4. Failed row with NO linked account on non-database queue: row is
+      //    deleted and no delete job is published.
+      vi.mocked(getConfig).mockReturnValue(baseConfig)
+      vi.mocked(getQueue).mockReturnValue(defaultQueue as never)
+      defaultQueue.publish.mockClear()
+
+      const unlinkedFailId = `${ACTOR1_ID}/statuses/crosspost-failed-unlinked-noq`
+      await database.createNote({
+        id: unlinkedFailId,
+        url: unlinkedFailId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Unlinked failed post'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId: unlinkedFailId,
+        actorId: actor1.id
+      })
+      await database.markBlueskyCrosspostFailedIfAttemptable({
+        statusId: unlinkedFailId,
+        error: 'Bluesky did not accept the post.'
+      })
+
+      await updateNoteVisibilityFromUserInput({
+        statusId: unlinkedFailId,
+        currentActor: actor1,
+        visibility: 'private',
+        database
+      })
+
+      expect(
+        await database.getBlueskyCrosspost({ statusId: unlinkedFailId })
+      ).toBeNull()
+      expect(defaultQueue.publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
+      )
     })
   })
 })

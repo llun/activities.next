@@ -1237,7 +1237,7 @@ describe('Bluesky', () => {
       ).toBeNull()
     })
 
-    it('deleteBlueskyCrosspostUnlessPosted deletes non-posted rows and preserves posted rows with a uri', async () => {
+    it('deleteBlueskyCrosspostUnlessPosted deletes pending/posting rows and preserves failed and posted rows with a uri', async () => {
       // Absent row -> null.
       expect(
         await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
@@ -1264,7 +1264,7 @@ describe('Bluesky', () => {
       })
       expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
 
-      // Failed row -> deleted, returns deleted row with deleted: true.
+      // Failed row -> kept intact in DB and returned with deleted: false.
       await database.claimBlueskyCrosspost({ statusId, actorId })
       await database.markBlueskyCrosspostFailedIfAttemptable({
         statusId,
@@ -1273,10 +1273,15 @@ describe('Bluesky', () => {
       expect(
         await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
       ).toMatchObject({
-        deleted: true,
+        deleted: false,
         crosspost: { statusId, state: 'failed', uri: null }
       })
-      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        statusId,
+        state: 'failed',
+        uri: null
+      })
+      await database.deleteBlueskyCrosspost({ statusId })
 
       // Posted row with uri -> kept intact in DB and returned with deleted: false.
       await database.claimBlueskyCrosspost({ statusId, actorId })

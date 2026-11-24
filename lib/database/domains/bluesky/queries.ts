@@ -835,9 +835,11 @@ export const deleteBlueskyCrosspostUnlessPosted = async (
       .where('statusId', '=', statusId)
       .where((eb) =>
         eb.or([
-          eb('state', '!=', 'posted'),
-          eb('uri', 'is', null),
-          eb('uri', '=', '')
+          eb('state', 'in', ['pending', 'posting']),
+          eb.and([
+            eb('state', '=', 'posted'),
+            eb.or([eb('uri', 'is', null), eb('uri', '=', '')])
+          ])
         ])
       )
       .returningAll()
@@ -846,7 +848,9 @@ export const deleteBlueskyCrosspostUnlessPosted = async (
       return { crosspost: toBlueskyCrosspost(deleted), deleted: true }
     }
     const remaining = await getBlueskyCrosspost(trx, { statusId })
-    return remaining?.state === 'posted' && remaining.uri
+    if (!remaining) return null
+    return remaining.state === 'failed' ||
+      (remaining.state === 'posted' && remaining.uri)
       ? { crosspost: remaining, deleted: false }
       : null
   })

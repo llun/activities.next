@@ -9,6 +9,7 @@ import {
   DELETE_BLUESKY_CROSSPOST_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { BLUESKY_CROSSPOST_COLLISION_MESSAGE } from '@/lib/services/bluesky/crosspost'
 import { deterministicTid } from '@/lib/services/bluesky/tid'
 import { getCommunityForNewReply } from '@/lib/services/federation/replyCommunity'
 import { getQueue } from '@/lib/services/queue'
@@ -35,17 +36,20 @@ interface UpdateNoteVisibilityFromUserInput {
 
 // Drops the Bluesky copy of a post that is no longer public:
 // - posted with a uri: queue DELETE_BLUESKY_CROSSPOST_JOB_NAME for that uri;
+// - failed with BLUESKY_CROSSPOST_COLLISION_MESSAGE: a foreign record sits at
+//   the deterministic TID, so drop the row with no job;
 // - pending / posting / failed: a prior attempt may have written the record at
 //   the deterministic TID without recording it, so queue
-//   DELETE_BLUESKY_CROSSPOST_JOB_NAME for the deterministic uri when a Bluesky
-//   account is linked (DeleteBlueskyCrosspostJob tolerates RecordNotFound);
-//   if no account is linked, drop the row with no job;
+//   DELETE_BLUESKY_CROSSPOST_JOB_NAME for the deterministic uri with
+//   expectedCreatedAt when a Bluesky account is linked (the delete job verifies
+//   via getRecord and tolerates RecordNotFound); if no account is linked, drop
+//   the row with no job;
 // - on the database queue: delete the row and insert the queue job in one
 //   transaction so a queue write failure rolls back and keeps the row;
-// - on other queues: non-posted rows are deleted first so an in-flight worker's
-//   markBlueskyCrosspostPosted returns false and cleans up its record; posted
-//   rows stay intact until queue.publish succeeds so a publish failure leaves
-//   the row for a later status deletion.
+// - on other queues: pending/posting rows are deleted first so an in-flight
+//   worker's markBlueskyCrosspostPosted returns false and cleans up its record;
+//   posted and failed rows stay intact until queue.publish succeeds so a
+//   publish failure leaves the row for a later status deletion.
 // Never throws: a Bluesky failure must not fail the visibility edit.
 const removeBlueskyCrosspost = async (
   database: Database,
@@ -63,17 +67,27 @@ const removeBlueskyCrosspost = async (
     const linkedDid =
       (await database.getBlueskyAccount({ actorId }))?.did ?? null
     const buildDeleteMessage = (crosspost: BlueskyCrosspost) => {
-      const uri =
-        crosspost.state === 'posted' && crosspost.uri
-          ? crosspost.uri
-          : linkedDid
-            ? `at://${linkedDid}/app.bsky.feed.post/${deterministicTid(createdAt, statusId)}`
-            : null
-      if (!uri) return null
+      if (crosspost.state === 'posted' && crosspost.uri) {
+        return {
+          id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          data: { actorId, uri: crosspost.uri }
+        }
+      }
+      if (
+        !linkedDid ||
+        crosspost.error === BLUESKY_CROSSPOST_COLLISION_MESSAGE
+      ) {
+        return null
+      }
       return {
         id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-        data: { actorId, uri }
+        data: {
+          actorId,
+          uri: `at://${linkedDid}/app.bsky.feed.post/${deterministicTid(createdAt, statusId)}`,
+          expectedCreatedAt: new Date(createdAt).toISOString()
+        }
       }
     }
 
@@ -105,7 +119,12 @@ const removeBlueskyCrosspost = async (
     if (!result) return
 
     const message = buildDeleteMessage(result.crosspost)
-    if (!message) return
+    if (!message) {
+      if (!result.deleted) {
+        await database.deleteBlueskyCrosspost({ statusId })
+      }
+      return
+    }
 
     try {
       await queue.publish(message)

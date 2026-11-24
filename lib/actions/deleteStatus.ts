@@ -5,6 +5,7 @@ import {
   DELETE_BLUESKY_CROSSPOST_JOB_NAME,
   SEND_DELETE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { BLUESKY_CROSSPOST_COLLISION_MESSAGE } from '@/lib/services/bluesky/crosspost'
 import { deterministicTid } from '@/lib/services/bluesky/tid'
 import { getQueue } from '@/lib/services/queue'
 import { DatabaseQueue } from '@/lib/services/queue/database'
@@ -56,20 +57,27 @@ export const deleteStatusFromUserInput = async ({
     // Decide from the cross-post row(s) taken inside the status-deletion
     // transaction:
     // - posted with uri: queue DELETE_BLUESKY_CROSSPOST_JOB_NAME for that uri
+    // - failed with BLUESKY_CROSSPOST_COLLISION_MESSAGE: a foreign record sits
+    //   at the deterministic TID, so skip
     // - pending / posting / failed: a prior attempt may have written the record
     //   at the deterministic TID without recording it, so queue
-    //   DELETE_BLUESKY_CROSSPOST_JOB_NAME for that deterministic uri when a
-    //   Bluesky account is linked (DeleteBlueskyCrosspostJob tolerates
-    //   RecordNotFound); if no account is linked, skip
+    //   DELETE_BLUESKY_CROSSPOST_JOB_NAME for that deterministic uri with
+    //   expectedCreatedAt when a Bluesky account is linked (the delete job
+    //   verifies via getRecord and tolerates RecordNotFound); if no account is
+    //   linked, skip
     // - absent: nothing reached Bluesky
     const buildBlueskyCrosspostDeleteJobMessage = (
       crosspost: DeletedBlueskyCrosspost,
       linkedDid: string | null
     ) => {
       let uri: string | null = null
+      let expectedCreatedAt: string | undefined
       if (crosspost.state === 'posted' && crosspost.uri) {
         uri = crosspost.uri
-      } else if (linkedDid) {
+      } else if (
+        linkedDid &&
+        crosspost.error !== BLUESKY_CROSSPOST_COLLISION_MESSAGE
+      ) {
         const statusCreatedAt =
           crosspost.statusCreatedAt ??
           (crosspost.statusId === originalStatus.id
@@ -77,13 +85,18 @@ export const deleteStatusFromUserInput = async ({
             : null)
         if (statusCreatedAt !== null) {
           uri = `at://${linkedDid}/app.bsky.feed.post/${deterministicTid(statusCreatedAt, crosspost.statusId)}`
+          expectedCreatedAt = new Date(statusCreatedAt).toISOString()
         }
       }
       if (!uri) return null
       return {
         id: getHashFromString(`${crosspost.statusId}#bluesky-crosspost-delete`),
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-        data: { actorId: currentActor.id, uri }
+        data: {
+          actorId: currentActor.id,
+          uri,
+          ...(expectedCreatedAt !== undefined ? { expectedCreatedAt } : null)
+        }
       }
     }
 
@@ -182,7 +195,9 @@ export const deleteStatusFromUserInput = async ({
     let linkedDid: string | null = null
     if (
       blueskyCrossposts.some(
-        (crosspost) => crosspost.state !== 'posted' || !crosspost.uri
+        (crosspost) =>
+          (crosspost.state !== 'posted' || !crosspost.uri) &&
+          crosspost.error !== BLUESKY_CROSSPOST_COLLISION_MESSAGE
       )
     ) {
       try {

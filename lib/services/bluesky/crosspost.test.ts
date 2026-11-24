@@ -36,6 +36,7 @@ import type { Actor } from '@/lib/types/domain/actor'
 import type { Status, StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
@@ -1185,7 +1186,7 @@ describe('Bluesky cross-post', () => {
       expect(dbRow?.attemptId).toBe(attempt2Token)
     })
 
-    it('skips deleting the record after markBlueskyCrosspostPosted throws when another row already owns that uri', async () => {
+    it('skips deleting the record when a fenced attempt finds the status row gone but another row already owns that uri', async () => {
       const existing = await claim(await createNote({ text: 'Existing owner' }))
       const status = await claim(await createNote({ text: 'Colliding uri' }))
       const collidingUri = postUri(
@@ -1201,11 +1202,20 @@ describe('Bluesky cross-post', () => {
         cid: cid('e')
       })
 
-      // Simulate another cross-post row already holding the same URI, which
-      // causes the unique-uri constraint in markBlueskyCrosspostPosted to throw.
-      answerCreate('3kowned')
-
-      await crosspostStatus(database, status.id)
+      // Delete this status's crosspost row while createRecord is in flight so
+      // markBlueskyCrosspostPosted returns false and deleteUnownedCrosspostRecord
+      // reaches the ownedByRow guard with statusRow === null.
+      post.mockImplementationOnce(async (_nsid, body) => {
+        await database.deleteBlueskyCrosspost({ statusId: status.id })
+        return { uri: postUri(body.rkey as string), cid: cid('c') }
+      })
+      const byUriSpy = vi.spyOn(database, 'getBlueskyCrosspostByUri')
+      try {
+        await crosspostStatus(database, status.id)
+        expect(byUriSpy).toHaveBeenCalledWith({ uri: collidingUri })
+      } finally {
+        byUriSpy.mockRestore()
+      }
 
       expect(
         post.mock.calls.filter(
@@ -1214,16 +1224,147 @@ describe('Bluesky cross-post', () => {
       ).toHaveLength(0)
       await expect(
         database.getBlueskyCrosspost({ statusId: status.id })
-      ).resolves.toMatchObject({
-        state: 'failed',
-        error: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
-      })
+      ).resolves.toBeNull()
       await expect(
         database.getBlueskyCrosspost({ statusId: existing.id })
       ).resolves.toMatchObject({
         state: 'posted',
         uri: collidingUri
       })
+    })
+
+    it('deletes the deterministic record best-effort when markBlueskyCrosspostPosted throws after the row is gone', async () => {
+      const status = await claim(
+        await createNote({ text: 'Row gone when markPosted throws' })
+      )
+      const expectedRkey = deterministicTid(status.createdAt, status.id)
+      answerCreate('3kmarkthrowgone')
+      const markPostedSpy = vi
+        .spyOn(database, 'markBlueskyCrosspostPosted')
+        .mockImplementationOnce(async () => {
+          await database.deleteBlueskyCrosspost({ statusId: status.id })
+          throw new Error('db write failed')
+        })
+      const deleteErr = new BlueskyRequestError(
+        'com.atproto.repo.deleteRecord',
+        503
+      )
+      post.mockRejectedValueOnce(deleteErr)
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => logger)
+      try {
+        await expect(
+          crosspostStatus(database, status.id)
+        ).resolves.toBeUndefined()
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: 'Could not delete a Bluesky cross-post copy',
+            uri: postUri(expectedRkey),
+            err: deleteErr
+          })
+        )
+      } finally {
+        warnSpy.mockRestore()
+        markPostedSpy.mockRestore()
+      }
+
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey: expectedRkey
+      })
+    })
+
+    it('deletes the deterministic record best-effort when createOrRecoverPostRecord throws (lost answer) after the row is gone, except on collision', async () => {
+      // 1. Retryable lost answer (502) after row deleted -> release returns false -> best-effort deleteRecord.
+      const retryableStatus = await claim(
+        await createNote({ text: 'Lost answer retryable row gone' })
+      )
+      const retryableRkey = deterministicTid(
+        retryableStatus.createdAt,
+        retryableStatus.id
+      )
+      const lostAnswer = new BlueskyRequestError(
+        'com.atproto.repo.createRecord',
+        502
+      )
+      post.mockImplementationOnce(async () => {
+        await database.deleteBlueskyCrosspost({ statusId: retryableStatus.id })
+        throw lostAnswer
+      })
+      post.mockRejectedValueOnce(
+        new BlueskyRequestError(
+          'com.atproto.repo.deleteRecord',
+          400,
+          'RecordNotFound'
+        )
+      )
+
+      await expect(crosspostStatus(database, retryableStatus.id)).rejects.toBe(
+        lostAnswer
+      )
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey: retryableRkey
+      })
+
+      // 2. Non-retryable failure (unexpected answer / inline lost answer) after row deleted -> markFailed returns false -> best-effort deleteRecord.
+      post.mockClear()
+      const permanentStatus = await claim(
+        await createNote({ text: 'Lost answer permanent row gone' })
+      )
+      const permanentRkey = deterministicTid(
+        permanentStatus.createdAt,
+        permanentStatus.id
+      )
+      queue.runsInline = true
+      post.mockImplementationOnce(async () => {
+        await database.deleteBlueskyCrosspost({ statusId: permanentStatus.id })
+        throw new BlueskyRequestError('com.atproto.repo.createRecord', 502)
+      })
+      post.mockResolvedValueOnce({}) // deleteRecord
+
+      await crosspostStatus(database, permanentStatus.id)
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey: permanentRkey
+      })
+
+      // 3. Collision error after row deleted -> MUST NOT delete the colliding foreign record.
+      post.mockClear()
+      queue.runsInline = false
+      const collisionStatus = await claim(
+        await createNote({ text: 'Collision row gone' })
+      )
+      post.mockRejectedValueOnce(
+        new BlueskyRequestError(
+          'com.atproto.repo.createRecord',
+          400,
+          'RecordAlreadyExists'
+        )
+      )
+      get.mockImplementationOnce(async (_nsid, params) => {
+        await database.deleteBlueskyCrosspost({ statusId: collisionStatus.id })
+        return {
+          uri: postUri(params.rkey),
+          cid: cid('f'),
+          value: {
+            $type: 'app.bsky.feed.post',
+            text: 'Foreign post',
+            createdAt: new Date(
+              collisionStatus.createdAt - 60_000
+            ).toISOString()
+          }
+        }
+      })
+
+      await crosspostStatus(database, collisionStatus.id)
+      expect(
+        post.mock.calls.filter(
+          ([nsid]) => nsid === 'com.atproto.repo.deleteRecord'
+        )
+      ).toHaveLength(0)
     })
 
     it('drops the row when the post stops being crosspostable before the lock runs', async () => {
