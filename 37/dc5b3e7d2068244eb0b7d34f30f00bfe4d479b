@@ -1,0 +1,30 @@
+app/api/v1/routeScopeWiring.test.ts
+  s_f193227df3df34::t_fb979fc0b1a4db 260
+  s_f193227df3df34::t_cd1e24bce3781b 257-259
+  s_f193227df3df34::t_bae221125d0d60 256
+app/api/v1/bluesky/account/route.ts
+  s_f193227df3df34::t_fb979fc0b1a4db 42-54
+app/api/v1/bluesky/account/route.test.ts
+  s_f193227df3df34::t_4a1db4fc515330 13,15-17,19
+  s_f193227df3df34::t_035f0f03024287 45,68
+docs/architecture.md
+  s_f193227df3df34::t_0ea68aeebc78c9 454-456
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_a19de17995e8bb 1392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "37dc5b3e7d2068244eb0b7d34f30f00bfe4d479b",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
