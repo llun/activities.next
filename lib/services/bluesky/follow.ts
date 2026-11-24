@@ -9,6 +9,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import {
   BlueskyRequestError,
+  BlueskySessionChangedError,
   BlueskySessionEndedError,
   getBlueskyAgent
 } from './agent'
@@ -177,6 +178,12 @@ export const blueskyFollowFailure = (
       status: 409,
       error:
         'Another follow change for this account is in progress. Try again in a moment.'
+    }
+  }
+  if (error instanceof BlueskySessionChangedError) {
+    return {
+      status: 409,
+      error: 'Your Bluesky account was just linked again. Try again.'
     }
   }
   if (error instanceof BlueskySessionEndedError) {

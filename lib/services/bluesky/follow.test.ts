@@ -2,6 +2,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   type BlueskyAgent,
   BlueskyRequestError,
+  BlueskySessionChangedError,
   BlueskySessionEndedError,
   getBlueskyAgent
 } from '@/lib/services/bluesky/agent'
@@ -256,6 +257,10 @@ describe('Bluesky follow service', () => {
     expect(blueskyFollowFailure(new BlueskyFollowError('No'))).toEqual({
       status: 422,
       error: 'No'
+    })
+    expect(blueskyFollowFailure(new BlueskySessionChangedError())).toEqual({
+      status: 409,
+      error: 'Your Bluesky account was just linked again. Try again.'
     })
     expect(blueskyFollowFailure(new Error('boom'))).toBeNull()
     // A session-refresh lock timing out is not a follow change in progress.

@@ -26,6 +26,14 @@ export class BlueskySessionEndedError extends Error {
   }
 }
 
+/** The stored session was replaced (relinked) while a request ran. */
+export class BlueskySessionChangedError extends Error {
+  constructor() {
+    super('The Bluesky session changed; try again.')
+    this.name = 'BlueskySessionChangedError'
+  }
+}
+
 /** A non-2xx XRPC answer, carrying only what the PDS said back. */
 export class BlueskyRequestError extends Error {
   constructor(
@@ -163,7 +171,7 @@ const createAppPasswordSend = (
         // Relinked (say, with OAuth) while this request ran: the new session
         // is fine, so fail this request without ending (deleting) it.
         if (stored.type !== 'app_password') {
-          throw new Error('The Bluesky session changed; try again.')
+          throw new BlueskySessionChangedError()
         }
         if (stored.accessJwt !== staleAccessJwt) return stored
         const nsid = 'com.atproto.server.refreshSession'

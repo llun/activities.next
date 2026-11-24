@@ -3,6 +3,7 @@ import { TokenRefreshError } from '@atproto/oauth-client-node'
 import { getConfig } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
+  BlueskySessionChangedError,
   BlueskySessionEndedError,
   getBlueskyAgent
 } from '@/lib/services/bluesky/agent'
@@ -231,8 +232,7 @@ describe('getBlueskyAgent', () => {
       const error = await agent!
         .get('app.bsky.feed.getTimeline')
         .catch((caught: unknown) => caught)
-      expect(error).toBeInstanceOf(Error)
-      expect(error).not.toBeInstanceOf(BlueskySessionEndedError)
+      expect(error).toBeInstanceOf(BlueskySessionChangedError)
       expect(await readStoredBlueskySession(database, DID)).toMatchObject({
         type: 'oauth'
       })
