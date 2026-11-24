@@ -72,7 +72,11 @@ export const buildScheduledParams = (
     scheduled_at: note.scheduled_at ?? null,
     idempotency: idempotencyKey,
     with_rate_limit: false,
-    bluesky_crosspost: note.bluesky_crosspost ?? null
+    // Only when the client sent it, so the params of every other scheduled
+    // status keep the shape they had before the Bluesky option existed.
+    ...(note.bluesky_crosspost !== undefined
+      ? { bluesky_crosspost: note.bluesky_crosspost }
+      : {})
   }
 }
 

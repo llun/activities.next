@@ -12,7 +12,16 @@ import { JobHandle } from '@/lib/services/queue/type'
 
 const POST_COLLECTION = 'app.bsky.feed.post'
 
-const JobData = z.object({ actorId: z.string(), uri: z.string() })
+// A missing or malformed uri is refused here, so the job is a no-op for data
+// that could never name one of the account's own posts.
+export const JobData = z.object({
+  actorId: z.string(),
+  uri: z
+    .string()
+    .refine((uri) => parseAtUri(uri)?.collection === POST_COLLECTION, {
+      message: 'Not a Bluesky post record uri'
+    })
+})
 
 // Deletes the Bluesky copy of a local post after the local status is gone.
 // Only the linked account's own record is touched; a record already deleted on

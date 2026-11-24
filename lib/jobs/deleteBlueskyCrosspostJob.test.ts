@@ -1,5 +1,8 @@
 import type { Database } from '@/lib/database/types'
-import { deleteBlueskyCrosspostJob } from '@/lib/jobs/deleteBlueskyCrosspostJob'
+import {
+  JobData,
+  deleteBlueskyCrosspostJob
+} from '@/lib/jobs/deleteBlueskyCrosspostJob'
 import { DELETE_BLUESKY_CROSSPOST_JOB_NAME } from '@/lib/jobs/names'
 import {
   type BlueskyAgent,
@@ -86,6 +89,36 @@ describe('deleteBlueskyCrosspostJob', () => {
     vi.mocked(isBlueskyAllowed).mockResolvedValueOnce(false)
     await run(`at://${OWN_DID}/app.bsky.feed.post/3krefused`)
 
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('refuses a missing or malformed uri in its data and touches nothing', async () => {
+    expect(JobData.safeParse({ actorId: ACTOR_ID }).success).toBe(false)
+    expect(JobData.safeParse({ actorId: ACTOR_ID, uri: '' }).success).toBe(
+      false
+    )
+    expect(
+      JobData.safeParse({ actorId: ACTOR_ID, uri: 'not-a-record-uri' }).success
+    ).toBe(false)
+    expect(
+      JobData.safeParse({
+        actorId: ACTOR_ID,
+        uri: `at://${OWN_DID}/app.bsky.feed.like/3klike`
+      }).success
+    ).toBe(false)
+
+    await deleteBlueskyCrosspostJob(database as unknown as Database, {
+      id: 'job',
+      name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+      data: { actorId: ACTOR_ID }
+    })
+    await deleteBlueskyCrosspostJob(database as unknown as Database, {
+      id: 'job',
+      name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+      data: { actorId: ACTOR_ID, uri: 'not-a-record-uri' }
+    })
+
+    expect(database.getBlueskyAccount).not.toHaveBeenCalled()
     expect(post).not.toHaveBeenCalled()
   })
 })

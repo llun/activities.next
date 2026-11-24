@@ -642,6 +642,30 @@ describe('Bluesky cross-post', () => {
       expect(post).toHaveBeenCalledTimes(1)
     })
 
+    it('posts once when two jobs for the same pending row run concurrently', async () => {
+      const status = await claim(await createNote({ text: 'Concurrent' }))
+      answerCreate('3kconcurrent')
+
+      // The real per-actor lock serialises them: the second run finds the row
+      // posted and stops before createRecord.
+      await Promise.all([
+        crosspostStatus(database, status.id),
+        crosspostStatus(database, status.id)
+      ])
+
+      expect(
+        post.mock.calls.filter(
+          ([nsid]) => nsid === 'com.atproto.repo.createRecord'
+        )
+      ).toHaveLength(1)
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'posted',
+        uri: postUri('3kconcurrent')
+      })
+    })
+
     it('deletes the new record when the post was deleted while it was created', async () => {
       const status = await claim(await createNote({ text: 'Gone' }))
       answerCreate('3kgone')
@@ -888,6 +912,17 @@ describe('Bluesky cross-post', () => {
         name: CROSSPOST_BLUESKY_JOB_NAME,
         data: { statusId: status.id }
       })
+    })
+
+    it('queues one job when the same status is enqueued twice', async () => {
+      const status = await createNote({ text: 'Enqueued twice' })
+
+      await enqueueBlueskyCrosspost(database, { actor, status })
+      await enqueueBlueskyCrosspost(database, { actor, status })
+
+      // The second claim finds the pending row and publishes nothing.
+      expect(queue.publish).toHaveBeenCalledTimes(1)
+      await expect(rowOf(status)).resolves.toMatchObject({ state: 'pending' })
     })
 
     it('follows the per-post switch over the default', async () => {

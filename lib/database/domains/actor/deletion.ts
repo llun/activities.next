@@ -16,6 +16,7 @@ import {
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { CounterKey, parseCounterValue } from '@/lib/database/utils/counter'
 import { parseStatusContent } from '@/lib/database/utils/parseStatusContent'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -155,7 +156,14 @@ export const deleteActorData = async (
 
       if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
         const parentStatusId = statusReferenceToId.get(status.reply)
-        if (parentStatusId) {
+        // A Bluesky post's reply count is Bluesky's (set from the AppView),
+        // and a Bluesky reply under a local post was never counted
+        // (./status/writes.ts, ./status/deletion.ts).
+        if (
+          parentStatusId &&
+          !isBlueskyId(parentStatusId) &&
+          !isBlueskyId(actorId)
+        ) {
           replyCounterChanges[parentStatusId] =
             (replyCounterChanges[parentStatusId] || 0) + 1
         }

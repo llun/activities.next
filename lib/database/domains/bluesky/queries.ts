@@ -608,20 +608,22 @@ export const getBlueskyCrosspostByUri = async (
 }
 
 // The cross-post rows of a page of statuses, keyed by statusId. Batched so the
-// status hydration does not run one lookup per status.
+// status hydration does not run one lookup per status. `actorId` narrows the
+// read to the rows of that actor's own statuses: a cross-post row's actorId is
+// the status's author, and only the author ever sees the row.
 export const getBlueskyCrosspostsByStatusIds = async (
   db: Db,
-  { statusIds }: { statusIds: string[] }
+  { statusIds, actorId }: { statusIds: string[]; actorId?: string }
 ): Promise<Map<string, BlueskyCrosspost>> => {
   const crossposts = new Map<string, BlueskyCrosspost>()
   if (statusIds.length === 0) return crossposts
-  const rows = await selectInChunks(db, statusIds, (chunk) =>
-    db
+  const rows = await selectInChunks(db, statusIds, (chunk) => {
+    const query = db
       .selectFrom('bluesky_crossposts')
       .selectAll()
       .where('statusId', 'in', chunk)
-      .execute()
-  )
+    return (actorId ? query.where('actorId', '=', actorId) : query).execute()
+  })
   for (const row of rows) {
     crossposts.set(row.statusId, toCrosspost(row))
   }

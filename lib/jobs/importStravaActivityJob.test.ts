@@ -832,6 +832,9 @@ describe('importStravaActivityJob', () => {
         }
       })
     )
+    // The note already existed, so this redelivery must not post it to
+    // Bluesky again.
+    expect(enqueueBlueskyCrosspostForStatus).not.toHaveBeenCalled()
   })
 
   it('dedupes fallback note photo attachments and skips unsafe photo URLs', async () => {

@@ -327,7 +327,8 @@ const finishFirstImport = async ({
   mapImageUrl,
   notifyOnComplete,
   publishSendNote,
-  blueskyCrosspost
+  blueskyCrosspost,
+  firstPublish = true
 }: {
   database: Database
   actorId: string
@@ -337,6 +338,10 @@ const finishFirstImport = async ({
   notifyOnComplete: boolean
   publishSendNote: boolean
   blueskyCrosspost?: boolean
+  // False when the activity was already published by an earlier run (a
+  // redelivered job for a file that is no longer primary): the Bluesky copy
+  // goes out once, with the first publish.
+  firstPublish?: boolean
 }) => {
   if (notifyOnComplete) {
     await notifyActivityImported({
@@ -369,8 +374,9 @@ const finishFirstImport = async ({
   }
 
   // The post's first publish is also when its Bluesky copy goes; imports and
-  // reprocessing (publishSendNote false) never cross-post. Best effort.
-  if (publishSendNote) {
+  // reprocessing (publishSendNote false) never cross-post, and neither does a
+  // redelivery of an already published activity. Best effort.
+  if (publishSendNote && firstPublish) {
     await enqueueBlueskyCrosspostForStatus(database, {
       actorId,
       statusId,
@@ -1105,7 +1111,10 @@ export const processFitnessFileJob: JobHandle = async (database, message) => {
           mapImageUrl: map?.url,
           notifyOnComplete,
           publishSendNote,
-          blueskyCrosspost
+          blueskyCrosspost,
+          // The primary already finished its first import, so this late
+          // delivery of the old file's job must not cross-post it again.
+          firstPublish: false
         })
         return
       }

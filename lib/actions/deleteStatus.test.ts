@@ -605,6 +605,37 @@ describe('deleteStatusFromUserInput', () => {
         expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
       )
     })
+
+    it('queues no Bluesky delete for a pending or failed row that has no uri', async () => {
+      for (const state of ['pending', 'failed'] as const) {
+        const status = createMockStatus({
+          id: `https://llun.test/users/me/statuses/${state}-crosspost`,
+          actorId: CURRENT_ACTOR.id
+        })
+        const database = createDatabase(status)
+        vi.mocked(database.getBlueskyCrosspost).mockResolvedValue({
+          statusId: status.id,
+          actorId: CURRENT_ACTOR.id,
+          uri: null,
+          cid: null,
+          state,
+          error: state === 'failed' ? 'Bluesky did not accept the post.' : null,
+          createdAt: 0,
+          updatedAt: 0
+        })
+
+        await deleteStatusFromUserInput({
+          currentActor: CURRENT_ACTOR,
+          statusId: status.id,
+          database
+        })
+
+        expect(database.deleteStatus).toHaveBeenCalledTimes(1)
+        expect(noQueue.publish).not.toHaveBeenCalledWith(
+          expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
+        )
+      }
+    })
   })
 
   describe('Immediate local disappearance (Integration with SQL Database)', () => {

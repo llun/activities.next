@@ -506,6 +506,41 @@ describe('processFitnessFileJob', () => {
     expect(enqueueBlueskyCrosspostForStatus).not.toHaveBeenCalled()
   })
 
+  it('does not cross-post an activity again when a late job for an old file arrives', async () => {
+    const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
+      text: ''
+    })
+    await processFitnessFileJob(database, {
+      id: 'job-bluesky-first',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId }
+    })
+    expect(enqueueBlueskyCrosspostForStatus).toHaveBeenCalledTimes(1)
+
+    // A second file on the same status, no longer primary: the first import
+    // already finished, and this late delivery of the old file's job must not
+    // publish the activity to Bluesky a second time.
+    const second = await database.createFitnessFile({
+      actorId: actor.id,
+      statusId,
+      path: 'fitness/late.fit',
+      fileName: 'late.fit',
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 4_096
+    })
+    await database.updateFitnessFilePrimary(second!.id, false)
+    vi.mocked(enqueueBlueskyCrosspostForStatus).mockClear()
+
+    await processFitnessFileJob(database, {
+      id: 'job-bluesky-late',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: { actorId: actor.id, statusId, fitnessFileId: second!.id }
+    })
+
+    expect(enqueueBlueskyCrosspostForStatus).not.toHaveBeenCalled()
+  })
+
   describe('activity caption', () => {
     it('captions from the raw sport, not the coarser key it is stored as', async () => {
       // `Handcycle` is STORED as `ride` — gear attribution asks "which bike".

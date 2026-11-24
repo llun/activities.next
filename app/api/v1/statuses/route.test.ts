@@ -1994,6 +1994,61 @@ describe('POST /api/v1/statuses', () => {
     expect(changed.status).toBe(422)
   })
 
+  it('keeps the Idempotency-Key hash of a body without the Bluesky field, and replays it', async () => {
+    const idempotencyKey = 'idem-key-bluesky-absent'
+    const makeRequest = () =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status: 'No Bluesky choice' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test',
+            'Idempotency-Key': idempotencyKey
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    const first = await makeRequest()
+    expect(first.status).toBe(200)
+    const firstStatus = await first.json()
+
+    // The hash the route computed before the Bluesky option existed: the same
+    // body, with no bluesky_crosspost key at all. An in-flight key from before
+    // the upgrade therefore still matches its retry.
+    const row = await db
+      .selectFrom('idempotency_keys')
+      .select('contentHash')
+      .where('actorId', '=', ACTOR1_ID)
+      .where('key', '=', idempotencyKey)
+      .executeTakeFirstOrThrow()
+    expect(row.contentHash).toBe(
+      getHashFromString(
+        JSON.stringify({
+          status: 'No Bluesky choice',
+          in_reply_to_id: null,
+          quoted_status_id: null,
+          quote_approval_policy: null,
+          spoiler_text: null,
+          media_ids: [],
+          fitness_file_id: null,
+          visibility: null,
+          language: null,
+          sensitive: false,
+          scheduled_at: null,
+          created_at: null,
+          poll: null
+        })
+      )
+    )
+
+    // A replay of the same key and body is answered with the kept status.
+    const replay = await makeRequest()
+    expect(replay.status).toBe(200)
+    expect((await replay.json()).id).toBe(firstStatus.id)
+  })
+
   it('passes the Bluesky cross-post choice to the new post', async () => {
     await database.saveBlueskyAccount({
       actorId: ACTOR1_ID,

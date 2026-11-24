@@ -403,11 +403,16 @@ export const importStravaActivityJob = createJobHandle(
             data: { actorId, statusId: createdNote.id }
           })
           // Its Bluesky copy answers to the same opt-in: a bulk import or a
-          // recovery run never cross-posts. Best effort, the account default.
-          await enqueueBlueskyCrosspostForStatus(database, {
-            actorId,
-            statusId: createdNote.id
-          })
+          // recovery run never cross-posts. Only a newly created fallback note
+          // is cross-posted: a redelivery or a re-run finds the existing note
+          // and must not post it to Bluesky again. Best effort, the account
+          // default.
+          if (isNewFallback) {
+            await enqueueBlueskyCrosspostForStatus(database, {
+              actorId,
+              statusId: createdNote.id
+            })
+          }
         }
 
         // Gated on notifyOnComplete as a whole, not just on the email. This

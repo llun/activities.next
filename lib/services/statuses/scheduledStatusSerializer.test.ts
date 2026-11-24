@@ -38,12 +38,16 @@ describe('buildScheduledParams', () => {
     expect(withoutMedia.media_ids).toBeNull()
   })
 
-  it('stores the Bluesky cross-post choice, null when the note did not say', () => {
+  it('stores the Bluesky cross-post choice only when the note sent one', () => {
     expect(
       buildScheduledParams(baseNote({ bluesky_crosspost: false }), null)
         .bluesky_crosspost
     ).toBe(false)
-    expect(buildScheduledParams(baseNote(), null).bluesky_crosspost).toBeNull()
+    // Omitted means the account default at publish time, and the params of
+    // every other scheduled status keep the shape they had before the option.
+    expect(buildScheduledParams(baseNote(), null)).not.toHaveProperty(
+      'bluesky_crosspost'
+    )
   })
 
   it('carries the idempotency key through to params', () => {

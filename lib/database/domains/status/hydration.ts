@@ -367,10 +367,13 @@ export const buildStatusHydrationContext = async (
       : Promise.resolve(new Map<string, StatusLinkPreview>()),
     buildReactionRollupContext(db, [...hydrationStatusIds], currentActorId),
     // Cross-post rows are only shown to the status's own author (checked at
-    // the status), so nothing is read for an anonymous page.
+    // the status), so nothing is read for an anonymous page, and the read is
+    // narrowed to the viewer's own statuses (and boost originals) so a page of
+    // other actors' posts never touches bluesky_crossposts.
     currentActorId && hasHydrationStatusIds
       ? getBlueskyCrosspostsByStatusIds(db, {
-          statusIds: [...hydrationStatusIds]
+          statusIds: [...hydrationStatusIds],
+          actorId: currentActorId
         })
       : Promise.resolve(new Map<string, BlueskyCrosspost>()),
     buildViewerHydration(db, [...hydrationStatusIds], currentActorId)
@@ -649,9 +652,10 @@ export const hydrateStatusRow = async (
     currentActorId && currentActorId === data.actorId
       ? hydrationContext?.blueskyCrossposts
         ? (hydrationContext.blueskyCrossposts.get(data.id) ?? null)
-        : getBlueskyCrosspostsByStatusIds(db, { statusIds: [data.id] }).then(
-            (crossposts) => crossposts.get(data.id) ?? null
-          )
+        : getBlueskyCrosspostsByStatusIds(db, {
+            statusIds: [data.id],
+            actorId: currentActorId
+          }).then((crossposts) => crossposts.get(data.id) ?? null)
       : null
   ])
 
