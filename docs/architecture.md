@@ -451,7 +451,9 @@ real queue there.
 **Bluesky Home sync.** `instrumentation.ts` also starts `startBlueskySyncSweep`
 (`lib/services/bluesky/syncSweep.ts`), which every five minutes publishes a
 `SyncBlueskyHomeJob` for each linked Bluesky account that may sync, which
-also reads that account's Bluesky notifications (see
+also reads that account's Bluesky notifications; new public posts queue a
+`CrosspostBlueskyJob` (and deletes a `DeleteBlueskyCrosspostJob`) for a linked
+account (see
 [Linked Bluesky accounts](mastodon-api-compatibility.md#linked-bluesky-accounts)).
 Its job ids name the actor and the interval so a deduping queue runs each actor
 once per interval; the sync itself also takes a per-actor lock row and skips a

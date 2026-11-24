@@ -5,22 +5,18 @@ import {
   getBlueskyAccountState,
   updateBlueskyCrosspostDefault
 } from '@/lib/services/bluesky/account'
-import { Scope } from '@/lib/types/database/operations'
 
 import { PATCH } from './route'
 
 const currentActor = { id: 'actor-a', domain: 'social.example' }
 const database = {}
-const guardScopes: Scope[][] = []
+const guardCalls: string[] = []
 
-vi.mock('@/lib/services/guards/OAuthGuard', () => ({
-  OAuthGuardAnyScope:
-    (
-      scopes: Scope[],
-      handle: (req: NextRequest, context: unknown) => unknown
-    ) =>
+vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
+  AuthenticatedGuard:
+    (handle: (req: NextRequest, context: unknown) => unknown) =>
     (req: NextRequest, context: object) => {
-      guardScopes.push(scopes)
+      guardCalls.push('session')
       return handle(req, { ...context, currentActor, database })
     }
 }))
@@ -46,7 +42,7 @@ const call = (body: unknown) =>
 describe('PATCH /api/v1/bluesky/account', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    guardScopes.length = 0
+    guardCalls.length = 0
   })
 
   it('saves the cross-post default and answers the account', async () => {
@@ -69,9 +65,7 @@ describe('PATCH /api/v1/bluesky/account', () => {
       currentActor,
       false
     )
-    expect(guardScopes).toEqual([
-      [Scope.enum.write, Scope.enum['write:accounts']]
-    ])
+    expect(guardCalls).toEqual(['session'])
     expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
       'PATCH'
     )

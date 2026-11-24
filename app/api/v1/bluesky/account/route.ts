@@ -7,8 +7,6 @@ import {
 } from '@/lib/services/bluesky/account'
 import { blueskyRouteResponse } from '@/lib/services/bluesky/routeResponse'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
-import { Scope } from '@/lib/types/database/operations'
 import type { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -41,19 +39,17 @@ export const DELETE = traceApiRoute(
 // Settings › Other networks "Post to Bluesky by default".
 export const PATCH = traceApiRoute(
   'updateBlueskyAccount',
-  OAuthGuardAnyScope(
-    [Scope.enum.write, Scope.enum['write:accounts']],
-    async (req, { currentActor, database }) => {
-      const parsed = PatchBody.safeParse(await req.json().catch(() => null))
-      if (!parsed.success) return apiCorsError(req, METHODS, 400)
-      return blueskyRouteResponse(req, METHODS, async () => {
-        await updateBlueskyCrosspostDefault(
-          database,
-          currentActor,
-          parsed.data.crosspostByDefault
-        )
-        return getBlueskyAccountState(database, currentActor)
-      })
-    }
-  )
+  // Session only, like the rest of this Settings route.
+  AuthenticatedGuard(async (req, { currentActor, database }) => {
+    const parsed = PatchBody.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) return apiCorsError(req, METHODS, 400)
+    return blueskyRouteResponse(req, METHODS, async () => {
+      await updateBlueskyCrosspostDefault(
+        database,
+        currentActor,
+        parsed.data.crosspostByDefault
+      )
+      return getBlueskyAccountState(database, currentActor)
+    })
+  })
 )
