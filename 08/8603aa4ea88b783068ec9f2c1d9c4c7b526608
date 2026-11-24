@@ -1,0 +1,25 @@
+lib/services/bluesky/account.ts
+  s_f193227df3df34::t_280fec1e322165 19,93-94,213
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  s_f193227df3df34::t_ab938345fe7813 198-210,212-233
+app/api/v1/bluesky/account/oauth/route.test.ts
+  s_f193227df3df34::t_ab938345fe7813 1-59
+lib/database/domains/blueskyAccount/queries.ts
+  s_f193227df3df34::t_280fec1e322165 1,58-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "088603aa4ea88b783068ec9f2c1d9c4c7b526608",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
