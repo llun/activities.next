@@ -179,7 +179,9 @@ describe('GET /api/v1/accounts', () => {
     const apId = 'https://remote.example/users/bob'
     const getMastodonActorsFromIds = vi.fn(
       async ({ ids }: { ids: string[] }) =>
-        ids.includes(apId) ? [{ ...mastodonAccount, id: apId, url: apId }] : []
+        ids.some((id) => id === apId)
+          ? [{ ...mastodonAccount, id: apId, url: apId }]
+          : []
     )
     mockDatabase = {
       ...createInMemoryRateLimitDatabase(),
