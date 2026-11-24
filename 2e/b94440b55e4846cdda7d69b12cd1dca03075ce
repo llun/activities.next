@@ -1,0 +1,31 @@
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_05426074fe2987 1392
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.test.ts
+  s_f193227df3df34::t_5a154d40b8d70c 59,133-156
+lib/database/domains/bluesky/bluesky.test.ts
+  s_f193227df3df34::t_cbefe7e4b8e652 804-830
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_23b5ea972d85c5 29,43-49,646,675-676,681,684,686-698
+lib/database/domains/status/hydration.ts
+  s_f193227df3df34::t_0960902869a4fc 2-6,708-712,743,745-747
+lib/database/domains/status/statusReadQueries.test.ts
+  s_f193227df3df34::t_cb3bf12720cb82 3442-3496
+lib/services/bluesky/crosspost.ts
+  s_f193227df3df34::t_f104245fe47835 549-553
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2eb94440b55e4846cdda7d69b12cd1dca03075ce",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
