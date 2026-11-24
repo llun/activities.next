@@ -1,0 +1,39 @@
+lib/actions/deleteStatus.test.ts
+  s_f193227df3df34::t_78e997d0f3cc3a 75-80,138-139,142-143,148-233,330,338-341,648,655-668,678,689,691,696-710,712-717,719-725,727-734,737,750,758,765-779,788,951,968-971,973-975,983,992,996,1020-1186,1226-1269
+lib/actions/deleteStatus.ts
+  s_f193227df3df34::t_21a403cdc4d8bc 2,55-60,62-69,99-115,126-130,159-174
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_6a14dbf5fe42e3 582-584,604,616,637,790
+lib/database/domains/status/deletedAttachmentMedia.test.ts
+  s_f193227df3df34::t_622926d9b5d1f4 196-203
+lib/database/domains/status/deletion.ts
+  s_f193227df3df34::t_ee2cb48fb31bc7 1-2,12,519-521,535,541-543,584-589,592,594-597,806,815,817,826,869-871,874-880,882-883,889-890,894-899,902-903,907
+lib/database/domains/status/statusDelete.test.ts
+  s_f193227df3df34::t_6761f93b55ed42 486
+lib/database/domains/status/statusDeletionQueries.test.ts
+  s_f193227df3df34::t_d996a00d0513af 1620,1721,1768,1818-1821,1864,1875,2085,2097-2098,2102-2108,2114-2126,2135-2189
+lib/database/domains/status/statusDeletionQueue.test.ts
+  s_f193227df3df34::t_23fab050363a0e 134,206,208,214,322,372,384-453
+lib/database/domains/status/types.ts
+  s_f193227df3df34::t_f43bd0a8596ed4 14,418-421,432-436,674,683
+lib/database/getSQLDatabase.test.ts
+  s_f193227df3df34::t_9de2de9d24e40c 100-102,114-116,123
+lib/types/database/operations.ts
+  s_f193227df3df34::t_0ece7f9ab932ee 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "da8fdcd7f0f8ac448ea2dc7ed10dcbd0548c2fac",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
