@@ -1,0 +1,47 @@
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_99813c46ce742a 1392
+lib/client/drafts/submitRequest.test.ts
+  s_f193227df3df34::t_3e15dc21dd843e 293-315
+lib/client/drafts/submitRequest.ts
+  s_f193227df3df34::t_35545eab7a861b 76,84-85,170-171,179-180
+lib/components/post-box/bluesky-crosspost.tsx
+  s_f193227df3df34::t_db6aa8fd377d1c 1-159
+lib/components/post-box/post-box.crosspost.test.tsx
+  s_f193227df3df34::t_fd9cc03ced152a 376-424
+lib/components/post-box/post-box.tsx
+  s_f193227df3df34::t_d995da5d444d35 92,107-111,2391-2400,2588,2625
+lib/components/post-box/post-options-menu.tsx
+  s_f193227df3df34::t_9074bdda52dd6e 27,305-308,335,337,351
+lib/components/posts/status-reply-box.bluesky.test.tsx
+  s_f193227df3df34::t_75c85779909038 29,520-891
+lib/components/posts/status-reply-box.drafts.test.tsx
+  s_f193227df3df34::t_ab9590266e910f 18,28-31,43,53-56,991-1037
+lib/components/posts/status-reply-box.tsx
+  s_f193227df3df34::t_df0179519e6d45 37-42,49,87-90,125-131,133,136,139-140,165-169,243-245,366-367,664-668,675-676,707,842-855,1120-1136,1158
+lib/services/bluesky/crosspost.test.ts
+  s_f193227df3df34::t_a1b6b5cd5eed5b 30,97,200,203-205,246,260,304,317-339,555-603,1294-1474
+lib/services/bluesky/crosspost.ts
+  s_f193227df3df34::t_916d3baa95afe7 18,57,62-65,71-78,312-313,315,320-327,381,443-519,546-570,700-704,734,743-744
+lib/services/bluesky/tid.test.ts
+  s_f193227df3df34::t_169a8f77ceefe1 1-60
+lib/services/bluesky/tid.ts
+  s_f193227df3df34::t_e62bccf8da5f5e 1-41
+lib/utils/blueskyText.ts
+  s_f193227df3df34::t_4f2136b422d77c 93-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a03a98489780274e6af90dc0fec499dc589b0c61",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
