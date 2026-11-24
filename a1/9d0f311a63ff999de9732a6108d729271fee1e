@@ -1,0 +1,44 @@
+migrations/20261124004542_add_bluesky_network.ts
+  s_f193227df3df34::t_e68a1cbc9e8763 84-99
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_e68a1cbc9e8763 1361-1363
+  s_f193227df3df34::t_73b58256e004b8 1392
+lib/database/domains/bluesky/blueskyMigration.test.ts
+  s_f193227df3df34::t_4ae7289aa44bee 1-43
+lib/services/bluesky/account.test.ts
+  s_f193227df3df34::t_36a5cb1ba356cc 135-159,319-354
+lib/services/bluesky/account.ts
+  s_f193227df3df34::t_b7db5e15bb9bb4 32,231-233,347,411-413
+lib/services/bluesky/follow.test.ts
+  s_f193227df3df34::t_0b3bfb38a4e304 426-465
+lib/services/bluesky/follow.ts
+  s_f193227df3df34::t_21fe897541ed61 17,171-173
+lib/services/bluesky/policy.test.ts
+  s_f193227df3df34::t_30f5b08b8473d7 1-44
+lib/services/bluesky/policy.ts
+  s_f193227df3df34::t_41ecce48e47bf1 1-17
+lib/services/bluesky/profiles.test.ts
+  s_f193227df3df34::t_87f423bc2e2817 105-125,256-283,368-385
+lib/services/bluesky/profiles.ts
+  s_f193227df3df34::t_122436f938bfdc 25,38-39,41
+lib/services/bluesky/sync.test.ts
+  s_f193227df3df34::t_3d243addb429f4 578-596
+lib/services/bluesky/sync.ts
+  s_f193227df3df34::t_2bdde696fd7cd6 24,122-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a19d0f311a63ff999de9732a6108d729271fee1e",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
