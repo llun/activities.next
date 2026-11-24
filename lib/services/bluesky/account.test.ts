@@ -321,6 +321,33 @@ describe('Bluesky account service', () => {
       expect(authorize).toHaveBeenCalled()
     })
 
+    it('uses the canonical domain’s client to start and to finish sign-in', async () => {
+      const legacy = actor('actor-a', undefined, 'Social.Example:443')
+      vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+        Promise.resolve({
+          authorize: vi
+            .fn()
+            .mockResolvedValue(new URL('https://auth.example.net/authorize')),
+          callback: vi.fn().mockRejectedValue(new Error('denied'))
+        }) as never
+      )
+      await startBlueskyOAuth(
+        database,
+        legacy,
+        'alice.example.com',
+        'social.example'
+      )
+      await completeBlueskyOAuth(
+        database,
+        legacy,
+        new URLSearchParams('error=access_denied')
+      )
+      expect(vi.mocked(getBlueskyOAuthClient).mock.calls).toEqual([
+        [database, 'social.example'],
+        [database, 'social.example']
+      ])
+    })
+
     it('starts sign-in only on the domain the actor lives on', async () => {
       const authorize = vi.fn()
       vi.mocked(getBlueskyOAuthClient).mockReturnValue(
