@@ -170,7 +170,7 @@ describe('PostBox cross-posting to Bluesky', () => {
     resetBlueskyAccountStore()
   })
 
-  it('loads the linked account for a new post and sends its default', async () => {
+  it('loads the linked account for a new post and leaves the default to the server', async () => {
     vi.mocked(getBlueskyAccount).mockResolvedValue({
       oauthAvailable: true,
       account: linkedAccount(true),
@@ -184,7 +184,48 @@ describe('PostBox cross-posting to Bluesky', () => {
     closeMenu()
 
     type('hello')
-    expect(await post()).toMatchObject({ blueskyCrosspost: true })
+    // Untouched switch: the server applies the account default, so the
+    // request (and its fingerprint) does not depend on the account load.
+    expect((await post()).blueskyCrosspost).toBeUndefined()
+  })
+
+  it('keeps the same Idempotency-Key when the account loads between attempts', async () => {
+    let resolveAccount: (value: unknown) => void = () => undefined
+    vi.mocked(getBlueskyAccount).mockReturnValue(
+      new Promise((resolve) => {
+        resolveAccount = resolve
+      }) as never
+    )
+    createNoteMock
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValue({
+        status: { ...editStatus, id: 'new' },
+        attachments: []
+      })
+
+    await renderPostBox()
+    type('hello')
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+
+    // The account arrives after the first attempt failed.
+    await act(async () => {
+      resolveAccount({
+        oauthAvailable: true,
+        account: linkedAccount(true),
+        instanceHandle: null
+      })
+      await Promise.resolve()
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(2))
+
+    expect(createNoteMock.mock.calls[1][0].idempotencyKey).toBe(
+      createNoteMock.mock.calls[0][0].idempotencyKey
+    )
   })
 
   it('sends false once the switch is turned off for this post', async () => {
@@ -209,7 +250,7 @@ describe('PostBox cross-posting to Bluesky', () => {
     expect(await crosspostItem()).toHaveAttribute('aria-checked', 'false')
     closeMenu()
     type('hello')
-    expect(await post()).toMatchObject({ blueskyCrosspost: false })
+    expect((await post()).blueskyCrosspost).toBeUndefined()
   })
 
   it('has no switch and sends nothing without a linked account', async () => {
@@ -245,9 +286,7 @@ describe('PostBox cross-posting to Bluesky', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
     await waitFor(() => expect(createPollMock).toHaveBeenCalled())
-    expect(createPollMock.mock.calls[0][0]).toMatchObject({
-      blueskyCrosspost: true
-    })
+    expect(createPollMock.mock.calls[0][0].blueskyCrosspost).toBeUndefined()
   })
 
   it('is disabled with the reason when the post is not public', async () => {
@@ -296,6 +335,42 @@ describe('PostBox cross-posting to Bluesky', () => {
     expect(
       screen.queryByText(BLUESKY_CROSSPOST_CUT_MESSAGE)
     ).not.toBeInTheDocument()
+  })
+
+  it('warns when the poll link pushes the copy over the limit', async () => {
+    // The poll editor's Radix Switch measures itself; jsdom has none.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    setLinkedBlueskyAccount(profile.id, linkedAccount(true))
+    await renderPostBox()
+
+    type('a'.repeat(300))
+    expect(
+      screen.queryByText(BLUESKY_CROSSPOST_CUT_MESSAGE)
+    ).not.toBeInTheDocument()
+
+    await openPostOptions()
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Poll' }))
+    const [first, second] = await screen.findAllByPlaceholderText(/^Choice/)
+    fireEvent.change(first, { target: { value: 'a' } })
+    fireEvent.change(second, { target: { value: 'b' } })
+
+    // The server appends "Vote here: <url>", so the copy is cut.
+    expect(screen.getByText(BLUESKY_CROSSPOST_CUT_MESSAGE)).toBeInTheDocument()
+  })
+
+  it('warns when a quoted fediverse post adds its link', async () => {
+    setLinkedBlueskyAccount(profile.id, linkedAccount(true))
+    await renderPostBox({ quotedStatus: othersPost })
+
+    type('a'.repeat(300))
+    expect(screen.getByText(BLUESKY_CROSSPOST_CUT_MESSAGE)).toBeInTheDocument()
   })
 
   it('does not warn for a long post that is not public', async () => {

@@ -68,6 +68,8 @@ const publiclyReadableStatusIdsOf = (db: Db, actorId: string) =>
             announceOriginalPointer('target_statuses').as('originalPointer')
           ])
           .where('target_statuses.id', 'in', publicRecipientStatusIds(db))
+          // As in publiclyReadableStatusIds: a Bluesky row is never public.
+          .where('target_statuses.network', 'is', null)
           .union((eb) =>
             eb
               .selectFrom('statuses as original_statuses')

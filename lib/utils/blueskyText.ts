@@ -84,9 +84,22 @@ export const getBlueskyReplyLengthState = (
 
 /**
  * Whether a cross-post of this text would be cut. Counts the raw text: the
- * server strips Markdown markers first, so this can only warn early (and the
- * warning never blocks posting), never miss a cut.
+ * server strips Markdown markers first, so this can warn early (and the
+ * warning never blocks posting).
+ *
+ * The server also appends a link to the original post for a poll
+ * (`Vote here: <url>`), a quote of a fediverse post, a content warning and
+ * dropped media. Pass the link the composer knows as `appendedLink` so those
+ * cases warn too. A content warning replaces the text with the summary, so it
+ * never cuts; dropped media is not predicted here.
  */
-export const isOverBlueskyLimit = (text: string): boolean =>
-  countBlueskyUtf8Bytes(text) > BLUESKY_MAX_UTF8_BYTES ||
-  countBlueskyGraphemes(text) > BLUESKY_MAX_GRAPHEMES
+export const isOverBlueskyLimit = (
+  text: string,
+  appendedLink?: string | null
+): boolean => {
+  const full = appendedLink ? `${text}\n\n${appendedLink}` : text
+  return (
+    countBlueskyUtf8Bytes(full) > BLUESKY_MAX_UTF8_BYTES ||
+    countBlueskyGraphemes(full) > BLUESKY_MAX_GRAPHEMES
+  )
+}

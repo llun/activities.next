@@ -353,9 +353,17 @@ export const PUT = traceApiRoute(
               responseStatusCode: 403
             })
           }
+          // Re-read with the viewer so the owner's cross-post state is
+          // hydrated (the edit's status was loaded without one).
+          const ownerPoll =
+            (await database.getStatus({
+              statusId: updatedPoll.id,
+              withReplies: false,
+              currentActorId: currentActor.id
+            })) ?? updatedPoll
           const mastodonPollStatus = await getMastodonStatus(
             database,
-            updatedPoll,
+            ownerPoll,
             currentActor.id
           )
           if (!mastodonPollStatus) {
@@ -737,9 +745,17 @@ export const PUT = traceApiRoute(
           })
         }
 
+        // Re-read with the viewer: the edit's status was hydrated without one,
+        // so the owner's cross-post state would otherwise serialize as null.
+        const ownerStatus =
+          (await database.getStatus({
+            statusId: updatedNote.id,
+            withReplies: false,
+            currentActorId: currentActor.id
+          })) ?? updatedNote
         const mastodonStatus = await getMastodonStatus(
           database,
-          updatedNote,
+          ownerStatus,
           currentActor.id
         )
         if (!mastodonStatus)
