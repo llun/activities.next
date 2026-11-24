@@ -18,13 +18,20 @@ export interface BlueskyAccount {
   // The last Home sync that finished, and why the latest one failed.
   lastSyncedAt: number | null
   syncError: string | null
+  // When Bluesky notifications were last polled/seen for this account.
+  notificationsSeenAt: number | null
   createdAt: number
   updatedAt: number
 }
 
 export type SaveBlueskyAccountParams = Omit<
   BlueskyAccount,
-  'instanceHandle' | 'lastSyncedAt' | 'syncError' | 'createdAt' | 'updatedAt'
+  | 'instanceHandle'
+  | 'lastSyncedAt'
+  | 'syncError'
+  | 'notificationsSeenAt'
+  | 'createdAt'
+  | 'updatedAt'
 >
 
 export interface BlueskyAccountDatabase {
@@ -38,8 +45,8 @@ export interface BlueskyAccountDatabase {
   }): Promise<BlueskyAccount | null>
   /**
    * Links the DID to the actor, replacing the actor's earlier link (and that
-   * link's session and follows when it was another DID). Returns `did_taken` without
-   * writing when another actor already holds the DID.
+   * link's session, follows and interactions when it was another DID). Returns
+   * `did_taken` without writing when another actor already holds the DID.
    */
   saveBlueskyAccount(
     params: SaveBlueskyAccountParams
@@ -49,6 +56,10 @@ export interface BlueskyAccountDatabase {
     handle: string
     pdsUrl: string
     domainHandle: boolean
+  }): Promise<void>
+  updateBlueskyNotificationsSeenAt(params: {
+    actorId: string
+    seenAt: number | null
   }): Promise<void>
   /**
    * `false` when another active admin's actor already answers for `host`; a
@@ -63,7 +74,7 @@ export interface BlueskyAccountDatabase {
    * that are suspended, being deleted, disabled or unconfirmed.
    */
   listBlueskyAccountsToSync(): Promise<string[]>
-  /** Removes the link, its stored session and its follows. */
+  /** Removes the link, its stored session, its follows and its interactions. */
   deleteBlueskyAccount(params: { actorId: string }): Promise<void>
 
   getBlueskySession(params: { did: string }): Promise<string | null>

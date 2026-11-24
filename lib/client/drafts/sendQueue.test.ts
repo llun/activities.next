@@ -1834,5 +1834,66 @@ describe('drainQueue', () => {
       ).toBe(0)
       expect((await getDraft('a'))?.queue?.state).toBe('waiting')
     })
+
+    it('never sends or retries a Bluesky reply draft', async () => {
+      const blueskyReplyTo = {
+        id: 'https://bsky.app/profile/did:plc:alice123/post/3k1',
+        type: 'Note',
+        network: 'bluesky'
+      } as Status
+      const blueskyDraft = draft(
+        'bsky',
+        { attempts: 1, firstAttemptAt: NOW - 10 },
+        { replyTo: blueskyReplyTo }
+      )
+
+      // preflight marks Bluesky replies needs_review
+      await expect(preflight(blueskyDraft, makeDeps(), NOW)).resolves.toEqual({
+        kind: 'needs_review',
+        reason: 'Bluesky replies are posted right away, not queued.'
+      })
+
+      // classifySendOutcome never retries (never checking/waiting/paused)
+      for (const err of [
+        new TypeError('network'),
+        apiError(
+          503,
+          'Your reply is on Bluesky. It will show here after the next sync.'
+        ),
+        apiError(409, 'busy'),
+        apiError(429, 'rate limit')
+      ]) {
+        const outcome = classifySendOutcome(err, blueskyDraft, { now: NOW })
+        expect(outcome.kind).toBe('couldnt_send')
+      }
+      expect(
+        classifySendOutcome(
+          apiError(
+            503,
+            'Your reply is on Bluesky. It will show here after the next sync.'
+          ),
+          blueskyDraft,
+          { now: NOW }
+        )
+      ).toEqual({
+        kind: 'couldnt_send',
+        reason:
+          'Your reply is on Bluesky. It will show here after the next sync.',
+        lockedMessage:
+          'Your reply is on Bluesky. It will show here after the next sync.'
+      })
+
+      // drainQueue refuses to POST even if an already-attempted Bluesky reply draft is queued
+      await store(blueskyDraft)
+      const deps = makeDeps()
+      const res = await drain(deps)
+      expect(res.needsReview).toBe(1)
+      expect(deps.createNote).not.toHaveBeenCalled()
+      const stored = await getDraft('bsky')
+      expect(stored?.queue).toMatchObject({
+        state: 'needs_review',
+        reason: 'Bluesky replies are posted right away, not queued.'
+      })
+    })
   })
 })

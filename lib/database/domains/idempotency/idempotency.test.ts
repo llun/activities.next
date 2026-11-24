@@ -760,4 +760,58 @@ describe('IdempotencyDatabase', () => {
       database.getStatus({ statusId: `${actorId}/statuses/4` })
     ).resolves.toBeNull()
   })
+
+  it('records a completed idempotency key and preserves an existing row on conflict', async () => {
+    const actorA = actor('completed-a')
+    const actorB = actor('completed-b')
+    const statusId = 'https://bsky.app/profile/did:plc:abc/post/3k1'
+
+    await database.createCompletedIdempotencyKey({
+      actorId: actorA,
+      key: 'bsky-reply-key',
+      statusId,
+      contentHash: 'hash-1'
+    })
+
+    await expect(
+      database.getIdempotencyKey({ actorId: actorA, key: 'bsky-reply-key' })
+    ).resolves.toMatchObject({
+      actorId: actorA,
+      key: 'bsky-reply-key',
+      statusId,
+      contentHash: 'hash-1',
+      state: 'complete'
+    })
+
+    // Duplicate (actorId, key) keeps the original row instead of overwriting.
+    await database.createCompletedIdempotencyKey({
+      actorId: actorA,
+      key: 'bsky-reply-key',
+      statusId: 'https://bsky.app/profile/did:plc:abc/post/3k2',
+      contentHash: 'hash-2'
+    })
+    await expect(
+      database.getIdempotencyKey({ actorId: actorA, key: 'bsky-reply-key' })
+    ).resolves.toMatchObject({
+      statusId,
+      contentHash: 'hash-1',
+      state: 'complete'
+    })
+
+    // Another actor can use the same key independently.
+    const otherStatusId = 'https://bsky.app/profile/did:plc:other/post/3k9'
+    await database.createCompletedIdempotencyKey({
+      actorId: actorB,
+      key: 'bsky-reply-key',
+      statusId: otherStatusId,
+      contentHash: 'hash-b'
+    })
+    await expect(
+      database.getIdempotencyKey({ actorId: actorB, key: 'bsky-reply-key' })
+    ).resolves.toMatchObject({
+      statusId: otherStatusId,
+      contentHash: 'hash-b',
+      state: 'complete'
+    })
+  })
 })

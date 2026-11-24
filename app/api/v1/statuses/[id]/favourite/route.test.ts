@@ -3,6 +3,11 @@ import { NextRequest } from 'next/server'
 import { sendLike } from '@/lib/activities'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
+import {
+  type BlueskyAgent,
+  BlueskySessionEndedError,
+  getBlueskyAgent
+} from '@/lib/services/bluesky/agent'
 import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -51,6 +56,11 @@ vi.mock('@/lib/activities', async (importOriginal) => {
   }
 })
 
+vi.mock('@/lib/services/bluesky/agent', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getBlueskyAgent: vi.fn()
+}))
+
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
   getConfig: vi.fn().mockReturnValue({
@@ -87,6 +97,7 @@ describe('POST /api/v1/statuses/[id]/favourite', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getBlueskyAgent).mockReset()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -160,18 +171,65 @@ describe('POST /api/v1/statuses/[id]/favourite', () => {
     expect(sendLike).not.toHaveBeenCalled()
   })
 
-  it('returns 422 and records nothing for a Bluesky post', async () => {
+  it('likes a Bluesky post via the Bluesky service without sendLike and returns the refetched status', async () => {
+    const ownDid = 'did:plc:meaaaaaaaaaaaaaaaaaaaaaa'
     const { statusId } = await storeBlueskyPost(database, 'favourite')
+    await database.saveBlueskyAccount({
+      actorId: ACTOR1_ID,
+      did: ownDid,
+      handle: 'me.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
+    const post = vi.fn().mockResolvedValue({
+      uri: `at://${ownDid}/app.bsky.feed.like/3kfav`
+    })
+    const get = vi.fn().mockResolvedValue({ posts: [{ viewer: {} }] })
+    vi.mocked(getBlueskyAgent).mockResolvedValue({
+      did: ownDid,
+      pdsUrl: 'https://pds.example.net/',
+      get,
+      post
+    } as unknown as BlueskyAgent)
 
     const response = await favourite(statusId)
 
-    expect(response.status).toBe(422)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Liking Bluesky posts is not supported yet.'
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      uri: statusId,
+      favourited: true,
+      favourites_count: 1
     })
     await expect(
       database.isActorLikedStatus({ actorId: ACTOR1_ID, statusId })
-    ).resolves.toBeFalse()
+    ).resolves.toBeTrue()
+    expect(post).toHaveBeenCalledWith(
+      'com.atproto.repo.createRecord',
+      expect.objectContaining({ collection: 'app.bsky.feed.like' })
+    )
+    expect(sendLike).not.toHaveBeenCalled()
+  })
+
+  it('maps Bluesky errors to CORS { error } responses on favourite', async () => {
+    const { statusId } = await storeBlueskyPost(database, 'favouriteerr')
+    vi.mocked(getBlueskyAgent).mockResolvedValueOnce(null)
+
+    const notLinked = await favourite(statusId)
+    expect(notLinked.status).toBe(422)
+    await expect(notLinked.json()).resolves.toEqual({
+      error:
+        'Link a Bluesky account in Settings › Other networks to interact with Bluesky posts.'
+    })
+
+    vi.mocked(getBlueskyAgent).mockRejectedValueOnce(
+      new BlueskySessionEndedError()
+    )
+    const ended = await favourite(statusId)
+    expect(ended.status).toBe(422)
+    await expect(ended.json()).resolves.toEqual({
+      error: 'Bluesky ended this session. Link the account again in Settings.'
+    })
     expect(sendLike).not.toHaveBeenCalled()
   })
 

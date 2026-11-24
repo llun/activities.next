@@ -870,6 +870,7 @@ describe('DELETE /api/v1/accounts/outbox', () => {
   beforeEach(() => {
     mockDeleteStatusFromUserInput.mockReset()
     mockCreatePollFromUserInput.mockReset()
+    storedRemoteParents.clear()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -985,6 +986,71 @@ describe('DELETE /api/v1/accounts/outbox', () => {
 
     expect(res.status).toBe(403)
     await expect(res.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDeleteStatusFromUserInput).not.toHaveBeenCalled()
+  })
+
+  it('returns 422 with CORS headers for a Bluesky post without calling the delete action', async () => {
+    const blueskyPostId = `https://bsky.app/profile/did:plc:${'o'.repeat(24)}/post/3k`
+    storedRemoteParents.set(blueskyPostId, {
+      id: blueskyPostId,
+      type: 'Note',
+      actorId: `https://bsky.app/profile/did:plc:${'o'.repeat(24)}`,
+      network: 'bluesky',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'DELETE',
+      body: JSON.stringify({ statusId: blueskyPostId }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await DELETE(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(422)
+    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('DELETE')
+    await expect(res.json()).resolves.toEqual({
+      error: 'Delete Bluesky posts and boosts with DELETE /api/v1/statuses/:id.'
+    })
+    expect(mockDeleteStatusFromUserInput).not.toHaveBeenCalled()
+  })
+
+  it('returns 422 with CORS headers for a boost of a Bluesky post without calling the delete action', async () => {
+    const boostId = 'https://test.llun.dev/users/test1/statuses/bsky-boost-1'
+    storedRemoteParents.set(boostId, {
+      id: boostId,
+      type: 'Announce',
+      actorId: testAccount.defaultActorId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      originalStatus: {
+        id: `https://bsky.app/profile/did:plc:${'o'.repeat(24)}/post/3k`,
+        type: 'Note',
+        actorId: `https://bsky.app/profile/did:plc:${'o'.repeat(24)}`,
+        network: 'bluesky',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      }
+    })
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'DELETE',
+      body: JSON.stringify({ statusId: boostId }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    const res = await DELETE(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(422)
+    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('DELETE')
+    await expect(res.json()).resolves.toEqual({
+      error: 'Delete Bluesky posts and boosts with DELETE /api/v1/statuses/:id.'
+    })
     expect(mockDeleteStatusFromUserInput).not.toHaveBeenCalled()
   })
 })

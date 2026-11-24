@@ -1,11 +1,16 @@
 import { sendUndoLike } from '@/lib/activities'
+import {
+  blueskyInteractionFailure,
+  unlikeBlueskyPost
+} from '@/lib/services/bluesky/interactions'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
+import { getOriginalStatus, isBlueskyStatus } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { apiCorsError, defaultOptions } from '@/lib/utils/response'
+import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.POST]
@@ -45,6 +50,32 @@ export const POST = traceApiRoute(
           currentActorId: currentActor.id
         })
         if (!status) return apiCorsError(req, CORS_HEADERS, 404)
+      }
+
+      if (isBlueskyStatus(status)) {
+        try {
+          await unlikeBlueskyPost(
+            database,
+            currentActor,
+            getOriginalStatus(status).id
+          )
+        } catch (error) {
+          const failure = blueskyInteractionFailure(error)
+          if (!failure) throw error
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: failure.error },
+            responseStatusCode: failure.status
+          })
+        }
+        return refetchedStatusResponse({
+          req,
+          database,
+          currentActor,
+          statusId: status.id,
+          allowedMethods: CORS_HEADERS
+        })
       }
 
       // Each Undo is its own retrying delivery, so only a like that existed

@@ -13,8 +13,9 @@ export const getEditableStatusText = (status: EditableStatus): string =>
 
 export const isWithinLengthLimit = (
   value: string,
-  maxLength: number
-): boolean => value.length <= maxLength
+  maxLength: number,
+  countLength: (text: string) => number = (text) => text.length
+): boolean => countLength(value) <= maxLength
 
 export const hasNewPostContent = (
   value: string,
@@ -22,9 +23,10 @@ export const hasNewPostContent = (
     attachments: Pick<PostBoxAttachment, 'id'>[]
     fitnessFile?: unknown
   },
-  maxLength: number
+  maxLength: number,
+  countLength?: (text: string) => number
 ): boolean =>
-  isWithinLengthLimit(value, maxLength) &&
+  isWithinLengthLimit(value, maxLength, countLength) &&
   (value.trim().length > 0 ||
     extension.attachments.length > 0 ||
     Boolean(extension.fitnessFile))

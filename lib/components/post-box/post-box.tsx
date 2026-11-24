@@ -37,6 +37,7 @@ import {
   postBoxPollFingerprint
 } from '@/lib/client/drafts/submitRequest'
 import {
+  ApiRequestError,
   DRAFT_LOCKED_NOTICE,
   classifyFailedPost,
   isPostKeptByServer
@@ -44,6 +45,10 @@ import {
 import { syncPendingLinkPreviewForStatus } from '@/lib/client/pendingLinkPreviews'
 import { getMediaAttachmentCap } from '@/lib/client/share-target/classify'
 import { stageShareFiles } from '@/lib/client/share-target/shareTargetDb'
+import {
+  loadLinkedBlueskyAccount,
+  useLinkedBlueskyAccount
+} from '@/lib/components/bluesky/blueskyAccountStore'
 import { DraftsLink } from '@/lib/components/drafts/DraftsLink'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
@@ -74,11 +79,18 @@ import {
   QuoteApprovalPolicy,
   Status,
   StatusNote,
-  StatusType
+  StatusType,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import { cn } from '@/lib/utils'
+import {
+  BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE,
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
+  BLUESKY_TOO_LONG_MESSAGE,
+  getBlueskyReplyLengthState
+} from '@/lib/utils/blueskyText'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
@@ -246,6 +258,38 @@ export const PostBox: FC<Props> = ({
     maxMediaAttachments,
     maxMediaFileSize
   } = useInstanceLimits()
+  const isBlueskyReply = Boolean(
+    replyStatus && !editStatus && isBlueskyStatus(replyStatus)
+  )
+  const isWithinPostLengthLimit = useCallback(
+    (value: string) =>
+      isBlueskyReply
+        ? getBlueskyReplyLengthState(value, maxStatusCharacters).withinLimits
+        : isWithinLengthLimit(value, maxStatusCharacters),
+    [isBlueskyReply, maxStatusCharacters]
+  )
+  const canSubmitNewPost = useCallback(
+    (
+      value: string,
+      extension: {
+        attachments: Pick<PostBoxAttachment, 'id'>[]
+        fitnessFile?: unknown
+      }
+    ) =>
+      isBlueskyReply
+        ? value.trim().length > 0 &&
+          getBlueskyReplyLengthState(value, maxStatusCharacters).withinLimits
+        : hasNewPostContent(value, extension, maxStatusCharacters),
+    [isBlueskyReply, maxStatusCharacters]
+  )
+  const linkedBlueskyAccount = useLinkedBlueskyAccount(
+    isBlueskyReply ? profile.id : undefined
+  )
+  useEffect(() => {
+    if (isBlueskyReply && profile.id) {
+      void loadLinkedBlueskyAccount(profile.id)
+    }
+  }, [isBlueskyReply, profile.id])
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [showPreview, setShowPreview] = useState<boolean>(false)
@@ -591,19 +635,20 @@ export const PostBox: FC<Props> = ({
     // A locked draft is already saved on the server and replays before any
     // content-limit check, so a limit lowered since it locked must not block
     // its retry (the text is read-only; Discard would leave the post unsent).
+    // A locked Bluesky reply was already posted on Bluesky and must not be
+    // resent.
     setAllowPost(
-      draftLocked ||
-        hasNewPostContent(
-          textRef.current,
-          postExtensionRef.current,
-          maxStatusCharacters
-        )
+      isBlueskyReply && draftLocked
+        ? false
+        : draftLocked ||
+            canSubmitNewPost(textRef.current, postExtensionRef.current)
     )
     // Deliberately keyed only on the limit, the in-flight flag, the edit target
     // (to pick the predicate) and the draft lock: the draft itself is read from
     // refs, and every draft edit already recomputes `allowPost` in its handler.
   }, [
-    maxStatusCharacters,
+    canSubmitNewPost,
+    isBlueskyReply,
     isPosting,
     editStatus,
     draftLocked,
@@ -849,6 +894,7 @@ export const PostBox: FC<Props> = ({
   // progress, the server reads the file's details, and Post only has to wait
   // for whatever is still in flight.
   const startUpload = (attachment: PostBoxAttachment) => {
+    if (isBlueskyReply) return
     const { file, posterFile } = attachment
     if (!file) return
     const tempId = attachment.id
@@ -1173,11 +1219,9 @@ export const PostBox: FC<Props> = ({
     // Nothing worth keeping (an untouched composer): no empty record.
     if (getDraftContent() === null) return
     if (queue) {
+      if (isBlueskyReply) return
       if (!allowPost) return
-      if (
-        !draftLocked &&
-        !isWithinLengthLimit(textRef.current, maxStatusCharacters)
-      ) {
+      if (!draftLocked && !isWithinPostLengthLimit(textRef.current)) {
         return
       }
       if (postExtension.poll.showing && postExtension.fitnessFile) {
@@ -1231,12 +1275,19 @@ export const PostBox: FC<Props> = ({
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
     if (!allowPost) return
-    if (missingDescription || settingsLoading) return
+    if (isBlueskyReply && draftLockedRef.current) return
+    // A Bluesky reply restored from a draft that carries attachments must not
+    // upload or silently drop them: keep the draft and attachments until the
+    // user removes them.
     if (
-      !draftLocked &&
-      !isWithinLengthLimit(textRef.current, maxStatusCharacters)
-    )
+      isBlueskyReply &&
+      (postExtension.attachments.length > 0 ||
+        postExtensionRef.current.attachments.length > 0)
+    ) {
       return
+    }
+    if (missingDescription || settingsLoading) return
+    if (!draftLocked && !isWithinPostLengthLimit(textRef.current)) return
     if (submitInFlightRef.current) return
     // New props not applied yet (the re-target effect runs after the render
     // that brought them): never send this composer's content under them.
@@ -1473,12 +1524,12 @@ export const PostBox: FC<Props> = ({
       if (!(await checkpointAttempt())) return
       const response = await createNote({
         message,
-        contentWarning,
+        contentWarning: isBlueskyReply ? '' : contentWarning,
         replyStatus,
         quotedStatus,
-        attachments,
-        fitnessFileId,
-        visibility: postExtension.visibility,
+        attachments: isBlueskyReply ? [] : attachments,
+        fitnessFileId: isBlueskyReply ? undefined : fitnessFileId,
+        visibility: isBlueskyReply ? 'public' : postExtension.visibility,
         quoteApprovalPolicy: postExtension.quoteApprovalPolicy,
         idempotencyKey: submitIdempotencyRef.current.key
       })
@@ -1504,13 +1555,29 @@ export const PostBox: FC<Props> = ({
       sent = true
     } catch (error) {
       setIsPosting(false)
-      setAllowPost(true)
       reportRequestFailure(error)
+      if (
+        isBlueskyReply &&
+        error instanceof ApiRequestError &&
+        error.status === 503 &&
+        error.message === BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
+      ) {
+        setLockedMessage(BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE)
+        setAllowPost(false)
+        void composerDraft.recordLock(
+          BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
+          submitIdempotencyRef.current
+        )
+        return
+      }
+      setAllowPost(true)
       const fallbackMessage = editStatus
         ? 'Fail to update the post'
         : 'Fail to create a post'
       // The server keeps the post (and the media it uses) only on create.
-      const keptByServer = !editStatus && isPostKeptByServer(error)
+      // Bluesky replies are not kept server-side for idempotent replay.
+      const keptByServer =
+        !editStatus && !isBlueskyReply && isPostKeptByServer(error)
       if (keptByServer) {
         markAttachmentsPosted(createAttempt)
         if (createFitnessFileId) {
@@ -1626,9 +1693,7 @@ export const PostBox: FC<Props> = ({
       setAllowPost(isEditSubmittable(textRef.current, nextExtension))
       return
     }
-    setAllowPost(
-      hasNewPostContent(textRef.current, nextExtension, maxStatusCharacters)
-    )
+    setAllowPost(canSubmitNewPost(textRef.current, nextExtension))
   }
 
   const onRemoveFitnessFile = useCallback(async () => {
@@ -1644,9 +1709,7 @@ export const PostBox: FC<Props> = ({
         fitnessFile: undefined
       }
       postExtensionRef.current = nextExtension
-      setAllowPost(
-        hasNewPostContent(textRef.current, nextExtension, maxStatusCharacters)
-      )
+      setAllowPost(canSubmitNewPost(textRef.current, nextExtension))
     }
 
     const uploadedId = fitnessFile.uploadedId
@@ -1693,7 +1756,7 @@ export const PostBox: FC<Props> = ({
     }
 
     return cleanupPromise
-  }, [maxStatusCharacters])
+  }, [canSubmitNewPost])
 
   const onQuickPost = async (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!(event.metaKey || event.ctrlKey)) return
@@ -1714,9 +1777,7 @@ export const PostBox: FC<Props> = ({
       setAllowPost(isEditSubmittable(value))
       return
     }
-    setAllowPost(
-      hasNewPostContent(value, postExtensionRef.current, maxStatusCharacters)
-    )
+    setAllowPost(canSubmitNewPost(value, postExtensionRef.current))
   }
 
   const onContentWarningChange = (value: string) => {
@@ -1771,7 +1832,7 @@ export const PostBox: FC<Props> = ({
     // A picker batch that resolves after submit began must not change what is
     // being posted: the submit already captured the attachments, and a late
     // one would upload for nothing.
-    if (submitInFlightRef.current || draftLockedRef.current) {
+    if (isBlueskyReply || submitInFlightRef.current || draftLockedRef.current) {
       if (attachment.url.startsWith('blob:')) {
         URL.revokeObjectURL(attachment.url)
       }
@@ -1842,6 +1903,7 @@ export const PostBox: FC<Props> = ({
   }
 
   const onTogglePoll = () => {
+    if (isBlueskyReply) return
     // The poll replaces any attached media (the reducer drops it and revokes
     // the previews), so delete what was already uploaded for it instead of
     // orphaning it on the server.
@@ -1853,6 +1915,7 @@ export const PostBox: FC<Props> = ({
   }
 
   const onToggleContentWarning = () => {
+    if (isBlueskyReply) return
     const nextVisible = !postExtension.contentWarningVisible
     dispatch(setContentWarningVisibility(nextVisible))
     if (!editStatus) return
@@ -1884,6 +1947,7 @@ export const PostBox: FC<Props> = ({
     replyStatus?: StatusNote
   ): [string, number, number] | null => {
     if (!replyStatus) return null
+    if (isBlueskyStatus(replyStatus)) return null
     if (replyStatus.actorId === profile.id) return null
 
     const message = replyStatus.actor
@@ -1946,9 +2010,17 @@ export const PostBox: FC<Props> = ({
           if (!item.owned) postedMediaIdsRef.current.add(item.mediaId)
           continue
         }
-        const attachment: PostBoxAttachment = { ...restored, isLoading: true }
+        const attachment: PostBoxAttachment = {
+          ...restored,
+          isLoading: !isBlueskyReply
+        }
         attachments.push(attachment)
-        pending.push(attachment)
+        if (isBlueskyReply) {
+          names[attachment.id] = item.fileName
+          keys[attachment.id] = item.localId
+        } else {
+          pending.push(attachment)
+        }
       }
 
       let fitnessFile:
@@ -2131,8 +2203,8 @@ export const PostBox: FC<Props> = ({
       seeded.forEach((attachment) => void loadDetails(attachment.id))
     }
 
-    if (!replyStatus) {
-      // Reset visibility to default when not replying
+    if (!replyStatus || isBlueskyStatus(replyStatus)) {
+      // Reset visibility to public when not replying or replying on Bluesky.
       dispatch(setVisibility('public'))
     } else {
       // Initialize visibility from reply status to inherit parent visibility
@@ -2168,7 +2240,7 @@ export const PostBox: FC<Props> = ({
       return
     }
 
-    if (quotedStatus) {
+    if (quotedStatus || (replyStatus && isBlueskyStatus(replyStatus))) {
       setTimeout(() => {
         if (postBoxRef.current) {
           postBoxRef.current.focus()
@@ -2241,7 +2313,10 @@ export const PostBox: FC<Props> = ({
     drafts !== null && !editStatus && connectionState !== 'online'
       ? connectionState
       : null
-  const queueDisabledReason = getQueueDisabledReason(postExtension.attachments)
+  const queueDisabledReason = getQueueDisabledReason(
+    postExtension.attachments,
+    { blueskyReply: isBlueskyReply }
+  )
 
   // Offline an implicit submit (Enter in a lone text field, such as the
   // content warning) follows the primary button too, never a live send.
@@ -2251,6 +2326,22 @@ export const PostBox: FC<Props> = ({
     if (!allowPost) return
     void onHandOff(!queueDisabledReason)
   }
+
+  const blueskyLengthState = isBlueskyReply
+    ? getBlueskyReplyLengthState(text, maxStatusCharacters)
+    : null
+  const hasBlueskyAttachments =
+    isBlueskyReply && postExtension.attachments.length > 0
+  const remainingCharacters = blueskyLengthState
+    ? blueskyLengthState.remaining
+    : maxStatusCharacters - text.length
+  const blueskyLengthError =
+    blueskyLengthState && !draftLocked ? blueskyLengthState.errorMessage : null
+  const isBlueskyLimitWarning =
+    Boolean(blueskyLengthError) &&
+    blueskyLengthError === BLUESKY_TOO_LONG_MESSAGE
+  const isInstanceLimitError =
+    Boolean(blueskyLengthError) && !isBlueskyLimitWarning
 
   const form = (
     <>
@@ -2390,6 +2481,11 @@ export const PostBox: FC<Props> = ({
               attachments={postExtension.attachments}
               fileNames={fileNames}
               disabled={isPosting || draftLocked}
+              disabledReason={
+                isBlueskyReply
+                  ? 'Images in Bluesky replies are not supported yet.'
+                  : undefined
+              }
               maxAttachments={getMediaAttachmentCap(
                 maxMediaAttachments,
                 Boolean(postExtension.fitnessFile)
@@ -2412,11 +2508,13 @@ export const PostBox: FC<Props> = ({
               onChooseFitnessFile={() => fitnessFileInputRef.current?.open()}
               pollShowing={postExtension.poll.showing}
               quoting={Boolean(quotedStatus)}
+              blueskyReply={isBlueskyReply}
               onTogglePoll={onTogglePoll}
-              visibility={postExtension.visibility}
-              onVisibilityChange={(visibility) =>
+              visibility={isBlueskyReply ? 'public' : postExtension.visibility}
+              onVisibilityChange={(visibility) => {
+                if (isBlueskyReply) return
                 dispatch(setVisibility(visibility))
-              }
+              }}
               quotePolicy={postExtension.quoteApprovalPolicy}
               onQuotePolicyChange={(policy) =>
                 dispatch(setQuoteApprovalPolicy(policy))
@@ -2435,16 +2533,39 @@ export const PostBox: FC<Props> = ({
             ) : null}
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            {isBlueskyReply ? (
+              <span className="text-xs text-muted-foreground">
+                {linkedBlueskyAccount?.handle
+                  ? `Replying on Bluesky as ${linkedBlueskyAccount.handle} · public`
+                  : 'Replying on Bluesky · public'}
+              </span>
+            ) : null}
+            {blueskyLengthError ? (
+              <span
+                role="alert"
+                className={cn(
+                  'text-xs',
+                  isBlueskyLimitWarning
+                    ? 'text-warning-text'
+                    : 'text-destructive-text'
+                )}
+              >
+                {blueskyLengthError}
+              </span>
+            ) : null}
             <span
               className={cn(
                 'font-mono text-xs tabular-nums',
-                !draftLocked && text.length > maxStatusCharacters
-                  ? 'text-destructive'
-                  : 'text-muted-foreground'
+                isBlueskyLimitWarning
+                  ? 'text-warning-text'
+                  : isInstanceLimitError ||
+                      (!draftLocked && remainingCharacters < 0)
+                    ? 'text-destructive'
+                    : 'text-muted-foreground'
               )}
             >
-              {maxStatusCharacters - text.length}
+              {remainingCharacters}
             </span>
             {editStatus ? (
               <Button
@@ -2463,7 +2584,9 @@ export const PostBox: FC<Props> = ({
             ) : null}
             {offlineSplit ? (
               <OfflineSubmitButtons
-                disabled={!allowPost || isPosting}
+                disabled={
+                  !allowPost || isPosting || (isBlueskyReply && draftLocked)
+                }
                 queueDisabledReason={queueDisabledReason}
                 reasonId={reasonId}
                 onSaveDraft={() => void onHandOff(false)}
@@ -2475,7 +2598,9 @@ export const PostBox: FC<Props> = ({
                   !allowPost ||
                   isPosting ||
                   missingDescription ||
-                  settingsLoading
+                  settingsLoading ||
+                  hasBlueskyAttachments ||
+                  (isBlueskyReply && draftLocked)
                 }
                 type="submit"
                 size="sm"
@@ -2493,6 +2618,11 @@ export const PostBox: FC<Props> = ({
             reasonId={reasonId}
           />
         ) : null}
+        {hasBlueskyAttachments ? (
+          <div role="alert" className="mt-3 text-xs text-destructive-text">
+            {BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE}
+          </div>
+        ) : null}
         {warningMsg ? (
           <div role="alert" className="mt-3 text-xs text-destructive-text">
             {warningMsg}
@@ -2501,7 +2631,9 @@ export const PostBox: FC<Props> = ({
         {lockedMessage ? (
           <div className="mt-3 flex items-center justify-between gap-2">
             <div role="status" className="text-xs text-muted-foreground">
-              {lockedMessage} {DRAFT_LOCKED_NOTICE}
+              {isBlueskyReply
+                ? lockedMessage
+                : `${lockedMessage} ${DRAFT_LOCKED_NOTICE}`}
             </div>
             <Button
               type="button"
@@ -2515,7 +2647,7 @@ export const PostBox: FC<Props> = ({
             </Button>
           </div>
         ) : null}
-        {missingDescription ? (
+        {missingDescription && !hasBlueskyAttachments ? (
           <div className="mt-3 text-xs text-destructive-text" role="status">
             Add a description to every item, or mark it decorative
           </div>

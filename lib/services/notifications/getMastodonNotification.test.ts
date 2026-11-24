@@ -478,4 +478,53 @@ describe('getMastodonNotification', () => {
       )
     })
   })
+
+  describe('Bluesky notifications', () => {
+    it('serializes a Bluesky source actor with handle@bsky.app acct and Bluesky status', async () => {
+      const did = `did:plc:${'b'.repeat(24)}`
+      const bskyActorId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'alice.bsky.social',
+        name: 'Alice on Bluesky',
+        iconUrl: 'https://cdn.bsky.app/alice.jpg'
+      })) as string
+      const { statusId: bskyStatusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/3k1`,
+        cid: 'cid-3k1',
+        did,
+        rkey: '3k1',
+        actorId: bskyActorId,
+        text: '<p>Hello from Bluesky</p>',
+        createdAt: Date.now(),
+        attachments: []
+      })
+
+      const notification = await database.createNotification({
+        actorId: actor1Id,
+        type: NotificationType.enum.reply,
+        sourceActorId: bskyActorId,
+        statusId: bskyStatusId,
+        groupKey: `reply:${bskyStatusId}`
+      })
+
+      const mastodonNotification = await getMastodonNotification(
+        database,
+        notification,
+        { currentActorId: actor1Id }
+      )
+
+      expect(mastodonNotification).not.toBeNull()
+      expect(mastodonNotification?.type).toBe('mention')
+      expect(mastodonNotification?.account).toMatchObject({
+        username: 'alice.bsky.social',
+        acct: 'alice.bsky.social@bsky.app',
+        display_name: 'Alice on Bluesky',
+        avatar: 'https://cdn.bsky.app/alice.jpg'
+      })
+      expect(mastodonNotification?.status).toMatchObject({
+        uri: bskyStatusId,
+        content: '<p>Hello from Bluesky</p>'
+      })
+    })
+  })
 })

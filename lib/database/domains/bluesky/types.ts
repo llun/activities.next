@@ -53,6 +53,16 @@ export type BlueskyFollow = {
   createdAt: number
 }
 
+export type BlueskyInteractionKind = 'like' | 'repost'
+
+export type BlueskyInteraction = {
+  actorId: string
+  statusId: string
+  kind: BlueskyInteractionKind
+  uri: string
+  createdAt: number
+}
+
 export interface BlueskyDatabase {
   /**
    * Creates or refreshes the actor row of a Bluesky account and returns its
@@ -76,6 +86,15 @@ export interface BlueskyDatabase {
     actorId: string
     statusId: string
   }): Promise<boolean>
+  /**
+   * Removes from the actor's Home (the MAIN timeline) any timeline row of a
+   * boost (Announce) whose original status is `statusId`. Leaves the Announce
+   * status itself and other timelines untouched.
+   */
+  removeBoostsOfStatusFromHome(params: {
+    actorId: string
+    statusId: string
+  }): Promise<void>
 
   /** Replaces the record URI of an existing follow. */
   createBlueskyFollow(params: {
@@ -92,6 +111,34 @@ export interface BlueskyDatabase {
     targetActorId: string
   }): Promise<BlueskyFollow | null>
   getBlueskyFollowTargetIds(params: { actorId: string }): Promise<string[]>
+
+  getBlueskyInteraction(params: {
+    actorId: string
+    statusId: string
+    kind: BlueskyInteractionKind
+  }): Promise<BlueskyInteraction | null>
+  /** Idempotent on `(actorId, statusId, kind)`: keeps the stored record URI. */
+  createBlueskyInteraction(params: {
+    actorId: string
+    statusId: string
+    kind: BlueskyInteractionKind
+    uri: string
+  }): Promise<void>
+  deleteBlueskyInteraction(params: {
+    actorId: string
+    statusId: string
+    kind: BlueskyInteractionKind
+  }): Promise<void>
+  /**
+   * Sets the post's like, repost and reply counters to the given counts,
+   * skipping any value that is missing, negative or not an integer.
+   */
+  setBlueskyPostCounts(params: {
+    statusId: string
+    likes?: number | null
+    reposts?: number | null
+    replies?: number | null
+  }): Promise<void>
 
   /** Leaves a field out to keep it; `syncError: null` clears it. */
   updateBlueskyAccountSync(params: {

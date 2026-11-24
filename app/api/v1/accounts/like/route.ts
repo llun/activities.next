@@ -4,8 +4,14 @@
  * This custom endpoint is maintained for backward compatibility.
  */
 import { sendLike, sendUndoLike } from '@/lib/activities'
+import {
+  blueskyInteractionFailure,
+  likeBlueskyPost,
+  unlikeBlueskyPost
+} from '@/lib/services/bluesky/interactions'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { isBlueskyStatus } from '@/lib/types/domain/status'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
+import { getOriginalStatus, isBlueskyStatus } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   DEFAULT_202,
@@ -54,7 +60,12 @@ export const POST = traceApiRoute(
     }
 
     const { statusId } = parsed.data
-    const status = await database.getStatus({ statusId, withReplies: false })
+    const status = await getReadableStatusForAction({
+      database,
+      statusId,
+      currentActor,
+      withReplies: false
+    })
     if (!status)
       return apiResponse({
         req,
@@ -62,13 +73,27 @@ export const POST = traceApiRoute(
         data: ERROR_404,
         responseStatusCode: 404
       })
-    // Liking on Bluesky (a like record) is not built yet.
     if (isBlueskyStatus(status)) {
+      try {
+        await likeBlueskyPost(
+          database,
+          currentActor,
+          getOriginalStatus(status).id
+        )
+      } catch (error) {
+        const failure = blueskyInteractionFailure(error)
+        if (!failure) throw error
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: failure.error },
+          responseStatusCode: failure.status
+        })
+      }
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Liking Bluesky posts is not supported yet.' },
-        responseStatusCode: 422
+        data: DEFAULT_202
       })
     }
 
@@ -78,7 +103,7 @@ export const POST = traceApiRoute(
     // unsent.
     const created = await database.createLike({
       actorId: currentActor.id,
-      statusId
+      statusId: status.id
     })
     if (created) await sendLike({ currentActor, status })
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
@@ -112,6 +137,8 @@ export const DELETE = traceApiRoute(
     }
 
     const { statusId } = parsed.data
+    // Like /unfavourite: a like is removable even from a status the actor can
+    // no longer read.
     const status = await database.getStatus({ statusId, withReplies: false })
     if (!status)
       return apiResponse({
@@ -120,10 +147,33 @@ export const DELETE = traceApiRoute(
         data: ERROR_404,
         responseStatusCode: 404
       })
+    if (isBlueskyStatus(status)) {
+      try {
+        await unlikeBlueskyPost(
+          database,
+          currentActor,
+          getOriginalStatus(status).id
+        )
+      } catch (error) {
+        const failure = blueskyInteractionFailure(error)
+        if (!failure) throw error
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: failure.error },
+          responseStatusCode: failure.status
+        })
+      }
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: DEFAULT_202
+      })
+    }
 
     const removed = await database.deleteLike({
       actorId: currentActor.id,
-      statusId
+      statusId: status.id
     })
     if (removed) await sendUndoLike({ currentActor, status })
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })

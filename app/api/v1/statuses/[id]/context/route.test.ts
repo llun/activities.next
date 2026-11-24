@@ -4,6 +4,12 @@ import { GET } from '@/app/api/v1/statuses/[id]/route'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { getPublicPostThread } from '@/lib/services/bluesky/appview'
+import {
+  blueskyPostId,
+  parseBlueskyPostView,
+  storeBlueskyPostView
+} from '@/lib/services/bluesky/records'
 import { resetParentBackfillStateForTesting } from '@/lib/services/statuses/parentBackfill'
 import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
@@ -51,6 +57,10 @@ vi.mock('@/lib/activities', async () => ({
 vi.mock('@/lib/services/medias', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/services/medias')>()),
   deleteMediaFile: vi.fn().mockResolvedValue(true)
+}))
+
+vi.mock('@/lib/services/bluesky/appview', () => ({
+  getPublicPostThread: vi.fn()
 }))
 
 vi.mock('@/lib/config', async () => ({
@@ -539,6 +549,151 @@ describe('GET /api/v1/statuses/[id]/context', () => {
 
       expect((await readContext(statusId)).status).toBe(200)
       expect(await fetchJobs()).toEqual([])
+    })
+  })
+
+  describe('Bluesky thread loading', () => {
+    const bskyDid = (name: string) => `did:plc:${name.padEnd(24, 'a')}`
+    const bskyPostView = (
+      name: string,
+      rkey: string,
+      text: string,
+      parentUri?: string
+    ) => ({
+      uri: `at://${bskyDid(name)}/app.bsky.feed.post/${rkey}`,
+      cid: `cid-${rkey}`,
+      author: {
+        did: bskyDid(name),
+        handle: `${name}.bsky.social`,
+        displayName: name.toUpperCase()
+      },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        ...(parentUri
+          ? { reply: { root: { uri: parentUri }, parent: { uri: parentUri } } }
+          : null)
+      },
+      indexedAt: '2026-01-01T00:00:00.000Z'
+    })
+
+    it('loads Bluesky thread ancestors and replies from the public AppView before returning context', async () => {
+      await database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did: bskyDid('viewer'),
+        handle: 'viewer.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+
+      const parent = bskyPostView('parent', 'p1', 'Parent post')
+      const focused = bskyPostView('focus', 'f1', 'Focused post', parent.uri)
+      const reply = bskyPostView('replier', 'r1', 'Reply post', focused.uri)
+      const parsed = parseBlueskyPostView(focused)
+      if (!parsed) throw new Error('invalid fixture')
+      const focusedId = (await storeBlueskyPostView(database, parsed)) as string
+      const publicId = await statusPublicId(database, focusedId)
+
+      vi.mocked(getPublicPostThread).mockResolvedValueOnce({
+        thread: {
+          $type: 'app.bsky.feed.defs#threadViewPost',
+          post: focused,
+          parent: {
+            $type: 'app.bsky.feed.defs#threadViewPost',
+            post: parent
+          },
+          replies: [
+            {
+              $type: 'app.bsky.feed.defs#threadViewPost',
+              post: reply,
+              replies: []
+            }
+          ]
+        }
+      })
+
+      const response = await getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${publicId}/context`
+        ),
+        { params: Promise.resolve({ id: publicId }) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(getPublicPostThread).toHaveBeenCalledWith(focused.uri, {
+        depth: 6,
+        parentHeight: 20
+      })
+      const body = await response.json()
+      expect(body.ancestors.map((s: { uri: string }) => s.uri)).toEqual([
+        blueskyPostId(bskyDid('parent'), 'p1')
+      ])
+      expect(body.descendants.map((s: { uri: string }) => s.uri)).toEqual([
+        blueskyPostId(bskyDid('replier'), 'r1')
+      ])
+    })
+
+    it('does not call AppView for anonymous viewers or non-Bluesky statuses', async () => {
+      const { statusId: bskyId } = await storeBlueskyPost(
+        database,
+        'anonthread'
+      )
+      mockGetServerSession.mockResolvedValueOnce(null)
+      const anonRes = await getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(bskyId)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(bskyId) }) }
+      )
+      expect(anonRes.status).toBe(404)
+      expect(getPublicPostThread).not.toHaveBeenCalled()
+
+      const localId = `${ACTOR1_ID}/statuses/non-bsky-thread`
+      await database.createNote({
+        id: localId,
+        url: localId,
+        actorId: ACTOR1_ID,
+        text: 'Local status',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const localRes = await getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(localId)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(localId) }) }
+      )
+      expect(localRes.status).toBe(200)
+      expect(getPublicPostThread).not.toHaveBeenCalled()
+    })
+
+    it('resolves a fediverse status publicId only once for a signed-in viewer', async () => {
+      const localId = `${ACTOR1_ID}/statuses/single-resolve`
+      await database.createNote({
+        id: localId,
+        url: localId,
+        actorId: ACTOR1_ID,
+        text: 'Fediverse status',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const publicId = await statusPublicId(database, localId)
+      const lookupSpy = vi.spyOn(database, 'getStatusIdByPublicId')
+      try {
+        const res = await getStatusContext(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${publicId}/context`
+          ),
+          { params: Promise.resolve({ id: publicId }) }
+        )
+        expect(res.status).toBe(200)
+        expect(lookupSpy).toHaveBeenCalledTimes(1)
+        expect(getPublicPostThread).not.toHaveBeenCalled()
+      } finally {
+        lookupSpy.mockRestore()
+      }
     })
   })
 })

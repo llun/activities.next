@@ -18,6 +18,7 @@ import { CloudTasksQueue } from '@/lib/services/queue/cloudtasks'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { NoQueue } from '@/lib/services/queue/noqueue'
 import { QStashQueue } from '@/lib/services/queue/qstash'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -660,6 +661,43 @@ describe('deleteStatusFromUserInput', () => {
       // Queue job was not persisted
       const persistedJob = await getQueueJobById(db, expectedJobId)
       expect(persistedJob).toBeNull()
+    })
+
+    it('refuses to delete or federate a Delete for a Bluesky post or a local boost of one', async () => {
+      const { statusId: blueskyPostId } = await storeBlueskyPost(
+        database,
+        'deleteaction'
+      )
+      const announceId = `${actor.id}/statuses/local-bsky-boost`
+      await database.createAnnounce({
+        id: announceId,
+        actorId: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: blueskyPostId
+      })
+
+      await deleteStatusFromUserInput({
+        currentActor: actor,
+        statusId: announceId,
+        database
+      })
+      await deleteStatusFromUserInput({
+        currentActor: actor,
+        statusId: blueskyPostId,
+        database
+      })
+
+      expect(await database.getStatus({ statusId: announceId })).not.toBeNull()
+      expect(
+        await database.getStatus({ statusId: blueskyPostId })
+      ).not.toBeNull()
+      expect(
+        await getQueueJobById(db, getHashFromString(`${announceId}#delete`))
+      ).toBeNull()
+      expect(
+        await getQueueJobById(db, getHashFromString(`${blueskyPostId}#delete`))
+      ).toBeNull()
     })
   })
 })

@@ -7,6 +7,7 @@ import { SEND_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { enqueueDeliveries } from '@/lib/services/federation/enqueueDeliveries'
 import { JobHandle } from '@/lib/services/queue/type'
+import { isBlueskyStatus } from '@/lib/types/domain/status'
 import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
@@ -25,6 +26,10 @@ export const sendAnnounceJob: JobHandle = createJobHandle(
       })
       if (!status || !actor) {
         span.recordException(new Error('Status or actor not found'))
+        return
+      }
+      // Never federate a local-only boost of a Bluesky post.
+      if (isBlueskyStatus(status)) {
         return
       }
 

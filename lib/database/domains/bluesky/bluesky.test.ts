@@ -366,6 +366,101 @@ describe('Bluesky', () => {
       expect(await inHome('https://local.test/users/other')).toBe(false)
     })
 
+    it("removes only boosts of the target status from the actor's Home, leaving the Announce statuses and other timelines intact", async () => {
+      const statusId = blueskyPostId(did, '3kpost')
+      const { statusId: otherStatusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/3kotherboost`,
+        cid: 'bafyotherboost',
+        did,
+        rkey: '3kotherboost',
+        actorId,
+        text: '<p>Other</p>',
+        createdAt: Date.UTC(2026, 10, 8),
+        attachments: []
+      })
+      const reader = 'https://local.test/users/boost-reader'
+      const booster = 'https://local.test/users/boost-booster'
+      const secondBooster = 'https://local.test/users/boost-second-booster'
+      const otherReader = 'https://local.test/users/boost-other-reader'
+
+      const timelineStatusIds = async (
+        viewer: string,
+        timeline: Timeline = Timeline.MAIN
+      ) =>
+        (
+          await testDb.db
+            .selectFrom('timelines')
+            .select('statusId')
+            .where('actorId', '=', viewer)
+            .where('timeline', '=', timeline)
+            .execute()
+        ).map((row) => row.statusId)
+
+      const original = (await database.getStatus({ statusId })) as Status
+      const otherBoost = (await database.createAnnounce({
+        id: `${booster}/statuses/announce-other`,
+        actorId: booster,
+        originalStatusId: otherStatusId,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })) as Status
+      const boost = (await database.createAnnounce({
+        id: `${booster}/statuses/announce-target`,
+        actorId: booster,
+        originalStatusId: statusId,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })) as Status
+      const secondBoost = (await database.createAnnounce({
+        id: `${secondBooster}/statuses/announce-target-2`,
+        actorId: secondBooster,
+        originalStatusId: statusId,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })) as Status
+
+      // Reader's MAIN has the original, a boost of another post, and two boosts
+      // of the target post.
+      for (const status of [original, otherBoost, boost, secondBoost]) {
+        await database.createTimelineStatus({
+          actorId: reader,
+          status,
+          timeline: Timeline.MAIN
+        })
+      }
+      // Same boost also sits in reader's DIRECT and in another actor's MAIN.
+      await database.createTimelineStatus({
+        actorId: reader,
+        status: boost,
+        timeline: Timeline.DIRECT
+      })
+      await database.createTimelineStatus({
+        actorId: otherReader,
+        status: boost,
+        timeline: Timeline.MAIN
+      })
+
+      await database.removeBoostsOfStatusFromHome({
+        actorId: reader,
+        statusId
+      })
+
+      expect((await timelineStatusIds(reader, Timeline.MAIN)).sort()).toEqual(
+        [original.id, otherBoost.id].sort()
+      )
+      expect(await timelineStatusIds(reader, Timeline.DIRECT)).toEqual([
+        boost.id
+      ])
+      expect(await timelineStatusIds(otherReader, Timeline.MAIN)).toEqual([
+        boost.id
+      ])
+      // The Announce status rows themselves stay intact.
+      expect(await database.getStatus({ statusId: boost.id })).not.toBeNull()
+      expect(
+        await database.getStatus({ statusId: secondBoost.id })
+      ).not.toBeNull()
+    })
+
     it('stores a sensitive post and defaults to not sensitive', async () => {
       const sensitiveId = blueskyPostId(did, '3knsfw')
       await database.upsertBlueskyPost({
@@ -444,6 +539,154 @@ describe('Bluesky', () => {
         await database.getBlueskyFollow({ actorId, targetActorId: target })
       ).toBeNull()
       expect(await database.getBlueskyFollowTargetIds({ actorId })).toEqual([])
+    })
+  })
+
+  describe('interactions', () => {
+    it('creates idempotently, reads and deletes likes and reposts', async () => {
+      const actorId = 'https://local.test/users/interactor'
+      const statusId = blueskyPostId('did:plc:poster', '3kinteract')
+      const likeUri = 'at://did:plc:me/app.bsky.feed.like/1'
+      const repostUri = 'at://did:plc:me/app.bsky.feed.repost/1'
+
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'like'
+        })
+      ).toBeNull()
+
+      await database.createBlueskyInteraction({
+        actorId,
+        statusId,
+        kind: 'like',
+        uri: likeUri
+      })
+      // Idempotent create keeps the original record URI on conflict.
+      await database.createBlueskyInteraction({
+        actorId,
+        statusId,
+        kind: 'like',
+        uri: 'at://did:plc:me/app.bsky.feed.like/2'
+      })
+      await database.createBlueskyInteraction({
+        actorId,
+        statusId,
+        kind: 'repost',
+        uri: repostUri
+      })
+
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'like'
+        })
+      ).toMatchObject({
+        actorId,
+        statusId,
+        kind: 'like',
+        uri: likeUri
+      })
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'repost'
+        })
+      ).toMatchObject({
+        actorId,
+        statusId,
+        kind: 'repost',
+        uri: repostUri
+      })
+
+      await database.deleteBlueskyInteraction({
+        actorId,
+        statusId,
+        kind: 'like'
+      })
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'like'
+        })
+      ).toBeNull()
+      expect(
+        await database.getBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'repost'
+        })
+      ).toMatchObject({ uri: repostUri })
+    })
+  })
+
+  describe('setBlueskyPostCounts', () => {
+    it('sets counters read back by status hydration and skips invalid values', async () => {
+      const did = 'did:plc:counter-author'
+      const actorId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'counter-author.bsky.social'
+      })) as string
+      const { statusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/3kcounts`,
+        cid: 'bafycounts',
+        did,
+        rkey: '3kcounts',
+        actorId,
+        text: '<p>Counts</p>',
+        createdAt: Date.UTC(2026, 10, 7),
+        attachments: []
+      })
+
+      await database.setBlueskyPostCounts({
+        statusId,
+        likes: 12,
+        reposts: 4,
+        replies: 7
+      })
+      expect(await database.getStatus({ statusId })).toMatchObject({
+        totalLikes: 12,
+        totalShares: 4
+      })
+      expect(await database.getStatusReblogsCount({ statusId })).toBe(4)
+      expect(await database.getStatusRepliesCount({ statusId })).toBe(7)
+
+      // Negative, non-integer, non-finite and missing values leave existing
+      // counters intact.
+      await database.setBlueskyPostCounts({
+        statusId,
+        likes: -1,
+        reposts: 2.5,
+        replies: Number.NaN
+      })
+      await database.setBlueskyPostCounts({
+        statusId,
+        likes: Number.POSITIVE_INFINITY,
+        reposts: null,
+        replies: undefined
+      })
+      expect(await database.getStatus({ statusId })).toMatchObject({
+        totalLikes: 12,
+        totalShares: 4
+      })
+      expect(await database.getStatusRepliesCount({ statusId })).toBe(7)
+
+      // Zero is a valid count.
+      await database.setBlueskyPostCounts({
+        statusId,
+        likes: 0,
+        reposts: 0,
+        replies: 0
+      })
+      expect(await database.getStatus({ statusId })).toMatchObject({
+        totalLikes: 0,
+        totalShares: 0
+      })
+      expect(await database.getStatusRepliesCount({ statusId })).toBe(0)
     })
   })
 

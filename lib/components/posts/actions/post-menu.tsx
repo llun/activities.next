@@ -47,6 +47,10 @@ import {
   updateStatusInteractionPolicy,
   updateStatusVisibility
 } from '@/lib/client'
+import {
+  loadLinkedBlueskyAccount,
+  useLinkedBlueskyAccount
+} from '@/lib/components/bluesky/blueskyAccountStore'
 import { NewBookmarkFolderDialog } from '@/lib/components/bookmarks/NewBookmarkFolderDialog'
 import {
   loadBookmarkFolders,
@@ -78,6 +82,7 @@ import {
 } from '@/lib/types/domain/status'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { cn } from '@/lib/utils'
+import { BLUESKY_PROFILE_PREFIX } from '@/lib/utils/blueskyId'
 import {
   MastodonVisibility,
   getStatusVisibility
@@ -291,6 +296,14 @@ export const PostMenu: FC<Props> = ({
   const [actionError, setActionError] = useState<string | null>(null)
 
   const targetActorId = status.actorId
+  const isBluesky = isBlueskyStatus(status)
+  const linkedBlueskyAccount = useLinkedBlueskyAccount(
+    isBluesky ? viewerId : undefined
+  )
+  const isOwnBlueskyPost =
+    isBluesky &&
+    Boolean(linkedBlueskyAccount?.did) &&
+    status.actorId === `${BLUESKY_PROFILE_PREFIX}${linkedBlueskyAccount?.did}`
   const actorName =
     status.actor?.name ||
     status.actor?.username ||
@@ -354,7 +367,7 @@ export const PostMenu: FC<Props> = ({
   }, [actionError])
 
   const loadRelationship = async () => {
-    if (isOwner || relationshipLoaded) return
+    if (isOwner || isOwnBlueskyPost || relationshipLoaded) return
     try {
       const next = await getRelationship({ targetActorId })
       if (next) {
@@ -619,7 +632,10 @@ export const PostMenu: FC<Props> = ({
             onMenuOpen?.()
             void loadRelationship()
             void loadPinnedState()
-            if (viewerId) void loadBookmarkFolders(viewerId)
+            if (viewerId) {
+              void loadBookmarkFolders(viewerId)
+              if (isBluesky) void loadLinkedBlueskyAccount(viewerId)
+            }
           }
         }}
       >
@@ -743,7 +759,7 @@ export const PostMenu: FC<Props> = ({
             ) : null}
             {isOwner ? (
               <>
-                {canEdit ? (
+                {canEdit && !isBluesky ? (
                   <DropdownMenuItem
                     onSelect={() => onEdit?.(status as EditableStatus)}
                   >
@@ -822,10 +838,10 @@ export const PostMenu: FC<Props> = ({
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
               </>
-            ) : (
+            ) : isOwnBlueskyPost ? null : (
               <>
                 {/* Mentioning a Bluesky account is not supported yet. */}
-                {isBlueskyStatus(status) ? null : (
+                {isBluesky ? null : (
                   <DropdownMenuItem onSelect={() => onReply?.(status)}>
                     <AtSign className="size-4" />
                     <span
@@ -881,7 +897,7 @@ export const PostMenu: FC<Props> = ({
               </>
             )}
 
-            <DropdownMenuSeparator />
+            {isOwnBlueskyPost ? null : <DropdownMenuSeparator />}
             {translation?.canManualTranslate && translation.state === 'idle' ? (
               <DropdownMenuItem
                 onSelect={() => {
@@ -915,7 +931,7 @@ export const PostMenu: FC<Props> = ({
             ) : null}
 
             <DropdownMenuSeparator />
-            {isOwner ? (
+            {isOwner || isOwnBlueskyPost ? (
               <DropdownMenuItem
                 variant="destructive"
                 onSelect={() => setDialog('delete')}

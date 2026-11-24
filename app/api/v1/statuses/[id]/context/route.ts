@@ -1,13 +1,17 @@
+import { loadBlueskyThread } from '@/lib/services/bluesky/thread'
 import {
   annotateMastodonStatusesWithFilters,
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { isPublicId } from '@/lib/utils/publicId'
 import {
   ERROR_404,
   apiCorsError,
@@ -35,6 +39,27 @@ export const GET = traceApiRoute(
 
       const { database, currentActor } = context
 
+      let contextStatusId = encodedStatusId
+      if (currentActor) {
+        const resolvedStatusId = await resolveStatusIdParam(
+          database,
+          encodedStatusId
+        )
+        if (isBlueskyId(resolvedStatusId)) {
+          await loadBlueskyThread(database, currentActor, resolvedStatusId)
+        }
+        // Reuse the resolved canonical URI when a publicId resolved, so
+        // getStatusContext does not repeat the publicId lookup for fediverse
+        // or Bluesky statuses. Keep the original param otherwise so legacy
+        // raw-id fallbacks stay intact.
+        if (
+          isPublicId(encodedStatusId) &&
+          resolvedStatusId !== encodedStatusId
+        ) {
+          contextStatusId = resolvedStatusId
+        }
+      }
+
       const {
         status,
         ancestors: ancestorStatuses,
@@ -42,7 +67,7 @@ export const GET = traceApiRoute(
         missingParentId
       } = await getStatusContext({
         database,
-        statusId: encodedStatusId,
+        statusId: contextStatusId,
         currentActor
       })
 

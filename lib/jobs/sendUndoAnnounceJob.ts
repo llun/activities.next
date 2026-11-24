@@ -6,6 +6,7 @@ import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { enqueueDeliveries } from '@/lib/services/federation/enqueueDeliveries'
 import { JobHandle } from '@/lib/services/queue/type'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { logger } from '@/lib/utils/logger'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -29,6 +30,10 @@ export const sendUndoAnnounceJob: JobHandle = createJobHandle(
     await withSpan('job', 'sendUndoAnnounce', {}, async (span) => {
       const { actorId, statusId, originalStatusId, to, cc, createdAt } =
         JobData.parse(message.data)
+      // Never federate an unboost of a Bluesky post.
+      if (isBlueskyId(originalStatusId)) {
+        return
+      }
       span.setAttribute('actorId', actorId)
       span.setAttribute('statusId', statusId)
 

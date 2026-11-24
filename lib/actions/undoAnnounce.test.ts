@@ -3,6 +3,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { JobData } from '@/lib/jobs/sendUndoAnnounceJob'
 import { getQueue } from '@/lib/services/queue'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
@@ -163,6 +164,34 @@ describe('Undo Announce action', () => {
       expect(result).toBeNull()
       expect(getQueue().publish).not.toHaveBeenCalled()
       // And it is still there — a non-owner must not delete it either.
+      await expect(
+        database.getStatus({ statusId: announceId, withReplies: false })
+      ).resolves.not.toBeNull()
+    })
+
+    it('returns null and publishes nothing for an announce of a Bluesky post', async () => {
+      const { statusId: blueskyPostId } = await storeBlueskyPost(
+        database,
+        'undoannounce'
+      )
+      const announceId = `${actor2.id}/statuses/announce-bluesky`
+      await database.createAnnounce({
+        id: announceId,
+        actorId: actor2.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: blueskyPostId,
+        createdAt: Date.now()
+      })
+
+      const result = await userUndoAnnounce({
+        currentActor: actor2,
+        statusId: announceId,
+        database
+      })
+
+      expect(result).toBeNull()
+      expect(getQueue().publish).not.toHaveBeenCalled()
       await expect(
         database.getStatus({ statusId: announceId, withReplies: false })
       ).resolves.not.toBeNull()

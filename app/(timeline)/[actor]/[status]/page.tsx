@@ -16,6 +16,7 @@ import { getBaseURL, getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { loadBlueskyThread } from '@/lib/services/bluesky/thread'
 import { getDomainDisplayName } from '@/lib/services/domains/domainDisplayName'
 import { getVisitedDomainIdentity } from '@/lib/services/domains/domainIdentity'
 import { getServedHostConfig } from '@/lib/services/domains/servedDomainSnapshot'
@@ -329,10 +330,15 @@ const Page: FC<Props> = async ({ params }) => {
 
   if (status) {
     // Bluesky posts are shown to signed-in viewers only; a signed-out visitor
-    // is sent to the post on bsky.app.
-    if (!currentActor && isBlueskyStatus(status)) {
-      const blueskyUrl = getOriginalStatus(status).id
-      return isBlueskyId(blueskyUrl) ? redirect(blueskyUrl) : notFound()
+    // is sent to the post on bsky.app. A local boost row of a Bluesky post is
+    // not itself a bsky.app post, so it falls through to canActorReadStatus
+    // and 404s instead of redirecting.
+    if (
+      !currentActor &&
+      status.type !== StatusType.enum.Announce &&
+      isBlueskyStatus(status)
+    ) {
+      return isBlueskyId(status.id) ? redirect(status.id) : notFound()
     }
 
     // Focused-status visibility gate — the single source of truth shared with the
@@ -479,6 +485,9 @@ const Page: FC<Props> = async ({ params }) => {
       replies = replies.filter(isStatusPubliclyReadable)
     }
   } else if (statusId) {
+    if (currentActor && isStoredStatus && isBlueskyStatus(status)) {
+      await loadBlueskyThread(database, currentActor, statusId)
+    }
     const threadContext = await getStatusContext({
       database,
       statusId,

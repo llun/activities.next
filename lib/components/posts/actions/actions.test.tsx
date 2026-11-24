@@ -213,11 +213,17 @@ describe('Actions', () => {
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label') ?? '')
 
-    it('offers only bookmark and the menu in the row', async () => {
+    it('offers reply, repost, like, bookmark and the menu while hiding react and quote', async () => {
       observeWidth(900)
       render(<ActionsHarness target={blueskyPost} />)
 
-      expect(rowButtons()).toEqual(['Bookmark', 'More actions'])
+      expect(rowButtons()).toEqual([
+        'Reply to post',
+        'Repost',
+        'Like',
+        'Bookmark',
+        'More actions'
+      ])
       const menu = await openMenu()
       expect(
         within(menu).queryByRole('menuitem', { name: 'Quote post' })
@@ -243,11 +249,18 @@ describe('Actions', () => {
       ).toBeInTheDocument()
     })
 
-    it('still offers every action on an ActivityPub post', async () => {
+    it('still offers every action including react on an ActivityPub post', async () => {
       observeWidth(900)
       render(<ActionsHarness />)
 
-      expect(rowButtons().length).toBeGreaterThan(2)
+      expect(rowButtons()).toEqual([
+        'Reply to post',
+        'Repost',
+        'Like',
+        'Bookmark',
+        'Add reaction',
+        'More actions'
+      ])
     })
   })
 

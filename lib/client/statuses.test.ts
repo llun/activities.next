@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { ApiRequestError } from '@/lib/client/http'
 import { EXPECTED_ACTOR_HEADER } from '@/lib/services/statuses/expectedActor'
+import type { Status } from '@/lib/types/domain/status'
 import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -630,6 +631,89 @@ describe('client statuses module', () => {
       ).toMatchObject({ in_reply_to_id: 'fallback-reply' })
     })
 
+    it('marks a note created as a reply to a Bluesky post as a Bluesky post', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-5',
+          text: 'Reply on Bluesky',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+      const blueskyReplyTo = {
+        id: 'https://bsky.app/profile/did:plc:alice123/post/3k1',
+        type: 'Note',
+        network: 'bluesky'
+      } as Status
+
+      const result = await createNote({
+        message: 'Reply on Bluesky',
+        replyStatus: blueskyReplyTo
+      })
+
+      expect(result.status).toMatchObject({
+        network: 'bluesky',
+        isLocalActor: false,
+        reply: blueskyReplyTo.id
+      })
+    })
+
+    it('marks a reply composed on a boost of a Bluesky post as a Bluesky post', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-6',
+          text: 'Reply on Bluesky',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+      const boost = {
+        id: 'https://llun.test/users/test1/statuses/boost-1',
+        type: 'Announce',
+        originalStatus: {
+          id: 'https://bsky.app/profile/did:plc:alice123/post/3k1',
+          type: 'Note',
+          network: 'bluesky'
+        }
+      } as unknown as Status
+
+      const result = await createNote({
+        message: 'Reply on Bluesky',
+        replyStatus: boost
+      })
+
+      expect(result.status).toMatchObject({
+        network: 'bluesky',
+        isLocalActor: false
+      })
+    })
+
+    it('keeps a note created as a reply to a fediverse post local', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-6',
+          text: 'Reply on the fediverse',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+      const fediverseReplyTo = {
+        id: 'https://llun.test/users/test1/statuses/parent',
+        type: 'Note'
+      } as Status
+
+      const result = await createNote({
+        message: 'Reply on the fediverse',
+        replyStatus: fediverseReplyTo
+      })
+
+      expect(result.status.isLocalActor).toBe(true)
+      expect(result.status.network).toBeUndefined()
+    })
+
     it('creates a note from a fitness file alone and sends fitness_file_id', async () => {
       fetchMock.mockResponse(
         JSON.stringify({
@@ -919,6 +1003,21 @@ describe('client statuses module', () => {
       const res = await repostStatus({ statusId: 'target-status' })
       expect(res).toBeNull()
     })
+
+    it('throws ApiRequestError with the server error message when refused with a specific reason', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Link a Bluesky account first.' }),
+        { status: 422 }
+      )
+
+      await expect(
+        repostStatus({ statusId: 'target-status' })
+      ).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 422,
+        message: 'Link a Bluesky account first.'
+      })
+    })
   })
 
   describe('undoRepostStatus', () => {
@@ -940,6 +1039,21 @@ describe('client statuses module', () => {
 
       const res = await undoRepostStatus({ statusId: 'target-status' })
       expect(res).toBeNull()
+    })
+
+    it('throws ApiRequestError with the server error message when refused with a specific reason', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Bluesky did not accept the change.' }),
+        { status: 502 }
+      )
+
+      await expect(
+        undoRepostStatus({ statusId: 'target-status' })
+      ).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 502,
+        message: 'Bluesky did not accept the change.'
+      })
     })
   })
 
@@ -1096,6 +1210,14 @@ describe('client statuses module', () => {
       await expect(call('status-1')).resolves.toBe(false)
     })
 
+    it('returns false on a generic HTTP reason phrase error body', async () => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'Not Found' }), {
+        status: failStatus
+      })
+
+      await expect(call('status-1')).resolves.toBe(false)
+    })
+
     it('encodes full status URLs', async () => {
       fetchMock.mockResponse('', { status: 200 })
       const statusId = 'https://remote.example/users/actor/statuses/post-1'
@@ -1109,6 +1231,24 @@ describe('client statuses module', () => {
           headers: { 'Content-Type': 'application/json' }
         })
       )
+    })
+  })
+
+  describe.each([
+    { name: 'likeStatus', call: likeStatus },
+    { name: 'undoLikeStatus', call: undoLikeStatus }
+  ])('$name server errors', ({ call }) => {
+    it('throws ApiRequestError with the server error message when refused with a specific reason', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Link a Bluesky account first.' }),
+        { status: 422 }
+      )
+
+      await expect(call({ statusId: 'status-1' })).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 422,
+        message: 'Link a Bluesky account first.'
+      })
     })
   })
 

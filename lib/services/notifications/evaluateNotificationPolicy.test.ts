@@ -7,12 +7,15 @@ import {
 
 const RECIPIENT = 'https://llun.test/users/me'
 const SOURCE = 'https://other.test/users/stranger'
+const BLUESKY_SOURCE =
+  'https://bsky.app/profile/did:plc:aaaaaaaaaaaaaaaaaaaaaaaa'
 const NOW = 1_700_000_000_000
 
 type MockDb = {
   getNotificationPolicy: jest.Mock
   getActorSettings: jest.Mock
   isCurrentActorFollowing: jest.Mock
+  getBlueskyFollow: jest.Mock
   getActorFromId: jest.Mock
   getStatus: jest.Mock
 }
@@ -29,6 +32,7 @@ const createDatabase = (
     getActorSettings: vi.fn().mockResolvedValue(undefined),
     // Default: neither side follows the other.
     isCurrentActorFollowing: vi.fn().mockResolvedValue(false),
+    getBlueskyFollow: vi.fn().mockResolvedValue(null),
     getActorFromId: vi.fn().mockResolvedValue({ createdAt: 0 }),
     getStatus: vi.fn().mockResolvedValue(null),
     ...overrides
@@ -182,5 +186,103 @@ describe('evaluateNotificationPolicy', () => {
       currentTime: NOW
     })
     expect(verdict).toBe('accept')
+  })
+
+  describe('Bluesky source actors', () => {
+    it('checks bluesky_follows for for_not_following and accepts when followed on Bluesky', async () => {
+      const { database, mock } = createDatabase(
+        { for_not_following: 'drop' },
+        {
+          getBlueskyFollow: vi.fn().mockResolvedValue({
+            actorId: RECIPIENT,
+            targetActorId: BLUESKY_SOURCE,
+            uri: 'at://did:plc:me/app.bsky.graph.follow/1',
+            createdAt: NOW
+          })
+        }
+      )
+
+      const verdict = await evaluateNotificationPolicy(database, {
+        actorId: RECIPIENT,
+        type: 'like',
+        sourceActorId: BLUESKY_SOURCE,
+        currentTime: NOW
+      })
+
+      expect(verdict).toBe('accept')
+      expect(mock.getBlueskyFollow).toHaveBeenCalledWith({
+        actorId: RECIPIENT,
+        targetActorId: BLUESKY_SOURCE
+      })
+      expect(mock.isCurrentActorFollowing).not.toHaveBeenCalled()
+    })
+
+    it('applies for_not_following when not followed on Bluesky', async () => {
+      const { database, mock } = createDatabase({ for_not_following: 'filter' })
+
+      const verdict = await evaluateNotificationPolicy(database, {
+        actorId: RECIPIENT,
+        type: 'like',
+        sourceActorId: BLUESKY_SOURCE,
+        currentTime: NOW
+      })
+
+      expect(verdict).toBe('filter')
+      expect(mock.getBlueskyFollow).toHaveBeenCalledWith({
+        actorId: RECIPIENT,
+        targetActorId: BLUESKY_SOURCE
+      })
+      expect(mock.isCurrentActorFollowing).not.toHaveBeenCalled()
+    })
+
+    it('treats Bluesky sources as passing for_not_followers', async () => {
+      const { database, mock } = createDatabase({ for_not_followers: 'drop' })
+
+      const verdict = await evaluateNotificationPolicy(database, {
+        actorId: RECIPIENT,
+        type: 'like',
+        sourceActorId: BLUESKY_SOURCE,
+        currentTime: NOW
+      })
+
+      expect(verdict).toBe('accept')
+      expect(mock.isCurrentActorFollowing).not.toHaveBeenCalled()
+      expect(mock.getBlueskyFollow).not.toHaveBeenCalled()
+    })
+
+    it('does not let for_not_followers override for_not_following for a Bluesky source', async () => {
+      const { database } = createDatabase({
+        for_not_following: 'filter',
+        for_not_followers: 'drop'
+      })
+
+      const verdict = await evaluateNotificationPolicy(database, {
+        actorId: RECIPIENT,
+        type: 'like',
+        sourceActorId: BLUESKY_SOURCE,
+        currentTime: NOW
+      })
+
+      expect(verdict).toBe('filter')
+    })
+
+    it('skips the for_new_accounts age check for Bluesky sources', async () => {
+      const { database, mock } = createDatabase(
+        { for_new_accounts: 'drop' },
+        {
+          getActorFromId: vi.fn().mockResolvedValue({ createdAt: NOW - 1_000 })
+        }
+      )
+
+      const verdict = await evaluateNotificationPolicy(database, {
+        actorId: RECIPIENT,
+        type: 'follow',
+        sourceActorId: BLUESKY_SOURCE,
+        currentTime: NOW
+      })
+
+      expect(verdict).toBe('accept')
+      expect(mock.getActorFromId).not.toHaveBeenCalled()
+    })
   })
 })

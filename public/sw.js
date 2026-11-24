@@ -640,7 +640,7 @@ sw.addEventListener('fetch', (event) => {
       return
     }
 
-    if (url.pathname === '/') {
+    if (url.pathname === '/' && !url.search) {
       event.respondWith(
         (async () => {
           const hasActiveSession = await hasActiveOfflineSession()
@@ -668,16 +668,20 @@ sw.addEventListener('fetch', (event) => {
       return
     }
 
-    // Everything else: network first. Only a rejected fetch falls back (an
-    // HTTP error or redirect is returned as is). The app shell stands in for
-    // /drafts alone; any other path gets the static page, never chrome.
+    // Everything else (including `/` with query params such as `?network=bluesky`):
+    // network first. Only a rejected fetch falls back (an HTTP error or redirect
+    // is returned as is). The app shell stands in for `/` (with query params)
+    // and `/drafts` when an active offline session exists; any other path gets
+    // the static page, never chrome.
     event.respondWith(
       (async () => {
         try {
-          return (await event.preloadResponse) || (await fetch(request))
+          return (await preload) || (await fetch(request))
         } catch (_err) {
           if (
-            (url.pathname === '/drafts' || url.pathname === '/drafts/') &&
+            (url.pathname === '/' ||
+              url.pathname === '/drafts' ||
+              url.pathname === '/drafts/') &&
             (await hasActiveOfflineSession())
           ) {
             const shell = await getCachedAppShell()

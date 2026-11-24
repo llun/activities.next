@@ -449,6 +449,107 @@ describe('the home feed network filter', () => {
     // No filter: the one mixed Home.
     expect(await read(main)).toEqual(keys.map(s).reverse())
   })
+
+  it('classifies an Announce by its original status network under bluesky and activitypub filters', async () => {
+    const prefix = nextPrefix()
+    const viewer = actorIn('home.test', `${prefix}-viewer`)
+    const bskyAuthor = actorIn('bsky.app', `${prefix}-bsky`)
+    const apAuthor = actorIn('remote.test', `${prefix}-ap`)
+    const s = (key: string) => `${prefix}-status-${key}`
+
+    // Original statuses (not directly in timeline or interleaved with boosts).
+    await seedStatus({
+      id: s('ap1'),
+      actorId: apAuthor,
+      createdAt: BASE + 1,
+      network: null
+    })
+    await seedStatus({
+      id: s('bsky1'),
+      actorId: bskyAuthor,
+      createdAt: BASE + 2,
+      network: 'bluesky'
+    })
+    // Local-only Announce of the Bluesky post has statuses.network NULL.
+    await seedStatus({
+      id: s('boost-bsky'),
+      actorId: viewer,
+      type: StatusType.enum.Announce,
+      originalStatusId: s('bsky1'),
+      createdAt: BASE + 3,
+      network: null
+    })
+    // ActivityPub Announce of the ActivityPub post also has statuses.network NULL.
+    await seedStatus({
+      id: s('boost-ap'),
+      actorId: viewer,
+      type: StatusType.enum.Announce,
+      originalStatusId: s('ap1'),
+      createdAt: BASE + 4,
+      network: null
+    })
+    await seedStatus({
+      id: s('bsky2'),
+      actorId: bskyAuthor,
+      createdAt: BASE + 5,
+      network: 'bluesky'
+    })
+
+    const timelineItems: [string, string, number][] = [
+      [s('ap1'), apAuthor, BASE + 1],
+      [s('bsky1'), bskyAuthor, BASE + 2],
+      [s('boost-bsky'), viewer, BASE + 3],
+      [s('boost-ap'), viewer, BASE + 4],
+      [s('bsky2'), bskyAuthor, BASE + 5]
+    ]
+    for (const [statusId, statusActorId, createdAt] of timelineItems) {
+      await seedTimelineRow({
+        actorId: viewer,
+        timeline: Timeline.MAIN,
+        statusId,
+        statusActorId,
+        createdAt
+      })
+    }
+
+    const main = { timeline: Timeline.MAIN, actorId: viewer }
+
+    expect(await read({ ...main, network: 'bluesky' })).toEqual([
+      s('bsky2'),
+      s('boost-bsky'),
+      s('bsky1')
+    ])
+    expect(await read({ ...main, network: 'activitypub' })).toEqual([
+      s('boost-ap'),
+      s('ap1')
+    ])
+
+    // Keyset cursors stay accurate across the classified boosts.
+    expect(
+      await read({
+        ...main,
+        network: 'bluesky',
+        maxStatusId: s('bsky2'),
+        limit: 1
+      })
+    ).toEqual([s('boost-bsky')])
+    expect(
+      await read({
+        ...main,
+        network: 'bluesky',
+        minStatusId: s('bsky1'),
+        limit: 1
+      })
+    ).toEqual([s('boost-bsky')])
+    expect(
+      await read({
+        ...main,
+        network: 'activitypub',
+        maxStatusId: s('boost-ap'),
+        limit: 1
+      })
+    ).toEqual([s('ap1')])
+  })
 })
 
 describe('createTimelineStatus', () => {

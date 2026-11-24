@@ -239,8 +239,9 @@ export const getOriginalStatus = (status: Status): StatusNote | StatusPoll => {
   return status
 }
 
-// A Bluesky post, or a boost of one. Interacting with one (boost, like, react,
-// reply, quote) is not supported yet, and signed-out viewers never see one.
+// A Bluesky post, or a boost of one. Likes, reposts, and replies go through
+// the viewer's linked Bluesky account (never ActivityPub); signed-out viewers
+// never see one.
 export const isBlueskyStatus = (status: Status): boolean =>
   getOriginalStatus(status).network === 'bluesky'
 

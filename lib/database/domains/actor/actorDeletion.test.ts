@@ -308,6 +308,64 @@ describe('ActorDatabase deletion', () => {
         ).not.toBeNull()
       })
 
+      it('removes Bluesky interactions made by the deleted actor', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-bsky-interact-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        const peerActorId = `https://${TEST_DOMAIN}/users/peer-interact-${suffix}`
+        const statusId = `https://bsky.app/profile/did:plc:p${suffix}/post/3k1`
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+        await database.createBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'like',
+          uri: `at://did:plc:i${suffix}/app.bsky.feed.like/1`
+        })
+        await database.createBlueskyInteraction({
+          actorId,
+          statusId,
+          kind: 'repost',
+          uri: `at://did:plc:i${suffix}/app.bsky.feed.repost/1`
+        })
+        await database.createBlueskyInteraction({
+          actorId: peerActorId,
+          statusId,
+          kind: 'like',
+          uri: `at://did:plc:peer${suffix}/app.bsky.feed.like/1`
+        })
+
+        await database.deleteActorData({ actorId })
+
+        expect(
+          await database.getBlueskyInteraction({
+            actorId,
+            statusId,
+            kind: 'like'
+          })
+        ).toBeNull()
+        expect(
+          await database.getBlueskyInteraction({
+            actorId,
+            statusId,
+            kind: 'repost'
+          })
+        ).toBeNull()
+        expect(
+          await database.getBlueskyInteraction({
+            actorId: peerActorId,
+            statusId,
+            kind: 'like'
+          })
+        ).not.toBeNull()
+      })
+
       it('removes account notes referencing the deleted actor on either side', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-note-${suffix}`

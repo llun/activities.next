@@ -400,7 +400,10 @@ export const storeBlueskyPostView = async (
     isRecord(record.reply) && isRecord(record.reply.parent)
       ? parseAtUri(optionalString(record.reply.parent.uri) ?? '')
       : null
-  const replyToStatusId = parent ? blueskyPostId(parent.did, parent.rkey) : null
+  const replyToStatusId =
+    parent && parent.collection === POST_COLLECTION
+      ? blueskyPostId(parent.did, parent.rkey)
+      : null
   const postUrl = blueskyPostId(post.at.did, post.at.rkey)
   if (
     postUrl.length > MAX_COLUMN_LENGTH ||
@@ -432,6 +435,12 @@ export const storeBlueskyPostView = async (
     replyToStatusId,
     attachments: blueskyImagesFromEmbed(post.view.embed),
     sensitive: isBlueskyPostSensitive(post.view)
+  })
+  await database.setBlueskyPostCounts({
+    statusId,
+    likes: optionalCount(post.view.likeCount),
+    reposts: optionalCount(post.view.repostCount),
+    replies: optionalCount(post.view.replyCount)
   })
   return statusId
 }

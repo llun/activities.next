@@ -22,6 +22,12 @@ export type IdempotencyKeyState =
   'pending' | 'publishing' | 'publish_failed' | 'complete'
 
 export type GetIdempotencyKeyParams = { actorId: string; key: string }
+export type CreateCompletedIdempotencyKeyParams = {
+  actorId: string
+  key: string
+  statusId: string
+  contentHash: string
+}
 export type SetIdempotencyKeyStateParams = {
   actorId: string
   key: string
@@ -103,6 +109,14 @@ export interface IdempotencyDatabase {
   getIdempotencyKey(
     params: GetIdempotencyKeyParams
   ): Promise<IdempotencyKeyRecord | null>
+  /**
+   * Records a completed key for a status that needs no ActivityPub send job
+   * (such as a Bluesky reply). Idempotent on `(actorId, key)`: keeps any
+   * existing row.
+   */
+  createCompletedIdempotencyKey(
+    params: CreateCompletedIdempotencyKeyParams
+  ): Promise<void>
   setIdempotencyKeyState(params: SetIdempotencyKeyStateParams): Promise<void>
   // Moves the key to 'publishing' if the caller may queue its status's job,
   // and returns whether it did (see ClaimIdempotencyKeyPublishParams).

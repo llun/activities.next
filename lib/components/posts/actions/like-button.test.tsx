@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { likeStatus, undoLikeStatus } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -163,6 +164,26 @@ describe('LikeButton', () => {
       await screen.findByText('Failed to unlike post. Please try again.')
     ).toHaveAttribute('role', 'alert')
     expect(screen.getByRole('button', { name: 'Unlike, 1 like' })).toBeEnabled()
+  })
+
+  it('shows the server error message when like or unlike rejects with ApiRequestError', async () => {
+    ;(likeStatus as jest.Mock).mockRejectedValue(
+      new ApiRequestError(
+        'Link a Bluesky account in Settings › Other networks to interact with Bluesky posts.',
+        422
+      )
+    )
+
+    render(<LikeButton currentActor={currentActor} status={status} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Like' }))
+
+    expect(
+      await screen.findByText(
+        'Link a Bluesky account in Settings › Other networks to interact with Bluesky posts.'
+      )
+    ).toHaveAttribute('role', 'alert')
+    expect(screen.getByRole('button', { name: 'Like' })).toBeEnabled()
   })
 
   it('syncs visible like state when status props update', () => {

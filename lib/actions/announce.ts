@@ -43,7 +43,7 @@ interface UserAnnounceParams {
 // default (public) preserves the historical to/cc exactly so existing boosts
 // are unaffected; unlisted moves Public into cc, and private keeps the boost
 // to followers only.
-const getAnnounceRecipients = (
+export const getAnnounceRecipients = (
   currentActor: Actor,
   visibility: MastodonVisibility | undefined
 ): { to: string[]; cc: string[] } => {
@@ -64,6 +64,38 @@ const getAnnounceRecipients = (
         cc: [currentActor.id, currentActor.followersUrl]
       }
   }
+}
+
+// Creates an Announce row locally and fans it into local timelines without
+// creating notifications or enqueueing federation jobs. Reused by both
+// ActivityPub boosts (userAnnounce) and local-only Bluesky reposts.
+export const createLocalAnnounce = async ({
+  database,
+  currentActor,
+  originalStatusId,
+  visibility
+}: {
+  database: Database
+  currentActor: Actor
+  originalStatusId: string
+  visibility?: MastodonVisibility
+}) => {
+  const postId = generatePublicId()
+  const id = getLocalStatusId({ actorId: currentActor.id, statusId: postId })
+  const { to, cc } = getAnnounceRecipients(currentActor, visibility)
+  const status = await database.createAnnounce({
+    id,
+    publicId: postId,
+    actorId: currentActor.id,
+    to,
+    cc,
+    originalStatusId
+  })
+  if (!status) {
+    return null
+  }
+  await addStatusToTimelines(database, status)
+  return status
 }
 
 // The audience a boost of `originalStatus` may be given, or null when it may
@@ -122,7 +154,7 @@ export const userAnnounce = async ({
       database.getActorAnnounceStatus({ statusId, actorId: currentActor.id })
     ])
 
-    // A Bluesky post cannot be boosted as ActivityPub (not supported yet).
+    // A Bluesky post cannot be boosted as ActivityPub (use repostBlueskyPost).
     if (
       !originalStatus ||
       actorAnnounceStatus ||
@@ -139,21 +171,15 @@ export const userAnnounce = async ({
     })
     if (!boost) return null
 
-    const postId = generatePublicId()
-    const id = getLocalStatusId({ actorId: currentActor.id, statusId: postId })
-    const { to, cc } = getAnnounceRecipients(currentActor, boost.visibility)
-    const status = await database.createAnnounce({
-      id,
-      publicId: postId,
-      actorId: currentActor.id,
-      to,
-      cc,
-      originalStatusId: originalStatus.id
+    const status = await createLocalAnnounce({
+      database,
+      currentActor,
+      originalStatusId: originalStatus.id,
+      visibility: boost.visibility
     })
     if (!status) {
       return null
     }
-    await addStatusToTimelines(database, status)
 
     // Create reblog notification if reblogging someone else's status
     if (

@@ -1,5 +1,6 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import * as blueskyNetworkMigration from '@/migrations/20261124004542_add_bluesky_network'
+import * as blueskyInteractionsMigration from '@/migrations/20261124060051_add_bluesky_interactions'
 
 describe('add_bluesky_network migration', () => {
   const { database, db, prepare, destroy } = createTestDatabase()
@@ -39,5 +40,75 @@ describe('add_bluesky_network migration', () => {
         .find((table) => table.name === 'actors')
         ?.columns.some((column) => column.name === 'network')
     ).toBe(true)
+  })
+})
+
+describe('add_bluesky_interactions migration', () => {
+  const { database, db, prepare, destroy } = createTestDatabase()
+
+  beforeAll(async () => {
+    await prepare()
+    await database.migrate()
+  })
+
+  afterAll(async () => {
+    await destroy()
+  })
+
+  it('rolls down and back up cleanly', async () => {
+    await blueskyInteractionsMigration.down(db)
+    const afterDown = await db.introspection.getTables()
+    expect(
+      afterDown.some((table) => table.name === 'bluesky_interactions')
+    ).toBe(false)
+    expect(
+      afterDown
+        .find((table) => table.name === 'bluesky_accounts')
+        ?.columns.some((column) => column.name === 'notificationsSeenAt')
+    ).toBe(false)
+
+    await blueskyInteractionsMigration.up(db)
+    // Calling up() again is idempotent.
+    await blueskyInteractionsMigration.up(db)
+    const afterUp = await db.introspection.getTables()
+    expect(afterUp.some((table) => table.name === 'bluesky_interactions')).toBe(
+      true
+    )
+    expect(
+      afterUp
+        .find((table) => table.name === 'bluesky_accounts')
+        ?.columns.some((column) => column.name === 'notificationsSeenAt')
+    ).toBe(true)
+  })
+
+  it('backfills notificationsSeenAt for accounts that existed before up()', async () => {
+    await blueskyInteractionsMigration.down(db)
+
+    const actorId = 'https://example.test/users/pre-migration'
+    await db
+      .insertInto('bluesky_accounts')
+      .values({
+        actorId,
+        did: 'did:plc:premigrationaccount1234',
+        handle: 'premigration.bsky.social',
+        pdsUrl: 'https://bsky.social',
+        authType: 'oauth',
+        domainHandle: false
+      })
+      .execute()
+
+    await blueskyInteractionsMigration.up(db)
+
+    const row = await db
+      .selectFrom('bluesky_accounts')
+      .select('notificationsSeenAt')
+      .where('actorId', '=', actorId)
+      .executeTakeFirst()
+    expect(row?.notificationsSeenAt).not.toBeNull()
+    expect(row?.notificationsSeenAt).toBeDefined()
+
+    const account = await database.getBlueskyAccount({ actorId })
+    expect(account?.notificationsSeenAt).not.toBeNull()
+    expect(typeof account?.notificationsSeenAt).toBe('number')
   })
 })

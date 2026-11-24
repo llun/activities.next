@@ -31,6 +31,7 @@ import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/pot
 import { CounterKey } from '@/lib/database/utils/counter'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 
@@ -240,7 +241,8 @@ const applyStatusDeletionCounterAdjustments = async ({
 
     if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
       const parentStatusId = parentStatusIdByReplyReference.get(status.reply)
-      if (parentStatusId) {
+      // A Bluesky post's reply count is Bluesky's (set from the AppView).
+      if (parentStatusId && !isBlueskyId(parentStatusId)) {
         addCounterAdjustment(adjustments, CounterKey.totalReply(parentStatusId))
       }
     }
@@ -561,6 +563,12 @@ const executeStatusDeletion = async ({
   )
   await deleteByStatusIds((chunk) =>
     trx.deleteFrom('likes').where('statusId', 'in', chunk).execute()
+  )
+  await deleteByStatusIds((chunk) =>
+    trx
+      .deleteFrom('bluesky_interactions')
+      .where('statusId', 'in', chunk)
+      .execute()
   )
   // Emoji reactions follow the status, like favourites do. A remote status
   // that is deleted and later re-fetched under the same id would otherwise

@@ -1,9 +1,42 @@
+import { Database } from '@/lib/database/types'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
+import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
-import { StatusType, getOriginalStatus } from '@/lib/types/domain/status'
+import {
+  StatusNote,
+  StatusPoll,
+  StatusType,
+  getOriginalStatus,
+  isBlueskyStatus
+} from '@/lib/types/domain/status'
 import { withSpan } from '@/lib/utils/trace'
 
 import { MainTimelineRule, Timeline } from './types'
+
+const isBlueskyOriginalInHome = async (
+  database: Database,
+  currentActor: Actor,
+  status: StatusNote | StatusPoll,
+  { checkFollow }: { checkFollow: boolean }
+): Promise<boolean> => {
+  if (!checkFollow) {
+    return database.isBlueskyPostInHome({
+      actorId: currentActor.id,
+      statusId: status.id
+    })
+  }
+  const [inHome, blueskyFollow] = await Promise.all([
+    database.isBlueskyPostInHome({
+      actorId: currentActor.id,
+      statusId: status.id
+    }),
+    database.getBlueskyFollow({
+      actorId: currentActor.id,
+      targetActorId: status.actorId
+    })
+  ])
+  return inHome || Boolean(blueskyFollow)
+}
 
 /**
  * Main timeline
@@ -68,6 +101,24 @@ export const mainTimelineRule: MainTimelineRule = async ({
         }
 
         const originalStatus = status.originalStatus
+        const rootStatus = getOriginalStatus(status)
+        if (isBlueskyStatus(status)) {
+          if (
+            await isBlueskyOriginalInHome(database, currentActor, rootStatus, {
+              // For the booster themself, only drop the boost if the original
+              // is already in Home: following the author on Bluesky does not
+              // guarantee the post is in Home yet (or within the sync window),
+              // and dropping the boost would leave the post in neither form.
+              checkFollow: status.actorId !== currentActor.id
+            })
+          ) {
+            return null
+          }
+          if (rootStatus.id === originalStatus.id) {
+            return Timeline.MAIN
+          }
+        }
+
         const timeline = await mainTimelineRule({
           database,
           currentActor,
@@ -75,8 +126,7 @@ export const mainTimelineRule: MainTimelineRule = async ({
         })
         if (timeline === Timeline.MAIN) return null
 
-        const rootStatus = getOriginalStatus(status)
-        if (rootStatus.id !== originalStatus.id) {
+        if (rootStatus.id !== originalStatus.id && !isBlueskyStatus(status)) {
           const rootTimeline = await mainTimelineRule({
             database,
             currentActor,

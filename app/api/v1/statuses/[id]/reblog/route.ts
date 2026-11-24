@@ -2,12 +2,23 @@ import { z } from 'zod'
 
 import { userAnnounce } from '@/lib/actions/announce'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
+import {
+  blueskyInteractionFailure,
+  repostBlueskyPost
+} from '@/lib/services/bluesky/interactions'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { mastodonStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
+import {
+  mastodonStatusResponse,
+  refetchedStatusResponse
+} from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
-import { isBlueskyStatus } from '@/lib/types/domain/status'
+import {
+  Status,
+  getOriginalStatus,
+  isBlueskyStatus
+} from '@/lib/types/domain/status'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -75,13 +86,42 @@ export const POST = traceApiRoute(
         withReplies: false
       })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
-      // Boosting on Bluesky (a repost record) is not built yet.
       if (isBlueskyStatus(status)) {
-        return apiResponse({
+        if (parsedBody.data.visibility === 'private') {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: {
+              error:
+                'Bluesky reposts are public: Bluesky has no followers-only posts.'
+            },
+            responseStatusCode: 422
+          })
+        }
+        let announceStatus: Status
+        try {
+          announceStatus = await repostBlueskyPost(
+            database,
+            currentActor,
+            getOriginalStatus(status).id,
+            { visibility: parsedBody.data.visibility }
+          )
+        } catch (error) {
+          const failure = blueskyInteractionFailure(error)
+          if (!failure) throw error
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: failure.error },
+            responseStatusCode: failure.status
+          })
+        }
+        return refetchedStatusResponse({
           req,
-          allowedMethods: CORS_HEADERS,
-          data: { error: 'Boosting Bluesky posts is not supported yet.' },
-          responseStatusCode: 422
+          database,
+          currentActor,
+          statusId: announceStatus.id,
+          allowedMethods: CORS_HEADERS
         })
       }
 

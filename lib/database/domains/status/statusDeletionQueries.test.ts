@@ -1548,6 +1548,7 @@ describe('statements', () => {
     `decrease ${CounterKey.totalHashtag('cats')}`,
     'delete recipients',
     'delete likes',
+    'delete bluesky_interactions',
     'delete status_reactions',
     'delete tags',
     'read deleted attachment media',
@@ -2026,5 +2027,56 @@ describe.runIf(testDb.backend === 'pg')('PostgreSQL locks', () => {
     await deletion.result()
     await create.result()
     expect(await counterValue(CounterKey.totalStatus(author))).toBe(5)
+  })
+
+  it('deletes bluesky_interactions rows for the deleted status without touching other statuses', async () => {
+    const author = await seedActor('bsky-author')
+    const viewer1 = await seedActor('viewer1', { local: true })
+    const viewer2 = await seedActor('viewer2', { local: true })
+    const doomed = await seedStatus({
+      id: statusIn(author, 'bsky-doomed'),
+      actorId: author,
+      createdAt: BASE + 1_000
+    })
+    const survivor = await seedStatus({
+      id: statusIn(author, 'bsky-survivor'),
+      actorId: author,
+      createdAt: BASE + 2_000
+    })
+    await db()
+      .insertInto('bluesky_interactions')
+      .values([
+        {
+          actorId: viewer1,
+          statusId: doomed,
+          kind: 'like',
+          uri: 'at://did:plc:viewer1/app.bsky.feed.like/1'
+        },
+        {
+          actorId: viewer2,
+          statusId: doomed,
+          kind: 'repost',
+          uri: 'at://did:plc:viewer2/app.bsky.feed.repost/1'
+        },
+        {
+          actorId: viewer1,
+          statusId: survivor,
+          kind: 'like',
+          uri: 'at://did:plc:viewer1/app.bsky.feed.like/2'
+        }
+      ])
+      .execute()
+    refreshSpy()
+
+    await deleteStatus(db(), { statusId: doomed })
+
+    const remaining = await db()
+      .selectFrom('bluesky_interactions')
+      .select(['actorId', 'statusId', 'kind'])
+      .where('statusId', 'in', [doomed, survivor])
+      .execute()
+    expect(remaining).toEqual([
+      { actorId: viewer1, statusId: survivor, kind: 'like' }
+    ])
   })
 })

@@ -51,7 +51,8 @@ import {
   Status,
   StatusAnnounce,
   StatusPoll,
-  StatusType
+  StatusType,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import {
   ACTIVITY_STREAM_PUBLIC,
@@ -450,7 +451,7 @@ export const buildAnnounceActivity = ({
 }: {
   status: Status
 }): AnnounceStatus | null => {
-  if (status.type !== StatusType.enum.Announce) {
+  if (status.type !== StatusType.enum.Announce || isBlueskyStatus(status)) {
     return null
   }
 

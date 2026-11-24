@@ -701,4 +701,181 @@ describe('storing AppView views', () => {
       })
     ).toBeNull()
   })
+
+  it('stores and updates like, repost and reply counts from AppView views while ignoring invalid counts', async () => {
+    const initial = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/counts1`,
+      cid: 'cid-counts1',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Counted post',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      likeCount: 7,
+      repostCount: 3,
+      replyCount: 2
+    })
+    expect(initial).not.toBeNull()
+    const statusId = (await storeBlueskyPostView(
+      database,
+      initial as NonNullable<typeof initial>
+    )) as string
+
+    expect(await database.getLikeCount({ statusId })).toBe(7)
+    expect(await database.getStatusReblogsCount({ statusId })).toBe(3)
+    expect(await database.getStatusRepliesCount({ statusId })).toBe(2)
+
+    // Re-storing an already-stored post refreshes its counts (including 0).
+    const updated = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/counts1`,
+      cid: 'cid-counts1',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Counted post',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      likeCount: 15,
+      repostCount: 0,
+      replyCount: 5
+    })
+    await storeBlueskyPostView(database, updated as NonNullable<typeof updated>)
+
+    expect(await database.getLikeCount({ statusId })).toBe(15)
+    expect(await database.getStatusReblogsCount({ statusId })).toBe(0)
+    expect(await database.getStatusRepliesCount({ statusId })).toBe(5)
+
+    // Non-integer, negative or missing counts are ignored and leave stored counts intact.
+    const invalid = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/counts1`,
+      cid: 'cid-counts1',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Counted post',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      likeCount: -1,
+      repostCount: 2.5,
+      replyCount: '99'
+    })
+    await storeBlueskyPostView(database, invalid as NonNullable<typeof invalid>)
+
+    expect(await database.getLikeCount({ statusId })).toBe(15)
+    expect(await database.getStatusReblogsCount({ statusId })).toBe(0)
+    expect(await database.getStatusRepliesCount({ statusId })).toBe(5)
+  })
+
+  it('keeps the AppView reply count when replies to a Bluesky post are stored and deleted', async () => {
+    const REPLIER = `did:plc:${'r'.repeat(24)}`
+    const root = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/root-replies`,
+      cid: 'cid-root-replies',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Root post',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      replyCount: 2
+    })
+    expect(root).not.toBeNull()
+    const rootStatusId = (await storeBlueskyPostView(
+      database,
+      root as NonNullable<typeof root>
+    )) as string
+    expect(
+      await database.getStatusRepliesCount({ statusId: rootStatusId })
+    ).toBe(2)
+
+    const replyStatusIds: string[] = []
+    for (const rkey of ['reply-a', 'reply-b']) {
+      const reply = parseBlueskyPostView({
+        uri: `at://${REPLIER}/app.bsky.feed.post/${rkey}`,
+        cid: `cid-${rkey}`,
+        author: { did: REPLIER, handle: 'replier.bsky.social' },
+        record: {
+          $type: 'app.bsky.feed.post',
+          text: `Reply ${rkey}`,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          reply: {
+            root: { uri: `at://${ALICE}/app.bsky.feed.post/root-replies` },
+            parent: { uri: `at://${ALICE}/app.bsky.feed.post/root-replies` }
+          }
+        }
+      })
+      expect(reply).not.toBeNull()
+      replyStatusIds.push(
+        (await storeBlueskyPostView(
+          database,
+          reply as NonNullable<typeof reply>
+        )) as string
+      )
+    }
+
+    // Storing a reply does not move the parent's AppView-owned count.
+    expect(
+      await database.getStatusRepliesCount({ statusId: rootStatusId })
+    ).toBe(2)
+
+    await database.deleteStatus({ statusId: replyStatusIds[0] })
+
+    // Deleting one does not move it either.
+    expect(
+      await database.getStatusRepliesCount({ statusId: rootStatusId })
+    ).toBe(2)
+  })
+
+  it('links a reply parent only when the parent URI collection is app.bsky.feed.post', async () => {
+    const BOB = `did:plc:${'b'.repeat(24)}`
+    const nonPostParent = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/replynonpost`,
+      cid: 'cid-replynonpost',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Reply to non-post record',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        reply: {
+          root: { uri: `at://${BOB}/app.bsky.feed.like/3k1`, cid: 'cid-like' },
+          parent: { uri: `at://${BOB}/app.bsky.feed.like/3k1`, cid: 'cid-like' }
+        }
+      }
+    })
+    expect(nonPostParent).not.toBeNull()
+    const nonPostStatusId = (await storeBlueskyPostView(
+      database,
+      nonPostParent as NonNullable<typeof nonPostParent>
+    )) as string
+    const nonPostStatus = await database.getStatus({
+      statusId: nonPostStatusId
+    })
+    expect(nonPostStatus).toMatchObject({ type: 'Note', reply: '' })
+
+    const postParent = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/replypost`,
+      cid: 'cid-replypost',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Reply to actual post',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        reply: {
+          root: { uri: `at://${BOB}/app.bsky.feed.post/3k2`, cid: 'cid-p' },
+          parent: { uri: `at://${BOB}/app.bsky.feed.post/3k2`, cid: 'cid-p' }
+        }
+      }
+    })
+    expect(postParent).not.toBeNull()
+    const postStatusId = (await storeBlueskyPostView(
+      database,
+      postParent as NonNullable<typeof postParent>
+    )) as string
+    const postStatus = await database.getStatus({ statusId: postStatusId })
+    expect(postStatus).toMatchObject({
+      type: 'Note',
+      reply: blueskyPostId(BOB, '3k2')
+    })
+  })
 })

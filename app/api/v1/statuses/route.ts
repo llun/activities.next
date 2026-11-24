@@ -16,6 +16,14 @@ import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
+import { blueskyActionFailure } from '@/lib/services/bluesky/actionErrors'
+import {
+  BLUESKY_REPLY_BUSY_MESSAGE,
+  BLUESKY_REPLY_LOCK_PREFIX,
+  BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
+  BlueskyReplyRateLimitError,
+  replyToBlueskyPost
+} from '@/lib/services/bluesky/reply'
 import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import {
   OAuthGuardAnyScope,
@@ -66,6 +74,7 @@ import {
   Status,
   isBlueskyStatus
 } from '@/lib/types/domain/status'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -597,14 +606,118 @@ export const POST = traceApiRoute(
             })
           }
           if (isBlueskyStatus(targetStatus)) {
-            return apiResponse({
-              req,
-              allowedMethods: CORS_HEADERS,
-              data: {
-                error: 'Replying to Bluesky posts is not supported yet.'
-              },
-              responseStatusCode: 422
-            })
+            if (note.quoted_status_id) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: {
+                  error: 'Quoting in Bluesky replies is not supported yet.'
+                },
+                responseStatusCode: 422
+              })
+            }
+            if (note.fitness_file_id) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: {
+                  error: 'Fitness files in Bluesky replies are not supported.'
+                },
+                responseStatusCode: 422
+              })
+            }
+            if (createdAt !== undefined) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: {
+                  error: 'Backdating Bluesky replies is not supported.'
+                },
+                responseStatusCode: 422
+              })
+            }
+            let blueskyReplyPosted = false
+            try {
+              const replyResult = await replyToBlueskyPost(
+                database,
+                currentActor,
+                {
+                  parentStatusId: targetStatus.id,
+                  text: note.status,
+                  visibility: note.visibility,
+                  mediaIds: note.media_ids,
+                  poll: note.poll,
+                  spoilerText: note.spoiler_text,
+                  sensitive: note.sensitive,
+                  language: note.language,
+                  idempotency
+                }
+              )
+              blueskyReplyPosted = true
+              if (!replyResult.stored) {
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: { error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE },
+                  responseStatusCode: 503
+                })
+              }
+              const blueskyStatus = await database.getStatus({
+                statusId: replyResult.statusId,
+                currentActorId: currentActor.id
+              })
+              if (!blueskyStatus) {
+                throw new Error('The saved status could not be loaded')
+              }
+              statusSaved = true
+              const mastodonStatus = await getMastodonStatus(
+                database,
+                blueskyStatus,
+                currentActor.id
+              )
+              if (!mastodonStatus) {
+                throw new Error('The saved status could not be serialized')
+              }
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: mastodonStatus
+              })
+            } catch (error) {
+              if (blueskyReplyPosted) {
+                logger.error(
+                  { err: toLoggableError(error) },
+                  'createStatus: request failed after the Bluesky reply was posted'
+                )
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: { error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE },
+                  responseStatusCode: 503
+                })
+              }
+              if (error instanceof BlueskyReplyRateLimitError) {
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: { error: error.message },
+                  responseStatusCode: error.status
+                })
+              }
+              const failure = blueskyActionFailure(error, {
+                lockPrefix: BLUESKY_REPLY_LOCK_PREFIX,
+                busy: BLUESKY_REPLY_BUSY_MESSAGE
+              })
+              if (failure) {
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: { error: failure.error },
+                  responseStatusCode: failure.status
+                })
+              }
+              throw error
+            }
           }
           replyStatusId = targetStatus.id
         }
@@ -726,6 +839,14 @@ export const POST = traceApiRoute(
           })
         }
         if (error instanceof IdempotencyDeletedError) {
+          if (isBlueskyId(error.statusId)) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: { error: BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE },
+              responseStatusCode: 503
+            })
+          }
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,

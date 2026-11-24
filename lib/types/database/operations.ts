@@ -312,6 +312,7 @@ export {
   IdempotencyDeletedError
 } from '@/lib/database/domains/idempotency/types'
 export type {
+  CreateCompletedIdempotencyKeyParams,
   DeleteExpiredIdempotencyKeysParams,
   GetIdempotencyKeyParams,
   IdempotencyDatabase,

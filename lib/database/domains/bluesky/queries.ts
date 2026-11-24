@@ -7,6 +7,8 @@ import {
 import { createActor, updateActor } from '@/lib/database/domains/actor/writes'
 import type {
   BlueskyFollow,
+  BlueskyInteraction,
+  BlueskyInteractionKind,
   BlueskyRecord,
   UpsertBlueskyActorParams,
   UpsertBlueskyPostParams
@@ -16,13 +18,19 @@ import { indexActorSearchDocument } from '@/lib/database/domains/search/accounts
 import type { StatusHydration } from '@/lib/database/domains/status/types'
 import { createNoteWithResult } from '@/lib/database/domains/status/writes'
 import { type Db, inTransaction, isInTransaction } from '@/lib/database/kysely'
-import type { BlueskyRecords } from '@/lib/database/kysely/db'
+import { setCounterValue } from '@/lib/database/kysely/counter'
+import type {
+  BlueskyInteractions,
+  BlueskyRecords
+} from '@/lib/database/kysely/db'
 import { forUpdate } from '@/lib/database/kysely/dialect'
+import { CounterKey } from '@/lib/database/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import { Timeline } from '@/lib/services/timelines/types'
+import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { BLUESKY_DOMAIN, BLUESKY_PROFILE_PREFIX } from '@/lib/utils/blueskyId'
 
@@ -360,6 +368,24 @@ export const isBlueskyPostInHome = async (
       .executeTakeFirst()
   )
 
+export const removeBoostsOfStatusFromHome = async (
+  db: Db,
+  { actorId, statusId }: { actorId: string; statusId: string }
+): Promise<void> => {
+  await db
+    .deleteFrom('timelines')
+    .where('actorId', '=', actorId)
+    .where('timeline', '=', Timeline.MAIN)
+    .where('statusId', 'in', (eb) =>
+      eb
+        .selectFrom('statuses')
+        .select('statuses.id')
+        .where('statuses.type', '=', StatusType.enum.Announce)
+        .where('statuses.originalStatusId', '=', statusId)
+    )
+    .execute()
+}
+
 export const createBlueskyFollow = async (
   db: Db,
   {
@@ -420,6 +446,101 @@ export const getBlueskyFollowTargetIds = async (
   return rows.map((row) => row.targetActorId)
 }
 
+const toInteraction = (
+  row: Selectable<BlueskyInteractions>
+): BlueskyInteraction => ({
+  actorId: row.actorId,
+  statusId: row.statusId,
+  kind: row.kind as BlueskyInteractionKind,
+  uri: row.uri,
+  createdAt: getCompatibleTime(row.createdAt)
+})
+
+export const getBlueskyInteraction = async (
+  db: Db,
+  {
+    actorId,
+    statusId,
+    kind
+  }: { actorId: string; statusId: string; kind: BlueskyInteractionKind }
+): Promise<BlueskyInteraction | null> => {
+  const row = await db
+    .selectFrom('bluesky_interactions')
+    .selectAll()
+    .where('actorId', '=', actorId)
+    .where('statusId', '=', statusId)
+    .where('kind', '=', kind)
+    .executeTakeFirst()
+  return row ? toInteraction(row) : null
+}
+
+export const createBlueskyInteraction = async (
+  db: Db,
+  {
+    actorId,
+    statusId,
+    kind,
+    uri
+  }: {
+    actorId: string
+    statusId: string
+    kind: BlueskyInteractionKind
+    uri: string
+  }
+): Promise<void> => {
+  await db
+    .insertInto('bluesky_interactions')
+    .values({ actorId, statusId, kind, uri })
+    .onConflict((oc) => oc.columns(['actorId', 'statusId', 'kind']).doNothing())
+    .execute()
+}
+
+export const deleteBlueskyInteraction = async (
+  db: Db,
+  {
+    actorId,
+    statusId,
+    kind
+  }: { actorId: string; statusId: string; kind: BlueskyInteractionKind }
+): Promise<void> => {
+  await db
+    .deleteFrom('bluesky_interactions')
+    .where('actorId', '=', actorId)
+    .where('statusId', '=', statusId)
+    .where('kind', '=', kind)
+    .execute()
+}
+
+const isValidCount = (value: number | null | undefined): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0
+
+export const setBlueskyPostCounts = async (
+  db: Db,
+  {
+    statusId,
+    likes,
+    reposts,
+    replies
+  }: {
+    statusId: string
+    likes?: number | null
+    reposts?: number | null
+    replies?: number | null
+  }
+): Promise<void> => {
+  const currentTime = new Date()
+  const entries: [string, number | null | undefined][] = [
+    [CounterKey.totalLike(statusId), likes],
+    [CounterKey.totalReblog(statusId), reposts],
+    [CounterKey.totalReply(statusId), replies]
+  ]
+  await Promise.all(
+    entries
+      .filter((entry): entry is [string, number] => isValidCount(entry[1]))
+      .map(([key, value]) => setCounterValue(db, key, value, currentTime))
+  )
+}
+
 export const updateBlueskyAccountSync = async (
   db: Db,
   {
@@ -453,9 +574,14 @@ export const blueskyQueries = {
   getBlueskyRecordByStatusId,
   getBlueskyRecordByUri,
   isBlueskyPostInHome,
+  removeBoostsOfStatusFromHome,
   createBlueskyFollow,
   deleteBlueskyFollow,
   getBlueskyFollow,
   getBlueskyFollowTargetIds,
+  getBlueskyInteraction,
+  createBlueskyInteraction,
+  deleteBlueskyInteraction,
+  setBlueskyPostCounts,
   updateBlueskyAccountSync
 }

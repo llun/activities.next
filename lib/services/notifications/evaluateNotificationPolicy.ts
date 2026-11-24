@@ -3,6 +3,7 @@ import {
   NotificationPolicyValue,
   NotificationType
 } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getStatusVisibility } from '@/lib/utils/getVisibility'
 
 export const isAcceptedSender = async (
@@ -93,40 +94,56 @@ export const evaluateNotificationPolicy = async (
   }
 
   const candidates: NotificationPolicyValue[] = []
+  const isBlueskySource = isBlueskyId(sourceActorId)
 
   // Resolve follow relationships once; used by both for_not_following,
   // for_not_followers, and for_private_mentions (follows bypass DM filter).
   let recipientFollowsSource: boolean | undefined
   let sourceFollowsRecipient: boolean | undefined
 
-  if (
+  const needsFollowingCheck =
     policy.for_not_following !== 'accept' ||
-    policy.for_not_followers !== 'accept' ||
     (policy.for_private_mentions !== 'accept' &&
-      statusId &&
+      Boolean(statusId) &&
       (type === 'mention' || type === 'reply'))
-  ) {
-    ;[recipientFollowsSource, sourceFollowsRecipient] = await Promise.all([
-      database.isCurrentActorFollowing({
-        currentActorId: actorId,
-        followingActorId: sourceActorId
-      }),
-      database.isCurrentActorFollowing({
-        currentActorId: sourceActorId,
-        followingActorId: actorId
-      })
-    ])
+
+  if (needsFollowingCheck || policy.for_not_followers !== 'accept') {
+    if (isBlueskySource) {
+      if (needsFollowingCheck) {
+        recipientFollowsSource = Boolean(
+          await database.getBlueskyFollow({
+            actorId,
+            targetActorId: sourceActorId
+          })
+        )
+      }
+      // Bluesky followers are not copied in, so treat Bluesky sources as
+      // passing for_not_followers.
+      sourceFollowsRecipient = true
+    } else {
+      ;[recipientFollowsSource, sourceFollowsRecipient] = await Promise.all([
+        database.isCurrentActorFollowing({
+          currentActorId: actorId,
+          followingActorId: sourceActorId
+        }),
+        database.isCurrentActorFollowing({
+          currentActorId: sourceActorId,
+          followingActorId: actorId
+        })
+      ])
+    }
   }
 
-  if (
-    policy.for_not_following !== 'accept' ||
-    policy.for_not_followers !== 'accept'
-  ) {
-    if (!recipientFollowsSource) candidates.push(policy.for_not_following)
-    if (!sourceFollowsRecipient) candidates.push(policy.for_not_followers)
+  if (policy.for_not_following !== 'accept' && !recipientFollowsSource) {
+    candidates.push(policy.for_not_following)
+  }
+  if (policy.for_not_followers !== 'accept' && !sourceFollowsRecipient) {
+    candidates.push(policy.for_not_followers)
   }
 
-  if (policy.for_new_accounts !== 'accept') {
+  // Skip for_new_accounts for Bluesky sources: their actor createdAt is when
+  // this server first stored them, not when their Bluesky account was created.
+  if (policy.for_new_accounts !== 'accept' && !isBlueskySource) {
     const source = await database.getActorFromId({ id: sourceActorId })
     if (source && currentTime - source.createdAt < NEW_ACCOUNT_AGE_MS) {
       candidates.push(policy.for_new_accounts)

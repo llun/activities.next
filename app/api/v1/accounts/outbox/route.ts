@@ -18,6 +18,7 @@ import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { isBlueskyStatus } from '@/lib/types/domain/status'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -371,6 +372,24 @@ export const DELETE = traceApiRoute(
         })
       }
       const request = parsed.data
+      const isBlueskyTarget =
+        isBlueskyId(request.statusId) ||
+        Boolean(
+          await database
+            .getStatus({ statusId: request.statusId, withReplies: false })
+            .then((status) => status && isBlueskyStatus(status))
+        )
+      if (isBlueskyTarget) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: {
+            error:
+              'Delete Bluesky posts and boosts with DELETE /api/v1/statuses/:id.'
+          },
+          responseStatusCode: 422
+        })
+      }
       await deleteStatusFromUserInput({
         currentActor,
         database,

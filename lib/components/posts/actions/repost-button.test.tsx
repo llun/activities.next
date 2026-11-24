@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { repostStatus, undoRepostStatus } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
@@ -182,6 +183,52 @@ describe('RepostButton', () => {
 
     expect(
       await screen.findByText('Failed to undo repost. Please try again.')
+    ).toHaveAttribute('role', 'alert')
+    expect(screen.getByRole('button', { name: 'Undo repost' })).toBeEnabled()
+  })
+
+  it('shows the server error message when repost or undo rejects with ApiRequestError', async () => {
+    ;(repostStatus as jest.Mock).mockRejectedValue(
+      new ApiRequestError(
+        'Link a Bluesky account in Settings › Other networks to interact with Bluesky posts.',
+        422
+      )
+    )
+    render(<RepostButton currentActor={currentActor} status={status} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Repost' }))
+    })
+
+    expect(
+      await screen.findByText(
+        'Link a Bluesky account in Settings › Other networks to interact with Bluesky posts.'
+      )
+    ).toHaveAttribute('role', 'alert')
+    expect(screen.getByRole('button', { name: 'Repost' })).toBeEnabled()
+
+    cleanup()
+    ;(undoRepostStatus as jest.Mock).mockRejectedValue(
+      new ApiRequestError(
+        'Bluesky did not accept the change. Please try again.',
+        502
+      )
+    )
+    render(
+      <RepostButton
+        currentActor={currentActor}
+        status={{ ...status, actorAnnounceStatusId: boostId }}
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Undo repost' }))
+    })
+
+    expect(
+      await screen.findByText(
+        'Bluesky did not accept the change. Please try again.'
+      )
     ).toHaveAttribute('role', 'alert')
     expect(screen.getByRole('button', { name: 'Undo repost' })).toBeEnabled()
   })

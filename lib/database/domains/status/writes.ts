@@ -37,6 +37,7 @@ import {
   StatusPoll,
   StatusType
 } from '@/lib/types/domain/status'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import {
   getTrustedFollowersUrl,
@@ -255,7 +256,8 @@ const updateStatusCounters = async (
 
   if (reply && isPubliclyAddressed(audience)) {
     const parentStatusId = await resolveParentStatusIdByReply(trx, reply)
-    if (parentStatusId) {
+    // A Bluesky post's reply count is Bluesky's (set from the AppView).
+    if (parentStatusId && !isBlueskyId(parentStatusId)) {
       await increaseCounterValue(
         trx,
         CounterKey.totalReply(parentStatusId),

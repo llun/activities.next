@@ -2,6 +2,7 @@ import { Heart } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
 import { likeStatus, undoLikeStatus } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import {
   ACTION_BUTTON_CLASS,
   ActionButtonError,
@@ -107,8 +108,12 @@ export const LikeButton: FC<LikeButtonProps> = ({
                 }
               })
               onLikeChanged?.(status, nextIsActorLiked)
-            } catch {
-              setError(failureMessage)
+            } catch (caught) {
+              setError(
+                caught instanceof ApiRequestError && caught.message
+                  ? caught.message
+                  : failureMessage
+              )
             } finally {
               setIsLoading(false)
             }

@@ -2,7 +2,7 @@ import { Database } from '@/lib/database/types'
 import { SEND_UNDO_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
-import { StatusType } from '@/lib/types/domain/status'
+import { StatusType, isBlueskyStatus } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -21,7 +21,11 @@ export const userUndoAnnounce = async ({
 }: UserUndoAnnounceParams) =>
   withSpan('actions', 'userUndoAnnounce', {}, async (span) => {
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status || status.type !== StatusType.enum.Announce) {
+    if (
+      !status ||
+      status.type !== StatusType.enum.Announce ||
+      isBlueskyStatus(status)
+    ) {
       return null
     }
 

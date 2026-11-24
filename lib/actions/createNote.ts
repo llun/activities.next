@@ -47,13 +47,15 @@ import {
   Status,
   StatusNote,
   StatusType,
-  getOriginalStatus
+  getOriginalStatus,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import {
   MastodonVisibility,
@@ -169,6 +171,8 @@ const queueStatusCreationJob = async ({
   fitnessFileId?: string
   key?: string
 }): Promise<void> => {
+  // Never enqueue an ActivityPub delivery job for a Bluesky status.
+  if (isBlueskyStatus(status) || isBlueskyId(status.id)) return
   const job = getStatusCreationJob(actorId, status, fitnessFileId)
   try {
     await getQueue().publish(job)
@@ -321,7 +325,14 @@ const answerIdempotentStatus = async ({
     }
     return null
   }
-  if (claim?.statusId !== statusId || claim.state === 'complete') return status
+  if (
+    claim?.statusId !== statusId ||
+    claim.state === 'complete' ||
+    isBlueskyStatus(status) ||
+    isBlueskyId(statusId)
+  ) {
+    return status
+  }
   const taken = await database.claimIdempotencyKeyPublish({
     actorId,
     key,

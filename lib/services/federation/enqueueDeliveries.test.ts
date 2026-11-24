@@ -58,6 +58,63 @@ describe('enqueueDeliveries', () => {
     expect(publish).not.toHaveBeenCalled()
   })
 
+  it('never queues a delivery for an Announce, Undo Announce, or Delete targeting a Bluesky post', async () => {
+    const blueskyPostId = `https://bsky.app/profile/did:plc:${'a'.repeat(24)}/post/3k`
+    await enqueueDeliveries({
+      database: mockDatabase,
+      parentMessageId: 'msg-bsky-announce',
+      actorId: 'https://local.test/users/alice',
+      activity: {
+        type: 'Announce',
+        actor: 'https://local.test/users/alice',
+        object: blueskyPostId
+      },
+      inboxes: ['https://live.example/inbox']
+    })
+    await enqueueDeliveries({
+      database: mockDatabase,
+      parentMessageId: 'msg-bsky-undo-announce',
+      actorId: 'https://local.test/users/alice',
+      activity: {
+        type: 'Undo',
+        actor: 'https://local.test/users/alice',
+        object: {
+          type: 'Announce',
+          actor: 'https://local.test/users/alice',
+          object: blueskyPostId
+        }
+      },
+      inboxes: ['https://live.example/inbox']
+    })
+    await enqueueDeliveries({
+      database: mockDatabase,
+      parentMessageId: 'msg-bsky-delete-tombstone',
+      actorId: 'https://local.test/users/alice',
+      activity: {
+        type: 'Delete',
+        actor: 'https://local.test/users/alice',
+        object: {
+          id: blueskyPostId,
+          type: 'Tombstone'
+        }
+      },
+      inboxes: ['https://live.example/inbox']
+    })
+    await enqueueDeliveries({
+      database: mockDatabase,
+      parentMessageId: 'msg-bsky-delete-string',
+      actorId: 'https://local.test/users/alice',
+      activity: {
+        type: 'Delete',
+        actor: 'https://local.test/users/alice',
+        object: blueskyPostId
+      },
+      inboxes: ['https://live.example/inbox']
+    })
+
+    expect(publish).not.toHaveBeenCalled()
+  })
+
   it('deduplicates inboxes, drops unavailable inboxes, and records skipped count on the span', async () => {
     getUnavailableInboxes.mockResolvedValue([
       'https://DEAD.example/users/test1/inbox',
