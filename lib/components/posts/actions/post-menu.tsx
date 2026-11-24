@@ -17,6 +17,7 @@ import {
   Pin,
   PinOff,
   Plus,
+  RotateCw,
   Trash2,
   TriangleAlert,
   Unlock,
@@ -40,6 +41,7 @@ import {
   getRelationship,
   getStatusById,
   pinStatus,
+  retryBlueskyCrosspost,
   setStatusBookmarkFolder,
   unblock,
   unmute,
@@ -321,6 +323,16 @@ export const PostMenu: FC<Props> = ({
   )
   const [quotePolicySaving, setQuotePolicySaving] = useState(false)
 
+  // The owner's cross-post of this post to Bluesky (only the owner gets it).
+  const [crosspost, setCrosspost] = useState(status.blueskyCrosspost ?? null)
+  const [crosspostRetrying, setCrosspostRetrying] = useState(false)
+  const [crosspostRetryError, setCrosspostRetryError] = useState<string | null>(
+    null
+  )
+  useEffect(() => {
+    setCrosspost(status.blueskyCrosspost ?? null)
+  }, [status.blueskyCrosspost])
+
   // Whether the owner has pinned this post is read when the menu opens; the
   // item stays disabled until then so it never offers the wrong action.
   const [isPinned, setIsPinned] = useState(knownPinned)
@@ -423,6 +435,23 @@ export const PostMenu: FC<Props> = ({
     if (!success) {
       setVisibility(previous)
       setActionError("Couldn't change post visibility. Please try again.")
+    }
+  }
+
+  const handleCrosspostRetry = async () => {
+    if (crosspostRetrying) return
+    setCrosspostRetrying(true)
+    setCrosspostRetryError(null)
+    try {
+      setCrosspost(await retryBlueskyCrosspost(status.id))
+    } catch (error) {
+      setCrosspostRetryError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Couldn't retry posting to Bluesky."
+      )
+    } finally {
+      setCrosspostRetrying(false)
     }
   }
 
@@ -837,6 +866,53 @@ export const PostMenu: FC<Props> = ({
                     ))}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+                {crosspost?.state === 'posted' && crosspost.url ? (
+                  <DropdownMenuItem asChild>
+                    <a
+                      href={crosspost.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="size-4" />
+                      View on Bluesky
+                    </a>
+                  </DropdownMenuItem>
+                ) : null}
+                {crosspost?.state === 'pending' ? (
+                  <DropdownMenuItem disabled>
+                    <RotateCw className="size-4" />
+                    Posting to Bluesky…
+                  </DropdownMenuItem>
+                ) : null}
+                {crosspost?.state === 'failed' ? (
+                  <>
+                    <DropdownMenuLabel className="font-normal text-xs text-warning-text">
+                      Not posted to Bluesky
+                      {crosspost.error ? `: ${crosspost.error}` : ''}
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      disabled={crosspostRetrying}
+                      onSelect={(event) => {
+                        // Stays open to show the retry and its outcome.
+                        event.preventDefault()
+                        void handleCrosspostRetry()
+                      }}
+                    >
+                      <RotateCw className="size-4" />
+                      {crosspostRetrying
+                        ? 'Retrying…'
+                        : 'Retry posting to Bluesky'}
+                    </DropdownMenuItem>
+                    {crosspostRetryError ? (
+                      <DropdownMenuLabel
+                        role="alert"
+                        className="font-normal text-xs text-destructive-text"
+                      >
+                        {crosspostRetryError}
+                      </DropdownMenuLabel>
+                    ) : null}
+                  </>
+                ) : null}
               </>
             ) : isOwnBlueskyPost ? null : (
               <>

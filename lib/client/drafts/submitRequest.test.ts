@@ -259,6 +259,40 @@ describe('buildSubmitRequest', () => {
     })
   })
 
+  describe('bluesky cross-post', () => {
+    it('sends a saved choice and appends it to the fingerprint', () => {
+      const note = buildSubmitRequest(draft({ blueskyCrosspost: false }))
+      expect(note.params).toMatchObject({ blueskyCrosspost: false })
+      expect(note.fingerprint).toBe(
+        '{"type":"note","message":"Hello","contentWarning":"","replyStatusId":null,"quotedStatusId":null,"attachmentIds":[],"fitnessFileId":null,"visibility":"public","quoteApprovalPolicy":"public","blueskyCrosspost":false}'
+      )
+      // The composer builds the same fingerprint, so a queued send reuses its key.
+      expect(note.fingerprint).toBe(
+        postBoxNoteFingerprint({
+          message: 'Hello',
+          contentWarning: '',
+          attachmentIds: [],
+          visibility: 'public',
+          quoteApprovalPolicy: 'public',
+          blueskyCrosspost: false
+        })
+      )
+
+      const poll = buildSubmitRequest(
+        draft({
+          blueskyCrosspost: true,
+          poll: {
+            choices: ['a', 'b'],
+            durationInSeconds: 1800,
+            pollType: 'oneOf'
+          }
+        })
+      )
+      expect(poll.params).toMatchObject({ blueskyCrosspost: true })
+      expect(poll.fingerprint).toMatch(/"blueskyCrosspost":true}$/)
+    })
+  })
+
   describe('reply-box', () => {
     it('maps a reply and matches the StatusReplyBox fingerprint', () => {
       const request = buildSubmitRequest(

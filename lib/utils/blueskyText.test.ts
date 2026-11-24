@@ -4,7 +4,8 @@ import {
   BLUESKY_TOO_LONG_MESSAGE,
   countBlueskyGraphemes,
   countBlueskyUtf8Bytes,
-  getBlueskyReplyLengthState
+  getBlueskyReplyLengthState,
+  isOverBlueskyLimit
 } from '@/lib/utils/blueskyText'
 
 describe('countBlueskyGraphemes', () => {
@@ -75,5 +76,19 @@ describe('getBlueskyReplyLengthState', () => {
       withinLimits: false,
       errorMessage: BLUESKY_TOO_LONG_MESSAGE
     })
+  })
+})
+
+describe('isOverBlueskyLimit', () => {
+  it('is over past 300 graphemes', () => {
+    expect(isOverBlueskyLimit('a'.repeat(300))).toBe(false)
+    expect(isOverBlueskyLimit('a'.repeat(301))).toBe(true)
+    // 300 emoji are 300 graphemes but 1200 bytes: still within.
+    expect(isOverBlueskyLimit('🚀'.repeat(300))).toBe(false)
+  })
+
+  it('is over past 3000 UTF-8 bytes even within 300 graphemes', () => {
+    expect(isOverBlueskyLimit('👨‍👩‍👧‍👦'.repeat(120))).toBe(false)
+    expect(isOverBlueskyLimit('👨‍👩‍👧‍👦'.repeat(121))).toBe(true)
   })
 })

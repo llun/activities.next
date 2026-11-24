@@ -126,7 +126,8 @@ describe('PostMenu for Bluesky posts', () => {
         domainHandle: false,
         sessionActive: true,
         lastSyncedAt: null,
-        syncError: null
+        syncError: null,
+        crosspostByDefault: true
       },
       instanceHandle: null
     })
@@ -184,7 +185,8 @@ describe('PostMenu for Bluesky posts', () => {
       domainHandle: false,
       sessionActive: true,
       lastSyncedAt: null,
-      syncError: null
+      syncError: null,
+      crosspostByDefault: true
     })
 
     render(
