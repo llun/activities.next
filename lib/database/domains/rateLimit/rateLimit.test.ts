@@ -145,8 +145,20 @@ describe('rateLimit domain', () => {
       retryAfterSeconds: 0
     })
 
-    await consume('peek', { limit: 2, windowMs: 1_000, now: 1_000 })
-    await consume('peek', { limit: 2, windowMs: 1_000, now: 1_000 })
+    const window = { limit: 2, windowMs: 1_000, now: 1_000 }
+    // The peeks above added no hit: both of these still fit the limit of 2.
+    expect(await consume('peek', window)).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+    expect(await database.checkRateLimit(params)).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+    expect(await consume('peek', window)).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
     // The window is full, but checking it again does not extend or reset it.
     expect(await database.checkRateLimit(params)).toEqual({
       allowed: false,
@@ -155,7 +167,11 @@ describe('rateLimit domain', () => {
     expect(await database.checkRateLimit(params)).toMatchObject({
       allowed: false
     })
-    // The window ended: the same key admits a hit again.
+    // At the window end the key admits a hit again, as consumeRateLimit does.
+    expect(await database.checkRateLimit({ ...params, now: 2_000 })).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
     expect(await database.checkRateLimit({ ...params, now: 2_001 })).toEqual({
       allowed: true,
       retryAfterSeconds: 0

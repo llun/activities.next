@@ -468,6 +468,35 @@ describe('ActorDatabase mastodon actors', () => {
             (await database.getMastodonActorFromId({ id: customOriginId }))
               ?.moved
           ).toBeFalsy()
+
+          // Any bsky.app movedTo is skipped by its host alone, even one that is
+          // not a profile id and whose stored row is not marked as Bluesky.
+          const urlOnlyTarget = `https://bsky.app/starter-pack/${suffix}`
+          await database.createActor({
+            actorId: urlOnlyTarget,
+            username: `url-only-${suffix}`,
+            domain: 'bsky.app',
+            followersUrl: '',
+            inboxUrl: '',
+            sharedInboxUrl: '',
+            publicKey: '',
+            createdAt: Date.now()
+          })
+          const urlOriginId = `https://${host}/users/origin3`
+          await database.createActor({
+            actorId: urlOriginId,
+            username: 'origin3',
+            domain: host,
+            followersUrl: `https://${host}/users/origin3/followers`,
+            inboxUrl: `https://${host}/users/origin3/inbox`,
+            sharedInboxUrl: `https://${host}/inbox`,
+            publicKey: 'origin3PublicKey',
+            createdAt: Date.now(),
+            movedTo: urlOnlyTarget
+          })
+          expect(
+            (await database.getMastodonActorFromId({ id: urlOriginId }))?.moved
+          ).toBeFalsy()
         })
       })
 
