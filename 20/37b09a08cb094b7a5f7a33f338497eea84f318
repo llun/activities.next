@@ -1,0 +1,65 @@
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_e39aadecaaa185::t_246c3bf81d3c39 1211-1273
+app/api/v2/search/route.test.ts
+  s_e39aadecaaa185::t_3b16c06849a9ad 43,90-91,2323,2327-2371
+app/api/v2/search/route.ts
+  s_e39aadecaaa185::t_8ab00fbae62965 52,293-301
+lib/activities/signedRequest.redirect.test.ts
+  s_e39aadecaaa185::t_3a9baf987470e0 1-168
+lib/activities/signedRequest.ts
+  s_e39aadecaaa185::t_1c424da6b5fb08 419-432,470-472
+lib/services/bluesky/crosspostText.ts
+  s_e39aadecaaa185::t_cb0bbe93e9d0ea 398-402
+lib/services/federation/federatedRedirect.ts
+  s_e39aadecaaa185::t_4401ddfa127747 3,10-11,13
+app/api/v1/accounts/[id]/endorsements/route.test.ts
+  s_e39aadecaaa185::t_46c36940db332d 6,91-122
+app/api/v1/accounts/[id]/endorsements/route.ts
+  s_e39aadecaaa185::t_6328e0f0ea798b 10,44,49-53,55-57
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_e39aadecaaa185::t_83cfa9c52f7d48 148-150
+app/api/v1/statuses/[id]/source/route.test.ts
+  s_e39aadecaaa185::t_047113dd249a12 156-213
+docs/architecture.md
+  s_e39aadecaaa185::t_922a0530fa62c1 1486
+docs/mastodon-api-compatibility.md
+  s_e39aadecaaa185::t_a1c37100d03f60 1342-1344,1399-1400
+lib/actions/utils.test.ts
+  s_e39aadecaaa185::t_0a4621bf39ab74 902-938
+lib/actions/utils.ts
+  s_e39aadecaaa185::t_cdc98887a0ffa4 18,123-125,127,162-164
+lib/activities/getActorCollections.test.ts
+  s_e39aadecaaa185::t_4a69976b1c3011 486-498
+lib/database/domains/actor/actorMastodon.test.ts
+  s_e39aadecaaa185::t_a057e43973babe 402-464
+lib/database/domains/actor/mastodon.ts
+  s_e39aadecaaa185::t_85433c2da97720 18-19,42,46-52,81-87
+lib/services/bluesky/crosspostText.test.ts
+  s_e39aadecaaa185::t_634209406500ae 11,416-461
+lib/services/bluesky/profiles.test.ts
+  s_e39aadecaaa185::t_b1fc7c50fd7474 1,387-440
+lib/services/bluesky/profiles.ts
+  s_e39aadecaaa185::t_9532825aae5394 35-38,169-171,184-193
+lib/services/federation/federatedRedirect.test.ts
+  s_e39aadecaaa185::t_07509150294c1f 1-50
+lib/services/mastodon/blueskyClientContract.test.ts
+  s_e39aadecaaa185::t_50126e08dfb2a2 644-678
+lib/types/database/rows.ts
+  s_e39aadecaaa185::t_55f1ff608d9fae 154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2037b09a08cb094b7a5f7a33f338497eea84f318",
+  "prompts": {},
+  "sessions": {
+    "s_e39aadecaaa185": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a2daa9e425d78433c",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
