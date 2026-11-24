@@ -1,8 +1,13 @@
 import { unfollowActor } from '@/lib/actions/unfollowActor'
 import { getRelationship } from '@/lib/services/accounts/relationship'
+import {
+  blueskyFollowFailure,
+  unfollowBlueskyActor
+} from '@/lib/services/bluesky/follow'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -29,12 +34,27 @@ export const POST = traceApiRoute(
         encodedAccountId
       )
 
-      const unfollowed = await unfollowActor({
-        database,
-        currentActor,
-        targetActorId
-      })
-      if (!unfollowed) return apiCorsError(req, CORS_HEADERS, 404)
+      if (isBlueskyId(targetActorId)) {
+        try {
+          await unfollowBlueskyActor(database, currentActor, targetActorId)
+        } catch (error) {
+          const failure = blueskyFollowFailure(error)
+          if (!failure) throw error
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: failure.error },
+            responseStatusCode: failure.status
+          })
+        }
+      } else {
+        const unfollowed = await unfollowActor({
+          database,
+          currentActor,
+          targetActorId
+        })
+        if (!unfollowed) return apiCorsError(req, CORS_HEADERS, 404)
+      }
 
       const relationship = await getRelationship({
         database,

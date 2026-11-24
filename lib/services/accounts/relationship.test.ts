@@ -14,7 +14,8 @@ describe('getRelationship', () => {
     getMute: vi.fn(),
     getAccountNote: vi.fn(),
     getEndorsement: vi.fn(),
-    getActorPublicIds: vi.fn()
+    getActorPublicIds: vi.fn(),
+    getBlueskyFollow: vi.fn()
   }
 
   const TARGET_ACTOR_ID = 'https://example.com/users/target'
@@ -397,5 +398,44 @@ describe('getRelationship', () => {
     })
 
     expect(relationship.domain_blocking).toBe(true)
+  })
+
+  it('reads following for a Bluesky account from bluesky_follows', async () => {
+    const blueskyTarget = 'https://bsky.app/profile/did:plc:alice'
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.getBlueskyFollow.mockResolvedValue({
+      actorId: mockCurrentActor.id,
+      targetActorId: blueskyTarget,
+      uri: 'at://did:plc:me/app.bsky.graph.follow/3k',
+      createdAt: 0
+    })
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: blueskyTarget
+    })
+
+    expect(mockDatabase.getBlueskyFollow).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      targetActorId: blueskyTarget
+    })
+    expect(relationship).toMatchObject({
+      following: true,
+      requested: false,
+      followed_by: false,
+      showing_reblogs: true,
+      notifying: false
+    })
+
+    mockDatabase.getBlueskyFollow.mockResolvedValue(null)
+    expect(
+      await getRelationship({
+        database: mockDatabase as unknown as Database,
+        currentActor: mockCurrentActor as unknown as Actor,
+        targetActorId: blueskyTarget
+      })
+    ).toMatchObject({ following: false, showing_reblogs: false })
   })
 })

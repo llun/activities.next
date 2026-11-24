@@ -3,6 +3,7 @@ import { Metadata } from 'next'
 import { MainPageTimeline } from '@/app/(timeline)/MainPageTimeline'
 import { Landing } from '@/app/(timeline)/landing/Landing'
 import { OfflineCacheSeeder } from '@/lib/components/offline/OfflineCacheSeeder'
+import { PageSubnavProvider } from '@/lib/components/page-header'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -21,12 +22,14 @@ import {
 } from '@/lib/services/timelines/getFilteredTimelinePage'
 import { getTimelineContext } from '@/lib/services/timelines/getTimelineContext'
 import { getCachedLocalPublicStatusesCount } from '@/lib/services/timelines/localPublicCount'
-import { Timeline } from '@/lib/services/timelines/types'
+import { Timeline, parseTimelineNetwork } from '@/lib/services/timelines/types'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { logger } from '@/lib/utils/logger'
+
+import { HomeNetworkSwitch } from './HomeNetworkSwitch'
 
 // Number of recent public posts previewed in the logged-out landing feed.
 const LANDING_FEED_LIMIT = 20
@@ -109,12 +112,21 @@ const Page = async ({ searchParams }: PageProps = {}) => {
     )
   }
 
-  const settings = await database.getActorSettings({ actorId: actor.id })
+  const [settings, blueskyAccount] = await Promise.all([
+    database.getActorSettings({ actorId: actor.id }),
+    database.getBlueskyAccount({ actorId: actor.id })
+  ])
+  const params = await searchParams
+  // The All / Fediverse / Bluesky switch exists only with a linked Bluesky
+  // account; without one `?network=` is ignored and Home stays mixed.
+  const network = blueskyAccount
+    ? parseTimelineNetwork(params?.network)
+    : undefined
   // `/?media=12,13` opens the composer with those photos (a "Post" action in
   // Gallery). Only the actor's own media no post uses is taken; the composer
   // trims the list to the instance's attachment limit.
   const prefillIds = parseComposerMediaParam(
-    (await searchParams)?.[COMPOSER_MEDIA_QUERY_PARAM],
+    params?.[COMPOSER_MEDIA_QUERY_PARAM],
     MAX_STORED_MEDIA_ATTACHMENTS
   )
   const initialMedia = await getComposerPrefillAttachments({
@@ -125,7 +137,8 @@ const Page = async ({ searchParams }: PageProps = {}) => {
   const { statuses, nextMaxStatusId } = await getFilteredTimelinePage({
     database,
     timeline: Timeline.MAIN,
-    actorId: actor.id
+    actorId: actor.id,
+    network
   })
   const timelineContext = await getTimelineContext({
     database,
@@ -133,16 +146,26 @@ const Page = async ({ searchParams }: PageProps = {}) => {
     statuses
   })
   return (
-    <>
-      <OfflineCacheSeeder
-        actorId={actor.id}
-        accountId={actor.account?.id}
-        initialStatuses={statuses.map((item) => cleanJson(item))}
-        initialTimelineContext={cleanJson(timelineContext)}
-        initialNextMaxStatusId={nextMaxStatusId}
-      />
+    <PageSubnavProvider
+      subnav={
+        blueskyAccount ? <HomeNetworkSwitch active={network} /> : undefined
+      }
+    >
+      {/* The seeder writes the mixed Home's offline cache; a filtered page
+          must not overwrite it. */}
+      {network ? null : (
+        <OfflineCacheSeeder
+          actorId={actor.id}
+          accountId={actor.account?.id}
+          initialStatuses={statuses.map((item) => cleanJson(item))}
+          initialTimelineContext={cleanJson(timelineContext)}
+          initialNextMaxStatusId={nextMaxStatusId}
+        />
+      )}
       <MainPageTimeline
-        key={actor.id}
+        // A new filter is a new feed: remount instead of merging into the old.
+        key={`${actor.id}:${network ?? 'all'}`}
+        network={network}
         host={host}
         currentTime={Date.now()}
         statuses={statuses.map((item) => cleanJson(item))}
@@ -153,7 +176,7 @@ const Page = async ({ searchParams }: PageProps = {}) => {
         initialMedia={initialMedia}
         postLineLimit={settings?.postLineLimit}
       />
-    </>
+    </PageSubnavProvider>
   )
 }
 

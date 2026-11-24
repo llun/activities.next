@@ -120,6 +120,9 @@ const StatusBase = z.object({
   edits: Edited.array(),
 
   isLocalActor: z.boolean(),
+  // 'bluesky' for a post synced from Bluesky (`statuses.network`); absent or
+  // null for ActivityPub. Optional so existing status literals stay valid.
+  network: z.literal('bluesky').nullable().optional(),
 
   createdAt: z.number(),
   updatedAt: z.number()

@@ -3,6 +3,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase, getKysely } from '@/lib/database'
 import { warnAboutPendingMigrations } from '@/lib/database/migrate/startupCheck'
 import { startActorDeletionSweep } from '@/lib/services/actors/actorDeletion'
+import { startBlueskySyncSweep } from '@/lib/services/bluesky/syncSweep'
 import { startServedDomainRefresher } from '@/lib/services/domains/servedDomainSnapshot'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
 
@@ -21,6 +22,10 @@ vi.mock('@/lib/database/migrate/startupCheck', () => ({
 
 vi.mock('@/lib/services/actors/actorDeletion', () => ({
   startActorDeletionSweep: vi.fn()
+}))
+
+vi.mock('@/lib/services/bluesky/syncSweep', () => ({
+  startBlueskySyncSweep: vi.fn()
 }))
 
 vi.mock('@/lib/services/domains/servedDomainSnapshot', () => ({
@@ -63,6 +68,7 @@ describe('register', () => {
     await register()
 
     expect(startActorDeletionSweep).toHaveBeenCalledWith(database)
+    expect(startBlueskySyncSweep).toHaveBeenCalledWith(database)
     expect(startDatabaseQueueRunner).not.toHaveBeenCalled()
   })
 
@@ -114,6 +120,7 @@ describe('register', () => {
 
     expect(startDatabaseQueueRunner).not.toHaveBeenCalled()
     expect(startActorDeletionSweep).not.toHaveBeenCalled()
+    expect(startBlueskySyncSweep).not.toHaveBeenCalled()
     expect(warnAboutPendingMigrations).not.toHaveBeenCalled()
     expect(startServedDomainRefresher).not.toHaveBeenCalled()
   })

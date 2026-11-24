@@ -1,0 +1,204 @@
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  type BlueskyAgent,
+  BlueskyRequestError,
+  BlueskySessionEndedError,
+  getBlueskyAgent
+} from '@/lib/services/bluesky/agent'
+import {
+  BlueskyFollowError,
+  blueskyFollowFailure,
+  followBlueskyActor,
+  unfollowBlueskyActor
+} from '@/lib/services/bluesky/follow'
+import { blueskyActorId } from '@/lib/services/bluesky/records'
+import type { Actor } from '@/lib/types/domain/actor'
+
+vi.mock('@/lib/services/bluesky/agent', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getBlueskyAgent: vi.fn()
+}))
+
+const OWN_DID = 'did:plc:me'
+const TARGET_DID = 'did:plc:target'
+const TARGET_ID = blueskyActorId(TARGET_DID)
+const FOLLOW_URI = `at://${OWN_DID}/app.bsky.graph.follow/3kfollow`
+const actor = { id: 'actor-follower', domain: 'social.example' } as Actor
+
+describe('Bluesky follow service', () => {
+  const testDb = createTestDatabase()
+  const { database } = testDb
+  const post = vi.fn()
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await database.migrate()
+    for (const [did, handle] of [
+      [TARGET_DID, 'target.bsky.social'],
+      [OWN_DID, 'me.bsky.social']
+    ]) {
+      await database.upsertBlueskyActor({ did, handle })
+    }
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  beforeEach(async () => {
+    vi.mocked(getBlueskyAgent).mockReset()
+    post.mockReset()
+    vi.mocked(getBlueskyAgent).mockResolvedValue({
+      did: OWN_DID,
+      pdsUrl: 'https://pds.example.net/',
+      get: vi.fn(),
+      post
+    } as unknown as BlueskyAgent)
+    await database.deleteBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: TARGET_ID
+    })
+  })
+
+  it('creates a follow record and stores its uri', async () => {
+    post.mockResolvedValue({ uri: FOLLOW_URI, cid: 'bafy' })
+
+    const follow = await followBlueskyActor(database, actor, TARGET_ID)
+
+    expect(post).toHaveBeenCalledWith('com.atproto.repo.createRecord', {
+      repo: OWN_DID,
+      collection: 'app.bsky.graph.follow',
+      record: {
+        $type: 'app.bsky.graph.follow',
+        subject: TARGET_DID,
+        createdAt: expect.any(String)
+      }
+    })
+    expect(follow).toMatchObject({
+      actorId: actor.id,
+      targetActorId: TARGET_ID,
+      uri: FOLLOW_URI
+    })
+  })
+
+  it('returns the stored follow without writing another record', async () => {
+    await database.createBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: TARGET_ID,
+      uri: FOLLOW_URI
+    })
+
+    const follow = await followBlueskyActor(database, actor, TARGET_ID)
+
+    expect(follow.uri).toBe(FOLLOW_URI)
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('refuses a follow without a linked account', async () => {
+    vi.mocked(getBlueskyAgent).mockResolvedValue(null)
+
+    await expect(
+      followBlueskyActor(database, actor, TARGET_ID)
+    ).rejects.toThrow(
+      'Link a Bluesky account in Settings › Other networks to follow Bluesky accounts.'
+    )
+  })
+
+  it('refuses to follow the linked account itself', async () => {
+    await expect(
+      followBlueskyActor(database, actor, blueskyActorId(OWN_DID))
+    ).rejects.toBeInstanceOf(BlueskyFollowError)
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('refuses a post id or an unknown account', async () => {
+    for (const id of [
+      `${TARGET_ID}/post/3kpost`,
+      blueskyActorId('did:plc:unknown')
+    ]) {
+      await expect(
+        followBlueskyActor(database, actor, id)
+      ).rejects.toMatchObject({ status: 404 })
+    }
+  })
+
+  it('deletes the record and the row on unfollow', async () => {
+    await database.createBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: TARGET_ID,
+      uri: FOLLOW_URI
+    })
+    post.mockResolvedValue({})
+
+    await unfollowBlueskyActor(database, actor, TARGET_ID)
+
+    expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+      repo: OWN_DID,
+      collection: 'app.bsky.graph.follow',
+      rkey: '3kfollow'
+    })
+    expect(
+      await database.getBlueskyFollow({
+        actorId: actor.id,
+        targetActorId: TARGET_ID
+      })
+    ).toBeNull()
+  })
+
+  it('drops the row when the record is already gone', async () => {
+    await database.createBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: TARGET_ID,
+      uri: FOLLOW_URI
+    })
+    post.mockRejectedValue(
+      new BlueskyRequestError(
+        'com.atproto.repo.deleteRecord',
+        400,
+        'RecordNotFound'
+      )
+    )
+
+    await unfollowBlueskyActor(database, actor, TARGET_ID)
+
+    expect(
+      await database.getBlueskyFollow({
+        actorId: actor.id,
+        targetActorId: TARGET_ID
+      })
+    ).toBeNull()
+  })
+
+  it('keeps the row when Bluesky refuses the delete', async () => {
+    await database.createBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: TARGET_ID,
+      uri: FOLLOW_URI
+    })
+    post.mockRejectedValue(
+      new BlueskyRequestError('com.atproto.repo.deleteRecord', 500)
+    )
+
+    await expect(
+      unfollowBlueskyActor(database, actor, TARGET_ID)
+    ).rejects.toBeInstanceOf(BlueskyRequestError)
+    expect(
+      await database.getBlueskyFollow({
+        actorId: actor.id,
+        targetActorId: TARGET_ID
+      })
+    ).not.toBeNull()
+  })
+
+  it('maps the typed errors to route answers', () => {
+    expect(blueskyFollowFailure(new BlueskySessionEndedError())).toEqual({
+      status: 422,
+      error: 'Bluesky ended this session. Link the account again in Settings.'
+    })
+    expect(blueskyFollowFailure(new BlueskyFollowError('No'))).toEqual({
+      status: 422,
+      error: 'No'
+    })
+    expect(blueskyFollowFailure(new Error('boom'))).toBeNull()
+  })
+})

@@ -56,4 +56,30 @@ describe('PostHeader', () => {
     expect(button).toHaveTextContent(/^6h$/)
     expect(button).toHaveAccessibleName(/last post about 6 hours ago/)
   })
+
+  it('tags a Bluesky post and links it to bsky.app', () => {
+    const id = 'https://bsky.app/profile/did:plc:abc/post/3kxyz'
+    render(
+      <PostHeader
+        status={createMockNote({
+          id,
+          url: id,
+          isLocalActor: false,
+          network: 'bluesky'
+        })}
+        currentTime={BASE_TIME + HOUR}
+      />
+    )
+
+    expect(screen.getByText('Bluesky')).toHaveAttribute('data-tone', 'gray')
+    expect(
+      screen.getByRole('link', { name: 'Open original post' })
+    ).toHaveAttribute('href', id)
+  })
+
+  it('does not tag an ActivityPub post', () => {
+    render(<PostHeader status={note(0)} currentTime={BASE_TIME + HOUR} />)
+
+    expect(screen.queryByText('Bluesky')).not.toBeInTheDocument()
+  })
 })

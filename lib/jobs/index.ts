@@ -83,6 +83,7 @@ import {
   SEND_UNDO_FOLLOW_JOB_NAME,
   SEND_UPDATE_ACTOR_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME,
+  SYNC_BLUESKY_HOME_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME,
@@ -113,6 +114,7 @@ import { sendUndoAnnounceJob } from './sendUndoAnnounceJob'
 import { sendUndoFollowJob } from './sendUndoFollowJob'
 import { sendUpdateActorJob } from './sendUpdateActorJob'
 import { sendUpdateNoteJob } from './sendUpdateNoteJob'
+import { syncBlueskyHomeJob } from './syncBlueskyHomeJob'
 import { updateActorJob } from './updateActorJob'
 import { updateNoteJob } from './updateNoteJob'
 import { updatePollJob } from './updatePollJob'
@@ -295,5 +297,8 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [EMBED_SEARCH_DOCUMENTS_JOB_NAME]() {
     return embedSearchDocumentsJob
+  },
+  get [SYNC_BLUESKY_HOME_JOB_NAME]() {
+    return syncBlueskyHomeJob
   }
 }

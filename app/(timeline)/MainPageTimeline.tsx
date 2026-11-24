@@ -61,7 +61,7 @@ import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
-import { Timeline } from '@/lib/services/timelines/types'
+import { Timeline, type TimelineNetwork } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
@@ -125,6 +125,12 @@ export interface MainPageTimelineProps {
   initialLastRefreshedAt?: number | null
   refreshOnMount?: boolean
   onUnauthorized?: () => void
+  /**
+   * The Home's network switch (`?network=`). Every fetch keeps it, and the
+   * filtered feed has its own offline cache so it never overwrites the mixed
+   * Home's. Callers key the component on it, so it never changes in place.
+   */
+  network?: TimelineNetwork
 }
 
 const formatLastUpdated = (timestamp: number, current: number): string => {
@@ -238,8 +244,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   initialScrollAnchor = null,
   initialLastRefreshedAt = null,
   refreshOnMount = false,
-  onUnauthorized
+  onUnauthorized,
+  network
 }) => {
+  const offlineTimeline = network ? `home:${network}` : 'home'
   const openStatusPath = useOpenStatusPath()
   // One announcements state for every copy the header renders (desktop box and
   // mobile bar), so there is one fetch, one timer and one open state.
@@ -504,7 +512,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       try {
         const cached = await getOfflineTimeline({
           actorId: profile.id,
-          timeline: 'home'
+          timeline: offlineTimeline
         })
         if (isCancelled || activeProfileIdRef.current !== profile.id) return
 
@@ -589,7 +597,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     const actorId = profile.id
     void saveOfflineTimeline({
       actorId,
-      timeline: 'home',
+      timeline: offlineTimeline,
       segments,
       ancestorsById: currentTimelineContext?.ancestorsById ?? {},
       lastRefreshedAt: lastRefreshedAt ?? Date.now(),
@@ -683,7 +691,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             currentScrollAnchorRef.current = null
             void saveOfflineScrollAnchor({
               actorId,
-              timeline: 'home',
+              timeline: offlineTimeline,
               scrollAnchor: null
             })
             break
@@ -701,7 +709,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             currentScrollAnchorRef.current = anchor
             void saveOfflineScrollAnchor({
               actorId,
-              timeline: 'home',
+              timeline: offlineTimeline,
               scrollAnchor: anchor
             })
           }
@@ -1045,6 +1053,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     try {
       const result = await getTimeline({
         timeline: Timeline.MAIN,
+        network,
         maxStatusId: lastStatusId
       })
       const nextCursor = result.nextMaxStatusId ?? null
@@ -1368,7 +1377,8 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
 
       try {
         const result = await getTimeline({
-          timeline: Timeline.MAIN
+          timeline: Timeline.MAIN,
+          network
         })
         const fetchedAt = Date.now()
 
@@ -1420,6 +1430,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       try {
         const result = await getTimeline({
           timeline: Timeline.MAIN,
+          network,
           maxStatusId: seg.nextMaxStatusId
         })
         setSegments((prevSegments) => {
@@ -1478,7 +1489,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     setIsScrolledDown(false)
     void saveOfflineScrollAnchor({
       actorId: profile.id,
-      timeline: 'home',
+      timeline: offlineTimeline,
       scrollAnchor: null
     })
     const startScrollY = typeof window !== 'undefined' ? window.scrollY : 0
@@ -1580,6 +1591,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       try {
         const result = await getTimeline({
           timeline: Timeline.MAIN,
+          network,
           minStatusId: topStatus.id,
           prevMinStatusId: topStatus.id,
           limit: POLL_PAGE_LIMIT

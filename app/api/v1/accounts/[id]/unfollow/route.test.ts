@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 
 import { unfollow } from '@/lib/activities'
 import { getRelationship } from '@/lib/services/accounts/relationship'
+import { BlueskySessionEndedError } from '@/lib/services/bluesky/agent'
+import { unfollowBlueskyActor } from '@/lib/services/bluesky/follow'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { POST } from './route'
@@ -43,6 +45,11 @@ vi.mock('@/lib/activities', () => ({
 
 vi.mock('@/lib/services/accounts/relationship', () => ({
   getRelationship: vi.fn()
+}))
+
+vi.mock('@/lib/services/bluesky/follow', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  unfollowBlueskyActor: vi.fn()
 }))
 
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
@@ -115,6 +122,42 @@ describe('POST /api/v1/accounts/:id/unfollow', () => {
     expect(mockDatabase.updateFollowStatus).toHaveBeenCalledWith({
       followId: 'follow-1',
       status: 'Undo'
+    })
+  })
+
+  describe('a Bluesky account', () => {
+    const BLUESKY_TARGET = 'https://bsky.app/profile/did:plc:alice'
+
+    it('deletes the Bluesky follow and answers not following', async () => {
+      const response = await POST(createRequest(BLUESKY_TARGET), {
+        params: Promise.resolve({ id: urlToId(BLUESKY_TARGET) })
+      })
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ following: false })
+      expect(vi.mocked(unfollowBlueskyActor)).toHaveBeenCalledWith(
+        mockDatabase,
+        mockCurrentActor,
+        BLUESKY_TARGET
+      )
+      expect(mockDatabase.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
+      expect(unfollowMock).not.toHaveBeenCalled()
+    })
+
+    it('answers 422 when Bluesky ended the session', async () => {
+      vi.mocked(unfollowBlueskyActor).mockRejectedValueOnce(
+        new BlueskySessionEndedError()
+      )
+
+      const response = await POST(createRequest(BLUESKY_TARGET), {
+        params: Promise.resolve({ id: urlToId(BLUESKY_TARGET) })
+      })
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: 'Bluesky ended this session. Link the account again in Settings.'
+      })
+      expect(getRelationshipMock).not.toHaveBeenCalled()
     })
   })
 })

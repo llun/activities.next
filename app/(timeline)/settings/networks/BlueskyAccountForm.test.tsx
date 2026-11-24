@@ -37,7 +37,9 @@ const account: BlueskyLinkedAccount = {
   pdsUrl: 'https://pds.example.net',
   authType: 'oauth',
   domainHandle: true,
-  sessionActive: true
+  sessionActive: true,
+  lastSyncedAt: null,
+  syncError: null
 }
 
 const unlinkedState: BlueskyAccountState = {
@@ -183,6 +185,28 @@ describe('BlueskyAccountForm', () => {
   it('warns when Bluesky ended the stored session', () => {
     show(linkedState({ sessionActive: false }))
     expect(screen.getByText('Bluesky ended this session.')).toBeInTheDocument()
+  })
+
+  it('says when Home has not synced yet', () => {
+    show(linkedState())
+    expect(screen.getByText('Not synced yet')).toBeInTheDocument()
+  })
+
+  it('shows when Home last synced and why the latest sync failed', () => {
+    const syncedAt = new Date(Date.now() - 3 * 60 * 1000).toISOString()
+    show(
+      linkedState({
+        lastSyncedAt: syncedAt,
+        syncError:
+          'Bluesky refused the request (502). Trying again in a few minutes.'
+      })
+    )
+    expect(screen.getByText('Last synced 3 minutes ago')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Bluesky refused the request (502). Trying again in a few minutes.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('claims a free server handle', async () => {

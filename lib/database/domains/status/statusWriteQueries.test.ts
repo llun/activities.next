@@ -641,6 +641,7 @@ describe('createNote', () => {
       reply: '',
       replyHash: null,
       originalStatusId: null,
+      network: null,
       createdAt,
       updatedAt: now
     })
@@ -1387,6 +1388,7 @@ describe('createAnnounce', () => {
       reply: '',
       replyHash: null,
       originalStatusId: original,
+      network: null,
       createdAt: now - 2_000,
       updatedAt: now
     })

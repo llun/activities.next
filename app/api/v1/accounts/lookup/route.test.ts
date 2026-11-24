@@ -17,6 +17,7 @@ const mockRecordActorIfNeeded = vi.fn()
 const mockGetServerSession = vi.fn()
 const mockGetAllServerSettings = vi.fn()
 const mockStoredToken = vi.fn()
+const mockResolveBlueskyProfile = vi.fn()
 const oauthActor = {
   id: 'https://llun.test/users/oauth-user',
   username: 'oauth-user',
@@ -59,6 +60,12 @@ vi.mock('@/lib/activities/getWebfingerSelf', () => ({
 
 vi.mock('@/lib/actions/utils', () => ({
   recordActorIfNeeded: (...args: unknown[]) => mockRecordActorIfNeeded(...args)
+}))
+
+vi.mock('@/lib/services/bluesky/profiles', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  resolveBlueskyProfile: (...args: unknown[]) =>
+    mockResolveBlueskyProfile(...args)
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -699,5 +706,94 @@ describe('GET /api/v1/accounts/lookup', () => {
     )
 
     expect(response.status).toBe(403)
+  })
+
+  describe('Bluesky accounts', () => {
+    const blueskyActor = {
+      id: 'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx',
+      username: 'river.bsky.social',
+      domain: 'bsky.app',
+      account: null,
+      privateKey: ''
+    }
+    const account = {
+      id: 'river',
+      username: 'river.bsky.social',
+      acct: 'river.bsky.social@bsky.app'
+    }
+    const signIn = () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: 'user@llun.test' }
+      })
+      mockGetActorFromSession.mockResolvedValue(sessionViewer)
+    }
+
+    it('finds a stored handle@bsky.app without contacting anyone', async () => {
+      mockGetActorFromUsername.mockResolvedValue(blueskyActor)
+      mockRecordActorIfNeeded.mockResolvedValue(blueskyActor)
+      mockGetMastodonActorFromId.mockResolvedValue(account)
+      signIn()
+
+      const response = await GET(
+        new NextRequest(
+          'https://llun.test/api/v1/accounts/lookup?acct=river.bsky.social@bsky.app&resolve=true'
+        )
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockGetActorFromUsername).toHaveBeenCalledWith({
+        username: 'river.bsky.social',
+        domain: 'bsky.app'
+      })
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
+      expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+      expect(await response.json()).toMatchObject({
+        acct: 'river.bsky.social@bsky.app'
+      })
+    })
+
+    it.each([
+      'river.bsky.social@bsky.app',
+      'https://bsky.app/profile/river.bsky.social'
+    ])(
+      'resolves an unknown %s through the viewer linked account',
+      async (acct) => {
+        mockGetActorFromUsername.mockResolvedValue(null)
+        mockResolveBlueskyProfile.mockResolvedValue(blueskyActor.id)
+        mockGetActorFromId.mockImplementation(async ({ id }) =>
+          id === blueskyActor.id ? blueskyActor : null
+        )
+        mockGetMastodonActorFromId.mockResolvedValue(account)
+        signIn()
+
+        const response = await GET(
+          new NextRequest(
+            `https://llun.test/api/v1/accounts/lookup?acct=${encodeURIComponent(acct)}&resolve=true`
+          )
+        )
+
+        expect(response.status).toBe(200)
+        expect(mockResolveBlueskyProfile).toHaveBeenCalledWith(
+          expect.anything(),
+          sessionViewer,
+          acct
+        )
+        expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+      }
+    )
+
+    it('answers 404 for an unknown Bluesky handle when signed out', async () => {
+      mockGetActorFromUsername.mockResolvedValue(null)
+
+      const response = await GET(
+        new NextRequest(
+          'https://llun.test/api/v1/accounts/lookup?acct=river.bsky.social@bsky.app&resolve=true'
+        )
+      )
+
+      expect(response.status).toBe(404)
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
+      expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+    })
   })
 })

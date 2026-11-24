@@ -19,6 +19,8 @@ const toAccount = (row: Selectable<BlueskyAccounts>): BlueskyAccount => ({
   authType: row.authType as BlueskyAuthType,
   domainHandle: Boolean(row.domainHandle),
   instanceHandle: row.instanceHandle ?? null,
+  lastSyncedAt: row.lastSyncedAt ? getCompatibleTime(row.lastSyncedAt) : null,
+  syncError: row.syncError ?? null,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -93,12 +95,12 @@ export const saveBlueskyAccount = async (
         .where('actorId', '=', params.actorId)
         .executeTakeFirst()
       const now = new Date()
-      // Linking the same DID again refreshes the row and keeps its claim and
-      // creation time.
+      // Linking the same DID again refreshes the row and keeps its claim,
+      // creation time and last sync; an error from the old session is gone.
       if (previous?.did === params.did) {
         await trx
           .updateTable('bluesky_accounts')
-          .set({ ...params, updatedAt: now })
+          .set({ ...params, syncError: null, updatedAt: now })
           .where('actorId', '=', params.actorId)
           .execute()
         return 'saved' as const
@@ -179,6 +181,20 @@ export const setBlueskyInstanceHandle = async (
     if (isUniqueConstraintError(error)) return false
     throw error
   }
+}
+
+export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
+  const rows = await db
+    .selectFrom('bluesky_accounts')
+    .innerJoin(
+      'bluesky_sessions',
+      'bluesky_sessions.did',
+      'bluesky_accounts.did'
+    )
+    .select('bluesky_accounts.actorId')
+    .orderBy('bluesky_accounts.actorId')
+    .execute()
+  return rows.map((row) => row.actorId)
 }
 
 export const deleteBlueskyAccount = async (
@@ -285,6 +301,7 @@ export const blueskyAccountQueries = {
   saveBlueskyAccount,
   updateBlueskyAccountIdentity,
   setBlueskyInstanceHandle,
+  listBlueskyAccountsToSync,
   deleteBlueskyAccount,
   getBlueskySession,
   setBlueskySession,

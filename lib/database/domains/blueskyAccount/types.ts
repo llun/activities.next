@@ -15,13 +15,16 @@ export interface BlueskyAccount {
   domainHandle: boolean
   // The server host this actor answers /.well-known/atproto-did for.
   instanceHandle: string | null
+  // The last Home sync that finished, and why the latest one failed.
+  lastSyncedAt: number | null
+  syncError: string | null
   createdAt: number
   updatedAt: number
 }
 
 export type SaveBlueskyAccountParams = Omit<
   BlueskyAccount,
-  'instanceHandle' | 'createdAt' | 'updatedAt'
+  'instanceHandle' | 'lastSyncedAt' | 'syncError' | 'createdAt' | 'updatedAt'
 >
 
 export interface BlueskyAccountDatabase {
@@ -55,6 +58,8 @@ export interface BlueskyAccountDatabase {
     actorId: string
     host: string | null
   }): Promise<boolean>
+  /** Actors whose linked account still has a stored session. */
+  listBlueskyAccountsToSync(): Promise<string[]>
   /** Removes the link and its stored session. */
   deleteBlueskyAccount(params: { actorId: string }): Promise<void>
 

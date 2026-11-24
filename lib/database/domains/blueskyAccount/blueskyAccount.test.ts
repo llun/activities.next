@@ -80,6 +80,34 @@ describe('BlueskyAccount', () => {
     expect(await database.getBlueskySession({ did: 'did:plc:same' })).toBe('s1')
   })
 
+  it('keeps the last sync and clears its error when the same DID is linked again', async () => {
+    await link('actor-sync', 'did:plc:sync')
+    await database.updateBlueskyAccountSync({
+      actorId: 'actor-sync',
+      lastSyncedAt: 1_700_000_000_000,
+      syncError: 'Bluesky ended this session.'
+    })
+    expect(
+      await database.getBlueskyAccount({ actorId: 'actor-sync' })
+    ).toMatchObject({
+      lastSyncedAt: 1_700_000_000_000,
+      syncError: 'Bluesky ended this session.'
+    })
+    await link('actor-sync', 'did:plc:sync')
+    expect(
+      await database.getBlueskyAccount({ actorId: 'actor-sync' })
+    ).toMatchObject({ lastSyncedAt: 1_700_000_000_000, syncError: null })
+  })
+
+  it('lists the linked accounts that still have a session to sync', async () => {
+    await link('actor-listed', 'did:plc:listed')
+    await database.setBlueskySession({ did: 'did:plc:listed', session: 's' })
+    await link('actor-no-session', 'did:plc:no-session')
+    const actorIds = await database.listBlueskyAccountsToSync()
+    expect(actorIds).toContain('actor-listed')
+    expect(actorIds).not.toContain('actor-no-session')
+  })
+
   it('lets one active admin actor at a time answer for a host', async () => {
     const five = await createAdmin('bsky-five')
     const six = await createAdmin('bsky-six')

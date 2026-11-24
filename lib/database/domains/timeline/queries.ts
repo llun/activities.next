@@ -16,7 +16,7 @@ import {
   pastStoredKeyset
 } from '@/lib/database/kysely/keyset'
 import { notFromExclusiveListMember } from '@/lib/database/kysely/visibility/exclusiveLists'
-import { Timeline } from '@/lib/services/timelines/types'
+import { Timeline, type TimelineNetwork } from '@/lib/services/timelines/types'
 import type { Status } from '@/lib/types/domain/status'
 
 /**
@@ -186,7 +186,8 @@ const getActorTimeline = async (
     minStatusId,
     sinceStatusId,
     maxStatusId,
-    limit
+    limit,
+    network
   }: {
     timeline: Timeline.MAIN | Timeline.HOME | Timeline.DIRECT
     actorId: string
@@ -194,6 +195,7 @@ const getActorTimeline = async (
     sinceStatusId?: string | null
     maxStatusId?: string | null
     limit: number
+    network?: TimelineNetwork
   }
 ): Promise<Status[]> => {
   const actualTimeline = timeline === Timeline.HOME ? Timeline.MAIN : timeline
@@ -255,6 +257,23 @@ const getActorTimeline = async (
     .$if(timeline === Timeline.MAIN || timeline === Timeline.HOME, (qb) =>
       qb.where((eb) => notFromExclusiveListMember(eb, actorId))
     )
+    // The network filter is part of the keyset scan, so cursors and the limit
+    // page over the filtered rows. ActivityPub statuses have a NULL network.
+    .$if(network !== undefined, (qb) =>
+      qb.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('statuses')
+            .select(sql.lit(1).as('one'))
+            .whereRef('statuses.id', '=', 'timelines.statusId')
+            .where(
+              'statuses.network',
+              network === 'bluesky' ? '=' : 'is',
+              network === 'bluesky' ? 'bluesky' : null
+            )
+        )
+      )
+    )
   if (maxRow) {
     query = query.where((eb) => pastStoredKeyset(eb, maxRow, '<', 'id'))
   }
@@ -298,7 +317,8 @@ export const getTimeline = async (
     sinceStatusId,
     maxStatusId,
     limit = PER_PAGE_LIMIT,
-    onlyMedia = false
+    onlyMedia = false,
+    network
   }: GetTimelineParams
 ): Promise<Status[]> => {
   switch (timeline) {
@@ -326,7 +346,8 @@ export const getTimeline = async (
         minStatusId,
         sinceStatusId,
         maxStatusId,
-        limit
+        limit,
+        network
       })
     default:
       return []

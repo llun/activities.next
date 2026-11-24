@@ -88,6 +88,19 @@ describe('ProfileRelationshipActions', () => {
     expect(screen.queryByTestId('block-action')).not.toBeInTheDocument()
   })
 
+  it('offers no remote follow for a Bluesky account', () => {
+    const { container } = render(
+      <ProfileRelationshipActions
+        targetActorId="https://bsky.app/profile/did:plc:alice"
+        targetHandle="alice.bsky.social@bsky.app"
+        isLoggedIn={false}
+        relationship={null}
+      />
+    )
+
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('does not offer the remote follow dialog to a signed in viewer', () => {
     render(
       <ProfileRelationshipActions

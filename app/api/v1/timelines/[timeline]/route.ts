@@ -17,7 +17,7 @@ import {
   resolveTimelineCursors,
   timelineErrorBoundary
 } from '@/lib/services/timelines/request'
-import { Timeline } from '@/lib/services/timelines/types'
+import { Timeline, parseTimelineNetwork } from '@/lib/services/timelines/types'
 import { Scope } from '@/lib/types/database/operations'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -115,7 +115,14 @@ export const GET = traceApiRoute(
           // 404'd via UNSUPPORTED_TIMELINE above); the dedicated
           // /timelines/public route serves it with surface: 'public'.
           surface:
-            timeline === Timeline.FEDERATED_PUBLIC ? 'public' : 'following'
+            timeline === Timeline.FEDERATED_PUBLIC ? 'public' : 'following',
+          // The web Home's All / Fediverse / Bluesky switch. Mastodon clients
+          // (no activities_next format) keep the one mixed Home.
+          network:
+            format === TimelineFormat.enum.activities_next &&
+            timeline === Timeline.MAIN
+              ? parseTimelineNetwork(url.searchParams.get('network'))
+              : undefined
         })
       if (format === TimelineFormat.enum.activities_next) {
         const context = await getTimelineContext({

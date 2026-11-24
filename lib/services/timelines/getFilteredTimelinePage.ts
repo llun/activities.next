@@ -6,7 +6,7 @@ import {
 } from '@/lib/services/filters/applyFilters'
 import { FilterRecordWithStatusPublicIds } from '@/lib/services/mastodon/getMastodonFilter'
 import { enrichStatusesAttachments } from '@/lib/services/medias/animationMetadata'
-import { Timeline } from '@/lib/services/timelines/types'
+import { Timeline, TimelineNetwork } from '@/lib/services/timelines/types'
 import { FilterContext } from '@/lib/types/domain/filter'
 import { Status } from '@/lib/types/domain/status'
 
@@ -210,6 +210,8 @@ interface GetFilteredTimelinePageParams {
   // Defaults to 'following'. The federated-public feed served through this
   // wrapper passes 'public' so silenced authors are hidden there too.
   surface?: TimelineSurface
+  // The web Home's network switch; absent reads every network.
+  network?: TimelineNetwork
 }
 
 export const getFilteredTimelinePage = async ({
@@ -221,7 +223,8 @@ export const getFilteredTimelinePage = async ({
   maxStatusId = null,
   limit = PER_PAGE_LIMIT,
   filterContext,
-  surface = 'following'
+  surface = 'following',
+  network
 }: GetFilteredTimelinePageParams): Promise<FilteredTimelinePage> =>
   getFilteredStatusPage({
     database,
@@ -245,7 +248,8 @@ export const getFilteredTimelinePage = async ({
           actorId,
           minStatusId: ascCursor,
           maxStatusId: null,
-          limit: batchLimit
+          limit: batchLimit,
+          network
         })
         return rows.reverse()
       }
@@ -256,7 +260,8 @@ export const getFilteredTimelinePage = async ({
         actorId,
         sinceStatusId,
         maxStatusId: descCursor,
-        limit: batchLimit
+        limit: batchLimit,
+        network
       })
     }
   })

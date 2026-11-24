@@ -4,6 +4,11 @@ import { NextRequest } from 'next/server'
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import {
+  type BlueskyAgent,
+  getBlueskyAgent
+} from '@/lib/services/bluesky/agent'
+import { blueskyActorId } from '@/lib/services/bluesky/records'
 import { JRD_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -68,6 +73,10 @@ vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
 }))
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: vi.fn().mockResolvedValue(true)
+}))
+vi.mock('@/lib/services/bluesky/agent', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getBlueskyAgent: vi.fn()
 }))
 
 /**
@@ -620,6 +629,66 @@ describe('Account Action Endpoints', () => {
       ).resolves.toMatchObject({
         status: FollowStatus.enum.Accepted,
         reblogs: false
+      })
+    })
+  })
+
+  describe('POST /api/v1/accounts/:id/follow for a Bluesky account', () => {
+    const did = 'did:plc:followroute'
+    const targetActorId = blueskyActorId(did)
+    const post = vi.fn()
+    const followBluesky = () =>
+      followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          { method: 'POST', headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+    beforeAll(async () => {
+      await database.upsertBlueskyActor({ did, handle: 'route.bsky.social' })
+    })
+
+    beforeEach(() => {
+      vi.mocked(getBlueskyAgent).mockResolvedValue({
+        did: 'did:plc:llun',
+        pdsUrl: 'https://pds.example.net/',
+        get: vi.fn(),
+        post
+      } as unknown as BlueskyAgent)
+      post.mockResolvedValue({
+        uri: 'at://did:plc:llun/app.bsky.graph.follow/3kroute',
+        cid: 'bafy'
+      })
+    })
+
+    it('writes a follow record and answers following', async () => {
+      const response = await followBluesky()
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        following: true,
+        requested: false,
+        followed_by: false
+      })
+      expect(post).toHaveBeenCalledWith(
+        'com.atproto.repo.createRecord',
+        expect.objectContaining({ repo: 'did:plc:llun' })
+      )
+      expect(follow).not.toHaveBeenCalled()
+      await database.deleteBlueskyFollow({ actorId: ACTOR1_ID, targetActorId })
+    })
+
+    it('answers 422 without a linked Bluesky account', async () => {
+      vi.mocked(getBlueskyAgent).mockResolvedValue(null)
+
+      const response = await followBluesky()
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error:
+          'Link a Bluesky account in Settings › Other networks to follow Bluesky accounts.'
       })
     })
   })

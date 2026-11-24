@@ -262,6 +262,19 @@ describe('POST /api/v1/accounts/follow', () => {
     expect(mockFollow).not.toHaveBeenCalled()
   })
 
+  it('refuses a Bluesky account, which only the Mastodon route follows', async () => {
+    const response = await POST(
+      jsonRequest('POST', {
+        target: 'https://bsky.app/profile/did:plc:alice'
+      }),
+      emptyContext
+    )
+
+    expect(response.status).toBe(422)
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect(mockDatabase.createFollow).not.toHaveBeenCalled()
+  })
+
   it('refuses to follow an account on a domain federation policy blocks', async () => {
     mockCanFederateWithDomain.mockResolvedValue(false)
 

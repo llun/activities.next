@@ -9,6 +9,8 @@ import { resolveTxt } from 'node:dns/promises'
 import { getConfig } from '@/lib/config'
 import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import type { Database } from '@/lib/database/types'
+import { SYNC_BLUESKY_HOME_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
 import type { Actor } from '@/lib/types/domain/actor'
 import {
   BLUESKY_APP_PASSWORD_PATTERN,
@@ -204,7 +206,11 @@ export const getBlueskyAccountState = async (
           pdsUrl: account.pdsUrl,
           authType: account.authType,
           domainHandle: account.domainHandle,
-          sessionActive: Boolean(session)
+          sessionActive: Boolean(session),
+          lastSyncedAt: account.lastSyncedAt
+            ? new Date(account.lastSyncedAt).toISOString()
+            : null,
+          syncError: account.syncError
         }
       : null,
     instanceHandle
@@ -309,6 +315,24 @@ const saveLink = async (
   }
 }
 
+// The first Home sync starts right after a link instead of at the next
+// sweep. A queue failure leaves that to the sweep; the link itself stands.
+const queueHomeSync = async (actor: Actor) => {
+  try {
+    await getQueue().publish({
+      id: `bluesky-home:${actor.id}:linked:${Date.now()}`,
+      name: SYNC_BLUESKY_HOME_JOB_NAME,
+      data: { actorId: actor.id }
+    })
+  } catch (error) {
+    logger.warn({
+      message: 'Bluesky Home sync could not be queued after linking',
+      actorId: actor.id,
+      err: toLoggableError(error)
+    })
+  }
+}
+
 export type BlueskyCallbackResult = 'linked' | 'did_taken' | 'failed'
 
 export const completeBlueskyOAuth = async (
@@ -358,7 +382,6 @@ export const completeBlueskyOAuth = async (
 
   try {
     await saveLink(database, actor, await resolveIdentity(did, true), 'oauth')
-    return 'linked'
   } catch (error) {
     const taken = error instanceof BlueskyLinkError && error.status === 409
     if (!taken) {
@@ -371,6 +394,8 @@ export const completeBlueskyOAuth = async (
     await dropUnlinkedSession(did)
     return taken ? 'did_taken' : 'failed'
   }
+  await queueHomeSync(actor)
+  return 'linked'
 }
 
 export const linkBlueskyAppPassword = async (
@@ -446,6 +471,7 @@ export const linkBlueskyAppPassword = async (
     accessJwt: body.accessJwt,
     refreshJwt: body.refreshJwt
   })
+  await queueHomeSync(actor)
 }
 
 // Removes the link and the stored session only: the Bluesky account itself,

@@ -1215,7 +1215,9 @@ with that username wins: the bridge is not asked. A bsky.app link always goes
 to the bridge. Only opted-in accounts resolve: for anyone else Bridgy Fed
 answers 404 and the search returns the indexed results alone. Nothing is contacted when the
 instance does not federate with `bsky.brid.gy` (a suspending domain block, or
-allowlist mode without it).
+allowlist mode without it). A searcher with a linked Bluesky account (see
+[Linked Bluesky accounts](#linked-bluesky-accounts)) skips the bridge: the same
+forms resolve to the native Bluesky account instead.
 
 Settings → Other networks (`/settings/networks`) lets each profile share its
 public posts on Bluesky. Turning sharing on unblocks and follows
@@ -1288,6 +1290,43 @@ sharing. The code is in `lib/services/bluesky/`:
   checking the handle share one window per actor (20 in 15 minutes), since
   each reaches other servers and an app-password try is a guess against the
   PDS.
+- **Following.** `POST /api/v1/accounts/:id/follow` and `/unfollow` on a
+  Bluesky account (`https://bsky.app/profile/<did>`) write and delete an
+  `app.bsky.graph.follow` record on the user's own PDS and keep its at:// URI
+  in `bluesky_follows`, so it works from any Mastodon app and from the web
+  follow button; both answer the usual Relationship, `following` read from
+  `bluesky_follows`. Without a linked account (or after Bluesky ended the
+  session) they answer 422 with a message pointing to Settings; following the
+  linked account itself is refused, and a record already deleted on Bluesky
+  counts as unfollowed. The account's Bluesky followers are not copied in, so
+  `followed_by` is always false. The deprecated `/api/v1/accounts/follow`
+  refuses Bluesky targets.
+- **Profiles and search.** Bluesky accounts are stored as actors with the id
+  `https://bsky.app/profile/<did>` and the handle `<handle>@bsky.app`, and are
+  never fetched as ActivityPub. For a signed-in actor with a linked account,
+  account search with `resolve=true` (`GET /api/v1/accounts/search`, the
+  accounts part of `GET /api/v2/search`) and `GET /api/v1/accounts/lookup`
+  with `resolve=true` resolve a Bluesky handle (also as `<handle>@bsky.app`),
+  DID or `https://bsky.app/profile/…` link through that account
+  (`app.bsky.actor.getProfile`) and put it first; a bare handle that is a
+  local username still finds the local account, and lookup reads a bare name
+  as a local username only. A stored `<handle>@bsky.app` is found without
+  contacting Bluesky. The profile page `/@<handle>@bsky.app` shows the stored
+  account and posts with a Bluesky badge; for a viewer with a linked account it
+  also refreshes the account (at most every ten minutes) and stores its newest
+  posts (`app.bsky.feed.getAuthorFeed`), keeping the stored data when Bluesky
+  fails. `GET /api/v1/accounts/:id/statuses` serves a Bluesky account's
+  stored posts. Code: `lib/services/bluesky/profiles.ts`.
+- **Home sync.** Every five minutes (`startBlueskySyncSweep`, started in
+  `instrumentation.ts`), and once right after an account is linked, a
+  `SyncBlueskyHomeJob` per linked account with a session reads its Bluesky Home
+  (`app.bsky.feed.getTimeline`, up to three pages of 50, stopping at a post an
+  earlier sync stored), stores each post and its author (with a reply's parent
+  when the feed carries it, and the original post of a repost; no boost row
+  yet) and adds the post to the actor's Home. Settings shows when Home last
+  synced and why the latest sync failed (`bluesky_accounts.lastSyncedAt` and
+  `syncError`); a failure never fails the job, and the next sync tries again.
+  Code: `lib/services/bluesky/sync.ts`.
 - **Handles.** The linked state shows the handle, DID and PDS. A handle that is
   not under a domain the PDS hands out (`describeServer`'s
   `availableUserDomains`) shows the `_atproto.<handle>` TXT record it needs;

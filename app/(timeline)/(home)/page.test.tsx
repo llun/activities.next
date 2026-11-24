@@ -2,10 +2,13 @@ import { type ReactNode, isValidElement } from 'react'
 
 import { MainPageTimeline } from '@/app/(timeline)/MainPageTimeline'
 import { Landing } from '@/app/(timeline)/landing/Landing'
+import { OfflineCacheSeeder } from '@/lib/components/offline/OfflineCacheSeeder'
+import { PageSubnavProvider } from '@/lib/components/page-header'
 import { Timeline } from '@/lib/services/timelines/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 
+import { HomeNetworkSwitch } from './HomeNetworkSwitch'
 import Page from './page'
 
 const findElementByType = (
@@ -34,6 +37,7 @@ const mockGetCachedLocalPublicStatusesCount = vi.fn()
 const mockGetFilteredStatusPage = vi.fn()
 const mockGetFilteredTimelinePage = vi.fn()
 const mockGetActorSettings = vi.fn()
+const mockGetBlueskyAccount = vi.fn()
 const mockGetUnattachedMedia = vi.fn()
 const mockLoggerError = vi.fn()
 
@@ -157,6 +161,7 @@ describe('(timeline)/(home) page', () => {
     })
     mockGetDatabase.mockReturnValue({
       getActorSettings: mockGetActorSettings,
+      getBlueskyAccount: mockGetBlueskyAccount,
       getUnattachedMedia: mockGetUnattachedMedia,
       getTimeline: vi.fn()
     })
@@ -173,6 +178,7 @@ describe('(timeline)/(home) page', () => {
       nextMaxStatusId: 'next-123'
     })
     mockGetActorSettings.mockResolvedValue({ postLineLimit: 5 })
+    mockGetBlueskyAccount.mockResolvedValue(null)
   })
 
   it('renders Landing for logged-out visitors with preview posts when above threshold', async () => {
@@ -241,6 +247,75 @@ describe('(timeline)/(home) page', () => {
       actorId: mockActor.id
     })
   })
+
+  describe('the All / Fediverse / Bluesky switch', () => {
+    const render = async (network?: string) => {
+      const node = await Page({
+        searchParams: Promise.resolve(network ? { network } : {})
+      })
+      const subnav = findElementByType(node, PageSubnavProvider)?.props
+        .subnav as ReactNode
+      return {
+        node,
+        timeline: findElementByType(node, MainPageTimeline),
+        switcher: findElementByType(subnav, HomeNetworkSwitch)
+      }
+    }
+
+    beforeEach(() => {
+      mockGetActorFromSession.mockResolvedValue(mockActor)
+    })
+
+    it('is absent and ignores ?network= without a linked Bluesky account', async () => {
+      const { node, timeline, switcher } = await render('bluesky')
+
+      expect(switcher).toBeNull()
+      expect(timeline?.props.network).toBeUndefined()
+      expect(mockGetFilteredTimelinePage).toHaveBeenCalledWith(
+        expect.objectContaining({ network: undefined })
+      )
+      expect(findElementByType(node, OfflineCacheSeeder)).not.toBeNull()
+      expect(mockGetBlueskyAccount).toHaveBeenCalledWith({
+        actorId: mockActor.id
+      })
+    })
+
+    it('shows All for a linked actor and reads the mixed Home', async () => {
+      mockGetBlueskyAccount.mockResolvedValue({ actorId: mockActor.id })
+
+      const { switcher, timeline } = await render()
+
+      expect(switcher?.props.active).toBeUndefined()
+      expect(timeline?.props.network).toBeUndefined()
+    })
+
+    it.each(['bluesky', 'activitypub'] as const)(
+      'filters Home to %s for a linked actor',
+      async (network) => {
+        mockGetBlueskyAccount.mockResolvedValue({ actorId: mockActor.id })
+
+        const { node, switcher, timeline } = await render(network)
+
+        expect(switcher?.props.active).toBe(network)
+        expect(mockGetFilteredTimelinePage).toHaveBeenCalledWith(
+          expect.objectContaining({ timeline: Timeline.MAIN, network })
+        )
+        expect(timeline?.props.network).toBe(network)
+        // The filtered first page must not overwrite the mixed Home's cache.
+        expect(findElementByType(node, OfflineCacheSeeder)).toBeNull()
+      }
+    )
+
+    it('ignores an unknown ?network= value', async () => {
+      mockGetBlueskyAccount.mockResolvedValue({ actorId: mockActor.id })
+
+      const { switcher, timeline } = await render('nostr')
+
+      expect(switcher?.props.active).toBeUndefined()
+      expect(timeline?.props.network).toBeUndefined()
+    })
+  })
+
   describe('composer photos from ?media=', () => {
     const unposted = (id: string, description = '') => ({
       id,

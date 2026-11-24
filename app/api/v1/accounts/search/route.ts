@@ -6,6 +6,10 @@ import {
   recordRemoteActorBestEffort,
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
+import {
+  parseBlueskyProfileInput,
+  resolveBlueskyProfile
+} from '@/lib/services/bluesky/profiles'
 import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
@@ -103,8 +107,18 @@ export const GET = traceApiRoute(
         firstResolvePage && /^https?:\/\//i.test(query)
           ? await database.getActorFromId({ id: query })
           : null
+      // With a linked Bluesky account, a Bluesky handle (also as
+      // `handle@bsky.app`), DID or bsky.app profile link resolves natively
+      // through that account instead of through Bridgy Fed.
+      const nativeBluesky =
+        firstResolvePage &&
+        !directActor &&
+        parseBlueskyProfileInput(query) !== null &&
+        (await database.getBlueskyAccount({
+          actorId: context.currentActor.id
+        })) !== null
       const directHandle =
-        firstResolvePage && !directActor
+        firstResolvePage && !directActor && !nativeBluesky
           ? (parseAccountHandle(query) ?? parseAccountUrlHandle(query))
           : null
       // A Bluesky handle or bsky.app profile link resolves to its Bridgy Fed
@@ -122,9 +136,14 @@ export const GET = traceApiRoute(
               domain: accessDomain
             })
           : null
+      const nativeBlueskyId =
+        nativeBluesky && !localNamesake
+          ? await resolveBlueskyProfile(database, context.currentActor, query)
+          : null
       const bridgedQuery =
         bridgeQuery &&
         !localNamesake &&
+        !nativeBluesky &&
         (await canFederateWithDomain(database, BLUESKY_BRIDGE_DOMAIN))
           ? bridgeQuery
           : null
@@ -147,7 +166,7 @@ export const GET = traceApiRoute(
               domain: handle.domain
             })
           : null)
-      let exactActorId = storedExactActor?.id ?? null
+      let exactActorId = nativeBlueskyId ?? storedExactActor?.id ?? null
       let exactActorRefresh: Promise<unknown> = Promise.resolve()
       if (handle || bridgedActorId) {
         if (storedExactActor) {

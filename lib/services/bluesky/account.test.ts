@@ -17,12 +17,14 @@ import {
   getBlueskyOAuthClient,
   writeStoredBlueskySession
 } from '@/lib/services/bluesky/client'
+import { getQueue } from '@/lib/services/queue'
 import type { Actor } from '@/lib/types/domain/actor'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 vi.mock('node:dns/promises', () => ({ resolveTxt: vi.fn() }))
 vi.mock('@/lib/config', () => ({ getConfig: vi.fn() }))
 vi.mock('@/lib/utils/safeRemoteFetch', () => ({ safeRemoteFetch: vi.fn() }))
+vi.mock('@/lib/services/queue', () => ({ getQueue: vi.fn() }))
 vi.mock('@/lib/services/bluesky/client', () => ({
   BLUESKY_OAUTH_SCOPE: 'atproto transition:generic',
   createBlueskyIdentityResolver: vi.fn(),
@@ -53,6 +55,7 @@ describe('Bluesky account service', () => {
   const testDb = createTestDatabase()
   const { database } = testDb
   const resolve = vi.fn()
+  const publish = vi.fn()
 
   beforeAll(async () => {
     await testDb.prepare()
@@ -80,6 +83,8 @@ describe('Bluesky account service', () => {
   })
 
   beforeEach(() => {
+    publish.mockResolvedValue(undefined)
+    vi.mocked(getQueue).mockReturnValue({ publish } as never)
     vi.mocked(getConfig).mockReturnValue({
       host: 'social.example',
       bluesky: { oauthPrivateKeys: [] }
@@ -182,6 +187,23 @@ describe('Bluesky account service', () => {
         accessJwt: APP_PASSWORD_JWT,
         refreshJwt: 'refresh'
       })
+      expect(publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'SyncBlueskyHomeJob',
+          data: { actorId: 'actor-a' }
+        })
+      )
+    })
+
+    it('keeps the link when the first Home sync cannot be queued', async () => {
+      publish.mockRejectedValue(new Error('queue down'))
+      await linkBlueskyAppPassword(database, actor('actor-a'), {
+        identifier: 'alice.example.com',
+        password: 'abcd-efgh-ijkl-mnop'
+      })
+      expect(
+        await database.getBlueskyAccount({ actorId: 'actor-a' })
+      ).toMatchObject({ did: DID })
     })
 
     it('marks a handle under the PDS’s own domain as not a domain handle', async () => {
@@ -446,6 +468,12 @@ describe('Bluesky account service', () => {
         database,
         'social.example'
       )
+      expect(publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'SyncBlueskyHomeJob',
+          data: { actorId: 'actor-a' }
+        })
+      )
     })
 
     it('drops the session when the link loses a race for the DID', async () => {
@@ -485,6 +513,7 @@ describe('Bluesky account service', () => {
       expect(
         await database.getBlueskySession({ did: 'did:plc:unlinked' })
       ).toBeNull()
+      expect(publish).not.toHaveBeenCalled()
     })
 
     it('refuses a callback started by another actor and drops its session', async () => {
@@ -567,7 +596,23 @@ describe('Bluesky account service', () => {
       await linkAlice()
       expect(
         (await getBlueskyAccountState(database, actor('actor-a'))).account
-      ).toMatchObject({ did: DID, sessionActive: false })
+      ).toMatchObject({
+        did: DID,
+        sessionActive: false,
+        lastSyncedAt: null,
+        syncError: null
+      })
+      await database.updateBlueskyAccountSync({
+        actorId: 'actor-a',
+        lastSyncedAt: Date.UTC(2026, 0, 2, 3, 4, 5),
+        syncError: 'Bluesky ended this session.'
+      })
+      expect(
+        (await getBlueskyAccountState(database, actor('actor-a'))).account
+      ).toMatchObject({
+        lastSyncedAt: '2026-01-02T03:04:05.000Z',
+        syncError: 'Bluesky ended this session.'
+      })
       await database.setBlueskySession({ did: DID, session: 's' })
       expect(
         (await getBlueskyAccountState(database, actor('actor-a'))).account

@@ -88,7 +88,8 @@ const seedStatus = async ({
   reply = '',
   type = StatusType.enum.Note,
   originalStatusId = null,
-  media = false
+  media = false,
+  network = null
 }: {
   id: string
   actorId: string
@@ -99,6 +100,7 @@ const seedStatus = async ({
   type?: StatusType
   originalStatusId?: string | null
   media?: boolean
+  network?: string | null
 }) => {
   const at = createdAt === null ? null : new Date(createdAt)
   await db
@@ -111,6 +113,7 @@ const seedStatus = async ({
       type,
       reply,
       originalStatusId,
+      network,
       createdAt: at,
       updatedAt: at
     })
@@ -385,6 +388,67 @@ describe('the home and direct feeds', () => {
       )
     }
   )
+})
+
+describe('the home feed network filter', () => {
+  it('reads only Bluesky or only ActivityPub posts and pages over the filtered rows', async () => {
+    const prefix = nextPrefix()
+    const viewer = actorIn('home.test', `${prefix}-viewer`)
+    const author = actorIn('remote.test', `${prefix}-author`)
+    const s = (key: string) => `${prefix}-status-${key}`
+    // Oldest first, the two networks interleaved; b* are Bluesky posts.
+    const keys = ['a1', 'b1', 'a2', 'b2', 'a3', 'b3']
+    for (const [index, key] of keys.entries()) {
+      await seedStatus({
+        id: s(key),
+        actorId: author,
+        createdAt: BASE + index,
+        network: key.startsWith('b') ? 'bluesky' : null
+      })
+      await seedTimelineRow({
+        actorId: viewer,
+        timeline: Timeline.MAIN,
+        statusId: s(key),
+        statusActorId: author,
+        createdAt: BASE + index
+      })
+    }
+    const main = { timeline: Timeline.MAIN, actorId: viewer }
+
+    expect(await read({ ...main, network: 'bluesky' })).toEqual([
+      s('b3'),
+      s('b2'),
+      s('b1')
+    ])
+    expect(await read({ ...main, network: 'activitypub' })).toEqual([
+      s('a3'),
+      s('a2'),
+      s('a1')
+    ])
+    // Cursors and the limit apply to the filtered rows: the next Bluesky post
+    // below b3 is b2, not the ActivityPub a3 between them.
+    expect(
+      await read({
+        ...main,
+        network: 'bluesky',
+        maxStatusId: s('b3'),
+        limit: 1
+      })
+    ).toEqual([s('b2')])
+    expect(
+      await read({
+        ...main,
+        network: 'activitypub',
+        minStatusId: s('a1'),
+        limit: 1
+      })
+    ).toEqual([s('a2')])
+    expect(
+      await read({ ...main, network: 'bluesky', sinceStatusId: s('b1') })
+    ).toEqual([s('b3'), s('b2')])
+    // No filter: the one mixed Home.
+    expect(await read(main)).toEqual(keys.map(s).reverse())
+  })
 })
 
 describe('createTimelineStatus', () => {

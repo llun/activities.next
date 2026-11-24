@@ -16,6 +16,8 @@ const mockGetServerSession = vi.fn()
 const mockGetAllServerSettings = vi.fn()
 const mockStoredToken = vi.fn()
 const mockGetDomainBlockForDomain = vi.fn()
+const mockGetBlueskyAccount = vi.fn()
+const mockResolveBlueskyProfile = vi.fn()
 
 const oauthActor = {
   id: 'https://llun.test/users/oauth-user',
@@ -43,8 +45,15 @@ vi.mock('@/lib/database', () => ({
     isCurrentActorFollowing: mockIsCurrentActorFollowing,
     // Read by the served-domain check through the server-settings resolver.
     getAllServerSettings: mockGetAllServerSettings,
-    getDomainBlockForDomain: mockGetDomainBlockForDomain
+    getDomainBlockForDomain: mockGetDomainBlockForDomain,
+    getBlueskyAccount: mockGetBlueskyAccount
   })
+}))
+
+vi.mock('@/lib/services/bluesky/profiles', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  resolveBlueskyProfile: (...args: unknown[]) =>
+    mockResolveBlueskyProfile(...args)
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -77,6 +86,7 @@ describe('GET /api/v1/accounts/search', () => {
     mockGetAllServerSettings.mockReset()
     mockGetAllServerSettings.mockResolvedValue([])
     mockGetDomainBlockForDomain.mockResolvedValue(null)
+    mockGetBlueskyAccount.mockResolvedValue(null)
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: Date.now() + 60_000,
@@ -779,6 +789,82 @@ describe('GET /api/v1/accounts/search', () => {
       expect(mockSearchAccountIds).toHaveBeenCalledWith(
         expect.objectContaining({ exactActorIds: [bridgedActor.id] })
       )
+    })
+  })
+
+  describe('Bluesky handles through a linked Bluesky account', () => {
+    const blueskyId =
+      'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+    const search = (q: string) =>
+      GET(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/search?q=${encodeURIComponent(q)}&resolve=true`,
+          { headers: { Authorization: 'Bearer read-accounts-token' } }
+        ),
+        context
+      )
+
+    beforeEach(() => {
+      mockGetBlueskyAccount.mockResolvedValue({ actorId: oauthActor.id })
+      mockResolveBlueskyProfile.mockResolvedValue(blueskyId)
+    })
+
+    it.each([
+      'river.bsky.social',
+      'river.bsky.social@bsky.app',
+      'https://bsky.app/profile/river.bsky.social'
+    ])('resolves %s natively and skips the bridge', async (q) => {
+      const response = await search(q)
+
+      expect(response.status).toBe(200)
+      expect(mockGetBlueskyAccount).toHaveBeenCalledWith({
+        actorId: oauthActor.id
+      })
+      expect(mockResolveBlueskyProfile).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ id: oauthActor.id }),
+        q
+      )
+      expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+      expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+      expect(mockSearchAccountIds).toHaveBeenCalledWith(
+        expect.objectContaining({ q, exactActorIds: [blueskyId] })
+      )
+    })
+
+    it('still prefers a local dotted username', async () => {
+      const localActor = { id: 'https://llun.test/users/trail.runner' }
+      mockGetActorFromUsername.mockImplementation(async ({ domain }) =>
+        domain === 'llun.test' ? localActor : null
+      )
+
+      await search('trail.runner')
+
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
+      expect(mockSearchAccountIds).toHaveBeenCalledWith(
+        expect.objectContaining({ exactActorIds: [localActor.id] })
+      )
+    })
+
+    it('keeps the Bridgy Fed path without a linked account', async () => {
+      mockGetBlueskyAccount.mockResolvedValue(null)
+      mockGetWebfingerSelf.mockResolvedValue(
+        'https://bsky.brid.gy/ap/did:plc:abcdefghijklmnopqrstuvwx'
+      )
+
+      await search('river.bsky.social')
+
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
+      expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+        account: 'river.bsky.social@bsky.brid.gy'
+      })
+    })
+
+    it('does not look up a linked account for other queries', async () => {
+      await search('alice@remote.test')
+
+      expect(mockGetBlueskyAccount).not.toHaveBeenCalled()
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
     })
   })
 })

@@ -8,6 +8,7 @@ import { RemoteFollowDialog } from '@/lib/components/remote-follow/remote-follow
 import { Button } from '@/lib/components/ui/button'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { cn } from '@/lib/utils'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 
 interface ProfileRelationshipActionsProps {
   className?: string
@@ -46,6 +47,8 @@ export const ProfileRelationshipActions: FC<
   // gets the remote-follow dialog instead, so they can follow from their own
   // server the way Mastodon offers — unless the profile moved.
   if (!isLoggedIn) {
+    // A Bluesky account is followed from Bluesky, not from a fediverse server.
+    if (isBlueskyId(targetActorId)) return null
     return (
       <div
         className={cn(

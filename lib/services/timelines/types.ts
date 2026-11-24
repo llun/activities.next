@@ -12,6 +12,16 @@ export enum Timeline {
   FEDERATED_PUBLIC = 'federated-public'
 }
 
+// The web Home's network switch: only Bluesky posts (`statuses.network =
+// 'bluesky'`) or only ActivityPub posts (`statuses.network IS NULL`). Absent
+// means the one mixed Home that Mastodon apps also get.
+export type TimelineNetwork = 'activitypub' | 'bluesky'
+
+export const parseTimelineNetwork = (
+  value: unknown
+): TimelineNetwork | undefined =>
+  value === 'activitypub' || value === 'bluesky' ? value : undefined
+
 // List feeds are materialized into the same `timelines` table as the fixed feeds
 // above so the read is a single indexed partition scan (the shape that makes the
 // home feed fast) rather than a live statuses⋈list_accounts join. The `timeline`
