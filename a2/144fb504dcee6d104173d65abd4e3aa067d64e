@@ -1,0 +1,78 @@
+app/(timeline)/[actor]/[status]/page.live-fetch.test.tsx
+  h_580a04e334fef4 22,946-994
+app/(timeline)/[actor]/[status]/page.tsx
+  h_580a04e334fef4 333-341
+app/api/v1/accounts/like/route.test.ts
+  h_580a04e334fef4 19,26-30,60,75,91,97,118-124,156,161,179-185,228,244,264,278-279,281,284,305-311,327,329,341-342
+app/api/v1/accounts/like/route.ts
+  h_580a04e334fef4 13,63-68,106,140-145,179
+app/api/v1/statuses/[id]/favourite/route.test.ts
+  h_580a04e334fef4 100
+app/api/v1/statuses/[id]/reblog/route.test.ts
+  h_580a04e334fef4 16,109,198-258
+app/api/v1/statuses/[id]/reblog/route.ts
+  h_580a04e334fef4 90-100,106-107
+app/api/v1/statuses/[id]/route.test.ts
+  h_580a04e334fef4 19,451-591
+app/api/v1/statuses/[id]/route.ts
+  h_580a04e334fef4 9-12,55-59,784-822
+app/api/v1/statuses/[id]/unfavourite/route.test.ts
+  h_580a04e334fef4 93
+app/api/v1/statuses/[id]/unreblog/route.test.ts
+  h_580a04e334fef4 87
+lib/actions/deleteStatus.test.ts
+  h_580a04e334fef4 21,665-701
+lib/actions/deleteStatus.ts
+  h_580a04e334fef4 8,30-31
+lib/activities/index.test.ts
+  h_580a04e334fef4 1090-1109
+lib/client/offline/sw.test.ts
+  h_580a04e334fef4 486-547
+lib/database/domains/actor/actorDeletion.test.ts
+  h_580a04e334fef4 347,349-350,352-359
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  h_580a04e334fef4 92,94-95,97,114,116-117,119,420,422-423,425
+lib/database/domains/status/deletion.ts
+  h_580a04e334fef4 565-570
+lib/database/domains/status/statusDeletionQueries.test.ts
+  h_580a04e334fef4 1551,2031-2081
+lib/database/domains/timeline/queries.ts
+  h_580a04e334fef4 262-263,269-273,277-281
+lib/database/domains/timeline/timelineQueries.test.ts
+  h_580a04e334fef4 452-552
+lib/jobs/sendAnnounceJob.test.ts
+  h_580a04e334fef4 1,25-32,205-215,217-226,228-233
+lib/jobs/sendUndoAnnounceJob.test.ts
+  h_580a04e334fef4 9-12,27-40,198-214,216-223
+lib/services/bluesky/follow.test.ts
+  h_580a04e334fef4 334-355,357,359-365,367-376
+lib/services/bluesky/interactions.test.ts
+  h_580a04e334fef4 256-277,279,281-284,286-328,633-662
+lib/services/bluesky/interactions.ts
+  h_580a04e334fef4 202-205,216-217,243-244,254-255,268-269,278,298-306,372-373,387-394,400-407,411,499-500,503
+lib/services/bluesky/notifications.test.ts
+  h_580a04e334fef4 16,58-59,65,76-77,169,174-176,178-181,185,189,201,203-204,209-227,229-236,251-261,588-589,594-651,653-686,690-755
+lib/services/bluesky/notifications.ts
+  h_580a04e334fef4 44,132-133,138-140,144,148-156,163-214,373-376,390,393-394,411-414,422-424,427-448,473-477
+lib/services/bluesky/sync.test.ts
+  h_580a04e334fef4 631-632,640-676
+lib/services/bluesky/sync.ts
+  h_580a04e334fef4 216,225,227-240,242-246
+lib/services/federation/enqueueDeliveries.test.ts
+  h_580a04e334fef4 61,89-113
+lib/services/federation/enqueueDeliveries.ts
+  h_580a04e334fef4 60-61,80-91,104
+public/sw.js
+  h_580a04e334fef4 643,671-674,678
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a2144fb504dcee6d104173d65abd4e3aa067d64e",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
