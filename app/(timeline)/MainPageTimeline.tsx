@@ -839,6 +839,10 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   // feed row, is prepended so it appears immediately.
   const onStatusCreated = useCallback(
     (status: Status) => {
+      // A post written here is an ActivityPub post (posting to Bluesky is not
+      // supported yet), so the Bluesky-only feed neither shows it nor releases
+      // its held "new posts" page for it.
+      if (network === 'bluesky') return
       const page = stagedPageRef.current
       if (page) {
         stagedPageRef.current = null
@@ -850,9 +854,6 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           scrollResetRevisionRef.current
         )
       }
-      // A post written here is an ActivityPub post (posting to Bluesky is not
-      // supported yet), so the Bluesky-only feed does not show or cache it.
-      if (network === 'bluesky') return
       setSegments((prev) => {
         if (prev.length === 0) {
           return [
