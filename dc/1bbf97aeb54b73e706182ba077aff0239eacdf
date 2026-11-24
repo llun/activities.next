@@ -1,0 +1,55 @@
+lib/components/posts/actions/post-menu.crosspost.test.tsx
+  s_f193227df3df34::t_f43122993383c4 188,200,204,208-244,246-249
+  s_f193227df3df34::t_9098e963ea8b96 185-187
+  s_f193227df3df34::t_a83f2228f6b6ab 189-191,197-199
+  s_f193227df3df34::t_618a04f3171f7c 201-203
+  s_f193227df3df34::t_ca3da2f9d7517c 205-207
+  s_f193227df3df34::t_4bab0eecfc1fe1 245
+  s_f193227df3df34::t_60dfb8b89fcbc6 250-251
+  s_f193227df3df34::t_a9de596851e0e0 13-17,20,179-184,192-196
+lib/components/posts/actions/post-menu.tsx
+  s_f193227df3df34::t_b807b0f929bfa0 403
+  s_f193227df3df34::t_5b7c14e5c6f2d6 402
+  s_f193227df3df34::t_399c6d4acc1da7 404-406
+  s_f193227df3df34::t_f005cda2debc5e 398,407-411,446-450
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.test.ts
+  s_f193227df3df34::t_ba55e01f192792 95,187,212,227,246
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.ts
+  s_f193227df3df34::t_7914072fdaa74b 87
+lib/actions/deleteStatus.test.ts
+  s_f193227df3df34::t_28fbba4c73b925 663
+lib/client/statuses.test.ts
+  s_f193227df3df34::t_1cea29e129644d 1878-1910
+lib/client/statuses.ts
+  s_f193227df3df34::t_51f92ba362930e 409-411
+lib/database/domains/bluesky/bluesky.test.ts
+  s_f193227df3df34::t_d3b90bc15bc576 960,966,968,973-975,982-1015,1017-1020,1023,1028,1033-1035,1041,1045,1055-1058,1060,1062-1064
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_2b675f100a79f5 739,743,746,748-760,806,810,814-826,855,858
+lib/database/domains/bluesky/types.ts
+  s_f193227df3df34::t_7d3af29d5b0f59 221-223,225,241-243,245
+lib/services/bluesky/crosspost.test.ts
+  s_f193227df3df34::t_118a1750f0e038 19,570,575-602,616,627,639-699,886,889,892,899-940,947-952,1349-1414
+lib/services/bluesky/crosspost.ts
+  s_f193227df3df34::t_768677fcf52091 77-78,128-130,140-146,168-176,385,431-433,439,446,454,485-487,493,504-510,512,516,576-579,592-608,651,712
+lib/services/bluesky/records.test.ts
+  s_f193227df3df34::t_bd19d9527597e3 881-979
+lib/services/bluesky/records.ts
+  s_f193227df3df34::t_faed229441f454 413-415,417-419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc1bbf97aeb54b73e706182ba077aff0239eacdf",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
