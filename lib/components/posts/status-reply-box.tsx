@@ -18,6 +18,10 @@ import type { DraftRecord } from '@/lib/client/drafts'
 import { replyBoxFingerprint } from '@/lib/client/drafts/submitRequest'
 import { DRAFT_LOCKED_NOTICE, classifyFailedPost } from '@/lib/client/http'
 import { syncPendingLinkPreviewForStatus } from '@/lib/client/pendingLinkPreviews'
+import {
+  loadLinkedBlueskyAccount,
+  useLinkedBlueskyAccount
+} from '@/lib/components/bluesky/blueskyAccountStore'
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { DraftSaveStatus } from '@/lib/components/post-box/DraftSaveStatus'
@@ -59,9 +63,15 @@ import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import {
   Status,
   StatusType,
-  getOriginalStatus
+  getOriginalStatus,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
+import {
+  BLUESKY_MAX_GRAPHEMES,
+  BLUESKY_TOO_LONG_MESSAGE,
+  countBlueskyGraphemes
+} from '@/lib/utils/blueskyText'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
 
@@ -97,6 +107,18 @@ export const StatusReplyBox: FC<Props> = ({
   // The reply endpoint enforces it too, so without this the reply box would let
   // a draft grow past the limit and only fail on submit.
   const { maxStatusCharacters, maxMediaAttachments } = useInstanceLimits()
+  const isBlueskyReply = isBlueskyStatus(replyStatus)
+  const effectiveMaxCharacters = isBlueskyReply
+    ? BLUESKY_MAX_GRAPHEMES
+    : maxStatusCharacters
+  const linkedBlueskyAccount = useLinkedBlueskyAccount(
+    isBlueskyReply ? profile.id : undefined
+  )
+  useEffect(() => {
+    if (isBlueskyReply && profile.id) {
+      void loadLinkedBlueskyAccount(profile.id)
+    }
+  }, [isBlueskyReply, profile.id])
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
@@ -228,12 +250,19 @@ export const StatusReplyBox: FC<Props> = ({
 
   // Allow posting if text has content OR if there are media attachments
   // (permitting valid attachment-only replies per repository guidelines).
+  const currentLength = isBlueskyReply
+    ? countBlueskyGraphemes(text)
+    : text.length
+  const remainingCharacters = effectiveMaxCharacters - currentLength
+  const isOverBlueskyLimit =
+    isBlueskyReply && !draftLocked && remainingCharacters < 0
   const hasContent =
-    text.trim().length > 0 || postExtension.attachments.length > 0
+    text.trim().length > 0 ||
+    (!isBlueskyReply && postExtension.attachments.length > 0)
   // A locked draft replays server-side before any content-limit check, so a
   // lowered limit must not block its retry.
   const allowPost =
-    hasContent && (draftLocked || text.length <= maxStatusCharacters)
+    hasContent && (draftLocked || currentLength <= effectiveMaxCharacters)
 
   const drafts = useDrafts()
   const connectionState = useConnectionStatus().state
@@ -605,12 +634,12 @@ export const StatusReplyBox: FC<Props> = ({
 
       const response = await createNote({
         message,
-        contentWarning,
+        contentWarning: isBlueskyReply ? undefined : contentWarning,
         replyStatus,
         inReplyToId: replyStatus.id,
-        visibility: inheritedVisibility,
+        visibility: isBlueskyReply ? 'public' : inheritedVisibility,
         language: inheritedLanguage,
-        attachments,
+        attachments: isBlueskyReply ? [] : attachments,
         idempotencyKey: submitIdempotencyRef.current.key
       })
 
@@ -904,27 +933,36 @@ export const StatusReplyBox: FC<Props> = ({
               </div>
             ) : null}
 
-            <div className="flex items-center mt-2">
+            <div className="flex flex-wrap items-center gap-2 mt-2">
               <Button
                 type="button"
                 variant={
-                  postExtension.contentWarningVisible ? 'secondary' : 'link'
+                  !isBlueskyReply && postExtension.contentWarningVisible
+                    ? 'secondary'
+                    : 'link'
                 }
                 size="icon-sm"
                 aria-label={
-                  postExtension.contentWarningVisible
-                    ? 'Remove content warning'
-                    : 'Add content warning'
+                  isBlueskyReply
+                    ? 'Content warnings are not supported on Bluesky replies'
+                    : postExtension.contentWarningVisible
+                      ? 'Remove content warning'
+                      : 'Add content warning'
                 }
-                title="Content warning"
-                disabled={draftLocked}
-                onClick={() =>
+                title={
+                  isBlueskyReply
+                    ? 'Content warnings are not supported on Bluesky replies'
+                    : 'Content warning'
+                }
+                disabled={draftLocked || isBlueskyReply}
+                onClick={() => {
+                  if (isBlueskyReply) return
                   dispatch(
                     setContentWarningVisibility(
                       !postExtension.contentWarningVisible
                     )
                   )
-                }
+                }}
               >
                 <AlertTriangle className="size-4" />
               </Button>
@@ -932,10 +970,16 @@ export const StatusReplyBox: FC<Props> = ({
                 isMediaUploadEnabled={isMediaUploadEnabled}
                 attachments={postExtension.attachments}
                 disabled={isPosting || draftLocked}
+                disabledReason={
+                  isBlueskyReply
+                    ? 'Images in Bluesky replies are not supported yet.'
+                    : undefined
+                }
                 onAddAttachment={(attachment) => {
                   // A batch that settles after submit began or the draft
                   // locked would change the retried payload, and its key.
                   if (
+                    isBlueskyReply ||
                     isSubmittingRef.current ||
                     draftLockedRef.current ||
                     postExtensionRef.current.attachments.length >=
@@ -971,16 +1015,30 @@ export const StatusReplyBox: FC<Props> = ({
                 onFilesRejected={(message) => setWarningMsg(message)}
                 onUploadStart={() => setWarningMsg(null)}
               />
-              <div className="flex items-center gap-2 ml-auto">
+              <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
+                {isBlueskyReply ? (
+                  <span className="text-xs text-muted-foreground">
+                    {linkedBlueskyAccount?.handle
+                      ? `Replying on Bluesky as ${linkedBlueskyAccount.handle} · public`
+                      : 'Replying on Bluesky · public'}
+                  </span>
+                ) : null}
+                {isOverBlueskyLimit ? (
+                  <span role="alert" className="text-xs text-warning-text">
+                    {BLUESKY_TOO_LONG_MESSAGE}
+                  </span>
+                ) : null}
                 <span
                   className={cn(
                     'font-mono text-xs tabular-nums',
-                    !draftLocked && text.length > maxStatusCharacters
-                      ? 'text-destructive'
-                      : 'text-muted-foreground'
+                    isOverBlueskyLimit
+                      ? 'text-warning-text'
+                      : !draftLocked && remainingCharacters < 0
+                        ? 'text-destructive'
+                        : 'text-muted-foreground'
                   )}
                 >
-                  {maxStatusCharacters - text.length}
+                  {remainingCharacters}
                 </span>
                 <Button
                   type="button"

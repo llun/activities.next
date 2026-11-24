@@ -6,7 +6,8 @@ import {
 import {
   Status,
   StatusType,
-  getOriginalStatus
+  getOriginalStatus,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import {
   MastodonVisibility,
@@ -273,18 +274,27 @@ export const prepareReplyDraft = ({
   defaultLanguage?: string | null
 }): PreparedReplyDraft => {
   const actualStatus = getOriginalStatus(targetStatus)
-  const participants = extractParticipants(actualStatus, currentViewer)
+  const isBluesky = isBlueskyStatus(actualStatus)
+  const participants = isBluesky
+    ? {
+        authorMention: null,
+        otherMentions: [],
+        allMentions: [],
+        isSelfReply: false
+      }
+    : extractParticipants(actualStatus, currentViewer)
   const { text: initialText, cursorPosition } = computeMentionText(
     participants,
     mentionMode
   )
 
-  const spoilerText = actualStatus.summary?.trim() || ''
+  const spoilerText = isBluesky ? '' : actualStatus.summary?.trim() || ''
   const isSpoilerVisible = Boolean(spoilerText)
 
-  // Inherit visibility: direct stays direct, private stays private, unlisted stays unlisted, public stays public
+  // Inherit visibility: direct stays direct, private stays private, unlisted stays unlisted, public stays public.
+  // Bluesky replies are always public.
   const parentVisibility = getStatusVisibility(actualStatus)
-  const visibility = parentVisibility
+  const visibility = isBluesky ? 'public' : parentVisibility
 
   // Inherit declared language; do NOT substitute detectedLanguage
   const language = actualStatus.language?.trim() || defaultLanguage || undefined

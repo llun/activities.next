@@ -16,6 +16,12 @@ import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
+import { blueskyActionFailure } from '@/lib/services/bluesky/actionErrors'
+import {
+  BLUESKY_REPLY_BUSY_MESSAGE,
+  BLUESKY_REPLY_LOCK_PREFIX,
+  replyToBlueskyPost
+} from '@/lib/services/bluesky/reply'
 import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import {
   OAuthGuardAnyScope,
@@ -597,14 +603,87 @@ export const POST = traceApiRoute(
             })
           }
           if (isBlueskyStatus(targetStatus)) {
-            return apiResponse({
-              req,
-              allowedMethods: CORS_HEADERS,
-              data: {
-                error: 'Replying to Bluesky posts is not supported yet.'
-              },
-              responseStatusCode: 422
-            })
+            if (note.quoted_status_id) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: {
+                  error: 'Quoting in Bluesky replies is not supported yet.'
+                },
+                responseStatusCode: 422
+              })
+            }
+            if (note.fitness_file_id) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: {
+                  error: 'Fitness files in Bluesky replies are not supported.'
+                },
+                responseStatusCode: 422
+              })
+            }
+            if (createdAt !== undefined) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: {
+                  error: 'Backdating Bluesky replies is not supported.'
+                },
+                responseStatusCode: 422
+              })
+            }
+            try {
+              const blueskyStatusId = await replyToBlueskyPost(
+                database,
+                currentActor,
+                {
+                  parentStatusId: targetStatus.id,
+                  text: note.status,
+                  visibility: note.visibility,
+                  mediaIds: note.media_ids,
+                  poll: note.poll,
+                  spoilerText: note.spoiler_text,
+                  sensitive: note.sensitive,
+                  language: note.language
+                }
+              )
+              const blueskyStatus = await database.getStatus({
+                statusId: blueskyStatusId,
+                currentActorId: currentActor.id
+              })
+              if (!blueskyStatus) {
+                throw new Error('The saved status could not be loaded')
+              }
+              statusSaved = true
+              const mastodonStatus = await getMastodonStatus(
+                database,
+                blueskyStatus,
+                currentActor.id
+              )
+              if (!mastodonStatus) {
+                throw new Error('The saved status could not be serialized')
+              }
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: mastodonStatus
+              })
+            } catch (error) {
+              const failure = blueskyActionFailure(error, {
+                lockPrefix: BLUESKY_REPLY_LOCK_PREFIX,
+                busy: BLUESKY_REPLY_BUSY_MESSAGE
+              })
+              if (failure) {
+                return apiResponse({
+                  req,
+                  allowedMethods: CORS_HEADERS,
+                  data: { error: failure.error },
+                  responseStatusCode: failure.status
+                })
+              }
+              throw error
+            }
           }
           replyStatusId = targetStatus.id
         }

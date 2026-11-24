@@ -13,6 +13,11 @@ interface Props {
   isMediaUploadEnabled?: boolean
   /** Disables picking, e.g. while the post is submitting. */
   disabled?: boolean
+  /**
+   * Short explanation shown as the control's label/title when media is
+   * unavailable for the current reply target (e.g. a Bluesky reply).
+   */
+  disabledReason?: string
   attachments?: PostBoxAttachment[]
   /**
    * Original file names by attachment id. Once an upload finishes the
@@ -36,6 +41,7 @@ interface Props {
 export const UploadMediaButton: FC<Props> = ({
   isMediaUploadEnabled,
   disabled = false,
+  disabledReason,
   attachments = [],
   fileNames = {},
   onAddAttachment,
@@ -118,6 +124,11 @@ export const UploadMediaButton: FC<Props> = ({
     return null
   }
 
+  const isDisabled = disabled || Boolean(disabledReason)
+  const label = disabledReason
+    ? `Add media (${disabledReason})`
+    : `Add media (${attachments.length}/${attachmentCap})`
+
   return (
     <>
       <input
@@ -127,7 +138,7 @@ export const UploadMediaButton: FC<Props> = ({
         multiple
         accept={ACCEPTED_FILE_TYPES.join(',')}
         className="hidden"
-        disabled={disabled}
+        disabled={isDisabled}
         onChange={onSelectFile}
       />
       <Button
@@ -135,10 +146,10 @@ export const UploadMediaButton: FC<Props> = ({
         variant="ghost"
         size="icon-sm"
         onClick={onOpenFile}
-        disabled={disabled || attachments.length >= attachmentCap}
+        disabled={isDisabled || attachments.length >= attachmentCap}
         className="size-10 text-muted-foreground hover:text-foreground md:size-8"
-        aria-label={`Add media (${attachments.length}/${attachmentCap})`}
-        title={`Add media (${attachments.length}/${attachmentCap})`}
+        aria-label={label}
+        title={disabledReason ?? label}
       >
         <ImagePlus className="size-4" />
       </Button>
