@@ -252,6 +252,8 @@ export interface BlueskyDatabase {
    * without a uri) and returns `{ crosspost, deleted: true }`. Leaves a failed
    * row or a posted row with a uri intact and returns `{ crosspost, deleted: false }`
    * so a non-database queue can publish the delete job before removing the row.
+   * A row a concurrent Retry moved from failed back to pending between the
+   * delete and the re-read is deleted too, and reported as `deleted: true`.
    * Returns null when no row exists.
    */
   deleteBlueskyCrosspostUnlessPosted(params: {

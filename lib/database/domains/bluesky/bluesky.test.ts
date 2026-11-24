@@ -1,3 +1,4 @@
+import { InstrumentedConnection } from '@/lib/database/connection'
 import { createActor } from '@/lib/database/domains/actor/writes'
 import { upsertBlueskyActor } from '@/lib/database/domains/bluesky/queries'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
@@ -1305,6 +1306,63 @@ describe('Bluesky', () => {
         state: 'posted',
         uri
       })
+    })
+
+    it('deletes a row a concurrent Retry moved from failed to pending between the DELETE and the re-read', async () => {
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      await database.markBlueskyCrosspostFailedIfAttemptable({
+        statusId,
+        error: 'failed'
+      })
+
+      // Stage the interleaving: the row is failed when the DELETE runs, and a
+      // concurrent Retry commits it back to pending before the re-read. On
+      // PostgreSQL READ COMMITTED the re-read sees that commit; here the change
+      // is made on the same connection, in the same transaction, in the window
+      // between the two statements.
+      const execute = InstrumentedConnection.prototype.executeQuery
+      let interfered = false
+      const spy = vi
+        .spyOn(InstrumentedConnection.prototype, 'executeQuery')
+        .mockImplementation(async function (
+          this: InstrumentedConnection,
+          ...[compiledQuery, options]: Parameters<
+            InstrumentedConnection['executeQuery']
+          >
+        ) {
+          const result = await execute.call(this, compiledQuery, options)
+          if (
+            !interfered &&
+            /^\s*delete\s+from\s+["`]?bluesky_crossposts/i.test(
+              compiledQuery.sql
+            )
+          ) {
+            interfered = true
+            await execute.call(
+              this,
+              testDb.db
+                .updateTable('bluesky_crossposts')
+                .set({ state: 'pending', error: null })
+                .where('statusId', '=', statusId)
+                .compile(),
+              options
+            )
+          }
+          return result
+        } as InstrumentedConnection['executeQuery'])
+      try {
+        expect(
+          await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
+        ).toMatchObject({
+          deleted: true,
+          crosspost: { statusId, state: 'pending' }
+        })
+      } finally {
+        spy.mockRestore()
+      }
+
+      expect(interfered).toBe(true)
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
     })
   })
 })

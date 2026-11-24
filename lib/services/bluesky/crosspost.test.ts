@@ -1274,8 +1274,9 @@ describe('Bluesky cross-post', () => {
       })
     })
 
-    it('deletes the deterministic record best-effort when createOrRecoverPostRecord throws (lost answer) after the row is gone, except on collision', async () => {
-      // 1. Retryable lost answer (502) after row deleted -> release returns false -> best-effort deleteRecord.
+    it('verifies the deterministic record before deleting it when createOrRecoverPostRecord throws after the row is gone, except on collision', async () => {
+      // 1. Retryable lost answer (502) after row deleted -> release returns
+      // false -> getRecord finds a foreign record -> no deleteRecord.
       const retryableStatus = await claim(
         await createNote({ text: 'Lost answer retryable row gone' })
       )
@@ -1291,25 +1292,34 @@ describe('Bluesky cross-post', () => {
         await database.deleteBlueskyCrosspost({ statusId: retryableStatus.id })
         throw lostAnswer
       })
-      post.mockRejectedValueOnce(
-        new BlueskyRequestError(
-          'com.atproto.repo.deleteRecord',
-          400,
-          'RecordNotFound'
-        )
-      )
+      get.mockResolvedValueOnce({
+        uri: postUri(retryableRkey),
+        cid: cid('f'),
+        value: {
+          $type: 'app.bsky.feed.post',
+          text: 'Foreign post',
+          createdAt: new Date(retryableStatus.createdAt - 60_000).toISOString()
+        }
+      })
 
       await expect(crosspostStatus(database, retryableStatus.id)).rejects.toBe(
         lostAnswer
       )
-      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+      expect(get).toHaveBeenCalledWith('com.atproto.repo.getRecord', {
         repo: OWN_DID,
         collection: 'app.bsky.feed.post',
         rkey: retryableRkey
       })
+      expect(
+        post.mock.calls.filter(
+          ([nsid]) => nsid === 'com.atproto.repo.deleteRecord'
+        )
+      ).toHaveLength(0)
 
-      // 2. Non-retryable failure (unexpected answer / inline lost answer) after row deleted -> markFailed returns false -> best-effort deleteRecord.
+      // 2. Non-retryable failure (inline lost answer) after row deleted ->
+      // markFailed returns false -> getRecord finds our own record -> delete.
       post.mockClear()
+      get.mockReset()
       const permanentStatus = await claim(
         await createNote({ text: 'Lost answer permanent row gone' })
       )
@@ -1322,6 +1332,15 @@ describe('Bluesky cross-post', () => {
         await database.deleteBlueskyCrosspost({ statusId: permanentStatus.id })
         throw new BlueskyRequestError('com.atproto.repo.createRecord', 502)
       })
+      get.mockResolvedValueOnce({
+        uri: postUri(permanentRkey),
+        cid: cid('f'),
+        value: {
+          $type: 'app.bsky.feed.post',
+          text: 'Our post',
+          createdAt: new Date(permanentStatus.createdAt).toISOString()
+        }
+      })
       post.mockResolvedValueOnce({}) // deleteRecord
 
       await crosspostStatus(database, permanentStatus.id)
@@ -1331,8 +1350,33 @@ describe('Bluesky cross-post', () => {
         rkey: permanentRkey
       })
 
-      // 3. Collision error after row deleted -> MUST NOT delete the colliding foreign record.
+      // 3. getRecord fails transiently -> no deleteRecord.
       post.mockClear()
+      get.mockReset()
+      queue.runsInline = false
+      const unreadableStatus = await claim(
+        await createNote({ text: 'Lost answer unreadable row gone' })
+      )
+      post.mockImplementationOnce(async () => {
+        await database.deleteBlueskyCrosspost({ statusId: unreadableStatus.id })
+        throw new BlueskyRequestError('com.atproto.repo.createRecord', 502)
+      })
+      get.mockRejectedValueOnce(
+        new BlueskyRequestError('com.atproto.repo.getRecord', 503)
+      )
+
+      await expect(
+        crosspostStatus(database, unreadableStatus.id)
+      ).rejects.toBeInstanceOf(BlueskyRequestError)
+      expect(
+        post.mock.calls.filter(
+          ([nsid]) => nsid === 'com.atproto.repo.deleteRecord'
+        )
+      ).toHaveLength(0)
+
+      // 4. Collision error after row deleted -> MUST NOT delete the colliding foreign record.
+      post.mockClear()
+      get.mockReset()
       queue.runsInline = false
       const collisionStatus = await claim(
         await createNote({ text: 'Collision row gone' })

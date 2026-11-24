@@ -207,6 +207,17 @@ export const blueskyImagesFromEmbed = (
 const POST_COLLECTION = 'app.bsky.feed.post'
 const INVALID_HANDLE = 'handle.invalid'
 
+// A post record this server wrote for a status: the same record type and the
+// status's own createdAt. A deterministic rkey can collide with a foreign
+// record, so a delete of one is only safe once this holds.
+export const isOwnBlueskyPostRecord = (
+  value: unknown,
+  expectedCreatedAt: string
+): boolean =>
+  isRecord(value) &&
+  value.$type === POST_COLLECTION &&
+  value.createdAt === expectedCreatedAt
+
 const externalLinkHtml = (
   embed: Record<string, unknown>,
   postHtml: string

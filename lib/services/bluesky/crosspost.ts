@@ -52,7 +52,12 @@ import {
   pollHtmlToBlueskyPlainText
 } from './crosspostText'
 import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
-import { optionalString, parseAtUri, parseBlueskyPostView } from './records'
+import {
+  isOwnBlueskyPostRecord,
+  optionalString,
+  parseAtUri,
+  parseBlueskyPostView
+} from './records'
 import { buildBlueskyFacets, normalizeBlueskyMentions } from './richText'
 import { deterministicTid } from './tid'
 
@@ -478,10 +483,8 @@ const matchesRecoveredRecord = (
   value: unknown,
   expected: Record<string, unknown>
 ): boolean =>
-  isRecord(value) &&
-  value.$type === POST_COLLECTION &&
   typeof expected.createdAt === 'string' &&
-  value.createdAt === expected.createdAt
+  isOwnBlueskyPostRecord(value, expected.createdAt)
 
 const createOrRecoverPostRecord = async (
   agent: BlueskyAgent,
@@ -576,7 +579,8 @@ const deleteUnownedCrosspostRecord = async (
   database: Database,
   agent: BlueskyAgent,
   statusId: string,
-  uri: string
+  uri: string,
+  expectedCreatedAt?: string
 ) => {
   try {
     const [ownedByRow, statusRow] = await Promise.all([
@@ -594,6 +598,56 @@ const deleteUnownedCrosspostRecord = async (
     })
     return
   }
+
+  // A deterministic rkey can already hold a foreign record, and a failed
+  // createRecord may or may not have written ours. Only delete once the record
+  // reads back as this status's own post; a missing, foreign or unreadable
+  // record is left alone.
+  if (expectedCreatedAt !== undefined) {
+    const at = parseAtUri(uri)
+    if (!at || at.did !== agent.did || at.collection !== POST_COLLECTION) return
+    let existing: { value?: unknown } | undefined
+    try {
+      existing = await agent.get<{ value?: unknown }>(
+        'com.atproto.repo.getRecord',
+        {
+          repo: at.did,
+          collection: at.collection,
+          rkey: at.rkey
+        }
+      )
+    } catch (error) {
+      if (
+        error instanceof BlueskyRequestError &&
+        (error.error === 'RecordNotFound' || error.status === 404)
+      ) {
+        logger.debug({
+          message: 'No Bluesky record to delete for an unrecorded cross-post',
+          statusId,
+          uri
+        })
+        return
+      }
+      logger.warn({
+        message:
+          'Could not verify an unrecorded Bluesky cross-post before deleting it',
+        statusId,
+        uri,
+        err: toLoggableError(error)
+      })
+      return
+    }
+    if (!isOwnBlueskyPostRecord(existing?.value, expectedCreatedAt)) {
+      logger.warn({
+        message:
+          'Skipped deleting a Bluesky record that is not this status cross-post',
+        statusId,
+        uri
+      })
+      return
+    }
+  }
+
   await deleteCrosspostRecord(agent, uri)
 }
 
@@ -648,7 +702,11 @@ export const crosspostStatus = async (
 
   const state: {
     attemptId: string | null
-    createAttempt: { agent: BlueskyAgent; uri: string } | null
+    createAttempt: {
+      agent: BlueskyAgent
+      uri: string
+      expectedCreatedAt: string
+    } | null
   } = { attemptId: null, createAttempt: null }
   try {
     await createBlueskyLock(database)(
@@ -732,7 +790,8 @@ export const crosspostStatus = async (
         const rkey = deterministicTid(currentStatus.createdAt, currentStatus.id)
         state.createAttempt = {
           agent,
-          uri: `at://${agent.did}/${POST_COLLECTION}/${rkey}`
+          uri: `at://${agent.did}/${POST_COLLECTION}/${rkey}`,
+          expectedCreatedAt: new Date(currentStatus.createdAt).toISOString()
         }
         const { uri, cid } = await createOrRecoverPostRecord(
           agent,
@@ -806,7 +865,8 @@ export const crosspostStatus = async (
             database,
             createAttempt.agent,
             statusId,
-            createAttempt.uri
+            createAttempt.uri,
+            createAttempt.expectedCreatedAt
           )
         }
       }
@@ -832,7 +892,8 @@ export const crosspostStatus = async (
           database,
           createAttempt.agent,
           statusId,
-          createAttempt.uri
+          createAttempt.uri,
+          createAttempt.expectedCreatedAt
         )
       }
     } else {

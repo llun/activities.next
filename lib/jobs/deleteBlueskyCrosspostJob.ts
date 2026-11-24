@@ -7,9 +7,11 @@ import {
   getBlueskyAgent
 } from '@/lib/services/bluesky/agent'
 import { isBlueskyAllowed } from '@/lib/services/bluesky/policy'
-import { parseAtUri } from '@/lib/services/bluesky/records'
+import {
+  isOwnBlueskyPostRecord,
+  parseAtUri
+} from '@/lib/services/bluesky/records'
 import { JobHandle } from '@/lib/services/queue/type'
-import { isRecord } from '@/lib/utils/typeGuards'
 
 const POST_COLLECTION = 'app.bsky.feed.post'
 
@@ -75,11 +77,7 @@ export const deleteBlueskyCrosspostJob: JobHandle = createJobHandle(
         }
         throw error
       }
-      if (
-        !isRecord(existing?.value) ||
-        existing.value.$type !== POST_COLLECTION ||
-        existing.value.createdAt !== expectedCreatedAt
-      ) {
+      if (!isOwnBlueskyPostRecord(existing?.value, expectedCreatedAt)) {
         return
       }
     }
