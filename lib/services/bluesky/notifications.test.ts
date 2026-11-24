@@ -3,12 +3,14 @@ import {
   type BlueskyAgent,
   BlueskySessionChangedError
 } from '@/lib/services/bluesky/agent'
-import { BlueskyRequestError } from '@/lib/services/bluesky/agent'
 import {
   getPublicPosts,
   getPublicProfiles
 } from '@/lib/services/bluesky/appview'
-import { syncBlueskyNotifications } from '@/lib/services/bluesky/notifications'
+import {
+  BLUESKY_NOTIFICATION_ATTEMPTS,
+  syncBlueskyNotifications
+} from '@/lib/services/bluesky/notifications'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
@@ -780,7 +782,7 @@ describe('syncBlueskyNotifications', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
-  it('stops before a notification whose Bluesky read failed, so the next run retries it and the later ones once', async () => {
+  it('stops before a notification that failed to store, so the next run retries it and the later ones once', async () => {
     const t0 = Date.parse('2026-03-06T00:00:00.000Z')
     const t1 = Date.parse('2026-03-06T00:01:00.000Z')
     const t2 = Date.parse('2026-03-06T00:02:00.000Z')
@@ -831,7 +833,7 @@ describe('syncBlueskyNotifications', () => {
       .spyOn(database, 'createNotification')
       .mockImplementation(async (params) => {
         if (params.sourceActorId === blueskyActorId(did('bob'))) {
-          throw new BlueskyRequestError('app.bsky.feed.getPosts', 503)
+          throw new Error('connection reset')
         }
         return originalCreateNotification(params)
       })
@@ -839,7 +841,7 @@ describe('syncBlueskyNotifications', () => {
     try {
       await expect(
         syncBlueskyNotifications(database, actor, agent)
-      ).rejects.toBeInstanceOf(BlueskyRequestError)
+      ).rejects.toThrow('connection reset')
     } finally {
       createSpy.mockRestore()
     }
@@ -874,7 +876,7 @@ describe('syncBlueskyNotifications', () => {
       seenAt: t0
     })
 
-    const myPost = postView('reader', 'retry1')
+    const myPost = postView('reader', 'skip1')
     publishPost(myPost)
     publishProfile(
       profileView('alice'),
@@ -921,6 +923,12 @@ describe('syncBlueskyNotifications', () => {
       })
 
     try {
+      // Retried on the next syncs, then skipped once it used up its tries.
+      for (let run = 1; run < BLUESKY_NOTIFICATION_ATTEMPTS.limit; run++) {
+        await expect(
+          syncBlueskyNotifications(database, actor, agent)
+        ).rejects.toThrow('transient DB write failure')
+      }
       await syncBlueskyNotifications(database, actor, agent)
     } finally {
       createSpy.mockRestore()

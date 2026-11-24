@@ -5,6 +5,9 @@
 // The notification list itself comes from the user's PDS (it is the user's own
 // data), but every stored post and author is re-read from the public AppView
 // (./appview), never from the PDS's answer.
+import crypto from 'node:crypto'
+
+import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import type { Database } from '@/lib/database/types'
 import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildLikeEmail } from '@/lib/services/email/templates/like'
@@ -380,6 +383,32 @@ const ensureSameLink = async (
  * are preserved. Unseen notifications (indexedAt > seenAt) are processed
  * oldest-first, re-reading every stored post and author from the public AppView.
  */
+// Tries before a notification that keeps failing to store is skipped.
+export const BLUESKY_NOTIFICATION_ATTEMPTS = {
+  limit: 3,
+  windowMs: 24 * 60 * 60 * 1000
+}
+
+// Counts a failed attempt to store one notification; true once it has used
+// up its tries (a rate-limit row keyed by actor and notification).
+const notificationGivenUp = async (
+  database: Database,
+  actor: Actor,
+  uri: string
+): Promise<boolean> => {
+  const digest = crypto
+    .createHash('sha256')
+    .update(`${actor.id}\n${uri}`)
+    .digest('hex')
+  const attempt = await database.consumeRateLimit({
+    key: `${APP_RATE_LIMIT_KEY_PREFIX}bluesky-notification-attempt:${digest}`,
+    keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+    limit: BLUESKY_NOTIFICATION_ATTEMPTS.limit - 1,
+    windowMs: BLUESKY_NOTIFICATION_ATTEMPTS.windowMs
+  })
+  return !attempt.allowed
+}
+
 export const syncBlueskyNotifications = async (
   database: Database,
   actor: Actor,
@@ -531,13 +560,20 @@ export const syncBlueskyNotifications = async (
           }
         } catch (error) {
           if (error instanceof BlueskySessionChangedError) throw error
-          // A Bluesky read that failed is retried next run (the watermark stays
-          // before it); anything else is about this one notification, so it is
-          // skipped rather than blocking every later one.
-          if (error instanceof BlueskyRequestError) {
+          // A failure may be passing (a dropped connection) or about this one
+          // notification (a record that can never be stored): stop before the
+          // watermark so it is retried, but give up on it after a few tries so
+          // it cannot block every later one.
+          if (
+            !(await notificationGivenUp(
+              database,
+              actor,
+              `${candidate.reason}:${candidate.authorDid}:${candidate.postUri}`
+            ))
+          ) {
             logger.warn({
               message:
-                'Could not read a Bluesky notification; stopping before advancing seenAt',
+                'Could not store a Bluesky notification; retrying it next sync',
               actorId: actor.id,
               uri: candidate.postUri,
               err: toLoggableError(error)
