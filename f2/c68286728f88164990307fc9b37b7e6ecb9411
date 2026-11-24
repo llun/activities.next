@@ -1,0 +1,39 @@
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.test.ts
+  s_f193227df3df34::t_bd72d9bfdf6697 157-184
+lib/actions/deleteStatus.test.ts
+  s_f193227df3df34::t_2ba0b7264310ba 609-610
+lib/actions/updateNoteVisibility.test.ts
+  s_f193227df3df34::t_105e0df9e75f1d 194-234
+lib/actions/updateNoteVisibility.ts
+  s_f193227df3df34::t_96bb221946dc8a 32-38,44-46,51
+lib/database/domains/bluesky/bluesky.test.ts
+  s_f193227df3df34::t_0a23cff25cd056 738-741,762,764-773,780-787,797-858,861,878,884,909-933,936,938-950
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_c6fff8f229e0f2 43-46,652-689,698,711,715-717,731,747-748,751-753,776-777
+lib/database/domains/bluesky/types.ts
+  s_f193227df3df34::t_369ca765399ad0 66,183-196,207-210,212-217
+lib/database/domains/status/hydration.ts
+  s_f193227df3df34::t_73bf1590339163 708-710,712-713,745-749
+lib/database/domains/status/statusReadQueries.test.ts
+  s_f193227df3df34::t_84236ff38f0a1e 3443,3446,3450,3454-3466,3472,3477-3481,3485-3490,3494,3496,3499,3505,3507,3510,3515-3536
+lib/services/bluesky/crosspost.test.ts
+  s_f193227df3df34::t_4be142d5038aad 606,617-623,676-769,908,910-916,926-934,937,939-940,943,945,1127,1136-1149
+lib/services/bluesky/crosspost.ts
+  s_f193227df3df34::t_a8a4c405bcc47d 6-7,82-87,142-147,410,442,447-449,451,495-503,563-565,575-578,581-590,630-631
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f2c68286728f88164990307fc9b37b7e6ecb9411",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
