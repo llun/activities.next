@@ -659,6 +659,37 @@ describe('client statuses module', () => {
       })
     })
 
+    it('marks a reply composed on a boost of a Bluesky post as a Bluesky post', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-6',
+          text: 'Reply on Bluesky',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+      const boost = {
+        id: 'https://llun.test/users/test1/statuses/boost-1',
+        type: 'Announce',
+        originalStatus: {
+          id: 'https://bsky.app/profile/did:plc:alice123/post/3k1',
+          type: 'Note',
+          network: 'bluesky'
+        }
+      } as unknown as Status
+
+      const result = await createNote({
+        message: 'Reply on Bluesky',
+        replyStatus: boost
+      })
+
+      expect(result.status).toMatchObject({
+        network: 'bluesky',
+        isLocalActor: false
+      })
+    })
+
     it('keeps a note created as a reply to a fediverse post local', async () => {
       fetchMock.mockResponse(
         JSON.stringify({

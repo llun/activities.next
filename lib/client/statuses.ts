@@ -10,7 +10,8 @@ import {
   StatusLinkPreview,
   StatusNote,
   StatusType,
-  getOriginalStatus
+  getOriginalStatus,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
@@ -357,8 +358,10 @@ const toCreatedNoteResult = (
       : (params.contentWarning ?? '')
   const linkPreview = toStatusLinkPreviewFromCard(mastodonStatus.card)
 
-  // The reply target is the original post the composer was opened on.
-  const replyIsBluesky = params.replyStatus?.network === 'bluesky'
+  // The reply target may be a boost of the Bluesky post.
+  const replyIsBluesky = Boolean(
+    params.replyStatus && isBlueskyStatus(params.replyStatus)
+  )
   const status: StatusNote = {
     id: statusId,
     publicId,
