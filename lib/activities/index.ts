@@ -57,6 +57,7 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_URL
 } from '@/lib/utils/activitystream'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
@@ -131,45 +132,48 @@ export const getNote = async ({
   statusId,
   signingActor
 }: GetNoteParams): Promise<BaseNote | null> =>
-  withSpan('activity', 'getNote', { statusId }, async (span) => {
-    try {
-      const response = await signedActivityPubRequest({
-        actor: signingActor,
-        method: 'GET',
-        url: statusId,
-        // Callers authenticate the note by the origin it was fetched from:
-        // the paths that store it check its `id` against `statusId`, and its
-        // `attributedTo` against that id's origin (the boost, relay and
-        // forward paths do the latter once, in
-        // `dispatchCreateNoteOrPollJob`). A hop onto another host would let
-        // that host answer for this one, so an open redirect on the claimed
-        // origin must not be followed.
-        requestOptions: { allowCrossHostRedirects: false }
-      })
-      if (!isActivityPubDocumentResponse(response, statusId)) return null
-      // Canonicalise the fetched note via JSON-LD compaction so every caller
-      // (including boosted-note resolution) gets a predictable shape.
-      return compactActivityPub(JSON.parse(response.body))
-    } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException
-      if (nodeError.code === 'ETIMEDOUT') {
-        span.setAttribute('timeout', true)
-        return null
-      }
-      if (nodeError.code === 'ERR_CROSS_HOST_REDIRECT') {
-        span.setAttribute('crossHostRedirect', true)
-        logger.warn({
-          message: 'Refusing a note fetch that redirects to another host',
-          statusId
-        })
-        return null
-      }
+  isBlueskyId(statusId)
+    ? // Bluesky posts are never ActivityPub notes: no request.
+      null
+    : withSpan('activity', 'getNote', { statusId }, async (span) => {
+        try {
+          const response = await signedActivityPubRequest({
+            actor: signingActor,
+            method: 'GET',
+            url: statusId,
+            // Callers authenticate the note by the origin it was fetched from:
+            // the paths that store it check its `id` against `statusId`, and its
+            // `attributedTo` against that id's origin (the boost, relay and
+            // forward paths do the latter once, in
+            // `dispatchCreateNoteOrPollJob`). A hop onto another host would let
+            // that host answer for this one, so an open redirect on the claimed
+            // origin must not be followed.
+            requestOptions: { allowCrossHostRedirects: false }
+          })
+          if (!isActivityPubDocumentResponse(response, statusId)) return null
+          // Canonicalise the fetched note via JSON-LD compaction so every caller
+          // (including boosted-note resolution) gets a predictable shape.
+          return compactActivityPub(JSON.parse(response.body))
+        } catch (error) {
+          const nodeError = error as NodeJS.ErrnoException
+          if (nodeError.code === 'ETIMEDOUT') {
+            span.setAttribute('timeout', true)
+            return null
+          }
+          if (nodeError.code === 'ERR_CROSS_HOST_REDIRECT') {
+            span.setAttribute('crossHostRedirect', true)
+            logger.warn({
+              message: 'Refusing a note fetch that redirects to another host',
+              statusId
+            })
+            return null
+          }
 
-      span.recordException(nodeError)
-      logger.error(`[getNote] ${nodeError.message}`)
-      return null
-    }
-  })
+          span.recordException(nodeError)
+          logger.error(`[getNote] ${nodeError.message}`)
+          return null
+        }
+      })
 
 interface SendNoteParams {
   currentActor: Actor

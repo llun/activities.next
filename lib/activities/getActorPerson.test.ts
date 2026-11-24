@@ -450,4 +450,12 @@ describe('getActorPerson', () => {
       expect(canFederateWithDomain).not.toHaveBeenCalled()
     })
   })
+
+  it('refuses a Bluesky id without any request', async () => {
+    fetchMock.resetMocks()
+    await expect(
+      getActorPerson({ actorId: 'https://bsky.app/profile/did:plc:abc' })
+    ).resolves.toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

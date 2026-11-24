@@ -42,6 +42,22 @@ describe('enqueueDeliveries', () => {
     harness.cleanup()
   })
 
+  it('never queues a delivery to an empty inbox or a Bluesky actor', async () => {
+    await enqueueDeliveries({
+      database: mockDatabase,
+      parentMessageId: 'msg-bsky',
+      actorId: 'https://local.test/users/alice',
+      activity: {},
+      inboxes: [
+        '',
+        'https://bsky.app/profile/did:plc:abc',
+        'https://bsky.app/profile/did:plc:abc/inbox'
+      ]
+    })
+
+    expect(publish).not.toHaveBeenCalled()
+  })
+
   it('deduplicates inboxes, drops unavailable inboxes, and records skipped count on the span', async () => {
     getUnavailableInboxes.mockResolvedValue([
       'https://DEAD.example/users/test1/inbox',

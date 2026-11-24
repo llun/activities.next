@@ -589,6 +589,15 @@ export const deleteActorData = async (
       .deleteFrom('bluesky_accounts')
       .where('actorId', '=', actorId)
       .execute()
+    // and the Bluesky follows it made or received
+    await trx
+      .deleteFrom('bluesky_follows')
+      .where('actorId', '=', actorId)
+      .execute()
+    await trx
+      .deleteFrom('bluesky_follows')
+      .where('targetActorId', '=', actorId)
+      .execute()
 
     // Delete this actor's idempotency keys (they hold a hash of each post body)
     await trx

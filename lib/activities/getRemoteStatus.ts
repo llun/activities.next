@@ -10,6 +10,7 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -97,6 +98,7 @@ export const getRemoteStatus = async ({
   statusId,
   signingActor
 }: GetRemoteStatusParams): Promise<StatusNote | null> => {
+  if (isBlueskyId(statusId)) return null // never an ActivityPub note
   let remoteNote: Awaited<ReturnType<typeof getNote>>
   try {
     remoteNote = await getNote({ statusId, signingActor })

@@ -7,6 +7,7 @@ import {
   ACTIVITY_STREAM_PUBLIC,
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { mapWithConcurrency } from '@/lib/utils/mapWithConcurrency'
 
 import { filterFederatedUrls } from './domainPolicy'
@@ -61,7 +62,8 @@ const getRemoteActorInboxForMissingActor = async ({
   currentActor: Actor
   signingActor?: Actor
 }) => {
-  if (isSameOriginActorId(actorId, currentActor)) return null
+  if (isSameOriginActorId(actorId, currentActor) || isBlueskyId(actorId))
+    return null
 
   // Signed so authorized-fetch servers (GoToSocial, Mastodon secure mode)
   // answer the lookup of an account we have never stored.
@@ -83,7 +85,8 @@ const getRemoteActorInboxes = async ({
   const actors = await database.getActorsFromIds({ ids: actorIds })
   const actorById = new Map(actors.map((actor) => [actor.id, actor]))
   const cachedInboxes = actors
-    .filter((actor) => !actor.privateKey)
+    // Bluesky actors have no ActivityPub inbox.
+    .filter((actor) => !actor.privateKey && !isBlueskyId(actor.id))
     .map((actor) => actor.sharedInboxUrl || actor.inboxUrl)
   // Policy before the fetch: a blocked or non-allowlisted host must not get
   // an instance-signed request, not only be dropped from the inbox list.

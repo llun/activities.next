@@ -18,6 +18,12 @@ describe('getWebfingerDocument', () => {
     mockRequests(fetchMock)
   })
 
+  it('does not send a WebFinger request for a bsky.app account', async () => {
+    fetchMock.mockClear()
+    expect(await getWebfingerDocument({ account: 'alice@bsky.app' })).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('returns the whole document including links', async () => {
     const document = await getWebfingerDocument({ account: 'test1@llun.test' })
 

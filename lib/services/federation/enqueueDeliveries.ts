@@ -3,6 +3,7 @@ import type { Span } from '@opentelemetry/api'
 import type { Database } from '@/lib/database/types'
 import { DELIVER_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -64,7 +65,10 @@ export const enqueueDeliveries = async ({
   span,
   statusId
 }: EnqueueDeliveriesParams): Promise<void> => {
-  const uniqueInboxes = Array.from(new Set(inboxes))
+  // Never deliver to an empty inbox or a Bluesky actor (not ActivityPub).
+  const uniqueInboxes = Array.from(new Set(inboxes)).filter(
+    (inbox) => !!inbox && !isBlueskyId(inbox)
+  )
 
   let unavailableInboxes = new Set<string>()
   if (uniqueInboxes.length > 0) {

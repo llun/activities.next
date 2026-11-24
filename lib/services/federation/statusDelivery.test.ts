@@ -244,6 +244,26 @@ describe('getFederatedStatusDeliveryInboxes', () => {
     expect(inboxes).toEqual([`${unknownId}/inbox`])
   })
 
+  it('never looks up or delivers to a Bluesky recipient', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const stored = makeActor('https://bsky.app/profile/did:plc:abc')
+    const missing = 'https://bsky.app/profile/did:plc:def'
+    const database = makeDatabase({
+      getActorsFromIds: vi.fn().mockResolvedValue([stored])
+    })
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({ to: [stored.id, missing] })
+    })
+
+    expect(getActorPerson).not.toHaveBeenCalled()
+    expect(inboxes).toEqual([])
+  })
+
   it('does not look up a never-seen recipient on a suspended domain', async () => {
     const currentActor = makeActor('https://local.test/users/alice', {
       privateKey: 'private-key'

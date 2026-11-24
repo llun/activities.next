@@ -250,4 +250,14 @@ describe('getRemoteStatus', () => {
       text: 'Hello from bridgy fed without cc'
     })
   })
+
+  it('refuses a Bluesky id without any request', async () => {
+    fetchMock.resetMocks()
+    expect(
+      await getRemoteStatus({
+        statusId: 'https://bsky.app/profile/did:plc:abc/post/3k44'
+      })
+    ).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

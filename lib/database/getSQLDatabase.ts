@@ -13,6 +13,7 @@ import { actorMigrationQueries } from '@/lib/database/domains/actorMigration/que
 import { adminQueries } from '@/lib/database/domains/admin/queries'
 import { announcementQueries } from '@/lib/database/domains/announcement/queries'
 import { blockQueries } from '@/lib/database/domains/block/queries'
+import { blueskyQueries } from '@/lib/database/domains/bluesky/queries'
 import { blueskyAccountQueries } from '@/lib/database/domains/blueskyAccount/queries'
 import { bookmarkQueries } from '@/lib/database/domains/bookmark/queries'
 import { bulkImportQueries } from '@/lib/database/domains/bulkImport/queries'
@@ -143,6 +144,7 @@ export const getSQLDatabase = (
     ...bindDb(kysely, galleryAlbumQueries),
     ...bindDb(kysely, importLockQueries),
     ...bindDb(kysely, blueskyAccountQueries),
+    ...bindDb(kysely, blueskyQueries),
     ...bindDb(kysely, linkPreviewQueries),
     ...bindDb(kysely, instanceActivityQueries),
     ...bindDb(kysely, instanceRuleQueries),

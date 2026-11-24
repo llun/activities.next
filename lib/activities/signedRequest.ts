@@ -8,6 +8,7 @@ import type { Database } from '@/lib/database/types'
 import { normalizeActorHost } from '@/lib/services/federation/domainRules'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Actor } from '@/lib/types/domain/actor'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
 import { signHttpMessage } from '@/lib/utils/httpMessageSignature'
 import { logger } from '@/lib/utils/logger'
@@ -423,6 +424,9 @@ export const signedActivityPubRequest = async ({
   requestOptions,
   url
 }: SignedActivityPubRequestOptions): Promise<RequestResult> => {
+  // Bluesky ids are not ActivityPub endpoints: never sign for or contact them.
+  if (isBlueskyId(url))
+    throw new Error('Refused ActivityPub request to a Bluesky id')
   const rawUrlHost = new URL(url).host
   const initialHost = normalizeComparableHost(rawUrlHost)
   const hostKey = normalizeHostKey(rawUrlHost)
