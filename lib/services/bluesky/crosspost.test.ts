@@ -1087,11 +1087,29 @@ describe('Bluesky cross-post', () => {
       })
     })
 
-    it('never retries createRecord and deletes the orphan when the record cannot be recorded', async () => {
+    it('never retries createRecord and deletes the orphan before marking failed when the record cannot be recorded', async () => {
       const status = await claim(await createNote({ text: 'Unrecorded' }))
       const expectedRkey = deterministicTid(status.createdAt, status.id)
+      const order: string[] = []
+      let stateDuringDelete: string | undefined
       answerCreate('3kunrecorded')
-      post.mockResolvedValueOnce({}) // deleteRecord
+      post.mockImplementationOnce(async (nsid) => {
+        if (nsid === 'com.atproto.repo.deleteRecord') {
+          order.push('deleteRecord')
+          stateDuringDelete = (
+            await database.getBlueskyCrosspost({ statusId: status.id })
+          )?.state
+        }
+        return {}
+      })
+      const originalMarkFailed =
+        database.markBlueskyCrosspostFailed.bind(database)
+      const markFailedSpy = vi
+        .spyOn(database, 'markBlueskyCrosspostFailed')
+        .mockImplementation(async (params) => {
+          order.push('markBlueskyCrosspostFailed')
+          return originalMarkFailed(params)
+        })
       const spy = vi
         .spyOn(database, 'markBlueskyCrosspostPosted')
         .mockRejectedValue(new Error('db write failed'))
@@ -1099,6 +1117,7 @@ describe('Bluesky cross-post', () => {
         await crosspostStatus(database, status.id)
       } finally {
         spy.mockRestore()
+        markFailedSpy.mockRestore()
       }
 
       expect(
@@ -1111,6 +1130,8 @@ describe('Bluesky cross-post', () => {
         collection: 'app.bsky.feed.post',
         rkey: expectedRkey
       })
+      expect(stateDuringDelete).toBe('posting')
+      expect(order).toEqual(['deleteRecord', 'markBlueskyCrosspostFailed'])
       await expect(
         database.getBlueskyCrosspost({ statusId: status.id })
       ).resolves.toMatchObject({
@@ -1517,14 +1538,6 @@ describe('Bluesky cross-post', () => {
           text: status.text,
           createdAt: new Date(status.createdAt - 60_000).toISOString()
         })
-      },
-      {
-        name: 'mismatched text',
-        buildValue: (status: StatusNote) => ({
-          $type: 'app.bsky.feed.post',
-          text: 'A completely different Bluesky post',
-          createdAt: new Date(status.createdAt).toISOString()
-        })
       }
     ])(
       'refuses to adopt or delete a colliding foreign record on getRecord recovery ($name)',
@@ -1563,6 +1576,45 @@ describe('Bluesky cross-post', () => {
         })
       }
     )
+
+    it('adopts a recovered record with our createdAt even when the local text changed', async () => {
+      const status = await claim(
+        await createNote({ text: 'Edited local status text' })
+      )
+      const expectedRkey = deterministicTid(status.createdAt, status.id)
+      post.mockRejectedValueOnce(
+        new BlueskyRequestError(
+          'com.atproto.repo.createRecord',
+          400,
+          'RecordAlreadyExists'
+        )
+      )
+      get.mockImplementationOnce(async (_nsid, params) => ({
+        uri: postUri(params.rkey),
+        cid: cid('e'),
+        value: {
+          $type: 'app.bsky.feed.post',
+          text: 'Original text posted before edit',
+          createdAt: new Date(status.createdAt).toISOString()
+        }
+      }))
+
+      await crosspostStatus(database, status.id)
+
+      expect(
+        post.mock.calls.filter(
+          ([nsid]) => nsid === 'com.atproto.repo.deleteRecord'
+        )
+      ).toHaveLength(0)
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'posted',
+        uri: postUri(expectedRkey),
+        cid: cid('e'),
+        error: null
+      })
+    })
 
     it('rejects a fresh createRecord answer whose rkey does not match the requested TID', async () => {
       const status = await claim(await createNote({ text: 'Mismatched rkey' }))
@@ -1635,6 +1687,65 @@ describe('Bluesky cross-post', () => {
       await expect(
         database.getBlueskyCrosspost({ statusId: status.id })
       ).resolves.toMatchObject({ state: 'posting', uri: null, error: null })
+    })
+
+    it('deletes the record when a fenced attempt finishes after the row is failed', async () => {
+      const status = await claim(
+        await createNote({ text: 'Fenced after failed' })
+      )
+      const expectedRkey = deterministicTid(status.createdAt, status.id)
+      let resolveAttempt1!: (value: { uri: string; cid: string }) => void
+      let attempt1Entered!: () => void
+      const entered = new Promise<void>((resolve) => {
+        attempt1Entered = resolve
+      })
+      post.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveAttempt1 = resolve
+            attempt1Entered()
+          })
+      )
+      post.mockResolvedValueOnce({}) // deleteRecord
+
+      const attempt1 = crosspostStatus(database, status.id)
+      await entered
+
+      // Make attempt 1 stale, let attempt 2 take over and fail with uri still null.
+      await testDb.db
+        .updateTable('fitness_import_locks')
+        .set({ expiresAt: Date.now() - 1_000 })
+        .execute()
+      await testDb.db
+        .updateTable('bluesky_crossposts')
+        .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+        .where('statusId', '=', status.id)
+        .execute()
+
+      const attempt2Token = await database.beginBlueskyCrosspostAttempt({
+        statusId: status.id
+      })
+      await database.markBlueskyCrosspostFailed({
+        statusId: status.id,
+        attemptId: attempt2Token!,
+        error: BLUESKY_CROSSPOST_FAILED_MESSAGE
+      })
+
+      resolveAttempt1({ uri: postUri(expectedRkey), cid: cid('a') })
+      await attempt1
+
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey: expectedRkey
+      })
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        uri: null,
+        error: BLUESKY_CROSSPOST_FAILED_MESSAGE
+      })
     })
 
     it.each([
