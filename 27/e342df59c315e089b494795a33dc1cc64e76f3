@@ -1,0 +1,48 @@
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.test.ts
+  h_580a04e334fef4 133-157
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.ts
+  h_580a04e334fef4 8,10,43-60
+app/api/v1/statuses/[id]/route.ts
+  h_580a04e334fef4 356-363,366,748-755,758
+app/api/v1/statuses/route.test.ts
+  h_580a04e334fef4 2042-2110
+app/api/v1/statuses/route.ts
+  h_580a04e334fef4 825-833,836
+lib/actions/updateNoteVisibility.test.ts
+  h_580a04e334fef4 5-8,161-231
+lib/actions/updateNoteVisibility.ts
+  h_580a04e334fef4 6-9,18-20,32-65,131-150
+lib/components/post-box/post-box.crosspost.test.tsx
+  h_580a04e334fef4 173,187-228,253,289,340-375
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 306-311,515-517,1359-1361,1542-1544,2388-2398,2400-2402
+lib/database/domains/status/statusReadableSql.test.ts
+  h_580a04e334fef4 371-448
+lib/database/kysely/visibility/actorVisible.test.ts
+  h_580a04e334fef4 159-161,389-390
+lib/database/kysely/visibility/actorVisible.ts
+  h_580a04e334fef4 71-72
+lib/database/kysely/visibility/publiclyReadable.test.ts
+  h_580a04e334fef4 212-214,316-320,359
+lib/database/kysely/visibility/publiclyReadable.ts
+  h_580a04e334fef4 94-96,126-130,182-183
+lib/services/bluesky/sync.test.ts
+  h_580a04e334fef4 92-101,494-561
+lib/services/bluesky/sync.ts
+  h_580a04e334fef4 107-111,221-226
+lib/utils/blueskyText.test.ts
+  h_580a04e334fef4 94-105
+lib/utils/blueskyText.ts
+  h_580a04e334fef4 87-94,96-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "27e342df59c315e089b494795a33dc1cc64e76f3",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
