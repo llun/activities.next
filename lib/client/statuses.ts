@@ -357,6 +357,8 @@ const toCreatedNoteResult = (
       : (params.contentWarning ?? '')
   const linkPreview = toStatusLinkPreviewFromCard(mastodonStatus.card)
 
+  // The reply target is the original post the composer was opened on.
+  const replyIsBluesky = params.replyStatus?.network === 'bluesky'
   const status: StatusNote = {
     id: statusId,
     publicId,
@@ -386,7 +388,9 @@ const toCreatedNoteResult = (
     actorAnnounceStatusId: null,
     isActorLiked: Boolean(mastodonStatus.favourited),
     isActorBookmarked: Boolean(mastodonStatus.bookmarked),
-    isLocalActor: true,
+    // A reply to a Bluesky post is the linked account's Bluesky post.
+    isLocalActor: !replyIsBluesky,
+    ...(replyIsBluesky ? { network: 'bluesky' as const } : {}),
     totalLikes: mastodonStatus.favourites_count ?? 0,
     totalShares: mastodonStatus.reblogs_count ?? 0,
     reactions:

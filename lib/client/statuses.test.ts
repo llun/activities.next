@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { ApiRequestError } from '@/lib/client/http'
 import { EXPECTED_ACTOR_HEADER } from '@/lib/services/statuses/expectedActor'
+import type { Status } from '@/lib/types/domain/status'
 import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -628,6 +629,58 @@ describe('client statuses module', () => {
       expect(
         JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)
       ).toMatchObject({ in_reply_to_id: 'fallback-reply' })
+    })
+
+    it('marks a note created as a reply to a Bluesky post as a Bluesky post', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-5',
+          text: 'Reply on Bluesky',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+      const blueskyReplyTo = {
+        id: 'https://bsky.app/profile/did:plc:alice123/post/3k1',
+        type: 'Note',
+        network: 'bluesky'
+      } as Status
+
+      const result = await createNote({
+        message: 'Reply on Bluesky',
+        replyStatus: blueskyReplyTo
+      })
+
+      expect(result.status).toMatchObject({
+        network: 'bluesky',
+        isLocalActor: false,
+        reply: blueskyReplyTo.id
+      })
+    })
+
+    it('keeps a note created as a reply to a fediverse post local', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          id: 'status-public-id',
+          uri: 'https://llun.test/users/test1/statuses/post-6',
+          text: 'Reply on the fediverse',
+          created_at: '2026-04-26T10:00:00.000Z',
+          media_attachments: []
+        })
+      )
+      const fediverseReplyTo = {
+        id: 'https://llun.test/users/test1/statuses/parent',
+        type: 'Note'
+      } as Status
+
+      const result = await createNote({
+        message: 'Reply on the fediverse',
+        replyStatus: fediverseReplyTo
+      })
+
+      expect(result.status.isLocalActor).toBe(true)
+      expect(result.status.network).toBeUndefined()
     })
 
     it('creates a note from a fitness file alone and sends fitness_file_id', async () => {

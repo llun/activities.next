@@ -767,6 +767,66 @@ describe('storing AppView views', () => {
     expect(await database.getStatusRepliesCount({ statusId })).toBe(5)
   })
 
+  it('keeps the AppView reply count when replies to a Bluesky post are stored and deleted', async () => {
+    const REPLIER = `did:plc:${'r'.repeat(24)}`
+    const root = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/root-replies`,
+      cid: 'cid-root-replies',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Root post',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      replyCount: 2
+    })
+    expect(root).not.toBeNull()
+    const rootStatusId = (await storeBlueskyPostView(
+      database,
+      root as NonNullable<typeof root>
+    )) as string
+    expect(
+      await database.getStatusRepliesCount({ statusId: rootStatusId })
+    ).toBe(2)
+
+    const replyStatusIds: string[] = []
+    for (const rkey of ['reply-a', 'reply-b']) {
+      const reply = parseBlueskyPostView({
+        uri: `at://${REPLIER}/app.bsky.feed.post/${rkey}`,
+        cid: `cid-${rkey}`,
+        author: { did: REPLIER, handle: 'replier.bsky.social' },
+        record: {
+          $type: 'app.bsky.feed.post',
+          text: `Reply ${rkey}`,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          reply: {
+            root: { uri: `at://${ALICE}/app.bsky.feed.post/root-replies` },
+            parent: { uri: `at://${ALICE}/app.bsky.feed.post/root-replies` }
+          }
+        }
+      })
+      expect(reply).not.toBeNull()
+      replyStatusIds.push(
+        (await storeBlueskyPostView(
+          database,
+          reply as NonNullable<typeof reply>
+        )) as string
+      )
+    }
+
+    // Storing a reply does not move the parent's AppView-owned count.
+    expect(
+      await database.getStatusRepliesCount({ statusId: rootStatusId })
+    ).toBe(2)
+
+    await database.deleteStatus({ statusId: replyStatusIds[0] })
+
+    // Deleting one does not move it either.
+    expect(
+      await database.getStatusRepliesCount({ statusId: rootStatusId })
+    ).toBe(2)
+  })
+
   it('links a reply parent only when the parent URI collection is app.bsky.feed.post', async () => {
     const BOB = `did:plc:${'b'.repeat(24)}`
     const nonPostParent = parseBlueskyPostView({
