@@ -1,0 +1,21 @@
+lib/services/bluesky/crosspostText.test.ts
+  s_4fb28ab57323fe::t_22e22f84a25d0a 323-332,338-360
+lib/services/bluesky/crosspostText.ts
+  s_4fb28ab57323fe::t_33267064810b96 229-232,251-270,272-274,277-283,287-295,297,362-380,460-475,488,494-495,524-527
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "67cd7ae05c40feb89687820958f875b700e4257a",
+  "prompts": {},
+  "sessions": {
+    "s_4fb28ab57323fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "143ac5cb-61e1-4174-a644-dcb4b80dc66b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
