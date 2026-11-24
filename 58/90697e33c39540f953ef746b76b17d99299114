@@ -1,0 +1,65 @@
+.env.example
+  s_f193227df3df34::t_d2fbb5ba9b7058 262-265
+docs/environment-variables.md
+  s_f193227df3df34::t_95f3799a6a2f4f 518-521
+lib/config/__mocks__/index.ts
+  s_f193227df3df34::t_e2b9c826200aba 11-13,32-50
+lib/config/blueskyPds.test.ts
+  s_f193227df3df34::t_b4d0b94519461c 1-282
+lib/config/blueskyPds.ts
+  s_f193227df3df34::t_9ebb03f9ad3b9c 1-225
+lib/config/index.ts
+  s_f193227df3df34::t_40a893e036af1f 13-19,87,178,251-266
+lib/database/domains/actor/actorDeletionQueries.test.ts
+  s_f193227df3df34::t_e45b2d246b181a 1380-1381
+lib/database/domains/actor/deletion.ts
+  s_f193227df3df34::t_0b2fd797903483 606-632
+lib/database/domains/pds/pds.test.ts
+  s_f193227df3df34::t_e239a47e233b45 1-704
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_e43789f9c6b801 1-726
+lib/database/domains/pds/types.ts
+  s_f193227df3df34::t_085fb9f8c0e4bd 1-251
+lib/database/getSQLDatabase.ts
+  s_f193227df3df34::t_6a9cf6497cdf1c 53,149
+lib/database/kysely/db.ts
+  s_f193227df3df34::t_bba238422b57bf 1232-1283,1750-1755
+lib/database/types.ts
+  s_f193227df3df34::t_b200c2af20a443 27,110
+lib/utils/secretBox.test.ts
+  s_f193227df3df34::t_afeac61ce284af 1-129
+lib/utils/secretBox.ts
+  s_f193227df3df34::t_7c058c9688db4d 1-127
+migrations/20261124234607_add_bluesky_pds.ts
+  s_f193227df3df34::t_df0a98b67d9976 1-168
+migrations/index.ts
+  s_f193227df3df34::t_8775a80ba249df 33,74-75
+migrations/names.ts
+  s_f193227df3df34::t_24f9266761a1d5 33-34
+migrations/schema.sql
+  s_f193227df3df34::t_7aa98b76a12c17 1282-1342,1777-1778,2188-2208,2574-2585
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_93dbedf1f0f414 371-382
+package.json
+  s_f193227df3df34::t_789eda3b52b9cd 59,61
+test/next.config.test.ts
+  s_f193227df3df34::t_d053f814e1f4de 23,186-223
+yarn.lock
+  s_f193227df3df34::t_54f5005e55c953 178-201,242-252,351-366,1733-1748,4013,4015,4525-4533,6643,7891-7899,7989-7995
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5890697e33c39540f953ef746b76b17d99299114",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
