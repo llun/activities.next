@@ -80,4 +80,35 @@ describe('add_bluesky_interactions migration', () => {
         ?.columns.some((column) => column.name === 'notificationsSeenAt')
     ).toBe(true)
   })
+
+  it('backfills notificationsSeenAt for accounts that existed before up()', async () => {
+    await blueskyInteractionsMigration.down(db)
+
+    const actorId = 'https://example.test/users/pre-migration'
+    await db
+      .insertInto('bluesky_accounts')
+      .values({
+        actorId,
+        did: 'did:plc:premigrationaccount1234',
+        handle: 'premigration.bsky.social',
+        pdsUrl: 'https://bsky.social',
+        authType: 'oauth',
+        domainHandle: false
+      })
+      .execute()
+
+    await blueskyInteractionsMigration.up(db)
+
+    const row = await db
+      .selectFrom('bluesky_accounts')
+      .select('notificationsSeenAt')
+      .where('actorId', '=', actorId)
+      .executeTakeFirst()
+    expect(row?.notificationsSeenAt).not.toBeNull()
+    expect(row?.notificationsSeenAt).toBeDefined()
+
+    const account = await database.getBlueskyAccount({ actorId })
+    expect(account?.notificationsSeenAt).not.toBeNull()
+    expect(typeof account?.notificationsSeenAt).toBe('number')
+  })
 })

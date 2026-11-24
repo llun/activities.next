@@ -698,14 +698,13 @@ export const StatusReplyBox: FC<Props> = ({
       if (
         isBlueskyReply &&
         error instanceof ApiRequestError &&
-        error.status === 503
+        error.status === 503 &&
+        error.message === BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
       ) {
-        const postedMessage =
-          error.message || BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
-        setLockedMessage(postedMessage)
+        setLockedMessage(BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE)
         setWarningMsg(null)
         void composerDraft.recordLock(
-          postedMessage,
+          BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
           submitIdempotencyRef.current
         )
         return
@@ -714,7 +713,8 @@ export const StatusReplyBox: FC<Props> = ({
       const { action, message: failureMessage } = classifyFailedPost(error, {
         retryingLocked: retryingLockedDraft,
         fallbackMessage: 'Fail to create a reply',
-        wayOut: 'cancel the reply'
+        wayOut: 'cancel the reply',
+        ...(isBlueskyReply ? { kept: false } : {})
       })
       if (action === 'lock') {
         setLockedMessage(failureMessage)

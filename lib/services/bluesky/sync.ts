@@ -224,6 +224,9 @@ const runSync = async (database: Database, actor: Actor) => {
         })
         return
       }
+      if (error instanceof BlueskySessionEndedError) {
+        throw error
+      }
       const syncError =
         'Bluesky notifications could not be read. Trying again in a few minutes.'
       logger.warn({

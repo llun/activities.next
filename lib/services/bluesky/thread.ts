@@ -58,6 +58,7 @@ export const loadBlueskyThread = async (
     const at = parseAtUri(record.uri)
     if (!at || at.collection !== POST_COLLECTION) return
     if (!(await hasLinkedAccount(database, viewer))) return
+    if (!(await claimAppViewRead(database, 'thread', statusId))) return
     const viewerDigest = crypto
       .createHash('sha256')
       .update(viewer.id)
@@ -68,7 +69,6 @@ export const loadBlueskyThread = async (
       ...BLUESKY_THREAD_VIEWER_RATE_LIMIT
     })
     if (!viewerBudget.allowed) return
-    if (!(await claimAppViewRead(database, 'thread', statusId))) return
 
     const response = await getPublicPostThread(record.uri, {
       depth: THREAD_DEPTH,

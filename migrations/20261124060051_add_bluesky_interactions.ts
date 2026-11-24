@@ -43,6 +43,13 @@ export const up = async (db: Kysely<any>): Promise<void> => {
       .alterTable('bluesky_accounts')
       .addColumn('notificationsSeenAt', timestampType)
       .execute()
+    // Backfill accounts linked before this migration so their first sync does
+    // not replay every historical notification with push/email alerts.
+    await db
+      .updateTable('bluesky_accounts')
+      .set({ notificationsSeenAt: sql`CURRENT_TIMESTAMP` })
+      .where('notificationsSeenAt', 'is', null)
+      .execute()
   }
 }
 

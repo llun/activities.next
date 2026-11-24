@@ -536,13 +536,11 @@ return {
       expect(await response!.text()).toBe('<h1>Bluesky Feed</h1>')
       expect(mockFetch).toHaveBeenCalledWith(req)
 
-      // When offline, does not serve the mixed Home shell for a filtered URL.
+      // When offline with an active session and seeded shell, falls back to the cached shell.
       mockFetch.mockRejectedValueOnce(new TypeError('offline'))
       const offlineRes = (await triggerFetch(req)).response
       expect(offlineRes).not.toBeNull()
-      expect(await offlineRes!.text()).toContain(
-        '<h1>Not saved for offline</h1>'
-      )
+      expect(await offlineRes!.text()).toBe('<h1>Signed-in Shell</h1>')
     })
 
     it('goes to network for GET / when no active offline session exists, falling back to cache on failure', async () => {
@@ -666,6 +664,16 @@ return {
         mockFetch.mockRejectedValue(new TypeError('offline'))
         stubSession()
         await expectOfflinePage((await navigate('/drafts')).response)
+      })
+
+      it('serves the offline page for /?network=bluesky without a session or without a shell', async () => {
+        mockFetch.mockRejectedValue(new TypeError('offline'))
+        await seedShell()
+        await expectOfflinePage((await navigate('/?network=bluesky')).response)
+
+        cacheStore.clear()
+        stubSession()
+        await expectOfflinePage((await navigate('/?network=bluesky')).response)
       })
 
       it.each([

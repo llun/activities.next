@@ -1559,14 +1559,13 @@ export const PostBox: FC<Props> = ({
       if (
         isBlueskyReply &&
         error instanceof ApiRequestError &&
-        error.status === 503
+        error.status === 503 &&
+        error.message === BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
       ) {
-        const postedMessage =
-          error.message || BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE
-        setLockedMessage(postedMessage)
+        setLockedMessage(BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE)
         setAllowPost(false)
         void composerDraft.recordLock(
-          postedMessage,
+          BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
           submitIdempotencyRef.current
         )
         return
@@ -1576,7 +1575,9 @@ export const PostBox: FC<Props> = ({
         ? 'Fail to update the post'
         : 'Fail to create a post'
       // The server keeps the post (and the media it uses) only on create.
-      const keptByServer = !editStatus && isPostKeptByServer(error)
+      // Bluesky replies are not kept server-side for idempotent replay.
+      const keptByServer =
+        !editStatus && !isBlueskyReply && isPostKeptByServer(error)
       if (keptByServer) {
         markAttachmentsPosted(createAttempt)
         if (createFitnessFileId) {

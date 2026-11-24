@@ -675,4 +675,19 @@ describe('syncBlueskyHome', () => {
     expect(updateSpy).not.toHaveBeenCalled()
     expect((await account())?.syncError).toBeNull()
   })
+
+  it('records the session-ended message when notification sync throws BlueskySessionEndedError', async () => {
+    const previousLastSyncedAt = (await account())?.lastSyncedAt
+    get.mockResolvedValueOnce({ feed: [] })
+    vi.mocked(syncBlueskyNotifications).mockRejectedValueOnce(
+      new BlueskySessionEndedError()
+    )
+
+    await expect(syncBlueskyHome(database, actor)).resolves.toBeUndefined()
+
+    expect(await account()).toMatchObject({
+      lastSyncedAt: previousLastSyncedAt,
+      syncError: 'Bluesky ended this session.'
+    })
+  })
 })

@@ -267,6 +267,105 @@ describe('StatusReplyBox replying to a Bluesky post', () => {
     expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
   })
 
+  it('does not lock the draft on 409 so the user can edit and press Post again', async () => {
+    vi.mocked(createNote).mockRejectedValueOnce(
+      new ApiRequestError('Another Bluesky reply is already in progress.', 409)
+    )
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={500}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={blueskyStatus}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    const textarea = screen.getByRole('textbox')
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.change(textarea, { target: { value: 'First try' } })
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Another Bluesky reply is already in progress.')
+      ).toBeInTheDocument()
+    })
+    expect(textarea).not.toHaveAttribute('readonly')
+    expect(postButton).toBeEnabled()
+    expect(
+      screen.queryByText(/Your post is still being sent/i)
+    ).not.toBeInTheDocument()
+
+    vi.mocked(createNote).mockResolvedValueOnce({
+      status: {
+        ...blueskyStatus,
+        id: 'https://bsky.app/profile/did:plc:viewer/post/3kretry409'
+      },
+      attachments: []
+    })
+    fireEvent.change(textarea, { target: { value: 'Edited after 409' } })
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(createNote).toHaveBeenLastCalledWith(
+        expect.objectContaining({ message: 'Edited after 409' })
+      )
+    })
+  })
+
+  it('does not lock the draft on a 503 with a different error message', async () => {
+    vi.mocked(createNote).mockRejectedValueOnce(
+      new ApiRequestError('Service Unavailable', 503)
+    )
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={500}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={blueskyStatus}
+          isMediaUploadEnabled
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    const textarea = screen.getByRole('textbox')
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.change(textarea, { target: { value: 'Try before 503' } })
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(screen.getByText('Service Unavailable')).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByText(BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE)
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/Your post was saved/i)).not.toBeInTheDocument()
+    expect(textarea).not.toHaveAttribute('readonly')
+    expect(postButton).toBeEnabled()
+
+    vi.mocked(createNote).mockResolvedValueOnce({
+      status: {
+        ...blueskyStatus,
+        id: 'https://bsky.app/profile/did:plc:viewer/post/3kretry503'
+      },
+      attachments: []
+    })
+    fireEvent.change(textarea, { target: { value: 'Edited after 503' } })
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(createNote).toHaveBeenLastCalledWith(
+        expect.objectContaining({ message: 'Edited after 503' })
+      )
+    })
+  })
+
   it('disables Send when online while offline with the Bluesky reply reason', () => {
     vi.mocked(useConnectionStatus).mockReturnValue({
       state: 'offline'

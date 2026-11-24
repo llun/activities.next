@@ -304,4 +304,31 @@ describe('loadBlueskyThread', () => {
       BLUESKY_THREAD_VIEWER_RATE_LIMIT.limit
     )
   })
+
+  it('does not spend the per-viewer budget when re-opening an already-claimed post', async () => {
+    vi.mocked(getPublicPostThread).mockResolvedValue({ thread: null })
+
+    const firstView = postView('alice', 'reopenfirst')
+    const firstId = await storeView(firstView)
+    const secondView = postView('alice', 'reopensecond')
+    const secondId = await storeView(secondView)
+
+    await loadBlueskyThread(database, linkedViewer, firstId)
+    expect(getPublicPostThread).toHaveBeenCalledTimes(1)
+
+    // Re-opening the same post more times than the viewer limit must not
+    // consume viewer budget because claimAppViewRead short-circuits first.
+    for (let i = 0; i < BLUESKY_THREAD_VIEWER_RATE_LIMIT.limit; i += 1) {
+      await loadBlueskyThread(database, linkedViewer, firstId)
+    }
+    expect(getPublicPostThread).toHaveBeenCalledTimes(1)
+
+    // Opening a fresh distinct post still has viewer budget remaining.
+    await loadBlueskyThread(database, linkedViewer, secondId)
+    expect(getPublicPostThread).toHaveBeenCalledTimes(2)
+    expect(getPublicPostThread).toHaveBeenLastCalledWith(secondView.uri, {
+      depth: 6,
+      parentHeight: 20
+    })
+  })
 })

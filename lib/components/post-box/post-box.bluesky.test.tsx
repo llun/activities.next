@@ -320,6 +320,85 @@ describe('PostBox replying to a Bluesky post', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('does not lock the draft on 409 so the user can edit and press Post again', async () => {
+    createNoteMock.mockRejectedValueOnce(
+      new ApiRequestError('Another Bluesky reply is already in progress.', 409)
+    )
+
+    await renderPostBox()
+
+    const textarea = screen.getByRole('textbox')
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.change(textarea, { target: { value: 'First try' } })
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Another Bluesky reply is already in progress.')
+      ).toBeInTheDocument()
+    })
+    expect(textarea).not.toHaveAttribute('readonly')
+    expect(postButton).toBeEnabled()
+    expect(
+      screen.queryByText(/Your post is still being sent/i)
+    ).not.toBeInTheDocument()
+
+    createNoteMock.mockResolvedValueOnce({
+      status: {
+        ...blueskyReplyTarget,
+        id: 'https://bsky.app/profile/did:plc:me/post/3kretry409'
+      },
+      attachments: []
+    })
+    fireEvent.change(textarea, { target: { value: 'Edited after 409' } })
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(createNoteMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ message: 'Edited after 409' })
+      )
+    })
+  })
+
+  it('does not lock the draft on a 503 with a different error message', async () => {
+    createNoteMock.mockRejectedValueOnce(
+      new ApiRequestError('Service Unavailable', 503)
+    )
+
+    await renderPostBox()
+
+    const textarea = screen.getByRole('textbox')
+    const postButton = screen.getByRole('button', { name: 'Post' })
+    fireEvent.change(textarea, { target: { value: 'Try before 503' } })
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(screen.getByText('Service Unavailable')).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByText(BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE)
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/Your post was saved/i)).not.toBeInTheDocument()
+    expect(textarea).not.toHaveAttribute('readonly')
+    expect(postButton).toBeEnabled()
+
+    createNoteMock.mockResolvedValueOnce({
+      status: {
+        ...blueskyReplyTarget,
+        id: 'https://bsky.app/profile/did:plc:me/post/3kretry503'
+      },
+      attachments: []
+    })
+    fireEvent.change(textarea, { target: { value: 'Edited after 503' } })
+    fireEvent.click(postButton)
+
+    await waitFor(() => {
+      expect(createNoteMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ message: 'Edited after 503' })
+      )
+    })
+  })
+
   it('disables Send when online when offline with the Bluesky reply reason', async () => {
     vi.mocked(useConnectionStatus).mockReturnValue({
       state: 'offline'
