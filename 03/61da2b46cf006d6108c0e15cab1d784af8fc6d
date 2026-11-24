@@ -1,0 +1,90 @@
+lib/services/bluesky/crosspost.test.ts
+  s_f193227df3df34::t_4c61907735becd 1-741
+  s_f193227df3df34::t_da2c8fe5b84942 742-744
+app/api/v1/bluesky/account/route.test.ts
+  s_f193227df3df34::t_0484ea88274746 1-99
+app/api/v1/bluesky/account/route.ts
+  s_f193227df3df34::t_7e6758128b0ae7 1-2,5-6,10-11,13,18-20,40-59
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.test.ts
+  s_f193227df3df34::t_1e41905e6973bc 1-166
+app/api/v1/statuses/route.test.ts
+  s_f193227df3df34::t_96d56ec45e7984 1974-2041
+app/api/v1/statuses/route.ts
+  s_f193227df3df34::t_858fe7104a60b3 137-139,170-173,749,812
+lib/actions/createNote.blueskyCrosspost.test.ts
+  s_f193227df3df34::t_100145a381dee7 1-240
+lib/actions/createNote.ts
+  s_f193227df3df34::t_660cac5ecf77b7 14,135-136,140-141,148-153,175,182,187-192,240,247,273,843-845,863,1241,1254-1265
+lib/actions/deleteStatus.test.ts
+  s_f193227df3df34::t_cb74e3c07fe3ae 15-18,73,551-607
+lib/database/domains/status/statusDeletionQueries.test.ts
+  s_f193227df3df34::t_2b24305e468a9e 1552,2083-2113
+lib/database/domains/status/statusReadQueries.test.ts
+  s_f193227df3df34::t_27689145b45e70 3324
+lib/jobs/crosspostBlueskyJob.test.ts
+  s_f193227df3df34::t_50f0936371184c 1-51
+lib/jobs/deleteBlueskyCrosspostJob.test.ts
+  s_f193227df3df34::t_3ff4233f9013bd 1-91
+lib/jobs/importStravaActivityJob.test.ts
+  s_f193227df3df34::t_8aa38517336b8a 8,60-63,694-698,729
+lib/jobs/index.ts
+  s_f193227df3df34::t_9935d31db07a10 9,11,39,41,307-312
+lib/jobs/processFitnessFileJob.test.ts
+  s_f193227df3df34::t_029c50318516c7 8,65-68,476-508
+lib/jobs/publishScheduledStatusJob.ts
+  s_f193227df3df34::t_99a0b7c9adf3cc 147,181
+lib/services/bluesky/account.test.ts
+  s_f193227df3df34::t_3d61a933b64828 13-14,685-701
+lib/services/bluesky/crosspost.ts
+  s_f193227df3df34::t_aed71e6f530799 1-524
+lib/services/bluesky/notifications.test.ts
+  s_f193227df3df34::t_d18775a612a84e 592-705
+lib/services/bluesky/sync.test.ts
+  s_f193227df3df34::t_7b877ee97641be 429-483
+lib/services/mastodon/getMastodonStatus.fields.test.ts
+  s_f193227df3df34::t_bb70005e76e82a 72-131
+lib/services/statuses/scheduledStatusSerializer.test.ts
+  s_f193227df3df34::t_852ef2e364baaf 41-48
+lib/services/statuses/scheduledStatusSerializer.ts
+  s_f193227df3df34::t_5293fec4bab796 29,74-75
+lib/types/mastodon/scheduledStatus.ts
+  s_f193227df3df34::t_897c065580fc3f 24-27
+lib/jobs/deleteBlueskyCrosspostJob.ts
+  s_6a3624e8250b28::t_856b468d2e7ff2 1-53
+lib/jobs/importStravaActivityJob.ts
+  s_6a3624e8250b28::t_ad5bf5b3b8871d 21,405-410
+lib/utils/blueskyAccount.ts
+  s_dff23afade8e44::t_f2d05aab8edbc9 18-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0361da2b46cf006d6108c0e15cab1d784af8fc6d",
+  "prompts": {},
+  "sessions": {
+    "s_6a3624e8250b28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a01577c6be87504bc",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_dff23afade8e44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a081777e92e51fde8",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
