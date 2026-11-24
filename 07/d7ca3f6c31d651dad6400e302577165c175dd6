@@ -1,0 +1,36 @@
+lib/database/domains/bluesky/queries.ts
+  h_580a04e334fef4 646-647,651-652
+lib/database/domains/bluesky/types.ts
+  h_580a04e334fef4 182-185,190
+lib/services/bluesky/crosspost.test.ts
+  h_580a04e334fef4 17,19,21,146-191,328,340-344,361-385,438-440,466,485-521,543,546,557,645-754,815-824,950-972
+lib/services/bluesky/crosspost.ts
+  h_580a04e334fef4 8-11,42,53-56,65-66,69-72,87-92,95-96,153-154,156-165,167,171,189-190,204,224,233-234,237-239,241-246,267-269,271,312-325,328,332-337,339,349-354,359-384,433-434,438-456,466-467,469-471,480-486,500-501,513-542,548-550,574,601-621
+lib/services/bluesky/crosspostText.test.ts
+  h_580a04e334fef4 5,87-106,227-247,263,282,295,309,313-352,354-368
+lib/services/bluesky/crosspostText.ts
+  h_580a04e334fef4 3-6,33-42,67-69,86-95,97,104-112,115-119,157-183,186-189,267-274,281-284,288-348,350-358,364-370,372,384-386,389,391-392,394,397-398,402-404,408-409,411
+lib/services/bluesky/fetch.test.ts
+  h_580a04e334fef4 32,38-40,46-70
+lib/services/bluesky/fetch.ts
+  h_580a04e334fef4 18-20,22-24,29
+lib/services/medias/readStoredMedia.test.ts
+  h_580a04e334fef4 100-106
+lib/services/medias/readStoredMedia.ts
+  h_580a04e334fef4 6,60-65
+lib/utils/safeRemoteFetch.test.ts
+  h_580a04e334fef4 773-805
+lib/utils/safeRemoteFetch.ts
+  h_580a04e334fef4 819
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "07d7ca3f6c31d651dad6400e302577165c175dd6",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
