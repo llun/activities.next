@@ -329,7 +329,8 @@ export const POST = traceApiRoute(
           const existingStatus = await resolveExistingIdempotentStatus({
             database,
             actorId: currentActor.id,
-            idempotency
+            idempotency,
+            blueskyCrosspost: note.bluesky_crosspost
           })
           if (existingStatus) {
             statusSaved = true

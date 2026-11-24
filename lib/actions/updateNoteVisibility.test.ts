@@ -1,12 +1,17 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
 import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
+import { getConfig } from '@/lib/config'
+import type { DatabaseQueueConfig } from '@/lib/config/queue'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import {
   DELETE_BLUESKY_CROSSPOST_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { DatabaseQueue } from '@/lib/services/queue/database'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -14,17 +19,21 @@ import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { logger } from '@/lib/utils/logger'
 
 enableFetchMocks()
 
+const defaultQueue = vi.hoisted(() => ({
+  publish: vi.fn().mockResolvedValue(undefined)
+}))
+
 vi.mock('@/lib/services/queue', () => ({
-  getQueue: vi.fn().mockReturnValue({
-    publish: vi.fn().mockResolvedValue(undefined)
-  })
+  getQueue: vi.fn(() => defaultQueue)
 }))
 
 describe('Update note visibility action', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
+  const baseConfig = getConfig()
   let actor1: Actor | null | undefined
   let actor3: Actor | null | undefined
 
@@ -50,6 +59,11 @@ describe('Update note visibility action', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
+    vi.mocked(getConfig).mockReturnValue(baseConfig)
+    defaultQueue.publish.mockReset()
+    defaultQueue.publish.mockResolvedValue(undefined)
+    vi.mocked(getQueue).mockReset()
+    vi.mocked(getQueue).mockReturnValue(defaultQueue as never)
     vi.clearAllMocks()
   })
 
@@ -338,6 +352,273 @@ describe('Update note visibility action', () => {
         data: { actorId: actor1.id, uri }
       })
       expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+    })
+
+    it('publishes DELETE_BLUESKY_CROSSPOST_JOB_NAME before deleting the row on non-database queues, and keeps the row on publish failure for a later status delete', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const statusId = `${ACTOR1_ID}/statuses/crosspost-posted-publish-fail`
+      const uri = 'at://did:plc:actor1/app.bsky.feed.post/3kpubfail'
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Public post'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId,
+        actorId: actor1.id
+      })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid: 'bafypubfail'
+      })
+
+      let rowDuringPublish: unknown = null
+      defaultQueue.publish.mockImplementationOnce(async () => {
+        rowDuringPublish = await database.getBlueskyCrosspost({ statusId })
+        throw new Error('Queue unavailable')
+      })
+      const loggerSpy = vi
+        .spyOn(logger, 'error')
+        .mockImplementation(() => logger)
+
+      try {
+        const result = await updateNoteVisibilityFromUserInput({
+          statusId,
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })
+        expect(result).not.toBeNull()
+        expect(rowDuringPublish).toMatchObject({
+          statusId,
+          state: 'posted',
+          uri
+        })
+        expect(loggerSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            statusId,
+            actorId: actor1.id,
+            err: expect.any(Error)
+          }),
+          'Failed to queue Bluesky cross-post delete'
+        )
+      } finally {
+        loggerSpy.mockRestore()
+      }
+
+      // Publish failed, so the posted row remains in place.
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        statusId,
+        state: 'posted',
+        uri
+      })
+
+      // A later deletion of the status still sees the row and queues the
+      // Bluesky delete job.
+      defaultQueue.publish.mockClear()
+      await deleteStatusFromUserInput({
+        currentActor: actor1,
+        statusId,
+        database
+      })
+      expect(defaultQueue.publish).toHaveBeenCalledWith({
+        id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
+        name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+        data: { actorId: actor1.id, uri }
+      })
+    })
+
+    it('deletes the cross-post row and inserts DELETE_BLUESKY_CROSSPOST_JOB_NAME atomically on the database queue', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const queueConfig: DatabaseQueueConfig = {
+        type: 'database',
+        maxRetries: 7
+      }
+      vi.mocked(getConfig).mockReturnValue({
+        ...baseConfig,
+        queue: queueConfig
+      })
+      const dbQueue = new DatabaseQueue(queueConfig, database)
+      const publishSpy = vi.spyOn(dbQueue, 'publish')
+      vi.mocked(getQueue).mockReturnValue(dbQueue)
+
+      const statusId = `${ACTOR1_ID}/statuses/crosspost-dbqueue-narrow`
+      const uri = 'at://did:plc:actor1/app.bsky.feed.post/3kdbqueue'
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Public post on database queue'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId,
+        actorId: actor1.id
+      })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid: 'bafydbqueue'
+      })
+
+      const result = await updateNoteVisibilityFromUserInput({
+        statusId,
+        currentActor: actor1,
+        visibility: 'unlisted',
+        database
+      })
+
+      expect(result).not.toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+
+      const expectedJobId = getHashFromString(
+        `${statusId}#bluesky-crosspost-delete`
+      )
+      expect(await getQueueJobById(db, expectedJobId)).toMatchObject({
+        id: expectedJobId,
+        name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+        payload: {
+          id: expectedJobId,
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          data: { actorId: actor1.id, uri }
+        },
+        attempts: 0,
+        maxRetries: 7,
+        status: 'pending'
+      })
+      // Inserted in the outbox transaction, never via queue.publish.
+      expect(publishSpy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
+      )
+    })
+
+    it('rolls back the cross-post delete on the database queue when inserting the delete job fails, and drops non-posted rows without a job', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const queueConfig: DatabaseQueueConfig = {
+        type: 'database',
+        maxRetries: 16
+      }
+      vi.mocked(getConfig).mockReturnValue({
+        ...baseConfig,
+        queue: queueConfig
+      })
+      const dbQueue = new DatabaseQueue(queueConfig, database)
+      vi.mocked(getQueue).mockReturnValue(dbQueue)
+
+      const statusId = `${ACTOR1_ID}/statuses/crosspost-dbqueue-rollback`
+      const uri = 'at://did:plc:actor1/app.bsky.feed.post/3kdbrollback'
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Public post rollback'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId,
+        actorId: actor1.id
+      })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid: 'bafydbrollback'
+      })
+
+      // Pre-occupy the deterministic job id with another job name so
+      // createQueueJob throws inside the transaction.
+      const conflictingJobId = getHashFromString(
+        `${statusId}#bluesky-crosspost-delete`
+      )
+      await database.createQueueJob({
+        id: conflictingJobId,
+        name: 'otherJob',
+        payload: { id: conflictingJobId, name: 'otherJob', data: {} },
+        attempts: 0,
+        maxRetries: 3,
+        nextRunAt: new Date(),
+        status: 'pending'
+      })
+
+      const loggerSpy = vi
+        .spyOn(logger, 'error')
+        .mockImplementation(() => logger)
+      try {
+        const result = await updateNoteVisibilityFromUserInput({
+          statusId,
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })
+        expect(result).not.toBeNull()
+        expect(loggerSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            statusId,
+            actorId: actor1.id,
+            err: expect.any(Error)
+          }),
+          'Failed to remove the Bluesky cross-post of a narrowed post'
+        )
+      } finally {
+        loggerSpy.mockRestore()
+      }
+
+      // Transaction rolled back: posted row is still intact.
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        statusId,
+        state: 'posted',
+        uri
+      })
+
+      // Pending row on database queue: deleted with no queue job.
+      const pendingStatusId = `${ACTOR1_ID}/statuses/crosspost-dbqueue-pending`
+      await database.createNote({
+        id: pendingStatusId,
+        url: pendingStatusId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Pending post on database queue'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId: pendingStatusId,
+        actorId: actor1.id
+      })
+      await updateNoteVisibilityFromUserInput({
+        statusId: pendingStatusId,
+        currentActor: actor1,
+        visibility: 'private',
+        database
+      })
+      expect(
+        await database.getBlueskyCrosspost({ statusId: pendingStatusId })
+      ).toBeNull()
+      expect(
+        await getQueueJobById(
+          db,
+          getHashFromString(`${pendingStatusId}#bluesky-crosspost-delete`)
+        )
+      ).toBeNull()
     })
   })
 })

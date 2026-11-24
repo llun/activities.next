@@ -2130,6 +2130,70 @@ describe('POST /api/v1/statuses', () => {
     }
   })
 
+  it('enqueues and returns the Bluesky cross-post when an idempotent POST recovers a failed publish', async () => {
+    await database.saveBlueskyAccount({
+      actorId: ACTOR1_ID,
+      did: `did:plc:${'z'.repeat(24)}`,
+      handle: 'recover.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
+    const idempotencyKey = 'idem-key-bluesky-recover'
+    const makeRequest = (bluesky_crosspost: boolean, key = idempotencyKey) =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({
+            status: 'Recovered via route',
+            bluesky_crosspost
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test',
+            'Idempotency-Key': key
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    try {
+      // Queue is unavailable throughout the first request, then recovers for
+      // the retry.
+      vi.mocked(getQueue().publish).mockRejectedValue(new Error('Queue down'))
+      const first = await makeRequest(true)
+      expect(first.status).toBe(503)
+
+      vi.mocked(getQueue().publish).mockResolvedValue(undefined)
+      const retry = await makeRequest(true)
+      expect(retry.status).toBe(200)
+      const data = await retry.json()
+      expect(data).toMatchObject({
+        bluesky_crosspost: { state: 'pending', url: null, error: null }
+      })
+      expect(
+        await database.getBlueskyCrosspost({ statusId: data.uri })
+      ).toMatchObject({ state: 'pending' })
+
+      // Opt-out request recovered via the route must not claim a cross-post.
+      vi.mocked(getQueue().publish).mockRejectedValue(new Error('Queue down'))
+      const firstOff = await makeRequest(false, 'idem-key-bluesky-recover-off')
+      expect(firstOff.status).toBe(503)
+
+      vi.mocked(getQueue().publish).mockResolvedValue(undefined)
+      const retryOff = await makeRequest(false, 'idem-key-bluesky-recover-off')
+      expect(retryOff.status).toBe(200)
+      const dataOff = await retryOff.json()
+      expect(dataOff.bluesky_crosspost).toBeNull()
+      expect(
+        await database.getBlueskyCrosspost({ statusId: dataOff.uri })
+      ).toBeNull()
+    } finally {
+      vi.mocked(getQueue().publish).mockResolvedValue(undefined)
+      await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+    }
+  })
+
   it("answers the owner's cross-post state on an edited status", async () => {
     const status = await database.createNote({
       id: `${ACTOR1_ID}/statuses/crosspost-edit-response`,

@@ -11,7 +11,10 @@ import {
   SEND_NOTE_JOB_NAME,
   SEND_QUOTE_REQUEST_JOB_NAME
 } from '@/lib/jobs/names'
-import { enqueueBlueskyCrosspost } from '@/lib/services/bluesky/crosspost'
+import {
+  enqueueBlueskyCrosspost,
+  enqueueBlueskyCrosspostForStatus
+} from '@/lib/services/bluesky/crosspost'
 import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
@@ -169,6 +172,7 @@ const getStatusCreationJob = (
 // again (with the same id) once that is IDEMPOTENCY_PENDING_STALE_MS old.
 const queueStatusCreationJob = async ({
   database,
+  actor,
   actorId,
   status,
   fitnessFileId,
@@ -176,6 +180,7 @@ const queueStatusCreationJob = async ({
   key
 }: {
   database: Database
+  actor?: Actor
   actorId: string
   status: Status
   fitnessFileId?: string
@@ -213,6 +218,26 @@ const queueStatusCreationJob = async ({
   if (status.type === StatusType.enum.Poll) {
     await queuePollCloseUpdate(status)
   }
+  // A fitness post goes once processed (processFitnessFileJob), with its map
+  // and summary (carrying `blueskyCrosspost` above). Run before marking the
+  // key complete so a crash before the cross-post is claimed recovers on retry;
+  // claimBlueskyCrosspost is idempotent so an existing row in any state is left
+  // alone.
+  if (!fitnessFileId) {
+    await runBestEffortStep(status.id, 'Bluesky cross-post', () =>
+      actor
+        ? enqueueBlueskyCrosspost(database, {
+            actor,
+            status,
+            wanted: blueskyCrosspost
+          })
+        : enqueueBlueskyCrosspostForStatus(database, {
+            actorId,
+            statusId: status.id,
+            wanted: blueskyCrosspost
+          })
+    )
+  }
   if (key) {
     await runBestEffortStep(status.id, 'Idempotency-Key complete', () =>
       database.setIdempotencyKeyState({
@@ -234,6 +259,7 @@ const queueStatusCreationJob = async ({
 // the request with StatusPublishFailedError.
 export const publishCreatedStatus = async ({
   database,
+  actor,
   actorId,
   status,
   fitnessFileId,
@@ -241,6 +267,7 @@ export const publishCreatedStatus = async ({
   idempotency
 }: {
   database: Database
+  actor?: Actor
   actorId: string
   status: Status
   fitnessFileId?: string
@@ -267,6 +294,7 @@ export const publishCreatedStatus = async ({
   }
   await queueStatusCreationJob({
     database,
+    actor,
     actorId,
     status,
     fitnessFileId,
@@ -317,13 +345,15 @@ type LoadIdempotentStatusParams = {
   actorId: string
   key: string
   statusId: string
+  blueskyCrosspost?: boolean
 }
 
 const answerIdempotentStatus = async ({
   database,
   actorId,
   key,
-  statusId
+  statusId,
+  blueskyCrosspost
 }: LoadIdempotentStatusParams): Promise<Status | null> => {
   await waitForInFlightStatusCreation(statusId)
   // The key first: a discard removes the status and the key together, so a
@@ -359,14 +389,26 @@ const answerIdempotentStatus = async ({
     staleBefore: new Date(Date.now() - IDEMPOTENCY_PENDING_STALE_MS)
   })
   if (taken) {
+    const fitnessFileId =
+      status.type === StatusType.enum.Note ? status.fitness?.id : undefined
     await queueStatusCreationJob({
       database,
       actorId,
       status,
-      fitnessFileId:
-        status.type === StatusType.enum.Note ? status.fitness?.id : undefined,
+      fitnessFileId,
+      blueskyCrosspost,
       key
     })
+    if (!fitnessFileId) {
+      const refreshed = await database
+        .getStatus({
+          statusId,
+          currentActorId: actorId,
+          withReplies: false
+        })
+        .catch(() => null)
+      if (refreshed) return refreshed
+    }
     return status
   }
   // Another request moved the key since it was read.
@@ -382,11 +424,13 @@ const answerIdempotentStatus = async ({
 export const resolveExistingIdempotentStatus = async ({
   database,
   actorId,
-  idempotency
+  idempotency,
+  blueskyCrosspost
 }: {
   database: Database
   actorId: string
   idempotency: { key: string; contentHash: string }
+  blueskyCrosspost?: boolean
 }): Promise<Status | null> => {
   const existingKey = await database.getIdempotencyKey({
     actorId,
@@ -403,7 +447,8 @@ export const resolveExistingIdempotentStatus = async ({
     database,
     actorId,
     key: idempotency.key,
-    statusId: existingKey.statusId
+    statusId: existingKey.statusId,
+    blueskyCrosspost
   })
 }
 
@@ -868,7 +913,8 @@ export const createNoteFromUserInput = async ({
       const existing = await resolveExistingIdempotentStatus({
         database,
         actorId: currentActor.id,
-        idempotency
+        idempotency,
+        blueskyCrosspost
       })
       if (existing) return existing as StatusNote
     }
@@ -1038,7 +1084,8 @@ export const createNoteFromUserInput = async ({
         database,
         actorId: currentActor.id,
         key: idempotency.key,
-        statusId: createdStatus.id
+        statusId: createdStatus.id,
+        blueskyCrosspost
       })
       // The winner's create failed and was discarded; the client retries.
       if (!existing) {
@@ -1235,6 +1282,7 @@ export const createNoteFromUserInput = async ({
       try {
         await publishCreatedStatus({
           database,
+          actor: currentActor,
           actorId: currentActor.id,
           status,
           fitnessFileId: fitnessFile?.id,
@@ -1250,10 +1298,10 @@ export const createNoteFromUserInput = async ({
     }
 
     // Best-effort steps after the publish, so a discarded post never reached
-    // them. They run when the publish failed too, because that post is kept.
-    // A fitness post goes once processed (processFitnessFileJob), with its
-    // map and summary.
-    if (!fitnessFile) {
+    // them. When a non-idempotent publish failed, still try to enqueue the
+    // cross-post (idempotent creates leave it for the retry that recovers the
+    // publish so a downed queue does not freeze the cross-post as failed).
+    if (!fitnessFile && !idempotency && publishError) {
       await runBestEffortStep(statusId, 'Bluesky cross-post', () =>
         enqueueBlueskyCrosspost(database, {
           actor: currentActor,

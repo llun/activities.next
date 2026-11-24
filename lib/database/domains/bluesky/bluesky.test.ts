@@ -1,6 +1,7 @@
 import { createActor } from '@/lib/database/domains/actor/writes'
 import { upsertBlueskyActor } from '@/lib/database/domains/bluesky/queries'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import { Timeline } from '@/lib/services/timelines/types'
 import type { Status } from '@/lib/types/domain/status'
@@ -1138,6 +1139,159 @@ describe('Bluesky', () => {
       )
       expect(await database.deleteBlueskyCrosspost({ statusId })).toBeNull()
       expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+    })
+
+    it('deleteBlueskyCrosspostWithQueueJob deletes the row and inserts the queue job atomically, rolling back on insert failure', async () => {
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
+      })
+
+      // Conflict on queue_jobs.id with a different job name causes
+      // createQueueJob to throw; the transaction must roll back and keep the
+      // cross-post row intact.
+      const conflictingJobId = 'crosspost-delete-conflict'
+      await database.createQueueJob({
+        id: conflictingJobId,
+        name: 'otherJob',
+        payload: { id: conflictingJobId, name: 'otherJob', data: {} },
+        attempts: 0,
+        maxRetries: 3,
+        nextRunAt: new Date(),
+        status: 'pending'
+      })
+
+      await expect(
+        database.deleteBlueskyCrosspostWithQueueJob({
+          statusId,
+          buildQueueJob: (crosspost) => ({
+            id: conflictingJobId,
+            name: 'deleteBlueskyCrosspost',
+            payload: {
+              id: conflictingJobId,
+              name: 'deleteBlueskyCrosspost',
+              data: { actorId, uri: crosspost.uri }
+            },
+            attempts: 0,
+            maxRetries: 16,
+            nextRunAt: new Date(),
+            status: 'pending'
+          })
+        })
+      ).rejects.toThrow()
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        statusId,
+        state: 'posted',
+        uri
+      })
+
+      // Succeeding insert deletes the cross-post row and stores the queue job.
+      const jobId = 'crosspost-delete-atomic'
+      const deleted = await database.deleteBlueskyCrosspostWithQueueJob({
+        statusId,
+        buildQueueJob: (crosspost) => ({
+          id: jobId,
+          name: 'deleteBlueskyCrosspost',
+          payload: {
+            id: jobId,
+            name: 'deleteBlueskyCrosspost',
+            data: { actorId, uri: crosspost.uri }
+          },
+          attempts: 0,
+          maxRetries: 9,
+          nextRunAt: new Date(),
+          status: 'pending'
+        })
+      })
+      expect(deleted).toMatchObject({ statusId, state: 'posted', uri })
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      expect(await getQueueJobById(testDb.db, jobId)).toMatchObject({
+        id: jobId,
+        name: 'deleteBlueskyCrosspost',
+        maxRetries: 9,
+        status: 'pending'
+      })
+
+      // When buildQueueJob returns null (non-posted row), deletes without a job.
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      const builder = vi.fn().mockReturnValue(null)
+      expect(
+        await database.deleteBlueskyCrosspostWithQueueJob({
+          statusId,
+          buildQueueJob: builder
+        })
+      ).toMatchObject({ statusId, state: 'pending' })
+      expect(builder).toHaveBeenCalledTimes(1)
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      expect(
+        await database.deleteBlueskyCrosspostWithQueueJob({
+          statusId,
+          buildQueueJob: builder
+        })
+      ).toBeNull()
+    })
+
+    it('deleteBlueskyCrosspostUnlessPosted deletes non-posted rows and preserves posted rows with a uri', async () => {
+      // Absent row -> null.
+      expect(
+        await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
+      ).toBeNull()
+
+      // Pending row -> deleted, returns null.
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      expect(
+        await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
+      ).toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+
+      // Posting row -> deleted, returns null.
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      await database.beginBlueskyCrosspostAttempt({ statusId })
+      expect(
+        await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
+      ).toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+
+      // Failed row -> deleted, returns null.
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      await database.markBlueskyCrosspostFailedIfAttemptable({
+        statusId,
+        error: 'failed'
+      })
+      expect(
+        await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
+      ).toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+
+      // Posted row with uri -> kept intact in DB and returned.
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid: 'bafyreib2rxk3rybk3aobmv5cjuql3bm2twh4jo5ua2r7w7v4v4v4v4v4v4'
+      })
+      expect(
+        await database.deleteBlueskyCrosspostUnlessPosted({ statusId })
+      ).toMatchObject({
+        statusId,
+        state: 'posted',
+        uri
+      })
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        statusId,
+        state: 'posted',
+        uri
+      })
     })
   })
 })

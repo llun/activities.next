@@ -2,6 +2,7 @@
 // `network = 'bluesky'` (lib/services/bluesky/records.ts builds their ids),
 // the at:// record behind each post, and the follows an actor made on
 // Bluesky.
+import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 
 export type UpsertBlueskyActorParams = {
   did: string
@@ -235,6 +236,24 @@ export interface BlueskyDatabase {
    * Deletes the cross-post row and returns what was deleted, or null if absent.
    */
   deleteBlueskyCrosspost(params: {
+    statusId: string
+  }): Promise<BlueskyCrosspost | null>
+  /**
+   * Deletes the cross-post row and, when `buildQueueJob` returns a job for the
+   * deleted row, inserts that queue job in the same transaction. Returns the
+   * deleted row, or null if absent.
+   */
+  deleteBlueskyCrosspostWithQueueJob(params: {
+    statusId: string
+    buildQueueJob: (crosspost: BlueskyCrosspost) => CreateQueueJobParams | null
+  }): Promise<BlueskyCrosspost | null>
+  /**
+   * Atomically deletes a cross-post row that has not been posted (pending,
+   * posting, failed, or posted without a uri) and returns null. Leaves a posted
+   * row with a uri intact and returns it so a non-database queue can publish
+   * the delete job before removing the row.
+   */
+  deleteBlueskyCrosspostUnlessPosted(params: {
     statusId: string
   }): Promise<BlueskyCrosspost | null>
   /**

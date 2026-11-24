@@ -16,7 +16,6 @@ import {
 } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { enqueueBlueskyCrosspost } from '@/lib/services/bluesky/crosspost'
 import { getCommunityForNewReply } from '@/lib/services/federation/replyCommunity'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
@@ -78,7 +77,8 @@ export const createPollFromUserInput = async ({
       const existing = await resolveExistingIdempotentStatus({
         database,
         actorId: currentActor.id,
-        idempotency
+        idempotency,
+        blueskyCrosspost
       })
       if (existing) return existing
     }
@@ -215,7 +215,8 @@ export const createPollFromUserInput = async ({
         database,
         actorId: currentActor.id,
         key: idempotency.key,
-        statusId: createdPoll.id
+        statusId: createdPoll.id,
+        blueskyCrosspost
       })
       // The winner's create failed and was discarded; the client retries.
       if (!existing) {
@@ -277,23 +278,18 @@ export const createPollFromUserInput = async ({
           error
         })
       }
-      // Queue Create(Question) and its expiration update through the same
-      // idempotent publication flow as Notes.
+      // Queue Create(Question), its expiration update, and any Bluesky
+      // cross-post through the same idempotent publication flow as Notes.
       await publishCreatedStatus({
         database,
+        actor: currentActor,
         actorId: currentActor.id,
         status: poll,
+        blueskyCrosspost,
         idempotency
       })
     } finally {
       finishInFlight()
     }
-    await runBestEffortStep(statusId, 'Bluesky cross-post', () =>
-      enqueueBlueskyCrosspost(database, {
-        actor: currentActor,
-        status: poll,
-        wanted: blueskyCrosspost
-      })
-    )
     return poll
   })

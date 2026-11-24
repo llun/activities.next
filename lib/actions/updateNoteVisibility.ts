@@ -2,6 +2,7 @@ import {
   statusRecipientsCC,
   statusRecipientsTo
 } from '@/lib/actions/createNote'
+import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import {
   DELETE_BLUESKY_CROSSPOST_JOB_NAME,
@@ -9,6 +10,7 @@ import {
 } from '@/lib/jobs/names'
 import { getCommunityForNewReply } from '@/lib/services/federation/replyCommunity'
 import { getQueue } from '@/lib/services/queue'
+import { DatabaseQueue } from '@/lib/services/queue/database'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
@@ -29,34 +31,71 @@ interface UpdateNoteVisibilityFromUserInput {
   database: Database
 }
 
-// Drops the Bluesky copy of a post that is no longer public. The row is
-// deleted atomically: if it had already been posted, the returned URI is
-// deleted on Bluesky through the queue; if a cross-post attempt was in flight
-// ('posting'), deleting the row makes markBlueskyCrosspostPosted return false
-// so crosspostStatus immediately deletes the newly created Bluesky record; a
-// pending or failed row never reached Bluesky, so it is just dropped. Never
-// throws: a Bluesky failure must not fail the visibility edit.
+// Drops the Bluesky copy of a post that is no longer public:
+// - pending / posting / failed: delete the row with no job; if a cross-post
+//   attempt was in flight ('posting'), deleting the row makes
+//   markBlueskyCrosspostPosted return false so crosspostStatus immediately
+//   deletes the newly created Bluesky record;
+// - posted with a uri on the database queue: delete the row and insert
+//   DELETE_BLUESKY_CROSSPOST_JOB_NAME in one transaction so a queue write
+//   failure rolls back and keeps the row;
+// - posted with a uri on other queues: publish the delete job first and delete
+//   the row only after the publish succeeded, so a publish failure leaves the
+//   row intact for a later status deletion.
+// Never throws: a Bluesky failure must not fail the visibility edit.
 const removeBlueskyCrosspost = async (
   database: Database,
   { statusId, actorId }: { statusId: string; actorId: string }
 ) => {
   try {
-    const deleted = await database.deleteBlueskyCrosspost({ statusId })
-    if (!deleted) return
-    if (deleted.state === 'posted' && deleted.uri) {
-      try {
-        await getQueue().publish({
-          id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
-          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-          data: { actorId, uri: deleted.uri }
-        })
-      } catch (error) {
-        logger.error(
-          { statusId, actorId, err: toLoggableError(error) },
-          'Failed to queue Bluesky cross-post delete'
-        )
-      }
+    const queue = getQueue()
+    const config = getConfig()
+    const isDatabaseQueue =
+      queue instanceof DatabaseQueue || config.queue?.type === 'database'
+    const buildDeleteMessage = (uri: string) => ({
+      id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
+      name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+      data: { actorId, uri }
+    })
+
+    if (isDatabaseQueue) {
+      const maxRetries =
+        config.queue?.type === 'database' ? (config.queue.maxRetries ?? 16) : 16
+      await database.deleteBlueskyCrosspostWithQueueJob({
+        statusId,
+        buildQueueJob: (crosspost) => {
+          if (crosspost.state !== 'posted' || !crosspost.uri) return null
+          const message = buildDeleteMessage(crosspost.uri)
+          return {
+            id: message.id,
+            name: message.name,
+            payload: message,
+            attempts: 0,
+            maxRetries,
+            nextRunAt: new Date(),
+            status: 'pending'
+          }
+        }
+      })
+      return
     }
+
+    const posted = await database.deleteBlueskyCrosspostUnlessPosted({
+      statusId
+    })
+    if (!posted?.uri) return
+
+    try {
+      await queue.publish(buildDeleteMessage(posted.uri))
+    } catch (error) {
+      logger.error(
+        { statusId, actorId, err: toLoggableError(error) },
+        'Failed to queue Bluesky cross-post delete'
+      )
+      return
+    }
+
+    await database.deleteBlueskyCrosspost({ statusId })
   } catch (error) {
     logger.error(
       { statusId, actorId, err: toLoggableError(error) },

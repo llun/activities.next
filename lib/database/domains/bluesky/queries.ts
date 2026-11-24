@@ -16,6 +16,8 @@ import type {
   UpsertBlueskyPostParams
 } from '@/lib/database/domains/bluesky/types'
 import { createAttachment } from '@/lib/database/domains/media/writes'
+import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
+import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 import { indexActorSearchDocument } from '@/lib/database/domains/search/accounts'
 import type { StatusHydration } from '@/lib/database/domains/status/types'
 import { createNoteWithResult } from '@/lib/database/domains/status/writes'
@@ -803,6 +805,49 @@ export const deleteBlueskyCrosspost = async (
   return deleted ? toBlueskyCrosspost(deleted) : null
 }
 
+export const deleteBlueskyCrosspostWithQueueJob = async (
+  db: Db,
+  {
+    statusId,
+    buildQueueJob
+  }: {
+    statusId: string
+    buildQueueJob: (crosspost: BlueskyCrosspost) => CreateQueueJobParams | null
+  }
+): Promise<BlueskyCrosspost | null> =>
+  inTransaction(db, async (trx) => {
+    const deleted = await deleteBlueskyCrosspost(trx, { statusId })
+    if (!deleted) return null
+    const queueJob = buildQueueJob(deleted)
+    if (queueJob) {
+      await createQueueJob(trx, queueJob)
+    }
+    return deleted
+  })
+
+export const deleteBlueskyCrosspostUnlessPosted = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<BlueskyCrosspost | null> =>
+  inTransaction(db, async (trx) => {
+    const deleted = await trx
+      .deleteFrom('bluesky_crossposts')
+      .where('statusId', '=', statusId)
+      .where((eb) =>
+        eb.or([
+          eb('state', '!=', 'posted'),
+          eb('uri', 'is', null),
+          eb('uri', '=', '')
+        ])
+      )
+      .executeTakeFirst()
+    if (Number(deleted.numDeletedRows ?? 0) > 0) {
+      return null
+    }
+    const remaining = await getBlueskyCrosspost(trx, { statusId })
+    return remaining?.state === 'posted' && remaining.uri ? remaining : null
+  })
+
 export const deleteBlueskyCrosspostIfAttemptable = async (
   db: Db,
   { statusId }: { statusId: string }
@@ -855,5 +900,7 @@ export const blueskyQueries = {
   markBlueskyCrosspostFailedIfAttemptable,
   resetBlueskyCrosspostForRetry,
   deleteBlueskyCrosspost,
+  deleteBlueskyCrosspostWithQueueJob,
+  deleteBlueskyCrosspostUnlessPosted,
   deleteBlueskyCrosspostIfAttemptable
 }
