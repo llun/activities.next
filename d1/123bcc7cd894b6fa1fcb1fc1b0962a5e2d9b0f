@@ -1,0 +1,44 @@
+app/api/v1/statuses/route.test.ts
+  h_580a04e334fef4 683-915
+app/api/v1/statuses/route.ts
+  h_580a04e334fef4 77,652-653,842-849
+lib/actions/createNote.ts
+  h_580a04e334fef4 50-51,58,174-175,328-335
+lib/components/post-box/post-box.bluesky.test.tsx
+  h_580a04e334fef4 14,16,24,30,350-463
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 89,897,1279-1288,2012-2015,2017-2022,2332-2333,2601,2620-2624,2649
+lib/components/posts/status-reply-box.bluesky.test.tsx
+  h_580a04e334fef4 13,15,23,29,307-417
+lib/components/posts/status-reply-box.tsx
+  h_580a04e334fef4 75,271-272,528-537,801,973-978,1128
+lib/database/domains/idempotency/idempotency.test.ts
+  h_580a04e334fef4 763-816
+lib/database/domains/idempotency/queries.ts
+  h_580a04e334fef4 3,36-55,122
+lib/database/domains/idempotency/types.ts
+  h_580a04e334fef4 25-30,112-119
+lib/services/bluesky/notifications.test.ts
+  h_580a04e334fef4 781-864
+lib/services/bluesky/notifications.ts
+  h_580a04e334fef4 522-524,529
+lib/services/bluesky/reply.test.ts
+  h_580a04e334fef4 1,842-987
+lib/services/bluesky/reply.ts
+  h_580a04e334fef4 8-11,16,41,104-107,222-251,333-351
+lib/types/database/operations.ts
+  h_580a04e334fef4 315
+lib/utils/blueskyText.ts
+  h_580a04e334fef4 16-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d1123bcc7cd894b6fa1fcb1fc1b0962a5e2d9b0f",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
