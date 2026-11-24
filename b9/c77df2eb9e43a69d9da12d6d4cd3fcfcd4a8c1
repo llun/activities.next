@@ -1,0 +1,26 @@
+lib/services/bluesky/notifications.test.ts
+  s_f193227df3df34::t_3c965b25942338 10-13,785,836,844,926-931
+  s_f193227df3df34::t_c65a5beba40165 879
+lib/services/bluesky/notifications.ts
+  s_f193227df3df34::t_d5b69d485a25f5 386,391-392,394-411,563-566,576
+  s_f193227df3df34::t_d4c5c61451714d 393,567-573
+  s_f193227df3df34::t_044b7aa55462d7 8-10,387-390
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_2921fd4c1d1780 1392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b9c77df2eb9e43a69d9da12d6d4cd3fcfcd4a8c1",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
