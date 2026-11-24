@@ -1,0 +1,176 @@
+app/(timeline)/(home)/HomeNetworkSwitch.test.tsx
+  s_f193227df3df34::t_b061fe0fd930fc 1-34
+app/(timeline)/(home)/page.tsx
+  s_f193227df3df34::t_27a75015f6656a 6,25,32-33,115-124,129,140-141,149-164,166-168,179
+app/api/v1/accounts/[id]/unfollow/route.ts
+  s_f193227df3df34::t_0fbe0a33cc4c29 3-6,10,37-57
+lib/services/bluesky/profiles.test.ts
+  s_f193227df3df34::t_78393428cff125 141-147
+  s_f193227df3df34::t_d35e29b47a44f8 1-140,148-282
+app/(timeline)/[actor]/getProfileData.bluesky.test.ts
+  s_f193227df3df34::t_123e5726dbed14 1-140
+app/(timeline)/settings/networks/BlueskyAccountForm.tsx
+  s_f193227df3df34::t_5ba3e6e7195ccc 3-5,46-54,81-84,260-273
+  s_f193227df3df34::t_743f19a81f4c4f 274
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  s_f193227df3df34::t_12bc029e29b923 83-110
+lib/database/domains/timeline/queries.ts
+  s_f193227df3df34::t_637d1a7eccff2e 19,189-190,198,260-276,320-321,349-350
+app/api/v1/accounts/[id]/follow/route.ts
+  s_f193227df3df34::t_0fbe0a33cc4c29 6-9,13,89-111
+lib/services/bluesky/follow.ts
+  s_f193227df3df34::t_0a33a5fd96f991 130
+  s_f193227df3df34::t_916104981bc71f 1-129,131-151
+app/api/v1/timelines/[timeline]/route.ts
+  s_f193227df3df34::t_06a886fa51099b 20
+  s_f193227df3df34::t_e268711523fb57 118-125
+app/api/v2/search/route.ts
+  s_f193227df3df34::t_0b7fb5b8e9e060 14-17,412-438
+lib/client/timelines.ts
+  s_f193227df3df34::t_e268711523fb57 2,28-29,49,64-66,114,124,143
+lib/database/domains/status/statusReadQueries.test.ts
+  s_f193227df3df34::t_a3cc4119fc51f9 1062-1085
+app/(timeline)/(home)/loading.tsx
+  s_f193227df3df34::t_df3cf9d7792077 17-19
+lib/database/domains/status/hydration.ts
+  s_f193227df3df34::t_3f221f73901f46 527,717-719
+app/api/v1/accounts/follow/route.ts
+  s_f193227df3df34::t_0fbe0a33cc4c29 15,76-90
+  s_f193227df3df34::t_9268530ce1728c 91
+lib/services/bluesky/account.ts
+  s_f193227df3df34::t_791da5f0ec79dc 12-13,209-213,318-335,397-398,474
+lib/components/posts/post-header.tsx
+  s_f193227df3df34::t_5ba3e6e7195ccc 7,122
+lib/services/timelines/getFilteredTimelinePage.ts
+  s_f193227df3df34::t_637d1a7eccff2e 9,213-214,226-227,251-252,263-264
+docs/architecture.md
+  s_f193227df3df34::t_4d20978f3d3567 1741
+lib/services/timelines/getFilteredTimelinePage.test.ts
+  s_f193227df3df34::t_120cb2d77fdcc5 8-9,491-493
+  s_f193227df3df34::t_ebb66a11b8e6ed 490,494-524
+app/api/v1/accounts/search/route.ts
+  s_f193227df3df34::t_ab0a234062888a 9-12
+  s_f193227df3df34::t_f3e0da56430335 110-119,121,139-142,146,169
+lib/database/domains/timeline/types.ts
+  s_f193227df3df34::t_06a886fa51099b 4
+  s_f193227df3df34::t_637d1a7eccff2e 17-19
+lib/services/accounts/relationship.ts
+  s_f193227df3df34::t_31a0007cff457e 6,33-35,51-58,134-136
+test/instrumentation.test.ts
+  s_f193227df3df34::t_efeb88b9e4026f 6,27-30,71,123
+app/(timeline)/[actor]/getProfileData.ts
+  s_f193227df3df34::t_28b80c86d67f55 14-18,46,162-164,168-182,184-187,190-207,219-222,224-232
+  s_f193227df3df34::t_28bcc3e1649a9a 183,188-189,208-218,223
+  s_f193227df3df34::t_536d3af2b0db8a 233-234
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_f193227df3df34::t_ab0a234062888a 264-266
+  s_f193227df3df34::t_5682ba6da9111f 25
+lib/services/bluesky/syncSweep.test.ts
+  s_f193227df3df34::t_a7afde422f8cb2 1-101
+lib/services/bluesky/profiles.ts
+  s_f193227df3df34::t_91316f7617ea2c 1-18,20-219,221-224
+  s_f193227df3df34::t_0b201821800951 19,220
+lib/jobs/names.ts
+  s_f193227df3df34::t_c405957d6318cf 61
+app/(timeline)/(home)/page.test.tsx
+  s_f193227df3df34::t_ab0a234062888a 5-6,11,40,164,181,250-318
+app/(timeline)/MainPageTimeline.tsx
+  s_f193227df3df34::t_a4fbc0ccd5086f 64,128-133,247-248,250,515,600,694,712,1056,1380-1381,1433,1492,1594
+lib/services/bluesky/sync.test.ts
+  s_f193227df3df34::t_e1cf4529bc1df3 27-30,179-181,193-196,224-226,247-250,270-272
+  s_f193227df3df34::t_4d070ff842e9b5 31
+  s_f193227df3df34::t_70200920f8460f 1-26,32-178,182-192,197-223,227-246,251-269,273-314
+lib/services/bluesky/follow.test.ts
+  s_f193227df3df34::t_d1074cea5e017f 1-204
+lib/jobs/syncBlueskyHomeJob.test.ts
+  s_f193227df3df34::t_1a1c9b8d156ac1 1-49
+app/(timeline)/(home)/HomeNetworkSwitch.tsx
+  s_f193227df3df34::t_efeb88b9e4026f 1-27
+lib/types/domain/status.ts
+  s_f193227df3df34::t_3f221f73901f46 123-125
+app/(timeline)/[actor]/ProfileRelationshipActions.tsx
+  s_f193227df3df34::t_31a0007cff457e 11,50-51
+lib/utils/blueskyAccount.ts
+  s_f193227df3df34::t_791da5f0ec79dc 14-17
+lib/jobs/index.ts
+  s_f193227df3df34::t_c405957d6318cf 86,117,300-302
+lib/database/domains/blueskyAccount/queries.ts
+  s_f193227df3df34::t_64479689de16d4 22-23,186-199,304
+  s_f193227df3df34::t_cdb17b8f7e327c 98-99,103
+lib/services/bluesky/account.test.ts
+  s_f193227df3df34::t_9767d38d9dd072 20,27,58,86-87,190-206,471-476,599-615
+  s_f193227df3df34::t_1639fa56949667 516
+lib/services/timelines/types.ts
+  s_f193227df3df34::t_637d1a7eccff2e 15-24
+lib/jobs/syncBlueskyHomeJob.ts
+  s_f193227df3df34::t_7c23282810ab53 1-23
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_f193227df3df34::t_55a304a4e3f5dc 1021-1053
+instrumentation.ts
+  s_f193227df3df34::t_efeb88b9e4026f 38-41
+app/(timeline)/[actor]/(profile)/page.tsx
+  s_f193227df3df34::t_9286ee4979ff18 34,44,456-460
+app/api/v1/accounts/lookup/route.test.ts
+  s_f193227df3df34::t_b1d43324743a47 20,65-70,710-718,724-797
+  s_f193227df3df34::t_f4867b8299881d 719-723
+  s_f193227df3df34::t_d995a6a451a33f 798
+lib/services/bluesky/syncSweep.ts
+  s_f193227df3df34::t_2f9c95a64e2cdb 1-76
+app/api/v1/accounts/lookup/route.ts
+  s_f193227df3df34::t_7232bcf57761fc 23,58,70,83-86,117-120,123-125,141-142,157-159,162-163,182,195-207,220-222
+  s_f193227df3df34::t_ddb21007c1879d 10-13,121-122
+lib/services/bluesky/sync.ts
+  s_f193227df3df34::t_2017d753a173ac 1-102,104-116,120-184
+  s_f193227df3df34::t_a335caeed26781 103
+  s_f193227df3df34::t_eb13759d63a959 117-119
+lib/utils/accountHandle.ts
+  s_f193227df3df34::t_0b201821800951 141,144-146,148,158,162-177
+app/(timeline)/settings/networks/BlueskyAccountForm.test.tsx
+  s_f193227df3df34::t_53d5a9f13597b8 40-42,190-210
+  s_f193227df3df34::t_7782112eccfcdb 211
+lib/components/posts/post-header.test.tsx
+  s_f193227df3df34::t_b061fe0fd930fc 59-84
+lib/services/accounts/relationship.test.ts
+  s_f193227df3df34::t_867d08969d7815 17-18,402-439
+  s_f193227df3df34::t_12962d13253a84 440
+lib/database/domains/status/statusWriteQueries.test.ts
+  s_f193227df3df34::t_1e17d26dc00563 644,1391
+lib/database/domains/blueskyAccount/types.ts
+  s_f193227df3df34::t_64479689de16d4 18-20,27,61-62
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_c28b30692202b7 1320-1329
+  s_f193227df3df34::t_734b2510f11263 1218-1220,1293-1319
+app/api/v1/timelines/[timeline]/route.test.ts
+  s_f193227df3df34::t_1abd81750ad4b3 61,941-988
+  s_f193227df3df34::t_dbd5f07dbb5891 989
+app/(timeline)/[actor]/ProfileRelationshipActions.test.tsx
+  s_f193227df3df34::t_abbabf732b353e 91-103
+app/api/v1/accounts/[id]/follow/route.test.ts
+  s_f193227df3df34::t_df8bc069766251 7-11,77-80,636-695
+app/api/v1/accounts/[id]/unfollow/route.test.ts
+  s_f193227df3df34::t_937e21b6504879 5-6,50-54,127-162
+app/api/v1/accounts/follow/route.test.ts
+  s_f193227df3df34::t_db7588daf6fd8e 265-277
+app/api/v1/accounts/search/route.test.ts
+  s_f193227df3df34::t_b63bc73422caba 19-20,48-49,53-58,89,794-869
+app/api/v2/search/route.test.ts
+  s_f193227df3df34::t_da452037493822 42-43,88-89,93-98,182,2302-2364
+lib/database/domains/timeline/timelineQueries.test.ts
+  s_f193227df3df34::t_a272bc8ce08113 91-92,103,116,393-453
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "33b728448a687ed5564e26d3b489aaa517d62da5",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}

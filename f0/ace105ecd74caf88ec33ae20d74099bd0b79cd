@@ -1,0 +1,259 @@
+lib/stub/blueskyPost.ts
+  s_f193227df3df34::t_f4e08c99206905 1-6,12-27
+  s_f193227df3df34::t_c86a3b227494b3 7-11
+lib/services/quotes/resolveQuoteForCreate.test.ts
+  s_f193227df3df34::t_c96a5163bffa11 69-85
+lib/actions/like.ts
+  s_f193227df3df34::t_a096bd5f8294b7 28
+  s_f193227df3df34::t_62be96446dafa3 11,27
+lib/services/reactions/reactionRouteHandlers.test.ts
+  s_f193227df3df34::t_e401d6d349023a 114-117
+app/api/v1/statuses/[id]/route.test.ts
+  s_f193227df3df34::t_d60c46aaaf7d9f 137-165
+lib/database/domains/timeline/timelineQueries.test.ts
+  s_f193227df3df34::t_f63830bf52b021 535-537
+  s_f193227df3df34::t_8c04cdc0db89e2 505-534
+lib/components/posts/actions/actions.tsx
+  s_f193227df3df34::t_cff2ebeaadebaa 9-10,120-122,150
+  s_f193227df3df34::t_09a8700a791c5d 130-142,144-147
+  s_f193227df3df34::t_c86a3b227494b3 143,186-206,212-218,263,265
+lib/services/statuses/parentBackfill.test.ts
+  s_f193227df3df34::t_329cddc842b73b 100-103
+lib/jobs/sendQuoteRequestJob.test.ts
+  s_f193227df3df34::t_93a4efb169c904 148-163
+lib/services/bluesky/profiles.ts
+  s_f193227df3df34::t_749777b645e82b 149-152,176
+  s_f193227df3df34::t_ac668f53eb70b9 6-8,15-19,22,143-144,162-164,172-173
+  s_f193227df3df34::t_fee65f53b38828 115-132,135-136
+app/api/v1/accounts/[id]/statuses/route.ts
+  s_f193227df3df34::t_63d71cae67442f 86-89
+lib/database/domains/bluesky/types.ts
+  s_f193227df3df34::t_e0557c7a791f91 57-58,61-64,72-76
+lib/services/bluesky/follow.ts
+  s_f193227df3df34::t_d8e2642267e472 137,146
+  s_f193227df3df34::t_eaf2ed83bbbdc5 15,49-59,103,115-117
+  s_f193227df3df34::t_51411f67d25b56 138-145,147-153
+  s_f193227df3df34::t_e5e2a0ebfb1c7e 154
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_78f5c16c671b6b 253
+  s_f193227df3df34::t_13cba956a63319 3-6,21,25,27,45-46,49-52,59-101,103-115,136,141-159,247-252,254-259,342-355,448
+app/(timeline)/[actor]/getProfileData.ts
+  s_f193227df3df34::t_95e35ea0752a13 171-177,184,193,195-198,200-206
+app/(timeline)/[actor]/(profile)/page.redirect.test.tsx
+  s_f193227df3df34::t_9a2a753d4a0684 251-279
+app/(timeline)/[actor]/(profile)/page.tsx
+  s_f193227df3df34::t_6de04507da4397 109-114
+  s_f193227df3df34::t_c80e7cbb6b368e 108
+app/api/v1/statuses/[id]/reblog/route.ts
+  s_f193227df3df34::t_62be96446dafa3 10,78,80-86
+  s_f193227df3df34::t_a096bd5f8294b7 79
+app/api/v1/accounts/outbox/route.ts
+  s_f193227df3df34::t_d34f98b51a69aa 207,284
+  s_f193227df3df34::t_4c60743b483c31 20,175-179,208-216,285-293
+app/api/v1/statuses/route.test.ts
+  s_f193227df3df34::t_ead3f352b65424 32,397-430,434
+  s_f193227df3df34::t_c86a3b227494b3 431-433
+  s_f193227df3df34::t_dda1b5b20d2a00 435-436
+lib/services/quotes/resolveQuoteForCreate.ts
+  s_f193227df3df34::t_4c60743b483c31 6,27-28
+  s_f193227df3df34::t_d34f98b51a69aa 64
+lib/database/domains/blueskyAccount/types.ts
+  s_f193227df3df34::t_24ac440f212808 41,61-64,66
+docs/architecture.md
+  s_f193227df3df34::t_67999404b5eab2 451-460
+lib/jobs/syncBlueskyHomeJob.test.ts
+  s_f193227df3df34::t_cefcfd14bb13a7 40-55
+lib/actions/blockActor.ts
+  s_f193227df3df34::t_8e70a45d5d152b 12,69-70
+lib/actions/unblockActor.ts
+  s_f193227df3df34::t_8e70a45d5d152b 6,45-46
+lib/services/reactions/reactStatus.ts
+  s_f193227df3df34::t_e9c5dda5e9b59e 142
+  s_f193227df3df34::t_62be96446dafa3 17-21,44-45
+lib/jobs/sendFlagJob.ts
+  s_f193227df3df34::t_8e70a45d5d152b 9,29-30
+lib/actions/followActor.test.ts
+  s_f193227df3df34::t_4de3cc2fbe9bf4 58-73
+lib/database/kysely/visibility/publiclyReadable.ts
+  s_f193227df3df34::t_524359c569ac5e 67-68,193
+  s_f193227df3df34::t_67d5f8eb03799a 69,85,194
+lib/database/domains/blueskyAccount/queries.ts
+  s_f193227df3df34::t_24ac440f212808 113,199-200,202-213,237
+  s_f193227df3df34::t_b55a736397afc6 234-236
+  s_f193227df3df34::t_78f5c16c671b6b 115-117
+  s_f193227df3df34::t_692d72b884efa7 114
+app/api/v1/reports/route.ts
+  s_f193227df3df34::t_6dad81cb537c9f 15
+  s_f193227df3df34::t_8e70a45d5d152b 188-189
+lib/actions/unblockActor.test.ts
+  s_f193227df3df34::t_dd5035f8df4b54 1-58
+app/api/v1/statuses/[id]/favourite/route.ts
+  s_f193227df3df34::t_62be96446dafa3 7,37,39-45
+  s_f193227df3df34::t_a096bd5f8294b7 38
+  s_f193227df3df34::t_ee6f629a95f5b7 9
+lib/services/reactions/reactStatus.test.ts
+  s_f193227df3df34::t_e401d6d349023a 10,182-199
+  s_f193227df3df34::t_386f13a0350def 200-201
+app/api/v1/accounts/lookup/route.test.ts
+  s_f193227df3df34::t_b1ce3da2eaaf29 4-8,790-823
+  s_f193227df3df34::t_ca1e78ceb4bc50 824
+lib/components/posts/actions/post-menu.tsx
+  s_f193227df3df34::t_4c5b0cb6c58afc 76-77
+  s_f193227df3df34::t_c86a3b227494b3 830-837
+  s_f193227df3df34::t_4ffec604b6d9bd 827-829,838
+lib/database/kysely/visibility/publiclyReadable.test.ts
+  s_f193227df3df34::t_6347e3103bc17d 212-228,310-324,353-354
+lib/jobs/createRelayAnnounceJob.ts
+  s_f193227df3df34::t_966b5b1aa01b8d 17,78-80
+lib/services/notifications/createNotificationWithPolicy.test.ts
+  s_f193227df3df34::t_51d13465aa516d 46-57
+lib/activities/getRemoteStatus.test.ts
+  s_f193227df3df34::t_7c567a4650e386 4,9-13,269-270
+  s_f193227df3df34::t_44e606e872a9f0 262
+lib/database/domains/bluesky/bluesky.test.ts
+  s_f193227df3df34::t_67999404b5eab2 273-287
+  s_f193227df3df34::t_28a73594a9e98d 297
+  s_f193227df3df34::t_65933bdf9f5817 1,4-11,99-165,261-272,288-296,298-308
+app/api/v1/statuses/[id]/reblog/route.test.ts
+  s_f193227df3df34::t_1b7a9fe5b5fcdd 7,153
+  s_f193227df3df34::t_3796d6083ff0ab 5,141-152,154-155
+  s_f193227df3df34::t_a6e5b519f83f14 156-157
+lib/jobs/sendQuoteRequestJob.ts
+  s_f193227df3df34::t_8e70a45d5d152b 12,30-31
+lib/activities/index.test.ts
+  s_f193227df3df34::t_7c567a4650e386 97-98,105-106
+app/(timeline)/[actor]/[status]/page.live-fetch.test.tsx
+  s_f193227df3df34::t_202d5789b46659 848-915
+lib/services/reactions/reactionRouteHandlers.ts
+  s_f193227df3df34::t_62be96446dafa3 79-81
+lib/jobs/sendUnblockJob.test.ts
+  s_f193227df3df34::t_93a4efb169c904 92-111
+lib/types/domain/status.ts
+  s_f193227df3df34::t_68155793a48131 242-246
+app/api/v1/accounts/outbox/route.test.ts
+  s_f193227df3df34::t_c96a5163bffa11 409-474
+lib/services/statuses/parentBackfill.ts
+  s_f193227df3df34::t_329cddc842b73b 7
+  s_f193227df3df34::t_ada4a02fce388b 85-86
+lib/services/bluesky/sync.ts
+  s_f193227df3df34::t_78f5c16c671b6b 87
+  s_f193227df3df34::t_df17c7e8a660a2 8-9,15,25-26,36-37,72-76,82-86,88-94,96-99,101-118,130-134,138-139,141-143,146-152
+  s_f193227df3df34::t_1cc9ebc43026cc 175-188
+  s_f193227df3df34::t_0bd8b4ae9a31fb 95,100,197-204
+lib/actions/announce.ts
+  s_f193227df3df34::t_a096bd5f8294b7 129
+  s_f193227df3df34::t_62be96446dafa3 19-20,125-128,130
+lib/actions/announce.test.ts
+  s_f193227df3df34::t_cceb262a59856e 8,199-209
+  s_f193227df3df34::t_b9670afb372ee7 210-211
+lib/actions/emojiReaction.test.ts
+  s_f193227df3df34::t_7c47b4f1032acc 15,122-131
+  s_f193227df3df34::t_e6754f73891fd9 132-133
+lib/services/bluesky/sync.test.ts
+  s_f193227df3df34::t_7bced5a1fd031e 1-2,248-358,365
+  s_f193227df3df34::t_67999404b5eab2 225,247
+  s_f193227df3df34::t_10ec1d5553a66f 359-364
+  s_f193227df3df34::t_fc2ff7d6912ebf 366
+app/(timeline)/[actor]/getProfileData.bluesky.test.ts
+  s_f193227df3df34::t_95e35ea0752a13 70-71,84-98
+lib/jobs/createRelayAnnounceJob.test.ts
+  s_f193227df3df34::t_3628922c4d93a0 11,86-98
+  s_f193227df3df34::t_ce806ea52efb56 99-100
+app/api/v1/reports/route.test.ts
+  s_f193227df3df34::t_6c4125c4f8bb62 286-300
+lib/database/domains/timeline/queries.ts
+  s_f193227df3df34::t_0f9c985aa05220 396-400,410-423
+  s_f193227df3df34::t_066c1abcb91aa4 13
+lib/actions/followActor.ts
+  s_f193227df3df34::t_aad2e8fcd46ae2 8,38-43
+lib/activities/getActorPerson.test.ts
+  s_f193227df3df34::t_7c567a4650e386 456-458,463
+lib/actions/emojiReaction.ts
+  s_f193227df3df34::t_62be96446dafa3 19,225
+  s_f193227df3df34::t_a096bd5f8294b7 226
+app/api/v1/statuses/[id]/favourite/route.test.ts
+  s_f193227df3df34::t_e6eb1970e95937 6,163-171
+  s_f193227df3df34::t_8f0ddd122580f2 172-177
+app/api/v1/statuses/[id]/route.ts
+  s_f193227df3df34::t_68155793a48131 86-89
+  s_f193227df3df34::t_16916516b7336f 43
+lib/components/posts/actions/actions.test.tsx
+  s_f193227df3df34::t_983ae8ff7da755 132-133,137,139-142,148-150,194-252
+  s_f193227df3df34::t_d57effad137912 253
+lib/jobs/sendBlockJob.ts
+  s_f193227df3df34::t_8e70a45d5d152b 9,27-28
+app/api/v1/accounts/[id]/statuses/route.test.ts
+  s_f193227df3df34::t_63d71cae67442f 1054-1080
+app/api/v1/statuses/route.ts
+  s_f193227df3df34::t_d34f98b51a69aa 467,599
+  s_f193227df3df34::t_4c60743b483c31 64-68,468-474,600-602,606-608,667-669
+  s_f193227df3df34::t_ee6f629a95f5b7 603-605
+  s_f193227df3df34::t_22a41524cbe822 475-476
+lib/actions/blockActor.test.ts
+  s_f193227df3df34::t_dd5035f8df4b54 84-105
+lib/utils/blueskyId.ts
+  s_f193227df3df34::t_1dbf5f0296b4a5 3-5,12
+lib/actions/like.test.ts
+  s_f193227df3df34::t_7c47b4f1032acc 7,57-72
+  s_f193227df3df34::t_aaa608f6ea577c 73-74
+lib/jobs/sendUnblockJob.ts
+  s_f193227df3df34::t_8e70a45d5d152b 10,26-27
+lib/services/bluesky/records.ts
+  s_f193227df3df34::t_e370d035353b4f 40-42
+  s_f193227df3df34::t_4c17fd9121dacb 11,93
+  s_f193227df3df34::t_25ffc7500f939d 12,17-21,23,26,34-36,43,65-68,70-71,158,166,212-218,232-233,237,243,281-282,293-294,296-302,317
+  s_f193227df3df34::t_78f5c16c671b6b 295
+  s_f193227df3df34::t_386ce04cf1e44e 69,72-73
+app/api/v1/accounts/lookup/route.ts
+  s_f193227df3df34::t_e8cdbf8b29f671 26,242-246
+  s_f193227df3df34::t_07e45651f8b4ba 3,32,202-212
+lib/jobs/sendBlockJob.test.ts
+  s_f193227df3df34::t_93a4efb169c904 135-145
+lib/services/notifications/createNotificationWithPolicy.ts
+  s_f193227df3df34::t_51d13465aa516d 9,24-26
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_1c7af05aec7e1a 1279,1283,1285-1292,1309-1310,1324-1327,1331
+  s_f193227df3df34::t_cf2c6e1e9bc737 1332-1353
+  s_f193227df3df34::t_64d19e96653e51 1371-1373
+app/api/v1/accounts/search/route.ts
+  s_f193227df3df34::t_07e45651f8b4ba 3,27-32,145-156
+app/(timeline)/[actor]/[status]/page.tsx
+  s_f193227df3df34::t_0b94e8bbd3ef35 52-53,56,203-207,294,297,321-326,331-337
+lib/jobs/sendFlagJob.test.ts
+  s_f193227df3df34::t_93a4efb169c904 67-83
+lib/services/bluesky/follow.test.ts
+  s_f193227df3df34::t_e0765fb7adb37d 97-135,187-196,203
+  s_f193227df3df34::t_936c63e18a8f60 197-202,204
+app/(timeline)/[actor]/[status]/page.test.ts
+  s_f193227df3df34::t_ad6f809a85885b 222-254
+app/api/v1/accounts/search/route.test.ts
+  s_f193227df3df34::t_5684294c75407d 4-8,840-852
+lib/database/domains/actor/actorDeletion.test.ts
+  s_f193227df3df34::t_55cb0fe3b98ad0 265-310
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  s_f193227df3df34::t_086d657f190edd 65-72,75,79-81,87,90,93-95,118-161,163-173,331,334,337-339
+lib/jobs/syncBlueskyHomeJob.ts
+  s_f193227df3df34::t_75abcccb934a55 6-9,21-29
+lib/services/bluesky/profiles.test.ts
+  s_f193227df3df34::t_b5993bf65aa602 215-224,299-308
+lib/services/bluesky/records.test.ts
+  s_f193227df3df34::t_4f31a3b9b4cc0b 43-49,244-305
+lib/utils/blueskyId.test.ts
+  s_f193227df3df34::t_bba49c0f1b790a 1-5,13-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f0ace105ecd74caf88ec33ae20d74099bd0b79cd",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
