@@ -1,0 +1,62 @@
+lib/services/bluesky/actionErrors.ts
+  s_f193227df3df34::t_27b18a997a7f06 1-71
+lib/services/bluesky/actionErrors.test.ts
+  s_f193227df3df34::t_fa30dfa826d1dc 1-44
+  s_f193227df3df34::t_aa105ac7e0876b 45
+migrations/20261124060051_add_bluesky_interactions.ts
+  s_f193227df3df34::t_1581a55a669ec1 1-60
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_019a869520b9c7 362,369-370
+lib/database/domains/bluesky/bluesky.test.ts
+  s_2c8834a93478b8::t_d049fd7ba096c4 450-666
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  s_2c8834a93478b8::t_08e818244acbcc 72-80,84,91-96,102,106,112-155,407,411,417-422
+lib/database/domains/actor/actorDeletion.test.ts
+  s_2c8834a93478b8::t_2c41b99ff90bb6 311-360
+lib/database/domains/actor/actorDeletionQueries.test.ts
+  s_2c8834a93478b8::t_c5c27abf44f2d0 1379
+lib/database/domains/actor/deletion.ts
+  s_2c8834a93478b8::t_539e509e631a87 592,601-604
+lib/database/domains/bluesky/blueskyMigration.test.ts
+  s_2c8834a93478b8::t_8c11ff40a8275f 3,45-83
+lib/database/domains/bluesky/queries.ts
+  s_2c8834a93478b8::t_1222bee9513a08 10-11,21-25,27-28,431-546,584-588
+lib/database/domains/bluesky/types.ts
+  s_2c8834a93478b8::t_7c9b6cced76b03 56-65,106-137
+lib/database/domains/blueskyAccount/queries.ts
+  s_2c8834a93478b8::t_a046a83dd91293 24-26,116,121-124,165-177,258-261,350
+lib/database/domains/blueskyAccount/types.ts
+  s_2c8834a93478b8::t_32af55fa87f72d 21-22,29-34,48-49,60-63,77
+lib/database/kysely/db.ts
+  s_2c8834a93478b8::t_1153c0b0706db9 279,292-299,1627
+migrations/index.ts
+  s_2c8834a93478b8::t_1935d5456e8c23 32,72-73
+migrations/names.ts
+  s_2c8834a93478b8::t_ab326ed858f4ac 32-33
+migrations/schema.sql
+  s_2c8834a93478b8::t_c51bde8a3de61a 256-257,267-274,1813-1815,2306-2307
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9e9dc4e0701e89cdfc476c7c3b0f401d787b1869",
+  "prompts": {},
+  "sessions": {
+    "s_2c8834a93478b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a7b972ab0041ee177",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
