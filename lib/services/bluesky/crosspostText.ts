@@ -226,8 +226,10 @@ const POLL_BLOCK_TAGS = new Set([
   'pre'
 ])
 
-// Bound recursion so deeply nested HTML cannot overflow the call stack.
-const MAX_POLL_HTML_DEPTH = 12
+// Bound recursion so deeply nested HTML cannot overflow the call stack. Each
+// nested list level costs two element levels, so the limit sits well above the
+// nesting a post can hold; the iterative fallback below takes over past it.
+const MAX_POLL_HTML_DEPTH = 64
 
 const MENTION_HREF_PATH_PATTERN = /^\/(@[^/\s@]+@[^/\s@]+)$/
 
@@ -246,17 +248,53 @@ const isAbsoluteHttpUrl = (value: string): boolean => {
   }
 }
 
+// Tags that start a new line in the iterative fallback, so deep text is not
+// glued together when the recursive walk stops.
+const POLL_FALLBACK_BLOCK_TAGS = new Set([
+  'blockquote',
+  'div',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'li',
+  'ol',
+  'p',
+  'pre',
+  'ul'
+])
+
+type FallbackStackEntry = { node: HtmlDomNode } | { newline: true }
+
 const collectTextIteratively = (nodes: HtmlDomNode[]): string => {
-  const stack: HtmlDomNode[] = [...nodes].reverse()
+  const stack: FallbackStackEntry[] = [...nodes]
+    .reverse()
+    .map((node) => ({ node }))
   let text = ''
   while (stack.length > 0) {
-    const node = stack.pop()
-    if (!node) continue
+    const entry = stack.pop()
+    if (!entry) continue
+    if ('newline' in entry) {
+      text += '\n'
+      continue
+    }
+    const node = entry.node
     if (isHtmlText(node)) {
       text += node.data
     } else if (isHtmlElement(node)) {
+      const tag = node.name.toLowerCase()
+      if (tag === 'br') {
+        text += '\n'
+        continue
+      }
+      if (POLL_FALLBACK_BLOCK_TAGS.has(tag)) {
+        text += '\n'
+        stack.push({ newline: true })
+      }
       for (let index = node.children.length - 1; index >= 0; index -= 1) {
-        stack.push(node.children[index])
+        stack.push({ node: node.children[index] })
       }
     }
   }
@@ -319,6 +357,25 @@ const isDisplayTextForHref = (label: string, href: string): boolean => {
     }
   }
   return false
+}
+
+// A link label may end in a space, which separates its URL from a following
+// word but not from punctuation or the end of the text.
+const LINK_TRAILING_SPACE_PUNCTUATION = new Set([
+  '.',
+  ',',
+  ';',
+  ':',
+  '!',
+  '?',
+  ')',
+  ']'
+])
+
+const followedByWord = (nodes: HtmlDomNode[], index: number): boolean => {
+  const following = collectTextIteratively(nodes.slice(index + 1)).trimStart()
+  if (!following) return false
+  return !LINK_TRAILING_SPACE_PUNCTUATION.has(following[0])
 }
 
 const anchorToText = (node: HtmlElement, depth: number): string => {
@@ -400,6 +457,22 @@ const walkPollHtmlNodes = (
     out += collapsed
   }
 
+  // The fallback text carries newlines for <br> and block boundaries, which
+  // appendCollapsedText would flatten.
+  const appendFallbackText = (raw: string) => {
+    let first = true
+    for (const line of raw.split('\n')) {
+      const collapsed = line.replace(/\s+/g, ' ').trim()
+      if (!collapsed) continue
+      if (!first) {
+        trimTrailingHorizontalSpace()
+        out += '\n'
+      }
+      appendCollapsedText(collapsed)
+      first = false
+    }
+  }
+
   const visit = (
     list: HtmlDomNode[],
     pre: boolean,
@@ -412,13 +485,14 @@ const walkPollHtmlNodes = (
         if (pre) {
           out += text
         } else {
-          appendCollapsedText(text)
+          appendFallbackText(text)
         }
       }
       return
     }
 
-    for (const node of list) {
+    for (let index = 0; index < list.length; index += 1) {
+      const node = list[index]
       if (isHtmlText(node)) {
         if (pre) {
           out += node.data
@@ -447,7 +521,10 @@ const walkPollHtmlNodes = (
       }
 
       if (tag === 'a') {
-        const text = anchorToText(node, currentDepth + 1)
+        let text = anchorToText(node, currentDepth + 1)
+        if (text.endsWith(' ') && !followedByWord(list, index)) {
+          text = text.slice(0, -1)
+        }
         if (text) {
           if (pre) {
             out += text

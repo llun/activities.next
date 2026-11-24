@@ -320,9 +320,42 @@ describe('pollHtmlToBlueskyPlainText', () => {
       description: 'collapses double spaces around anchor edge whitespace',
       markdown: 'before [ link ](https://example.com) next',
       expected: 'before link https://example.com next'
+    },
+    {
+      description: 'drops anchor trailing whitespace before a full stop',
+      markdown: '[link ](https://example.com).',
+      expected: 'link https://example.com.'
+    },
+    {
+      description: 'drops anchor trailing whitespace before a closing bracket',
+      markdown: '([link ](https://example.com))',
+      expected: '(link https://example.com)'
     }
   ])('$description (via convertMarkdownText)', ({ markdown, expected }) => {
     expect(pollHtmlToBlueskyPlainText(renderPollHtml(markdown))).toBe(expected)
+  })
+
+  it('keeps each item of a deeply nested list on its own line', () => {
+    const markdown = [
+      '- l1',
+      '  - l2',
+      '    - l3',
+      '      - l4',
+      '        - l5',
+      '          - l6',
+      '            - l7',
+      '              - l8'
+    ].join('\n')
+
+    expect(pollHtmlToBlueskyPlainText(renderPollHtml(markdown))).toBe(
+      'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'
+    )
+  })
+
+  it('keeps a line break in deeply nested markup', () => {
+    const html = renderPollHtml(`${'<b>'.repeat(15000)}a<br>b`)
+
+    expect(pollHtmlToBlueskyPlainText(html)).toBe('a\nb')
   })
 
   it('handles deeply nested tags without overflowing the stack', () => {
