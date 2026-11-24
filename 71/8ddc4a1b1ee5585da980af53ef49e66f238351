@@ -1,0 +1,66 @@
+lib/components/posts/actions/post-menu.crosspost.test.tsx
+  s_f193227df3df34::t_4875fffce8170a 1-174
+lib/components/post-box/post-box.crosspost.test.tsx
+  s_f193227df3df34::t_c193f2287eddca 1-354
+  s_f193227df3df34::t_47f6d12d379e95 355-364
+app/(timeline)/settings/networks/BlueskyAccountForm.test.tsx
+  s_f193227df3df34::t_1710b94237d994 14,19-23,34,49-50,276-334
+app/(timeline)/settings/networks/BlueskyAccountForm.tsx
+  s_f193227df3df34::t_757cd8bc3bc89f 12,17,25,263-294
+lib/client/blueskyAccount.test.ts
+  s_f193227df3df34::t_71371d28dec486 1-33
+lib/client/blueskyAccount.ts
+  s_f193227df3df34::t_989d5f74590c5f 9,69-77
+lib/client/drafts/submitRequest.test.ts
+  s_f193227df3df34::t_81c02cada0106e 262-295
+lib/client/drafts/submitRequest.ts
+  s_f193227df3df34::t_adc04b0d64bbf8 17-21,32,43-44,55,65-66,130-131,140-141,197-198,208-209
+lib/client/drafts/types.ts
+  s_f193227df3df34::t_2896acb81352b5 122-123
+lib/client/statuses.test.ts
+  s_f193227df3df34::t_161ddc4974c1da 31,1848-1912
+lib/client/statuses.ts
+  s_f193227df3df34::t_f7afd3e69fac87 430-431,449,485-488,639-640,657,689-691,1332-1351
+lib/components/bluesky/blueskyAccountStore.ts
+  s_f193227df3df34::t_f221f694ee2ec7 9,81-91
+lib/components/post-box/post-box.bluesky.test.tsx
+  s_f193227df3df34::t_9689727fec9fc5 151-152,194-195
+lib/components/post-box/post-box.tsx
+  s_f193227df3df34::t_cd5cc05fdd9e95 89,93-94,143,288-294,296,299,302-315,511,1353,1361-1362,1379,1534,1543-1544,1563,2089,2376-2379,2561-2572,2604-2613
+lib/components/post-box/post-options-menu.tsx
+  s_f193227df3df34::t_04735d6d7db083 7,58-65,140-141,143-147,328-357
+lib/components/post-box/reducers.ts
+  s_f193227df3df34::t_4573ccd7946593 31-33,138-143,183,399-401
+lib/components/post-box/useComposerDraft.ts
+  s_f193227df3df34::t_5abfc1a2d21fcb 57,204
+lib/components/posts/actions/post-menu.bluesky.test.tsx
+  s_f193227df3df34::t_9a1627ac8e651d 129-130,188-189
+lib/components/posts/actions/post-menu.tsx
+  s_f193227df3df34::t_6f880d9f956810 20,44,326-335,441-457,869-915
+lib/components/posts/status-reply-box.bluesky.test.tsx
+  s_f193227df3df34::t_b5bc63dda32d7c 129-130
+lib/types/domain/status.ts
+  s_f193227df3df34::t_1ac672b733988b 195-207
+lib/utils/blueskyAccount.ts
+  s_f193227df3df34::t_44d0aaaaf4dda8 18-19
+lib/utils/blueskyText.test.ts
+  s_f193227df3df34::t_056ffd48281850 7-8,81-94
+lib/utils/blueskyText.ts
+  s_f193227df3df34::t_54091bf696afb4 19-21,84-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "718ddc4a1b1ee5585da980af53ef49e66f238351",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
