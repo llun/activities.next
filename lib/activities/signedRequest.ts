@@ -416,6 +416,20 @@ const isSuccess = (statusCode: number): boolean =>
  */
 export const ERR_BLUESKY_HOST_REFUSED = 'ERR_BLUESKY_HOST_REFUSED'
 
+// Refuse any cross-host redirect onto bsky.app even when the caller uses the
+// default permissive redirect policy (such as inbox delivery POSTs) or supplies
+// its own per-hop predicate.
+const wrapCrossHostRedirectPolicy = (
+  policy: RequestOptions['allowCrossHostRedirects']
+): RequestOptions['allowCrossHostRedirects'] => {
+  if (policy === false) return false
+  return (hopUrl: URL) => {
+    if (isBlueskyHostUrl(hopUrl.href)) return false
+    if (typeof policy === 'function') return policy(hopUrl)
+    return true
+  }
+}
+
 export const signedActivityPubRequest = async ({
   actor,
   accept = DEFAULT_ACCEPT,
@@ -453,6 +467,9 @@ export const signedActivityPubRequest = async ({
     const response = await request({
       ...requestOptions,
       ...overrides,
+      allowCrossHostRedirects: wrapCrossHostRedirectPolicy(
+        requestOptions?.allowCrossHostRedirects
+      ),
       url,
       method,
       body,

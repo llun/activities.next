@@ -641,4 +641,39 @@ describe('Bluesky Mastodon client API contract', () => {
       /^https:\/\/bsky\.app\/profile\/did:plc:/
     )
   })
+
+  it('returns a followed Bluesky account for following=true&resolve=true with a bsky.app profile URL', async () => {
+    await database.createBlueskyFollow({
+      actorId: ACTOR1_ID,
+      targetActorId: authorActorId,
+      uri: `at://${VIEWER_DID}/app.bsky.graph.follow/contract1`
+    })
+
+    const followedResponse = await searchV2(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(`https://bsky.app/profile/${AUTHOR_HANDLE}`)}&type=accounts&resolve=true&following=true`
+      ),
+      { params: Promise.resolve({}) }
+    )
+    expect(followedResponse.status).toBe(200)
+    const followedPayload = (await followedResponse.json()) as {
+      accounts: unknown[]
+    }
+    expect(followedPayload.accounts).toHaveLength(1)
+    const account = assertBlueskyAccountContract(followedPayload.accounts[0])
+    expect(account.url).toBe(authorActorId)
+
+    // An unfollowed Bluesky account is omitted when following=true.
+    const unfollowedResponse = await searchV2(
+      new NextRequest(
+        `https://llun.test/api/v2/search?q=${encodeURIComponent(`https://bsky.app/profile/${REPLIER_HANDLE}`)}&type=accounts&resolve=true&following=true`
+      ),
+      { params: Promise.resolve({}) }
+    )
+    expect(unfollowedResponse.status).toBe(200)
+    const unfollowedPayload = (await unfollowedResponse.json()) as {
+      accounts: unknown[]
+    }
+    expect(unfollowedPayload.accounts).toEqual([])
+  })
 })

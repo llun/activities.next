@@ -395,7 +395,11 @@ const walkPollHtmlNodes = (
     let url = ''
     if (hasClass(node, 'mention')) {
       text = mentionFromHref(node.attribs?.href) ?? visible
-    } else if (!hasClass(node, 'hashtag')) {
+    } else if (
+      !hasClass(node, 'hashtag') &&
+      !visible.startsWith('@') &&
+      !visible.startsWith('#')
+    ) {
       const href = node.attribs?.href?.trim() ?? ''
       if (href && isAbsoluteHttpUrl(href)) {
         url = href

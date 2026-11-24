@@ -32,6 +32,10 @@ import {
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000
 const MAX_FEED_LIMIT = 100
+export const BLUESKY_AUTHOR_FEED_VIEWER_RATE_LIMIT = {
+  limit: 30,
+  windowMs: 15 * 60 * 1000
+}
 
 type Json = Record<string, unknown>
 
@@ -162,8 +166,9 @@ export const refreshBlueskyProfile = async (
 /**
  * Stores the newest posts of a stored Bluesky actor (the AppView's
  * app.bsky.feed.getAuthorFeed, for a viewer with a linked account, at most
- * once per ten minutes per actor) for its profile page. Reposts and posts by
- * anyone else are skipped, and nothing is added to a Home timeline.
+ * once per ten minutes per actor and 30 distinct authors per 15 minutes per
+ * viewer) for its profile page. Reposts and posts by anyone else are skipped,
+ * and nothing is added to a Home timeline.
  */
 export const loadBlueskyAuthorFeed = async (
   database: Database,
@@ -176,6 +181,16 @@ export const loadBlueskyAuthorFeed = async (
   if (!BLUESKY_DID_PATTERN.test(did)) return
   if (!(await hasLinkedAccount(database, viewer))) return
   if (!(await claimAppViewRead(database, 'feed', actorId))) return
+  const viewerDigest = crypto
+    .createHash('sha256')
+    .update(viewer.id)
+    .digest('hex')
+  const viewerBudget = await database.consumeRateLimit({
+    key: `${APP_RATE_LIMIT_KEY_PREFIX}bluesky-feed-viewer:${viewerDigest}`,
+    keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+    ...BLUESKY_AUTHOR_FEED_VIEWER_RATE_LIMIT
+  })
+  if (!viewerBudget.allowed) return
   const response = await getPublicAuthorFeed(did, {
     limit: Math.min(Math.max(limit, 1), MAX_FEED_LIMIT)
   })

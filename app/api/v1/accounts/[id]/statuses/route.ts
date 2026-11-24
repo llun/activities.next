@@ -145,9 +145,9 @@ export const GET = traceApiRoute(
 
       // For a Bluesky account, load the author's recent posts from the public
       // AppView the way the web profile does (gated on server policy, a linked
-      // Bluesky account on the viewer, and the shared per-actor rate window),
-      // then read the stored page below. Best-effort: a failure keeps whatever
-      // is already stored.
+      // Bluesky account on the viewer, the shared per-actor rate window, and
+      // the per-viewer budget), then read the stored page below. Best-effort:
+      // a failure or an exhausted budget keeps whatever is already stored.
       if (
         currentActor &&
         isBlueskyId(actor.id) &&

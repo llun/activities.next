@@ -1,13 +1,16 @@
 import { getDatabase } from '@/lib/database'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 // An `allowCrossHostRedirects` policy for an outbound fetch whose caller vetted
 // only the URL it asked for: a redirect onto another host is followed only
 // when federation policy allows that host, so a blocked or non-allowlisted host
-// is never contacted. With no database to decide, the hop is refused.
+// is never contacted. bsky.app is never an ActivityPub host, so redirects onto
+// it are always refused. With no database to decide, the hop is refused.
 export const isFederatedRedirect = async (url: URL) => {
+  if (isBlueskyHostUrl(url.href)) return false
   try {
     const database = getDatabase()
     return database ? await canFederateWithDomain(database, url.href) : false

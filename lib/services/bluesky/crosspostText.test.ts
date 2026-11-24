@@ -8,6 +8,7 @@ import {
   markdownToBlueskyPlainText,
   pollHtmlToBlueskyPlainText
 } from '@/lib/services/bluesky/crosspostText'
+import { blueskyPostToHtml } from '@/lib/services/bluesky/records'
 import { buildBlueskyFacets } from '@/lib/services/bluesky/richText'
 import {
   BLUESKY_MAX_GRAPHEMES,
@@ -410,6 +411,52 @@ describe('pollHtmlToBlueskyPlainText', () => {
     const html = renderPollHtml(`${'<b>'.repeat(15000)}a<br>b`)
 
     expect(pollHtmlToBlueskyPlainText(html)).toBe('a\nb')
+  })
+
+  it('keeps Bluesky mention and hashtag facets as visible text without appending bsky.app URLs', () => {
+    const text = 'Hello @alice.bsky.social check example.com/docs #bluesky!'
+    const mentionStart = Buffer.byteLength('Hello ')
+    const mentionEnd = mentionStart + Buffer.byteLength('@alice.bsky.social')
+    const linkStart = Buffer.byteLength('Hello @alice.bsky.social check ')
+    const linkEnd = linkStart + Buffer.byteLength('example.com/docs')
+    const tagStart = Buffer.byteLength(
+      'Hello @alice.bsky.social check example.com/docs '
+    )
+    const tagEnd = tagStart + Buffer.byteLength('#bluesky')
+
+    const html = blueskyPostToHtml(text, [
+      {
+        index: { byteStart: mentionStart, byteEnd: mentionEnd },
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#mention',
+            did: `did:plc:${'a'.repeat(24)}`
+          }
+        ]
+      },
+      {
+        index: { byteStart: linkStart, byteEnd: linkEnd },
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#link',
+            uri: 'https://example.com/docs'
+          }
+        ]
+      },
+      {
+        index: { byteStart: tagStart, byteEnd: tagEnd },
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#tag',
+            tag: 'bluesky'
+          }
+        ]
+      }
+    ])
+
+    expect(pollHtmlToBlueskyPlainText(html)).toBe(
+      'Hello @alice.bsky.social check https://example.com/docs #bluesky!'
+    )
   })
 
   it('handles deeply nested tags without overflowing the stack', () => {

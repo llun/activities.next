@@ -49,6 +49,7 @@ import {
   parseProfileUrlAccountHandle
 } from '@/lib/utils/accountHandle'
 import { normalizeActorId } from '@/lib/utils/activitypub'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -288,6 +289,15 @@ const canIncludeAccount = async ({
   // applyFollowingFilter), so a following-filtered lookup of your own URL
   // still finds you, as the indexed search does.
   if (actorId === currentActor.id) return true
+
+  if (isBlueskyId(actorId)) {
+    return Boolean(
+      await database.getBlueskyFollow({
+        actorId: currentActor.id,
+        targetActorId: actorId
+      })
+    )
+  }
 
   return database.isCurrentActorFollowing({
     currentActorId: currentActor.id,

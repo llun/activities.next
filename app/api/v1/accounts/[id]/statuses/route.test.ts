@@ -1210,6 +1210,69 @@ describe('GET /api/v1/accounts/[id]/statuses', () => {
       }
     })
 
+    it('serves stored posts without calling AppView when the viewer is over the per-viewer author-feed budget', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      await database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did: `did:plc:${'b'.repeat(24)}`,
+        handle: 'budgetviewer.bsky.social',
+        pdsUrl: 'https://bsky.social',
+        authType: 'oauth',
+        domainHandle: false
+      })
+      const targetDid = `did:plc:${'z'.repeat(24)}`
+      const targetActorId = (await database.upsertBlueskyActor({
+        did: targetDid,
+        handle: 'overbudget.bsky.social'
+      })) as string
+      const { statusId } = await database.upsertBlueskyPost({
+        uri: `at://${targetDid}/app.bsky.feed.post/stored1`,
+        cid: 'cid-stored1',
+        did: targetDid,
+        rkey: 'stored1',
+        actorId: targetActorId,
+        text: '<p>Stored before budget exhausted</p>',
+        createdAt: Date.now(),
+        attachments: []
+      })
+      vi.mocked(getPublicAuthorFeed).mockResolvedValue({ feed: [] })
+
+      try {
+        // Exhaust ACTOR1's 30-author budget on distinct Bluesky accounts.
+        for (let i = 0; i < 30; i += 1) {
+          const did = `did:plc:${i.toString(2).padStart(8, '0').replace(/0/g, 'a').replace(/1/g, 'b').padEnd(24, 'k')}`
+          const id = (await database.upsertBlueskyActor({
+            did,
+            handle: `u${i}.bsky.social`
+          })) as string
+          const res = await GET(
+            new NextRequest(
+              `https://llun.test/api/v1/accounts/${urlToId(id)}/statuses`
+            ),
+            { params: Promise.resolve({ id: urlToId(id) }) }
+          )
+          expect(res.status).toBe(200)
+        }
+        vi.mocked(getPublicAuthorFeed).mockClear()
+
+        const response = await GET(
+          new NextRequest(
+            `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/statuses`
+          ),
+          { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+        )
+
+        expect(response.status).toBe(200)
+        const data = (await response.json()) as Array<{ uri: string }>
+        expect(data.map((status) => status.uri)).toEqual([statusId])
+        expect(getPublicAuthorFeed).not.toHaveBeenCalled()
+      } finally {
+        await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+      }
+    })
+
     it('does not serve a Bluesky account to a signed-out viewer', async () => {
       const did = `did:plc:${'a'.repeat(24)}`
       const blueskyId = (await database.upsertBlueskyActor({

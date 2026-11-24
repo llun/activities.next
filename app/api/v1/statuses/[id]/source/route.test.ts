@@ -153,6 +153,64 @@ describe('GET /api/v1/statuses/[id]/source', () => {
     expect(data.text).not.toContain('<a ')
   })
 
+  it('returns plain text without appended bsky.app URLs for Bluesky mention and hashtag facets', async () => {
+    const { blueskyPostToHtml } = await import('@/lib/services/bluesky/records')
+    const { getMastodonStatus } =
+      await import('@/lib/services/mastodon/getMastodonStatus')
+    const did = `did:plc:${'m'.repeat(24)}`
+    const mentionedDid = `did:plc:${'n'.repeat(24)}`
+    const blueskyActorId = (await database.upsertBlueskyActor({
+      did,
+      handle: 'facetuser.bsky.social'
+    })) as string
+    const rawText = 'Hi @bob.bsky.social love #fediverse'
+    const mentionStart = Buffer.byteLength('Hi ')
+    const mentionEnd = mentionStart + Buffer.byteLength('@bob.bsky.social')
+    const tagStart = Buffer.byteLength('Hi @bob.bsky.social love ')
+    const tagEnd = tagStart + Buffer.byteLength('#fediverse')
+    const html = blueskyPostToHtml(rawText, [
+      {
+        index: { byteStart: mentionStart, byteEnd: mentionEnd },
+        features: [
+          { $type: 'app.bsky.richtext.facet#mention', did: mentionedDid }
+        ]
+      },
+      {
+        index: { byteStart: tagStart, byteEnd: tagEnd },
+        features: [{ $type: 'app.bsky.richtext.facet#tag', tag: 'fediverse' }]
+      }
+    ])
+    const { statusId } = await database.upsertBlueskyPost({
+      uri: `at://${did}/app.bsky.feed.post/facet1`,
+      cid: 'cid-facet1',
+      did,
+      rkey: 'facet1',
+      actorId: blueskyActorId,
+      text: html,
+      createdAt: Date.now(),
+      attachments: []
+    })
+
+    const response = await getStatusSource(
+      new NextRequest(
+        `https://llun.test/api/v1/statuses/${urlToId(statusId)}/source`
+      ),
+      { params: Promise.resolve({ id: urlToId(statusId) }) }
+    )
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data.text).toBe('Hi @bob.bsky.social love #fediverse')
+
+    const storedStatus = await database.getStatus({ statusId })
+    expect(storedStatus).not.toBeNull()
+    const mastodonStatus = await getMastodonStatus(
+      database,
+      storedStatus!,
+      ACTOR1_ID
+    )
+    expect(mastodonStatus?.text).toBe('Hi @bob.bsky.social love #fediverse')
+  })
+
   it('returns 404 for a non-existent status', async () => {
     const statusId = `${ACTOR1_ID}/statuses/api-source-missing`
     const response = await getStatusSource(

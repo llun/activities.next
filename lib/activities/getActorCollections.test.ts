@@ -483,7 +483,19 @@ describe('getActorCollections federation policy', () => {
 
     expect(mockRequest).toHaveBeenCalledTimes(2)
     for (const [options] of mockRequest.mock.calls) {
-      expect(options.allowCrossHostRedirects).toBe(isFederatedRedirect)
+      expect(typeof options.allowCrossHostRedirects).toBe('function')
+      const policy = options.allowCrossHostRedirects as (
+        url: URL
+      ) => boolean | Promise<boolean>
+      const otherUrl = new URL('https://other.example/collections/1')
+      vi.mocked(isFederatedRedirect).mockResolvedValueOnce(true)
+      await expect(policy(otherUrl)).resolves.toBe(true)
+      expect(isFederatedRedirect).toHaveBeenLastCalledWith(otherUrl)
+      vi.mocked(isFederatedRedirect).mockResolvedValueOnce(false)
+      await expect(policy(otherUrl)).resolves.toBe(false)
+      expect(
+        await policy(new URL('https://bsky.app/profile/did:plc:abc'))
+      ).toBe(false)
     }
   })
 

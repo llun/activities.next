@@ -1,3 +1,4 @@
+import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   getPublicAuthorFeed,
@@ -382,6 +383,60 @@ describe('Bluesky profiles', () => {
       } finally {
         await database.deleteDomainBlock(block.id)
       }
+    })
+
+    it('enforces a per-viewer rate limit of 30 per 15 minutes and skips reads once over budget', async () => {
+      await database.deleteRateLimits({
+        keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+        before: Date.now() + 24 * 60 * 60 * 1000
+      })
+      vi.mocked(getPublicAuthorFeed).mockResolvedValue({ feed: [] })
+
+      const didFor = (index: number) =>
+        `did:plc:${index.toString(2).padStart(8, '0').replace(/0/g, 'a').replace(/1/g, 'b').padEnd(24, 'c')}`
+
+      // 30 distinct authors fit inside the per-viewer budget.
+      for (let i = 0; i < 30; i += 1) {
+        await loadBlueskyAuthorFeed(
+          database,
+          viewer,
+          blueskyActorId(didFor(i)),
+          {
+            limit: 10
+          }
+        )
+      }
+      expect(getPublicAuthorFeed).toHaveBeenCalledTimes(30)
+
+      // The 31st distinct author is skipped without calling AppView or throwing.
+      await expect(
+        loadBlueskyAuthorFeed(database, viewer, blueskyActorId(didFor(30)), {
+          limit: 10
+        })
+      ).resolves.toBeUndefined()
+      expect(getPublicAuthorFeed).toHaveBeenCalledTimes(30)
+    })
+
+    it('does not spend the per-viewer budget when re-loading an already-claimed author', async () => {
+      await database.deleteRateLimits({
+        keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+        before: Date.now() + 24 * 60 * 60 * 1000
+      })
+      vi.mocked(getPublicAuthorFeed).mockResolvedValue({ feed: [] })
+
+      const firstId = blueskyActorId(`did:plc:${'ra'.padEnd(24, 'a')}`)
+      const secondId = blueskyActorId(`did:plc:${'rb'.padEnd(24, 'a')}`)
+
+      await loadBlueskyAuthorFeed(database, viewer, firstId, { limit: 10 })
+      expect(getPublicAuthorFeed).toHaveBeenCalledTimes(1)
+
+      for (let i = 0; i < 30; i += 1) {
+        await loadBlueskyAuthorFeed(database, viewer, firstId, { limit: 10 })
+      }
+      expect(getPublicAuthorFeed).toHaveBeenCalledTimes(1)
+
+      await loadBlueskyAuthorFeed(database, viewer, secondId, { limit: 10 })
+      expect(getPublicAuthorFeed).toHaveBeenCalledTimes(2)
     })
   })
 })
