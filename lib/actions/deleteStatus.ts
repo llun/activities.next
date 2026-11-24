@@ -1,6 +1,9 @@
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
-import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+  SEND_DELETE_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { CreateQueueJobParams } from '@/lib/types/database/operations'
@@ -48,6 +51,32 @@ export const deleteStatusFromUserInput = async ({
 
     const queueJobId = getHashFromString(`${statusId}#delete`)
 
+    // Read the cross-post before the status (and its row) is deleted, so the
+    // Bluesky copy can be removed after the local delete. Best effort: it
+    // never stops the local delete.
+    const crosspost = await database
+      .getBlueskyCrosspost({ statusId })
+      .catch(() => null)
+    const publishBlueskyCrosspostDelete = async () => {
+      if (!crosspost?.uri) return
+      try {
+        await queue.publish({
+          id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          data: { actorId: currentActor.id, uri: crosspost.uri }
+        })
+      } catch (error) {
+        logger.error(
+          {
+            statusId,
+            actorId: currentActor.id,
+            err: toLoggableError(error)
+          },
+          'Failed to queue Bluesky cross-post delete'
+        )
+      }
+    }
+
     if (isDatabaseQueue) {
       const maxRetries =
         config.queue?.type === 'database' ? (config.queue.maxRetries ?? 16) : 16
@@ -76,6 +105,7 @@ export const deleteStatusFromUserInput = async ({
         statusId,
         queueJob
       })
+      await publishBlueskyCrosspostDelete()
       return
     }
 
@@ -113,4 +143,6 @@ export const deleteStatusFromUserInput = async ({
         'Failed to queue status delete federation'
       )
     }
+
+    await publishBlueskyCrosspostDelete()
   })

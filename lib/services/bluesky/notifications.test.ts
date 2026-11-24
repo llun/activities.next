@@ -589,6 +589,120 @@ describe('syncBlueskyNotifications', () => {
     expect(await notifications()).toHaveLength(1)
   })
 
+  it("puts likes, reposts, replies and quotes of the user's cross-post on the local post", async () => {
+    await database.updateBlueskyNotificationsSeenAt({
+      actorId: actor.id,
+      seenAt: Date.parse('2026-04-01T00:00:00.000Z')
+    })
+    const localId = `${actor.id}/statuses/crossposted`
+    await database.createNote({
+      id: localId,
+      url: localId,
+      actorId: actor.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'Posted here and on Bluesky'
+    })
+    const copy = postView('reader', 'copy1', { text: 'Posted here' })
+    await database.claimBlueskyCrosspost({
+      statusId: localId,
+      actorId: actor.id
+    })
+    await database.markBlueskyCrosspostPosted({
+      statusId: localId,
+      uri: copy.uri,
+      cid: copy.cid
+    })
+    const replyPost = postView('carol', 'cr1', {
+      reply: { root: { uri: copy.uri }, parent: { uri: copy.uri } }
+    })
+    const quotePost = postView('erin', 'cq1', {
+      embed: {
+        $type: 'app.bsky.embed.record',
+        record: { uri: copy.uri, cid: copy.cid }
+      }
+    })
+    publishPost(copy, replyPost, quotePost)
+    publishProfile(
+      profileView('alice'),
+      profileView('bob'),
+      profileView('carol'),
+      profileView('erin')
+    )
+    get.mockResolvedValueOnce({
+      notifications: [
+        {
+          uri: quotePost.uri,
+          author: profileView('erin'),
+          reason: 'quote',
+          reasonSubject: copy.uri,
+          indexedAt: '2026-04-01T00:04:00.000Z'
+        },
+        {
+          uri: replyPost.uri,
+          author: profileView('carol'),
+          reason: 'reply',
+          reasonSubject: copy.uri,
+          indexedAt: '2026-04-01T00:03:00.000Z'
+        },
+        {
+          uri: `at://${did('bob')}/app.bsky.feed.repost/crp1`,
+          author: profileView('bob'),
+          reason: 'repost',
+          reasonSubject: copy.uri,
+          indexedAt: '2026-04-01T00:02:00.000Z'
+        },
+        {
+          uri: `at://${did('alice')}/app.bsky.feed.like/clk1`,
+          author: profileView('alice'),
+          reason: 'like',
+          reasonSubject: copy.uri,
+          indexedAt: '2026-04-01T00:01:00.000Z'
+        }
+      ]
+    })
+
+    await syncBlueskyNotifications(database, actor, agent)
+
+    const replyId = blueskyPostId(did('carol'), 'cr1')
+    const quoteId = blueskyPostId(did('erin'), 'cq1')
+    expect(
+      (await notifications()).map((n) => ({
+        type: n.type,
+        statusId: n.statusId,
+        groupKey: n.groupKey
+      }))
+    ).toEqual([
+      {
+        type: NotificationType.enum.quote,
+        statusId: quoteId,
+        groupKey: `quote:${localId}`
+      },
+      {
+        type: NotificationType.enum.reply,
+        statusId: replyId,
+        groupKey: `reply:${localId}`
+      },
+      {
+        type: NotificationType.enum.reblog,
+        statusId: localId,
+        groupKey: `reblog:${localId}`
+      },
+      {
+        type: NotificationType.enum.like,
+        statusId: localId,
+        groupKey: `like:${localId}`
+      }
+    ])
+    // The copy itself is never stored as a second, Bluesky status.
+    await expect(
+      database.getBlueskyRecordByUri({ uri: copy.uri })
+    ).resolves.toBeNull()
+    await expect(
+      database.getStatus({ statusId: replyId, withReplies: false })
+    ).resolves.toMatchObject({ reply: localId })
+  })
+
   it('verifies reply, mention, and quote targets on the AppView post and skips spoofed ones', async () => {
     const t0 = Date.parse('2026-03-04T12:00:00.000Z')
     await database.updateBlueskyNotificationsSeenAt({

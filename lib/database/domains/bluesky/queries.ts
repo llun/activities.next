@@ -27,6 +27,7 @@ import type {
   BlueskyRecords
 } from '@/lib/database/kysely/db'
 import { forUpdate } from '@/lib/database/kysely/dialect'
+import { selectInChunks } from '@/lib/database/kysely/inList'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
@@ -606,6 +607,27 @@ export const getBlueskyCrosspostByUri = async (
   return row ? toCrosspost(row) : null
 }
 
+// The cross-post rows of a page of statuses, keyed by statusId. Batched so the
+// status hydration does not run one lookup per status.
+export const getBlueskyCrosspostsByStatusIds = async (
+  db: Db,
+  { statusIds }: { statusIds: string[] }
+): Promise<Map<string, BlueskyCrosspost>> => {
+  const crossposts = new Map<string, BlueskyCrosspost>()
+  if (statusIds.length === 0) return crossposts
+  const rows = await selectInChunks(db, statusIds, (chunk) =>
+    db
+      .selectFrom('bluesky_crossposts')
+      .selectAll()
+      .where('statusId', 'in', chunk)
+      .execute()
+  )
+  for (const row of rows) {
+    crossposts.set(row.statusId, toCrosspost(row))
+  }
+  return crossposts
+}
+
 export const claimBlueskyCrosspost = async (
   db: Db,
   { statusId, actorId }: { statusId: string; actorId: string }
@@ -681,6 +703,7 @@ export const blueskyQueries = {
   updateBlueskyAccountSync,
   getBlueskyCrosspost,
   getBlueskyCrosspostByUri,
+  getBlueskyCrosspostsByStatusIds,
   claimBlueskyCrosspost,
   markBlueskyCrosspostPosted,
   markBlueskyCrosspostFailed,

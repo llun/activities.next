@@ -37,6 +37,14 @@ export const parseAtUri = (
   return { did: match[1], collection: match[2], rkey: match[3] }
 }
 
+// The public bsky.app URL of a post record uri, or null when it is not one.
+export const blueskyPostWebUrl = (uri: string): string | null => {
+  const at = parseAtUri(uri)
+  return at && at.collection === 'app.bsky.feed.post'
+    ? `https://${BLUESKY_DOMAIN}/profile/${at.did}/post/${at.rkey}`
+    : null
+}
+
 export const optionalString = (value: unknown) =>
   typeof value === 'string' ? value : undefined
 
@@ -396,14 +404,19 @@ export const storeBlueskyPostView = async (
   post: BlueskyPostView
 ): Promise<string | null> => {
   const { record } = post
-  const parent =
+  const parentUri =
     isRecord(record.reply) && isRecord(record.reply.parent)
-      ? parseAtUri(optionalString(record.reply.parent.uri) ?? '')
-      : null
+      ? (optionalString(record.reply.parent.uri) ?? '')
+      : ''
+  const parent = parentUri ? parseAtUri(parentUri) : null
+  const isPostParent = parent?.collection === POST_COLLECTION
+  // A reply to the Bluesky copy of a local post shows under the local post.
+  const crosspostParent = isPostParent
+    ? await database.getBlueskyCrosspostByUri({ uri: parentUri })
+    : null
   const replyToStatusId =
-    parent && parent.collection === POST_COLLECTION
-      ? blueskyPostId(parent.did, parent.rkey)
-      : null
+    crosspostParent?.statusId ??
+    (parent && isPostParent ? blueskyPostId(parent.did, parent.rkey) : null)
   const postUrl = blueskyPostId(post.at.did, post.at.rkey)
   if (
     postUrl.length > MAX_COLUMN_LENGTH ||

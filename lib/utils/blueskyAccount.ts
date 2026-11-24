@@ -15,6 +15,8 @@ export interface BlueskyLinkedAccount {
   lastSyncedAt: string | null
   // Why the latest Home sync failed; null once one succeeds.
   syncError: string | null
+  // Whether a new public post is cross-posted to Bluesky by default.
+  crosspostByDefault: boolean
 }
 
 export interface BlueskyAccountState {

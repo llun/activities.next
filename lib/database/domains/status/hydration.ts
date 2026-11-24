@@ -1,4 +1,6 @@
 import { getActorFromId } from '@/lib/database/domains/actor/lookups'
+import { getBlueskyCrosspostsByStatusIds } from '@/lib/database/domains/bluesky/queries'
+import type { BlueskyCrosspost } from '@/lib/database/domains/bluesky/types'
 import { getActorBookmark } from '@/lib/database/domains/bookmark/queries'
 import { parseElevationSeries } from '@/lib/database/domains/fitnessFile/rows'
 import { isActorLikedStatus } from '@/lib/database/domains/like/queries'
@@ -33,6 +35,7 @@ import { getCounterValue } from '@/lib/database/kysely/counter'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
+import { blueskyPostWebUrl } from '@/lib/services/bluesky/records'
 import { isFitnessProcessingStuck } from '@/lib/services/fitness-files/processingState'
 import { getStatusEditTransitions } from '@/lib/services/statuses/statusEditChanges'
 import type { SQLFitnessFile } from '@/lib/types/database/fitnessFile'
@@ -83,6 +86,9 @@ export type StatusHydrationContext = {
   // re-queried per status. An absent entry means "the batch did not cover this
   // status", which falls back to a single lookup.
   reactionRollups?: Map<string, StatusReaction[]>
+  // Pre-batched cross-post rows, keyed by statusId. Viewer-RELATIVE: read
+  // only for a signed-in page, and shown only on the viewer's own statuses.
+  blueskyCrossposts?: Map<string, BlueskyCrosspost>
 }
 
 // `toStatusLinkPreview` lives in `@/lib/database/domains/linkPreview/queries`.
@@ -342,6 +348,7 @@ export const buildStatusHydrationContext = async (
     quoteEdges,
     linkPreviews,
     reactionRollups,
+    blueskyCrossposts,
     viewerHydration
   ] = await Promise.all([
     hasHydrationStatusIds
@@ -359,6 +366,13 @@ export const buildStatusHydrationContext = async (
       ? getStatusLinkPreviewsForIds(db, [...hydrationStatusIds])
       : Promise.resolve(new Map<string, StatusLinkPreview>()),
     buildReactionRollupContext(db, [...hydrationStatusIds], currentActorId),
+    // Cross-post rows are only shown to the status's own author (checked at
+    // the status), so nothing is read for an anonymous page.
+    currentActorId && hasHydrationStatusIds
+      ? getBlueskyCrosspostsByStatusIds(db, {
+          statusIds: [...hydrationStatusIds]
+        })
+      : Promise.resolve(new Map<string, BlueskyCrosspost>()),
     buildViewerHydration(db, [...hydrationStatusIds], currentActorId)
   ])
   return {
@@ -366,6 +380,7 @@ export const buildStatusHydrationContext = async (
     quoteEdges,
     linkPreviews,
     reactionRollups,
+    blueskyCrossposts,
     ...(viewerHydration ?? {})
   }
 }
@@ -546,7 +561,8 @@ export const hydrateStatusRow = async (
     detectedLanguage,
     quoteEdge,
     linkPreview,
-    reactions
+    reactions,
+    blueskyCrosspost
   ] = await Promise.all([
     getAttachments(db, { statusId: data.id }),
     getTags(db, { statusId: data.id }),
@@ -626,7 +642,17 @@ export const hydrateStatusRow = async (
             url: rollup.url,
             static_url: rollup.staticUrl
           }))
-        )
+        ),
+    // The owner's cross-post of this status. Only the author sees it, so it is
+    // read only when the viewer is the status's actor; the pre-batched map when
+    // the page covered it, otherwise a single lookup.
+    currentActorId && currentActorId === data.actorId
+      ? hydrationContext?.blueskyCrossposts
+        ? (hydrationContext.blueskyCrossposts.get(data.id) ?? null)
+        : getBlueskyCrosspostsByStatusIds(db, { statusIds: [data.id] }).then(
+            (crossposts) => crossposts.get(data.id) ?? null
+          )
+      : null
   ])
 
   const repliesNote = (
@@ -695,6 +721,19 @@ export const hydrateStatusRow = async (
     // The link preview card, when this status has one. Announce rows return
     // earlier; their card belongs to the status they wrap.
     ...(linkPreview ? { linkPreview } : {}),
+    // The owner's cross-post state, present only for the status's own author
+    // (null when they have no cross-post row).
+    ...(currentActorId && currentActorId === data.actorId
+      ? {
+          blueskyCrosspost: blueskyCrosspost
+            ? {
+                state: blueskyCrosspost.state,
+                url: blueskyPostWebUrl(blueskyCrosspost.uri ?? ''),
+                error: blueskyCrosspost.error
+              }
+            : null
+        }
+      : {}),
     // Who may quote THIS status, read back from the content blob.
     ...(content.quoteApprovalPolicy
       ? { quoteApprovalPolicy: content.quoteApprovalPolicy }

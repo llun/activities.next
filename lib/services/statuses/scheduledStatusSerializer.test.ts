@@ -38,6 +38,14 @@ describe('buildScheduledParams', () => {
     expect(withoutMedia.media_ids).toBeNull()
   })
 
+  it('stores the Bluesky cross-post choice, null when the note did not say', () => {
+    expect(
+      buildScheduledParams(baseNote({ bluesky_crosspost: false }), null)
+        .bluesky_crosspost
+    ).toBe(false)
+    expect(buildScheduledParams(baseNote(), null).bluesky_crosspost).toBeNull()
+  })
+
   it('carries the idempotency key through to params', () => {
     const params = buildScheduledParams(baseNote(), 'idem-key-1')
     expect(params.idempotency).toBe('idem-key-1')

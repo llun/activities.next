@@ -4,6 +4,7 @@ import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { SEND_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { generateRouteAltText } from '@/lib/services/altText/openai'
+import { enqueueBlueskyCrosspostForStatus } from '@/lib/services/bluesky/crosspost'
 import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildActivityImportEmail } from '@/lib/services/email/templates/activityImport'
 import { getFitnessFileBuffer } from '@/lib/services/fitness-files'
@@ -59,6 +60,9 @@ const JobData = z.object({
   statusId: z.string(),
   fitnessFileId: z.string(),
   publishSendNote: z.boolean().optional().default(true),
+  // The author's per-post Bluesky choice, from the post box; omitted means
+  // their account's default.
+  blueskyCrosspost: z.boolean().optional(),
   // Whether this run should tell the actor their activity arrived.
   //
   // Deliberately NOT derived from publishSendNote, which is false for the
@@ -322,7 +326,8 @@ const finishFirstImport = async ({
   fitnessFileId,
   mapImageUrl,
   notifyOnComplete,
-  publishSendNote
+  publishSendNote,
+  blueskyCrosspost
 }: {
   database: Database
   actorId: string
@@ -331,6 +336,7 @@ const finishFirstImport = async ({
   mapImageUrl?: string
   notifyOnComplete: boolean
   publishSendNote: boolean
+  blueskyCrosspost?: boolean
 }) => {
   if (notifyOnComplete) {
     await notifyActivityImported({
@@ -361,6 +367,16 @@ const finishFirstImport = async ({
       })
     }
   }
+
+  // The post's first publish is also when its Bluesky copy goes; imports and
+  // reprocessing (publishSendNote false) never cross-post. Best effort.
+  if (publishSendNote) {
+    await enqueueBlueskyCrosspostForStatus(database, {
+      actorId,
+      statusId,
+      wanted: blueskyCrosspost
+    })
+  }
 }
 
 const processFitnessFileJobUnlocked = createJobHandle(
@@ -372,7 +388,8 @@ const processFitnessFileJobUnlocked = createJobHandle(
       fitnessFileId,
       publishSendNote,
       notifyOnComplete,
-      retryingMapFailure
+      retryingMapFailure,
+      blueskyCrosspost
     } = JobData.parse(message.data)
 
     await database.updateFitnessFileProcessingStatus(
@@ -946,7 +963,8 @@ const processFitnessFileJobUnlocked = createJobHandle(
         fitnessFileId,
         mapImageUrl,
         notifyOnComplete,
-        publishSendNote
+        publishSendNote,
+        blueskyCrosspost
       })
 
       // A replaced map is deliberately NOT federated from here. Whether the
@@ -1045,7 +1063,8 @@ export const processFitnessFileJob: JobHandle = async (database, message) => {
     statusId,
     fitnessFileId,
     publishSendNote,
-    notifyOnComplete
+    notifyOnComplete,
+    blueskyCrosspost
   } = JobData.parse(message.data)
 
   const run = async () => {
@@ -1085,7 +1104,8 @@ export const processFitnessFileJob: JobHandle = async (database, message) => {
           fitnessFileId: primary.id,
           mapImageUrl: map?.url,
           notifyOnComplete,
-          publishSendNote
+          publishSendNote,
+          blueskyCrosspost
         })
         return
       }

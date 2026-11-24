@@ -144,6 +144,7 @@ export const publishScheduledStatusJob = createJobHandle(
           language: params.language ?? null,
           application,
           idempotency,
+          blueskyCrosspost: params.bluesky_crosspost ?? undefined,
           database
         })
       } else {
@@ -177,6 +178,7 @@ export const publishScheduledStatusJob = createJobHandle(
           language: params.language ?? null,
           application,
           idempotency,
+          blueskyCrosspost: params.bluesky_crosspost ?? undefined,
           database
         })
       }

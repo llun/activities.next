@@ -256,8 +256,14 @@ const updateStatusCounters = async (
 
   if (reply && isPubliclyAddressed(audience)) {
     const parentStatusId = await resolveParentStatusIdByReply(trx, reply)
-    // A Bluesky post's reply count is Bluesky's (set from the AppView).
-    if (parentStatusId && !isBlueskyId(parentStatusId)) {
+    // A Bluesky post's reply count is Bluesky's (set from the AppView), and
+    // a Bluesky reply under a local post (its cross-post's reply) is for
+    // signed-in viewers only, so it is not one of the local post's replies.
+    if (
+      parentStatusId &&
+      !isBlueskyId(parentStatusId) &&
+      !isBlueskyId(actorId)
+    ) {
       await increaseCounterValue(
         trx,
         CounterKey.totalReply(parentStatusId),

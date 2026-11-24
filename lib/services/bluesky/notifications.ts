@@ -119,16 +119,6 @@ const readPublicProfiles = async (dids: string[]) => {
   return profiles
 }
 
-const replyParentStatusId = (post: BlueskyPostView): string | null => {
-  if (!isRecord(post.record.reply) || !isRecord(post.record.reply.parent)) {
-    return null
-  }
-  const at = parseAtUri(optionalString(post.record.reply.parent.uri) ?? '')
-  return at?.collection === POST_COLLECTION
-    ? blueskyPostId(at.did, at.rkey)
-    : null
-}
-
 const extractRecordUri = (value: unknown): string | undefined =>
   isRecord(value) ? optionalString(value.uri) : undefined
 
@@ -155,8 +145,28 @@ const extractQuotedRecordUri = (post: BlueskyPostView): string | undefined =>
   extractEmbedRecordUri(post.record.embed) ??
   extractEmbedRecordUri(post.view.embed)
 
-const quotedPostStatusId = (post: BlueskyPostView): string | null => {
-  const uri = extractQuotedRecordUri(post)
+// The user's post a notification is about: the liked or reposted post, the
+// replied-to parent, or the quoted post.
+const subjectUri = (
+  candidate: NotificationCandidate,
+  post: BlueskyPostView
+): string | undefined => {
+  switch (candidate.reason) {
+    case 'like':
+    case 'repost':
+      return candidate.postUri
+    case 'reply':
+      return isRecord(post.record.reply)
+        ? extractRecordUri(post.record.reply.parent)
+        : undefined
+    case 'quote':
+      return extractQuotedRecordUri(post)
+    case 'mention':
+      return undefined
+  }
+}
+
+const postStatusId = (uri: string | undefined): string | null => {
   const at = uri ? parseAtUri(uri) : null
   return at?.collection === POST_COLLECTION
     ? blueskyPostId(at.did, at.rkey)
@@ -218,7 +228,7 @@ const postMatchesNotification = (
 const notificationSpec = (
   reason: HandledReason,
   statusId: string,
-  post: BlueskyPostView
+  subjectStatusId: string | null
 ): { type: NotificationType; groupKey: string } => {
   switch (reason) {
     case 'like':
@@ -231,7 +241,7 @@ const notificationSpec = (
     case 'reply':
       return {
         type: NotificationType.enum.reply,
-        groupKey: `reply:${replyParentStatusId(post) ?? statusId}`
+        groupKey: `reply:${subjectStatusId ?? statusId}`
       }
     case 'mention':
       return {
@@ -241,7 +251,7 @@ const notificationSpec = (
     case 'quote':
       return {
         type: NotificationType.enum.quote,
-        groupKey: `quote:${quotedPostStatusId(post) ?? statusId}`
+        groupKey: `quote:${subjectStatusId ?? statusId}`
       }
   }
 }
@@ -508,15 +518,28 @@ export const syncBlueskyNotifications = async (
           const sourceActorId = await storeBlueskyAuthor(database, profile, {
             full: true
           })
-          const statusId = sourceActorId
-            ? await storeBlueskyPostView(database, post)
+          // The Bluesky copy of a local post stands for that local post: a
+          // like or repost of it is on the local post, and a reply or quote
+          // of it groups under the local post.
+          const subject = subjectUri(candidate, post)
+          const crosspost = subject
+            ? await database.getBlueskyCrosspostByUri({ uri: subject })
             : null
+          const localStatusId =
+            crosspost?.actorId === actor.id ? crosspost.statusId : null
+          const onOwnPost =
+            candidate.reason === 'like' || candidate.reason === 'repost'
+          const statusId = !sourceActorId
+            ? null
+            : onOwnPost && localStatusId
+              ? localStatusId
+              : await storeBlueskyPostView(database, post)
 
           if (sourceActorId && statusId) {
             const { type, groupKey } = notificationSpec(
               candidate.reason,
               statusId,
-              post
+              localStatusId ?? postStatusId(subject)
             )
             const duplicate = await hasExistingNotification(database, {
               actorId: actor.id,

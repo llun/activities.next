@@ -211,7 +211,8 @@ export const getBlueskyAccountState = async (
           lastSyncedAt: account.lastSyncedAt
             ? new Date(account.lastSyncedAt).toISOString()
             : null,
-          syncError: account.syncError
+          syncError: account.syncError,
+          crosspostByDefault: account.crosspostByDefault
         }
       : null,
     instanceHandle
@@ -534,6 +535,21 @@ export const checkBlueskyHandle = async (
     verified,
     dnsRecord: await hasDnsRecord(handle, account.did)
   }
+}
+
+// Whether new public posts go to Bluesky when the post does not say.
+export const updateBlueskyCrosspostDefault = async (
+  database: Database,
+  actor: Actor,
+  crosspostByDefault: boolean
+) => {
+  if (!(await database.getBlueskyAccount({ actorId: actor.id }))) {
+    throw new BlueskyLinkError('Link a Bluesky account first.')
+  }
+  await database.updateBlueskyCrosspostDefault({
+    actorId: actor.id,
+    crosspostByDefault
+  })
 }
 
 export const setBlueskyInstanceHandle = async (

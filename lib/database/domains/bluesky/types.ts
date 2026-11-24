@@ -167,6 +167,10 @@ export interface BlueskyDatabase {
   getBlueskyCrosspostByUri(params: {
     uri: string
   }): Promise<BlueskyCrosspost | null>
+  /** The cross-post rows of a page of statuses, keyed by statusId. */
+  getBlueskyCrosspostsByStatusIds(params: {
+    statusIds: string[]
+  }): Promise<Map<string, BlueskyCrosspost>>
   /**
    * Inserts a 'pending' row for the status, or leaves the existing one alone.
    * Returns whether this call created it, so only one caller posts the status.

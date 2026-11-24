@@ -241,8 +241,13 @@ const applyStatusDeletionCounterAdjustments = async ({
 
     if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
       const parentStatusId = parentStatusIdByReplyReference.get(status.reply)
-      // A Bluesky post's reply count is Bluesky's (set from the AppView).
-      if (parentStatusId && !isBlueskyId(parentStatusId)) {
+      // A Bluesky post's reply count is Bluesky's (set from the AppView), and
+      // a Bluesky reply under a local post was never counted (./writes.ts).
+      if (
+        parentStatusId &&
+        !isBlueskyId(parentStatusId) &&
+        !isBlueskyId(status.actorId)
+      ) {
         addCounterAdjustment(adjustments, CounterKey.totalReply(parentStatusId))
       }
     }
@@ -567,6 +572,14 @@ const executeStatusDeletion = async ({
   await deleteByStatusIds((chunk) =>
     trx
       .deleteFrom('bluesky_interactions')
+      .where('statusId', 'in', chunk)
+      .execute()
+  )
+  // The cross-post row follows its status. The Bluesky copy itself is removed
+  // by the delete action's job, which reads the row before this runs.
+  await deleteByStatusIds((chunk) =>
+    trx
+      .deleteFrom('bluesky_crossposts')
       .where('statusId', 'in', chunk)
       .execute()
   )

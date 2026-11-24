@@ -426,6 +426,61 @@ describe('syncBlueskyHome', () => {
     ).toBeNull()
   })
 
+  it("leaves the user's own cross-post out of Home and shows a reply to it under the local post", async () => {
+    const localId = `${actor.id}/statuses/crossposted-home`
+    await database.createNote({
+      id: localId,
+      url: localId,
+      actorId: actor.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'Local post'
+    })
+    const copy = postView('copy', 'c1', { text: 'Local post' })
+    await database.claimBlueskyCrosspost({
+      statusId: localId,
+      actorId: actor.id
+    })
+    await database.markBlueskyCrosspostPosted({
+      statusId: localId,
+      uri: copy.uri,
+      cid: copy.cid
+    })
+    const reply = postView('gina', 'g1', {
+      reply: { root: { uri: copy.uri }, parent: { uri: copy.uri } }
+    })
+    publish(copy, reply)
+    get.mockResolvedValue({ feed: [{ post: reply }, { post: copy }] })
+
+    await syncBlueskyHome(database, actor)
+
+    expect(await database.getBlueskyRecordByUri({ uri: copy.uri })).toBeNull()
+    const replyId = blueskyPostId(did('gina'), 'g1')
+    expect(await homeStatusIds()).toContain(replyId)
+    expect(await homeStatusIds()).not.toContain(
+      blueskyPostId(did('copy'), 'c1')
+    )
+    expect(await database.getStatus({ statusId: replyId })).toMatchObject({
+      reply: localId
+    })
+    // A Bluesky reply is for signed-in viewers: the local post's public
+    // reply count does not include it.
+    expect(await database.getStatusRepliesCount({ statusId: localId })).toBe(0)
+    // Nor does deleting it take a local reply off the count.
+    await database.createNote({
+      id: `${localId}/local-reply`,
+      url: `${localId}/local-reply`,
+      actorId: actor.id,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'Local reply',
+      reply: localId
+    })
+    expect(await database.getStatusRepliesCount({ statusId: localId })).toBe(1)
+    await database.deleteStatus({ statusId: replyId })
+    expect(await database.getStatusRepliesCount({ statusId: localId })).toBe(1)
+  })
+
   it('shows the original post of a repost, dated at the repost, and does not stop at one already stored', async () => {
     const reposted = postView('frank', 'f1')
     const notAPost = {

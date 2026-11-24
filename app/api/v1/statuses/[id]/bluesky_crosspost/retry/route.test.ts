@@ -1,0 +1,166 @@
+import { NextRequest } from 'next/server'
+
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
+import { CROSSPOST_BLUESKY_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
+import { seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { urlToId } from '@/lib/utils/urlToId'
+
+import { POST } from './route'
+
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: () => mockGetServerSession()
+}))
+
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
+    host: 'llun.test',
+    allowEmails: [],
+    secretPhase: 'test-secret'
+  })
+}))
+
+let mockDatabase: Database | null = null
+vi.mock('@/lib/database', () => ({
+  getDatabase: () => mockDatabase
+}))
+
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({ get: () => undefined })
+}))
+
+vi.mock('better-auth/oauth2', () => ({
+  verifyBearerToken: vi.fn()
+}))
+
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: vi.fn().mockReturnValue({
+    publish: vi.fn().mockResolvedValue(undefined)
+  })
+}))
+
+const callRetry = (statusId: string) =>
+  POST(
+    new NextRequest(
+      `https://llun.test/api/v1/statuses/${urlToId(statusId)}/bluesky_crosspost/retry`,
+      { method: 'POST', headers: { Origin: 'https://llun.test' } }
+    ),
+    { params: Promise.resolve({ id: urlToId(statusId) }) }
+  )
+
+describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
+  const { database, prepare } = createTestDatabase()
+
+  const seed = async (suffix: string, actorId = ACTOR1_ID) => {
+    const status = await database.createNote({
+      id: `${actorId}/statuses/bluesky-retry-${suffix}`,
+      url: `${actorId}/statuses/bluesky-retry-${suffix}`,
+      actorId,
+      text: 'Cross-posted',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.claimBlueskyCrosspost({ statusId: status.id, actorId })
+    return status
+  }
+
+  beforeAll(async () => {
+    await prepare()
+    await database.migrate()
+    await seedDatabase(database)
+    mockDatabase = database
+  })
+
+  afterAll(async () => {
+    mockDatabase = null
+    await database.destroy()
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+  })
+
+  it('puts a failed cross-post back to pending and queues it under a fresh id', async () => {
+    const status = await seed('failed')
+    await database.markBlueskyCrosspostFailed({
+      statusId: status.id,
+      error: 'Bluesky ended this session.'
+    })
+
+    const response = await callRetry(status.id)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      uri: status.id,
+      bluesky_crosspost: { state: 'pending', url: null, error: null }
+    })
+    await expect(
+      database.getBlueskyCrosspost({ statusId: status.id })
+    ).resolves.toMatchObject({ state: 'pending', error: null })
+    const publish = vi.mocked(getQueue().publish)
+    expect(publish).toHaveBeenCalledTimes(1)
+    const [job] = publish.mock.calls[0]
+    expect(job).toMatchObject({
+      name: CROSSPOST_BLUESKY_JOB_NAME,
+      data: { statusId: status.id }
+    })
+    // Not the first job's id, which the queue would deduplicate away.
+    expect(job.id).not.toBe(getHashFromString(`${status.id}#bluesky-crosspost`))
+  })
+
+  it('answers 422 when the cross-post has not failed', async () => {
+    const status = await seed('pending')
+
+    const response = await callRetry(status.id)
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: expect.any(String)
+    })
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it("answers 404 for someone else's post", async () => {
+    const status = await seed('theirs', ACTOR2_ID)
+    await database.markBlueskyCrosspostFailed({
+      statusId: status.id,
+      error: 'x'
+    })
+
+    const response = await callRetry(status.id)
+
+    expect(response.status).toBe(404)
+    await expect(
+      database.getBlueskyCrosspost({ statusId: status.id })
+    ).resolves.toMatchObject({ state: 'failed' })
+  })
+
+  it('keeps it failed with its reason when the job cannot be queued', async () => {
+    const status = await seed('queue-down')
+    await database.markBlueskyCrosspostFailed({
+      statusId: status.id,
+      error: 'Bluesky ended this session.'
+    })
+    vi.mocked(getQueue().publish).mockRejectedValueOnce(new Error('down'))
+
+    const response = await callRetry(status.id)
+
+    expect(response.status).toBe(500)
+    await expect(
+      database.getBlueskyCrosspost({ statusId: status.id })
+    ).resolves.toMatchObject({
+      state: 'failed',
+      error: 'Bluesky ended this session.'
+    })
+  })
+})

@@ -1549,6 +1549,7 @@ describe('statements', () => {
     'delete recipients',
     'delete likes',
     'delete bluesky_interactions',
+    'delete bluesky_crossposts',
     'delete status_reactions',
     'delete tags',
     'read deleted attachment media',
@@ -2078,5 +2079,36 @@ describe.runIf(testDb.backend === 'pg')('PostgreSQL locks', () => {
     expect(remaining).toEqual([
       { actorId: viewer1, statusId: survivor, kind: 'like' }
     ])
+  })
+
+  it('deletes the bluesky_crossposts row of the deleted status only', async () => {
+    const author = await seedActor('crosspost-author', { local: true })
+    const doomed = await seedStatus({
+      id: statusIn(author, 'crosspost-doomed'),
+      actorId: author,
+      createdAt: BASE + 1_000
+    })
+    const survivor = await seedStatus({
+      id: statusIn(author, 'crosspost-survivor'),
+      actorId: author,
+      createdAt: BASE + 2_000
+    })
+    await db()
+      .insertInto('bluesky_crossposts')
+      .values([
+        { statusId: doomed, actorId: author, state: 'pending' },
+        { statusId: survivor, actorId: author, state: 'pending' }
+      ])
+      .execute()
+    refreshSpy()
+
+    await deleteStatus(db(), { statusId: doomed })
+
+    const remaining = await db()
+      .selectFrom('bluesky_crossposts')
+      .select('statusId')
+      .where('statusId', 'in', [doomed, survivor])
+      .execute()
+    expect(remaining).toEqual([{ statusId: survivor }])
   })
 })

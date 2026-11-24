@@ -134,6 +134,9 @@ const NoteSchema = z
     language: z.string().trim().min(1).optional(),
     sensitive: Booleanish.optional().default(false),
     scheduled_at: z.string().optional(),
+    // Activities.next extension: cross-post this public post to the author's
+    // linked Bluesky account. Omitted means the account's crosspostByDefault.
+    bluesky_crosspost: Booleanish.optional(),
     // Activities.next extension: backdate an immediate status. Validated
     // (format, not in the future) by parseBackdatedCreatedAt below.
     created_at: z.string().optional(),
@@ -164,6 +167,10 @@ const computeStatusIdempotencyHash = (note: ParsedNote): string =>
       sensitive: note.sensitive,
       scheduled_at: note.scheduled_at?.trim() || null,
       created_at: note.created_at?.trim() || null,
+      // Only when sent, so the hash of every other request is unchanged.
+      ...(note.bluesky_crosspost !== undefined
+        ? { bluesky_crosspost: note.bluesky_crosspost }
+        : {}),
       poll: note.poll
         ? {
             options: note.poll.options,
@@ -739,6 +746,7 @@ export const POST = traceApiRoute(
             application,
             createdAt,
             idempotency,
+            blueskyCrosspost: note.bluesky_crosspost,
             database
           })
         } else {
@@ -801,6 +809,7 @@ export const POST = traceApiRoute(
             application,
             createdAt,
             idempotency,
+            blueskyCrosspost: note.bluesky_crosspost,
             database
           })
         }

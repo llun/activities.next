@@ -104,6 +104,8 @@ const storeHomeItem = async (
   item: HomeItem,
   post: BlueskyPostView
 ) => {
+  // The Bluesky copy of a local post: the local post is already in Home.
+  if (await database.getBlueskyCrosspostByUri({ uri: post.uri })) return
   const statusId = await storeBlueskyPostView(database, post)
   if (!statusId) return
   const status = await database.getStatus({ statusId })
@@ -213,7 +215,11 @@ const runSync = async (database: Database, actor: Actor) => {
       const parentView = parent
         ? (views.get(parent) ?? parents.get(parent))
         : undefined
-      if (parentView) {
+      // A reply to the user's cross-post goes under the local post itself.
+      if (
+        parentView &&
+        !(await database.getBlueskyCrosspostByUri({ uri: parentView.uri }))
+      ) {
         await skipOnError(parentView.uri, () =>
           storeBlueskyPostView(database, parentView)
         )

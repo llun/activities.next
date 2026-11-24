@@ -11,6 +11,7 @@ import {
   SEND_NOTE_JOB_NAME,
   SEND_QUOTE_REQUEST_JOB_NAME
 } from '@/lib/jobs/names'
+import { enqueueBlueskyCrosspost } from '@/lib/services/bluesky/crosspost'
 import { resolveActorEmailBrand } from '@/lib/services/email/sender'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
@@ -131,17 +132,25 @@ export const runBestEffortStep = async (
 // The federation job of a created status: PROCESS_FITNESS_FILE (which sends
 // the note itself) for a fitness post, SEND_NOTE otherwise (including polls).
 // The id is derived from the status, so queueing it again is deduplicated.
+// A fitness post is cross-posted to Bluesky once it is processed, so the
+// author's choice for it rides along with the processing job.
 const getStatusCreationJob = (
   actorId: string,
   status: Status,
-  fitnessFileId?: string
+  fitnessFileId?: string,
+  blueskyCrosspost?: boolean
 ): JobMessage => {
   const id = getHashFromString(status.id)
   return fitnessFileId
     ? {
         id,
         name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: { actorId, statusId: status.id, fitnessFileId }
+        data: {
+          actorId,
+          statusId: status.id,
+          fitnessFileId,
+          ...(blueskyCrosspost !== undefined ? { blueskyCrosspost } : {})
+        }
       }
     : {
         id,
@@ -163,17 +172,24 @@ const queueStatusCreationJob = async ({
   actorId,
   status,
   fitnessFileId,
+  blueskyCrosspost,
   key
 }: {
   database: Database
   actorId: string
   status: Status
   fitnessFileId?: string
+  blueskyCrosspost?: boolean
   key?: string
 }): Promise<void> => {
   // Never enqueue an ActivityPub delivery job for a Bluesky status.
   if (isBlueskyStatus(status) || isBlueskyId(status.id)) return
-  const job = getStatusCreationJob(actorId, status, fitnessFileId)
+  const job = getStatusCreationJob(
+    actorId,
+    status,
+    fitnessFileId,
+    blueskyCrosspost
+  )
   try {
     await getQueue().publish(job)
   } catch (error) {
@@ -221,12 +237,14 @@ export const publishCreatedStatus = async ({
   actorId,
   status,
   fitnessFileId,
+  blueskyCrosspost,
   idempotency
 }: {
   database: Database
   actorId: string
   status: Status
   fitnessFileId?: string
+  blueskyCrosspost?: boolean
   idempotency?: { key: string }
 }): Promise<void> => {
   if (idempotency) {
@@ -252,6 +270,7 @@ export const publishCreatedStatus = async ({
     actorId,
     status,
     fitnessFileId,
+    blueskyCrosspost,
     key: idempotency?.key
   })
 }
@@ -821,6 +840,9 @@ interface CreateNoteFromUserInputParams {
   // minted from this time so id order keeps matching createdAt order.
   createdAt?: number
   idempotency?: { key: string; contentHash: string }
+  // Whether to cross-post to the author's linked Bluesky account. Omitted
+  // means the account's crosspostByDefault.
+  blueskyCrosspost?: boolean
   database: Database
 }
 export const createNoteFromUserInput = async ({
@@ -838,6 +860,7 @@ export const createNoteFromUserInput = async ({
   application,
   createdAt,
   idempotency,
+  blueskyCrosspost,
   database
 }: CreateNoteFromUserInputParams) =>
   withSpan('actions', 'createNoteFromUser', { text, replyNoteId }, async () => {
@@ -1215,6 +1238,7 @@ export const createNoteFromUserInput = async ({
           actorId: currentActor.id,
           status,
           fitnessFileId: fitnessFile?.id,
+          blueskyCrosspost,
           idempotency
         })
       } catch (error) {
@@ -1227,6 +1251,18 @@ export const createNoteFromUserInput = async ({
 
     // Best-effort steps after the publish, so a discarded post never reached
     // them. They run when the publish failed too, because that post is kept.
+    // A fitness post goes once processed (processFitnessFileJob), with its
+    // map and summary.
+    if (!fitnessFile) {
+      await runBestEffortStep(statusId, 'Bluesky cross-post', () =>
+        enqueueBlueskyCrosspost(database, {
+          actor: currentActor,
+          status,
+          wanted: blueskyCrosspost
+        })
+      )
+    }
+
     if (remoteQuoteRequest && quotedStatusId) {
       const quoteRequestId = `${statusId}#quote-request`
       await runBestEffortStep(statusId, 'quote request enqueue', () =>

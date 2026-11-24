@@ -16,6 +16,7 @@ import {
 } from '@/lib/actions/createNote'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
+import { enqueueBlueskyCrosspost } from '@/lib/services/bluesky/crosspost'
 import { getCommunityForNewReply } from '@/lib/services/federation/replyCommunity'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
@@ -50,6 +51,9 @@ interface CreatePollFromUserInputParams {
   // minted from this time so id order keeps matching createdAt order.
   createdAt?: number
   idempotency?: { key: string; contentHash: string }
+  // Whether to cross-post to the author's linked Bluesky account. Omitted
+  // means the account's crosspostByDefault.
+  blueskyCrosspost?: boolean
 }
 export const createPollFromUserInput = async ({
   text,
@@ -66,7 +70,8 @@ export const createPollFromUserInput = async ({
   language: requestedLanguage = null,
   application,
   createdAt,
-  idempotency
+  idempotency,
+  blueskyCrosspost
 }: CreatePollFromUserInputParams) =>
   withSpan('actions', 'createPollFromUser', { replyStatusId }, async () => {
     if (idempotency) {
@@ -283,5 +288,12 @@ export const createPollFromUserInput = async ({
     } finally {
       finishInFlight()
     }
+    await runBestEffortStep(statusId, 'Bluesky cross-post', () =>
+      enqueueBlueskyCrosspost(database, {
+        actor: currentActor,
+        status: poll,
+        wanted: blueskyCrosspost
+      })
+    )
     return poll
   })

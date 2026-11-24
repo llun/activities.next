@@ -6,7 +6,9 @@ import { createNoteJob } from './createNoteJob'
 import { createPollJob } from './createPollJob'
 import { createPollVoteJob } from './createPollVoteJob'
 import { createRelayAnnounceJob } from './createRelayAnnounceJob'
+import { crosspostBlueskyJob } from './crosspostBlueskyJob'
 import { deleteActorJob } from './deleteActorJob'
+import { deleteBlueskyCrosspostJob } from './deleteBlueskyCrosspostJob'
 import { deleteObjectJob } from './deleteObjectJob'
 import { deliverActivityJob } from './deliverActivityJob'
 import { embedSearchDocumentsJob } from './embedSearchDocumentsJob'
@@ -34,7 +36,9 @@ import {
   CREATE_NOTE_JOB_NAME,
   CREATE_POLL_JOB_NAME,
   CREATE_POLL_VOTE_JOB_NAME,
+  CROSSPOST_BLUESKY_JOB_NAME,
   DELETE_ACTOR_JOB_NAME,
+  DELETE_BLUESKY_CROSSPOST_JOB_NAME,
   DELETE_OBJECT_JOB_NAME,
   DELIVER_ACTIVITY_JOB_NAME,
   EMBED_SEARCH_DOCUMENTS_JOB_NAME,
@@ -300,5 +304,11 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [SYNC_BLUESKY_HOME_JOB_NAME]() {
     return syncBlueskyHomeJob
+  },
+  get [CROSSPOST_BLUESKY_JOB_NAME]() {
+    return crosspostBlueskyJob
+  },
+  get [DELETE_BLUESKY_CROSSPOST_JOB_NAME]() {
+    return deleteBlueskyCrosspostJob
   }
 }

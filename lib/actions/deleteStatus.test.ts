@@ -12,7 +12,10 @@ import { type Db } from '@/lib/database/kysely'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
-import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+  SEND_DELETE_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { CloudTasksQueue } from '@/lib/services/queue/cloudtasks'
 import { DatabaseQueue } from '@/lib/services/queue/database'
@@ -67,6 +70,7 @@ const createMockStatus = (overrides: Partial<StatusNote> = {}): StatusNote => ({
 const createDatabase = (status: Status | null) =>
   ({
     getStatus: vi.fn().mockResolvedValue(status),
+    getBlueskyCrosspost: vi.fn().mockResolvedValue(null),
     deleteStatus: vi.fn().mockResolvedValue(undefined),
     deleteStatusWithQueueJob: vi.fn().mockResolvedValue(true)
   }) as unknown as Database
@@ -543,6 +547,63 @@ describe('deleteStatusFromUserInput', () => {
       ).rejects.toThrow('Disk I/O error')
 
       expect(noQueue.publish).not.toHaveBeenCalled()
+    })
+
+    it('queues the delete of the Bluesky copy after the local delete', async () => {
+      const status = createMockStatus({
+        id: 'https://llun.test/users/me/statuses/crossposted',
+        actorId: CURRENT_ACTOR.id
+      })
+      const database = createDatabase(status)
+      const uri = 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3k1'
+      vi.mocked(database.getBlueskyCrosspost).mockResolvedValue({
+        statusId: status.id,
+        actorId: CURRENT_ACTOR.id,
+        uri,
+        cid: 'bafy',
+        state: 'posted',
+        error: null,
+        createdAt: 0,
+        updatedAt: 0
+      })
+
+      await deleteStatusFromUserInput({
+        currentActor: CURRENT_ACTOR,
+        statusId: status.id,
+        database
+      })
+
+      expect(noQueue.publish).toHaveBeenCalledWith({
+        id: getHashFromString(`${status.id}#bluesky-crosspost-delete`),
+        name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+        data: { actorId: CURRENT_ACTOR.id, uri }
+      })
+      expect(
+        vi.mocked(database.deleteStatus).mock.invocationCallOrder[0]
+      ).toBeLessThan(vi.mocked(noQueue.publish).mock.invocationCallOrder[1])
+    })
+
+    it('queues no Bluesky delete for a post that was never cross-posted, and still deletes when the read fails', async () => {
+      const status = createMockStatus({
+        id: 'https://llun.test/users/me/statuses/not-crossposted',
+        actorId: CURRENT_ACTOR.id
+      })
+      const database = createDatabase(status)
+      vi.mocked(database.getBlueskyCrosspost).mockRejectedValue(
+        new Error('read failed')
+      )
+
+      await deleteStatusFromUserInput({
+        currentActor: CURRENT_ACTOR,
+        statusId: status.id,
+        database
+      })
+
+      expect(database.deleteStatus).toHaveBeenCalledTimes(1)
+      expect(noQueue.publish).toHaveBeenCalledTimes(1)
+      expect(noQueue.publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
+      )
     })
   })
 

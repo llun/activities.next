@@ -3321,6 +3321,7 @@ describe('hydration context', () => {
       quoteEdges: new Map([[seed.noteId, expect.any(Object)]]),
       linkPreviews: new Map([[seed.noteId, expect.any(Object)]]),
       reactionRollups: new Map([[seed.noteId, expect.any(Array)]]),
+      blueskyCrossposts: new Map(),
       likedStatusIds: new Set([seed.noteId]),
       bookmarkFolderIds: new Map([[seed.noteId, null]]),
       announcedStatusIds: new Map([

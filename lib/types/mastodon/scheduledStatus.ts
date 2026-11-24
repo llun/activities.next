@@ -21,7 +21,10 @@ export const ScheduledStatusParams = z.object({
   application_id: z.string().nullable(),
   scheduled_at: z.string().nullable(),
   idempotency: z.string().nullable(),
-  with_rate_limit: z.boolean()
+  with_rate_limit: z.boolean(),
+  // Activities.next extension: cross-post to the author's linked Bluesky
+  // account when published. Null means the account's crosspostByDefault.
+  bluesky_crosspost: z.boolean().nullable().optional()
 })
 export type ScheduledStatusParams = z.infer<typeof ScheduledStatusParams>
 

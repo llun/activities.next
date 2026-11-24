@@ -5,6 +5,7 @@ import {
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { processFitnessFileJob } from '@/lib/jobs/processFitnessFileJob'
+import { enqueueBlueskyCrosspostForStatus } from '@/lib/services/bluesky/crosspost'
 import { getQueue } from '@/lib/services/queue'
 import type { Queue } from '@/lib/services/queue/type'
 import { seedDatabase } from '@/lib/stub/database'
@@ -59,6 +60,10 @@ vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
 
 vi.mock('@/lib/services/altText/openai', () => ({
   generateRouteAltText: vi.fn()
+}))
+
+vi.mock('@/lib/services/bluesky/crosspost', () => ({
+  enqueueBlueskyCrosspostForStatus: vi.fn()
 }))
 
 describe('processFitnessFileJob', () => {
@@ -466,6 +471,39 @@ describe('processFitnessFileJob', () => {
       ([msg]) => msg.name === GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME
     )
     expect(heatmapCalls).toHaveLength(0)
+  })
+
+  it('cross-posts a processed post on its first publish only, with the post box choice', async () => {
+    const first = await createStatusWithFitnessFile({ text: '' })
+    await processFitnessFileJob(database, {
+      id: 'job-bluesky-1',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        statusId: first.statusId,
+        fitnessFileId: first.fitnessFileId,
+        blueskyCrosspost: false
+      }
+    })
+    expect(enqueueBlueskyCrosspostForStatus).toHaveBeenCalledWith(database, {
+      actorId: actor.id,
+      statusId: first.statusId,
+      wanted: false
+    })
+
+    vi.mocked(enqueueBlueskyCrosspostForStatus).mockClear()
+    const reprocess = await createStatusWithFitnessFile({ text: '' })
+    await processFitnessFileJob(database, {
+      id: 'job-bluesky-2',
+      name: PROCESS_FITNESS_FILE_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        statusId: reprocess.statusId,
+        fitnessFileId: reprocess.fitnessFileId,
+        publishSendNote: false
+      }
+    })
+    expect(enqueueBlueskyCrosspostForStatus).not.toHaveBeenCalled()
   })
 
   describe('activity caption', () => {

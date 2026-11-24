@@ -605,6 +605,13 @@ export const getMastodonStatus = async (
     muted,
     bookmarked: isStatusBookmarked(status),
     bookmark_folder_id: getStatusBookmarkFolderId(status, currentActorId),
+    // The owner's Bluesky cross-post state, emitted only to the status's own
+    // author (null when they have no cross-post row).
+    ...(currentActorId && currentActorId === getOriginalStatus(status).actorId
+      ? {
+          bluesky_crosspost: getOriginalStatus(status).blueskyCrosspost ?? null
+        }
+      : {}),
     ...(pinned === undefined ? {} : { pinned }),
 
     content: '',
