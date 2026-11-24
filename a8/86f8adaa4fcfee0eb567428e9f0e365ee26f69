@@ -1,0 +1,51 @@
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.test.ts
+  s_f193227df3df34::t_824665432d0118 95,187,212,227,243-264
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.ts
+  s_f193227df3df34::t_1eba89845fc458 87
+lib/actions/deleteStatus.test.ts
+  s_f193227df3df34::t_741f2144014226 74,553,560,577-585,596-641,647-648,664,671,849-954
+lib/actions/deleteStatus.ts
+  s_f193227df3df34::t_46b7509648f279 54-59,61-68,70
+lib/actions/updateNoteVisibility.test.ts
+  s_f193227df3df34::t_74a980a531c38d 210-212,228,254-256,260,280-341
+lib/database/domains/bluesky/bluesky.test.ts
+  s_f193227df3df34::t_addd3cd776195f 762-771,773-777,781,792,797,811,814-817,821,823-825,827,835-840,844,846-850,856-865,867-892,894-921,931-932,934-941,960-1029,1057-1058,1064,1073,1085-1087,1090
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_322c40d4f3954c 655,657,660,676,681-683,685,688-690,695-700,704-711,713-714,720-737,740-741,743,745-747,760,791-802,827,829-830
+lib/database/domains/bluesky/types.ts
+  s_f193227df3df34::t_e061f5e075db00 184-186,188-190,192-194,196-199,201-203,207,211-214,217,219-227,239-245
+lib/database/kysely/db.ts
+  s_f193227df3df34::t_fa24af16f1b1d2 288
+lib/services/bluesky/crosspost.test.ts
+  s_f193227df3df34::t_2f4a965c9e5262 571-573,576,622-624,632,1024-1285,1385-1399
+lib/services/bluesky/crosspost.ts
+  s_f193227df3df34::t_6cd922a5430838 413-414,420,427,435,442,466-467,473,489,499-502,505,544,558,568-570,587-588,597-608,665
+lib/services/bluesky/notifications.test.ts
+  s_f193227df3df34::t_750bcb0eb67c5b 611-613,616
+lib/services/bluesky/sync.test.ts
+  s_f193227df3df34::t_e6088ebbdddef4 454-456,459,514-516,519,551-553,556
+lib/services/mastodon/getMastodonStatus.fields.test.ts
+  s_f193227df3df34::t_3630b078a07a41 83,87
+migrations/20261124103009_add_bluesky_crossposts.ts
+  s_f193227df3df34::t_de234a9f5f3c71 24
+migrations/schema.sql
+  s_f193227df3df34::t_754d22db876f34 267
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_99508570c37e7a 371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a886f8adaa4fcfee0eb567428e9f0e365ee26f69",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
