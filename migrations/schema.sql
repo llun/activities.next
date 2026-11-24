@@ -166,7 +166,8 @@ CREATE TABLE public.actors (
     "suspendedAt" timestamp with time zone,
     "silencedAt" timestamp with time zone,
     "sensitizedAt" timestamp with time zone,
-    "publicId" character varying(36)
+    "publicId" character varying(36),
+    network character varying(16)
 );
 
 CREATE TABLE public.announcement_reactions (
@@ -250,13 +251,29 @@ CREATE TABLE public.bluesky_accounts (
     "domainHandle" boolean DEFAULT false NOT NULL,
     "instanceHandle" character varying(255),
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "lastSyncedAt" timestamp with time zone,
+    "syncError" text
+);
+
+CREATE TABLE public.bluesky_follows (
+    "actorId" character varying(255) NOT NULL,
+    "targetActorId" character varying(255) NOT NULL,
+    uri character varying(512) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 CREATE TABLE public.bluesky_oauth_states (
     key character varying(255) NOT NULL,
     state text NOT NULL,
     "expiresAt" timestamp with time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.bluesky_records (
+    "statusId" character varying(255) NOT NULL,
+    uri character varying(512) NOT NULL,
+    cid character varying(255) NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -1534,7 +1551,8 @@ CREATE TABLE public.statuses (
     "replyHash" character varying(64),
     "applicationName" character varying(255),
     "applicationWebsite" character varying(255),
-    "publicId" character varying(36)
+    "publicId" character varying(36),
+    network character varying(16)
 );
 
 CREATE TABLE public.strava_archive_imports (
@@ -1780,8 +1798,17 @@ ALTER TABLE ONLY public.bluesky_accounts
 ALTER TABLE ONLY public.bluesky_accounts
     ADD CONSTRAINT bluesky_accounts_pkey PRIMARY KEY ("actorId");
 
+ALTER TABLE ONLY public.bluesky_follows
+    ADD CONSTRAINT bluesky_follows_pkey PRIMARY KEY ("actorId", "targetActorId");
+
 ALTER TABLE ONLY public.bluesky_oauth_states
     ADD CONSTRAINT bluesky_oauth_states_pkey PRIMARY KEY (key);
+
+ALTER TABLE ONLY public.bluesky_records
+    ADD CONSTRAINT bluesky_records_pkey PRIMARY KEY ("statusId");
+
+ALTER TABLE ONLY public.bluesky_records
+    ADD CONSTRAINT bluesky_records_uri_key UNIQUE (uri);
 
 ALTER TABLE ONLY public.bluesky_sessions
     ADD CONSTRAINT bluesky_sessions_pkey PRIMARY KEY (did);
@@ -2261,6 +2288,8 @@ CREATE INDEX "attachments_mediaId_idx" ON public.attachments USING btree ("media
 CREATE INDEX blocks_actor_created ON public.blocks USING btree ("actorId", "createdAt");
 
 CREATE INDEX blocks_target ON public.blocks USING btree ("targetActorId");
+
+CREATE INDEX bluesky_follows_target_idx ON public.bluesky_follows USING btree ("targetActorId");
 
 CREATE INDEX bluesky_oauth_states_expires_at_idx ON public.bluesky_oauth_states USING btree ("expiresAt");
 
