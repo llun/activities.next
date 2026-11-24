@@ -1,0 +1,61 @@
+lib/database/domains/actor/deletion.ts
+  s_f193227df3df34::t_eec82b7adbedf1 605-609
+lib/database/domains/blueskyAccount/types.ts
+  s_f193227df3df34::t_e49acb52192e55 23-24,35,67-70
+lib/services/bluesky/agent.ts
+  s_f193227df3df34::t_0a213d30704d48 55-62,68-75,81-82,85-91,107-136,160-165,173-177,216,224-226,228-232,334-341,343-344
+lib/services/bluesky/crosspostText.ts
+  s_f193227df3df34::t_73a0b5b0e355aa 1-276
+lib/database/domains/actor/actorDeletionQueries.test.ts
+  s_f193227df3df34::t_799ce7631a7253 1380
+lib/database/domains/bluesky/bluesky.test.ts
+  s_f193227df3df34::t_62b5e053928757 732-809
+lib/database/domains/bluesky/blueskyMigration.test.ts
+  s_f193227df3df34::t_9103964bad0fc5 4,116-176
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_9c2b9466e478e1 9-10,25,574-665,681-688
+lib/database/domains/bluesky/types.ts
+  s_f193227df3df34::t_0f47a34b6bcb96 66-79,163-189
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  s_f193227df3df34::t_eca89c74ccaee5 160-183
+lib/database/domains/blueskyAccount/queries.ts
+  s_f193227df3df34::t_e37d78f9ae55b9 27,179-192,366
+lib/database/kysely/db.ts
+  s_f193227df3df34::t_f08e8e267c8006 274,286-296,1638
+lib/services/bluesky/agent.test.ts
+  s_f193227df3df34::t_3b735512ec5589 8,276-326,375-408
+lib/services/bluesky/crosspostText.test.ts
+  s_f193227df3df34::t_0f90fdd03ba1cf 1-271
+lib/services/bluesky/notifications.test.ts
+  s_f193227df3df34::t_9232c7a139d7b8 94-95
+lib/services/bluesky/sync.test.ts
+  s_f193227df3df34::t_f93dcb8fa9b645 117-118
+lib/utils/safeRemoteFetch.ts
+  s_f193227df3df34::t_645fc4dfbeefdc 67-68,106-107,389,405,688,707,753
+migrations/20261124103009_add_bluesky_crossposts.ts
+  s_f193227df3df34::t_110a7d41e9a6d6 1-61
+migrations/index.ts
+  s_f193227df3df34::t_8cfa6ee52c9804 33,74-75
+migrations/names.ts
+  s_f193227df3df34::t_a8bdfdd945ac4c 33-34
+migrations/schema.sql
+  s_f193227df3df34::t_b23a2d51917f89 257-269,1822-1827,2322-2323
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_8957df1786e1ce 362,371-372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c692512a699984b9a1b4b23cd880552b8a6cc14",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
