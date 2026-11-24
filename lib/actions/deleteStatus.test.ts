@@ -72,8 +72,12 @@ const createDatabase = (status: Status | null) =>
     getStatus: vi.fn().mockResolvedValue(status),
     getBlueskyCrosspost: vi.fn().mockResolvedValue(null),
     deleteBlueskyCrosspost: vi.fn().mockResolvedValue(null),
-    deleteStatus: vi.fn().mockResolvedValue(undefined),
-    deleteStatusWithQueueJob: vi.fn().mockResolvedValue(true)
+    deleteStatus: vi
+      .fn()
+      .mockResolvedValue({ deleted: true, blueskyCrossposts: [] }),
+    deleteStatusWithQueueJob: vi
+      .fn()
+      .mockResolvedValue({ deleted: true, blueskyCrossposts: [] })
   }) as unknown as Database
 
 describe('deleteStatusFromUserInput', () => {
@@ -131,12 +135,100 @@ describe('deleteStatusFromUserInput', () => {
           maxRetries: 16,
           nextRunAt: expect.any(Date),
           status: 'pending'
-        }
+        },
+        buildAdditionalQueueJobs: expect.any(Function)
       })
 
-      // Must not separately delete or publish
+      // Must not separately delete, take cross-post pre-delete, or publish
+      expect(database.deleteBlueskyCrosspost).not.toHaveBeenCalled()
       expect(database.deleteStatus).not.toHaveBeenCalled()
       expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('builds DELETE_BLUESKY_CROSSPOST_JOB_NAME inside deleteStatusWithQueueJob only for posted cross-posts with a uri', async () => {
+      const status = createMockStatus({
+        id: 'https://llun.test/users/me/statuses/db-crosspost-builder',
+        actorId: CURRENT_ACTOR.id
+      })
+      const database = createDatabase(status)
+
+      await deleteStatusFromUserInput({
+        currentActor: CURRENT_ACTOR,
+        statusId: status.id,
+        database
+      })
+
+      const callArgs = vi.mocked(database.deleteStatusWithQueueJob).mock
+        .calls[0][0]
+      const buildAdditionalQueueJobs = callArgs.buildAdditionalQueueJobs
+      expect(buildAdditionalQueueJobs).toBeTypeOf('function')
+
+      const uri =
+        'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3kdbbuilder'
+      const postedJobs = buildAdditionalQueueJobs!({
+        deleted: true,
+        blueskyCrossposts: [
+          {
+            statusId: status.id,
+            actorId: CURRENT_ACTOR.id,
+            uri,
+            cid: 'bafy',
+            state: 'posted',
+            error: null,
+            createdAt: 0,
+            updatedAt: 0
+          },
+          {
+            statusId: `${status.id}/reply-posting`,
+            actorId: CURRENT_ACTOR.id,
+            uri: null,
+            cid: null,
+            state: 'posting',
+            error: null,
+            createdAt: 0,
+            updatedAt: 0
+          },
+          {
+            statusId: `${status.id}/reply-pending`,
+            actorId: CURRENT_ACTOR.id,
+            uri: null,
+            cid: null,
+            state: 'pending',
+            error: null,
+            createdAt: 0,
+            updatedAt: 0
+          },
+          {
+            statusId: `${status.id}/reply-failed`,
+            actorId: CURRENT_ACTOR.id,
+            uri: null,
+            cid: null,
+            state: 'failed',
+            error: 'err',
+            createdAt: 0,
+            updatedAt: 0
+          }
+        ]
+      })
+
+      const expectedCrosspostJobId = getHashFromString(
+        `${status.id}#bluesky-crosspost-delete`
+      )
+      expect(postedJobs).toEqual([
+        {
+          id: expectedCrosspostJobId,
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          payload: {
+            id: expectedCrosspostJobId,
+            name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+            data: { actorId: CURRENT_ACTOR.id, uri }
+          },
+          attempts: 0,
+          maxRetries: 16,
+          nextRunAt: expect.any(Date),
+          status: 'pending'
+        }
+      ])
     })
 
     it('respects custom maxRetries from DatabaseQueueConfig', async () => {
@@ -235,7 +327,7 @@ describe('deleteStatusFromUserInput', () => {
       expect(database.deleteStatus).not.toHaveBeenCalled()
     })
 
-    it('handles repeated deletion gracefully when deleteStatusWithQueueJob returns false', async () => {
+    it('handles repeated deletion gracefully when deleteStatusWithQueueJob returns deleted: false', async () => {
       const status = createMockStatus({
         id: 'https://llun.test/users/me/statuses/race-condition',
         actorId: CURRENT_ACTOR.id,
@@ -243,7 +335,10 @@ describe('deleteStatusFromUserInput', () => {
         cc: []
       })
       const database = createDatabase(status)
-      vi.mocked(database.deleteStatusWithQueueJob).mockResolvedValueOnce(false)
+      vi.mocked(database.deleteStatusWithQueueJob).mockResolvedValueOnce({
+        deleted: false,
+        blueskyCrossposts: []
+      })
 
       await expect(
         deleteStatusFromUserInput({
@@ -550,22 +645,27 @@ describe('deleteStatusFromUserInput', () => {
       expect(noQueue.publish).not.toHaveBeenCalled()
     })
 
-    it('atomically takes the cross-post row before deleting the status and queues the Bluesky delete after the local delete', async () => {
+    it('queues DELETE_BLUESKY_CROSSPOST_JOB_NAME from the cross-post row returned by deleteStatus after commit', async () => {
       const status = createMockStatus({
         id: 'https://llun.test/users/me/statuses/crossposted',
         actorId: CURRENT_ACTOR.id
       })
       const database = createDatabase(status)
       const uri = 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3k1'
-      vi.mocked(database.deleteBlueskyCrosspost).mockResolvedValue({
-        statusId: status.id,
-        actorId: CURRENT_ACTOR.id,
-        uri,
-        cid: 'bafy',
-        state: 'posted',
-        error: null,
-        createdAt: 0,
-        updatedAt: 0
+      vi.mocked(database.deleteStatus).mockResolvedValue({
+        deleted: true,
+        blueskyCrossposts: [
+          {
+            statusId: status.id,
+            actorId: CURRENT_ACTOR.id,
+            uri,
+            cid: 'bafy',
+            state: 'posted',
+            error: null,
+            createdAt: 0,
+            updatedAt: 0
+          }
+        ]
       })
 
       await deleteStatusFromUserInput({
@@ -575,14 +675,7 @@ describe('deleteStatusFromUserInput', () => {
       })
 
       expect(database.getBlueskyCrosspost).not.toHaveBeenCalled()
-      expect(database.deleteBlueskyCrosspost).toHaveBeenCalledWith({
-        statusId: status.id
-      })
-      expect(
-        vi.mocked(database.deleteBlueskyCrosspost).mock.invocationCallOrder[0]
-      ).toBeLessThan(
-        vi.mocked(database.deleteStatus).mock.invocationCallOrder[0]
-      )
+      expect(database.deleteBlueskyCrosspost).not.toHaveBeenCalled()
       expect(noQueue.publish).toHaveBeenCalledWith({
         id: getHashFromString(`${status.id}#bluesky-crosspost-delete`),
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
@@ -593,60 +686,60 @@ describe('deleteStatusFromUserInput', () => {
       ).toBeLessThan(vi.mocked(noQueue.publish).mock.invocationCallOrder[1])
     })
 
-    it('queues the Bluesky delete from DELETE ... RETURNING when the row turns posted after a stale pre-read would have seen posting', async () => {
+    it('swallows and logs a failed Bluesky cross-post delete publish after local delete committed', async () => {
       const status = createMockStatus({
-        id: 'https://llun.test/users/me/statuses/crosspost-race',
+        id: 'https://llun.test/users/me/statuses/crosspost-publish-fail',
         actorId: CURRENT_ACTOR.id
       })
       const database = createDatabase(status)
       const uri =
-        'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3krace'
-      // A stale pre-read would see 'posting' with no uri, whereas DELETE ... RETURNING
-      // atomically observes the row after it became 'posted'.
-      vi.mocked(database.getBlueskyCrosspost).mockResolvedValue({
-        statusId: status.id,
-        actorId: CURRENT_ACTOR.id,
-        uri: null,
-        cid: null,
-        state: 'posting',
-        error: null,
-        createdAt: 0,
-        updatedAt: 0
+        'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3kfail'
+      vi.mocked(database.deleteStatus).mockResolvedValue({
+        deleted: true,
+        blueskyCrossposts: [
+          {
+            statusId: status.id,
+            actorId: CURRENT_ACTOR.id,
+            uri,
+            cid: 'bafyfail',
+            state: 'posted',
+            error: null,
+            createdAt: 0,
+            updatedAt: 0
+          }
+        ]
       })
-      vi.mocked(database.deleteBlueskyCrosspost).mockResolvedValue({
-        statusId: status.id,
-        actorId: CURRENT_ACTOR.id,
-        uri,
-        cid: 'bafyrace',
-        state: 'posted',
-        error: null,
-        createdAt: 0,
-        updatedAt: 0
-      })
+      vi.spyOn(noQueue, 'publish')
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('Queue unreachable'))
+      const loggerSpy = vi
+        .spyOn(logger, 'error')
+        .mockImplementation(() => logger)
 
-      await deleteStatusFromUserInput({
-        currentActor: CURRENT_ACTOR,
-        statusId: status.id,
-        database
-      })
+      await expect(
+        deleteStatusFromUserInput({
+          currentActor: CURRENT_ACTOR,
+          statusId: status.id,
+          database
+        })
+      ).resolves.toBeUndefined()
 
-      expect(database.getBlueskyCrosspost).not.toHaveBeenCalled()
-      expect(noQueue.publish).toHaveBeenCalledWith({
-        id: getHashFromString(`${status.id}#bluesky-crosspost-delete`),
-        name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
-        data: { actorId: CURRENT_ACTOR.id, uri }
-      })
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusId: status.id,
+          actorId: CURRENT_ACTOR.id
+        }),
+        'Failed to queue Bluesky cross-post delete'
+      )
+      loggerSpy.mockRestore()
     })
 
-    it('queues no Bluesky delete for a post that was never cross-posted, and still deletes when removing the cross-post row fails', async () => {
+    it('queues no Bluesky delete when deleteStatus returns no cross-post rows', async () => {
       const status = createMockStatus({
         id: 'https://llun.test/users/me/statuses/not-crossposted',
         actorId: CURRENT_ACTOR.id
       })
       const database = createDatabase(status)
-      vi.mocked(database.deleteBlueskyCrosspost).mockRejectedValue(
-        new Error('delete crosspost failed')
-      )
 
       await deleteStatusFromUserInput({
         currentActor: CURRENT_ACTOR,
@@ -654,6 +747,7 @@ describe('deleteStatusFromUserInput', () => {
         database
       })
 
+      expect(database.deleteBlueskyCrosspost).not.toHaveBeenCalled()
       expect(database.deleteStatus).toHaveBeenCalledTimes(1)
       expect(noQueue.publish).toHaveBeenCalledTimes(1)
       expect(noQueue.publish).not.toHaveBeenCalledWith(
@@ -661,22 +755,28 @@ describe('deleteStatusFromUserInput', () => {
       )
     })
 
-    it('queues no Bluesky delete for a pending, posting or failed row', async () => {
+    it('queues no Bluesky delete for a pending, posting or failed row returned by deleteStatus', async () => {
       for (const state of ['pending', 'posting', 'failed'] as const) {
         const status = createMockStatus({
           id: `https://llun.test/users/me/statuses/${state}-crosspost`,
           actorId: CURRENT_ACTOR.id
         })
         const database = createDatabase(status)
-        vi.mocked(database.deleteBlueskyCrosspost).mockResolvedValue({
-          statusId: status.id,
-          actorId: CURRENT_ACTOR.id,
-          uri: null,
-          cid: null,
-          state,
-          error: state === 'failed' ? 'Bluesky did not accept the post.' : null,
-          createdAt: 0,
-          updatedAt: 0
+        vi.mocked(database.deleteStatus).mockResolvedValue({
+          deleted: true,
+          blueskyCrossposts: [
+            {
+              statusId: status.id,
+              actorId: CURRENT_ACTOR.id,
+              uri: null,
+              cid: null,
+              state,
+              error:
+                state === 'failed' ? 'Bluesky did not accept the post.' : null,
+              createdAt: 0,
+              updatedAt: 0
+            }
+          ]
         })
 
         await deleteStatusFromUserInput({
@@ -685,6 +785,7 @@ describe('deleteStatusFromUserInput', () => {
           database
         })
 
+        expect(database.deleteBlueskyCrosspost).not.toHaveBeenCalled()
         expect(database.deleteStatus).toHaveBeenCalledTimes(1)
         expect(noQueue.publish).not.toHaveBeenCalledWith(
           expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
@@ -847,7 +948,7 @@ describe('deleteStatusFromUserInput', () => {
       ).toBeNull()
     })
 
-    it('atomically takes the cross-post row with deleteStatusWithQueueJob and queues Bluesky delete when row turns posted right before delete', async () => {
+    it('atomically takes the cross-post row inside deleteStatusWithQueueJob and queues Bluesky delete when row turns posted right before delete', async () => {
       const statusId = `${actor.id}/statuses/integration-crosspost-race`
       await database.createNote({
         id: statusId,
@@ -864,13 +965,14 @@ describe('deleteStatusFromUserInput', () => {
       const uri =
         'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3kdbq'
 
-      // Simulate the row turning 'posted' right before deleteBlueskyCrosspost runs
-      // (after a stale getBlueskyCrosspost read would have observed 'posting').
-      const originalDeleteCrosspost =
-        database.deleteBlueskyCrosspost.bind(database)
+      // Simulate the row turning 'posted' right before deleteStatusWithQueueJob
+      // runs (after a stale getBlueskyCrosspost read would have observed 'posting').
+      const originalDeleteWithQueueJob =
+        database.deleteStatusWithQueueJob.bind(database)
       const getCrosspostSpy = vi.spyOn(database, 'getBlueskyCrosspost')
-      const deleteCrosspostSpy = vi
-        .spyOn(database, 'deleteBlueskyCrosspost')
+      const deleteCrosspostSpy = vi.spyOn(database, 'deleteBlueskyCrosspost')
+      const deleteWithQueueJobSpy = vi
+        .spyOn(database, 'deleteStatusWithQueueJob')
         .mockImplementationOnce(async (params) => {
           await database.markBlueskyCrosspostPosted({
             statusId,
@@ -878,7 +980,7 @@ describe('deleteStatusFromUserInput', () => {
             uri,
             cid: 'bafydbq'
           })
-          return originalDeleteCrosspost(params)
+          return originalDeleteWithQueueJob(params)
         })
       try {
         await deleteStatusFromUserInput({
@@ -887,9 +989,11 @@ describe('deleteStatusFromUserInput', () => {
           database
         })
         expect(getCrosspostSpy).not.toHaveBeenCalled()
+        expect(deleteCrosspostSpy).not.toHaveBeenCalled()
       } finally {
         getCrosspostSpy.mockRestore()
         deleteCrosspostSpy.mockRestore()
+        deleteWithQueueJobSpy.mockRestore()
       }
 
       expect(await database.getStatus({ statusId })).toBeNull()
@@ -908,6 +1012,173 @@ describe('deleteStatusFromUserInput', () => {
       expect(deleteBskyJob).not.toBeNull()
       expect(deleteBskyJob?.name).toBe(DELETE_BLUESKY_CROSSPOST_JOB_NAME)
       expect(deleteBskyJob?.payload).toMatchObject({
+        name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+        data: { actorId: actor.id, uri }
+      })
+    })
+
+    it('keeps the bluesky_crossposts row when deleteStatusWithQueueJob rolls back so a retry still queues the Bluesky delete', async () => {
+      const statusId = `${actor.id}/statuses/integration-crosspost-rollback-dbq`
+      const uri =
+        'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3krollbackdbq'
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Cross-posted note for rollback test'
+      })
+      await database.claimBlueskyCrosspost({ statusId, actorId: actor.id })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid: 'bafyrollbackdbq'
+      })
+
+      // Break a table deleted AFTER bluesky_crossposts inside executeStatusDeletion
+      // so the cross-post DELETE ... RETURNING runs and must roll back with the tx.
+      await db.schema
+        .alterTable('bookmarks')
+        .renameTo('bookmarks_bak')
+        .execute()
+      try {
+        await expect(
+          deleteStatusFromUserInput({
+            currentActor: actor,
+            statusId,
+            database
+          })
+        ).rejects.toThrow()
+      } finally {
+        await db.schema
+          .alterTable('bookmarks_bak')
+          .renameTo('bookmarks')
+          .execute()
+      }
+
+      // Status and cross-post row both survive the rollback; neither job was persisted.
+      expect(await database.getStatus({ statusId })).not.toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        statusId,
+        state: 'posted',
+        uri
+      })
+      expect(
+        await getQueueJobById(db, getHashFromString(`${statusId}#delete`))
+      ).toBeNull()
+      expect(
+        await getQueueJobById(
+          db,
+          getHashFromString(`${statusId}#bluesky-crosspost-delete`)
+        )
+      ).toBeNull()
+
+      // Retrying now succeeds and queues both jobs atomically.
+      await deleteStatusFromUserInput({
+        currentActor: actor,
+        statusId,
+        database
+      })
+
+      expect(await database.getStatus({ statusId })).toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      expect(
+        await getQueueJobById(db, getHashFromString(`${statusId}#delete`))
+      ).toMatchObject({ name: SEND_DELETE_NOTE_JOB_NAME })
+      expect(
+        await getQueueJobById(
+          db,
+          getHashFromString(`${statusId}#bluesky-crosspost-delete`)
+        )
+      ).toMatchObject({
+        name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+        payload: {
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          data: { actorId: actor.id, uri }
+        }
+      })
+    })
+
+    it('keeps the bluesky_crossposts row when deleteStatus rolls back on a non-database queue so a retry queues the Bluesky delete', async () => {
+      currentMockConfig = { queue: undefined }
+      const noQueue = new NoQueue()
+      const publishSpy = vi
+        .spyOn(noQueue, 'publish')
+        .mockResolvedValue(undefined)
+      vi.mocked(getQueue).mockReturnValue(noQueue)
+
+      const statusId = `${actor.id}/statuses/integration-crosspost-rollback-noq`
+      const uri =
+        'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3krollbacknoq'
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Cross-posted note for NoQueue rollback test'
+      })
+      await database.claimBlueskyCrosspost({ statusId, actorId: actor.id })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        attemptId: attemptId!,
+        uri,
+        cid: 'bafyrollbacknoq'
+      })
+
+      await db.schema
+        .alterTable('bookmarks')
+        .renameTo('bookmarks_bak')
+        .execute()
+      try {
+        await expect(
+          deleteStatusFromUserInput({
+            currentActor: actor,
+            statusId,
+            database
+          })
+        ).rejects.toThrow()
+      } finally {
+        await db.schema
+          .alterTable('bookmarks_bak')
+          .renameTo('bookmarks')
+          .execute()
+      }
+
+      // Status and cross-post row survive; nothing was published.
+      expect(await database.getStatus({ statusId })).not.toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        statusId,
+        state: 'posted',
+        uri
+      })
+      expect(publishSpy).not.toHaveBeenCalled()
+
+      // Retrying now deletes both and publishes both jobs.
+      await deleteStatusFromUserInput({
+        currentActor: actor,
+        statusId,
+        database
+      })
+
+      expect(await database.getStatus({ statusId })).toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      expect(publishSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: getHashFromString(`${statusId}#delete`),
+          name: SEND_DELETE_NOTE_JOB_NAME
+        })
+      )
+      expect(publishSpy).toHaveBeenCalledWith({
+        id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
         data: { actorId: actor.id, uri }
       })
@@ -949,6 +1220,50 @@ describe('deleteStatusFromUserInput', () => {
           attemptId: attemptId!,
           uri: 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3kpost',
           cid: 'bafypost'
+        })
+      ).toBe(false)
+    })
+
+    it('drops an in-flight posting row on a non-database queue without queuing a Bluesky delete', async () => {
+      currentMockConfig = { queue: undefined }
+      const noQueue = new NoQueue()
+      const publishSpy = vi
+        .spyOn(noQueue, 'publish')
+        .mockResolvedValue(undefined)
+      vi.mocked(getQueue).mockReturnValue(noQueue)
+
+      const statusId = `${actor.id}/statuses/integration-crosspost-posting-noq`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'In-flight cross-post on NoQueue'
+      })
+      await database.claimBlueskyCrosspost({ statusId, actorId: actor.id })
+      const attemptId = await database.beginBlueskyCrosspostAttempt({
+        statusId
+      })
+
+      await deleteStatusFromUserInput({
+        currentActor: actor,
+        statusId,
+        database
+      })
+
+      expect(await database.getStatus({ statusId })).toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      expect(publishSpy).toHaveBeenCalledTimes(1)
+      expect(publishSpy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
+      )
+      expect(
+        await database.markBlueskyCrosspostPosted({
+          statusId,
+          attemptId: attemptId!,
+          uri: 'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3kpostnoq',
+          cid: 'bafypostnoq'
         })
       ).toBe(false)
     })

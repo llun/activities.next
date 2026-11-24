@@ -131,7 +131,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
       queueJob
     })
 
-    expect(result).toBe(true)
+    expect(result).toEqual({ deleted: true, blueskyCrossposts: [] })
 
     // Status and reply are deleted
     const fetchedRoot = await database.getStatus({ statusId })
@@ -203,15 +203,15 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
       statusId,
       queueJob
     })
-    expect(firstResult).toBe(true)
+    expect(firstResult).toEqual({ deleted: true, blueskyCrossposts: [] })
 
-    // Second (duplicate) request returns false
+    // Second (duplicate) request returns deleted: false
     const secondResult = await database.deleteStatusWithQueueJob({
       actorId: primaryActor.id,
       statusId,
       queueJob
     })
-    expect(secondResult).toBe(false)
+    expect(secondResult).toEqual({ deleted: false, blueskyCrossposts: [] })
 
     // Exactly one job exists in queue_jobs
     const jobs = await db
@@ -319,7 +319,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
       queueJob
     })
 
-    expect(result).toBe(true)
+    expect(result).toEqual({ deleted: true, blueskyCrossposts: [] })
     // The outer transaction already committed before indexHashtagSearchDocuments ran,
     // so the status row is ALREADY gone from committed state!
     expect(statusVisibleDuringRefresh).toBeNull()
@@ -369,7 +369,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
       queueJob
     })
 
-    expect(result).toBe(true)
+    expect(result).toEqual({ deleted: true, blueskyCrossposts: [] })
 
     // Status was still deleted
     const fetched = await database.getStatus({ statusId })
@@ -380,5 +380,75 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     expect(persistedJob).not.toBeNull()
 
     indexSpy.mockRestore()
+  })
+
+  it('returns deleted bluesky_crossposts rows and inserts additional queue jobs atomically', async () => {
+    const statusId = `${primaryActor.id}/statuses/crosspost-atomic-${Date.now()}`
+    const uri =
+      'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3katomic'
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: primaryActor.id,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [`${primaryActor.id}/followers`],
+      text: 'Atomic cross-post delete note'
+    })
+    await database.claimBlueskyCrosspost({ statusId, actorId: primaryActor.id })
+    const attemptId = await database.beginBlueskyCrosspostAttempt({ statusId })
+    await database.markBlueskyCrosspostPosted({
+      statusId,
+      attemptId: attemptId!,
+      uri,
+      cid: 'bafyatomic'
+    })
+
+    const queueJobId = `job-crosspost-atomic-${backendName}-${Date.now()}`
+    const extraJobId = `job-crosspost-bsky-${backendName}-${Date.now()}`
+    const queueJob: CreateQueueJobParams = {
+      id: queueJobId,
+      name: 'sendDeleteNote',
+      payload: {
+        id: queueJobId,
+        name: 'sendDeleteNote',
+        data: { actorId: primaryActor.id, statusId }
+      }
+    }
+
+    const result = await database.deleteStatusWithQueueJob({
+      actorId: primaryActor.id,
+      statusId,
+      queueJob,
+      buildAdditionalQueueJobs: ({ blueskyCrossposts }) =>
+        blueskyCrossposts
+          .filter((row) => row.state === 'posted' && row.uri)
+          .map((row) => ({
+            id: extraJobId,
+            name: 'deleteBlueskyCrosspost',
+            payload: {
+              id: extraJobId,
+              name: 'deleteBlueskyCrosspost',
+              data: { actorId: row.actorId, uri: row.uri }
+            }
+          }))
+    })
+
+    expect(result.deleted).toBe(true)
+    expect(result.blueskyCrossposts).toEqual([
+      expect.objectContaining({
+        statusId,
+        actorId: primaryActor.id,
+        uri,
+        cid: 'bafyatomic',
+        state: 'posted'
+      })
+    ])
+    expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+    expect(await getQueueJobById(db, queueJobId)).not.toBeNull()
+    expect(await getQueueJobById(db, extraJobId)).toMatchObject({
+      id: extraJobId,
+      name: 'deleteBlueskyCrosspost',
+      status: 'pending'
+    })
   })
 })

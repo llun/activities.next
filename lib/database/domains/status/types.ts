@@ -11,6 +11,7 @@
 // working.
 import type { Selectable } from 'kysely'
 
+import type { BlueskyCrosspost } from '@/lib/database/domains/bluesky/types'
 import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 import type { Statuses } from '@/lib/database/kysely/db'
 import type { ActorVisibleStatusAudience } from '@/lib/database/kysely/visibility/actorVisible'
@@ -414,6 +415,10 @@ export type DeleteStatusParams = {
   statusId: string
   actorId?: string
 }
+export type DeleteStatusResult = {
+  deleted: boolean
+  blueskyCrossposts: BlueskyCrosspost[]
+}
 export type DiscardUnpublishedStatusParams = {
   actorId: string
   statusId: string
@@ -424,6 +429,11 @@ export type DeleteStatusWithQueueJobParams = {
   actorId: string
   statusId: string
   queueJob: CreateQueueJobParams
+  // Optional follow-up jobs built from the deletion result (e.g. deleting
+  // removed Bluesky cross-posts) and inserted inside the same transaction.
+  buildAdditionalQueueJobs?: (
+    result: DeleteStatusResult
+  ) => CreateQueueJobParams[]
 }
 // A single superseded revision of a status (a row in `status_history`). `text`
 // and `summary` are the content of that prior version; `supersededAt` is when it
@@ -661,7 +671,7 @@ export interface StatusDeletionDatabase {
   // Drops every prior revision of a status. Used when its audience widens:
   // `status_history` does not record who a revision was written for.
   deleteStatusEditHistory(params: GetStatusEditHistoryParams): Promise<void>
-  deleteStatus(params: DeleteStatusParams): Promise<void>
+  deleteStatus(params: DeleteStatusParams): Promise<DeleteStatusResult>
   // Undoes a local create that failed before it was federated: the status
   // (as deleteStatus, no Delete activity) and the idempotency key it claimed,
   // unless a retry has taken that key over. Returns whether it discarded.
@@ -670,7 +680,7 @@ export interface StatusDeletionDatabase {
   ): Promise<boolean>
   deleteStatusWithQueueJob(
     params: DeleteStatusWithQueueJobParams
-  ): Promise<boolean>
+  ): Promise<DeleteStatusResult>
 }
 
 export type GetStatusesForUrlRewriteParams = {

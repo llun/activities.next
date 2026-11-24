@@ -97,8 +97,9 @@ describe('getSQLDatabase', () => {
   }
 
   it('binds the status and actor deletions to the Kysely instance', async () => {
-    const deleteStatus = vi.fn().mockResolvedValue(undefined)
-    const deleteStatusWithQueueJob = vi.fn().mockResolvedValue(true)
+    const deleteResult = { deleted: true, blueskyCrossposts: [] }
+    const deleteStatus = vi.fn().mockResolvedValue(deleteResult)
+    const deleteStatusWithQueueJob = vi.fn().mockResolvedValue(deleteResult)
     const deleteStatusEditHistory = vi.fn().mockResolvedValue(undefined)
     const deleteActorData = vi.fn().mockResolvedValue(undefined)
     Object.assign(mutableStatusQueries, {
@@ -110,14 +111,16 @@ describe('getSQLDatabase', () => {
     const { database, kyselyDb } = createComposedDatabase()
 
     const queueJob = { name: 'sendDeleteNote', payload: {} }
-    await database.deleteStatus({ statusId: 'status', actorId: 'actor' })
+    await expect(
+      database.deleteStatus({ statusId: 'status', actorId: 'actor' })
+    ).resolves.toEqual(deleteResult)
     await expect(
       database.deleteStatusWithQueueJob({
         statusId: 'status',
         actorId: 'actor',
         queueJob: queueJob as never
       })
-    ).resolves.toBe(true)
+    ).resolves.toEqual(deleteResult)
     await database.deleteStatusEditHistory({ statusId: 'status' })
     await database.deleteActorData({ actorId: 'actor' })
     expect(deleteStatus).toHaveBeenCalledWith(kyselyDb, {

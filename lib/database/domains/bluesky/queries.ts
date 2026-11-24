@@ -579,7 +579,9 @@ export const updateBlueskyAccountSync = async (
     .execute()
 }
 
-const toCrosspost = (row: Selectable<BlueskyCrossposts>): BlueskyCrosspost => ({
+export const toBlueskyCrosspost = (
+  row: Selectable<BlueskyCrossposts>
+): BlueskyCrosspost => ({
   statusId: row.statusId,
   actorId: row.actorId,
   uri: row.uri ?? null,
@@ -599,7 +601,7 @@ export const getBlueskyCrosspost = async (
     .selectAll()
     .where('statusId', '=', statusId)
     .executeTakeFirst()
-  return row ? toCrosspost(row) : null
+  return row ? toBlueskyCrosspost(row) : null
 }
 
 export const getBlueskyCrosspostByUri = async (
@@ -611,7 +613,7 @@ export const getBlueskyCrosspostByUri = async (
     .selectAll()
     .where('uri', '=', uri)
     .executeTakeFirst()
-  return row ? toCrosspost(row) : null
+  return row ? toBlueskyCrosspost(row) : null
 }
 
 // The cross-post rows of a page of statuses, keyed by statusId. Batched so the
@@ -632,7 +634,7 @@ export const getBlueskyCrosspostsByStatusIds = async (
     return (actorId ? query.where('actorId', '=', actorId) : query).execute()
   })
   for (const row of rows) {
-    crossposts.set(row.statusId, toCrosspost(row))
+    crossposts.set(row.statusId, toBlueskyCrosspost(row))
   }
   return crossposts
 }
@@ -785,7 +787,7 @@ export const deleteBlueskyCrosspost = async (
     .where('statusId', '=', statusId)
     .returningAll()
     .executeTakeFirst()
-  return deleted ? toCrosspost(deleted) : null
+  return deleted ? toBlueskyCrosspost(deleted) : null
 }
 
 export const deleteBlueskyCrosspostIfPending = async (

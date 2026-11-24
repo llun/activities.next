@@ -98,6 +98,7 @@ export type {
   CreateTagParams,
   DecreaseHashtagCounterParams,
   DeleteStatusParams,
+  DeleteStatusResult,
   DeleteStatusTagsByTypeParams,
   DeleteStatusWithQueueJobParams,
   DiscardUnpublishedStatusParams,
