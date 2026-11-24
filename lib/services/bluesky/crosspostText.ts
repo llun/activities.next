@@ -10,6 +10,7 @@ import {
   countBlueskyGraphemes,
   countBlueskyUtf8Bytes
 } from '@/lib/utils/blueskyText'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 // Turning a local post into a Bluesky post: its Markdown text as plain text,
 // the text cut to Bluesky's limits with a link back to the original, and an
@@ -205,6 +206,21 @@ const cutToRoom = (text: string, room: number, byteRoom: number): string => {
 
   return graphemes.slice(0, limit).join('').trimEnd()
 }
+
+// A poll stores rendered HTML (convertMarkdownText): keep its paragraphs and
+// line breaks, and let htmlToPlainText drop the tags and decode entities.
+export const pollHtmlToBlueskyPlainText = (html: string): string =>
+  html
+    .split(/<\/p\s*>/i)
+    .map((paragraph) =>
+      paragraph
+        .split(/<br\s*\/?>/i)
+        .map(htmlToPlainText)
+        .join('\n')
+        .trim()
+    )
+    .filter(Boolean)
+    .join('\n\n')
 
 export type BuildCrosspostTextParams = {
   text: string

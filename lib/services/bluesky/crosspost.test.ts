@@ -35,6 +35,7 @@ import type { Status, StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 vi.mock('@/lib/services/bluesky/agent', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -72,6 +73,10 @@ vi.mock('@/lib/services/domains/servedDomainSnapshot', () => ({
 
 vi.mock('@/lib/utils/safeImageDownload', () => ({
   safeImageFetch: vi.fn()
+}))
+
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({
+  safeRemoteFetch: vi.fn()
 }))
 
 const OWN_DID = `did:plc:${'a'.repeat(24)}`
@@ -228,6 +233,9 @@ describe('Bluesky cross-post', () => {
     vi.mocked(getPublicProfiles).mockReset().mockResolvedValue([])
     vi.mocked(readStoredImage).mockReset()
     vi.mocked(safeImageFetch).mockReset()
+    vi.mocked(safeRemoteFetch)
+      .mockReset()
+      .mockRejectedValue(new Error('No link preview in test'))
     vi.mocked(getQueue).mockClear()
     queue.publish.mockReset().mockResolvedValue(undefined)
     queue.runsInline = false
@@ -436,6 +444,38 @@ describe('Bluesky cross-post', () => {
       )
     })
 
+    it('converts HTML poll text to plain text with paragraph breaks, entities and tag facets', async () => {
+      const id = `${actor.id}/statuses/${nextId('poll-html')}`
+      const pollUrl = `https://${TEST_DOMAIN}/@crossposter/poll-html`
+      await database.createPoll({
+        id,
+        url: pollUrl,
+        actorId: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: '<p>Best <a href="/tags/tea" class="hashtag" rel="tag">#<span>tea</span></a> &amp; coffee?</p>\n<p>Pick one</p>',
+        choices: ['Tea', 'Coffee'],
+        endAt: Date.now() + 60_000
+      })
+      await database.claimBlueskyCrosspost({ statusId: id, actorId: actor.id })
+      answerCreate('3kpollhtml')
+
+      await crosspostStatus(database, id)
+
+      const record = createdRecord()
+      expect(record.text).toBe(
+        `Best #tea & coffee?\n\nPick one\n\nVote here: ${pollUrl}`
+      )
+      expect(record.facets).toEqual(
+        expect.arrayContaining([
+          {
+            index: { byteStart: 5, byteEnd: 9 },
+            features: [{ $type: 'app.bsky.richtext.facet#tag', tag: 'tea' }]
+          }
+        ])
+      )
+    })
+
     it('links a quote of a fediverse post and never embeds a Bluesky quote', async () => {
       // Quoting a Bluesky post is refused when the quote is created, so a
       // stored Bluesky quote is not embedded: it is only a URL in the text.
@@ -564,6 +604,57 @@ describe('Bluesky cross-post', () => {
           description: 'What happened',
           thumb: expect.objectContaining({ $type: 'blob' })
         }
+      })
+    })
+
+    it('resolves and embeds a cached link preview when the note is not linked to one yet', async () => {
+      const url = 'https://cached.test/article'
+      await database.upsertLinkPreview({
+        urlHash: getHashFromString(url),
+        url,
+        title: 'Cached Article',
+        description: 'Already in cache',
+        imageUrl: null,
+        fetchStatus: 'completed',
+        error: null
+      })
+      const status = await claim(await createNote({ text: `Read ${url}` }))
+      answerCreate('3kcachedcard')
+
+      await crosspostStatus(database, status.id)
+
+      expect(safeRemoteFetch).not.toHaveBeenCalled()
+      expect(createdRecord().embed).toEqual({
+        $type: 'app.bsky.embed.external',
+        external: {
+          uri: url,
+          title: 'Cached Article',
+          description: 'Already in cache'
+        }
+      })
+    })
+
+    it('still posts without a card if link preview resolution throws', async () => {
+      const status = await claim(
+        await createNote({ text: 'Read https://broken.test/article' })
+      )
+      const spy = vi
+        .spyOn(database, 'getTags')
+        .mockRejectedValueOnce(new Error('tags unavailable'))
+      answerCreate('3kpreviewerr')
+
+      try {
+        await crosspostStatus(database, status.id)
+      } finally {
+        spy.mockRestore()
+      }
+
+      expect(createdRecord()).not.toHaveProperty('embed')
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'posted',
+        uri: postUri('3kpreviewerr')
       })
     })
 

@@ -5,7 +5,8 @@ import {
   BlueskyImageFormatError,
   buildCrosspostText,
   fitImageForBluesky,
-  markdownToBlueskyPlainText
+  markdownToBlueskyPlainText,
+  pollHtmlToBlueskyPlainText
 } from '@/lib/services/bluesky/crosspostText'
 import {
   BLUESKY_MAX_GRAPHEMES,
@@ -103,6 +104,34 @@ describe('markdownToBlueskyPlainText', () => {
         'Read [the post][1]\n\n[1]: https://example.com/post'
       )
     ).toBe('Read the post https://example.com/post')
+  })
+})
+
+describe('pollHtmlToBlueskyPlainText', () => {
+  it.each([
+    {
+      description: 'keeps paragraphs as blank lines',
+      html: '<p>First</p>\n<p>Second</p>',
+      expected: 'First\n\nSecond'
+    },
+    {
+      description: 'keeps br as a line break',
+      html: '<p>Line one<br>Line two</p>',
+      expected: 'Line one\nLine two'
+    },
+    {
+      description:
+        'drops tags and decodes entities, keeping hashtags and mentions',
+      html: '<p>Best <a href="/tags/tea" class="hashtag" rel="tag">#<span>tea</span></a> &amp; <span class="h-card"><a href="https://llun.test/@alice" class="u-url mention">@<span>alice</span></a></span>?</p>',
+      expected: 'Best #tea & @alice?'
+    },
+    {
+      description: 'passes plain text through',
+      html: 'Which one?',
+      expected: 'Which one?'
+    }
+  ])('$description', ({ html, expected }) => {
+    expect(pollHtmlToBlueskyPlainText(html)).toBe(expected)
   })
 })
 

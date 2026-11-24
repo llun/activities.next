@@ -11,6 +11,8 @@ import {
   isActorConfirmationPending,
   isActorModerationBlocked
 } from '@/lib/services/guards/accountState'
+import { resolveStatusPreviewUrl } from '@/lib/services/link-previews/resolveStatusPreviewUrl'
+import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { readStoredImage } from '@/lib/services/medias/readStoredMedia'
 import { getQueue } from '@/lib/services/queue'
 import type { Actor } from '@/lib/types/domain/actor'
@@ -45,7 +47,8 @@ import {
   BlueskyImageTooLargeError,
   buildCrosspostText,
   fitImageForBluesky,
-  markdownToBlueskyPlainText
+  markdownToBlueskyPlainText,
+  pollHtmlToBlueskyPlainText
 } from './crosspostText'
 import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 import { optionalString, parseAtUri, parseBlueskyPostView } from './records'
@@ -276,15 +279,18 @@ const buildRecord = async (
       null
   }
 
+  const isPoll = status.type === StatusType.enum.Poll
   // A content warning is all the copy says; the text and media stay here.
-  // A poll links to where it can be voted on.
+  // A poll stores rendered HTML (convertMarkdownText) and links to where it
+  // can be voted on; a note stores Markdown.
   let body = hasContentWarning
     ? (summary ?? '')
-    : markdownToBlueskyPlainText(status.text)
+    : isPoll
+      ? pollHtmlToBlueskyPlainText(status.text)
+      : markdownToBlueskyPlainText(status.text)
   if (!hasContentWarning && fediverseQuoteUrl) {
     body = `${body}\n\n${fediverseQuoteUrl}`
   }
-  const isPoll = status.type === StatusType.enum.Poll
   const { text: cutText } = buildCrosspostText({
     text: normalizeBlueskyMentions(body),
     fullUrl: isPoll && !hasContentWarning ? `Vote here: ${fullUrl}` : fullUrl,
@@ -301,8 +307,27 @@ const buildRecord = async (
   if (images.length > 0) {
     embed = { $type: 'app.bsky.embed.images', images }
   } else if (!hasContentWarning) {
-    // The card only when this server already fetched it for the post.
-    const preview = status.linkPreview
+    let preview = status.linkPreview
+    if (!preview && status.type === StatusType.enum.Note) {
+      // createNote runs syncStatusLinkPreview after publishCreatedStatus so
+      // federation never waits on a third-party fetch; under NoQueue or an
+      // async queue race (or idempotent recovery) the cross-post runs first.
+      // Resolve it here when the note carries a previewable URL; preview
+      // failures stay local and simply omit the card.
+      try {
+        const previewUrl = await resolveStatusPreviewUrl({ database, status })
+        if (previewUrl) {
+          const synced = await syncStatusLinkPreview({ database, status })
+          preview = synced.linkPreview
+        }
+      } catch (error) {
+        logger.warn({
+          message: 'Could not resolve link preview for a Bluesky cross-post',
+          statusId: status.id,
+          err: toLoggableError(error)
+        })
+      }
+    }
     if (preview?.title) {
       const thumb = await uploadLinkPreviewThumb(agent, preview.imageUrl)
       embed = {

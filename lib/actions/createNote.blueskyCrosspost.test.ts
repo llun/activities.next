@@ -7,18 +7,26 @@ import {
   IDEMPOTENCY_PENDING_STALE_MS,
   StatusPublishFailedError
 } from '@/lib/database/domains/idempotency/types'
+import { crosspostBlueskyJob } from '@/lib/jobs/crosspostBlueskyJob'
+import { fetchLinkPreviewJob } from '@/lib/jobs/fetchLinkPreviewJob'
 import {
   CROSSPOST_BLUESKY_JOB_NAME,
+  FETCH_LINK_PREVIEW_JOB_NAME,
   PROCESS_FITNESS_FILE_JOB_NAME,
   PUBLISH_SCHEDULED_STATUS_JOB_NAME,
   SEND_NOTE_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { publishScheduledStatusJob } from '@/lib/jobs/publishScheduledStatusJob'
+import {
+  type BlueskyAgent,
+  getBlueskyAgent
+} from '@/lib/services/bluesky/agent'
 import { isBlueskyAllowed } from '@/lib/services/bluesky/policy'
 import { getQueue } from '@/lib/services/queue'
+import { NoQueue } from '@/lib/services/queue/noqueue'
 import type { Actor } from '@/lib/types/domain/actor'
-import type { Status } from '@/lib/types/domain/status'
+import { type Status, StatusType } from '@/lib/types/domain/status'
 import type { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -42,6 +50,16 @@ vi.mock('@/lib/services/timelines', () => ({
 
 vi.mock('@/lib/services/notifications/sendNotificationAlerts', () => ({
   sendNotificationAlerts: vi.fn()
+}))
+
+vi.mock('@/lib/services/bluesky/agent', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getBlueskyAgent: vi.fn()
+}))
+
+vi.mock('@/lib/services/bluesky/appview', () => ({
+  getPublicPosts: vi.fn().mockResolvedValue([]),
+  getPublicProfiles: vi.fn().mockResolvedValue([])
 }))
 
 vi.mock('@/lib/services/bluesky/policy', async (importOriginal) => ({
@@ -587,5 +605,128 @@ describe('Bluesky cross-post hooks of new posts', () => {
         blueskyCrosspost: true
       }
     })
+  })
+
+  it('cross-posts a poll created via createPollFromUserInput as plain text with decoded entities and tag facets', async () => {
+    const defaultQueue = getQueue()
+    const inlineQueue = new NoQueue()
+    vi.spyOn(inlineQueue, 'handle').mockImplementation(async (message) => {
+      if (message.name === CROSSPOST_BLUESKY_JOB_NAME) {
+        await crosspostBlueskyJob(database, message)
+      }
+    })
+    const did = `did:plc:${'a'.repeat(24)}`
+    const post = vi.fn().mockResolvedValue({
+      uri: `at://${did}/app.bsky.feed.post/3kpolltea`,
+      cid: `bafyrei${'a'.repeat(52)}`
+    })
+    vi.mocked(getBlueskyAgent).mockResolvedValue({
+      did,
+      pdsUrl: 'https://pds.example.net/',
+      get: vi.fn(),
+      post,
+      uploadBlob: vi.fn()
+    } as BlueskyAgent)
+    vi.mocked(getQueue).mockReturnValue(inlineQueue)
+
+    try {
+      const poll = await createPollFromUserInput({
+        text: 'Best #tea & coffee?',
+        choices: ['Tea', 'Coffee'],
+        currentActor: actor,
+        database,
+        endAt: Date.now() + 60_000,
+        blueskyCrosspost: true
+      })
+
+      expect(poll?.type).toBe(StatusType.enum.Poll)
+      if (!poll || poll.type !== StatusType.enum.Poll) {
+        throw new Error('Expected poll status')
+      }
+      expect(post).toHaveBeenCalledTimes(1)
+      const [, payload] = post.mock.calls[0]
+      expect(payload.record.text).toBe(
+        `Best #tea & coffee?\n\nVote here: ${poll.url}`
+      )
+      expect(payload.record.text).not.toContain('<p>')
+      expect(payload.record.text).not.toContain('&amp;')
+      expect(payload.record.facets).toEqual(
+        expect.arrayContaining([
+          {
+            index: { byteStart: 5, byteEnd: 9 },
+            features: [{ $type: 'app.bsky.richtext.facet#tag', tag: 'tea' }]
+          },
+          expect.objectContaining({
+            features: [{ $type: 'app.bsky.richtext.facet#link', uri: poll.url }]
+          })
+        ])
+      )
+    } finally {
+      vi.mocked(getQueue).mockReturnValue(defaultQueue)
+    }
+  })
+
+  it('includes the external link card when createNoteFromUserInput runs inline under NoQueue with a cached preview', async () => {
+    const url = 'https://news.test/inline-card'
+    await database.upsertLinkPreview({
+      urlHash: getHashFromString(url),
+      url,
+      title: 'Inline Card Story',
+      description: 'Cached preview description',
+      imageUrl: null,
+      fetchStatus: 'completed',
+      error: null
+    })
+
+    const defaultQueue = getQueue()
+    const inlineQueue = new NoQueue()
+    vi.spyOn(inlineQueue, 'handle').mockImplementation(async (message) => {
+      if (message.name === CROSSPOST_BLUESKY_JOB_NAME) {
+        await crosspostBlueskyJob(database, message)
+      } else if (message.name === FETCH_LINK_PREVIEW_JOB_NAME) {
+        await fetchLinkPreviewJob(database, message)
+      }
+    })
+    const did = `did:plc:${'a'.repeat(24)}`
+    const post = vi.fn().mockResolvedValue({
+      uri: `at://${did}/app.bsky.feed.post/3kcardinline`,
+      cid: `bafyrei${'b'.repeat(52)}`
+    })
+    vi.mocked(getBlueskyAgent).mockResolvedValue({
+      did,
+      pdsUrl: 'https://pds.example.net/',
+      get: vi.fn(),
+      post,
+      uploadBlob: vi.fn()
+    } as BlueskyAgent)
+    vi.mocked(getQueue).mockReturnValue(inlineQueue)
+
+    try {
+      const note = await createNoteFromUserInput({
+        text: `Check out ${url}`,
+        currentActor: actor,
+        database,
+        blueskyCrosspost: true
+      })
+
+      expect(note).not.toBeNull()
+      expect(note?.linkPreview).toMatchObject({
+        url,
+        title: 'Inline Card Story',
+        description: 'Cached preview description'
+      })
+      expect(post).toHaveBeenCalledTimes(1)
+      const [, payload] = post.mock.calls[0]
+      expect(payload.record.embed).toEqual({
+        $type: 'app.bsky.embed.external',
+        external: {
+          uri: url,
+          title: 'Inline Card Story',
+          description: 'Cached preview description'
+        }
+      })
+    } finally {
+      vi.mocked(getQueue).mockReturnValue(defaultQueue)
+    }
   })
 })
