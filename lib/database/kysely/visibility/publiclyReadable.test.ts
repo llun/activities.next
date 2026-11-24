@@ -209,8 +209,9 @@ describe('publicly readable status predicates', () => {
       .where('id', '=', ids.selfBoost)
       .execute()
 
-    // A public boost of a Bluesky post: the post's own row stays as stored,
-    // but boosting it never makes it publicly readable.
+    // A public Bluesky post: addressed to the public collection, but Bluesky
+    // content is shown to signed-in viewers only, so it is never publicly
+    // readable — and neither is a boost of it.
     ids.blueskyNote = await note('bluesky-note', { isPublic: true })
     await db
       .updateTable('statuses')
@@ -313,6 +314,11 @@ describe('publicly readable status predicates', () => {
       readable: false
     },
     {
+      description: 'a Bluesky post',
+      key: 'blueskyNote',
+      readable: false
+    },
+    {
       description: 'a boost of a Bluesky post',
       key: 'boostOfBluesky',
       readable: false
@@ -350,8 +356,7 @@ describe('publicly readable status predicates', () => {
       ids.boostOfPublic,
       ids.boostOfBoost,
       ids.legacyBoost,
-      ids.disagreeingBoost,
-      ids.blueskyNote
+      ids.disagreeingBoost
     ].sort()
     expect(kyselyForm).toEqual(readable)
     expect(kyselySetForm).toEqual(readable)

@@ -91,4 +91,16 @@ describe('isOverBlueskyLimit', () => {
     expect(isOverBlueskyLimit('👨‍👩‍👧‍👦'.repeat(120))).toBe(false)
     expect(isOverBlueskyLimit('👨‍👩‍👧‍👦'.repeat(121))).toBe(true)
   })
+
+  it('counts the link the server appends after the text', () => {
+    const link =
+      'Vote here: https://activities.local/@llun/0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b'
+    // 300 graphemes alone, but the appended link pushes it over.
+    expect(isOverBlueskyLimit('a'.repeat(300))).toBe(false)
+    expect(isOverBlueskyLimit('a'.repeat(300), link)).toBe(true)
+    // Room left for the link: not cut.
+    expect(isOverBlueskyLimit('a'.repeat(200), link)).toBe(false)
+    // A null link is the same as none.
+    expect(isOverBlueskyLimit('a'.repeat(300), null)).toBe(false)
+  })
 })

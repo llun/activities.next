@@ -89,6 +89,16 @@ describe('syncBlueskyHome', () => {
     actor = (await database.getActorFromId({
       id: `https://${TEST_DOMAIN}/users/reader`
     })) as Actor
+    // A second local user, whose own cross-post is just a Bluesky post to the
+    // reader.
+    await database.createAccount({
+      email: `other@${TEST_DOMAIN}`,
+      username: 'other',
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: 'privateKey-other',
+      publicKey: 'publicKey-other'
+    })
     await database.saveBlueskyAccount({
       actorId: actor.id,
       did: 'did:plc:reader',
@@ -479,6 +489,74 @@ describe('syncBlueskyHome', () => {
     expect(await database.getStatusRepliesCount({ statusId: localId })).toBe(1)
     await database.deleteStatus({ statusId: replyId })
     expect(await database.getStatusRepliesCount({ statusId: localId })).toBe(1)
+  })
+
+  it("keeps another local user's cross-post in Home", async () => {
+    const otherActorId = `https://${TEST_DOMAIN}/users/other`
+    const otherLocalId = `${otherActorId}/statuses/crossposted-other`
+    await database.createNote({
+      id: otherLocalId,
+      url: otherLocalId,
+      actorId: otherActorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'Other local post'
+    })
+    const copy = postView('othercopy', 'o1', { text: 'Other local post' })
+    await database.claimBlueskyCrosspost({
+      statusId: otherLocalId,
+      actorId: otherActorId
+    })
+    await database.markBlueskyCrosspostPosted({
+      statusId: otherLocalId,
+      uri: copy.uri,
+      cid: copy.cid
+    })
+    publish(copy)
+    get.mockResolvedValue({ feed: [{ post: copy }] })
+
+    await syncBlueskyHome(database, actor)
+
+    // The reader follows the Bluesky author, so the copy is a post to them;
+    // only the reader's own cross-posts are already in their Home.
+    expect(await homeStatusIds()).toContain(
+      blueskyPostId(did('othercopy'), 'o1')
+    )
+  })
+
+  it("stores the parent of a reply to another local user's cross-post", async () => {
+    const otherActorId = `https://${TEST_DOMAIN}/users/other`
+    const otherLocalId = `${otherActorId}/statuses/crossposted-parent`
+    await database.createNote({
+      id: otherLocalId,
+      url: otherLocalId,
+      actorId: otherActorId,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      text: 'Other parent'
+    })
+    const copy = postView('otherparent', 'p1', { text: 'Other parent' })
+    await database.claimBlueskyCrosspost({
+      statusId: otherLocalId,
+      actorId: otherActorId
+    })
+    await database.markBlueskyCrosspostPosted({
+      statusId: otherLocalId,
+      uri: copy.uri,
+      cid: copy.cid
+    })
+    const reply = postView('gina', 'g2', {
+      reply: { root: { uri: copy.uri }, parent: { uri: copy.uri } }
+    })
+    publish(copy, reply)
+    get.mockResolvedValue({ feed: [{ post: reply }] })
+
+    await syncBlueskyHome(database, actor)
+
+    // Another user's cross-post is stored like any other parent, not skipped.
+    expect(
+      await database.getBlueskyRecordByUri({ uri: copy.uri })
+    ).not.toBeNull()
   })
 
   it('shows the original post of a repost, dated at the repost, and does not stop at one already stored', async () => {

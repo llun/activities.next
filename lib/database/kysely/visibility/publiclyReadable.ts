@@ -91,8 +91,9 @@ const announceChainReachesPublicNote = (db: Db) =>
     .where((eb) => eb.not(eb('announce_chain.type', '=', ANNOUNCE)))
 
 // "This status is publicly readable", correlated to the `statuses` row of the
-// outer query: addressed to the public collection and, for an Announce, its
-// chain reaches a public status that is not an Announce.
+// outer query: an ActivityPub row (never a Bluesky one, which is shown to
+// signed-in viewers only), addressed to the public collection and, for an
+// Announce, its chain reaches a public status that is not an Announce.
 //
 // Reach for this form when the number of rows the predicate is evaluated over
 // is bounded, by a LIMIT or by the query's own scope being small. The set form
@@ -122,6 +123,11 @@ export const publiclyReadableStatus = (
   eb: ExpressionBuilder<DB, 'statuses'>
 ): Expression<SqlBool> =>
   eb.and([
+    // Bluesky content is shown to signed-in viewers only. Without this the
+    // outer row test would count a Bluesky reply under a local post (and a
+    // Bluesky post itself) as public, since both are addressed to the public
+    // collection.
+    eb('statuses.network', 'is', null),
     eb.exists(publicRecipients(db, 'statuses.id')),
     eb.or([
       eb.not(eb('statuses.type', '=', ANNOUNCE)),
@@ -173,6 +179,8 @@ export const publiclyReadableStatusIds = (
             announceOriginalPointer('target_statuses').as('originalPointer')
           ])
           .where('target_statuses.id', 'in', publicRecipientStatusIds(db))
+          // As in publiclyReadableStatus: a Bluesky row is never public.
+          .where('target_statuses.network', 'is', null)
           .union(
             qc
               .selectFrom('statuses as original_statuses')

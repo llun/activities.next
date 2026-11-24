@@ -303,8 +303,12 @@ export const PostBox: FC<Props> = ({
   const crosspostAccount = canCrosspost ? linkedBlueskyAccount : null
   const crosspostAccountRef = useRef(crosspostAccount)
   crosspostAccountRef.current = crosspostAccount
-  // What `bluesky_crosspost` sends: unset without a linked account. The draft
-  // keeps the same value, so a queued send fingerprints like the composer.
+  // What the switch shows: the account's default until the user toggles it.
+  // What `bluesky_crosspost` SENDS is the explicit toggle alone
+  // (`postExtension.blueskyCrosspost`), so the server applies the default and
+  // the Idempotency-Key fingerprint never depends on the account having
+  // loaded. The draft stores the same explicit value, so a queued send
+  // fingerprints like the composer.
   const resolveBlueskyCrosspost = (extension: {
     blueskyCrosspost?: boolean
   }): boolean | undefined => {
@@ -508,7 +512,9 @@ export const PostBox: FC<Props> = ({
       contentWarningVisible: extension.contentWarningVisible,
       visibility: extension.visibility,
       quoteApprovalPolicy: extension.quoteApprovalPolicy,
-      blueskyCrosspost: resolveBlueskyCrosspost(extension),
+      // The explicit toggle, not the resolved default: the fingerprint must
+      // not change when the linked account finishes loading.
+      blueskyCrosspost: extension.blueskyCrosspost,
       poll,
       attachments,
       fitnessFile
@@ -1350,7 +1356,9 @@ export const PostBox: FC<Props> = ({
       if (postExtension.poll.showing) {
         const poll = postExtension.poll
         const choices = poll.choices.map((item) => item.text)
-        const blueskyCrosspost = resolveBlueskyCrosspost(postExtension)
+        // The explicit toggle: the server applies the account default, and the
+        // fingerprint stays the same whether or not the account has loaded.
+        const blueskyCrosspost = postExtension.blueskyCrosspost
         const pollFingerprint = postBoxPollFingerprint({
           message,
           contentWarning,
@@ -1531,7 +1539,9 @@ export const PostBox: FC<Props> = ({
 
       createAttempt = attachments
       createFitnessFileId = fitnessFileId
-      const blueskyCrosspost = resolveBlueskyCrosspost(postExtension)
+      // The explicit toggle: the server applies the account default, and the
+      // fingerprint stays the same whether or not the account has loaded.
+      const blueskyCrosspost = postExtension.blueskyCrosspost
       const noteFingerprint = postBoxNoteFingerprint({
         message,
         contentWarning,
@@ -2375,8 +2385,21 @@ export const PostBox: FC<Props> = ({
     Boolean(blueskyLengthError) && !isBlueskyLimitWarning
   const blueskyCrosspostOn = Boolean(resolveBlueskyCrosspost(postExtension))
   const blueskyCrosspostApplies = postExtension.visibility === 'public'
+  // The server appends a link to the original post for a poll and for a quote
+  // of a fediverse post; the composer knows both, so the cut warning counts
+  // them. The post's own id is minted at submit, so a 36-character UUIDv7
+  // placeholder stands in for it (only its length matters).
+  const blueskyCrosspostLink = postExtension.poll.showing
+    ? `Vote here: https://${profile.domain}/${getMention(profile)}/${'0'.repeat(36)}`
+    : quotedStatus &&
+        !isBlueskyStatus(quotedStatus) &&
+        quotedStatus.type !== StatusType.enum.Announce
+      ? quotedStatus.url
+      : null
   const blueskyCrosspostCut =
-    blueskyCrosspostOn && blueskyCrosspostApplies && isOverBlueskyLimit(text)
+    blueskyCrosspostOn &&
+    blueskyCrosspostApplies &&
+    isOverBlueskyLimit(text, blueskyCrosspostLink)
 
   const form = (
     <>

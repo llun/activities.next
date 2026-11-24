@@ -156,8 +156,9 @@ describe('actorVisibleStatusIds', () => {
     await announce('boost-of-private-boost', ids['other-private-boost'], {
       to: [ACTIVITY_STREAM_PUBLIC]
     })
-    // A public boost of a Bluesky post: the post's own row stays readable, but
-    // boosting it never makes it publicly readable.
+    // A public Bluesky post: addressed to the public collection, but Bluesky
+    // content is shown to signed-in viewers only, so it is never publicly
+    // readable — and neither is a boost of it.
     await note('bluesky-note', { to: [ACTIVITY_STREAM_PUBLIC] })
     await db
       .updateTable('statuses')
@@ -285,7 +286,6 @@ describe('actorVisibleStatusIds', () => {
   // whole chain is public.
   const publiclyReadableOf: Record<string, string[]> = {
     [author]: [
-      'bluesky-note',
       'boost-of-boost',
       'boost-public',
       'disagreeing-boost',
@@ -386,8 +386,8 @@ describe('actorVisibleStatusIds', () => {
     { key: 'private-boost', audience: publicOnly, selected: false },
     { key: 'boost-of-boost', audience: publicOnly, selected: true },
     { key: 'boost-of-private-boost', audience: publicOnly, selected: false },
-    // A Bluesky post is readable itself, but a boost of it never is.
-    { key: 'bluesky-note', audience: publicOnly, selected: true },
+    // A Bluesky post is never publicly readable, nor is a boost of it.
+    { key: 'bluesky-note', audience: publicOnly, selected: false },
     { key: 'boost-bluesky', audience: publicOnly, selected: false },
     { key: 'legacy-boost', audience: publicOnly, selected: true },
     { key: 'disagreeing-boost', audience: publicOnly, selected: true },

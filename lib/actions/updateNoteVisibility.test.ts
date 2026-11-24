@@ -2,7 +2,10 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisibility'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+  SEND_UPDATE_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -154,6 +157,77 @@ describe('Update note visibility action', () => {
       expect(result).not.toBeNull()
       // For private visibility, cc should contain mention hrefs
       expect(result?.cc).toContain(mentionedActorId)
+    })
+
+    it('drops a pending Bluesky cross-post when the post stops being public', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const statusId = `${ACTOR1_ID}/statuses/crosspost-pending-narrow`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Public post'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId,
+        actorId: actor1.id
+      })
+
+      const result = await updateNoteVisibilityFromUserInput({
+        statusId,
+        currentActor: actor1,
+        visibility: 'private',
+        database
+      })
+
+      expect(result).not.toBeNull()
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
+      // Nothing reached Bluesky, so nothing is deleted there.
+      expect(getQueue().publish).not.toHaveBeenCalledWith(
+        expect.objectContaining({ name: DELETE_BLUESKY_CROSSPOST_JOB_NAME })
+      )
+    })
+
+    it('deletes a posted Bluesky copy when the post stops being public', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const statusId = `${ACTOR1_ID}/statuses/crosspost-posted-narrow`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: actor1.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'Public post'
+      })
+      await database.claimBlueskyCrosspost({
+        statusId,
+        actorId: actor1.id
+      })
+      const uri = 'at://did:plc:actor1/app.bsky.feed.post/3knarrow'
+      await database.markBlueskyCrosspostPosted({
+        statusId,
+        uri,
+        cid: 'bafynarrow'
+      })
+
+      const result = await updateNoteVisibilityFromUserInput({
+        statusId,
+        currentActor: actor1,
+        visibility: 'unlisted',
+        database
+      })
+
+      expect(result).not.toBeNull()
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
+        name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+        data: { actorId: actor1.id, uri }
+      })
+      expect(await database.getBlueskyCrosspost({ statusId })).toBeNull()
     })
   })
 })

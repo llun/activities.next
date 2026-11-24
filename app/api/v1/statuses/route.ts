@@ -822,9 +822,18 @@ export const POST = traceApiRoute(
           })
         statusSaved = true
 
+        // Re-read with the viewer: the created status was hydrated without one,
+        // so the owner's cross-post state (claimed by the create before this
+        // response) would otherwise serialize as null.
+        const ownerStatus =
+          (await database.getStatus({
+            statusId: status.id,
+            withReplies: false,
+            currentActorId: currentActor.id
+          })) ?? status
         const mastodonStatus = await getMastodonStatus(
           database,
-          status,
+          ownerStatus,
           currentActor.id
         )
         if (!mastodonStatus) {

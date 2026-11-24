@@ -5,7 +5,9 @@ import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getQueue } from '@/lib/services/queue'
 import { Scope } from '@/lib/types/database/operations'
+import { StatusType, isBlueskyStatus } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { apiCorsError, apiResponse, defaultOptions } from '@/lib/utils/response'
@@ -36,6 +38,24 @@ export const POST = traceApiRoute(
       // Someone else's post answers as missing: its cross-post is not theirs.
       if (!status || status.actorId !== currentActor.id) {
         return apiCorsError(req, CORS_HEADERS, 404)
+      }
+
+      // The cross-post service only posts a public Note or Poll
+      // (isCrosspostableStatus in lib/services/bluesky/crosspost.ts, which is
+      // not exported). A post narrowed after the failure must not be re-posted
+      // to Bluesky, and its row must not be reset to pending.
+      if (
+        status.type === StatusType.enum.Announce ||
+        !status.isLocalActor ||
+        isBlueskyStatus(status) ||
+        getStatusVisibility(status) !== 'public'
+      ) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Only public posts can be cross-posted to Bluesky.' },
+          responseStatusCode: 422
+        })
       }
 
       const crosspost = await database.getBlueskyCrosspost({ statusId })
