@@ -58,7 +58,7 @@ export const getWebfingerDocument = async ({
     }
 
     const host = parseBareDomain(domain, { requireDot: false })
-    if (!host) return null
+    if (!host || host === 'bsky.app') return null // Bluesky has no WebFinger
     // Hosts only, as in getWebfingerSelf: never the handle.
     span.setAttribute('webfinger.host', host)
 

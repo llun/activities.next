@@ -1,5 +1,5 @@
 import { TimelineFormat } from '@/lib/services/timelines/const'
-import { Timeline } from '@/lib/services/timelines/types'
+import { Timeline, type TimelineNetwork } from '@/lib/services/timelines/types'
 import type { Status } from '@/lib/types/domain/status'
 import type { TimelineContext } from '@/lib/types/domain/timeline'
 import { isAbortError } from '@/lib/utils/isAbortError'
@@ -25,6 +25,8 @@ export interface GetTimelineParams {
   maxStatusId?: string
   limit?: number
   includeContext?: boolean
+  // The Home's network switch; absent reads the mixed Home.
+  network?: TimelineNetwork
   signal?: AbortSignal
 }
 
@@ -44,6 +46,7 @@ const getTimelinePage = async ({
   maxStatusId,
   limit,
   includeContext,
+  network,
   signal
 }: GetTimelineParams): Promise<GetTimelineResult> => {
   const path = `/api/v1/timelines/${timeline}?format=${TimelineFormat.enum.activities_next}`
@@ -57,6 +60,9 @@ const getTimelinePage = async ({
   }
   if (limit) {
     url.searchParams.append('limit', `${limit}`)
+  }
+  if (network) {
+    url.searchParams.append('network', network)
   }
 
   let response: Response
@@ -105,6 +111,7 @@ export const getTimeline = async ({
   maxStatusId,
   limit,
   includeContext,
+  network,
   signal
 }: GetTimelineParams): Promise<GetTimelineResult> => {
   let result = await getTimelinePage({
@@ -114,6 +121,7 @@ export const getTimeline = async ({
     maxStatusId,
     limit,
     includeContext,
+    network,
     signal
   })
   let currentMaxStatusId = result.nextMaxStatusId
@@ -132,6 +140,7 @@ export const getTimeline = async ({
       maxStatusId: currentMaxStatusId,
       limit,
       includeContext,
+      network,
       signal
     })
     currentMaxStatusId = result.nextMaxStatusId

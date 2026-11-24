@@ -4,7 +4,12 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
-import { BaseNote, BaseNoteSchema, getUrl } from '@/lib/activities/note'
+import {
+  BaseNote,
+  BaseNoteSchema,
+  getReply,
+  getUrl
+} from '@/lib/activities/note'
 import { toCollectionItems } from '@/lib/activities/orderedCollection'
 import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
 import { isPubliclyAddressed } from '@/lib/database/domains/status/status'
@@ -161,7 +166,7 @@ const createFetchedStatus = async (
     sensitive: note.sensitive === true,
     to: toRecipientArray(note.to),
     cc: toRecipientArray(note.cc),
-    reply: note.inReplyTo || '',
+    reply: getReply(note.inReplyTo) || '',
     createdAt
   }
   if (note.type === ENTITY_TYPE_QUESTION) {

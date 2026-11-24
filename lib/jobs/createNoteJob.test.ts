@@ -104,6 +104,21 @@ describe('createNoteJob', () => {
     expect(status.createdAt).toEqual(new Date(note.published).getTime())
   })
 
+  it('stores a reply to a Bluesky post without the reply link', async () => {
+    const note = MockMastodonActivityPubNote({
+      content: '<p>Replying to Bluesky</p>',
+      inReplyTo: `https://bsky.app/profile/did:plc:${'r'.repeat(24)}/post/3k`
+    })
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+
+    const status = await database.getStatus({ statusId: note.id })
+    expect(status).toMatchObject({ reply: '' })
+  })
+
   it('stores normalized actor ids for notes attributed to sender key fragments', async () => {
     expect(actor1).toBeDefined()
     const actorId = actor1?.id as string

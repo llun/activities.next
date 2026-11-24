@@ -39,6 +39,8 @@ const mockGetStatusIdByPublicId = vi.fn()
 const mockGetAllServerSettings = vi.fn()
 const mockGetDomainBlockForDomain = vi.fn()
 const mockGetDomainAllowForDomain = vi.fn()
+const mockGetBlueskyAccount = vi.fn()
+const mockResolveBlueskyProfile = vi.fn()
 
 // The dedicated headless federation signer. It is intentionally a different
 // actor from `oauthActor` (the requesting viewer) so the signing assertions
@@ -83,8 +85,15 @@ vi.mock('@/lib/database', () => ({
     // Read by the served-domain check through the server-settings resolver.
     getAllServerSettings: mockGetAllServerSettings,
     getDomainBlockForDomain: mockGetDomainBlockForDomain,
-    getDomainAllowForDomain: mockGetDomainAllowForDomain
+    getDomainAllowForDomain: mockGetDomainAllowForDomain,
+    getBlueskyAccount: mockGetBlueskyAccount
   })
+}))
+
+vi.mock('@/lib/services/bluesky/profiles', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  resolveBlueskyProfile: (...args: unknown[]) =>
+    mockResolveBlueskyProfile(...args)
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -170,6 +179,7 @@ describe('GET /api/v2/search', () => {
     mockGetAllServerSettings.mockResolvedValue([])
     mockGetDomainBlockForDomain.mockResolvedValue(null)
     mockGetDomainAllowForDomain.mockResolvedValue(null)
+    mockGetBlueskyAccount.mockResolvedValue(null)
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue({
       expiresAt: Date.now() + 60_000,
@@ -236,7 +246,7 @@ describe('GET /api/v2/search', () => {
     mockGetFederationSigningActor.mockResolvedValue(mockInstanceActor)
   })
 
-  it('allows anonymous account and hashtag search but omits statuses', async () => {
+  it('allows anonymous account and hashtag search but omits statuses and Bluesky accounts', async () => {
     const response = await GET(
       new NextRequest('https://llun.test/api/v2/search?q=trail&limit=3'),
       context
@@ -248,7 +258,8 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 3,
       offset: 0,
-      localDomain: 'llun.test'
+      localDomain: 'llun.test',
+      excludeBluesky: true
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -472,7 +483,8 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 20,
       offset: 0,
-      localDomain: 'llun.test'
+      localDomain: 'llun.test',
+      excludeBluesky: true
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -533,7 +545,8 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 20,
       offset: 0,
-      localDomain: 'llun.test'
+      localDomain: 'llun.test',
+      excludeBluesky: true
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -1819,7 +1832,8 @@ describe('GET /api/v2/search', () => {
       q: 'trail',
       limit: 40,
       offset: 0,
-      localDomain: 'llun.test'
+      localDomain: 'llun.test',
+      excludeBluesky: true
     })
     expect(mockSearchHashtags).toHaveBeenCalledWith({
       q: 'trail',
@@ -2287,6 +2301,90 @@ describe('GET /api/v2/search', () => {
           sort: 'latest'
         })
       )
+    })
+  })
+
+  describe('Bluesky handles through a linked Bluesky account', () => {
+    const blueskyId =
+      'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+    const searchAccounts = (q: string) =>
+      GET(
+        new NextRequest(
+          `https://llun.test/api/v2/search?q=${encodeURIComponent(q)}&type=accounts&resolve=true`,
+          { headers: { Authorization: 'Bearer read-search-token' } }
+        ),
+        context
+      )
+
+    beforeEach(() => {
+      mockGetBlueskyAccount.mockResolvedValue({ actorId: oauthActor.id })
+      mockResolveBlueskyProfile.mockResolvedValue(blueskyId)
+    })
+
+    it.each([
+      'river.bsky.social',
+      'river.bsky.social@bsky.app',
+      'https://bsky.app/profile/river.bsky.social'
+    ])('resolves %s natively and puts it first', async (q) => {
+      const response = await searchAccounts(q)
+
+      expect(response.status).toBe(200)
+      expect(mockResolveBlueskyProfile).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ id: oauthActor.id }),
+        q
+      )
+      expect(mockGetWebfingerSelf).not.toHaveBeenCalled()
+      expect(mockRecordActorIfNeeded).not.toHaveBeenCalled()
+      expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+        ids: [blueskyId, 'https://remote.test/users/alice']
+      })
+    })
+
+    it('still prefers a local dotted username', async () => {
+      const localActor = { id: 'https://llun.test/users/trail.runner' }
+      mockGetActorFromUsername.mockImplementation(async ({ domain }) =>
+        domain === 'llun.test' ? localActor : null
+      )
+
+      await searchAccounts('trail.runner')
+
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
+      expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+        ids: [localActor.id, 'https://remote.test/users/alice']
+      })
+    })
+
+    it('keeps the Bridgy Fed path without a linked account', async () => {
+      mockGetBlueskyAccount.mockResolvedValue(null)
+
+      await searchAccounts('river.bsky.social')
+
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
+      expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+        account: 'river.bsky.social@bsky.brid.gy'
+      })
+    })
+
+    it('keeps the Bridgy Fed path when the server does not allow Bluesky', async () => {
+      const bridgedActorId =
+        'https://bsky.brid.gy/ap/did:plc:abcdefghijklmnopqrstuvwx'
+      mockGetDomainBlockForDomain.mockImplementation(async (domain) =>
+        domain === 'bsky.app' ? { domain, severity: 'suspend' } : null
+      )
+      mockGetWebfingerSelf.mockResolvedValue(bridgedActorId)
+      mockRecordActorIfNeeded.mockResolvedValue({ id: bridgedActorId })
+
+      const response = await searchAccounts('river.bsky.social')
+
+      expect(response.status).toBe(200)
+      expect(mockResolveBlueskyProfile).not.toHaveBeenCalled()
+      expect(mockGetWebfingerSelf).toHaveBeenCalledWith({
+        account: 'river.bsky.social@bsky.brid.gy'
+      })
+      expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+        ids: [bridgedActorId, 'https://remote.test/users/alice']
+      })
     })
   })
 })

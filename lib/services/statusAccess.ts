@@ -1,7 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusType, isBlueskyStatus } from '@/lib/types/domain/status'
 import {
   getTrustedFollowersUrl,
   getVisibility
@@ -33,8 +33,11 @@ const hasFollowersAudience = (status: Status): boolean => {
 const isDirectRecipient = (status: Status, actor: Actor): boolean =>
   status.to.includes(actor.id) || status.cc.includes(actor.id)
 
+// Bluesky posts, and boosts of them, are for signed-in viewers only, so they
+// are never publicly readable; canActorReadStatus inherits this for a missing
+// viewer, and a signed-in one still reads them as public.
 export const isStatusPubliclyReadable = (status: Status): boolean => {
-  if (!isPublicOrUnlisted(status)) return false
+  if (!isPublicOrUnlisted(status) || isBlueskyStatus(status)) return false
 
   if (status.type === StatusType.enum.Announce) {
     return isStatusPubliclyReadable(status.originalStatus)

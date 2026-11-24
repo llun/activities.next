@@ -64,6 +64,23 @@ describe('sendFlagJob', () => {
     )
   })
 
+  it('returns without forwarding or retrying for a Bluesky target', async () => {
+    vi.mocked(sendFlag).mockResolvedValue({ ok: false, uri: 'flag-uri' })
+
+    await expect(
+      runJob(createDatabase(), {
+        reportId: 'report-bsky',
+        targetActorId:
+          'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx',
+        statusIds: [],
+        content: 'spam'
+      })
+    ).resolves.not.toThrow()
+
+    expect(canFederateWithDomain).not.toHaveBeenCalled()
+    expect(sendFlag).not.toHaveBeenCalled()
+  })
+
   it('skips when federation with the target domain is off', async () => {
     vi.mocked(canFederateWithDomain).mockResolvedValue(false)
     const database = createDatabase()

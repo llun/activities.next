@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -78,6 +79,21 @@ describe('GET /api/v1/statuses/[id]/history', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+  })
+
+  it('answers 404 for a Bluesky post without a viewer', async () => {
+    const { statusId } = await storeBlueskyPost(database, 'historybsky')
+    const get = () =>
+      getStatusHistory(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}/history`
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+
+    expect((await get()).status).toBe(200)
+    mockGetServerSession.mockResolvedValue(null)
+    expect((await get()).status).toBe(404)
   })
 
   describe('status edit history', () => {

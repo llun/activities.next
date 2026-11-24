@@ -122,6 +122,44 @@ describe('status access helpers', () => {
     expect(isStatusPubliclyReadable(announce)).toBe(false)
   })
 
+  it('shows a public Bluesky post, or a boost of one, to signed-in viewers only', async () => {
+    const blueskyPost = {
+      ...note({
+        id: 'https://bsky.app/profile/did:plc:x/post/one',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      }),
+      network: 'bluesky'
+    } as Status
+    const boost = {
+      id: `${FOLLOWER_ID}/statuses/boost-bluesky`,
+      actorId: FOLLOWER_ID,
+      type: StatusType.enum.Announce,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      originalStatus: blueskyPost
+    } as unknown as Status
+    const database = { getAcceptedOrRequestedFollow: vi.fn() }
+
+    for (const status of [blueskyPost, boost]) {
+      expect(isStatusPubliclyReadable(status)).toBe(false)
+      await expect(
+        canActorReadStatus({
+          database: database as never,
+          status,
+          currentActor: null
+        })
+      ).resolves.toBe(false)
+      await expect(
+        canActorReadStatus({
+          database: database as never,
+          status,
+          currentActor: actor
+        })
+      ).resolves.toBe(true)
+    }
+  })
+
   it('allows accepted followers to read followers-only statuses', async () => {
     const database = {
       getAcceptedOrRequestedFollow: vi.fn().mockResolvedValue({

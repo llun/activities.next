@@ -64,6 +64,9 @@ const announceChainReachesPublicNote = (db: Db) =>
           announceOriginalPointer('chain_seed').as('originalPointer')
         ])
         .where('chain_seed.id', '=', announceOriginalPointer('statuses'))
+        // A boost of a Bluesky post is never publicly readable: Bluesky
+        // content is shown to signed-in viewers only.
+        .where('chain_seed.network', 'is', null)
         .where((eb) => eb.exists(publicRecipients(db, 'chain_seed.id')))
         .union(
           qc
@@ -79,6 +82,7 @@ const announceChainReachesPublicNote = (db: Db) =>
               announceOriginalPointer('chain_next').as('originalPointer')
             ])
             .where('chain_previous.type', '=', ANNOUNCE)
+            .where('chain_next.network', 'is', null)
             .where((eb) => eb.exists(publicRecipients(db, 'chain_next.id')))
         )
     )
@@ -186,6 +190,8 @@ export const publiclyReadableStatusIds = (
                 )
               ])
               .where('readable_statuses.type', '=', ANNOUNCE)
+              // As in announceChainReachesPublicNote: never via a Bluesky post.
+              .where('original_statuses.network', 'is', null)
               .where('original_statuses.id', 'in', publicRecipientStatusIds(db))
           )
     )

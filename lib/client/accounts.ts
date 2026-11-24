@@ -96,7 +96,8 @@ export const isFollowing = async ({ targetActorId }: FollowParams) => {
 }
 
 /**
- * Follows an account using Mastodon-compatible API
+ * Follows an account using Mastodon-compatible API. Throws an
+ * ApiRequestError carrying the API's `{ error }` message when refused.
  * @see https://docs.joinmastodon.org/methods/accounts/#follow
  */
 export const follow = async ({ targetActorId }: FollowParams) => {
@@ -107,12 +108,16 @@ export const follow = async ({ targetActorId }: FollowParams) => {
       'Content-Type': 'application/json'
     }
   })
-  if (response.status !== 200) return false
+  // The route's `{ error }` says why (a Bluesky follow needs a linked account).
+  if (response.status !== 200) {
+    await throwApiError(response, 'Could not follow this account.')
+  }
   return true
 }
 
 /**
- * Unfollows an account using Mastodon-compatible API
+ * Unfollows an account using Mastodon-compatible API. Throws an
+ * ApiRequestError carrying the API's `{ error }` message when refused.
  * @see https://docs.joinmastodon.org/methods/accounts/#unfollow
  */
 export const unfollow = async ({ targetActorId }: FollowParams) => {
@@ -123,7 +128,9 @@ export const unfollow = async ({ targetActorId }: FollowParams) => {
       'Content-Type': 'application/json'
     }
   })
-  if (response.status !== 200) return false
+  if (response.status !== 200) {
+    await throwApiError(response, 'Could not unfollow this account.')
+  }
   return true
 }
 

@@ -185,6 +185,8 @@ export const getInstancePeers = async (
     .distinct()
     .where('domain', '<>', '')
     .where('domain', '<>', normalizedLocalDomain)
+    // Bluesky accounts (bsky.app) are not ActivityPub peers.
+    .where('network', 'is', null)
     .orderBy('domain', 'asc')
     .execute()
 

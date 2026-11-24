@@ -5,7 +5,8 @@ import { clearAnimationMetadataCacheForTests } from '@/lib/services/medias/anima
 import { Timeline } from '@/lib/services/timelines/types'
 import {
   GetBlockRelationsParams,
-  GetMuteRelationsParams
+  GetMuteRelationsParams,
+  GetTimelineParams
 } from '@/lib/types/database/operations'
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
@@ -484,6 +485,41 @@ describe('getFilteredTimelinePage', () => {
       expect.objectContaining({ minStatusId: 'floor', maxStatusId: null })
     )
     expect(getTimeline.mock.calls[0][0].sinceStatusId).toBeUndefined()
+  })
+
+  it('passes the network filter to every batch, in both directions', async () => {
+    const getTimeline = vi.fn(
+      async (_params: GetTimelineParams) => [] as Status[]
+    )
+    const database = {
+      getTimeline,
+      getActorDomainBlocks: vi.fn(async () => [])
+    } as unknown as Database
+
+    await getFilteredTimelinePage({
+      database,
+      timeline: Timeline.MAIN,
+      actorId: readerActorId,
+      network: 'bluesky'
+    })
+    await getFilteredTimelinePage({
+      database,
+      timeline: Timeline.MAIN,
+      actorId: readerActorId,
+      minStatusId: 'floor',
+      network: 'activitypub'
+    })
+    await getFilteredTimelinePage({
+      database,
+      timeline: Timeline.MAIN,
+      actorId: readerActorId
+    })
+
+    expect(getTimeline.mock.calls.map(([params]) => params.network)).toEqual([
+      'bluesky',
+      'activitypub',
+      undefined
+    ])
   })
 
   describe('animation metadata enrichment in timeline pages', () => {

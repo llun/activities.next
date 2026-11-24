@@ -11,6 +11,10 @@ export interface BlueskyLinkedAccount {
   domainHandle: boolean
   // False once the PDS refused the stored session: link again to fix it.
   sessionActive: boolean
+  // ISO time of the last Home sync that finished; null before the first.
+  lastSyncedAt: string | null
+  // Why the latest Home sync failed; null once one succeeds.
+  syncError: string | null
 }
 
 export interface BlueskyAccountState {

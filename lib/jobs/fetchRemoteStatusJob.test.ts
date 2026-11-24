@@ -262,6 +262,34 @@ describe('fetchRemoteStatusJob', () => {
     expect(status).toBeNull()
   })
 
+  it('stores a reply to a Bluesky post without the reply link', async () => {
+    const STATUS_ID = `${REMOTE_STATUS_ID}/bluesky-reply`
+    mockRemoteServers(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+      if (req.url === STATUS_ID) {
+        return activityJson({
+          id: STATUS_ID,
+          type: 'Note',
+          attributedTo: REMOTE_ACTOR_ID,
+          content: 'Reply to Bluesky',
+          inReplyTo: `https://bsky.app/profile/did:plc:${'r'.repeat(24)}/post/3k`,
+          to: [PUBLIC_STREAM],
+          published: new Date().toISOString()
+        })
+      }
+      return activityJson({})
+    })
+
+    await fetchRemoteStatusJob(database, {
+      id: 'job-id',
+      name: FETCH_REMOTE_STATUS_JOB_NAME,
+      data: { statusId: STATUS_ID }
+    })
+
+    const status = await database.getStatus({ statusId: STATUS_ID })
+    expect(status).toMatchObject({ reply: '' })
+  })
+
   it('fetches parent status recursively', async () => {
     const STATUS_ID = `${REMOTE_STATUS_ID}/3`
     const PARENT_ID = 'https://mastodon.social/users/testUser/statuses/parent'

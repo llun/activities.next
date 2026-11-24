@@ -44,6 +44,37 @@ describe('SearchDatabase accounts', () => {
     }
   })
 
+  it('leaves Bluesky accounts out when asked to', async () => {
+    const testDb = createTestDatabase()
+    const { database } = testDb
+    const alpineId = 'https://remote.test/users/alpine'
+
+    try {
+      await testDb.prepare()
+      await database.migrate()
+      await createSearchActor(database, { id: alpineId, username: 'alpine' })
+      const blueskyId = await database.upsertBlueskyActor({
+        did: `did:plc:${'a'.repeat(24)}`,
+        handle: 'alpine.bsky.social'
+      })
+
+      const search = (q: string, excludeBluesky?: boolean) =>
+        database.searchAccountIds({ q, limit: 10, offset: 0, excludeBluesky })
+
+      expect((await search('alpine')).sort()).toEqual(
+        [alpineId, blueskyId].sort()
+      )
+      expect(await search('alpine', true)).toEqual([alpineId])
+      // The exact-handle match is filtered too.
+      expect(await search('alpine.bsky.social@bsky.app')).toContain(blueskyId)
+      expect(await search('alpine.bsky.social@bsky.app', true)).not.toContain(
+        blueskyId
+      )
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('filters account search to followed actors when requested', async () => {
     const testDb = createTestDatabase()
     const { database, db } = testDb

@@ -17,6 +17,7 @@ import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCrea
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
+import { isBlueskyStatus } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -171,7 +172,11 @@ export const POST = traceApiRoute(
               req,
               allowedMethods: CORS_HEADERS,
               data:
-                quoteResolution.reason === 'not_found' ? ERROR_404 : ERROR_422,
+                quoteResolution.reason === 'not_found'
+                  ? ERROR_404
+                  : quoteResolution.reason === 'bluesky'
+                    ? { error: 'Quoting Bluesky posts is not supported yet.' }
+                    : ERROR_422,
               responseStatusCode:
                 quoteResolution.reason === 'not_found' ? 404 : 422
             })
@@ -197,6 +202,16 @@ export const POST = traceApiRoute(
                 allowedMethods: CORS_HEADERS,
                 data: ERROR_404,
                 responseStatusCode: 404
+              })
+            }
+            if (isBlueskyStatus(targetStatus)) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: {
+                  error: 'Replying to Bluesky posts is not supported yet.'
+                },
+                responseStatusCode: 422
               })
             }
             replyNoteId = targetStatus.id
@@ -264,6 +279,16 @@ export const POST = traceApiRoute(
                 allowedMethods: CORS_HEADERS,
                 data: ERROR_404,
                 responseStatusCode: 404
+              })
+            }
+            if (isBlueskyStatus(targetStatus)) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: {
+                  error: 'Replying to Bluesky posts is not supported yet.'
+                },
+                responseStatusCode: 422
               })
             }
             replyStatusId = targetStatus.id

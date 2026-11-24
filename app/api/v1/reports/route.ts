@@ -12,6 +12,7 @@ import {
 import { getQueue } from '@/lib/services/queue'
 import { serializeReportEntity } from '@/lib/services/reports/serializeReportEntity'
 import { ReportCategory, Scope } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -184,7 +185,8 @@ export const POST = traceApiRoute(
       // the remote instance can review it. Signed by the headless instance
       // actor (not the reporter) for anonymity; fire-and-forget like the block
       // route's queue usage.
-      if (report.forward) {
+      // A Bluesky account has no ActivityPub inbox: its report stays local.
+      if (report.forward && !isBlueskyId(targetActorId)) {
         getQueue()
           .publish({
             id: getHashFromString(`flag:${report.id}`),

@@ -4,6 +4,7 @@ import { likeRequest } from '@/lib/actions/like'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { mockRequests } from '@/lib/stub/activities'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -51,6 +52,24 @@ describe('Like action', () => {
         statusId: `${ACTOR1_ID}/statuses/post-1`
       })) as StatusNote
       expect(status.totalLikes).toEqual(1)
+    })
+
+    it('ignores a Like of a Bluesky post', async () => {
+      const { statusId } = await storeBlueskyPost(database, 'inboundlike')
+
+      await likeRequest({
+        activity: {
+          actor: ACTOR2_ID,
+          id: `${ACTOR2_ID}/like-bluesky`,
+          type: 'Like',
+          object: statusId
+        },
+        database
+      })
+
+      await expect(
+        database.isActorLikedStatus({ actorId: ACTOR2_ID, statusId })
+      ).resolves.toBeFalse()
     })
 
     it('create new like base on Note object', async () => {

@@ -73,7 +73,8 @@ import {
   QuoteApprovalPolicy,
   Status,
   StatusNote,
-  StatusPoll
+  StatusPoll,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
 import { cn } from '@/lib/utils'
@@ -823,15 +824,18 @@ export const PostMenu: FC<Props> = ({
               </>
             ) : (
               <>
-                <DropdownMenuItem onSelect={() => onReply?.(status)}>
-                  <AtSign className="size-4" />
-                  <span
-                    className="min-w-0 truncate"
-                    title={`Mention ${mention}`}
-                  >
-                    Mention {mention}
-                  </span>
-                </DropdownMenuItem>
+                {/* Mentioning a Bluesky account is not supported yet. */}
+                {isBlueskyStatus(status) ? null : (
+                  <DropdownMenuItem onSelect={() => onReply?.(status)}>
+                    <AtSign className="size-4" />
+                    <span
+                      className="min-w-0 truncate"
+                      title={`Mention ${mention}`}
+                    >
+                      Mention {mention}
+                    </span>
+                  </DropdownMenuItem>
+                )}
                 {relationship?.muting ? (
                   <DropdownMenuItem onSelect={() => void handleUnmute()}>
                     <VolumeX className="size-4" />

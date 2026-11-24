@@ -12,6 +12,7 @@ import { Database } from '@/lib/database/types'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { getReactionGroupKey } from '@/lib/services/reactions/reactionGroupKey'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
@@ -116,6 +117,18 @@ describe('emojiReactionRequest', () => {
         url: null,
         staticUrl: null
       })
+    })
+
+    it('ignores a reaction to a Bluesky post', async () => {
+      const { statusId } = await storeBlueskyPost(database, 'inboundreact')
+      await emojiReactionRequest({
+        activity: emojiReactActivity({ object: statusId, content: '🔥' }),
+        database
+      })
+
+      expect(
+        await database.getStatusReactionRollups({ statusIds: [statusId] })
+      ).toEqual([])
     })
 
     it('never records a reaction as a favourite', async () => {

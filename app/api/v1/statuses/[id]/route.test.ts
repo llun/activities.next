@@ -134,6 +134,35 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(response.status).toBe(404)
     })
 
+    it('shows a Bluesky post to signed-in viewers only', async () => {
+      const did = `did:plc:${'g'.repeat(24)}`
+      const actorId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'getstatus.bsky.social'
+      })) as string
+      const { statusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/one`,
+        cid: 'cid-get',
+        did,
+        rkey: 'one',
+        actorId,
+        text: '<p>Stored Bluesky post</p>',
+        createdAt: Date.now(),
+        attachments: []
+      })
+      const get = () =>
+        GET(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}`
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+
+      expect((await get()).status).toBe(200)
+      mockGetServerSession.mockResolvedValue(null)
+      expect((await get()).status).toBe(404)
+    })
+
     it('allows the status owner to read followers-only statuses', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-private-owner-read`
       await database.createNote({

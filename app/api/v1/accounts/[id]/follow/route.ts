@@ -3,9 +3,14 @@ import { z } from 'zod'
 import { followActor } from '@/lib/actions/followActor'
 import { parseFollowRequestBody } from '@/lib/services/accounts/parseFollowRequestBody'
 import { getRelationship } from '@/lib/services/accounts/relationship'
+import {
+  blueskyFollowFailure,
+  followBlueskyActor
+} from '@/lib/services/bluesky/follow'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_422,
@@ -81,6 +86,29 @@ export const POST = traceApiRoute(
         database,
         encodedAccountId
       )
+      if (isBlueskyId(requestedActorId)) {
+        try {
+          await followBlueskyActor(database, currentActor, requestedActorId)
+        } catch (error) {
+          const failure = blueskyFollowFailure(error)
+          if (!failure) throw error
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: failure.error },
+            responseStatusCode: failure.status
+          })
+        }
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: await getRelationship({
+            database,
+            currentActor,
+            targetActorId: requestedActorId
+          })
+        })
+      }
       const result = await followActor({
         database,
         currentActor,

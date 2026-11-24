@@ -6,6 +6,7 @@ import { SEND_BLOCK_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
@@ -23,6 +24,8 @@ export const sendBlockJob: JobHandle = createJobHandle(
       span.setAttribute('targetActorId', targetActorId)
       span.setAttribute('uri', uri)
 
+      // A Bluesky account has no ActivityPub inbox: the block stays local.
+      if (isBlueskyId(targetActorId)) return
       if (!(await canFederateWithDomain(database, targetActorId))) {
         return
       }

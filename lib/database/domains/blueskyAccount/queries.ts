@@ -19,6 +19,8 @@ const toAccount = (row: Selectable<BlueskyAccounts>): BlueskyAccount => ({
   authType: row.authType as BlueskyAuthType,
   domainHandle: Boolean(row.domainHandle),
   instanceHandle: row.instanceHandle ?? null,
+  lastSyncedAt: row.lastSyncedAt ? getCompatibleTime(row.lastSyncedAt) : null,
+  syncError: row.syncError ?? null,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -93,12 +95,12 @@ export const saveBlueskyAccount = async (
         .where('actorId', '=', params.actorId)
         .executeTakeFirst()
       const now = new Date()
-      // Linking the same DID again refreshes the row and keeps its claim and
-      // creation time.
+      // Linking the same DID again refreshes the row and keeps its claim,
+      // creation time and last sync; an error from the old session is gone.
       if (previous?.did === params.did) {
         await trx
           .updateTable('bluesky_accounts')
-          .set({ ...params, updatedAt: now })
+          .set({ ...params, syncError: null, updatedAt: now })
           .where('actorId', '=', params.actorId)
           .execute()
         return 'saved' as const
@@ -107,6 +109,11 @@ export const saveBlueskyAccount = async (
         await trx
           .deleteFrom('bluesky_sessions')
           .where('did', '=', previous.did)
+          .execute()
+        // Follow records in the old DID's repository.
+        await trx
+          .deleteFrom('bluesky_follows')
+          .where('actorId', '=', params.actorId)
           .execute()
         await trx
           .deleteFrom('bluesky_accounts')
@@ -181,6 +188,34 @@ export const setBlueskyInstanceHandle = async (
   }
 }
 
+export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
+  const rows = await db
+    .selectFrom('bluesky_accounts')
+    .innerJoin(
+      'bluesky_sessions',
+      'bluesky_sessions.did',
+      'bluesky_accounts.did'
+    )
+    .innerJoin('actors', 'actors.id', 'bluesky_accounts.actorId')
+    .innerJoin('accounts', 'accounts.id', 'actors.accountId')
+    .select('bluesky_accounts.actorId')
+    // An actor that may not act (isActorModerationBlocked,
+    // isActorConfirmationPending) or is being deleted is not synced.
+    .where('actors.suspendedAt', 'is', null)
+    .where('actors.deletionStatus', 'is', null)
+    .where('accounts.disabledAt', 'is', null)
+    .where((eb) =>
+      eb.or([
+        eb('accounts.verificationCode', 'is', null),
+        eb('accounts.verificationCode', '=', ''),
+        eb('accounts.emailVerified', '=', true)
+      ])
+    )
+    .orderBy('bluesky_accounts.actorId')
+    .execute()
+  return rows.map((row) => row.actorId)
+}
+
 export const deleteBlueskyAccount = async (
   db: Db,
   { actorId }: { actorId: string }
@@ -195,6 +230,10 @@ export const deleteBlueskyAccount = async (
     await trx
       .deleteFrom('bluesky_sessions')
       .where('did', '=', row.did)
+      .execute()
+    await trx
+      .deleteFrom('bluesky_follows')
+      .where('actorId', '=', actorId)
       .execute()
     await trx
       .deleteFrom('bluesky_accounts')
@@ -285,6 +324,7 @@ export const blueskyAccountQueries = {
   saveBlueskyAccount,
   updateBlueskyAccountIdentity,
   setBlueskyInstanceHandle,
+  listBlueskyAccountsToSync,
   deleteBlueskyAccount,
   getBlueskySession,
   setBlueskySession,

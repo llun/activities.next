@@ -31,6 +31,7 @@ import { ProfileFieldsBlock } from '@/lib/components/profile/ProfileFieldsBlock'
 import { StatCell } from '@/lib/components/surface/StatCell'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
@@ -40,6 +41,7 @@ import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { getActorProfile } from '@/lib/types/domain/actor'
 import { cn } from '@/lib/utils'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { formatServerSoftware } from '@/lib/utils/formatServerSoftware'
 
 interface Props {
@@ -102,6 +104,13 @@ export const generateMetadata = async ({
             canonical: targetUrl
           }
         }
+      }
+    }
+    // A Bluesky profile, shown to signed-in viewers only, is never indexed.
+    if (domain.toLowerCase() === 'bsky.app') {
+      return {
+        title: decodedActorHandle,
+        robots: { index: false, follow: false }
       }
     }
   }
@@ -451,6 +460,11 @@ const Page: FC<Props> = async ({ params }) => {
                   <span className="min-w-0 truncate">{profileHandle}</span>
                   <ExternalLink className="size-3.5 shrink-0" />
                 </a>
+                {isBlueskyId(person.id) ? (
+                  <Badge tone="gray" className="ml-2 align-middle">
+                    Bluesky
+                  </Badge>
+                ) : null}
               </p>
             </div>
             {isCurrentUser ? (

@@ -154,6 +154,37 @@ describe('FollowAction', () => {
     ).toBeInTheDocument()
   })
 
+  it("shows the server's reason when a follow is refused", async () => {
+    followMock.mockRejectedValue(
+      new Error('Link a Bluesky account in Settings › Other networks.')
+    )
+
+    render(
+      <FollowAction
+        targetActorId="https://bsky.app/profile/did:plc:target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Follow' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Link a Bluesky account in Settings › Other networks.'
+    )
+    expect(getFollowStatusMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Follow' })).toBeInTheDocument()
+
+    // A later success clears it.
+    followMock.mockResolvedValue(true)
+    getFollowStatusMock.mockResolvedValue('following')
+    fireEvent.click(screen.getByRole('button', { name: 'Follow' }))
+    expect(
+      await screen.findByRole('button', { name: 'Unfollow' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('unfollows account and updates status to not_following', async () => {
     unfollowMock.mockResolvedValue(true)
 

@@ -305,6 +305,20 @@ describe('instance activity on both backends', () => {
         'zeta.test'
       ])
     })
+
+    it('leaves out Bluesky actors', async () => {
+      await insertActors(['remote.test'])
+      // A Bluesky account's domain is bsky.app, which is not an ActivityPub
+      // peer.
+      await testDb.database.upsertBlueskyActor({
+        did: 'did:plc:peers',
+        handle: 'peers.bsky.social'
+      })
+
+      expect(
+        await testDb.database.getInstancePeers({ localDomain: 'llun.test' })
+      ).toEqual(['remote.test'])
+    })
   })
 
   describe('getInstanceAdminActorId', () => {

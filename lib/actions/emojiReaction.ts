@@ -16,6 +16,7 @@ import {
 } from '@/lib/services/statuses/reactionLimits'
 import { EmojiReact, Like } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -221,6 +222,8 @@ export const emojiReactionRequest = async ({
   if (!resolved) return
 
   const statusId = getReactionTarget(activity)
+  // An ActivityPub reaction cannot target a Bluesky post.
+  if (isBlueskyId(statusId)) return
   const { name, url } = resolved
   const stored = await database.createStatusReaction({
     statusId,

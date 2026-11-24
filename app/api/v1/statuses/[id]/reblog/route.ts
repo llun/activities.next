@@ -7,6 +7,7 @@ import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { mastodonStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyStatus } from '@/lib/types/domain/status'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -74,6 +75,15 @@ export const POST = traceApiRoute(
         withReplies: false
       })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
+      // Boosting on Bluesky (a repost record) is not built yet.
+      if (isBlueskyStatus(status)) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Boosting Bluesky posts is not supported yet.' },
+          responseStatusCode: 422
+        })
+      }
 
       const announceStatus = await userAnnounce({
         currentActor,

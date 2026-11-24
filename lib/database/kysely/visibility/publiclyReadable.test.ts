@@ -209,6 +209,23 @@ describe('publicly readable status predicates', () => {
       .where('id', '=', ids.selfBoost)
       .execute()
 
+    // A public boost of a Bluesky post: the post's own row stays as stored,
+    // but boosting it never makes it publicly readable.
+    ids.blueskyNote = await note('bluesky-note', { isPublic: true })
+    await db
+      .updateTable('statuses')
+      .set({ network: 'bluesky' })
+      .where('id', '=', ids.blueskyNote)
+      .execute()
+    ids.boostOfBluesky = await announce('boost-bluesky', ids.blueskyNote, {
+      isPublic: true
+    })
+    ids.boostOfBoostOfBluesky = await announce(
+      'boost-of-boost-bluesky',
+      ids.boostOfBluesky,
+      { isPublic: true }
+    )
+
     // A boost pointing at a row that does not exist.
     ids.danglingBoost = await announce('dangling-boost', ids.publicNote, {
       isPublic: true
@@ -290,7 +307,21 @@ describe('publicly readable status predicates', () => {
       key: 'selfBoost',
       readable: false
     },
-    { description: 'a dangling pointer', key: 'danglingBoost', readable: false }
+    {
+      description: 'a dangling pointer',
+      key: 'danglingBoost',
+      readable: false
+    },
+    {
+      description: 'a boost of a Bluesky post',
+      key: 'boostOfBluesky',
+      readable: false
+    },
+    {
+      description: 'a boost of a boost of a Bluesky post',
+      key: 'boostOfBoostOfBluesky',
+      readable: false
+    }
   ])('reads $description as readable=$readable', async ({ key, readable }) => {
     const id = ids[key]
     expect(id).toBeDefined()
@@ -319,7 +350,8 @@ describe('publicly readable status predicates', () => {
       ids.boostOfPublic,
       ids.boostOfBoost,
       ids.legacyBoost,
-      ids.disagreeingBoost
+      ids.disagreeingBoost,
+      ids.blueskyNote
     ].sort()
     expect(kyselyForm).toEqual(readable)
     expect(kyselySetForm).toEqual(readable)

@@ -524,6 +524,7 @@ export const hydrateStatusRow = async (
       edits: [],
       originalStatus: originalStatus as StatusNote,
       isLocalActor: Boolean(actor?.account),
+      ...(data.network === 'bluesky' ? { network: 'bluesky' as const } : {}),
       createdAt: getCompatibleTime(data.createdAt as number),
       updatedAt: getCompatibleTime(data.updatedAt as number)
     })
@@ -713,6 +714,9 @@ export const hydrateStatusRow = async (
       : {}),
     actorAnnounceStatusId,
     isLocalActor: Boolean(actor?.account),
+    // Set only on a Bluesky post (absent otherwise, like the other optional
+    // fields); `statuses.network` is NULL for ActivityPub.
+    ...(data.network === 'bluesky' ? { network: 'bluesky' as const } : {}),
     attachments: orderedAttachments,
     tags,
     ...(fitnessFile

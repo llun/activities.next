@@ -4,6 +4,7 @@ import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getQueue } from '@/lib/services/queue'
 import { normalizeActivityPubUri } from '@/lib/utils/activitypub'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -81,7 +82,8 @@ export const queueMissingParentFetch = async ({
   inReplyTo: string | null | undefined
   detachInline?: boolean
 }): Promise<boolean> => {
-  if (!inReplyTo) return false
+  // A Bluesky parent is never fetched as ActivityPub.
+  if (!inReplyTo || isBlueskyId(inReplyTo)) return false
   let url: URL
   try {
     url = new URL(inReplyTo)

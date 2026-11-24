@@ -14,6 +14,9 @@ export const TimelineLoading: FC = () => {
       <span role="status" className="sr-only">
         Loading timeline
       </span>
+      {/* No All / Fediverse / Bluesky switch here: whether the actor has a
+          linked Bluesky account is unknown at load time, so a linked actor's
+          header grows by the switch row when the page arrives. */}
       <PageHeader
         flushOnMobile
         actionsInMobileBar

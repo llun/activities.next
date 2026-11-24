@@ -10,13 +10,13 @@ import type {
   CreateTimelineStatusParams,
   GetTimelineParams
 } from '@/lib/database/domains/timeline/types'
-import { type Db, inTransaction } from '@/lib/database/kysely'
+import type { Db } from '@/lib/database/kysely'
 import {
   type StoredKeysetCursor,
   pastStoredKeyset
 } from '@/lib/database/kysely/keyset'
 import { notFromExclusiveListMember } from '@/lib/database/kysely/visibility/exclusiveLists'
-import { Timeline } from '@/lib/services/timelines/types'
+import { Timeline, type TimelineNetwork } from '@/lib/services/timelines/types'
 import type { Status } from '@/lib/types/domain/status'
 
 /**
@@ -186,7 +186,8 @@ const getActorTimeline = async (
     minStatusId,
     sinceStatusId,
     maxStatusId,
-    limit
+    limit,
+    network
   }: {
     timeline: Timeline.MAIN | Timeline.HOME | Timeline.DIRECT
     actorId: string
@@ -194,6 +195,7 @@ const getActorTimeline = async (
     sinceStatusId?: string | null
     maxStatusId?: string | null
     limit: number
+    network?: TimelineNetwork
   }
 ): Promise<Status[]> => {
   const actualTimeline = timeline === Timeline.HOME ? Timeline.MAIN : timeline
@@ -255,6 +257,23 @@ const getActorTimeline = async (
     .$if(timeline === Timeline.MAIN || timeline === Timeline.HOME, (qb) =>
       qb.where((eb) => notFromExclusiveListMember(eb, actorId))
     )
+    // The network filter is part of the keyset scan, so cursors and the limit
+    // page over the filtered rows. ActivityPub statuses have a NULL network.
+    .$if(network !== undefined, (qb) =>
+      qb.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('statuses')
+            .select(sql.lit(1).as('one'))
+            .whereRef('statuses.id', '=', 'timelines.statusId')
+            .where(
+              'statuses.network',
+              network === 'bluesky' ? '=' : 'is',
+              network === 'bluesky' ? 'bluesky' : null
+            )
+        )
+      )
+    )
   if (maxRow) {
     query = query.where((eb) => pastStoredKeyset(eb, maxRow, '<', 'id'))
   }
@@ -298,7 +317,8 @@ export const getTimeline = async (
     sinceStatusId,
     maxStatusId,
     limit = PER_PAGE_LIMIT,
-    onlyMedia = false
+    onlyMedia = false,
+    network
   }: GetTimelineParams
 ): Promise<Status[]> => {
   switch (timeline) {
@@ -326,7 +346,8 @@ export const getTimeline = async (
         minStatusId,
         sinceStatusId,
         maxStatusId,
-        limit
+        limit,
+        network
       })
     default:
       return []
@@ -372,41 +393,34 @@ export const getLocalPublicStatusesCount = async (
 
 /**
  * Adds a status to one actor's materialized timeline once: a status already
- * there is left as it is. A missing actorId throws before any query runs:
- * without that, the existence check below compares `actorId = NULL`, which
- * never matches, so it would insert a `timelines` row with a NULL actorId on
- * every call (the unique key treats NULLs as distinct).
+ * there is left as it is. One insert that skips a duplicate on the
+ * (actorId, timeline, statusId) unique key, so two concurrent writers of the
+ * same row cannot fail each other. A missing actorId throws before any query
+ * runs: the unique key treats NULLs as distinct, so every call would insert
+ * another `timelines` row with a NULL actorId.
  */
 export const createTimelineStatus = async (
   db: Db,
-  { actorId, status, timeline }: CreateTimelineStatusParams
+  { actorId, status, timeline, createdAt }: CreateTimelineStatusParams
 ): Promise<void> => {
   if (actorId === undefined || actorId === null) {
     throw new Error('createTimelineStatus requires an actorId')
   }
 
-  await inTransaction(db, async (trx) => {
-    const exists = await trx
-      .selectFrom('timelines')
-      .select((eb) => eb.fn.countAll().as('count'))
-      .where('actorId', '=', actorId)
-      .where('statusId', '=', status.id)
-      .where('timeline', '=', timeline)
-      .executeTakeFirst()
-    if (exists && Number(exists.count)) return
-
-    await trx
-      .insertInto('timelines')
-      .values({
-        actorId,
-        statusId: status.id,
-        statusActorId: status.actorId,
-        timeline,
-        createdAt: new Date(status.createdAt),
-        updatedAt: new Date()
-      })
-      .execute()
-  })
+  await db
+    .insertInto('timelines')
+    .values({
+      actorId,
+      statusId: status.id,
+      statusActorId: status.actorId,
+      timeline,
+      createdAt: new Date(createdAt ?? status.createdAt),
+      updatedAt: new Date()
+    })
+    .onConflict((conflict) =>
+      conflict.columns(['actorId', 'timeline', 'statusId']).doNothing()
+    )
+    .execute()
 }
 
 /**

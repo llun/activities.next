@@ -11,6 +11,11 @@ import {
   recordRemoteActorBestEffort,
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
+import {
+  hasLinkedAccount,
+  parseBlueskyProfileInput,
+  resolveBlueskyProfile
+} from '@/lib/services/bluesky/profiles'
 import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -405,6 +410,33 @@ const resolveAccountId = async ({
 const resolveAccountIdOrBlueskyBridge = async (
   params: Parameters<typeof resolveAccountId>[0]
 ) => {
+  // With a linked Bluesky account, a Bluesky handle (also as
+  // `handle@bsky.app`), DID or bsky.app profile link resolves natively through
+  // that account instead. A bare handle still tries the local username first.
+  const { database, currentActor, query } = params
+  if (
+    params.resolve &&
+    currentActor &&
+    parseBlueskyProfileInput(query) !== null &&
+    (await hasLinkedAccount(database, currentActor))
+  ) {
+    const localName = query.replace(/^@/, '')
+    const localId =
+      isUrl(query) || localName.includes('@')
+        ? null
+        : await resolveAccountId({ ...params, query: localName })
+    if (localId) return localId
+    const blueskyId = await resolveBlueskyProfile(database, currentActor, query)
+    return blueskyId &&
+      (await canIncludeAccount({
+        database,
+        actorId: blueskyId,
+        currentActor,
+        following: params.following
+      }))
+      ? blueskyId
+      : null
+  }
   const bridgeQuery = params.resolve
     ? parseBlueskyBridgeQuery(params.query)
     : null
@@ -550,6 +582,8 @@ const searchAccounts = async ({
       limit,
       offset,
       localDomain: accessDomain,
+      // Bluesky accounts are for signed-in viewers only.
+      ...(currentActor ? {} : { excludeBluesky: true }),
       ...(params.following && currentActor
         ? { followingActorId: currentActor.id }
         : {})

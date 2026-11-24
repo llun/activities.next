@@ -8,6 +8,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { Timeline } from '@/lib/services/timelines/types'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
@@ -80,6 +81,21 @@ describe('createRelayAnnounceJob', () => {
       timeline: Timeline.FEDERATED_PUBLIC
     })
     expect(federated.map((status) => status.id)).toContain(REMOTE_NOTE)
+  })
+
+  it('never adds a Bluesky post to the federated timeline', async () => {
+    const { statusId } = await storeBlueskyPost(database, 'relayed')
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-bsky',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(statusId, `${RELAY_ACTOR}/announce/bsky`)
+    })
+
+    const federated = await database.getTimeline({
+      timeline: Timeline.FEDERATED_PUBLIC
+    })
+    expect(federated.map((status) => status.id)).not.toContain(statusId)
   })
 
   it('does not create a relay-attributed Announce row', async () => {

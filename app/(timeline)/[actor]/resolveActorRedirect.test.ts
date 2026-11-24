@@ -23,6 +23,25 @@ describe('getNonLocalActorRedirectTarget', () => {
     ).resolves.toBe('https://remote.test/@bob/followers')
   })
 
+  it.each([
+    ['', 'https://bsky.app/profile/alice.bsky.social'],
+    ['/followers', 'https://bsky.app/profile/alice.bsky.social/followers'],
+    ['/following', 'https://bsky.app/profile/alice.bsky.social/follows']
+  ])(
+    'redirects a Bluesky account %j to its bsky.app profile page',
+    async (subpath, expected) => {
+      vi.mocked(isLocalFederationDomain).mockResolvedValue(false)
+      await expect(
+        getNonLocalActorRedirectTarget(
+          database,
+          'alice.bsky.social',
+          'bsky.app',
+          subpath
+        )
+      ).resolves.toBe(expected)
+    }
+  )
+
   // A redirect loop or a 500 would follow from guessing either way.
   it('redirects nowhere while federation policy cannot be decided', async () => {
     vi.mocked(isLocalFederationDomain).mockRejectedValue(

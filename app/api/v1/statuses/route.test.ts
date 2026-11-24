@@ -29,6 +29,7 @@ import {
   CREATED_AT_INVALID_ERROR,
   CREATED_AT_WITH_SCHEDULED_AT_ERROR
 } from '@/lib/services/statuses/backdatedCreatedAt'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -391,6 +392,46 @@ describe('POST /api/v1/statuses', () => {
     expect(await resolveStatusIdParam(database, storedReplyToId)).toBe(
       canonicalParentId
     )
+  })
+
+  describe('a Bluesky post as the target', () => {
+    it.each([
+      {
+        description: 'a reply',
+        key: 'replynow',
+        body: (id: string) => ({ status: 'a reply', in_reply_to_id: id }),
+        error: 'Replying to Bluesky posts is not supported yet.'
+      },
+      {
+        description: 'a scheduled reply',
+        key: 'replylater',
+        body: (id: string) => ({
+          status: 'a scheduled reply',
+          in_reply_to_id: id,
+          scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+        }),
+        error: 'Replying to Bluesky posts is not supported yet.'
+      },
+      {
+        description: 'a quote',
+        key: 'quotenow',
+        body: (id: string) => ({ status: 'a quote', quoted_status_id: id }),
+        error: 'Quoting Bluesky posts is not supported yet.'
+      }
+    ])('refuses $description with 422', async ({ key, body, error }) => {
+      const { statusId } = await storeBlueskyPost(database, key)
+      const before = await database.getActorStatusesCount({
+        actorId: ACTOR1_ID
+      })
+
+      const response = await postStatus(body(statusId))
+
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toEqual({ error })
+      expect(await database.getActorStatusesCount({ actorId: ACTOR1_ID })).toBe(
+        before
+      )
+    })
   })
 
   describe('in_reply_to_id resolution', () => {

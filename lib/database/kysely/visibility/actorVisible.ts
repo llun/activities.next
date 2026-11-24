@@ -85,6 +85,8 @@ const publiclyReadableStatusIdsOf = (db: Db, actorId: string) =>
                 )
               ])
               .where('readable_statuses.type', '=', StatusType.enum.Announce)
+              // As in publiclyReadableStatusIds: never via a Bluesky post.
+              .where('original_statuses.network', 'is', null)
               .where('original_statuses.id', 'in', publicRecipientStatusIds(db))
           )
     )

@@ -110,9 +110,29 @@ vi.mock('@/lib/components/page-header', async () => ({
   PageHeader: (await import('./MainPageTimeline.testUtils')).MockPageHeader
 }))
 
-vi.mock('@/lib/components/post-box/post-box', () => ({
-  PostBox: () => <div data-testid="post-box" />
-}))
+vi.mock('@/lib/components/post-box/post-box', async () => {
+  const { createStatus: postBoxCreatedStatus } =
+    await import('./MainPageTimeline.testUtils')
+  return {
+    PostBox: ({
+      onPostCreated
+    }: {
+      onPostCreated?: (status: unknown) => void
+    }) => (
+      <div data-testid="post-box">
+        <button
+          type="button"
+          data-testid="compose-post"
+          onClick={() =>
+            onPostCreated?.(
+              postBoxCreatedStatus('https://activities.local/users/llun/s/new')
+            )
+          }
+        />
+      </div>
+    )
+  }
+})
 
 vi.mock('@/lib/components/scroll-to-top-button', () => ({
   ScrollToTopButton: () => null
@@ -284,6 +304,30 @@ describe('MainPageTimeline', () => {
       'data-actions-in-mobile-bar',
       'true'
     )
+  })
+
+  it('shows a new post at the top, except in the Bluesky-only feed', () => {
+    const existing = createStatus('https://activities.local/users/llun/s/1')
+    for (const [network, shown] of [
+      [undefined, true],
+      ['bluesky', false]
+    ] as const) {
+      const { unmount } = render(
+        <MainPageTimeline
+          host="activities.local"
+          currentTime={FIXED_CURRENT_TIME}
+          profile={profile}
+          isMediaUploadEnabled={false}
+          statuses={[existing]}
+          network={network}
+        />
+      )
+      fireEvent.click(screen.getByTestId('compose-post'))
+      expect(
+        screen.queryByTestId('post-https://activities.local/users/llun/s/new')
+      ).toEqual(shown ? expect.anything() : null)
+      unmount()
+    }
   })
 
   it('removes a direct post from the feed when delete callback is invoked', () => {

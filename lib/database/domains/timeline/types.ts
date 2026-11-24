@@ -1,7 +1,7 @@
 // Parameter types of the timeline domain (the home, direct, local public and
 // federated feeds). lib/types/database/operations.ts re-exports them, so
 // existing imports keep working.
-import type { Timeline } from '@/lib/services/timelines/types'
+import type { Timeline, TimelineNetwork } from '@/lib/services/timelines/types'
 import type { Status } from '@/lib/types/domain/status'
 
 export type GetTimelineParams = {
@@ -14,11 +14,17 @@ export type GetTimelineParams = {
   // Attachments-only filter (Mastodon `only_media`). Honored by the
   // LOCAL_PUBLIC and FEDERATED_PUBLIC timelines; other timelines ignore it.
   onlyMedia?: boolean
+  // Only posts from one network. Honored by the MAIN/HOME/DIRECT timelines;
+  // absent means no filter.
+  network?: TimelineNetwork
 }
 export type CreateTimelineStatusParams = {
   timeline: Timeline
   actorId: string
   status: Status
+  // When the status entered this timeline, if not when it was posted (a
+  // Bluesky repost is dated at the repost).
+  createdAt?: number
 }
 export type AddStatusToFederatedTimelineParams = {
   statusId: string

@@ -8,6 +8,7 @@ import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotific
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { NotificationType } from '@/lib/types/database/operations'
 import { getOriginalStatus } from '@/lib/types/domain/status'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -23,6 +24,8 @@ export const likeRequest = async ({
   const request = activity as LikeStatus
   const statusId =
     typeof request.object === 'string' ? request.object : request.object.id
+  // An ActivityPub Like cannot target a Bluesky post.
+  if (isBlueskyId(statusId)) return
 
   const inserted = await database.createLike({
     statusId,

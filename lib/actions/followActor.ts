@@ -5,6 +5,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 
 export type FollowActorResult =
   | { type: 'forbidden' }
@@ -34,7 +35,12 @@ export const followActor = async ({
   notify?: boolean
   languages?: string[]
 }): Promise<FollowActorResult> => {
-  if (!(await canFederateWithDomain(database, requestedActorId))) {
+  // A Bluesky account is followed on Bluesky (lib/services/bluesky/follow.ts),
+  // never with an ActivityPub Follow.
+  if (
+    isBlueskyId(requestedActorId) ||
+    !(await canFederateWithDomain(database, requestedActorId))
+  ) {
     return { type: 'forbidden' }
   }
 

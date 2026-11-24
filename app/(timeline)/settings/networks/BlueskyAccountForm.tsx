@@ -1,5 +1,8 @@
 'use client'
 
+import { UTCDate } from '@date-fns/utc'
+import { format } from 'date-fns/format'
+import { formatDistance } from 'date-fns/formatDistance'
 import { useRouter } from 'next/navigation'
 import { type FormEvent, useEffect, useState } from 'react'
 
@@ -40,6 +43,15 @@ const CALLBACK_NOTICES: Record<
   }
 }
 
+// Relative once the browser's clock is known; the server's HTML (and the
+// hydrating render) prints the UTC time, the same text in every engine.
+const syncedText = (syncedAt: string, now: number | null) => {
+  const time = Date.parse(syncedAt)
+  return now === null
+    ? `${format(new UTCDate(time), 'd MMM yyyy, HH:mm')} UTC`
+    : formatDistance(Math.min(time, now), now, { addSuffix: true })
+}
+
 const errorMessage = (error: unknown) =>
   error instanceof Error && error.message
     ? error.message
@@ -65,6 +77,10 @@ export const BlueskyAccountForm = ({
   const [confirmUnlink, setConfirmUnlink] = useState(false)
   useEffect(() => {
     setState(initialState)
+  }, [initialState])
+  const [now, setNow] = useState<number | null>(null)
+  useEffect(() => {
+    setNow(Date.now())
   }, [initialState])
   // The sign-in result belongs to the page load; any later action replaces it.
   const [showNotice, setShowNotice] = useState(true)
@@ -240,6 +256,21 @@ export const BlueskyAccountForm = ({
         </FormRow>
         <FormRow label="Server" hint="The PDS that holds this account.">
           <code className="text-xs break-all">{account.pdsUrl}</code>
+        </FormRow>
+        <FormRow
+          label="Home sync"
+          hint="Your Bluesky Home timeline comes in every five minutes."
+        >
+          <div className="space-y-1 text-sm">
+            <p>
+              {account.lastSyncedAt
+                ? `Last synced ${syncedText(account.lastSyncedAt, now)}`
+                : 'Not synced yet'}
+            </p>
+            {account.syncError ? (
+              <p className="text-warning-text">{account.syncError}</p>
+            ) : null}
+          </div>
         </FormRow>
         <FormRow
           label="Handle check"

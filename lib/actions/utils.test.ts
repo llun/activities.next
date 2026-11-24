@@ -481,6 +481,20 @@ describe('recordActorIfNeeded', () => {
     expect(actor?.followersUrl).toBe(`${actorId}/followers`)
   })
 
+  it('never fetches a Bluesky actor and returns the stored row or nothing', async () => {
+    const database = {
+      getActorFromId: vi.fn().mockResolvedValue(undefined)
+    }
+    const result = await recordActorIfNeeded({
+      actorId: 'https://bsky.app/profile/did:plc:abc',
+      database: database as never
+    })
+
+    expect(result).toBeUndefined()
+    expect(mockGetActorPerson).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   describe('remote rename on refresh (same id, new handle)', () => {
     // Answers WebFinger for each `account` on the host its domain names, and
     // 404s everything else, so a lookup on the wrong host or handle fails.

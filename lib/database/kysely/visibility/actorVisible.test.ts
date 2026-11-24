@@ -156,6 +156,17 @@ describe('actorVisibleStatusIds', () => {
     await announce('boost-of-private-boost', ids['other-private-boost'], {
       to: [ACTIVITY_STREAM_PUBLIC]
     })
+    // A public boost of a Bluesky post: the post's own row stays readable, but
+    // boosting it never makes it publicly readable.
+    await note('bluesky-note', { to: [ACTIVITY_STREAM_PUBLIC] })
+    await db
+      .updateTable('statuses')
+      .set({ network: 'bluesky' })
+      .where('id', '=', ids['bluesky-note'])
+      .execute()
+    await announce('boost-bluesky', ids['bluesky-note'], {
+      to: [ACTIVITY_STREAM_PUBLIC]
+    })
     // Legacy: the boosted id only in `content`.
     await announce('legacy-boost', ids['other-public'], {
       to: [ACTIVITY_STREAM_PUBLIC]
@@ -237,6 +248,8 @@ describe('actorVisibleStatusIds', () => {
 
   // Every status addressed to the public collection, in either spelling.
   const PUBLICLY_ADDRESSED = [
+    'bluesky-note',
+    'boost-bluesky',
     'boost-of-boost',
     'boost-of-private-boost',
     'boost-private',
@@ -272,6 +285,7 @@ describe('actorVisibleStatusIds', () => {
   // whole chain is public.
   const publiclyReadableOf: Record<string, string[]> = {
     [author]: [
+      'bluesky-note',
       'boost-of-boost',
       'boost-public',
       'disagreeing-boost',
@@ -372,6 +386,9 @@ describe('actorVisibleStatusIds', () => {
     { key: 'private-boost', audience: publicOnly, selected: false },
     { key: 'boost-of-boost', audience: publicOnly, selected: true },
     { key: 'boost-of-private-boost', audience: publicOnly, selected: false },
+    // A Bluesky post is readable itself, but a boost of it never is.
+    { key: 'bluesky-note', audience: publicOnly, selected: true },
+    { key: 'boost-bluesky', audience: publicOnly, selected: false },
     { key: 'legacy-boost', audience: publicOnly, selected: true },
     { key: 'disagreeing-boost', audience: publicOnly, selected: true },
     { key: 'reverse-disagreeing-boost', audience: publicOnly, selected: false },
@@ -400,6 +417,7 @@ describe('actorVisibleStatusIds', () => {
     { key: 'other-public', audience: viewerAudience, selected: true },
     // Without publicOnly a boost is selected by its own recipients only.
     { key: 'boost-private', audience: viewerAudience, selected: true },
+    { key: 'boost-bluesky', audience: viewerAudience, selected: true },
     { key: 'cycle-a', audience: viewerAudience, selected: true },
     { key: 'followers-stored', audience: followers, selected: true },
     { key: 'followers-fallback', audience: followers, selected: true },

@@ -58,7 +58,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('GET /api/v1/timelines/[timeline]', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, prepare, db } = createTestDatabase()
   let subActorId: string
   let actor1TimelinePost1Id: string
   let actor1TimelinePost2Id: string
@@ -937,6 +937,55 @@ describe('GET /api/v1/timelines/[timeline]', () => {
       expect(Array.isArray(data.statuses)).toBe(true)
       expect(data.context).toBeDefined()
       expect(typeof data.context.ancestorsById).toBe('object')
+    })
+
+    test('filters Home by ?network= for the web app only', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor1.email }
+      })
+      const blueskyId = 'https://bsky.app/profile/did:plc:route/post/3kroute'
+      const blueskyPost = await database.createNote({
+        id: blueskyId,
+        url: blueskyId,
+        actorId: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'From Bluesky'
+      })
+      await db
+        .updateTable('statuses')
+        .set({ network: 'bluesky' })
+        .where('id', '=', blueskyId)
+        .execute()
+      await database.createTimelineStatus({
+        actorId: ACTOR1_ID,
+        status: blueskyPost,
+        timeline: Timeline.MAIN
+      })
+      const read = async (query: string) => {
+        const response = await GET(
+          new NextRequest(`https://llun.test/api/v1/timelines/main?${query}`),
+          { params: Promise.resolve({ timeline: 'main' }) }
+        )
+        expect(response.status).toBe(200)
+        const data = await response.json()
+        return (Array.isArray(data) ? data : data.statuses) as {
+          id: string
+          network?: string
+        }[]
+      }
+
+      const bluesky = await read('format=activities_next&network=bluesky')
+      expect(bluesky.map((status) => status.id)).toEqual([blueskyId])
+      expect(bluesky[0].network).toBe('bluesky')
+      const activityPub = await read(
+        'format=activities_next&network=activitypub'
+      )
+      expect(activityPub.length).toBeGreaterThan(0)
+      expect(activityPub.map((status) => status.id)).not.toContain(blueskyId)
+      // A Mastodon client keeps the one mixed Home, whatever it sends.
+      const mastodon = await read('network=activitypub')
+      expect(mastodon.length).toBe(activityPub.length + 1)
     })
   })
 })

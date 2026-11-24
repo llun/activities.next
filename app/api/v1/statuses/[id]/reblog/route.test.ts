@@ -2,8 +2,9 @@ import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -135,6 +136,23 @@ describe('POST /api/v1/statuses/[id]/reblog', () => {
     if (stored?.type === StatusType.enum.Note) {
       expect(stored.text).toBe('hello boostable world')
     }
+  })
+
+  it('a Bluesky post → 422, no boost stored', async () => {
+    const { statusId } = await storeBlueskyPost(database, 'reblog')
+
+    const response = await reblog(statusId)
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Boosting Bluesky posts is not supported yet.'
+    })
+    expect(
+      await database.getActorAnnounceStatus({
+        statusId,
+        actorId: ACTOR1_ID
+      })
+    ).toBeNull()
   })
 
   it('a local-domain id → 404, nothing stored, no fetch', async () => {

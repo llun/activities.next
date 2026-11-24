@@ -76,6 +76,12 @@ describe('note entity utilities', () => {
     it('returns undefined for null', () => {
       expect(getReply(null)).toBeUndefined()
     })
+
+    it('drops a Bluesky post id, in either form', () => {
+      const blueskyPost = `https://bsky.app/profile/did:plc:${'r'.repeat(24)}/post/3k`
+      expect(getReply(blueskyPost)).toBeUndefined()
+      expect(getReply({ id: blueskyPost })).toBeUndefined()
+    })
   })
 
   describe('getQuoteTargetId', () => {

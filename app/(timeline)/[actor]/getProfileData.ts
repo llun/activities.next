@@ -11,6 +11,11 @@ import type { ProfileFieldItem } from '@/lib/components/profile/ProfileFieldsBlo
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
+import {
+  loadBlueskyAuthorFeed,
+  refreshBlueskyProfile,
+  resolveBlueskyProfile
+} from '@/lib/services/bluesky/profiles'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
@@ -38,6 +43,7 @@ import { ProfileTabVisibility } from '@/lib/types/domain/profileTabs'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { TimelineContext } from '@/lib/types/domain/timeline'
 import { getActorProfileFields } from '@/lib/utils/activitypubActor'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 import { logger } from '@/lib/utils/logger'
@@ -153,7 +159,76 @@ export const getProfileData = async (
   if (localActor) {
     return getLocalProfileData(database, localActor, options)
   }
+  if (isBlueskyHandle(actorHandle)) {
+    return getBlueskyProfileData(database, actorHandle, options)
+  }
   return getRemoteProfileData(database, actorHandle, isLoggedIn, options)
+}
+
+const isBlueskyHandle = (actorHandle: string) =>
+  actorHandle.split('@')[2]?.toLowerCase() === 'bsky.app'
+
+// A Bluesky account (`@handle@bsky.app`) is never fetched as ActivityPub, and
+// is shown to signed-in viewers only: a signed-out visitor gets null, which
+// the page answers with the redirect card to bsky.app. A viewer with a linked
+// Bluesky account resolves, refreshes and loads its recent posts through that
+// account (best-effort: a failure shows what is stored); other viewers see
+// the stored row and posts. Its posts are all public and paged from the
+// store, as a local profile's are.
+const getBlueskyProfileData = async (
+  database: Database,
+  actorHandle: string,
+  options: ProfileDataOptions
+): Promise<ProfileData | null> => {
+  const viewer = options.currentActor
+  if (!viewer) return null
+  const [username] = actorHandle.split('@').slice(1)
+  const known = await database.getActorFromUsername({
+    username,
+    domain: 'bsky.app'
+  })
+  const actorId =
+    known && isBlueskyId(known.id)
+      ? known.id
+      : await resolveBlueskyProfile(database, viewer, username)
+  if (!actorId) return null
+  await Promise.all([
+    refreshBlueskyProfile(database, viewer, actorId),
+    loadBlueskyAuthorFeed(database, viewer, actorId, {
+      limit: PER_PAGE_LIMIT
+    })
+  ]).catch((error: unknown) => {
+    logger.warn({
+      message: 'Failed to load Bluesky profile posts',
+      actorId,
+      err: toLoggableError(error)
+    })
+  })
+  const stored = await database.getActorFromId({ id: actorId })
+  if (!stored) return null
+  // The person is for display only. A Bluesky row has no inbox or followers
+  // collection, which the ActivityPub actor shape requires, so its id stands
+  // in for them; nothing here is ever delivered to.
+  const actor = {
+    ...stored,
+    inboxUrl: stored.id,
+    sharedInboxUrl: stored.id,
+    followersUrl: `${stored.id}#followers`
+  }
+  const profile = await getLocalProfileData(database, actor, options)
+  return {
+    ...profile,
+    // The profile link opens the account on bsky.app.
+    person: { ...profile.person, url: actor.id },
+    profileFields: [],
+    pinnedStatuses: undefined,
+    repliesTabStatusIds: undefined,
+    isInternalAccount: false,
+    hasFitnessData: false,
+    gallerySubviews: [],
+    tabVisibility: undefined,
+    serverSoftware: null
+  }
 }
 
 // The followers and following pages render only the actor's name and handle

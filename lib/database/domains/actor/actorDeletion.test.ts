@@ -262,6 +262,52 @@ describe('ActorDatabase deletion', () => {
         ).toBe('stored')
       })
 
+      it('removes Bluesky follows the deleted actor made or received', async () => {
+        const suffix = crypto.randomUUID().slice(0, 8)
+        const username = `delete-bsky-follow-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        const peerActorId = `https://${TEST_DOMAIN}/users/peer-${suffix}`
+        const blueskyId = `https://bsky.app/profile/did:plc:t${suffix}`
+        await database.createAccount({
+          email: `${username}@${TEST_DOMAIN}`,
+          username,
+          passwordHash: TEST_PASSWORD_HASH,
+          domain: TEST_DOMAIN,
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+        const follows = [
+          [actorId, blueskyId],
+          [peerActorId, actorId],
+          [peerActorId, blueskyId]
+        ]
+        for (const [followerId, targetActorId] of follows) {
+          await database.createBlueskyFollow({
+            actorId: followerId,
+            targetActorId,
+            uri: `at://did:plc:f${suffix}/app.bsky.graph.follow/${crypto.randomUUID().slice(0, 8)}`
+          })
+        }
+
+        await database.deleteActorData({ actorId })
+
+        expect(
+          await database.getBlueskyFollow({ actorId, targetActorId: blueskyId })
+        ).toBeNull()
+        expect(
+          await database.getBlueskyFollow({
+            actorId: peerActorId,
+            targetActorId: actorId
+          })
+        ).toBeNull()
+        expect(
+          await database.getBlueskyFollow({
+            actorId: peerActorId,
+            targetActorId: blueskyId
+          })
+        ).not.toBeNull()
+      })
+
       it('removes account notes referencing the deleted actor on either side', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `delete-note-${suffix}`

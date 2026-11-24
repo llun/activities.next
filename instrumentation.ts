@@ -35,6 +35,10 @@ export async function register() {
       const { startActorDeletionSweep } =
         await import('@/lib/services/actors/actorDeletion')
       startActorDeletionSweep(database)
+      // Pulls each linked Bluesky account's Home timeline every five minutes.
+      const { startBlueskySyncSweep } =
+        await import('@/lib/services/bluesky/syncSweep')
+      startBlueskySyncSweep(database)
       // Optional semantic search: on only with an embeddings provider and
       // pgvector tables of the configured size; one info line either way.
       const { startSemanticSearch } =

@@ -1,9 +1,15 @@
 /** @vitest-size medium */
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { getNote } from '@/lib/activities'
 import { ACTIVITY_JSON_HEADERS } from '@/lib/stub/activities'
 
 import { getRemoteStatus } from './getRemoteStatus'
+
+vi.mock('@/lib/activities', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/activities')>()
+  return { ...actual, getNote: vi.fn(actual.getNote) }
+})
 
 enableFetchMocks()
 
@@ -249,5 +255,18 @@ describe('getRemoteStatus', () => {
       actorId: ACTOR_ID,
       text: 'Hello from bridgy fed without cc'
     })
+  })
+
+  it('refuses a Bluesky id without any request', async () => {
+    fetchMock.resetMocks()
+    vi.mocked(getNote).mockClear()
+    expect(
+      await getRemoteStatus({
+        statusId: 'https://bsky.app/profile/did:plc:abc/post/3k44'
+      })
+    ).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+    // getNote refuses the id too; this guard must return before reaching it.
+    expect(getNote).not.toHaveBeenCalled()
   })
 })

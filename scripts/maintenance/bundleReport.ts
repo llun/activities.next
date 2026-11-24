@@ -85,8 +85,10 @@ export const PUBLIC_ROUTE_JS_BUDGETS: Record<string, RouteBudget> = {
   '/[actor]/[status]': { gzipBytes: kib(522), rawBytes: kib(1595) },
   '/tags/[tag]': { gzipBytes: kib(506), rawBytes: kib(1560) },
   // Raw +1 KiB: fromNote's same-origin url check (status.ts) is in this bundle.
-  '/[actor]/followers': { gzipBytes: kib(398), rawBytes: kib(1248) },
-  '/[actor]/following': { gzipBytes: kib(398), rawBytes: kib(1248) },
+  // Raw +1 KiB again: the follow button shows the API's error (measured
+  // 1248.3 KiB raw).
+  '/[actor]/followers': { gzipBytes: kib(398), rawBytes: kib(1249) },
+  '/[actor]/following': { gzipBytes: kib(398), rawBytes: kib(1249) },
   '/[actor]/albums/[id]': { gzipBytes: kib(392), rawBytes: kib(1244) }
 }
 

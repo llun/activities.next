@@ -181,6 +181,7 @@ export interface Actors {
   id: Nullable<string>
   lastStatusAt: Nullable<Timestamp>
   name: Nullable<string>
+  network: Nullable<string>
   privateKey: Nullable<string>
   publicId: Nullable<string>
   publicKey: Nullable<string>
@@ -274,8 +275,17 @@ export interface BlueskyAccounts {
   domainHandle: WithDefault<boolean>
   handle: string
   instanceHandle: Nullable<string>
+  lastSyncedAt: Nullable<Timestamp>
   pdsUrl: string
+  syncError: Nullable<string>
   updatedAt: WithDefault<Timestamp>
+}
+
+export interface BlueskyFollows {
+  actorId: string
+  createdAt: WithDefault<Timestamp>
+  targetActorId: string
+  uri: string
 }
 
 export interface BlueskyOauthStates {
@@ -283,6 +293,13 @@ export interface BlueskyOauthStates {
   expiresAt: Timestamp
   key: string
   state: string
+}
+
+export interface BlueskyRecords {
+  cid: string
+  createdAt: WithDefault<Timestamp>
+  statusId: string
+  uri: string
 }
 
 export interface BlueskySessions {
@@ -1443,6 +1460,7 @@ export interface Statuses {
   content: Nullable<string>
   createdAt: WithDefault<Nullable<Timestamp>>
   id: string
+  network: Nullable<string>
   originalStatusId: Nullable<string>
   publicId: Nullable<string>
   reply: Nullable<string>
@@ -1596,7 +1614,9 @@ export interface DB {
   auth_codes: AuthCodes
   blocks: Blocks
   bluesky_accounts: BlueskyAccounts
+  bluesky_follows: BlueskyFollows
   bluesky_oauth_states: BlueskyOauthStates
+  bluesky_records: BlueskyRecords
   bluesky_sessions: BlueskySessions
   bookmark_folders: BookmarkFolders
   bookmarks: Bookmarks

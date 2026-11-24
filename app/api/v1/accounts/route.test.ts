@@ -174,6 +174,33 @@ describe('GET /api/v1/accounts', () => {
     ).toHaveBeenCalledWith({ ids: [publicId] })
   })
 
+  it('leaves Bluesky ids out of the public batch and returns the ActivityPub ones', async () => {
+    const blueskyId = 'https://bsky.app/profile/did:plc:batch'
+    const apId = 'https://remote.example/users/bob'
+    const getMastodonActorsFromIds = vi.fn(
+      async ({ ids }: { ids: string[] }) =>
+        ids.some((id) => id === apId)
+          ? [{ ...mastodonAccount, id: apId, url: apId }]
+          : []
+    )
+    mockDatabase = {
+      ...createInMemoryRateLimitDatabase(),
+      getMastodonActorsFromIds,
+      getActorIdsByPublicIds
+    }
+
+    const req = new NextRequest(
+      `http://localhost/api/v1/accounts?id[]=${encodeURIComponent(blueskyId)}&id[]=${encodeURIComponent(apId)}`
+    )
+    const res = await GET(req, { params: Promise.resolve({}) })
+
+    expect(res.status).toBe(200)
+    expect(getMastodonActorsFromIds).toHaveBeenCalledWith({ ids: [apId] })
+    expect(
+      (await res.json()).map((account: { id: string }) => account.id)
+    ).toEqual([apId])
+  })
+
   it('truncates an over-cap id list to MAX_BATCH_ACCOUNTS instead of failing', async () => {
     const publicIds = Array.from({ length: MAX_BATCH_ACCOUNTS + 20 }, () =>
       generatePublicId()

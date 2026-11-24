@@ -9,6 +9,8 @@ import { resolveTxt } from 'node:dns/promises'
 import { getConfig } from '@/lib/config'
 import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import type { Database } from '@/lib/database/types'
+import { SYNC_BLUESKY_HOME_JOB_NAME } from '@/lib/jobs/names'
+import { getQueue } from '@/lib/services/queue'
 import type { Actor } from '@/lib/types/domain/actor'
 import {
   BLUESKY_APP_PASSWORD_PATTERN,
@@ -27,6 +29,7 @@ import {
   getBlueskyOAuthClient,
   writeStoredBlueskySession
 } from './client'
+import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 
 const INVALID_HANDLE = 'handle.invalid'
 
@@ -204,7 +207,11 @@ export const getBlueskyAccountState = async (
           pdsUrl: account.pdsUrl,
           authType: account.authType,
           domainHandle: account.domainHandle,
-          sessionActive: Boolean(session)
+          sessionActive: Boolean(session),
+          lastSyncedAt: account.lastSyncedAt
+            ? new Date(account.lastSyncedAt).toISOString()
+            : null,
+          syncError: account.syncError
         }
       : null,
     instanceHandle
@@ -221,6 +228,9 @@ export const startBlueskyOAuth = async (
   input: string,
   requestHost?: string
 ): Promise<string> => {
+  if (!(await isBlueskyAllowed(database))) {
+    throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
   // Sign-in returns to the actor's own domain, where the session cookie must
   // be; one started on another served domain could not finish.
   const domain = getServedAuthority(actor.domain) ?? actor.domain
@@ -309,6 +319,24 @@ const saveLink = async (
   }
 }
 
+// The first Home sync starts right after a link instead of at the next
+// sweep. A queue failure leaves that to the sweep; the link itself stands.
+const queueHomeSync = async (actor: Actor) => {
+  try {
+    await getQueue().publish({
+      id: `bluesky-home:${actor.id}:linked:${Date.now()}`,
+      name: SYNC_BLUESKY_HOME_JOB_NAME,
+      data: { actorId: actor.id }
+    })
+  } catch (error) {
+    logger.warn({
+      message: 'Bluesky Home sync could not be queued after linking',
+      actorId: actor.id,
+      err: toLoggableError(error)
+    })
+  }
+}
+
 export type BlueskyCallbackResult = 'linked' | 'did_taken' | 'failed'
 
 export const completeBlueskyOAuth = async (
@@ -316,6 +344,7 @@ export const completeBlueskyOAuth = async (
   actor: Actor,
   params: URLSearchParams
 ): Promise<BlueskyCallbackResult> => {
+  if (!(await isBlueskyAllowed(database))) return 'failed'
   // The same canonical domain startBlueskyOAuth used: the session is tied to
   // that client_id.
   const client = getBlueskyOAuthClient(
@@ -358,7 +387,6 @@ export const completeBlueskyOAuth = async (
 
   try {
     await saveLink(database, actor, await resolveIdentity(did, true), 'oauth')
-    return 'linked'
   } catch (error) {
     const taken = error instanceof BlueskyLinkError && error.status === 409
     if (!taken) {
@@ -371,6 +399,8 @@ export const completeBlueskyOAuth = async (
     await dropUnlinkedSession(did)
     return taken ? 'did_taken' : 'failed'
   }
+  await queueHomeSync(actor)
+  return 'linked'
 }
 
 export const linkBlueskyAppPassword = async (
@@ -378,6 +408,9 @@ export const linkBlueskyAppPassword = async (
   actor: Actor,
   input: { identifier: string; password: string }
 ) => {
+  if (!(await isBlueskyAllowed(database))) {
+    throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
   // Only the app-password shape: a main password must never be stored.
   if (!BLUESKY_APP_PASSWORD_PATTERN.test(input.password.trim())) {
     throw new BlueskyLinkError(
@@ -446,6 +479,7 @@ export const linkBlueskyAppPassword = async (
     accessJwt: body.accessJwt,
     refreshJwt: body.refreshJwt
   })
+  await queueHomeSync(actor)
 }
 
 // Removes the link and the stored session only: the Bluesky account itself,
@@ -483,6 +517,9 @@ export const checkBlueskyHandle = async (
 ): Promise<BlueskyHandleCheck> => {
   const account = await database.getBlueskyAccount({ actorId: actor.id })
   if (!account) throw new BlueskyLinkError('No Bluesky account is linked.', 400)
+  if (!(await isBlueskyAllowed(database))) {
+    throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
   await limitOutboundAction(database, actor)
   const identity = await resolveIdentity(account.did, true)
   const { handle, verified } = identity

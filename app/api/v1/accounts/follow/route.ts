@@ -12,6 +12,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   DEFAULT_202,
@@ -71,6 +72,22 @@ const parseFollowRequestBody = async (
   const parsed = FollowRequest.safeParse(body)
   if (!parsed.success) {
     return { ok: false, response: invalidFollowRequestResponse(req) }
+  }
+  // Bluesky accounts are not ActivityPub actors; only the Mastodon routes
+  // follow them.
+  if (isBlueskyId(parsed.data.target)) {
+    return {
+      ok: false,
+      response: apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: {
+          error:
+            'Use POST /api/v1/accounts/:id/follow to follow Bluesky accounts'
+        },
+        responseStatusCode: HTTP_STATUS.UNPROCESSABLE_ENTITY
+      })
+    }
   }
 
   return { ok: true, data: parsed.data }

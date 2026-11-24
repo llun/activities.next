@@ -1215,7 +1215,9 @@ with that username wins: the bridge is not asked. A bsky.app link always goes
 to the bridge. Only opted-in accounts resolve: for anyone else Bridgy Fed
 answers 404 and the search returns the indexed results alone. Nothing is contacted when the
 instance does not federate with `bsky.brid.gy` (a suspending domain block, or
-allowlist mode without it).
+allowlist mode without it). A searcher with a linked Bluesky account (see
+[Linked Bluesky accounts](#linked-bluesky-accounts)) skips the bridge: the same
+forms resolve to the native Bluesky account instead.
 
 Settings → Other networks (`/settings/networks`) lets each profile share its
 public posts on Bluesky. Turning sharing on unblocks and follows
@@ -1276,18 +1278,98 @@ sharing. The code is in `lib/services/bluesky/`:
   `bluesky_sessions` holds the session by DID and `bluesky_oauth_states` the
   pending sign-ins (expiring after an hour), both encrypted with the server
   secret (`lib/utils/crypto`). Each stored session is tagged with its kind
-  (`oauth` or `app_password`); readers go by that tag. Refresh tokens are single use, so the OAuth
-  client's refresh lock is a row in the shared lock table
-  (`fitness_import_locks`, keys prefixed `bluesky:`, one per DID, three
-  minutes), held across instances.
+  (`oauth` or `app_password`); readers go by that tag. Session refreshes,
+  Home syncs and follow changes are serialized with rows in the shared lock
+  table (`fitness_import_locks`, keys prefixed `bluesky`), held across
+  instances: one refresh per DID (refresh tokens are single use), one sync
+  per actor and one follow change per actor and target.
   When the PDS refuses the session the account shows "Bluesky ended this
-  session" until it is linked again. Unlinking (and deleting the actor) removes
-  the link and the stored session only; the Bluesky account is untouched, and
-  an OAuth grant stays in the account's Bluesky sessions until the user
-  removes it there. Starting sign-in, linking with an app password and
-  checking the handle share one window per actor (20 in 15 minutes), since
-  each reaches other servers and an app-password try is a guess against the
-  PDS.
+  session" until it is linked again. Unlinking (and deleting the actor), or
+  linking another DID, removes the link, the stored session and the follows
+  kept for it (their records live in the old DID's repository); the Bluesky
+  account is untouched, and an OAuth grant stays in the account's Bluesky
+  sessions until the user removes it there. Starting sign-in, linking with an
+  app password and checking the handle share one rate-limit window per actor,
+  since each reaches other servers and an app-password try is a guess against
+  the PDS.
+- **Following.** `POST /api/v1/accounts/:id/follow` and `/unfollow` on a
+  Bluesky account (`https://bsky.app/profile/<did>`) write and delete an
+  `app.bsky.graph.follow` record on the user's own PDS and keep its at:// URI
+  in `bluesky_follows`, so it works from any Mastodon app and from the web
+  follow button; both answer the usual Relationship, `following` read from
+  `bluesky_follows`. Without a linked account (or after Bluesky ended the
+  session) they answer 422 with a message pointing to Settings; following the
+  linked account itself is refused, and a record already deleted on Bluesky
+  counts as unfollowed. A follow the account already has on Bluesky (made in
+  another app) is read through the PDS (`app.bsky.actor.getProfile` viewer
+  state, then the record itself on the PDS, which must follow that account):
+  Follow adopts its record instead of writing a second one, and Unfollow
+  deletes it, even with no row here. When Bluesky refuses the lookup (4xx: an
+  account deactivated or deleted, a record already gone) Follow writes a
+  record and Unfollow still drops its own; an outage (5xx, 429) answers 502
+  so the change can be retried. Until Follow is
+  pressed such a follow reads as not following. A follow change that waits too long for another one
+  on the same account answers 409 with a message to try again. The web follow
+  button shows the route's `{ error }` message under the button. The account's Bluesky followers are not copied in, so
+  `followed_by` is always false. The deprecated `/api/v1/accounts/follow`
+  refuses Bluesky targets.
+- **Profiles and search.** Bluesky accounts are stored as actors with the id
+  `https://bsky.app/profile/<did>` and the handle `<handle>@bsky.app`, and are
+  never fetched as ActivityPub. Stored Bluesky posts and accounts are shared
+  by every user, so their content is read from Bluesky's public AppView
+  (`public.api.bsky.app`, a constant that is never configurable), never from a
+  user's PDS, which could answer anything for any DID. The AppView
+  verifies a handle against its DID both ways; an account whose handle it
+  could not verify (`handle.invalid`) is stored under its DID
+  (`<did>@bsky.app`). For a signed-in actor with a linked account,
+  account search with `resolve=true` (`GET /api/v1/accounts/search`, the
+  accounts part of `GET /api/v2/search`) and `GET /api/v1/accounts/lookup`
+  with `resolve=true` resolve a Bluesky handle (also as `<handle>@bsky.app`),
+  DID or `https://bsky.app/profile/…` link from the AppView
+  (`app.bsky.actor.getProfiles`; an answer for another account than the one
+  asked for is refused) and put it first; a bare handle that is a
+  local username still finds the local account, and lookup reads a bare name
+  as a local username only. A stored `<handle>@bsky.app` is found without
+  contacting Bluesky. The profile page `/@<handle>@bsky.app` shows the stored
+  account and posts with a Bluesky badge; for a viewer with a linked account it
+  also refreshes the account and stores its newest posts (the AppView's
+  `app.bsky.feed.getAuthorFeed`), each at most once per account per window
+  whoever views it, and otherwise (or when Bluesky fails) shows what is
+  stored. `GET /api/v1/accounts/:id/statuses` serves a Bluesky account's
+  stored posts. A signed-out visit to a Bluesky account this server has not
+  stored is sent to `https://bsky.app/profile/<handle>`. Code:
+  `lib/services/bluesky/profiles.ts`.
+- **Home sync.** The Bluesky sync sweep (see
+  [Queues](architecture.md#queues--dead-letter-queue-dlq-management)), and a
+  job right after an account is linked, run a `SyncBlueskyHomeJob` per linked
+  account with a session whose actor may act (not suspended, disabled,
+  unconfirmed or being deleted). It reads the newest posts of the user's
+  Bluesky Home through their PDS (never more than it asked for, whatever the
+  PDS answers) and stops at the first original post already in **this
+  actor's** Home: post rows are shared, so one stored by another user's sync,
+  as a reply's parent or from a profile does not end the walk. The PDS only
+  decides which posts are in that user's Home: each post, its author and a
+  reply's parent are read from the AppView (`app.bsky.feed.getPosts`) and
+  stored as the AppView returned them. A post it does not return (deleted,
+  blocked) or that cannot be stored (an id too long for its column) is
+  dropped, and one failed post never stops the rest; media URLs that are not
+  https are left out. Images become attachments in their order;
+  a link card, a quoted post and a video are added to the text as links (the
+  card's own URL, the quoted post and the post itself on bsky.app). A post
+  labelled porn, sexual, nudity, graphic-media, gore or `!warn` (by its author
+  or by Bluesky's moderation) is stored as sensitive, so its media is shown
+  blurred; a label added after the post was stored is not picked up, and a
+  post deleted on Bluesky stays here (Bluesky sends no delete signal to
+  this server). A sync
+  stopped by a relink leaves no error on the new link. The original post of a repost is shown (no boost row
+  yet), sitting in Home at the time it was reposted. A synced post keeps its
+  Bluesky time, so a client polling Home for newer posts can miss one that
+  arrives late; reloading shows it, as with a delayed ActivityPub delivery.
+  One sync per actor runs at a time across instances (a lock row; a run that
+  finds it held is skipped), which also covers queues that ignore job ids.
+  Settings shows when Home last synced and why the latest sync failed
+  (`bluesky_accounts.lastSyncedAt` and `syncError`); a failure never fails the
+  job, and the next sync tries again. Code: `lib/services/bluesky/sync.ts`.
 - **Handles.** The linked state shows the handle, DID and PDS. A handle that is
   not under a domain the PDS hands out (`describeServer`'s
   `availableUserDomains`) shows the `_atproto.<handle>` TXT record it needs;
@@ -1304,6 +1386,10 @@ sharing. The code is in `lib/services/bluesky/`:
   `text/plain` for the served host the request is for (the primary host when
   a proxy rewrites `Host` to an internal name, as everywhere else), and 404
   otherwise, so the handle can be set in the Bluesky app without DNS access.
+
+- **What stays local.** Replying to, quoting, boosting, liking and reacting to a Bluesky post are refused with 422 and an `{ error }` saying it is not supported yet (the reblog, favourite and reaction routes, the deprecated `POST /api/v1/accounts/like`, `in_reply_to_id` / `quoted_status_id` on `POST /api/v1/statuses` and `/api/v1/accounts/outbox`); the web action bar hides those buttons and keeps Bookmark and Open original. Inbound ActivityPub likes and reactions aimed at a Bluesky post are dropped, and an inbound ActivityPub reply to one is stored without the reply link, so a Bluesky post is never an ancestor of an ActivityPub status. Blocking, unblocking and reporting a Bluesky account stay local (no SendBlock, SendUnblock or SendFlag job; those jobs and SendQuoteRequest return without error for a Bluesky target), notifications are never addressed to a Bluesky account, bulk-import follows refuse Bluesky ids, and an unstored Bluesky post is never fetched (parent backfill skips it; its status page 404s).
+- **Signed-in viewers only.** Bluesky accounts and posts are shown to signed-in viewers. The rule lives in the shared status readability check (`isStatusPubliclyReadable`, which `canActorReadStatus` uses for a missing viewer, in `lib/services/statusAccess.ts`): a Bluesky post or a boost of one is never publicly readable (for a boost the SQL `publiclyReadable` forms agree), so every status surface that goes through it (a status and its history, context, thread, favourited-by, reblogged-by and quotes, and a status page's ancestors and replies) hides them without a viewer. A signed-out visitor of a Bluesky profile gets the redirect card to bsky.app and a Bluesky status page redirects to the post on bsky.app. Without a viewer (a session or a valid token), `GET /api/v1/accounts/:id`, `GET /api/v1/accounts/:id/statuses`, `GET /api/v1/accounts/:id/media` and `GET /api/v1/accounts/lookup` answer 404 for a Bluesky account, and `GET /api/v2/search` leaves Bluesky accounts out (its status search already needs a viewer). The public `GET /api/v1/accounts?id[]=` batch leaves Bluesky accounts out for everyone, and `GET /api/v1/directory` never lists them (one user's Home sync would otherwise fill everyone's directory); `bsky.app` is not listed in `GET /api/v1/instance/peers`. Bluesky profile and status pages are never indexed. `resolve=true` lookups of a Bluesky handle on v1 lookup and search share the v2 search resolve budget.
+- **Instance federation policy.** Bluesky follows the instance policy for `bsky.app` (`canFederateWithDomain`, as Bridgy Fed sharing does): in allowlist mode without `bsky.app`, or with `bsky.app` blocked, linking a new account, checking the handle and following are refused with 422 `This server does not allow Bluesky.`, Home sync records that as its error and stores nothing, and handle search (which then falls back to the Bridgy Fed copy, as without a link), profile refresh and author feeds do not reach Bluesky. Existing links, stored rows and unfollowing are kept.
 
 ### Multi-actor & account management
 

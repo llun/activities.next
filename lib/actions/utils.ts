@@ -15,6 +15,7 @@ import {
   getActorImageUrl,
   getActorProfileFields
 } from '@/lib/utils/activitypubActor'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getTrustedFollowersUrl } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 
@@ -309,6 +310,10 @@ export const recordActorIfNeeded = async ({
   signingActor,
   forceRefresh = false
 }: RecordActorIfNeededParams): Promise<Actor | undefined> => {
+  // Bluesky actors are never fetched as ActivityPub: stored row or nothing.
+  if (isBlueskyId(actorId)) {
+    return (await database.getActorFromId({ id: actorId })) ?? undefined
+  }
   await assertActorCanFederate({ actorId, database })
 
   const existingActor = await database.getActorFromId({

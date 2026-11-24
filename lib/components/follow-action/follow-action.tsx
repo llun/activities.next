@@ -43,6 +43,9 @@ export const FollowAction: FC<FollowActionProps> = ({
 
   const offline = useIsOffline()
   const [offlineError, setOfflineError] = useState(false)
+  // Why the server refused the last change (a Bluesky follow without a
+  // linked account, say).
+  const [error, setError] = useState<string | null>(null)
 
   // Back online: drop the message so it can't reappear on the next outage.
   useEffect(() => {
@@ -56,15 +59,21 @@ export const FollowAction: FC<FollowActionProps> = ({
   }, [targetActorId, initialRelationship])
 
   // Offline: no request, just say why.
-  const guard = (run: () => void) => () => {
+  const guard = (run: () => Promise<void>) => () => {
     if (offline) return setOfflineError(true)
     setOfflineError(false)
-    run()
+    setError(null)
+    run().catch((failure: unknown) =>
+      setError(
+        failure instanceof Error && failure.message
+          ? failure.message
+          : 'Something went wrong. Please try again.'
+      )
+    )
   }
 
   const onFollow = async (targetActorId: string) => {
-    const followResult = await follow({ targetActorId })
-    if (!followResult) return
+    await follow({ targetActorId })
     // After following, check actual status from API since it might be 'requested'
     const newStatus = await getFollowStatus({ targetActorId })
     setFollowingStatus(newStatus)
@@ -72,8 +81,7 @@ export const FollowAction: FC<FollowActionProps> = ({
 
   const onUnfollow = async (targetActorId: string) => {
     // Unfollowing or cancelling a pending request uses the same unfollow API
-    const unfollowResult = await unfollow({ targetActorId })
-    if (!unfollowResult) return
+    await unfollow({ targetActorId })
     setFollowingStatus('not_following')
   }
 
@@ -113,6 +121,11 @@ export const FollowAction: FC<FollowActionProps> = ({
       {offline && offlineError && (
         <p className="mt-1 text-xs text-destructive-text" role="status">
           {OFFLINE_MESSAGE}
+        </p>
+      )}
+      {error && (
+        <p className="mt-1 text-xs text-destructive-text" role="alert">
+          {error}
         </p>
       )}
     </div>

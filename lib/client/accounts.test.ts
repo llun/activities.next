@@ -151,23 +151,48 @@ describe('client accounts module', () => {
     {
       name: 'follow',
       call: () => follow({ targetActorId: 'actor-123' }),
-      path: '/api/v1/accounts/actor-123/follow',
-      init: {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      },
-      failStatus: 400
+      path: '/api/v1/accounts/actor-123/follow'
     },
     {
       name: 'unfollow',
       call: () => unfollow({ targetActorId: 'actor-123' }),
-      path: '/api/v1/accounts/actor-123/unfollow',
-      init: {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      },
-      failStatus: 400
-    },
+      path: '/api/v1/accounts/actor-123/unfollow'
+    }
+  ])('$name', ({ call, path }) => {
+    it('calls the endpoint and returns true on 200', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      await expect(call()).resolves.toBe(true)
+      expect(fetchMock).toHaveBeenCalledWith(
+        path,
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    })
+
+    it("throws the API's error message when refused", async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Link a Bluesky account first.' }),
+        { status: 422 }
+      )
+
+      await expect(call()).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 422,
+        message: 'Link a Bluesky account first.'
+      })
+    })
+
+    it('throws a fallback message without an error body', async () => {
+      fetchMock.mockResponse('', { status: 400 })
+
+      await expect(call()).rejects.toThrow(/Could not/)
+    })
+  })
+
+  describe.each([
     {
       name: 'acceptFollowRequest',
       call: () => acceptFollowRequest({ id: 'req-123' }),

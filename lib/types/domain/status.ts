@@ -120,6 +120,9 @@ const StatusBase = z.object({
   edits: Edited.array(),
 
   isLocalActor: z.boolean(),
+  // 'bluesky' for a post synced from Bluesky (`statuses.network`); absent or
+  // null for ActivityPub. Optional so existing status literals stay valid.
+  network: z.literal('bluesky').nullable().optional(),
 
   createdAt: z.number(),
   updatedAt: z.number()
@@ -235,6 +238,11 @@ export const getOriginalStatus = (status: Status): StatusNote | StatusPoll => {
 
   return status
 }
+
+// A Bluesky post, or a boost of one. Interacting with one (boost, like, react,
+// reply, quote) is not supported yet, and signed-out viewers never see one.
+export const isBlueskyStatus = (status: Status): boolean =>
+  getOriginalStatus(status).network === 'bluesky'
 
 export const hasStatusBeenEdited = (status: Status): boolean => {
   const originalStatus = getOriginalStatus(status)

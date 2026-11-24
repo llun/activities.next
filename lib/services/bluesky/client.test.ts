@@ -4,6 +4,7 @@ import { getConfig } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   createBlueskyLock,
+  deleteStoredBlueskySession,
   getBlueskyOAuthClient,
   readStoredBlueskySession,
   writeStoredBlueskySession
@@ -76,6 +77,67 @@ describe('Bluesky OAuth client', () => {
       accessJwt: 'access-token-value',
       refreshJwt: 'refresh-token-value'
     })
+  })
+
+  it('deletes a stored session of the asked type', async () => {
+    vi.mocked(getConfig).mockReturnValue({
+      host: 'social.example',
+      secretPhase: 'secret'
+    } as never)
+    await writeStoredBlueskySession(database, 'did:plc:delete', {
+      type: 'app_password',
+      accessJwt: 'access-token-value',
+      refreshJwt: 'refresh-token-value'
+    })
+
+    await deleteStoredBlueskySession(database, 'did:plc:delete', 'app_password')
+
+    expect(
+      await readStoredBlueskySession(database, 'did:plc:delete')
+    ).toBeNull()
+  })
+
+  it('keeps an app_password session when asked to delete an oauth one', async () => {
+    vi.mocked(getConfig).mockReturnValue({
+      host: 'social.example',
+      secretPhase: 'secret'
+    } as never)
+    await writeStoredBlueskySession(database, 'did:plc:keep-app', {
+      type: 'app_password',
+      accessJwt: 'access-token-value',
+      refreshJwt: 'refresh-token-value'
+    })
+
+    await deleteStoredBlueskySession(database, 'did:plc:keep-app', 'oauth')
+
+    expect(
+      await readStoredBlueskySession(database, 'did:plc:keep-app')
+    ).toEqual({
+      type: 'app_password',
+      accessJwt: 'access-token-value',
+      refreshJwt: 'refresh-token-value'
+    })
+  })
+
+  it('keeps an oauth session when asked to delete an app_password one', async () => {
+    vi.mocked(getConfig).mockReturnValue({
+      host: 'social.example',
+      secretPhase: 'secret'
+    } as never)
+    await writeStoredBlueskySession(database, 'did:plc:keep-oauth', {
+      type: 'oauth',
+      session: { relinked: true } as never
+    })
+
+    await deleteStoredBlueskySession(
+      database,
+      'did:plc:keep-oauth',
+      'app_password'
+    )
+
+    expect(
+      await readStoredBlueskySession(database, 'did:plc:keep-oauth')
+    ).toEqual({ type: 'oauth', session: { relinked: true } })
   })
 
   it('stores pending sign-ins encrypted, with an expiry', async () => {

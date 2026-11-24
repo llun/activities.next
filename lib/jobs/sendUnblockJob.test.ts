@@ -89,6 +89,26 @@ describe('sendUnblockJob', () => {
     expect(signingActor).toEqual(SIGNING_ACTOR)
   })
 
+  it('returns without sending or retrying for a Bluesky target', async () => {
+    vi.mocked(unblock).mockResolvedValue(false)
+
+    await expect(
+      runJob(
+        jobData({
+          block: {
+            ...removedBlock,
+            targetActorId:
+              'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx',
+            targetActorHost: 'bsky.app'
+          }
+        })
+      )
+    ).resolves.not.toThrow()
+
+    expect(canFederateWithDomain).not.toHaveBeenCalled()
+    expect(unblock).not.toHaveBeenCalled()
+  })
+
   it('still sends the Undo when the persisted block carries the same uri', async () => {
     await database.createBlock({
       actorId: ACTOR1_ID,

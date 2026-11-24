@@ -1059,6 +1059,30 @@ describe('hydrateStatusRow', () => {
     })
   })
 
+  it('marks a Bluesky post with its network and leaves an ActivityPub one without', async () => {
+    const prefix = nextPrefix()
+    const author = await seedActor(actorIn(prefix, 'author'))
+    const [bluesky, activityPub] = await Promise.all(
+      ['bsky', 'ap'].map((key) =>
+        seedStatus({
+          id: `${author}/statuses/${key}`,
+          actorId: author,
+          content: { text: key }
+        })
+      )
+    )
+    await db
+      .updateTable('statuses')
+      .set({ network: 'bluesky' })
+      .where('id', '=', bluesky)
+      .execute()
+
+    const blueskyStatus = await getStatus(db, { statusId: bluesky })
+    expect(blueskyStatus?.network).toBe('bluesky')
+    const activityPubStatus = await getStatus(db, { statusId: activityPub })
+    expect(activityPubStatus).not.toHaveProperty('network')
+  })
+
   it('leaves the attachments in order when there is no map image to put first', async () => {
     const prefix = nextPrefix()
     const author = await seedActor(actorIn(prefix, 'author'))

@@ -179,4 +179,9 @@ describe('getWebfingerSelf', () => {
     const result = await getWebfingerSelf({ account: 'bob@example.com' })
     expect(result).toBeNull()
   })
+
+  it('does not send a WebFinger request for a bsky.app account', async () => {
+    expect(await getWebfingerSelf({ account: 'alice@bsky.app' })).toBeNull()
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
 })

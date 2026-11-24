@@ -81,6 +81,28 @@ describe('blockActor', () => {
     )
   })
 
+  it('blocks a Bluesky account locally without queueing a federated Block', async () => {
+    const blueskyActor = {
+      id: 'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+    } as Actor
+    database.getActorFromId.mockResolvedValue(blueskyActor)
+    database.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+
+    const result = await blockActor({
+      database: database as unknown as Database,
+      currentActor,
+      requestedActorId: blueskyActor.id
+    })
+
+    expect(result).toEqual({ type: 'ok', targetActorId: blueskyActor.id })
+    expect(database.createBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ targetActorId: blueskyActor.id })
+    )
+    expect(publish).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: SEND_BLOCK_JOB_NAME })
+    )
+  })
+
   it('still resolves an unknown target through the existing guarded recording flow', async () => {
     database.getActorFromId.mockResolvedValue(null)
     vi.mocked(recordActorIfNeeded).mockResolvedValue(bot)

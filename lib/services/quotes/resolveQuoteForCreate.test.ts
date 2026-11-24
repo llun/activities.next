@@ -66,6 +66,23 @@ describe('resolveQuoteForCreate', () => {
     })
   })
 
+  it('refuses a Bluesky post as the quote target', async () => {
+    const database = makeDatabase({
+      quotedStatus: {
+        id: 'https://bsky.app/profile/did:plc:abc/post/3k',
+        actorId: 'https://bsky.app/profile/did:plc:abc',
+        network: 'bluesky'
+      }
+    })
+    const result = await resolveQuoteForCreate({
+      database,
+      currentActor,
+      quotedStatusId: 'https://bsky.app/profile/did:plc:abc/post/3k'
+    })
+    expect(result).toEqual({ ok: false, reason: 'bluesky' })
+    expect(mockCanQuoteStatus).not.toHaveBeenCalled()
+  })
+
   it('prefers an explicit requested policy over the actor default', async () => {
     const database = makeDatabase({ defaultQuotePolicy: 'followers' })
     const result = await resolveQuoteForCreate({

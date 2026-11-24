@@ -5,6 +5,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { resetParentBackfillStateForTesting } from '@/lib/services/statuses/parentBackfill'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -81,6 +82,53 @@ describe('GET /api/v1/statuses/[id]/context', () => {
     vi.clearAllMocks()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
+    })
+  })
+
+  describe('Bluesky posts without a viewer', () => {
+    const contextOf = (id: string) =>
+      getStatusContext(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(id)}/context`
+        ),
+        { params: Promise.resolve({ id: urlToId(id) }) }
+      )
+
+    it('answers 404 for a Bluesky post', async () => {
+      const { statusId } = await storeBlueskyPost(database, 'contextbsky')
+
+      expect((await contextOf(statusId)).status).toBe(200)
+      mockGetServerSession.mockResolvedValue(null)
+      expect((await contextOf(statusId)).status).toBe(404)
+    })
+
+    it('leaves a Bluesky ancestor out of a public status context', async () => {
+      const { statusId: parentId } = await storeBlueskyPost(
+        database,
+        'contextparent'
+      )
+      const replyId = `${ACTOR1_ID}/statuses/api-context-bluesky-reply`
+      await database.createNote({
+        id: replyId,
+        url: replyId,
+        actorId: ACTOR1_ID,
+        text: 'Reply to a Bluesky post',
+        reply: parentId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const ancestorIds = async () =>
+        (
+          (await (await contextOf(replyId)).json()).ancestors as {
+            id: string
+          }[]
+        ).map((status) => status.id)
+
+      expect(await ancestorIds()).toEqual([
+        await statusPublicId(database, parentId)
+      ])
+      mockGetServerSession.mockResolvedValue(null)
+      expect(await ancestorIds()).toEqual([])
     })
   })
 

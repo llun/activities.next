@@ -132,6 +132,17 @@ describe('sendBlockJob', () => {
     expect(block).not.toHaveBeenCalled()
   })
 
+  it('returns without sending or retrying for a Bluesky target', async () => {
+    const targetActorId =
+      'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+    vi.mocked(block).mockResolvedValue({ ok: false, uri: BLOCK_URI })
+
+    await expect(runJob(jobData({ targetActorId }))).resolves.not.toThrow()
+
+    expect(canFederateWithDomain).not.toHaveBeenCalled()
+    expect(block).not.toHaveBeenCalled()
+  })
+
   it('throws when the remote inbox rejects the Block so the queue retries', async () => {
     await database.createBlock({
       actorId: ACTOR1_ID,

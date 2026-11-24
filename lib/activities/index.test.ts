@@ -92,6 +92,20 @@ describe('activities', () => {
   })
 
   describe('getNote', () => {
+    it('refuses a Bluesky id without any request', async () => {
+      fetchMock.mockClear()
+      // Without the guard the signer refuses the id and getNote logs it.
+      const errorSpy = vi.spyOn(logger, 'error')
+      expect(
+        await getNote({
+          statusId: 'https://bsky.app/profile/did:plc:abc/post/3k44'
+        })
+      ).toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(errorSpy).not.toHaveBeenCalled()
+      errorSpy.mockRestore()
+    })
+
     it('returns note when fetch succeeds', async () => {
       const statusId = 'https://llun.test/users/test/statuses/123'
       const result = await getNote({ statusId })

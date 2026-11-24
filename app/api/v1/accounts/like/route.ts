@@ -5,6 +5,7 @@
  */
 import { sendLike, sendUndoLike } from '@/lib/activities'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { isBlueskyStatus } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   DEFAULT_202,
@@ -61,6 +62,15 @@ export const POST = traceApiRoute(
         data: ERROR_404,
         responseStatusCode: 404
       })
+    // Liking on Bluesky (a like record) is not built yet.
+    if (isBlueskyStatus(status)) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: 'Liking Bluesky posts is not supported yet.' },
+        responseStatusCode: 422
+      })
+    }
 
     // Each Like is its own retrying delivery: a repeat of an existing like
     // sends nothing.

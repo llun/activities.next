@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { checkSearchResolveRateLimit } from '@/app/api/v2/search/rateLimit'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getDatabase } from '@/lib/database'
 import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
@@ -7,6 +8,10 @@ import {
   recordRemoteActorBestEffort,
   refreshKnownRemoteActor
 } from '@/lib/services/actors/refreshRemoteActor'
+import {
+  parseBlueskyProfileInput,
+  resolveBlueskyProfile
+} from '@/lib/services/bluesky/profiles'
 import { isLocalDomain } from '@/lib/services/domains/localDomains'
 import {
   OptionalOAuthGuard,
@@ -16,12 +21,15 @@ import {
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { resolveOptionalSessionActor } from '@/lib/services/guards/sessionActor'
 import { Scope } from '@/lib/types/database/operations'
+import type { Actor } from '@/lib/types/domain/actor'
 import { parseAccountUrlHandle } from '@/lib/utils/accountHandle'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_400,
   ERROR_404,
   ERROR_500,
+  apiRateLimitedResponse,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
@@ -50,7 +58,7 @@ const parseAccountHandle = (value: string, localDomain: string) => {
 }
 
 const authorizeBearerRemoteLookup = async (req: NextRequest) => {
-  let authorized = false
+  let authorizedActor: Actor | null = null
   let reachedHandler = false
   const response = await OptionalOAuthGuard(
     [Scope.enum.read, Scope.enum['read:accounts']],
@@ -62,7 +70,7 @@ const authorizeBearerRemoteLookup = async (req: NextRequest) => {
     // WebFinger lookups and signed remote fetches at addresses of its choosing.
     async (_req, { currentActor }) => {
       reachedHandler = true
-      authorized = currentActor !== null
+      authorizedActor = currentActor
       return new Response(null, { status: 204 })
     },
     {
@@ -75,7 +83,10 @@ const authorizeBearerRemoteLookup = async (req: NextRequest) => {
   // 401 or 403 it answers a bad token with. The 204 above is this function's
   // own probe, and forwarding it would answer the lookup with an empty body
   // the moment an unauthorized-but-valid caller reached the handler.
-  return { authorized, response: reachedHandler ? undefined : response }
+  return {
+    authorizedActor,
+    response: reachedHandler ? undefined : response
+  }
 }
 
 export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
@@ -106,17 +117,21 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     ? await database.getActorFromId({ id: trimmedAcct })
     : null
   const handle = actorFromId ? null : parseAccountHandle(trimmedAcct, host)
-  const handleOrActor = handle ?? actorFromId
+  // A Bluesky handle (`handle@bsky.app`) or bsky.app profile link a linked
+  // Bluesky account can resolve below; a bare name stays a local username.
+  const blueskyQuery =
+    !actorFromId &&
+    (handle?.domain.toLowerCase() === 'bsky.app' ||
+      /^https?:\/\//i.test(trimmedAcct)) &&
+    parseBlueskyProfileInput(trimmedAcct) !== null
 
-  if (!handleOrActor)
+  if (!handle && !actorFromId && !blueskyQuery)
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
       data: ERROR_400,
       responseStatusCode: 400
     })
-
-  const { username, domain } = handleOrActor
 
   // Remote fetches (resolving an unknown handle, or refreshing a known remote
   // actor) require an authenticated viewer: the web session, or a bearer token
@@ -126,7 +141,8 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     req.headers.get('Authorization')
   )
   type RemoteFetchAuth =
-    { authorized: true } | { authorized: false; bearerResponse?: Response }
+    | { authorized: true; actor: Actor }
+    | { authorized: false; bearerResponse?: Response }
   let cachedRemoteFetchAuth: RemoteFetchAuth | null = null
   const getRemoteFetchAuth = async (): Promise<RemoteFetchAuth> => {
     if (cachedRemoteFetchAuth) return cachedRemoteFetchAuth
@@ -141,11 +157,13 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       // branch withholds from a pending account. The same gap let a suspended
       // account's lingering session through.
       const sessionActor = await resolveOptionalSessionActor(database)
-      auth = { authorized: sessionActor !== null }
+      auth = sessionActor
+        ? { authorized: true, actor: sessionActor }
+        : { authorized: false }
     } else {
       const bearerAuth = await authorizeBearerRemoteLookup(req)
-      auth = bearerAuth.authorized
-        ? { authorized: true }
+      auth = bearerAuth.authorizedActor
+        ? { authorized: true, actor: bearerAuth.authorizedActor }
         : { authorized: false, bearerResponse: bearerAuth.response }
     }
     cachedRemoteFetchAuth = auth
@@ -164,7 +182,7 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
   }
 
   let actor =
-    actorFromId ?? (await database.getActorFromUsername({ username, domain }))
+    actorFromId ?? (handle ? await database.getActorFromUsername(handle) : null)
 
   if (actor) {
     // Profile headers are commonly built from this endpoint's response, so a
@@ -177,7 +195,30 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
     if (!isInternal && (await getRemoteFetchAuth()).authorized) {
       actor = await refreshKnownRemoteActor({ database, actor })
     }
-  } else if (resolve && !(await isLocalDomain(database, domain))) {
+  } else if (resolve && blueskyQuery) {
+    // Resolved through the viewer's linked Bluesky account; without one (or
+    // signed out) the answer is the 404 an unresolvable handle gets.
+    const auth = await getRemoteFetchAuth()
+    // Each resolve is an AppView request: the /api/v2/search resolve budget.
+    if (auth.authorized) {
+      const rateLimit = checkSearchResolveRateLimit(auth.actor.id)
+      if (!rateLimit.allowed) {
+        return apiRateLimitedResponse(
+          req,
+          rateLimit.retryAfterSeconds,
+          CORS_HEADERS
+        )
+      }
+    }
+    const blueskyId = auth.authorized
+      ? await resolveBlueskyProfile(database, auth.actor, trimmedAcct)
+      : null
+    actor = blueskyId ? await database.getActorFromId({ id: blueskyId }) : null
+  } else if (
+    resolve &&
+    handle &&
+    !(await isLocalDomain(database, handle.domain))
+  ) {
     // An invalid bearer already returned above, so an unauthorized viewer
     // here is credential-less and gets the same 404 an unresolvable handle
     // would.
@@ -190,13 +231,19 @@ export const GET = traceApiRoute('lookupAccount', async (req: NextRequest) => {
       })
     }
 
-    const actorId = await getWebfingerSelf({ account: `${username}@${domain}` })
+    const actorId = await getWebfingerSelf({
+      account: `${handle.username}@${handle.domain}`
+    })
     actor = actorId
       ? await recordRemoteActorBestEffort({ actorId, database })
       : null
   }
 
-  if (!actor)
+  // Bluesky accounts are shown to signed-in viewers only.
+  if (
+    !actor ||
+    (isBlueskyId(actor.id) && !(await getRemoteFetchAuth()).authorized)
+  )
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,

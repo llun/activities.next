@@ -283,6 +283,21 @@ describe('POST /api/v1/reports', () => {
     )
   })
 
+  it('keeps a forwarded report of a Bluesky account local', async () => {
+    const blueskyId =
+      'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+    const response = await POST(
+      createJsonRequest({ account_id: urlToId(blueskyId), forward: true }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.createReport).toHaveBeenCalledWith(
+      expect.objectContaining({ targetActorId: blueskyId })
+    )
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
+
   it('does not federate a Flag job when forward=false', async () => {
     const response = await POST(
       createJsonRequest({ account_id: 'acc1', forward: false }),

@@ -88,7 +88,8 @@ const seedStatus = async ({
   reply = '',
   type = StatusType.enum.Note,
   originalStatusId = null,
-  media = false
+  media = false,
+  network = null
 }: {
   id: string
   actorId: string
@@ -99,6 +100,7 @@ const seedStatus = async ({
   type?: StatusType
   originalStatusId?: string | null
   media?: boolean
+  network?: string | null
 }) => {
   const at = createdAt === null ? null : new Date(createdAt)
   await db
@@ -111,6 +113,7 @@ const seedStatus = async ({
       type,
       reply,
       originalStatusId,
+      network,
       createdAt: at,
       updatedAt: at
     })
@@ -387,6 +390,67 @@ describe('the home and direct feeds', () => {
   )
 })
 
+describe('the home feed network filter', () => {
+  it('reads only Bluesky or only ActivityPub posts and pages over the filtered rows', async () => {
+    const prefix = nextPrefix()
+    const viewer = actorIn('home.test', `${prefix}-viewer`)
+    const author = actorIn('remote.test', `${prefix}-author`)
+    const s = (key: string) => `${prefix}-status-${key}`
+    // Oldest first, the two networks interleaved; b* are Bluesky posts.
+    const keys = ['a1', 'b1', 'a2', 'b2', 'a3', 'b3']
+    for (const [index, key] of keys.entries()) {
+      await seedStatus({
+        id: s(key),
+        actorId: author,
+        createdAt: BASE + index,
+        network: key.startsWith('b') ? 'bluesky' : null
+      })
+      await seedTimelineRow({
+        actorId: viewer,
+        timeline: Timeline.MAIN,
+        statusId: s(key),
+        statusActorId: author,
+        createdAt: BASE + index
+      })
+    }
+    const main = { timeline: Timeline.MAIN, actorId: viewer }
+
+    expect(await read({ ...main, network: 'bluesky' })).toEqual([
+      s('b3'),
+      s('b2'),
+      s('b1')
+    ])
+    expect(await read({ ...main, network: 'activitypub' })).toEqual([
+      s('a3'),
+      s('a2'),
+      s('a1')
+    ])
+    // Cursors and the limit apply to the filtered rows: the next Bluesky post
+    // below b3 is b2, not the ActivityPub a3 between them.
+    expect(
+      await read({
+        ...main,
+        network: 'bluesky',
+        maxStatusId: s('b3'),
+        limit: 1
+      })
+    ).toEqual([s('b2')])
+    expect(
+      await read({
+        ...main,
+        network: 'activitypub',
+        minStatusId: s('a1'),
+        limit: 1
+      })
+    ).toEqual([s('a2')])
+    expect(
+      await read({ ...main, network: 'bluesky', sinceStatusId: s('b1') })
+    ).toEqual([s('b3'), s('b2')])
+    // No filter: the one mixed Home.
+    expect(await read(main)).toEqual(keys.map(s).reverse())
+  })
+})
+
 describe('createTimelineStatus', () => {
   it('adds a status to one actor’s feed once', async () => {
     const prefix = nextPrefix()
@@ -438,9 +502,39 @@ describe('createTimelineStatus', () => {
     )
   })
 
-  // A missing actor throws before any query. Without the check the existence
-  // count compares `actorId = NULL`, which never matches, and every call
-  // inserts another row with a NULL actorId.
+  // Two writers of the same row (two syncs, a sync and a backfill) can both
+  // find it missing, so the row is written by one insert that skips a
+  // duplicate on the unique key rather than a check followed by an insert.
+  // A race SQLite's single connection cannot stage, hence the statement check.
+  it('writes the row with one insert that skips a duplicate', async () => {
+    const prefix = nextPrefix()
+    const viewer = actorIn('home.test', `${prefix}-viewer`)
+    const status = {
+      id: `${prefix}-status`,
+      actorId: actorIn('remote.test', `${prefix}-author`),
+      createdAt: BASE
+    } as unknown as Status
+    const statements = (
+      await testDb.captureQueries(() =>
+        createTimelineStatus(db, {
+          actorId: viewer,
+          timeline: Timeline.MAIN,
+          status
+        })
+      )
+    ).map(({ sql }) => sql.replaceAll('`', '').replaceAll('"', ''))
+    const timelineStatements = statements.filter((sql) =>
+      sql.includes('timelines')
+    )
+    expect(timelineStatements).toHaveLength(1)
+    expect(timelineStatements[0]).toMatch(
+      /^insert into timelines .* on conflict \(actorId, timeline, statusId\) do nothing$/
+    )
+  })
+
+  // A missing actor throws before any query. Without the check every call
+  // inserts another row with a NULL actorId: the unique key treats NULLs as
+  // distinct.
   it('throws without an actor and writes no timelines row', async () => {
     const prefix = nextPrefix()
     const author = actorIn('remote.test', `${prefix}-author`)

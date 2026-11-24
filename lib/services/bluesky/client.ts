@@ -60,6 +60,19 @@ export const readStoredBlueskySession = async (
   return value ? (JSON.parse(decrypt(value)) as StoredBlueskySession) : null
 }
 
+// Deletes the DID's session only while it is still of `type`: a relink of the
+// other kind that landed meanwhile is a fresh session and stays.
+// shortcut: read-then-delete, not one statement; a relink between the two is
+// still lost, move the check into the DELETE if that shows up.
+export const deleteStoredBlueskySession = async (
+  database: Database,
+  did: string,
+  type: StoredBlueskySession['type']
+) => {
+  const stored = await readStoredBlueskySession(database, did)
+  if (stored?.type === type) await database.deleteBlueskySession({ did })
+}
+
 export const writeStoredBlueskySession = (
   database: Database,
   did: string,
@@ -91,8 +104,16 @@ const createSessionStore = (database: Database): NodeSavedSessionStore => ({
   },
   set: (did, session) =>
     writeStoredBlueskySession(database, did, { type: 'oauth', session }),
-  del: (did) => database.deleteBlueskySession({ did })
+  del: (did) => deleteStoredBlueskySession(database, did, 'oauth')
 })
+
+// Another holder kept the lock past the wait; `lockName` says which lock.
+export class BlueskyLockTimeoutError extends Error {
+  constructor(readonly lockName: string) {
+    super('Timed out waiting for a Bluesky lock')
+    this.name = 'BlueskyLockTimeoutError'
+  }
+}
 
 // Refresh tokens are single use, so two processes refreshing one session at
 // once would revoke it. The lock is a row in the shared lock table, so it
@@ -115,7 +136,7 @@ export const createBlueskyLock =
         }
       }
       if (Date.now() > deadline) {
-        throw new Error('Timed out waiting for the Bluesky session lock')
+        throw new BlueskyLockTimeoutError(name)
       }
       await new Promise((resolve) => setTimeout(resolve, LOCK_POLL_MS))
     }

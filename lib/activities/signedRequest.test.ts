@@ -682,3 +682,16 @@ describe('signedActivityPubRequest', () => {
     })
   })
 })
+
+describe('signedActivityPubRequest for a Bluesky id', () => {
+  it('throws before signing or sending anything', async () => {
+    mockRequest.mockClear()
+    await expect(
+      signedActivityPubRequest({
+        method: 'GET',
+        url: 'https://bsky.app/profile/did:plc:abc'
+      })
+    ).rejects.toThrow('Bluesky')
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+})

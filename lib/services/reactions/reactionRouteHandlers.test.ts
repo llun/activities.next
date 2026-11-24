@@ -111,6 +111,10 @@ describe('reactionWriteHandler', () => {
     {
       reason: 'invalid-emoji',
       error: 'That emoji cannot be used as a reaction.'
+    },
+    {
+      reason: 'bluesky',
+      error: 'Reacting to Bluesky posts is not supported yet.'
     }
   ])(
     'explains a $reason refusal in the response body',

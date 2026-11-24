@@ -3,6 +3,7 @@ import { getViewerFollow } from '@/lib/services/getViewerFollow'
 import { Mastodon } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { getMuteExpiresAt } from './getMuteExpiresAt'
@@ -29,6 +30,9 @@ export const getRelationship = async ({
   targetActorId
 }: GetRelationshipParams): Promise<Mastodon.Relationship> => {
   const targetDomain = getActorDomain(targetActorId)
+  // A Bluesky follow is a record on the user's PDS, kept in bluesky_follows;
+  // its followers are not copied in, so followed_by stays false.
+  const isBlueskyTarget = isBlueskyId(targetActorId)
 
   const [
     isFollowing,
@@ -44,10 +48,14 @@ export const getRelationship = async ({
     targetPublicIds,
     targetActor
   ] = await Promise.all([
-    database.isCurrentActorFollowing({
-      currentActorId: currentActor.id,
-      followingActorId: targetActorId
-    }),
+    isBlueskyTarget
+      ? database
+          .getBlueskyFollow({ actorId: currentActor.id, targetActorId })
+          .then(Boolean)
+      : database.isCurrentActorFollowing({
+          currentActorId: currentActor.id,
+          followingActorId: targetActorId
+        }),
     database.isCurrentActorFollowing({
       currentActorId: targetActorId,
       followingActorId: currentActor.id
@@ -123,7 +131,9 @@ export const getRelationship = async ({
     following: isFollowing,
     // Fall back to the follow column defaults (reblogs=true, notify=false) when
     // a follow exists but predates these preferences.
-    showing_reblogs: follow ? (follow.reblogs ?? true) : false,
+    showing_reblogs: follow
+      ? (follow.reblogs ?? true)
+      : isBlueskyTarget && isFollowing,
     notifying: follow ? (follow.notify ?? false) : false,
     followed_by: isFollowedBy,
     blocking: isBlocking,

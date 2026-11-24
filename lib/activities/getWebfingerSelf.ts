@@ -23,7 +23,7 @@ export const getWebfingerSelf: GetWebfingerSelfFunction = async ({ account }) =>
     // validated host: `evil.test://allowed.example` reads as `allowed.example`
     // to the federation policy but would send the request to `evil.test`.
     const host = parseBareDomain(domain, { requireDot: false })
-    if (!host) return null
+    if (!host || host === 'bsky.app') return null // Bluesky has no WebFinger
 
     let requestedHost: string | undefined
     let refusedRedirectHost: string | undefined

@@ -4,6 +4,7 @@ import { formatDistance } from 'date-fns/formatDistance'
 import { ExternalLink } from 'lucide-react'
 import { FC } from 'react'
 
+import { Badge } from '@/lib/components/ui/badge'
 import { Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
@@ -118,6 +119,7 @@ export const PostHeader: FC<PostHeaderProps> = ({
           <span className="sr-only">{`${relativeCreatedAt} ago${spokenSpan}`}</span>
         </span>
       )}
+      {actualStatus.network === 'bluesky' && <Badge>Bluesky</Badge>}
       {showExternalLink && (
         <a
           href={externalStatusUrl}

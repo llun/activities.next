@@ -49,9 +49,11 @@ import { getActorProfile } from '@/lib/types/domain/actor'
 import {
   Status,
   StatusType,
-  getOriginalStatus
+  getOriginalStatus,
+  isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorMentionPathSegment } from '@/lib/utils/getActorMentionPathSegment'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
@@ -198,6 +200,11 @@ export const generateMetadata = async ({
         // like an unstored one, or the 404 would tell a stranger that a private
         // status URI is stored and who wrote it.
         shouldNotFound = true
+      } else if (resolved?.status && isBlueskyStatus(resolved.status)) {
+        // Bluesky posts are shown to signed-in viewers only: never indexed,
+        // and no text in the description.
+        canonicalUrl = undefined
+        shouldNoIndex = true
       } else if (resolved?.status && isStatusStrictlyPublic(resolved.status)) {
         const actualStatus = getOriginalStatus(resolved.status)
         if (actualStatus) {
@@ -284,8 +291,10 @@ const Page: FC<Props> = async ({ params }) => {
   let canFetchRemote = false
   if (!status && !isStatusHash && fullStatusId) {
     try {
+      // A Bluesky post is never an ActivityPub fetch: unstored, it 404s.
       canFetchRemote =
         isUrl(fullStatusId) &&
+        !isBlueskyId(fullStatusId) &&
         !(await isLocalFederationDomain(database, fullStatusId)) &&
         (await canFederateWithDomain(database, fullStatusId))
 
@@ -309,6 +318,8 @@ const Page: FC<Props> = async ({ params }) => {
       // the fetch job below, an anonymous visitor gets a 404. A URL on this
       // instance is never queued.
       status = null
+      // A Bluesky id never reaches here: its check above returns before
+      // anything that can throw.
       canFetchRemote = !isOwnInstanceHost(
         new URL(fullStatusId).host,
         getServedHostConfig(config)
@@ -317,6 +328,13 @@ const Page: FC<Props> = async ({ params }) => {
   }
 
   if (status) {
+    // Bluesky posts are shown to signed-in viewers only; a signed-out visitor
+    // is sent to the post on bsky.app.
+    if (!currentActor && isBlueskyStatus(status)) {
+      const blueskyUrl = getOriginalStatus(status).id
+      return isBlueskyId(blueskyUrl) ? redirect(blueskyUrl) : notFound()
+    }
+
     // Focused-status visibility gate — the single source of truth shared with the
     // ancestor chain below. `canActorReadStatus` collapses to the public/unlisted
     // check for logged-out visitors and, for an Announce, recurses into the

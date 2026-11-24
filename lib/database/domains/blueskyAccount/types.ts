@@ -15,13 +15,16 @@ export interface BlueskyAccount {
   domainHandle: boolean
   // The server host this actor answers /.well-known/atproto-did for.
   instanceHandle: string | null
+  // The last Home sync that finished, and why the latest one failed.
+  lastSyncedAt: number | null
+  syncError: string | null
   createdAt: number
   updatedAt: number
 }
 
 export type SaveBlueskyAccountParams = Omit<
   BlueskyAccount,
-  'instanceHandle' | 'createdAt' | 'updatedAt'
+  'instanceHandle' | 'lastSyncedAt' | 'syncError' | 'createdAt' | 'updatedAt'
 >
 
 export interface BlueskyAccountDatabase {
@@ -35,7 +38,7 @@ export interface BlueskyAccountDatabase {
   }): Promise<BlueskyAccount | null>
   /**
    * Links the DID to the actor, replacing the actor's earlier link (and that
-   * link's session when it was another DID). Returns `did_taken` without
+   * link's session and follows when it was another DID). Returns `did_taken` without
    * writing when another actor already holds the DID.
    */
   saveBlueskyAccount(
@@ -55,7 +58,12 @@ export interface BlueskyAccountDatabase {
     actorId: string
     host: string | null
   }): Promise<boolean>
-  /** Removes the link and its stored session. */
+  /**
+   * Actors whose linked account still has a stored session, leaving out ones
+   * that are suspended, being deleted, disabled or unconfirmed.
+   */
+  listBlueskyAccountsToSync(): Promise<string[]>
+  /** Removes the link, its stored session and its follows. */
   deleteBlueskyAccount(params: { actorId: string }): Promise<void>
 
   getBlueskySession(params: { did: string }): Promise<string | null>

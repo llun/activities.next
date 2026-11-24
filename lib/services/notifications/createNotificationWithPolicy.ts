@@ -6,6 +6,7 @@ import {
   CreateNotificationParams,
   Notification
 } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 
 /**
  * Creates a notification, applying the recipient's notification policy:
@@ -20,6 +21,9 @@ export const createNotificationWithPolicy = async (
   database: Database,
   params: CreateNotificationParams
 ): Promise<Notification | null> => {
+  // A Bluesky account has no one here to notify.
+  if (isBlueskyId(params.actorId)) return null
+
   // Blocks (either direction) and a mute with notifications on suppress every
   // notification from that account, whichever path raised it — reply/mention
   // fan-out, follows, quotes. Self-addressed notifications

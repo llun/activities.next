@@ -22,6 +22,7 @@ import {
 import { Scope } from '@/lib/types/database/operations'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { type Status, StatusType } from '@/lib/types/domain/status'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -82,7 +83,10 @@ export const GET = traceApiRoute(
       const id = await resolveActorIdParam(database, encodedAccountId)
 
       const actor = await database.getActorFromId({ id })
-      if (!actor) return apiCorsError(req, CORS_HEADERS, 404)
+      // Bluesky accounts and posts are shown to signed-in viewers only.
+      if (!actor || (!currentActor && isBlueskyId(actor.id))) {
+        return apiCorsError(req, CORS_HEADERS, 404)
+      }
 
       const url = new URL(req.url)
       const queryParams = Object.fromEntries(url.searchParams.entries())
@@ -260,7 +264,9 @@ export const GET = traceApiRoute(
         parsedParams.pinned !== true &&
         !parsedParams.tagged &&
         !actor.account &&
-        !actor.privateKey
+        !actor.privateKey &&
+        // A Bluesky account has no outbox: its stored posts are the answer.
+        !isBlueskyId(actor.id)
       ) {
         liveRemoteStatuses = await getRemoteActorStatuses({
           database,
