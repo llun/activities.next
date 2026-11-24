@@ -235,6 +235,101 @@ describe('pollHtmlToBlueskyPlainText', () => {
 
     expect(text).toBe('Use <script> carefully')
   })
+
+  it.each([
+    {
+      description: 'omits mailto: href from email autolinks',
+      markdown: 'Email alice@example.com',
+      expected: 'Email alice@example.com'
+    },
+    {
+      description: 'omits javascript: href from links',
+      markdown: '[click](javascript:alert(1))',
+      expected: 'click'
+    },
+    {
+      description: 'omits data: href from links',
+      markdown: '[data](data:text/html,hi)',
+      expected: 'data'
+    },
+    {
+      description: 'omits relative hrefs like /tags/x and /@user',
+      markdown: '[tag](/tags/x) and [user](/@user)',
+      expected: 'tag and user'
+    },
+    {
+      description: 'omits non-http relative img src and keeps alt text',
+      markdown: '![cat](/uploads/cat.png)',
+      expected: 'cat'
+    },
+    {
+      description: 'omits data: img src and keeps alt text',
+      markdown: '![logo](data:image/png;base64,abc)',
+      expected: 'logo'
+    },
+    {
+      description: 'omits relative img without alt text',
+      markdown: '![](/uploads/cat.png)',
+      expected: ''
+    }
+  ])('$description (via convertMarkdownText)', ({ markdown, expected }) => {
+    expect(pollHtmlToBlueskyPlainText(renderPollHtml(markdown))).toBe(expected)
+  })
+
+  it.each([
+    {
+      description: 'does not add blank lines for nested unordered lists',
+      markdown: '- parent\n  - child 1\n  - child 2\n- sibling',
+      expected: 'parent\nchild 1\nchild 2\nsibling'
+    },
+    {
+      description: 'does not add blank lines for nested ordered lists',
+      markdown: '1. parent\n   1. child 1\n   2. child 2\n2. sibling',
+      expected: 'parent\nchild 1\nchild 2\nsibling'
+    },
+    {
+      description:
+        'keeps blank lines around outer lists while keeping nested lists tight',
+      markdown: 'Intro\n\n- parent\n  - child 1\n- sibling\n\nOutro',
+      expected: 'Intro\n\nparent\nchild 1\nsibling\n\nOutro'
+    }
+  ])('$description (via convertMarkdownText)', ({ markdown, expected }) => {
+    const text = pollHtmlToBlueskyPlainText(renderPollHtml(markdown))
+    expect(text).toBe(expected)
+    expect(text).toBe(markdownToBlueskyPlainText(markdown))
+  })
+
+  it.each([
+    {
+      description: 'preserves trailing whitespace inside anchor text',
+      markdown: '[link ](https://example.com)next',
+      expected: 'link https://example.com next'
+    },
+    {
+      description: 'preserves leading whitespace inside anchor text',
+      markdown: 'before[ link](https://example.com)',
+      expected: 'before link https://example.com'
+    },
+    {
+      description:
+        'preserves leading and trailing whitespace inside anchor text',
+      markdown: 'before[ link ](https://example.com)next',
+      expected: 'before link https://example.com next'
+    },
+    {
+      description: 'collapses double spaces around anchor edge whitespace',
+      markdown: 'before [ link ](https://example.com) next',
+      expected: 'before link https://example.com next'
+    }
+  ])('$description (via convertMarkdownText)', ({ markdown, expected }) => {
+    expect(pollHtmlToBlueskyPlainText(renderPollHtml(markdown))).toBe(expected)
+  })
+
+  it('handles deeply nested tags without overflowing the stack', () => {
+    const html = renderPollHtml(`${'<b>'.repeat(15000)}x`)
+
+    expect(pollHtmlToBlueskyPlainText(html)).toBe('x')
+  })
 })
 
 describe('buildCrosspostText', () => {

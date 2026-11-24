@@ -222,11 +222,12 @@ const POLL_BLOCK_TAGS = new Set([
   'h4',
   'h5',
   'h6',
-  'ol',
   'p',
-  'pre',
-  'ul'
+  'pre'
 ])
+
+// Bound recursion so deeply nested HTML cannot overflow the call stack.
+const MAX_POLL_HTML_DEPTH = 12
 
 const MENTION_HREF_PATH_PATTERN = /^\/(@[^/\s@]+@[^/\s@]+)$/
 
@@ -234,6 +235,33 @@ const isHtmlText = (node: HtmlDomNode): node is HtmlText => node.type === 'text'
 
 const isHtmlElement = (node: HtmlDomNode): node is HtmlElement =>
   node.type === 'tag'
+
+const isAbsoluteHttpUrl = (value: string): boolean => {
+  if (!/^https?:\/\//i.test(value)) return false
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const collectTextIteratively = (nodes: HtmlDomNode[]): string => {
+  const stack: HtmlDomNode[] = [...nodes].reverse()
+  let text = ''
+  while (stack.length > 0) {
+    const node = stack.pop()
+    if (!node) continue
+    if (isHtmlText(node)) {
+      text += node.data
+    } else if (isHtmlElement(node)) {
+      for (let index = node.children.length - 1; index >= 0; index -= 1) {
+        stack.push(node.children[index])
+      }
+    }
+  }
+  return text
+}
 
 const hasClass = (node: HtmlElement, className: string): boolean => {
   const value = node.attribs?.class
@@ -293,21 +321,47 @@ const isDisplayTextForHref = (label: string, href: string): boolean => {
   return false
 }
 
-const anchorToText = (node: HtmlElement): string => {
-  const visible = walkPollHtmlNodes(node.children, false).trim()
+const anchorToText = (node: HtmlElement, depth: number): string => {
+  const rawVisible = walkPollHtmlNodes(node.children, false, {
+    depth,
+    preserveLeadingSpace: true
+  })
+  const leadingSpace = /^\s/.test(rawVisible) ? ' ' : ''
+  const trailingSpace = /\s$/.test(rawVisible) ? ' ' : ''
+  const visible = rawVisible.trim()
+
+  let body: string
   if (hasClass(node, 'mention')) {
-    return mentionFromHref(node.attribs?.href) ?? visible
+    body = mentionFromHref(node.attribs?.href) ?? visible
+  } else if (hasClass(node, 'hashtag')) {
+    body = visible
+  } else {
+    const href = node.attribs?.href?.trim() ?? ''
+    if (!href || !isAbsoluteHttpUrl(href)) {
+      body = visible
+    } else if (!visible || isDisplayTextForHref(visible, href)) {
+      body = href
+    } else {
+      body = `${visible} ${href}`
+    }
   }
-  if (hasClass(node, 'hashtag')) {
-    return visible
-  }
-  const href = node.attribs?.href?.trim() ?? ''
-  if (!href) return visible
-  if (!visible || isDisplayTextForHref(visible, href)) return href
-  return `${visible} ${href}`
+
+  if (!body) return leadingSpace || trailingSpace
+  return `${leadingSpace}${body}${trailingSpace}`
 }
 
-const walkPollHtmlNodes = (nodes: HtmlDomNode[], inPre: boolean): string => {
+type WalkPollHtmlOptions = {
+  depth?: number
+  inList?: boolean
+  preserveLeadingSpace?: boolean
+}
+
+const walkPollHtmlNodes = (
+  nodes: HtmlDomNode[],
+  inPre: boolean,
+  options: WalkPollHtmlOptions = {}
+): string => {
+  const { depth = 0, inList = false, preserveLeadingSpace = false } = options
   let out = ''
 
   const trimTrailingHorizontalSpace = () => {
@@ -330,14 +384,15 @@ const walkPollHtmlNodes = (nodes: HtmlDomNode[], inPre: boolean): string => {
   const appendCollapsedText = (raw: string) => {
     const collapsed = raw.replace(/\s+/g, ' ')
     if (!collapsed) return
+    const atBoundary = out.endsWith('\n') || out.endsWith(' ')
     if (collapsed === ' ') {
-      if (!out || out.endsWith('\n') || out.endsWith(' ')) return
+      if (atBoundary || (!out && !preserveLeadingSpace)) return
       out += ' '
       return
     }
     if (
       collapsed.startsWith(' ') &&
-      (!out || out.endsWith('\n') || out.endsWith(' '))
+      (atBoundary || (!out && !preserveLeadingSpace))
     ) {
       out += collapsed.slice(1)
       return
@@ -345,7 +400,24 @@ const walkPollHtmlNodes = (nodes: HtmlDomNode[], inPre: boolean): string => {
     out += collapsed
   }
 
-  const visit = (list: HtmlDomNode[], pre: boolean) => {
+  const visit = (
+    list: HtmlDomNode[],
+    pre: boolean,
+    insideList: boolean,
+    currentDepth: number
+  ) => {
+    if (currentDepth >= MAX_POLL_HTML_DEPTH) {
+      const text = collectTextIteratively(list)
+      if (text) {
+        if (pre) {
+          out += text
+        } else {
+          appendCollapsedText(text)
+        }
+      }
+      return
+    }
+
     for (const node of list) {
       if (isHtmlText(node)) {
         if (pre) {
@@ -369,13 +441,13 @@ const walkPollHtmlNodes = (nodes: HtmlDomNode[], inPre: boolean): string => {
       if (tag === 'img') {
         const alt = (node.attribs?.alt ?? '').trim()
         const src = (node.attribs?.src ?? '').trim()
-        const text = src ? linkToText(alt, src) : alt
+        const text = isAbsoluteHttpUrl(src) ? linkToText(alt, src) : alt
         if (text) appendCollapsedText(text)
         continue
       }
 
       if (tag === 'a') {
-        const text = anchorToText(node)
+        const text = anchorToText(node, currentDepth + 1)
         if (text) {
           if (pre) {
             out += text
@@ -388,34 +460,41 @@ const walkPollHtmlNodes = (nodes: HtmlDomNode[], inPre: boolean): string => {
 
       if (tag === 'pre') {
         ensureNewlines(2)
-        const preText = walkPollHtmlNodes(node.children, true).replace(
-          /\n$/,
-          ''
-        )
+        const preText = walkPollHtmlNodes(node.children, true, {
+          depth: currentDepth + 1
+        }).replace(/\n$/, '')
         out += preText
         if (preText) ensureNewlines(2, false)
         continue
       }
 
+      if (tag === 'ul' || tag === 'ol') {
+        const newlines = insideList ? 1 : 2
+        ensureNewlines(newlines)
+        visit(node.children, pre, true, currentDepth + 1)
+        ensureNewlines(newlines)
+        continue
+      }
+
       if (tag === 'li') {
         ensureNewlines(1)
-        visit(node.children, pre)
+        visit(node.children, pre, true, currentDepth + 1)
         ensureNewlines(1)
         continue
       }
 
       if (POLL_BLOCK_TAGS.has(tag)) {
         ensureNewlines(2)
-        visit(node.children, pre)
+        visit(node.children, pre, insideList, currentDepth + 1)
         ensureNewlines(2)
         continue
       }
 
-      visit(node.children, pre)
+      visit(node.children, pre, insideList, currentDepth + 1)
     }
   }
 
-  visit(nodes, inPre)
+  visit(nodes, inPre, inList, depth)
   return out
 }
 
