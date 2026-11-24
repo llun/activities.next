@@ -1,0 +1,25 @@
+lib/services/bluesky/crosspost.test.ts
+  s_f193227df3df34::t_3e705d70c53d00 16,208-212,315,770,973,979,1036,1048,1068,1074-1081,1086,1092,1112,1124-1127,1134,1138,1159,1257-1260,1293-1296,1362-1365,1371-1375,1381-1385,1399,1442-1453,1456,1500-1639,1709,1712,1744-1747,1750-1754
+lib/services/bluesky/crosspost.ts
+  s_f193227df3df34::t_b343bd5de56fb7 96-97,406-414,450,477-494,501,516-520,546,551-554,588-589,592,595-598,609-611,765-767,773,779-782,791-792
+lib/services/bluesky/tid.test.ts
+  s_f193227df3df34::t_e9d51f3bab2946 19,27-30,33,61-103
+lib/services/bluesky/tid.ts
+  s_f193227df3df34::t_35b72ff4417711 14,28-33,36-39,42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fe9e924762abe26ffe008a37302be2584ed9a6c4",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
