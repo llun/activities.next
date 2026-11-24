@@ -230,8 +230,7 @@ describe('Status', () => {
       // detection library is heavy); getActorPosts/getRemoteStatus attach
       // detectedLanguage themselves after calling fromNote.
       const note = MockMastodonActivityPubNote({
-        content:
-          'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
+        content: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
         withContext: true
       })
       const status = fromNote(note)

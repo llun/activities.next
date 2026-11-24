@@ -569,8 +569,7 @@ describe('updateNoteJob', () => {
 
     const updatedNote = {
       ...note,
-      content:
-        '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>',
+      content: '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>',
       contentMap: {
         en: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร'
       }
@@ -593,8 +592,7 @@ describe('updateNoteJob', () => {
     const note = MockMastodonActivityPubNote({
       id: `https://somewhere.test/notes/clear-detection-${Date.now()}`,
       from: 'https://somewhere.test/actors/test1',
-      content:
-        '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>',
+      content: '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>',
       contentMap: {
         en: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร'
       }

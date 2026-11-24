@@ -215,8 +215,7 @@ describe('createPollJob', () => {
       id: `https://somewhere.test/actors/pollcreator/questions/detected-thai-${Date.now()}`,
       // Declared as English, but the content itself is unambiguously Thai —
       // the mislabeled-post scenario the Translate gate needs to recover from.
-      content:
-        '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>',
+      content: '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>',
       contentMap: {
         en: '<p>สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร</p>'
       }

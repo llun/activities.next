@@ -96,8 +96,7 @@ describe('getRemoteStatus', () => {
             attributedTo: ACTOR_ID,
             // Declared English via the default contentMap-less `content`, but
             // the content itself is unambiguously Thai.
-            content:
-              'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
+            content: 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
             to: [PUBLIC_STREAM],
             cc: [`${ACTOR_ID}/followers`],
             published: new Date('2026-04-30T12:00:00.000Z').toISOString()

@@ -1,4 +1,4 @@
-import webpush from 'web-push'
+import * as webpush from 'web-push'
 
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/types/database/operations'

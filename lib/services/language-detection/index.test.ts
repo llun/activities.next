@@ -15,8 +15,7 @@ vi.mock('@/lib/utils/logger', () => ({
   }
 }))
 
-const THAI_TEXT =
-  'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร'
+const THAI_TEXT = 'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร'
 const ENGLISH_TEXT =
   'Hello, my name is John and I am a software developer working in Bangkok'
 
@@ -330,8 +329,7 @@ describe('detectLanguage', () => {
     })
 
     it('detects Burmese via fallback', async () => {
-      const input =
-        'အစိုးရသည် အိမ်ရာအကျပ်အတည်းကို ဖြေရှင်းရန် စီမံကိန်းအသစ်တစ်ခုကို ကြေညာခဲ့သည်'
+      const input = 'အစိုးရသည် အိမ်ရာအကျပ်အတည်းကို ဖြေရှင်းရန် စီမံကိန်းအသစ်တစ်ခုကို ကြေညာခဲ့သည်'
       const result = await detectLanguage(input)
       expect(result?.language).toBe('my')
     })
