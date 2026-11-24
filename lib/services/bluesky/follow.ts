@@ -68,12 +68,15 @@ const MAX_FOLLOW_URI_LENGTH = 512
  * The user's existing follow record of `did` (say, made in another app), or
  * null. Best effort: the AppView's viewer state names it (and lags behind a
  * delete, and answers 400 for a deactivated or deleted account), so the record
- * is confirmed on the user's own PDS, following `did`, before it is used, and
- * any refused lookup reads as no record rather than failing the change.
+ * is confirmed on the user's own PDS, following `did`, before it is used. A
+ * lookup Bluesky refuses (4xx: no such account or record) reads as no record;
+ * an outage (5xx, 429) fails the change so it can be retried rather than
+ * leave a follow behind. `skipUri` (the record just deleted) is not looked up.
  */
 const readViewerFollowUri = async (
   agent: BlueskyAgent,
-  did: string
+  did: string,
+  skipUri?: string
 ): Promise<string | null> => {
   try {
     const profile = await agent.get<{ viewer?: { following?: unknown } }>(
@@ -85,7 +88,11 @@ const readViewerFollowUri = async (
       return null
     }
     const parsed = parseAtUri(uri)
-    if (parsed?.did !== agent.did || parsed.collection !== FOLLOW_COLLECTION) {
+    if (
+      uri === skipUri ||
+      parsed?.did !== agent.did ||
+      parsed.collection !== FOLLOW_COLLECTION
+    ) {
       return null
     }
     const record = await agent.get<{ value?: { subject?: unknown } }>(
@@ -94,7 +101,14 @@ const readViewerFollowUri = async (
     )
     return record?.value?.subject === did ? uri : null
   } catch (error) {
-    if (!(error instanceof BlueskyRequestError)) throw error
+    if (
+      !(error instanceof BlueskyRequestError) ||
+      error.status < 400 ||
+      error.status >= 500 ||
+      error.status === 429
+    ) {
+      throw error
+    }
     logger.info({
       message: 'Could not read an existing Bluesky follow',
       err: toLoggableError(error)
@@ -217,10 +231,8 @@ const deleteFollow = async (
   await deleteFollowRecord(agent, existing.uri)
   // Also remove a leftover duplicate follow record created before adoption.
   if (did) {
-    const leftover = await readViewerFollowUri(agent, did)
-    if (leftover && leftover !== existing.uri) {
-      await deleteFollowRecord(agent, leftover)
-    }
+    const leftover = await readViewerFollowUri(agent, did, existing.uri)
+    if (leftover) await deleteFollowRecord(agent, leftover)
   }
   await database.deleteBlueskyFollow({ actorId: actor.id, targetActorId })
 }

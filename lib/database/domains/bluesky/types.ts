@@ -35,6 +35,8 @@ export type UpsertBlueskyPostParams = {
   createdAt: number
   replyToStatusId?: string | null
   attachments: BlueskyPostAttachment[]
+  // A content-warning label (adult or graphic media): media shown blurred.
+  sensitive?: boolean
 }
 
 export type BlueskyRecord = {

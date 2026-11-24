@@ -6,6 +6,7 @@ import {
   blueskyPostId,
   blueskyPostToHtml,
   isBlueskyId,
+  isBlueskyPostSensitive,
   parseAtUri,
   parseBlueskyPostView,
   storeBlueskyAuthor,
@@ -374,6 +375,45 @@ describe('blueskyEmbedLinksHtml', () => {
   })
 })
 
+describe('isBlueskyPostSensitive', () => {
+  it('reads a moderation label on the view', () => {
+    expect(isBlueskyPostSensitive({ labels: [{ val: 'porn' }] })).toBe(true)
+  })
+
+  it('reads the author self-label under record.labels.values', () => {
+    expect(
+      isBlueskyPostSensitive({
+        record: { labels: { values: [{ val: 'graphic-media' }] } }
+      })
+    ).toBe(true)
+  })
+
+  it('ignores unrelated labels and a view without labels', () => {
+    expect(
+      isBlueskyPostSensitive({
+        labels: [{ val: 'spam' }],
+        record: { labels: { values: [{ val: '!no-unauthenticated' }] } }
+      })
+    ).toBe(false)
+    expect(isBlueskyPostSensitive({})).toBe(false)
+  })
+
+  it('is false for malformed input', () => {
+    for (const value of [
+      null,
+      undefined,
+      'porn',
+      42,
+      [],
+      { labels: 'porn' },
+      { labels: [null, 'porn', { val: 1 }] },
+      { record: { labels: { values: 'porn' } } }
+    ]) {
+      expect(isBlueskyPostSensitive(value)).toBe(false)
+    }
+  })
+})
+
 describe('storing AppView views', () => {
   const testDb = createTestDatabase()
   const { database } = testDb
@@ -454,6 +494,31 @@ describe('storing AppView views', () => {
       text: '<p>A reply</p>',
       reply: blueskyPostId(MALLORY, 'p1')
     })
+  })
+
+  it('stores a post with a self-label as sensitive', async () => {
+    const post = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/nsfw1`,
+      cid: 'cid-nsfw1',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Labeled',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        labels: {
+          $type: 'com.atproto.label.defs#selfLabels',
+          values: [{ val: 'nudity' }]
+        }
+      }
+    })
+    expect(post).not.toBeNull()
+    const statusId = await storeBlueskyPostView(
+      database,
+      post as NonNullable<typeof post>
+    )
+    expect(
+      await database.getStatus({ statusId: statusId as string })
+    ).toMatchObject({ sensitive: true })
   })
 
   it('stores embed links for a card-only post and skips duplicate card links', async () => {

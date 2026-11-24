@@ -271,6 +271,35 @@ export const blueskyEmbedLinksHtml = (
   }
 }
 
+// Bluesky's content-warning labels for adult and graphic media.
+const SENSITIVE_LABELS = new Set([
+  'porn',
+  'sexual',
+  'nudity',
+  'graphic-media',
+  'gore',
+  '!warn'
+])
+
+const labelValues = (labels: unknown): unknown[] =>
+  Array.isArray(labels)
+    ? labels.map((label) => (isRecord(label) ? label.val : undefined))
+    : []
+
+/**
+ * Whether a post carries a content-warning label: a moderation label on the
+ * AppView view (`labels[].val`) or the author's own self-label
+ * (`record.labels.values[].val`).
+ */
+export const isBlueskyPostSensitive = (view: unknown): boolean => {
+  if (!isRecord(view)) return false
+  const record = isRecord(view.record) ? view.record : {}
+  const selfLabels = isRecord(record.labels) ? record.labels.values : undefined
+  return [...labelValues(view.labels), ...labelValues(selfLabels)].some(
+    (value) => typeof value === 'string' && SENSITIVE_LABELS.has(value)
+  )
+}
+
 const optionalCount = (value: unknown) =>
   Number.isInteger(value) && (value as number) >= 0
     ? (value as number)
@@ -401,7 +430,8 @@ export const storeBlueskyPostView = async (
     // A clock ahead of ours must not pin the post to the top of a feed.
     createdAt: Math.min(createdAt, now),
     replyToStatusId,
-    attachments: blueskyImagesFromEmbed(post.view.embed)
+    attachments: blueskyImagesFromEmbed(post.view.embed),
+    sensitive: isBlueskyPostSensitive(post.view)
   })
   return statusId
 }

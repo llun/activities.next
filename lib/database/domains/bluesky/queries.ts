@@ -243,7 +243,8 @@ export const upsertBlueskyPost = async (
     text,
     createdAt,
     replyToStatusId,
-    attachments
+    attachments,
+    sensitive = false
   }: UpsertBlueskyPostParams
 ): Promise<{ statusId: string; created: boolean }> => {
   const stored = await getBlueskyRecordByUri(db, { uri })
@@ -274,7 +275,8 @@ export const upsertBlueskyPost = async (
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: [],
         reply: replyToStatusId ?? '',
-        createdAt
+        createdAt,
+        sensitive
       })
       await trx
         .updateTable('statuses')

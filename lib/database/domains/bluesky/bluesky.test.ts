@@ -366,6 +366,39 @@ describe('Bluesky', () => {
       expect(await inHome('https://local.test/users/other')).toBe(false)
     })
 
+    it('stores a sensitive post and defaults to not sensitive', async () => {
+      const sensitiveId = blueskyPostId(did, '3knsfw')
+      await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/3knsfw`,
+        cid: 'bafynsfw',
+        did,
+        rkey: '3knsfw',
+        actorId,
+        text: '<p>NSFW</p>',
+        createdAt: Date.UTC(2026, 10, 5),
+        attachments: [],
+        sensitive: true
+      })
+      expect(await database.getStatus({ statusId: sensitiveId })).toMatchObject(
+        { sensitive: true }
+      )
+
+      const plainId = blueskyPostId(did, '3kplain')
+      await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/3kplain`,
+        cid: 'bafyplain',
+        did,
+        rkey: '3kplain',
+        actorId,
+        text: '<p>Plain</p>',
+        createdAt: Date.UTC(2026, 10, 6),
+        attachments: []
+      })
+      expect(await database.getStatus({ statusId: plainId })).toMatchObject({
+        sensitive: false
+      })
+    })
+
     it('stores a reply to a stored post', async () => {
       const parentId = blueskyPostId(did, '3kpost')
       const { statusId } = await database.upsertBlueskyPost({

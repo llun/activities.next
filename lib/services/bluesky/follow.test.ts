@@ -308,6 +308,28 @@ describe('Bluesky follow service', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
+  it('fails the follow when the profile lookup is an outage', async () => {
+    getProfile.mockRejectedValue(
+      new BlueskyRequestError('app.bsky.actor.getProfile', 503)
+    )
+
+    await expect(
+      followBlueskyActor(database, actor, TARGET_ID)
+    ).rejects.toBeInstanceOf(BlueskyRequestError)
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('fails the follow when the profile lookup is rate limited', async () => {
+    getProfile.mockRejectedValue(
+      new BlueskyRequestError('app.bsky.actor.getProfile', 429)
+    )
+
+    await expect(
+      followBlueskyActor(database, actor, TARGET_ID)
+    ).rejects.toBeInstanceOf(BlueskyRequestError)
+    expect(post).not.toHaveBeenCalled()
+  })
+
   it('writes one record when the same follow is sent twice at once', async () => {
     post.mockImplementation(
       () =>
@@ -417,6 +439,32 @@ describe('Bluesky follow service', () => {
         followBlueskyActor(database, actor, id)
       ).rejects.toMatchObject({ status: 404 })
     }
+  })
+
+  it('refuses a follow for an actor id that is not a DID', async () => {
+    for (const id of [
+      'https://bsky.app/profile/did:',
+      'https://bsky.app/profile/did:plc:abc def'
+    ]) {
+      await expect(
+        followBlueskyActor(database, actor, id)
+      ).rejects.toMatchObject({ status: 404 })
+    }
+    expect(getBlueskyAgent).not.toHaveBeenCalled()
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('resolves an unfollow for an actor id that is not a DID without a PDS call', async () => {
+    for (const id of [
+      'https://bsky.app/profile/did:',
+      'https://bsky.app/profile/did:plc:abc def'
+    ]) {
+      await expect(
+        unfollowBlueskyActor(database, actor, id)
+      ).resolves.toBeUndefined()
+    }
+    expect(getBlueskyAgent).not.toHaveBeenCalled()
+    expect(post).not.toHaveBeenCalled()
   })
 
   it('deletes the record and the row on unfollow', async () => {
@@ -537,6 +585,37 @@ describe('Bluesky follow service', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
+  it('resolves without a Bluesky call when the target actor is not stored', async () => {
+    await expect(
+      unfollowBlueskyActor(database, actor, blueskyActorId('did:plc:unknown'))
+    ).resolves.toBeUndefined()
+    expect(getBlueskyAgent).not.toHaveBeenCalled()
+    expect(get).not.toHaveBeenCalled()
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('keeps the row when the leftover lookup is an outage during unfollow', async () => {
+    await database.createBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: TARGET_ID,
+      uri: FOLLOW_URI
+    })
+    getProfile.mockRejectedValue(
+      new BlueskyRequestError('app.bsky.actor.getProfile', 503)
+    )
+    post.mockResolvedValue({})
+
+    await expect(
+      unfollowBlueskyActor(database, actor, TARGET_ID)
+    ).rejects.toBeInstanceOf(BlueskyRequestError)
+    expect(
+      await database.getBlueskyFollow({
+        actorId: actor.id,
+        targetActorId: TARGET_ID
+      })
+    ).not.toBeNull()
+  })
+
   it('does not delete the same record twice when getProfile still reports it after deletion', async () => {
     await database.createBlueskyFollow({
       actorId: actor.id,
@@ -548,6 +627,7 @@ describe('Bluesky follow service', () => {
 
     await unfollowBlueskyActor(database, actor, TARGET_ID)
 
+    expect(getRecord).not.toHaveBeenCalled()
     expect(post).toHaveBeenCalledTimes(1)
     expect(
       await database.getBlueskyFollow({
