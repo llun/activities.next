@@ -58,7 +58,7 @@ describe('enqueueDeliveries', () => {
     expect(publish).not.toHaveBeenCalled()
   })
 
-  it('never queues a delivery for an Announce or Undo Announce targeting a Bluesky post', async () => {
+  it('never queues a delivery for an Announce, Undo Announce, or Delete targeting a Bluesky post', async () => {
     const blueskyPostId = `https://bsky.app/profile/did:plc:${'a'.repeat(24)}/post/3k`
     await enqueueDeliveries({
       database: mockDatabase,
@@ -83,6 +83,31 @@ describe('enqueueDeliveries', () => {
           actor: 'https://local.test/users/alice',
           object: blueskyPostId
         }
+      },
+      inboxes: ['https://live.example/inbox']
+    })
+    await enqueueDeliveries({
+      database: mockDatabase,
+      parentMessageId: 'msg-bsky-delete-tombstone',
+      actorId: 'https://local.test/users/alice',
+      activity: {
+        type: 'Delete',
+        actor: 'https://local.test/users/alice',
+        object: {
+          id: blueskyPostId,
+          type: 'Tombstone'
+        }
+      },
+      inboxes: ['https://live.example/inbox']
+    })
+    await enqueueDeliveries({
+      database: mockDatabase,
+      parentMessageId: 'msg-bsky-delete-string',
+      actorId: 'https://local.test/users/alice',
+      activity: {
+        type: 'Delete',
+        actor: 'https://local.test/users/alice',
+        object: blueskyPostId
       },
       inboxes: ['https://live.example/inbox']
     })

@@ -89,11 +89,12 @@ describe('BlueskyAccount', () => {
       await database.getBlueskyFollowTargetIds({ actorId: 'actor-3' })
     ).toEqual([])
     expect(
-      await database.getBlueskyInteractionsForStatuses({
+      await database.getBlueskyInteraction({
         actorId: 'actor-3',
-        statusIds: ['https://bsky.app/profile/did:plc:target/post/3k1']
+        statusId: 'https://bsky.app/profile/did:plc:target/post/3k1',
+        kind: 'like'
       })
-    ).toEqual([])
+    ).toBeNull()
     expect(
       (await database.getBlueskyAccount({ actorId: 'actor-3' }))?.did
     ).toBe('did:plc:new')
@@ -110,11 +111,12 @@ describe('BlueskyAccount', () => {
       await database.getBlueskyFollowTargetIds({ actorId: 'actor-4' })
     ).toHaveLength(1)
     expect(
-      await database.getBlueskyInteractionsForStatuses({
+      await database.getBlueskyInteraction({
         actorId: 'actor-4',
-        statusIds: ['https://bsky.app/profile/did:plc:target/post/3k1']
+        statusId: 'https://bsky.app/profile/did:plc:target/post/3k1',
+        kind: 'like'
       })
-    ).toHaveLength(1)
+    ).not.toBeNull()
   })
 
   it('sets, reads and clears notificationsSeenAt', async () => {
@@ -415,11 +417,12 @@ describe('BlueskyAccount', () => {
       await database.getBlueskyFollowTargetIds({ actorId: 'actor-7' })
     ).toEqual([])
     expect(
-      await database.getBlueskyInteractionsForStatuses({
+      await database.getBlueskyInteraction({
         actorId: 'actor-7',
-        statusIds: ['https://bsky.app/profile/did:plc:target/post/3k1']
+        statusId: 'https://bsky.app/profile/did:plc:target/post/3k1',
+        kind: 'like'
       })
-    ).toEqual([])
+    ).toBeNull()
     expect(
       await database.getBlueskySession({ did: 'did:plc:seven' })
     ).toBeNull()

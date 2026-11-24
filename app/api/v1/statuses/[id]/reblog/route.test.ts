@@ -13,6 +13,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { getStatusVisibility } from '@/lib/utils/getVisibility'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { POST } from './route'
@@ -105,6 +106,7 @@ describe('POST /api/v1/statuses/[id]/reblog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getBlueskyAgent).mockReset()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -190,6 +192,67 @@ describe('POST /api/v1/statuses/[id]/reblog', () => {
       'com.atproto.repo.createRecord',
       expect.objectContaining({ collection: 'app.bsky.feed.repost' })
     )
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('refuses reposting a Bluesky post with visibility private with 422', async () => {
+    const { statusId } = await storeBlueskyPost(database, 'reblogprivate')
+
+    const response = await reblog(statusId, { visibility: 'private' })
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Bluesky reposts are public: Bluesky has no followers-only posts.'
+    })
+    expect(getBlueskyAgent).not.toHaveBeenCalled()
+    expect(
+      await database.getActorAnnounceStatus({
+        statusId,
+        actorId: ACTOR1_ID
+      })
+    ).toBeNull()
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('passes unlisted visibility through to the local-only Bluesky boost', async () => {
+    const ownDid = 'did:plc:meaaaaaaaaaaaaaaaaaaaaaa'
+    const { statusId } = await storeBlueskyPost(database, 'reblogunlisted')
+    await database.saveBlueskyAccount({
+      actorId: ACTOR1_ID,
+      did: ownDid,
+      handle: 'me.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
+    const post = vi.fn().mockResolvedValue({
+      uri: `at://${ownDid}/app.bsky.feed.repost/3kunlisted`
+    })
+    const get = vi.fn().mockResolvedValue({ posts: [{ viewer: {} }] })
+    vi.mocked(getBlueskyAgent).mockResolvedValue({
+      did: ownDid,
+      pdsUrl: 'https://pds.example.net/',
+      get,
+      post
+    } as unknown as BlueskyAgent)
+
+    const response = await reblog(statusId, { visibility: 'unlisted' })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      reblog: expect.objectContaining({
+        uri: statusId,
+        reblogged: true
+      })
+    })
+    const localAnnounce = await database.getActorAnnounceStatus({
+      statusId,
+      actorId: ACTOR1_ID
+    })
+    expect(localAnnounce).not.toBeNull()
+    expect(getStatusVisibility(localAnnounce!)).toBe('unlisted')
+    expect(localAnnounce?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+    expect(localAnnounce?.cc).toContain(ACTIVITY_STREAM_PUBLIC)
     expect(getQueue().publish).not.toHaveBeenCalled()
   })
 

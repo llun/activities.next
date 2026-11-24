@@ -84,6 +84,7 @@ describe('POST /api/v1/statuses/[id]/unreblog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getBlueskyAgent).mockReset()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

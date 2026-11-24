@@ -344,11 +344,19 @@ describe('ActorDatabase deletion', () => {
         await database.deleteActorData({ actorId })
 
         expect(
-          await database.getBlueskyInteractionsForStatuses({
+          await database.getBlueskyInteraction({
             actorId,
-            statusIds: [statusId]
+            statusId,
+            kind: 'like'
           })
-        ).toEqual([])
+        ).toBeNull()
+        expect(
+          await database.getBlueskyInteraction({
+            actorId,
+            statusId,
+            kind: 'repost'
+          })
+        ).toBeNull()
         expect(
           await database.getBlueskyInteraction({
             actorId: peerActorId,

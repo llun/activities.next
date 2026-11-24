@@ -6,6 +6,10 @@ import { updateNoteVisibilityFromUserInput } from '@/lib/actions/updateNoteVisib
 import { updatePollFromUserInput } from '@/lib/actions/updatePoll'
 import { movedAccountResponse } from '@/lib/services/accounts/movedAccount'
 import { blueskyActionFailure } from '@/lib/services/bluesky/actionErrors'
+import {
+  blueskyInteractionFailure,
+  unrepostBlueskyPost
+} from '@/lib/services/bluesky/interactions'
 import { blueskyActorId } from '@/lib/services/bluesky/records'
 import {
   BLUESKY_DELETE_BUSY_MESSAGE,
@@ -48,7 +52,11 @@ import {
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
-import { StatusType, isBlueskyStatus } from '@/lib/types/domain/status'
+import {
+  StatusType,
+  getOriginalStatus,
+  isBlueskyStatus
+} from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -773,6 +781,45 @@ export const DELETE = traceApiRoute(
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
 
       if (isBlueskyStatus(status)) {
+        if (status.type === StatusType.enum.Announce) {
+          if (status.actorId !== currentActor.id) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_403,
+              responseStatusCode: 403
+            })
+          }
+          const mastodonStatus = await getMastodonStatus(
+            database,
+            status,
+            currentActor.id
+          )
+          try {
+            await unrepostBlueskyPost(
+              database,
+              currentActor,
+              getOriginalStatus(status).id
+            )
+          } catch (error) {
+            const failure = blueskyInteractionFailure(error)
+            if (failure) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: { error: failure.error },
+                responseStatusCode: failure.status
+              })
+            }
+            throw error
+          }
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: mastodonStatus ?? {}
+          })
+        }
+
         const blueskyAccount = await database.getBlueskyAccount({
           actorId: currentActor.id
         })

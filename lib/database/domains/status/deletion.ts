@@ -562,6 +562,12 @@ const executeStatusDeletion = async ({
   await deleteByStatusIds((chunk) =>
     trx.deleteFrom('likes').where('statusId', 'in', chunk).execute()
   )
+  await deleteByStatusIds((chunk) =>
+    trx
+      .deleteFrom('bluesky_interactions')
+      .where('statusId', 'in', chunk)
+      .execute()
+  )
   // Emoji reactions follow the status, like favourites do. A remote status
   // that is deleted and later re-fetched under the same id would otherwise
   // come back wearing its old reaction chips.

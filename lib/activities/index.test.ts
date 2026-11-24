@@ -1087,6 +1087,26 @@ describe('activities', () => {
         }
       })
       expect(announceActivity?.id).toBe(`${actor1.id}/statuses/ann-1/activity`)
+      expect(
+        buildAnnounceActivity({
+          status: {
+            id: `${actor1.id}/statuses/ann-bsky`,
+            actorId: actor1.id,
+            actor: actor1,
+            type: StatusType.enum.Announce,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            edits: [],
+            originalStatus: {
+              ...status,
+              network: 'bluesky'
+            } as unknown as Status,
+            isLocalActor: true,
+            createdAt: 1700000000000,
+            updatedAt: 1700000000000
+          }
+        })
+      ).toBeNull()
 
       const undo = buildUndoAnnounceActivity({
         actorId: actor1.id,

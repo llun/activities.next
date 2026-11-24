@@ -331,21 +331,49 @@ describe('Bluesky follow service', () => {
   })
 
   it('writes one record when the same follow is sent twice at once', async () => {
-    post.mockImplementation(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(() => resolve({ uri: FOLLOW_URI }), 50)
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    const realAcquire = database.acquireImportLock.bind(database)
+    let markContended!: () => void
+    const contended = new Promise<void>((resolve) => {
+      markContended = resolve
+    })
+    const acquireSpy = vi
+      .spyOn(database, 'acquireImportLock')
+      .mockImplementation(async (params) => {
+        const lock = await realAcquire(params)
+        if (!lock) markContended()
+        return lock
+      })
+    try {
+      let releasePost!: () => void
+      const postStarted = new Promise<void>((resolve) => {
+        post.mockImplementation(
+          () =>
+            new Promise((resolvePost) => {
+              releasePost = () => resolvePost({ uri: FOLLOW_URI })
+              resolve()
+            })
         )
-    )
+      })
 
-    const [first, second] = await Promise.all([
-      followBlueskyActor(database, actor, TARGET_ID),
-      followBlueskyActor(database, actor, TARGET_ID)
-    ])
+      const firstPromise = followBlueskyActor(database, actor, TARGET_ID)
+      await postStarted
+      const secondPromise = followBlueskyActor(database, actor, TARGET_ID)
+      await contended
 
-    expect(post).toHaveBeenCalledTimes(1)
-    expect(first.uri).toBe(FOLLOW_URI)
-    expect(second.uri).toBe(FOLLOW_URI)
+      releasePost()
+      const first = await firstPromise
+
+      await vi.advanceTimersByTimeAsync(200)
+      const second = await secondPromise
+
+      expect(post).toHaveBeenCalledTimes(1)
+      expect(first.uri).toBe(FOLLOW_URI)
+      expect(second.uri).toBe(FOLLOW_URI)
+    } finally {
+      acquireSpy.mockRestore()
+      vi.useRealTimers()
+    }
   })
 
   it.each([

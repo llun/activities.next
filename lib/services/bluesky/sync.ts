@@ -213,11 +213,7 @@ const runSync = async (database: Database, actor: Actor) => {
         storeHomeItem(database, actor, item, post)
       )
     }
-    await database.updateBlueskyAccountSync({
-      actorId: actor.id,
-      lastSyncedAt: Date.now(),
-      syncError: null
-    })
+    const homeSyncedAt = Date.now()
     try {
       await syncBlueskyNotifications(database, actor, agent)
     } catch (error) {
@@ -226,14 +222,28 @@ const runSync = async (database: Database, actor: Actor) => {
           message: 'Bluesky notification sync stopped by a relink',
           actorId: actor.id
         })
-      } else {
-        logger.warn({
-          message: 'Bluesky notification sync failed',
-          actorId: actor.id,
-          err: toLoggableError(error)
-        })
+        return
       }
+      const syncError =
+        'Bluesky notifications could not be read. Trying again in a few minutes.'
+      logger.warn({
+        message: 'Bluesky notification sync failed',
+        actorId: actor.id,
+        error: syncError,
+        err: toLoggableError(error)
+      })
+      await database.updateBlueskyAccountSync({
+        actorId: actor.id,
+        lastSyncedAt: homeSyncedAt,
+        syncError
+      })
+      return
     }
+    await database.updateBlueskyAccountSync({
+      actorId: actor.id,
+      lastSyncedAt: homeSyncedAt,
+      syncError: null
+    })
   } catch (error) {
     // Relinked while this run worked: the new link starts clean and its own
     // sync comes on the next sweep, so leave no error on it.

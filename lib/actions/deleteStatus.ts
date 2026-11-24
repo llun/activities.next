@@ -5,6 +5,7 @@ import { getQueue } from '@/lib/services/queue'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { CreateQueueJobParams } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
+import { isBlueskyStatus } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -26,7 +27,8 @@ export const deleteStatusFromUserInput = async ({
       statusId,
       withReplies: false
     })
-    if (!originalStatus) {
+    // Never delete or federate a Delete for a Bluesky post or a local boost of one.
+    if (!originalStatus || isBlueskyStatus(originalStatus)) {
       return
     }
     const normalizedCurrentActorId = normalizeActorId(currentActor.id)
