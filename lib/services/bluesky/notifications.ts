@@ -41,7 +41,7 @@ import {
 } from './records'
 
 const PAGE_LIMIT = 50
-const MAX_PAGES = 2
+const MAX_PAGES = 4
 const POST_COLLECTION = 'app.bsky.feed.post'
 const DEDUP_SCAN_LIMIT = 100
 
@@ -129,31 +129,87 @@ const replyParentStatusId = (post: BlueskyPostView): string | null => {
 const extractRecordUri = (value: unknown): string | undefined =>
   isRecord(value) ? optionalString(value.uri) : undefined
 
-const quotedPostStatusId = (post: BlueskyPostView): string | null => {
-  const embed = isRecord(post.record.embed)
-    ? post.record.embed
-    : isRecord(post.view.embed)
-      ? post.view.embed
-      : null
-  if (!embed) return null
-  let uri: string | undefined
+const extractEmbedRecordUri = (embed: unknown): string | undefined => {
+  if (!isRecord(embed)) return undefined
   if (
     embed.$type === 'app.bsky.embed.record' ||
     embed.$type === 'app.bsky.embed.record#view'
   ) {
-    uri = extractRecordUri(embed.record)
-  } else if (
+    return extractRecordUri(embed.record)
+  }
+  if (
     embed.$type === 'app.bsky.embed.recordWithMedia' ||
     embed.$type === 'app.bsky.embed.recordWithMedia#view'
   ) {
-    uri = isRecord(embed.record)
+    return isRecord(embed.record)
       ? extractRecordUri(embed.record.record)
       : undefined
   }
+  return undefined
+}
+
+const extractQuotedRecordUri = (post: BlueskyPostView): string | undefined =>
+  extractEmbedRecordUri(post.record.embed) ??
+  extractEmbedRecordUri(post.view.embed)
+
+const quotedPostStatusId = (post: BlueskyPostView): string | null => {
+  const uri = extractQuotedRecordUri(post)
   const at = uri ? parseAtUri(uri) : null
   return at?.collection === POST_COLLECTION
     ? blueskyPostId(at.did, at.rkey)
     : null
+}
+
+const isReplyToUser = (post: BlueskyPostView, userDid: string): boolean => {
+  if (!isRecord(post.record.reply)) return false
+  const parentUri = extractRecordUri(post.record.reply.parent)
+  const rootUri = extractRecordUri(post.record.reply.root)
+  return (
+    (parentUri !== undefined && parseAtUri(parentUri)?.did === userDid) ||
+    (rootUri !== undefined && parseAtUri(rootUri)?.did === userDid)
+  )
+}
+
+const isMentionOfUser = (post: BlueskyPostView, userDid: string): boolean => {
+  if (!Array.isArray(post.record.facets)) return false
+  for (const facet of post.record.facets) {
+    if (!isRecord(facet) || !Array.isArray(facet.features)) continue
+    for (const feature of facet.features) {
+      if (
+        isRecord(feature) &&
+        feature.$type === 'app.bsky.richtext.facet#mention' &&
+        feature.did === userDid
+      ) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+const isQuoteOfUser = (post: BlueskyPostView, userDid: string): boolean => {
+  const uri = extractQuotedRecordUri(post)
+  return uri !== undefined && parseAtUri(uri)?.did === userDid
+}
+
+const postMatchesNotification = (
+  candidate: NotificationCandidate,
+  post: BlueskyPostView,
+  userDid: string
+): boolean => {
+  switch (candidate.reason) {
+    case 'like':
+    case 'repost':
+      return post.at.did === userDid
+    case 'reply':
+      return post.at.did === candidate.authorDid && isReplyToUser(post, userDid)
+    case 'mention':
+      return (
+        post.at.did === candidate.authorDid && isMentionOfUser(post, userDid)
+      )
+    case 'quote':
+      return post.at.did === candidate.authorDid && isQuoteOfUser(post, userDid)
+  }
 }
 
 const notificationSpec = (
@@ -314,9 +370,10 @@ const ensureSameLink = async (
  * Syncs Bluesky notifications (like, repost, reply, mention, quote) for a local
  * actor into the local notifications table and dispatches push/email alerts.
  *
- * First run (notificationsSeenAt === null): initializes the watermark to the
- * newest notification indexedAt (or now if none) without copying older
- * notifications. Later runs process unseen notifications (indexedAt > seenAt)
+ * When notificationsSeenAt is null, the watermark starts at the account link
+ * time (account.createdAt), so nothing older than the link is copied while
+ * notifications that arrived after linking (even if earlier Home syncs failed)
+ * are preserved. Unseen notifications (indexedAt > seenAt) are processed
  * oldest-first, re-reading every stored post and author from the public AppView.
  */
 export const syncBlueskyNotifications = async (
@@ -330,34 +387,11 @@ export const syncBlueskyNotifications = async (
   if (!account) return
   if (account.did !== agent.did) throw new BlueskySessionChangedError()
 
-  if (account.notificationsSeenAt === null) {
-    const response = await agent.get<{ notifications?: unknown }>(
-      'app.bsky.notification.listNotifications',
-      { limit: PAGE_LIMIT }
-    )
-    const list = (
-      Array.isArray(response?.notifications) ? response.notifications : []
-    ).slice(0, PAGE_LIMIT)
-    let newestIndexedAt: number | null = null
-    for (const item of list) {
-      if (!isRecord(item)) continue
-      const indexedAt = Date.parse(optionalString(item.indexedAt) ?? '')
-      if (!Number.isFinite(indexedAt)) continue
-      if (newestIndexedAt === null || indexedAt > newestIndexedAt) {
-        newestIndexedAt = indexedAt
-      }
-    }
-    if (!(await ensureSameLink(database, actor.id, agent.did))) return
-    await database.updateBlueskyNotificationsSeenAt({
-      actorId: actor.id,
-      seenAt: newestIndexedAt ?? Date.now()
-    })
-    return
-  }
-
-  const seenAt = account.notificationsSeenAt
+  const seenAt = account.notificationsSeenAt ?? account.createdAt
   const unseen: UnseenEntry[] = []
   let cursor: string | undefined
+  let reachedSeenAt = false
+  let hasMore = false
 
   pages: for (let page = 0; page < MAX_PAGES; page++) {
     const response = await agent.get<{
@@ -374,7 +408,10 @@ export const syncBlueskyNotifications = async (
       if (!isRecord(item)) continue
       const indexedAt = Date.parse(optionalString(item.indexedAt) ?? '')
       if (!Number.isFinite(indexedAt)) continue
-      if (indexedAt <= seenAt) break pages
+      if (indexedAt <= seenAt) {
+        reachedSeenAt = true
+        break pages
+      }
       unseen.push({
         indexedAt,
         candidate: parseCandidate(item, agent.did)
@@ -382,9 +419,33 @@ export const syncBlueskyNotifications = async (
     }
     cursor = optionalString(response?.cursor)
     if (!cursor || list.length === 0) break
+    if (page === MAX_PAGES - 1) {
+      hasMore = true
+    }
   }
 
-  if (unseen.length === 0) return
+  // shortcut: a burst over 200 per sync interval keeps the newest 200; store
+  // the listNotifications cursor if that ever matters.
+  if (hasMore && !reachedSeenAt) {
+    logger.info({
+      message:
+        'Bluesky notification sync hit the page cap before reaching the last seen timestamp; older notifications in the gap were skipped',
+      actorId: actor.id,
+      pages: MAX_PAGES,
+      readCount: unseen.length
+    })
+  }
+
+  if (unseen.length === 0) {
+    if (account.notificationsSeenAt === null) {
+      if (!(await ensureSameLink(database, actor.id, agent.did))) return
+      await database.updateBlueskyNotificationsSeenAt({
+        actorId: actor.id,
+        seenAt
+      })
+    }
+    return
+  }
 
   const candidates = unseen
     .map((entry) => entry.candidate)
@@ -408,13 +469,12 @@ export const syncBlueskyNotifications = async (
       if (!(await ensureSameLink(database, actor.id, agent.did))) return
       const profile = profiles.get(candidate.authorDid)
       const post = posts.get(candidate.postUri)
-      const authorMatches =
-        post &&
-        (candidate.reason === 'like' || candidate.reason === 'repost'
-          ? post.at.did === agent.did
-          : post.at.did === candidate.authorDid)
 
-      if (profile && post && authorMatches) {
+      if (
+        profile &&
+        post &&
+        postMatchesNotification(candidate, post, agent.did)
+      ) {
         try {
           const sourceActorId = await storeBlueskyAuthor(database, profile, {
             full: true

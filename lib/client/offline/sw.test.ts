@@ -483,6 +483,68 @@ return {
       expect(text).toBe('<h1>Signed-in Shell</h1>')
     })
 
+    it('goes network-first for GET /?network=bluesky even with an active offline session and seeded shell', async () => {
+      const mockIdb = {
+        open: vi.fn(() => {
+          const req: Record<string, unknown> = {}
+          setTimeout(() => {
+            req.result = {
+              objectStoreNames: { contains: (name: string) => name === 'meta' },
+              transaction: () => ({
+                objectStore: () => ({
+                  get: () => {
+                    const getReq: Record<string, unknown> = {}
+                    setTimeout(() => {
+                      getReq.result = {
+                        key: 'activeSession',
+                        actorId: 'actor-1'
+                      }
+                      if (typeof getReq.onsuccess === 'function') {
+                        getReq.onsuccess()
+                      }
+                    }, 0)
+                    return getReq
+                  }
+                })
+              }),
+              close: vi.fn()
+            }
+            if (typeof req.onsuccess === 'function') req.onsuccess()
+          }, 0)
+          return req
+        })
+      }
+      vi.stubGlobal('indexedDB', mockIdb)
+      ;(globalThis as unknown as { indexedDB: unknown }).indexedDB = mockIdb
+
+      const shellCache = await caches.open('activities-shell-v1')
+      await shellCache.put(
+        '/app',
+        new Response('<h1>Signed-in Shell</h1>', {
+          headers: { 'Content-Type': 'text/html' }
+        })
+      )
+      mockFetch.mockResolvedValueOnce(
+        new Response('<h1>Bluesky Feed</h1>', { status: 200 })
+      )
+
+      const req = new Request('https://llun.social/?network=bluesky')
+      Object.defineProperty(req, 'mode', { value: 'navigate' })
+
+      const { response } = await triggerFetch(req)
+      expect(response).not.toBeNull()
+      expect(await response!.text()).toBe('<h1>Bluesky Feed</h1>')
+      expect(mockFetch).toHaveBeenCalledWith(req)
+
+      // When offline, does not serve the mixed Home shell for a filtered URL.
+      mockFetch.mockRejectedValueOnce(new TypeError('offline'))
+      const offlineRes = (await triggerFetch(req)).response
+      expect(offlineRes).not.toBeNull()
+      expect(await offlineRes!.text()).toContain(
+        '<h1>Not saved for offline</h1>'
+      )
+    })
+
     it('goes to network for GET / when no active offline session exists, falling back to cache on failure', async () => {
       const mockIdb = {
         open: vi.fn(() => {

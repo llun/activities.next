@@ -259,15 +259,26 @@ const getActorTimeline = async (
     )
     // The network filter is part of the keyset scan, so cursors and the limit
     // page over the filtered rows. ActivityPub statuses have a NULL network.
+    // An Announce inherits its original status's network, so a local-only boost
+    // of a Bluesky post (whose own row has network NULL) stays under Bluesky.
     .$if(network !== undefined, (qb) =>
       qb.where((eb) =>
         eb.exists(
           eb
             .selectFrom('statuses')
+            .leftJoin(
+              'statuses as original_statuses',
+              'original_statuses.id',
+              'statuses.originalStatusId'
+            )
             .select(sql.lit(1).as('one'))
             .whereRef('statuses.id', '=', 'timelines.statusId')
             .where(
-              'statuses.network',
+              (innerEb) =>
+                innerEb.fn.coalesce(
+                  'original_statuses.network',
+                  'statuses.network'
+                ),
               network === 'bluesky' ? '=' : 'is',
               network === 'bluesky' ? 'bluesky' : null
             )

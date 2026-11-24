@@ -6,7 +6,10 @@ import {
   SEND_UNDO_ANNOUNCE_JOB_NAME
 } from '@/lib/jobs/names'
 import { sendUndoAnnounceJob } from '@/lib/jobs/sendUndoAnnounceJob'
-import { getDeliveryJobId } from '@/lib/services/federation/enqueueDeliveries'
+import {
+  enqueueDeliveries,
+  getDeliveryJobId
+} from '@/lib/services/federation/enqueueDeliveries'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_FOLLOWER_URL, seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
@@ -20,6 +23,20 @@ const mockGetQueue = vi.fn()
 vi.mock('@/lib/services/queue', () => ({
   getQueue: () => mockGetQueue()
 }))
+
+vi.mock(
+  '@/lib/services/federation/enqueueDeliveries',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@/lib/services/federation/enqueueDeliveries')
+      >()
+    return {
+      ...actual,
+      enqueueDeliveries: vi.fn(actual.enqueueDeliveries)
+    }
+  }
+)
 
 const FOLLOWERS_SHARED_INBOX = 'https://somewhere.test/inbox'
 
@@ -178,19 +195,31 @@ describe('sendUndoAnnounceJob', () => {
   it('refuses to federate an undo announce whose original is a Bluesky post', async () => {
     if (!actor1) fail('Actor1 is required')
 
-    await sendUndoAnnounceJob(database, {
-      id: 'undo-announce-bluesky',
-      name: SEND_UNDO_ANNOUNCE_JOB_NAME,
-      data: {
-        actorId: actor1.id,
-        statusId: `${actor1.id}/statuses/announce-bluesky`,
-        originalStatusId: `https://bsky.app/profile/did:plc:${'a'.repeat(24)}/post/3k`,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [ACTOR1_FOLLOWER_URL],
-        createdAt: 1700000000000
-      }
-    })
+    // Pin sendUndoAnnounceJob's own guard independently of enqueueDeliveries's
+    // guard by asserting the job returns before loading the actor or fan-out.
+    const actorSpy = vi.spyOn(database, 'getActorFromId')
+    const followersSpy = vi.spyOn(database, 'getFollowersInbox')
+    try {
+      await sendUndoAnnounceJob(database, {
+        id: 'undo-announce-bluesky',
+        name: SEND_UNDO_ANNOUNCE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId: `${actor1.id}/statuses/announce-bluesky`,
+          originalStatusId: `https://bsky.app/profile/did:plc:${'a'.repeat(24)}/post/3k`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [ACTOR1_FOLLOWER_URL],
+          createdAt: 1700000000000
+        }
+      })
 
-    expect(publish).not.toHaveBeenCalled()
+      expect(actorSpy).not.toHaveBeenCalled()
+      expect(followersSpy).not.toHaveBeenCalled()
+      expect(enqueueDeliveries).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+    } finally {
+      actorSpy.mockRestore()
+      followersSpy.mockRestore()
+    }
   })
 })

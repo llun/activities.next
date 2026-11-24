@@ -1,3 +1,4 @@
+import { buildAnnounceActivity } from '@/lib/activities'
 import { DELIVERY_FAILURE_DAYS_THRESHOLD } from '@/lib/database/domains/deliveryInboxes/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
@@ -20,6 +21,14 @@ const mockGetQueue = vi.fn()
 vi.mock('@/lib/services/queue', () => ({
   getQueue: () => mockGetQueue()
 }))
+
+vi.mock('@/lib/activities', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/activities')>()
+  return {
+    ...actual,
+    buildAnnounceActivity: vi.fn(actual.buildAnnounceActivity)
+  }
+})
 
 describe('sendAnnounceJob', () => {
   const { database, db, prepare } = createTestDatabase()
@@ -193,15 +202,34 @@ describe('sendAnnounceJob', () => {
       createdAt: 1700000000000
     })
 
-    await sendAnnounceJob(database, {
-      id: 'announce-bluesky-job',
-      name: SEND_ANNOUNCE_JOB_NAME,
-      data: {
-        actorId: actor1.id,
-        statusId: announceId
-      }
+    // Pin sendAnnounceJob's own guard independently of buildAnnounceActivity's
+    // guard by having the mocked builder return an activity if reached.
+    vi.mocked(buildAnnounceActivity).mockReturnValueOnce({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: `${announceId}/activity`,
+      type: 'Announce',
+      actor: actor1.id,
+      published: getISOTimeUTC(1700000000000),
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      object: blueskyPostId
     })
+    const followersSpy = vi.spyOn(database, 'getFollowersInbox')
+    try {
+      await sendAnnounceJob(database, {
+        id: 'announce-bluesky-job',
+        name: SEND_ANNOUNCE_JOB_NAME,
+        data: {
+          actorId: actor1.id,
+          statusId: announceId
+        }
+      })
 
-    expect(publish).not.toHaveBeenCalled()
+      expect(buildAnnounceActivity).not.toHaveBeenCalled()
+      expect(followersSpy).not.toHaveBeenCalled()
+      expect(publish).not.toHaveBeenCalled()
+    } finally {
+      followersSpy.mockRestore()
+    }
   })
 })

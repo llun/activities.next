@@ -16,6 +16,7 @@ import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { seedActor3 } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { DELETE, GET, PUT } from './route'
@@ -445,6 +446,147 @@ describe('GET /api/v1/statuses/[id]', () => {
 
       expect(response.status).toBe(403)
       expect(await database.getStatus({ statusId })).not.toBeNull()
+    })
+
+    it('undoes the caller own local-only boost of a Bluesky post via unrepostBlueskyPost without ActivityPub delivery', async () => {
+      const { statusId: blueskyPostId } = await storeBluesky(
+        OTHER_DID,
+        'other.bsky.social',
+        '3kownboost'
+      )
+      await database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did: OWN_DID,
+        handle: 'own.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+      const announceId = `${ACTOR1_ID}/statuses/bsky-boost-delete-own`
+      await database.createAnnounce({
+        id: announceId,
+        actorId: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: blueskyPostId
+      })
+      await database.createBlueskyInteraction({
+        actorId: ACTOR1_ID,
+        statusId: blueskyPostId,
+        kind: 'repost',
+        uri: `at://${OWN_DID}/app.bsky.feed.repost/3kownrepost`
+      })
+      const post = vi.fn().mockResolvedValue({})
+      const get = vi.fn().mockResolvedValue({ posts: [{ viewer: {} }] })
+      vi.mocked(getBlueskyAgent).mockResolvedValueOnce({
+        did: OWN_DID,
+        pdsUrl: 'https://pds.example.net/',
+        get,
+        post
+      } as unknown as BlueskyAgent)
+
+      const response = await DELETE(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(announceId)}`,
+          { method: 'DELETE', headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(announceId) }) }
+      )
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        uri: announceId,
+        reblog: expect.objectContaining({
+          uri: blueskyPostId
+        })
+      })
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.repost',
+        rkey: '3kownrepost'
+      })
+      expect(await database.getStatus({ statusId: announceId })).toBeNull()
+      expect(
+        await database.getBlueskyInteraction({
+          actorId: ACTOR1_ID,
+          statusId: blueskyPostId,
+          kind: 'repost'
+        })
+      ).toBeNull()
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('returns 403 when deleting another actor boost of a Bluesky post', async () => {
+      const { statusId: blueskyPostId } = await storeBluesky(
+        OTHER_DID,
+        'other.bsky.social',
+        '3kotherboost'
+      )
+      const otherAnnounceId = `${ACTOR2_ID}/statuses/bsky-boost-delete-other`
+      await database.createAnnounce({
+        id: otherAnnounceId,
+        actorId: ACTOR2_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: blueskyPostId
+      })
+
+      const response = await DELETE(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(otherAnnounceId)}`,
+          { method: 'DELETE', headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(otherAnnounceId) }) }
+      )
+
+      expect(response.status).toBe(403)
+      expect(
+        await database.getStatus({ statusId: otherAnnounceId })
+      ).not.toBeNull()
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('maps Bluesky errors when deleting caller own boost of a Bluesky post', async () => {
+      const { statusId: blueskyPostId } = await storeBluesky(
+        OTHER_DID,
+        'other.bsky.social',
+        '3kboost502'
+      )
+      const announceId = `${ACTOR1_ID}/statuses/bsky-boost-delete-fail`
+      await database.createAnnounce({
+        id: announceId,
+        actorId: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        originalStatusId: blueskyPostId
+      })
+      await database.createBlueskyInteraction({
+        actorId: ACTOR1_ID,
+        statusId: blueskyPostId,
+        kind: 'repost',
+        uri: `at://${OWN_DID}/app.bsky.feed.repost/3kfail`
+      })
+      vi.mocked(getBlueskyAgent).mockResolvedValueOnce({
+        did: OWN_DID,
+        pdsUrl: 'https://pds.example.net/',
+        get: vi.fn(),
+        post: vi
+          .fn()
+          .mockRejectedValue(
+            new BlueskyRequestError('com.atproto.repo.deleteRecord', 503)
+          )
+      } as unknown as BlueskyAgent)
+
+      const response = await DELETE(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(announceId)}`,
+          { method: 'DELETE', headers: { Origin: 'https://llun.test' } }
+        ),
+        { params: Promise.resolve({ id: urlToId(announceId) }) }
+      )
+
+      expect(response.status).toBe(502)
+      expect(await database.getStatus({ statusId: announceId })).not.toBeNull()
     })
 
     it('refuses editing a Bluesky post with 422', async () => {

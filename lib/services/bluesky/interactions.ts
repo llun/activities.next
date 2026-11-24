@@ -199,6 +199,10 @@ const deleteInteractionRecord = async (
 
 // Re-checks the linked DID before storing so a relink during a PDS call cannot
 // attach an interaction from the old account.
+// shortcut: read-then-write across separate statements, so a relink between
+// assertLinkedDid and the insert can still leave an old-DID row; writeLike /
+// writeRepost replace a mismatched-DID row on the next write, or fold the check
+// into one transaction if that window ever matters.
 const assertLinkedDid = async (
   database: Database,
   actor: Actor,
@@ -208,6 +212,8 @@ const assertLinkedDid = async (
   if (!link) throw new BlueskyActionError(NOT_LINKED)
   if (link.did !== agentDid) throw new BlueskySessionChangedError()
 }
+
+type BlueskyRepostVisibility = 'public' | 'unlisted'
 
 const storeLike = async (
   database: Database,
@@ -234,7 +240,8 @@ const storeLike = async (
 const ensureLocalRepost = async (
   database: Database,
   actor: Actor,
-  statusId: string
+  statusId: string,
+  visibility?: BlueskyRepostVisibility
 ): Promise<Status> => {
   const existingAnnounce = await database.getActorAnnounceStatus({
     statusId,
@@ -244,7 +251,8 @@ const ensureLocalRepost = async (
   const announceStatus = await createLocalAnnounce({
     database,
     currentActor: actor,
-    originalStatusId: statusId
+    originalStatusId: statusId,
+    visibility
   })
   if (!announceStatus) {
     throw new BlueskyActionError('Record not found', 404)
@@ -257,7 +265,8 @@ const storeRepost = async (
   actor: Actor,
   statusId: string,
   agentDid: string,
-  uri: string
+  uri: string,
+  visibility?: BlueskyRepostVisibility
 ): Promise<Status> => {
   await assertLinkedDid(database, actor, agentDid)
   await database.createBlueskyInteraction({
@@ -266,7 +275,7 @@ const storeRepost = async (
     kind: 'repost',
     uri
   })
-  return ensureLocalRepost(database, actor, statusId)
+  return ensureLocalRepost(database, actor, statusId, visibility)
 }
 
 const writeLike = async (
@@ -286,8 +295,15 @@ const writeLike = async (
     kind: 'like'
   })
   if (existing) {
-    await database.createLike({ actorId: actor.id, statusId })
-    return existing
+    if (parseAtUri(existing.uri)?.did === agent.did) {
+      await database.createLike({ actorId: actor.id, statusId })
+      return existing
+    }
+    await database.deleteBlueskyInteraction({
+      actorId: actor.id,
+      statusId,
+      kind: 'like'
+    })
   }
 
   // Adopt a like already in the user's repo instead of writing a duplicate.
@@ -353,7 +369,8 @@ const removeLike = async (
 const writeRepost = async (
   database: Database,
   actor: Actor,
-  statusId: string
+  statusId: string,
+  visibility?: BlueskyRepostVisibility
 ): Promise<Status> => {
   if (!(await isBlueskyAllowed(database))) {
     throw new BlueskyActionError(BLUESKY_NOT_ALLOWED_MESSAGE)
@@ -367,17 +384,31 @@ const writeRepost = async (
     kind: 'repost'
   })
   if (existing) {
-    return ensureLocalRepost(database, actor, statusId)
+    if (parseAtUri(existing.uri)?.did === agent.did) {
+      return ensureLocalRepost(database, actor, statusId, visibility)
+    }
+    await database.deleteBlueskyInteraction({
+      actorId: actor.id,
+      statusId,
+      kind: 'repost'
+    })
   }
 
   // Adopt a repost already in the user's repo instead of writing a duplicate.
   const remoteUri = await readViewerInteractionUri(agent, record.uri, 'repost')
   if (remoteUri) {
-    return storeRepost(database, actor, statusId, agent.did, remoteUri)
+    return storeRepost(
+      database,
+      actor,
+      statusId,
+      agent.did,
+      remoteUri,
+      visibility
+    )
   }
 
   const uri = await createInteractionRecord(agent, record, 'repost')
-  return storeRepost(database, actor, statusId, agent.did, uri)
+  return storeRepost(database, actor, statusId, agent.did, uri, visibility)
 }
 
 const deleteLocalAnnounce = async (
@@ -465,10 +496,11 @@ export const unlikeBlueskyPost = async (
 export const repostBlueskyPost = async (
   database: Database,
   actor: Actor,
-  statusId: string
+  statusId: string,
+  options?: { visibility?: BlueskyRepostVisibility }
 ): Promise<Status> =>
   withInteractionLock(database, actor, statusId, 'repost', () =>
-    writeRepost(database, actor, statusId)
+    writeRepost(database, actor, statusId, options?.visibility)
   )
 
 export const unrepostBlueskyPost = async (

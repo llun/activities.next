@@ -13,6 +13,7 @@ import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotific
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { NotificationType } from '@/lib/types/database/operations'
 import type { Actor } from '@/lib/types/domain/actor'
+import { logger } from '@/lib/utils/logger'
 
 vi.mock('@/lib/services/bluesky/appview', () => ({
   getPublicPosts: vi.fn(),
@@ -54,12 +55,14 @@ const postView = (
     text = `post ${rkey}`,
     createdAt = '2026-01-01T00:00:00.000Z',
     reply,
-    embed
+    embed,
+    facets
   }: {
     text?: string
     createdAt?: string
     reply?: unknown
     embed?: unknown
+    facets?: unknown
   } = {}
 ) => ({
   uri: `at://${did(name)}/app.bsky.feed.post/${rkey}`,
@@ -70,7 +73,8 @@ const postView = (
     text,
     createdAt,
     ...(reply ? { reply } : null),
-    ...(embed ? { embed } : null)
+    ...(embed ? { embed } : null),
+    ...(facets ? { facets } : null)
   },
   indexedAt: createdAt
 })
@@ -162,29 +166,27 @@ describe('syncBlueskyNotifications', () => {
     })
   })
 
-  it('on first run sets notificationsSeenAt to newest indexedAt (or now if empty) and creates nothing', async () => {
+  it('on first run uses account link time as watermark: keeps post-link notifications and ignores older ones', async () => {
     await database.updateBlueskyNotificationsSeenAt({
       actorId: actor.id,
       seenAt: null
     })
-    const olderAt = '2026-02-01T10:00:00.000Z'
-    const newestAt = '2026-02-01T12:00:00.000Z'
+    const linkedAt = (await account())?.createdAt as number
+    const beforeLink = new Date(linkedAt - 60_000).toISOString()
+    const afterLink = new Date(linkedAt + 60_000).toISOString()
     const myPost = postView('reader', 'p1')
+    publishPost(myPost)
+    publishProfile(profileView('alice'), profileView('bob'))
+
+    // Notification older than link time only: creates nothing and sets seenAt to link time.
     get.mockResolvedValueOnce({
       notifications: [
         {
-          uri: `at://${did('alice')}/app.bsky.feed.like/l1`,
-          author: profileView('alice'),
-          reason: 'like',
-          reasonSubject: myPost.uri,
-          indexedAt: newestAt
-        },
-        {
-          uri: `at://${did('bob')}/app.bsky.feed.like/l2`,
+          uri: `at://${did('bob')}/app.bsky.feed.like/l-old`,
           author: profileView('bob'),
           reason: 'like',
           reasonSubject: myPost.uri,
-          indexedAt: olderAt
+          indexedAt: beforeLink
         }
       ],
       cursor: 'more'
@@ -193,29 +195,45 @@ describe('syncBlueskyNotifications', () => {
     await syncBlueskyNotifications(database, actor, agent)
 
     expect(get).toHaveBeenCalledTimes(1)
-    expect(get).toHaveBeenCalledWith(
-      'app.bsky.notification.listNotifications',
-      {
-        limit: 50
-      }
-    )
     expect(getPublicPosts).not.toHaveBeenCalled()
     expect(getPublicProfiles).not.toHaveBeenCalled()
     expect(await notifications()).toEqual([])
-    expect((await account())?.notificationsSeenAt).toBe(Date.parse(newestAt))
+    expect((await account())?.notificationsSeenAt).toBe(linkedAt)
 
-    // Also sets to now when there are no notifications at all.
+    // When a notification arrived after linking (e.g. while initial Home syncs failed),
+    // the first successful run still delivers it and skips older ones.
     await database.updateBlueskyNotificationsSeenAt({
       actorId: actor.id,
       seenAt: null
     })
-    get.mockResolvedValueOnce({ notifications: [] })
-    const before = Date.now()
+    get.mockResolvedValueOnce({
+      notifications: [
+        {
+          uri: `at://${did('alice')}/app.bsky.feed.like/l-new`,
+          author: profileView('alice'),
+          reason: 'like',
+          reasonSubject: myPost.uri,
+          indexedAt: afterLink
+        },
+        {
+          uri: `at://${did('bob')}/app.bsky.feed.like/l-old2`,
+          author: profileView('bob'),
+          reason: 'like',
+          reasonSubject: myPost.uri,
+          indexedAt: beforeLink
+        }
+      ]
+    })
+
     await syncBlueskyNotifications(database, actor, agent)
-    expect((await account())?.notificationsSeenAt).toBeGreaterThanOrEqual(
-      before
-    )
-    expect(await notifications()).toEqual([])
+
+    const rows = await notifications()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      type: NotificationType.enum.like,
+      sourceActorId: blueskyActorId(did('alice'))
+    })
+    expect((await account())?.notificationsSeenAt).toBe(Date.parse(afterLink))
   })
 
   it('creates like, reblog, reply, mention and quote notifications oldest-first with alerts and ignores follow', async () => {
@@ -230,7 +248,17 @@ describe('syncBlueskyNotifications', () => {
       text: 'nice!',
       reply: { root: { uri: myPost.uri }, parent: { uri: myPost.uri } }
     })
-    const mentionPost = postView('dave', 'm1', { text: 'hey @reader' })
+    const mentionPost = postView('dave', 'm1', {
+      text: 'hey @reader',
+      facets: [
+        {
+          index: { byteStart: 4, byteEnd: 11 },
+          features: [
+            { $type: 'app.bsky.richtext.facet#mention', did: USER_DID }
+          ]
+        }
+      ]
+    })
     const quotePost = postView('erin', 'q1', {
       text: 'quoting this',
       embed: {
@@ -557,50 +585,174 @@ describe('syncBlueskyNotifications', () => {
     expect(await notifications()).toHaveLength(1)
   })
 
-  it('reads at most 2 pages via cursor', async () => {
-    const t0 = Date.parse('2026-03-05T00:00:00.000Z')
+  it('verifies reply, mention, and quote targets on the AppView post and skips spoofed ones', async () => {
+    const t0 = Date.parse('2026-03-04T12:00:00.000Z')
     await database.updateBlueskyNotificationsSeenAt({
       actorId: actor.id,
       seenAt: t0
     })
-    const myPost = postView('reader', 'page1')
-    publishPost(myPost)
-    publishProfile(profileView('alice'), profileView('bob'))
+    const myPost = postView('reader', 'verify1')
+    const someoneElsesPost = postView('other', 'otherpost1')
 
-    get
-      .mockResolvedValueOnce({
-        notifications: [
-          {
-            uri: `at://${did('alice')}/app.bsky.feed.like/pg1`,
-            author: profileView('alice'),
-            reason: 'like',
-            reasonSubject: myPost.uri,
-            indexedAt: '2026-03-05T00:02:00.000Z'
-          }
-        ],
-        cursor: 'c1'
-      })
-      .mockResolvedValueOnce({
-        notifications: [
-          {
-            uri: `at://${did('bob')}/app.bsky.feed.like/pg2`,
-            author: profileView('bob'),
-            reason: 'like',
-            reasonSubject: myPost.uri,
-            indexedAt: '2026-03-05T00:01:00.000Z'
-          }
-        ],
-        cursor: 'c2'
-      })
+    // Valid reply via root.uri (parent belongs to someone else, root belongs to user).
+    const validRootReply = postView('carol', 'vr1', {
+      reply: {
+        root: { uri: myPost.uri },
+        parent: { uri: someoneElsesPost.uri }
+      }
+    })
+    // Spoofed reply: neither parent nor root is in user's repo.
+    const spoofedReply = postView('carol', 'sr1', {
+      reply: {
+        root: { uri: someoneElsesPost.uri },
+        parent: { uri: someoneElsesPost.uri }
+      }
+    })
+    // Spoofed mention: no mention facet for USER_DID (only mentions someone else).
+    const spoofedMention = postView('dave', 'sm1', {
+      text: 'hi @other',
+      facets: [
+        {
+          index: { byteStart: 3, byteEnd: 9 },
+          features: [
+            { $type: 'app.bsky.richtext.facet#mention', did: did('other') }
+          ]
+        }
+      ]
+    })
+    // Valid quote via recordWithMedia.
+    const validMediaQuote = postView('erin', 'vq1', {
+      embed: {
+        $type: 'app.bsky.embed.recordWithMedia',
+        record: {
+          record: { uri: myPost.uri, cid: myPost.cid }
+        },
+        media: { $type: 'app.bsky.embed.images', images: [] }
+      }
+    })
+    // Spoofed quote: embed references someone else's post.
+    const spoofedQuote = postView('erin', 'sq1', {
+      embed: {
+        $type: 'app.bsky.embed.record',
+        record: { uri: someoneElsesPost.uri, cid: someoneElsesPost.cid }
+      }
+    })
+    publishPost(
+      validRootReply,
+      spoofedReply,
+      spoofedMention,
+      validMediaQuote,
+      spoofedQuote
+    )
+    publishProfile(
+      profileView('carol'),
+      profileView('dave'),
+      profileView('erin')
+    )
+
+    get.mockResolvedValueOnce({
+      notifications: [
+        {
+          uri: spoofedQuote.uri,
+          author: profileView('erin'),
+          reason: 'quote',
+          indexedAt: '2026-03-04T12:05:00.000Z'
+        },
+        {
+          uri: validMediaQuote.uri,
+          author: profileView('erin'),
+          reason: 'quote',
+          indexedAt: '2026-03-04T12:04:00.000Z'
+        },
+        {
+          uri: spoofedMention.uri,
+          author: profileView('dave'),
+          reason: 'mention',
+          indexedAt: '2026-03-04T12:03:00.000Z'
+        },
+        {
+          uri: spoofedReply.uri,
+          author: profileView('carol'),
+          reason: 'reply',
+          indexedAt: '2026-03-04T12:02:00.000Z'
+        },
+        {
+          uri: validRootReply.uri,
+          author: profileView('carol'),
+          reason: 'reply',
+          indexedAt: '2026-03-04T12:01:00.000Z'
+        }
+      ]
+    })
 
     await syncBlueskyNotifications(database, actor, agent)
 
-    expect(get).toHaveBeenCalledTimes(2)
-    expect(get).toHaveBeenLastCalledWith(
-      'app.bsky.notification.listNotifications',
-      { limit: 50, cursor: 'c1' }
-    )
-    expect(await notifications()).toHaveLength(2)
+    const rows = await notifications()
+    expect(rows.map((n) => ({ type: n.type, statusId: n.statusId }))).toEqual([
+      {
+        type: NotificationType.enum.quote,
+        statusId: blueskyPostId(did('erin'), 'vq1')
+      },
+      {
+        type: NotificationType.enum.reply,
+        statusId: blueskyPostId(did('carol'), 'vr1')
+      }
+    ])
+  })
+
+  it('reads at most 4 pages via cursor and logs info when the cap is hit before reaching seenAt', async () => {
+    const infoSpy = vi.spyOn(logger, 'info')
+    try {
+      const t0 = Date.parse('2026-03-05T00:00:00.000Z')
+      await database.updateBlueskyNotificationsSeenAt({
+        actorId: actor.id,
+        seenAt: t0
+      })
+      const myPost = postView('reader', 'page1')
+      publishPost(myPost)
+      publishProfile(
+        profileView('alice'),
+        profileView('bob'),
+        profileView('carol'),
+        profileView('dave')
+      )
+
+      const pageActors = ['alice', 'bob', 'carol', 'dave']
+      for (const [index, name] of pageActors.entries()) {
+        get.mockResolvedValueOnce({
+          notifications: [
+            {
+              uri: `at://${did(name)}/app.bsky.feed.like/pg${index + 1}`,
+              author: profileView(name),
+              reason: 'like',
+              reasonSubject: myPost.uri,
+              indexedAt: new Date(
+                t0 + (pageActors.length - index) * 60_000
+              ).toISOString()
+            }
+          ],
+          cursor: `c${index + 1}`
+        })
+      }
+
+      await syncBlueskyNotifications(database, actor, agent)
+
+      expect(get).toHaveBeenCalledTimes(4)
+      expect(get).toHaveBeenLastCalledWith(
+        'app.bsky.notification.listNotifications',
+        { limit: 50, cursor: 'c3' }
+      )
+      expect(await notifications()).toHaveLength(4)
+      expect(infoSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actorId: actor.id,
+          pages: 4,
+          readCount: 4
+        })
+      )
+    } finally {
+      infoSpy.mockRestore()
+    }
   })
 
   it('does nothing when federation policy disallows Bluesky', async () => {

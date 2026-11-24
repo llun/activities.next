@@ -120,10 +120,6 @@ export interface BlueskyDatabase {
     statusId: string
     kind: BlueskyInteractionKind
   }): Promise<void>
-  getBlueskyInteractionsForStatuses(params: {
-    actorId: string
-    statusIds: string[]
-  }): Promise<BlueskyInteraction[]>
   /**
    * Sets the post's like, repost and reply counters to the given counts,
    * skipping any value that is missing, negative or not an integer.

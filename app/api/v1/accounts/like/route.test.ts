@@ -16,10 +16,16 @@ const mockSendLike = vi.fn()
 const mockSendUndoLike = vi.fn()
 const mockLikeBlueskyPost = vi.fn()
 const mockUnlikeBlueskyPost = vi.fn()
+const mockGetReadableStatusForAction = vi.fn()
 
 vi.mock('@/lib/activities', () => ({
   sendLike: (...args: unknown[]) => mockSendLike(...args),
   sendUndoLike: (...args: unknown[]) => mockSendUndoLike(...args)
+}))
+
+vi.mock('@/lib/services/statuses/getReadableStatusForAction', () => ({
+  getReadableStatusForAction: (...args: unknown[]) =>
+    mockGetReadableStatusForAction(...args)
 }))
 
 vi.mock('@/lib/services/bluesky/interactions', async (importOriginal) => ({
@@ -51,6 +57,7 @@ vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
 describe('POST /api/v1/accounts/like', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetReadableStatusForAction.mockReset()
   })
 
   it('returns 422 when the request payload fails schema validation', async () => {
@@ -65,7 +72,7 @@ describe('POST /api/v1/accounts/like', () => {
 
     expect(response.status).toBe(422)
     expect(data.error).toBe('Unprocessable entity')
-    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
+    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
     expect(mockSendLike).not.toHaveBeenCalled()
   })
 
@@ -81,13 +88,13 @@ describe('POST /api/v1/accounts/like', () => {
 
     expect(response.status).toBe(400)
     expect(data.error).toBe('Bad Request')
-    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
+    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
     expect(mockSendLike).not.toHaveBeenCalled()
   })
 
   it('likes a Bluesky post through likeBlueskyPost without sendLike and maps errors', async () => {
     const statusId = `https://bsky.app/profile/did:plc:${'l'.repeat(24)}/post/3k`
-    mockDatabase.getStatus.mockResolvedValue({
+    mockGetReadableStatusForAction.mockResolvedValue({
       id: statusId,
       type: 'Note',
       network: 'bluesky'
@@ -108,6 +115,13 @@ describe('POST /api/v1/accounts/like', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ status: 'Accepted' })
+    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith({
+      database: mockDatabase,
+      statusId,
+      currentActor: mockCurrentActor,
+      withReplies: false
+    })
+    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockLikeBlueskyPost).toHaveBeenCalledWith(
       mockDatabase,
       mockCurrentActor,
@@ -139,11 +153,12 @@ describe('POST /api/v1/accounts/like', () => {
 describe('DELETE /api/v1/accounts/like', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetReadableStatusForAction.mockReset()
   })
 
   it('unlikes a Bluesky post through unlikeBlueskyPost without sendUndoLike and maps errors', async () => {
     const statusId = `https://bsky.app/profile/did:plc:${'u'.repeat(24)}/post/3k`
-    mockDatabase.getStatus.mockResolvedValue({
+    mockGetReadableStatusForAction.mockResolvedValue({
       id: statusId,
       type: 'Note',
       network: 'bluesky'
@@ -161,6 +176,13 @@ describe('DELETE /api/v1/accounts/like', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ status: 'Accepted' })
+    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith({
+      database: mockDatabase,
+      statusId,
+      currentActor: mockCurrentActor,
+      withReplies: false
+    })
+    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockUnlikeBlueskyPost).toHaveBeenCalledWith(
       mockDatabase,
       mockCurrentActor,
@@ -203,7 +225,7 @@ describe('DELETE /api/v1/accounts/like', () => {
 
     expect(response.status).toBe(422)
     expect(data.error).toBe('Unprocessable entity')
-    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
+    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
     expect(mockSendUndoLike).not.toHaveBeenCalled()
   })
 
@@ -219,7 +241,7 @@ describe('DELETE /api/v1/accounts/like', () => {
 
     expect(response.status).toBe(400)
     expect(data.error).toBe('Bad Request')
-    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
+    expect(mockGetReadableStatusForAction).not.toHaveBeenCalled()
     expect(mockSendUndoLike).not.toHaveBeenCalled()
   })
 })
@@ -239,7 +261,7 @@ describe('like and unlike of an existing status', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDatabase.getStatus.mockResolvedValue(status)
+    mockGetReadableStatusForAction.mockReset().mockResolvedValue(status)
     mockDatabase.createLike.mockResolvedValue(true)
     mockDatabase.deleteLike.mockResolvedValue(true)
   })
@@ -253,10 +275,13 @@ describe('like and unlike of an existing status', () => {
     // The route answers HTTP 200 carrying the Accepted body.
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ status: 'Accepted' })
-    expect(mockDatabase.getStatus).toHaveBeenCalledWith({
+    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith({
+      database: mockDatabase,
       statusId: status.id,
+      currentActor: mockCurrentActor,
       withReplies: false
     })
+    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockDatabase.createLike).toHaveBeenCalledWith({
       actorId: mockCurrentActor.id,
       statusId: status.id
@@ -277,6 +302,13 @@ describe('like and unlike of an existing status', () => {
     // The route answers HTTP 200 carrying the Accepted body.
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ status: 'Accepted' })
+    expect(mockGetReadableStatusForAction).toHaveBeenCalledWith({
+      database: mockDatabase,
+      statusId: status.id,
+      currentActor: mockCurrentActor,
+      withReplies: false
+    })
+    expect(mockDatabase.getStatus).not.toHaveBeenCalled()
     expect(mockDatabase.deleteLike).toHaveBeenCalledWith({
       actorId: mockCurrentActor.id,
       statusId: status.id
@@ -292,9 +324,9 @@ describe('like and unlike of an existing status', () => {
     { method: 'POST' as const, handler: POST },
     { method: 'DELETE' as const, handler: DELETE }
   ])(
-    '$method answers 404 and neither writes nor federates when the status does not exist',
+    '$method answers 404 and neither writes nor federates when the status is missing or unreadable',
     async ({ method, handler }) => {
-      mockDatabase.getStatus.mockResolvedValue(null)
+      mockGetReadableStatusForAction.mockResolvedValue(null)
 
       const response = await handler(
         jsonRequest(method, { statusId: 'missing' }),
@@ -306,6 +338,8 @@ describe('like and unlike of an existing status', () => {
       expect(mockDatabase.deleteLike).not.toHaveBeenCalled()
       expect(mockSendLike).not.toHaveBeenCalled()
       expect(mockSendUndoLike).not.toHaveBeenCalled()
+      expect(mockLikeBlueskyPost).not.toHaveBeenCalled()
+      expect(mockUnlikeBlueskyPost).not.toHaveBeenCalled()
     }
   )
 

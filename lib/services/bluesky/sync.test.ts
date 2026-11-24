@@ -628,8 +628,8 @@ describe('syncBlueskyHome', () => {
     expect(lockHeldDuringNotifications).toBe(true)
   })
 
-  it('does not fail Home sync when notification sync throws', async () => {
-    get.mockResolvedValueOnce({ feed: [] })
+  it('records syncError when notification sync fails, keeps lastSyncedAt, and clears only on a later full success', async () => {
+    get.mockResolvedValue({ feed: [] })
     vi.mocked(syncBlueskyNotifications).mockRejectedValueOnce(
       new Error('notifications endpoint down')
     )
@@ -637,8 +637,42 @@ describe('syncBlueskyHome', () => {
     const before = Date.now()
     await expect(syncBlueskyHome(database, actor)).resolves.toBeUndefined()
 
-    const synced = await account()
-    expect(synced?.lastSyncedAt).toBeGreaterThanOrEqual(before)
-    expect(synced?.syncError).toBeNull()
+    const failed = await account()
+    expect(failed?.lastSyncedAt).toBeGreaterThanOrEqual(before)
+    expect(failed?.syncError).toBe(
+      'Bluesky notifications could not be read. Trying again in a few minutes.'
+    )
+
+    // During a retry, the notification error must stay visible until notifications succeed.
+    let errorDuringNotifications: string | null | undefined
+    vi.mocked(syncBlueskyNotifications).mockImplementationOnce(async () => {
+      errorDuringNotifications = (await account())?.syncError
+    })
+    await syncBlueskyHome(database, actor)
+
+    expect(errorDuringNotifications).toBe(
+      'Bluesky notifications could not be read. Trying again in a few minutes.'
+    )
+    expect((await account())?.syncError).toBeNull()
+  })
+
+  it('leaves no syncError when notification sync stops on a relink', async () => {
+    await database.updateBlueskyAccountSync({
+      actorId: actor.id,
+      syncError: null
+    })
+    get.mockResolvedValueOnce({ feed: [] })
+    vi.mocked(syncBlueskyNotifications).mockRejectedValueOnce(
+      new BlueskySessionChangedError()
+    )
+    const updateSpy = vi.spyOn(database, 'updateBlueskyAccountSync')
+    try {
+      await expect(syncBlueskyHome(database, actor)).resolves.toBeUndefined()
+    } finally {
+      updateSpy.mockRestore()
+    }
+
+    expect(updateSpy).not.toHaveBeenCalled()
+    expect((await account())?.syncError).toBeNull()
   })
 })

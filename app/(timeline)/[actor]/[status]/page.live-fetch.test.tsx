@@ -19,6 +19,7 @@ import { FederationPolicyUnavailableError } from '@/lib/services/federation/poli
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
+import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -937,6 +938,55 @@ describe('Page live-fetch security', () => {
         tags: [],
         createdAt: 1,
         updatedAt: 1
+      })
+
+      await expect(open()).rejects.toThrow('NEXT_NOT_FOUND')
+      expect(PagedStatusThread).not.toHaveBeenCalled()
+    })
+
+    it('404s a signed-out visitor on a local boost row of a Bluesky post instead of redirecting to bsky.app', async () => {
+      const blueskyAuthor = {
+        ...REMOTE_AUTHOR,
+        id: BLUESKY_AUTHOR_ID,
+        username: 'river.bsky.social',
+        domain: 'bsky.app'
+      }
+      const localBooster = {
+        ...REMOTE_AUTHOR,
+        id: 'https://llun.test/users/localbooster',
+        username: 'localbooster',
+        domain: 'llun.test'
+      }
+      const announceId = `${localBooster.id}/statuses/bsky-boost-1`
+      mockGetActorFromUsername.mockResolvedValue(localBooster)
+      mockGetActorFromId.mockResolvedValue(localBooster)
+      mockGetStatus.mockResolvedValue({
+        id: announceId,
+        actorId: localBooster.id,
+        actor: localBooster,
+        type: StatusType.enum.Announce,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        edits: [],
+        isLocalActor: true,
+        originalStatus: {
+          ...makeRemoteNote({ id: BLUESKY_POST_ID }),
+          actorId: BLUESKY_AUTHOR_ID,
+          actor: blueskyAuthor,
+          url: BLUESKY_POST_ID,
+          text: 'Stored Bluesky post',
+          reply: '',
+          replies: [],
+          edits: [],
+          isLocalActor: false,
+          network: 'bluesky',
+          attachments: [],
+          tags: [],
+          createdAt: 1,
+          updatedAt: 1
+        },
+        createdAt: 2,
+        updatedAt: 2
       })
 
       await expect(open()).rejects.toThrow('NEXT_NOT_FOUND')

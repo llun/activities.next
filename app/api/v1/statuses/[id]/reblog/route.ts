@@ -87,12 +87,24 @@ export const POST = traceApiRoute(
       })
       if (!status) return apiCorsError(req, CORS_HEADERS, 404)
       if (isBlueskyStatus(status)) {
+        if (parsedBody.data.visibility === 'private') {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: {
+              error:
+                'Bluesky reposts are public: Bluesky has no followers-only posts.'
+            },
+            responseStatusCode: 422
+          })
+        }
         let announceStatus: Status
         try {
           announceStatus = await repostBlueskyPost(
             database,
             currentActor,
-            getOriginalStatus(status).id
+            getOriginalStatus(status).id,
+            { visibility: parsedBody.data.visibility }
           )
         } catch (error) {
           const failure = blueskyInteractionFailure(error)

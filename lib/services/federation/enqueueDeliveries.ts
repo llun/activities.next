@@ -57,8 +57,8 @@ export interface EnqueueDeliveriesParams {
   statusId?: string
 }
 
-// Never federate an Announce (or Undo of an Announce) targeting a Bluesky post.
-const isBlueskyAnnounceActivity = (
+// Never federate an Announce, Undo of an Announce, or Delete targeting a Bluesky post.
+const isBlueskyForbiddenActivity = (
   activity: Record<string, unknown>
 ): boolean => {
   if (
@@ -77,6 +77,18 @@ const isBlueskyAnnounceActivity = (
   ) {
     return true
   }
+  if (activity.type === 'Delete') {
+    if (typeof activity.object === 'string' && isBlueskyId(activity.object)) {
+      return true
+    }
+    if (
+      isRecord(activity.object) &&
+      typeof activity.object.id === 'string' &&
+      isBlueskyId(activity.object.id)
+    ) {
+      return true
+    }
+  }
   return false
 }
 
@@ -89,7 +101,7 @@ export const enqueueDeliveries = async ({
   span,
   statusId
 }: EnqueueDeliveriesParams): Promise<void> => {
-  if (isBlueskyAnnounceActivity(activity)) return
+  if (isBlueskyForbiddenActivity(activity)) return
 
   // Never deliver to an empty inbox or a Bluesky actor (not ActivityPub).
   const uniqueInboxes = Array.from(new Set(inboxes)).filter(

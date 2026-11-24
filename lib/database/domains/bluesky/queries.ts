@@ -24,7 +24,6 @@ import type {
   BlueskyRecords
 } from '@/lib/database/kysely/db'
 import { forUpdate } from '@/lib/database/kysely/dialect'
-import { chunkArray } from '@/lib/database/kysely/inList'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
@@ -428,8 +427,6 @@ export const getBlueskyFollowTargetIds = async (
   return rows.map((row) => row.targetActorId)
 }
 
-const INTERACTIONS_BATCH_SIZE = 500
-
 const toInteraction = (
   row: Selectable<BlueskyInteractions>
 ): BlueskyInteraction => ({
@@ -493,25 +490,6 @@ export const deleteBlueskyInteraction = async (
     .where('statusId', '=', statusId)
     .where('kind', '=', kind)
     .execute()
-}
-
-export const getBlueskyInteractionsForStatuses = async (
-  db: Db,
-  { actorId, statusIds }: { actorId: string; statusIds: string[] }
-): Promise<BlueskyInteraction[]> => {
-  const uniqueStatusIds = [...new Set(statusIds)]
-  if (uniqueStatusIds.length === 0) return []
-  const rows: Selectable<BlueskyInteractions>[] = []
-  for (const chunk of chunkArray(uniqueStatusIds, INTERACTIONS_BATCH_SIZE)) {
-    const chunkRows = await db
-      .selectFrom('bluesky_interactions')
-      .selectAll()
-      .where('actorId', '=', actorId)
-      .where('statusId', 'in', chunk)
-      .execute()
-    rows.push(...chunkRows)
-  }
-  return rows.map(toInteraction)
 }
 
 const isValidCount = (value: number | null | undefined): value is number =>
@@ -584,7 +562,6 @@ export const blueskyQueries = {
   getBlueskyInteraction,
   createBlueskyInteraction,
   deleteBlueskyInteraction,
-  getBlueskyInteractionsForStatuses,
   setBlueskyPostCounts,
   updateBlueskyAccountSync
 }

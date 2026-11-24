@@ -90,6 +90,7 @@ describe('POST /api/v1/statuses/[id]/unfavourite', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getBlueskyAgent).mockReset()
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

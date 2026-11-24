@@ -10,6 +10,7 @@ import {
   unlikeBlueskyPost
 } from '@/lib/services/bluesky/interactions'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { getReadableStatusForAction } from '@/lib/services/statuses/getReadableStatusForAction'
 import { getOriginalStatus, isBlueskyStatus } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -59,7 +60,12 @@ export const POST = traceApiRoute(
     }
 
     const { statusId } = parsed.data
-    const status = await database.getStatus({ statusId, withReplies: false })
+    const status = await getReadableStatusForAction({
+      database,
+      statusId,
+      currentActor,
+      withReplies: false
+    })
     if (!status)
       return apiResponse({
         req,
@@ -97,7 +103,7 @@ export const POST = traceApiRoute(
     // unsent.
     const created = await database.createLike({
       actorId: currentActor.id,
-      statusId
+      statusId: status.id
     })
     if (created) await sendLike({ currentActor, status })
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })
@@ -131,7 +137,12 @@ export const DELETE = traceApiRoute(
     }
 
     const { statusId } = parsed.data
-    const status = await database.getStatus({ statusId, withReplies: false })
+    const status = await getReadableStatusForAction({
+      database,
+      statusId,
+      currentActor,
+      withReplies: false
+    })
     if (!status)
       return apiResponse({
         req,
@@ -165,7 +176,7 @@ export const DELETE = traceApiRoute(
 
     const removed = await database.deleteLike({
       actorId: currentActor.id,
-      statusId
+      statusId: status.id
     })
     if (removed) await sendUndoLike({ currentActor, status })
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: DEFAULT_202 })

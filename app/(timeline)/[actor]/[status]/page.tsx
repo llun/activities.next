@@ -330,10 +330,15 @@ const Page: FC<Props> = async ({ params }) => {
 
   if (status) {
     // Bluesky posts are shown to signed-in viewers only; a signed-out visitor
-    // is sent to the post on bsky.app.
-    if (!currentActor && isBlueskyStatus(status)) {
-      const blueskyUrl = getOriginalStatus(status).id
-      return isBlueskyId(blueskyUrl) ? redirect(blueskyUrl) : notFound()
+    // is sent to the post on bsky.app. A local boost row of a Bluesky post is
+    // not itself a bsky.app post, so it falls through to canActorReadStatus
+    // and 404s instead of redirecting.
+    if (
+      !currentActor &&
+      status.type !== StatusType.enum.Announce &&
+      isBlueskyStatus(status)
+    ) {
+      return isBlueskyId(status.id) ? redirect(status.id) : notFound()
     }
 
     // Focused-status visibility gate — the single source of truth shared with the

@@ -253,21 +253,79 @@ describe('Bluesky interactions service', () => {
     )
 
     it('writes one record when concurrent like requests race', async () => {
-      post.mockImplementation(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(() => resolve({ uri: LIKE_URI }), 50)
+      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      const realAcquire = database.acquireImportLock.bind(database)
+      let markContended!: () => void
+      const contended = new Promise<void>((resolve) => {
+        markContended = resolve
+      })
+      const acquireSpy = vi
+        .spyOn(database, 'acquireImportLock')
+        .mockImplementation(async (params) => {
+          const lock = await realAcquire(params)
+          if (!lock) markContended()
+          return lock
+        })
+      try {
+        let releasePost!: () => void
+        const postStarted = new Promise<void>((resolve) => {
+          post.mockImplementation(
+            () =>
+              new Promise((resolvePost) => {
+                releasePost = () => resolvePost({ uri: LIKE_URI })
+                resolve()
+              })
           )
+        })
+
+        const firstPromise = likeBlueskyPost(database, actor, statusId)
+        await postStarted
+        const secondPromise = likeBlueskyPost(database, actor, statusId)
+        await contended
+
+        releasePost()
+        const first = await firstPromise
+
+        await vi.advanceTimersByTimeAsync(200)
+        const second = await secondPromise
+
+        expect(post).toHaveBeenCalledTimes(1)
+        expect(first.uri).toBe(LIKE_URI)
+        expect(second.uri).toBe(LIKE_URI)
+      } finally {
+        acquireSpy.mockRestore()
+        vi.useRealTimers()
+      }
+    })
+
+    it('replaces a stale bluesky_interactions like row left from an old DID', async () => {
+      const staleUri =
+        'at://did:plc:olddiddddddddddddddddddd/app.bsky.feed.like/3kstale'
+      await database.createBlueskyInteraction({
+        actorId: actor.id,
+        statusId,
+        kind: 'like',
+        uri: staleUri
+      })
+      post.mockResolvedValue({ uri: LIKE_URI })
+
+      const interaction = await likeBlueskyPost(database, actor, statusId)
+
+      expect(post).toHaveBeenCalledWith(
+        'com.atproto.repo.createRecord',
+        expect.objectContaining({
+          repo: OWN_DID,
+          collection: 'app.bsky.feed.like'
+        })
       )
-
-      const [first, second] = await Promise.all([
-        likeBlueskyPost(database, actor, statusId),
-        likeBlueskyPost(database, actor, statusId)
-      ])
-
-      expect(post).toHaveBeenCalledTimes(1)
-      expect(first.uri).toBe(LIKE_URI)
-      expect(second.uri).toBe(LIKE_URI)
+      expect(interaction.uri).toBe(LIKE_URI)
+      await expect(
+        database.getBlueskyInteraction({
+          actorId: actor.id,
+          statusId,
+          kind: 'like'
+        })
+      ).resolves.toMatchObject({ uri: LIKE_URI })
     })
 
     it('refuses a createRecord answer naming another repo or collection', async () => {
@@ -570,6 +628,36 @@ describe('Bluesky interactions service', () => {
       expect(second.id).toBe(first.id)
       expect(post).not.toHaveBeenCalled()
       expect(get).not.toHaveBeenCalled()
+    })
+
+    it('replaces a stale bluesky_interactions repost row left from an old DID', async () => {
+      const staleUri =
+        'at://did:plc:olddiddddddddddddddddddd/app.bsky.feed.repost/3kstale'
+      await database.createBlueskyInteraction({
+        actorId: actor.id,
+        statusId,
+        kind: 'repost',
+        uri: staleUri
+      })
+      post.mockResolvedValue({ uri: REPOST_URI })
+
+      const announce = await repostBlueskyPost(database, actor, statusId)
+
+      expect(announce.type).toBe(StatusType.enum.Announce)
+      expect(post).toHaveBeenCalledWith(
+        'com.atproto.repo.createRecord',
+        expect.objectContaining({
+          repo: OWN_DID,
+          collection: 'app.bsky.feed.repost'
+        })
+      )
+      await expect(
+        database.getBlueskyInteraction({
+          actorId: actor.id,
+          statusId,
+          kind: 'repost'
+        })
+      ).resolves.toMatchObject({ uri: REPOST_URI })
     })
 
     it('adopts an existing viewer.repost without calling createRecord', async () => {
