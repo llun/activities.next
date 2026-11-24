@@ -142,7 +142,7 @@ describe('checksumSeededRows', () => {
     // The digest covers every column of fitness_files and statuses (select *): a
     // migration that adds one changes it, and this value is then updated with it.
     expect(first.digest).toBe(
-      'd098c22f38e44a4af8e170a1b9c3c9500fc538bac287a619f64451a49997c1ab'
+      '61458455582292c6ccd1f4498653653d0e6a1a6d4723d769bbcd9a8e946929e7'
     )
   })
 
