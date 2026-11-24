@@ -1,0 +1,23 @@
+lib/services/bluesky/appview.test.ts
+  s_f193227df3df34::t_9081363fbf6650 6,87-111
+lib/services/bluesky/appview.ts
+  s_f193227df3df34::t_30a9c32cb74649 95-113
+lib/services/bluesky/profiles.ts
+  s_f193227df3df34::t_a53dda0b0bdbdc 117-120,122-123,125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5cdd4ebf48188fe592d256ec8834091d247d95c2",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
