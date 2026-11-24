@@ -1,0 +1,21 @@
+lib/services/bluesky/agent.ts
+  s_f193227df3df34::t_5a929855e00ece 162-166
+lib/services/bluesky/agent.test.ts
+  s_f193227df3df34::t_074cb62a040d94 220-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "864b7310683b2aa2d0b2f2eed998b5d75d33296f",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
