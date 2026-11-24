@@ -433,5 +433,11 @@ export const storeBlueskyPostView = async (
     attachments: blueskyImagesFromEmbed(post.view.embed),
     sensitive: isBlueskyPostSensitive(post.view)
   })
+  await database.setBlueskyPostCounts({
+    statusId,
+    likes: optionalCount(post.view.likeCount),
+    reposts: optionalCount(post.view.repostCount),
+    replies: optionalCount(post.view.replyCount)
+  })
   return statusId
 }

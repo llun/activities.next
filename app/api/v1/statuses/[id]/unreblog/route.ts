@@ -1,10 +1,18 @@
 import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
+import {
+  blueskyInteractionFailure,
+  unrepostBlueskyPost
+} from '@/lib/services/bluesky/interactions'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
-import { StatusType } from '@/lib/types/domain/status'
+import {
+  StatusType,
+  getOriginalStatus,
+  isBlueskyStatus
+} from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   DEFAULT_200,
@@ -35,6 +43,7 @@ export const POST = traceApiRoute(
 
       const statusId = await resolveStatusIdParam(database, encodedStatusId)
       let undoStatusId = statusId
+      let actorAnnounce = null
       const readableStatus = await getReadableStatus({
         database,
         statusId,
@@ -45,7 +54,7 @@ export const POST = traceApiRoute(
         readableStatus?.type !== StatusType.enum.Announce ||
         readableStatus.actorId !== currentActor.id
       ) {
-        const actorAnnounce = await database.getActorAnnounceStatus({
+        actorAnnounce = await database.getActorAnnounceStatus({
           actorId: currentActor.id,
           statusId
         })
@@ -59,6 +68,43 @@ export const POST = traceApiRoute(
           })
 
         undoStatusId = actorAnnounce?.id ?? statusId
+      }
+
+      const targetStatus =
+        readableStatus?.type === StatusType.enum.Announce &&
+        readableStatus.actorId === currentActor.id
+          ? readableStatus
+          : (actorAnnounce ??
+            (readableStatus?.type === StatusType.enum.Announce
+              ? null
+              : readableStatus))
+      if (targetStatus && isBlueskyStatus(targetStatus)) {
+        const blueskyStatusId = getOriginalStatus(targetStatus).id
+        try {
+          await unrepostBlueskyPost(database, currentActor, blueskyStatusId)
+        } catch (error) {
+          const failure = blueskyInteractionFailure(error)
+          if (!failure) throw error
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: failure.error },
+            responseStatusCode: failure.status
+          })
+        }
+        const updatedStatus = await database.getStatus({
+          statusId: blueskyStatusId,
+          withReplies: false,
+          currentActorId: currentActor.id
+        })
+        const mastodonStatus = updatedStatus
+          ? await getMastodonStatus(database, updatedStatus, currentActor.id)
+          : null
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: mastodonStatus ?? DEFAULT_200
+        })
       }
 
       const undoStatus = await userUndoAnnounce({

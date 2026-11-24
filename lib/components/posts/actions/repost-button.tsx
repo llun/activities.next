@@ -2,6 +2,7 @@ import { Repeat2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 
 import { repostStatus, undoRepostStatus } from '@/lib/client'
+import { ApiRequestError } from '@/lib/client/http'
 import {
   ACTION_BUTTON_CLASS,
   ActionButtonError,
@@ -87,8 +88,12 @@ export const RepostButton: FC<RepostButtonProps> = ({
                 } else {
                   setError(undoFailureMessage)
                 }
-              } catch {
-                setError(undoFailureMessage)
+              } catch (caught) {
+                setError(
+                  caught instanceof ApiRequestError && caught.message
+                    ? caught.message
+                    : undoFailureMessage
+                )
               } finally {
                 setIsLoading(false)
               }
@@ -103,8 +108,12 @@ export const RepostButton: FC<RepostButtonProps> = ({
               } else {
                 setError(failureMessage)
               }
-            } catch {
-              setError(failureMessage)
+            } catch (caught) {
+              setError(
+                caught instanceof ApiRequestError && caught.message
+                  ? caught.message
+                  : failureMessage
+              )
             } finally {
               setIsLoading(false)
             }

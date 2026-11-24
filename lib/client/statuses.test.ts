@@ -919,6 +919,21 @@ describe('client statuses module', () => {
       const res = await repostStatus({ statusId: 'target-status' })
       expect(res).toBeNull()
     })
+
+    it('throws ApiRequestError with the server error message when refused with a specific reason', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Link a Bluesky account first.' }),
+        { status: 422 }
+      )
+
+      await expect(
+        repostStatus({ statusId: 'target-status' })
+      ).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 422,
+        message: 'Link a Bluesky account first.'
+      })
+    })
   })
 
   describe('undoRepostStatus', () => {
@@ -940,6 +955,21 @@ describe('client statuses module', () => {
 
       const res = await undoRepostStatus({ statusId: 'target-status' })
       expect(res).toBeNull()
+    })
+
+    it('throws ApiRequestError with the server error message when refused with a specific reason', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Bluesky did not accept the change.' }),
+        { status: 502 }
+      )
+
+      await expect(
+        undoRepostStatus({ statusId: 'target-status' })
+      ).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 502,
+        message: 'Bluesky did not accept the change.'
+      })
     })
   })
 
@@ -1096,6 +1126,14 @@ describe('client statuses module', () => {
       await expect(call('status-1')).resolves.toBe(false)
     })
 
+    it('returns false on a generic HTTP reason phrase error body', async () => {
+      fetchMock.mockResponse(JSON.stringify({ error: 'Not Found' }), {
+        status: failStatus
+      })
+
+      await expect(call('status-1')).resolves.toBe(false)
+    })
+
     it('encodes full status URLs', async () => {
       fetchMock.mockResponse('', { status: 200 })
       const statusId = 'https://remote.example/users/actor/statuses/post-1'
@@ -1109,6 +1147,24 @@ describe('client statuses module', () => {
           headers: { 'Content-Type': 'application/json' }
         })
       )
+    })
+  })
+
+  describe.each([
+    { name: 'likeStatus', call: likeStatus },
+    { name: 'undoLikeStatus', call: undoLikeStatus }
+  ])('$name server errors', ({ call }) => {
+    it('throws ApiRequestError with the server error message when refused with a specific reason', async () => {
+      fetchMock.mockResponse(
+        JSON.stringify({ error: 'Link a Bluesky account first.' }),
+        { status: 422 }
+      )
+
+      await expect(call({ statusId: 'status-1' })).rejects.toMatchObject({
+        name: 'ApiRequestError',
+        status: 422,
+        message: 'Link a Bluesky account first.'
+      })
     })
   })
 

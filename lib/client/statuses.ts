@@ -24,7 +24,45 @@ import { MastodonVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 
-import { parseApiError, throwApiError } from './http'
+import {
+  ApiRequestError,
+  parseApiError,
+  parseRetryAfterMs,
+  throwApiError
+} from './http'
+
+// Bare HTTP reason phrases from ERROR_4xx/5xx are never user-facing copy —
+// let the button fall back to its own failure message instead.
+const GENERIC_HTTP_ERRORS = new Set([
+  'Bad Request',
+  'Unauthorized',
+  'Forbidden',
+  'Not Found',
+  'Conflict',
+  'Gone',
+  'Payload Too Large',
+  'Unprocessable entity',
+  'Too Many Requests',
+  'Internal Server Error',
+  'Not Implemented',
+  'Bad Gateway',
+  'Service Unavailable'
+])
+
+// Throws ApiRequestError when a failed interaction response carries a specific
+// human-readable `{ error }` message (such as a Bluesky refusal or busy lock).
+const throwIfSpecificApiError = async (response: Response) => {
+  const details = await response.json().catch(() => undefined)
+  const message = typeof details?.error === 'string' ? details.error : ''
+  if (message && !GENERIC_HTTP_ERRORS.has(message)) {
+    throw new ApiRequestError(
+      message,
+      response.status,
+      parseRetryAfterMs(response.headers?.get('Retry-After')),
+      details
+    )
+  }
+}
 
 const parseTimestamp = (value: unknown, fallback: number) => {
   if (typeof value !== 'string') return fallback
@@ -683,7 +721,10 @@ export const repostStatus = async ({ statusId }: DefaultStatusParams) => {
       }
     }
   )
-  if (response.status !== 200) return null
+  if (response.status !== 200) {
+    await throwIfSpecificApiError(response)
+    return null
+  }
   const mastodonStatus = await response.json()
   return { statusId: mastodonStatus.id }
 }
@@ -702,7 +743,10 @@ export const undoRepostStatus = async ({ statusId }: DefaultStatusParams) => {
       }
     }
   )
-  if (response.status !== 200) return null
+  if (response.status !== 200) {
+    await throwIfSpecificApiError(response)
+    return null
+  }
   const mastodonStatus = await response.json()
   return { statusId: mastodonStatus.id }
 }
@@ -798,7 +842,11 @@ export const likeStatus = async ({ statusId }: DefaultStatusParams) => {
       }
     }
   )
-  return response.status === 200
+  if (response.status !== 200) {
+    await throwIfSpecificApiError(response)
+    return false
+  }
+  return true
 }
 
 /**
@@ -952,7 +1000,11 @@ export const undoLikeStatus = async ({ statusId }: DefaultStatusParams) => {
       }
     }
   )
-  return response.status === 200
+  if (response.status !== 200) {
+    await throwIfSpecificApiError(response)
+    return false
+  }
+  return true
 }
 
 // A map of source language (ISO 639-1) → the target languages the configured

@@ -4,8 +4,13 @@
  * This custom endpoint is maintained for backward compatibility.
  */
 import { sendLike, sendUndoLike } from '@/lib/activities'
+import {
+  blueskyInteractionFailure,
+  likeBlueskyPost,
+  unlikeBlueskyPost
+} from '@/lib/services/bluesky/interactions'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { isBlueskyStatus } from '@/lib/types/domain/status'
+import { getOriginalStatus, isBlueskyStatus } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   DEFAULT_202,
@@ -62,13 +67,27 @@ export const POST = traceApiRoute(
         data: ERROR_404,
         responseStatusCode: 404
       })
-    // Liking on Bluesky (a like record) is not built yet.
     if (isBlueskyStatus(status)) {
+      try {
+        await likeBlueskyPost(
+          database,
+          currentActor,
+          getOriginalStatus(status).id
+        )
+      } catch (error) {
+        const failure = blueskyInteractionFailure(error)
+        if (!failure) throw error
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: failure.error },
+          responseStatusCode: failure.status
+        })
+      }
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: { error: 'Liking Bluesky posts is not supported yet.' },
-        responseStatusCode: 422
+        data: DEFAULT_202
       })
     }
 
@@ -120,6 +139,29 @@ export const DELETE = traceApiRoute(
         data: ERROR_404,
         responseStatusCode: 404
       })
+    if (isBlueskyStatus(status)) {
+      try {
+        await unlikeBlueskyPost(
+          database,
+          currentActor,
+          getOriginalStatus(status).id
+        )
+      } catch (error) {
+        const failure = blueskyInteractionFailure(error)
+        if (!failure) throw error
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: failure.error },
+          responseStatusCode: failure.status
+        })
+      }
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: DEFAULT_202
+      })
+    }
 
     const removed = await database.deleteLike({
       actorId: currentActor.id,

@@ -117,8 +117,7 @@ export const Actions: FC<Props> = ({
     Boolean(actualStatus.isLocalActor) &&
     currentActor.id === actualStatus.actorId
   const hasEditHistory = actualStatus.edits.length > 0
-  // Replying to, boosting, liking, reacting to and quoting a Bluesky post are
-  // not supported yet; bookmarks and the link to the original still work.
+  // Reacting to and quoting a Bluesky post are not supported.
   const isBluesky = isBlueskyStatus(actualStatus)
 
   // Too narrow to seat every control at a comfortable hit size, so the two
@@ -183,27 +182,23 @@ export const Actions: FC<Props> = ({
         fullBleed && '-ml-13 mt-3'
       )}
     >
-      {isBluesky ? null : (
-        <>
-          <ReplyButton
-            status={replyStatus}
-            targetLabel={splitTargets?.replyLabel}
-            onReply={onReply}
-          />
-          <RepostButton
-            currentActor={currentActor}
-            status={actualStatus}
-            targetLabel={targetLabel}
-          />
-          <LikeButton
-            key={`${actualStatus.id}-like`}
-            currentActor={currentActor}
-            status={actualStatus}
-            targetLabel={targetLabel}
-            onLikeChanged={onLikeChanged}
-          />
-        </>
-      )}
+      <ReplyButton
+        status={replyStatus}
+        targetLabel={splitTargets?.replyLabel}
+        onReply={onReply}
+      />
+      <RepostButton
+        currentActor={currentActor}
+        status={actualStatus}
+        targetLabel={targetLabel}
+      />
+      <LikeButton
+        key={`${actualStatus.id}-like`}
+        currentActor={currentActor}
+        status={actualStatus}
+        targetLabel={targetLabel}
+        onLikeChanged={onLikeChanged}
+      />
       {isCompact ? null : (
         <BookmarkButton state={bookmark} targetLabel={targetLabel} />
       )}

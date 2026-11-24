@@ -2,6 +2,11 @@ import { NextRequest } from 'next/server'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
+import {
+  type BlueskyAgent,
+  getBlueskyAgent
+} from '@/lib/services/bluesky/agent'
+import { getQueue } from '@/lib/services/queue'
 import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -49,6 +54,11 @@ vi.mock('@/lib/activities', async (importOriginal) => {
     getNote: mockGetNote
   }
 })
+
+vi.mock('@/lib/services/bluesky/agent', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getBlueskyAgent: vi.fn()
+}))
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
@@ -138,14 +148,61 @@ describe('POST /api/v1/statuses/[id]/reblog', () => {
     }
   })
 
-  it('a Bluesky post → 422, no boost stored', async () => {
+  it('reposts a Bluesky post via the Bluesky service with a local-only boost and no federation job', async () => {
+    const ownDid = 'did:plc:meaaaaaaaaaaaaaaaaaaaaaa'
     const { statusId } = await storeBlueskyPost(database, 'reblog')
+    await database.saveBlueskyAccount({
+      actorId: ACTOR1_ID,
+      did: ownDid,
+      handle: 'me.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
+    const post = vi.fn().mockResolvedValue({
+      uri: `at://${ownDid}/app.bsky.feed.repost/3kreblog`
+    })
+    const get = vi.fn().mockResolvedValue({ posts: [{ viewer: {} }] })
+    vi.mocked(getBlueskyAgent).mockResolvedValue({
+      did: ownDid,
+      pdsUrl: 'https://pds.example.net/',
+      get,
+      post
+    } as unknown as BlueskyAgent)
+
+    const response = await reblog(statusId)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      reblog: expect.objectContaining({
+        uri: statusId,
+        reblogged: true,
+        reblogs_count: 1
+      })
+    })
+    expect(
+      await database.getActorAnnounceStatus({
+        statusId,
+        actorId: ACTOR1_ID
+      })
+    ).not.toBeNull()
+    expect(post).toHaveBeenCalledWith(
+      'com.atproto.repo.createRecord',
+      expect.objectContaining({ collection: 'app.bsky.feed.repost' })
+    )
+    expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('returns 422 when reposting a Bluesky post without a linked account', async () => {
+    const { statusId } = await storeBlueskyPost(database, 'reblogunlinked')
+    vi.mocked(getBlueskyAgent).mockResolvedValueOnce(null)
 
     const response = await reblog(statusId)
 
     expect(response.status).toBe(422)
     await expect(response.json()).resolves.toEqual({
-      error: 'Boosting Bluesky posts is not supported yet.'
+      error:
+        'Link a Bluesky account in Settings › Other networks to interact with Bluesky posts.'
     })
     expect(
       await database.getActorAnnounceStatus({
@@ -153,6 +210,7 @@ describe('POST /api/v1/statuses/[id]/reblog', () => {
         actorId: ACTOR1_ID
       })
     ).toBeNull()
+    expect(getQueue().publish).not.toHaveBeenCalled()
   })
 
   it('a local-domain id → 404, nothing stored, no fetch', async () => {

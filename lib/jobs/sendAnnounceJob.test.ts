@@ -6,6 +6,7 @@ import {
 } from '@/lib/jobs/names'
 import { sendAnnounceJob } from '@/lib/jobs/sendAnnounceJob'
 import { getDeliveryJobId } from '@/lib/services/federation/enqueueDeliveries'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
@@ -174,5 +175,33 @@ describe('sendAnnounceJob', () => {
         }
       }
     })
+  })
+
+  it('refuses to federate an Announce whose original is a Bluesky post', async () => {
+    if (!actor1) fail('Actor1 is required')
+    const { statusId: blueskyPostId } = await storeBlueskyPost(
+      database,
+      'sendannounce'
+    )
+    const announceId = `${actor1.id}/statuses/announce-bluesky`
+    await database.createAnnounce({
+      id: announceId,
+      actorId: actor1.id,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      originalStatusId: blueskyPostId,
+      createdAt: 1700000000000
+    })
+
+    await sendAnnounceJob(database, {
+      id: 'announce-bluesky-job',
+      name: SEND_ANNOUNCE_JOB_NAME,
+      data: {
+        actorId: actor1.id,
+        statusId: announceId
+      }
+    })
+
+    expect(publish).not.toHaveBeenCalled()
   })
 })

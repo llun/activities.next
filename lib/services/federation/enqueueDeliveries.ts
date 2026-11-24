@@ -7,6 +7,7 @@ import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
+import { isRecord } from '@/lib/utils/typeGuards'
 
 export const MAX_CONCURRENT_DELIVERY_PUBLICATIONS = 10
 
@@ -56,6 +57,29 @@ export interface EnqueueDeliveriesParams {
   statusId?: string
 }
 
+// Never federate an Announce (or Undo of an Announce) targeting a Bluesky post.
+const isBlueskyAnnounceActivity = (
+  activity: Record<string, unknown>
+): boolean => {
+  if (
+    activity.type === 'Announce' &&
+    typeof activity.object === 'string' &&
+    isBlueskyId(activity.object)
+  ) {
+    return true
+  }
+  if (
+    activity.type === 'Undo' &&
+    isRecord(activity.object) &&
+    activity.object.type === 'Announce' &&
+    typeof activity.object.object === 'string' &&
+    isBlueskyId(activity.object.object)
+  ) {
+    return true
+  }
+  return false
+}
+
 export const enqueueDeliveries = async ({
   database,
   parentMessageId,
@@ -65,6 +89,8 @@ export const enqueueDeliveries = async ({
   span,
   statusId
 }: EnqueueDeliveriesParams): Promise<void> => {
+  if (isBlueskyAnnounceActivity(activity)) return
+
   // Never deliver to an empty inbox or a Bluesky actor (not ActivityPub).
   const uniqueInboxes = Array.from(new Set(inboxes)).filter(
     (inbox) => !!inbox && !isBlueskyId(inbox)

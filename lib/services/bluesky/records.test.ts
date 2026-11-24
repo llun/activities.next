@@ -701,4 +701,69 @@ describe('storing AppView views', () => {
       })
     ).toBeNull()
   })
+
+  it('stores and updates like, repost and reply counts from AppView views while ignoring invalid counts', async () => {
+    const initial = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/counts1`,
+      cid: 'cid-counts1',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Counted post',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      likeCount: 7,
+      repostCount: 3,
+      replyCount: 2
+    })
+    expect(initial).not.toBeNull()
+    const statusId = (await storeBlueskyPostView(
+      database,
+      initial as NonNullable<typeof initial>
+    )) as string
+
+    expect(await database.getLikeCount({ statusId })).toBe(7)
+    expect(await database.getStatusReblogsCount({ statusId })).toBe(3)
+    expect(await database.getStatusRepliesCount({ statusId })).toBe(2)
+
+    // Re-storing an already-stored post refreshes its counts (including 0).
+    const updated = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/counts1`,
+      cid: 'cid-counts1',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Counted post',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      likeCount: 15,
+      repostCount: 0,
+      replyCount: 5
+    })
+    await storeBlueskyPostView(database, updated as NonNullable<typeof updated>)
+
+    expect(await database.getLikeCount({ statusId })).toBe(15)
+    expect(await database.getStatusReblogsCount({ statusId })).toBe(0)
+    expect(await database.getStatusRepliesCount({ statusId })).toBe(5)
+
+    // Non-integer, negative or missing counts are ignored and leave stored counts intact.
+    const invalid = parseBlueskyPostView({
+      uri: `at://${ALICE}/app.bsky.feed.post/counts1`,
+      cid: 'cid-counts1',
+      author: { did: ALICE, handle: 'alice.bsky.social' },
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'Counted post',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      likeCount: -1,
+      repostCount: 2.5,
+      replyCount: '99'
+    })
+    await storeBlueskyPostView(database, invalid as NonNullable<typeof invalid>)
+
+    expect(await database.getLikeCount({ statusId })).toBe(15)
+    expect(await database.getStatusReblogsCount({ statusId })).toBe(0)
+    expect(await database.getStatusRepliesCount({ statusId })).toBe(5)
+  })
 })

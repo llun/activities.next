@@ -174,4 +174,23 @@ describe('sendUndoAnnounceJob', () => {
 
     expect(publish).not.toHaveBeenCalled()
   })
+
+  it('refuses to federate an undo announce whose original is a Bluesky post', async () => {
+    if (!actor1) fail('Actor1 is required')
+
+    await sendUndoAnnounceJob(database, {
+      id: 'undo-announce-bluesky',
+      name: SEND_UNDO_ANNOUNCE_JOB_NAME,
+      data: {
+        actorId: actor1.id,
+        statusId: `${actor1.id}/statuses/announce-bluesky`,
+        originalStatusId: `https://bsky.app/profile/did:plc:${'a'.repeat(24)}/post/3k`,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [ACTOR1_FOLLOWER_URL],
+        createdAt: 1700000000000
+      }
+    })
+
+    expect(publish).not.toHaveBeenCalled()
+  })
 })
