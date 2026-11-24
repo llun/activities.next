@@ -57,8 +57,8 @@
   "dependencies": {
     "@atproto-labs/identity-resolver": "^0.4.13",
     "@atproto/oauth-client-node": "^0.5.16",
-    "@aws-sdk/client-s3": "3.1169.0",
-    "@aws-sdk/s3-request-presigner": "3.1169.0",
+    "@aws-sdk/client-s3": "3.1170.0",
+    "@aws-sdk/s3-request-presigner": "3.1170.0",
     "@better-auth/core": "1.7.25",
     "@better-auth/oauth-provider": "1.7.25",
     "@better-auth/passkey": "1.7.25",
