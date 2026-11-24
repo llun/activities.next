@@ -1,0 +1,36 @@
+lib/client/offline/sw.test.ts
+  h_580a04e334fef4 539,543,669-678
+lib/components/post-box/post-box.bluesky.test.tsx
+  h_580a04e334fef4 323-401
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 1562-1563,1565,1568,1578-1580
+lib/components/posts/status-reply-box.bluesky.test.tsx
+  h_580a04e334fef4 270-368
+lib/components/posts/status-reply-box.tsx
+  h_580a04e334fef4 701-702,704,707,716-717
+lib/database/domains/bluesky/blueskyMigration.test.ts
+  h_580a04e334fef4 83-113
+lib/services/bluesky/sync.test.ts
+  h_580a04e334fef4 678-692
+lib/services/bluesky/sync.ts
+  h_580a04e334fef4 227-229
+lib/services/bluesky/thread.test.ts
+  h_580a04e334fef4 307-333
+lib/services/bluesky/thread.ts
+  h_580a04e334fef4 61
+migrations/20261124060051_add_bluesky_interactions.ts
+  h_580a04e334fef4 46-52
+public/sw.js
+  h_580a04e334fef4 673-675,682-684
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f4d9dc2a92c9bc5f31260866b3f65391609dcc9",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
