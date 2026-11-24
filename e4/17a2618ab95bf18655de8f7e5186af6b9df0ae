@@ -1,0 +1,32 @@
+migrations/index.ts
+  s_f193227df3df34::t_830841bfcbe367 31,70-71
+migrations/names.ts
+  s_f193227df3df34::t_830841bfcbe367 31-32
+migrations/20261124004542_add_bluesky_network.ts
+  s_f193227df3df34::t_830841bfcbe367 84-87
+  s_f193227df3df34::t_83ce0b81f371d9 1,3-13,15-80,83,88-97
+  s_f193227df3df34::t_18652687f1f7be 2,14,81-82
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_1d7acefa16aa7b 7,27,362,366-368
+migrations/schema.sql
+  s_f193227df3df34::t_894908920bd9b7 169-170,254-263,273-279,1554-1555,1801-1803,1807-1812,2292
+  s_f193227df3df34::t_10f8740a41c4cc 2293
+lib/database/kysely/db.ts
+  s_f193227df3df34::t_cd08b7606190ed 184,278,280,284-290,298-304,1463,1617,1619
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e417a2618ab95bf18655de8f7e5186af6b9df0ae",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
