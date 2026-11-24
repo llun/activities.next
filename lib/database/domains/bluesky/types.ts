@@ -86,6 +86,14 @@ export interface BlueskyDatabase {
     actorId: string
     statusId: string
   }): Promise<boolean>
+  /**
+   * Whether the actor's Home (the MAIN timeline) already holds a boost
+   * (Announce) of this status.
+   */
+  isBoostOfStatusInHome(params: {
+    actorId: string
+    statusId: string
+  }): Promise<boolean>
 
   /** Replaces the record URI of an existing follow. */
   createBlueskyFollow(params: {

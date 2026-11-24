@@ -16,8 +16,15 @@ import { MainTimelineRule, Timeline } from './types'
 const isBlueskyOriginalInHome = async (
   database: Database,
   currentActor: Actor,
-  status: StatusNote | StatusPoll
+  status: StatusNote | StatusPoll,
+  { checkFollow }: { checkFollow: boolean }
 ): Promise<boolean> => {
+  if (!checkFollow) {
+    return database.isBlueskyPostInHome({
+      actorId: currentActor.id,
+      statusId: status.id
+    })
+  }
   const [inHome, blueskyFollow] = await Promise.all([
     database.isBlueskyPostInHome({
       actorId: currentActor.id,
@@ -97,7 +104,13 @@ export const mainTimelineRule: MainTimelineRule = async ({
         const rootStatus = getOriginalStatus(status)
         if (isBlueskyStatus(status)) {
           if (
-            await isBlueskyOriginalInHome(database, currentActor, rootStatus)
+            await isBlueskyOriginalInHome(database, currentActor, rootStatus, {
+              // For the booster themself, only drop the boost if the original
+              // is already in Home: following the author on Bluesky does not
+              // guarantee the post is in Home yet (or within the sync window),
+              // and dropping the boost would leave the post in neither form.
+              checkFollow: status.actorId !== currentActor.id
+            })
           ) {
             return null
           }

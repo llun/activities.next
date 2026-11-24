@@ -1070,5 +1070,41 @@ describe('mainTimelineRule', () => {
       })
       expect(followerHome.map((s) => s.id)).toContain(announce.id)
     })
+
+    it('adds a Bluesky boost to the booster Home even when the booster bluesky-follows the author, if the original is not in Home', async () => {
+      const booster = (await database.getActorFromId({
+        id: ACTOR3_ID
+      })) as Actor
+      const { did, status: blueskyPost } = await createBlueskyPost(
+        'bskyboosterfollowed',
+        'r4'
+      )
+      await database.createBlueskyFollow({
+        actorId: booster.id,
+        targetActorId: blueskyActorId(did),
+        uri: `at://did:plc:booster/app.bsky.graph.follow/${did}`
+      })
+
+      const announce = await createLocalAnnounce({
+        database,
+        currentActor: booster,
+        originalStatusId: blueskyPost.id
+      })
+      if (!announce) fail('Announce must be defined')
+
+      expect(
+        await mainTimelineRule({
+          database,
+          currentActor: booster,
+          status: announce
+        })
+      ).toEqual(Timeline.MAIN)
+      const boosterHome = await database.getTimeline({
+        timeline: Timeline.MAIN,
+        actorId: booster.id
+      })
+      expect(boosterHome.map((s) => s.id)).toContain(announce.id)
+      expect(boosterHome.map((s) => s.id)).not.toContain(blueskyPost.id)
+    })
   })
 })

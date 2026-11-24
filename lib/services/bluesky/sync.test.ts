@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 
+import { createLocalAnnounce } from '@/lib/actions/announce'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import {
   BlueskyRequestError,
@@ -9,10 +10,16 @@ import {
 } from '@/lib/services/bluesky/agent'
 import { getPublicPosts } from '@/lib/services/bluesky/appview'
 import { syncBlueskyNotifications } from '@/lib/services/bluesky/notifications'
-import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
+import {
+  blueskyActorId,
+  blueskyPostId,
+  parseBlueskyPostView,
+  storeBlueskyPostView
+} from '@/lib/services/bluesky/records'
 import { syncBlueskyHome } from '@/lib/services/bluesky/sync'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import type { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 
 vi.mock('@/lib/services/bluesky/agent', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/services/bluesky/agent')>()),
@@ -691,42 +698,61 @@ describe('syncBlueskyHome', () => {
     })
   })
 
-  it('skips the user own repost when a local bluesky_interactions repost row exists, and keeps it otherwise', async () => {
-    const localReposted = postView('nina', 'n1')
+  it('skips adding a Bluesky post to Home when an Announce of it is already in Home, and keeps posts without one', async () => {
+    const locallyBoosted = postView('nina', 'n1')
     const externalReposted = postView('nina', 'n2')
-    const othersReposted = postView('nina', 'n3')
-    publish(localReposted, externalReposted, othersReposted)
+    const boostedForOther = postView('nina', 'n3')
+    publish(locallyBoosted, externalReposted, boostedForOther)
 
-    const localRepostedId = blueskyPostId(did('nina'), 'n1')
+    const locallyBoostedId = (await storeBlueskyPostView(
+      database,
+      parseBlueskyPostView(locallyBoosted)!
+    )) as string
     const externalRepostedId = blueskyPostId(did('nina'), 'n2')
-    const othersRepostedId = blueskyPostId(did('nina'), 'n3')
+    const boostedForOtherId = (await storeBlueskyPostView(
+      database,
+      parseBlueskyPostView(boostedForOther)!
+    )) as string
 
-    // Local repost interaction exists for n1 (boosted from here) and n3 (also
-    // reposted by another user); n2 only has a like interaction (reposted from
-    // another Bluesky app).
-    await database.createBlueskyInteraction({
-      actorId: actor.id,
-      statusId: localRepostedId,
-      kind: 'repost',
-      uri: 'at://did:plc:reader/app.bsky.feed.repost/n1'
+    // n1 is boosted by this actor so its Announce is in actor's Home.
+    const ownAnnounce = await createLocalAnnounce({
+      database,
+      currentActor: actor,
+      originalStatusId: locallyBoostedId
     })
+    expect(ownAnnounce).not.toBeNull()
+
+    // n2 has no Announce in actor's Home (e.g. reposted from another Bluesky
+    // app, with only a local like interaction).
     await database.createBlueskyInteraction({
       actorId: actor.id,
       statusId: externalRepostedId,
       kind: 'like',
       uri: 'at://did:plc:reader/app.bsky.feed.like/n2'
     })
-    await database.createBlueskyInteraction({
-      actorId: actor.id,
-      statusId: othersRepostedId,
-      kind: 'repost',
-      uri: 'at://did:plc:reader/app.bsky.feed.repost/n3'
+
+    // n3 has an Announce only in another actor's Home (not followed by reader).
+    await database.createAccount({
+      email: `unrelated@${TEST_DOMAIN}`,
+      username: 'unrelated',
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: 'privateKey-unrelated',
+      publicKey: 'publicKey-unrelated'
+    })
+    const unrelated = (await database.getActorFromId({
+      id: `https://${TEST_DOMAIN}/users/unrelated`
+    })) as Actor
+    await createLocalAnnounce({
+      database,
+      currentActor: unrelated,
+      originalStatusId: boostedForOtherId
     })
 
     get.mockResolvedValueOnce({
       feed: [
         {
-          post: localReposted,
+          post: locallyBoosted,
           reason: {
             $type: 'app.bsky.feed.defs#reasonRepost',
             by: { did: 'did:plc:reader', handle: 'reader.bsky.social' },
@@ -742,7 +768,7 @@ describe('syncBlueskyHome', () => {
           }
         },
         {
-          post: othersReposted,
+          post: boostedForOther,
           reason: {
             $type: 'app.bsky.feed.defs#reasonRepost',
             by: author('gina'),
@@ -755,8 +781,128 @@ describe('syncBlueskyHome', () => {
     await syncBlueskyHome(database, actor)
 
     const home = await homeStatusIds()
-    expect(home).not.toContain(localRepostedId)
+    expect(home).toContain(ownAnnounce?.id)
+    expect(home).not.toContain(locallyBoostedId)
     expect(home).toContain(externalRepostedId)
-    expect(home).toContain(othersRepostedId)
+    expect(home).toContain(boostedForOtherId)
+  })
+
+  it('keeps a booster own boost in Home when bluesky-following the author, and sync skips the original without stopping before older posts', async () => {
+    const boostedPost = postView('olivia', 'o1', {
+      createdAt: '2026-04-02T00:01:00.000Z'
+    })
+    const olderPost = postView('olivia', 'o0', {
+      createdAt: '2026-04-02T00:00:00.000Z'
+    })
+    publish(boostedPost, olderPost)
+
+    const boostedPostId = (await storeBlueskyPostView(
+      database,
+      parseBlueskyPostView(boostedPost)!
+    )) as string
+    const olderPostId = blueskyPostId(did('olivia'), 'o0')
+
+    await database.createBlueskyFollow({
+      actorId: actor.id,
+      targetActorId: blueskyActorId(did('olivia')),
+      uri: `at://did:plc:reader/app.bsky.graph.follow/${did('olivia')}`
+    })
+
+    const announce = await createLocalAnnounce({
+      database,
+      currentActor: actor,
+      originalStatusId: boostedPostId
+    })
+    expect(announce).not.toBeNull()
+    expect(await homeStatusIds()).toContain(announce?.id)
+    expect(await homeStatusIds()).not.toContain(boostedPostId)
+
+    get.mockResolvedValueOnce({
+      feed: [
+        {
+          post: boostedPost,
+          reason: {
+            $type: 'app.bsky.feed.defs#reasonRepost',
+            by: { did: 'did:plc:reader', handle: 'reader.bsky.social' },
+            indexedAt: '2026-04-02T00:02:00.000Z'
+          }
+        },
+        { post: boostedPost },
+        { post: olderPost }
+      ]
+    })
+
+    await syncBlueskyHome(database, actor)
+
+    const home = await homeStatusIds()
+    expect(home).toContain(announce?.id)
+    expect(home).not.toContain(boostedPostId)
+    expect(home).toContain(olderPostId)
+  })
+
+  it('does not add the original post when a follower already has a fanned-out boost of it in Home', async () => {
+    await database.createAccount({
+      email: `localbooster@${TEST_DOMAIN}`,
+      username: 'localbooster',
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: 'privateKey-localbooster',
+      publicKey: 'publicKey-localbooster'
+    })
+    const localBooster = (await database.getActorFromId({
+      id: `https://${TEST_DOMAIN}/users/localbooster`
+    })) as Actor
+    await database.createFollow({
+      actorId: actor.id,
+      targetActorId: localBooster.id,
+      status: FollowStatus.enum.Accepted,
+      inbox: `${actor.id}/inbox`,
+      sharedInbox: `${actor.id}/inbox`
+    })
+
+    const boostedPost = postView('paula', 'p1', {
+      createdAt: '2026-04-03T00:01:00.000Z'
+    })
+    const olderPost = postView('paula', 'p0', {
+      createdAt: '2026-04-03T00:00:00.000Z'
+    })
+    publish(boostedPost, olderPost)
+
+    const boostedPostId = (await storeBlueskyPostView(
+      database,
+      parseBlueskyPostView(boostedPost)!
+    )) as string
+    const olderPostId = blueskyPostId(did('paula'), 'p0')
+
+    const fannedBoost = await createLocalAnnounce({
+      database,
+      currentActor: localBooster,
+      originalStatusId: boostedPostId
+    })
+    expect(fannedBoost).not.toBeNull()
+    expect(await homeStatusIds()).toContain(fannedBoost?.id)
+    expect(await homeStatusIds()).not.toContain(boostedPostId)
+
+    get.mockResolvedValueOnce({
+      feed: [
+        {
+          post: boostedPost,
+          reason: {
+            $type: 'app.bsky.feed.defs#reasonRepost',
+            by: author('gina'),
+            indexedAt: '2026-04-03T00:02:00.000Z'
+          }
+        },
+        { post: boostedPost },
+        { post: olderPost }
+      ]
+    })
+
+    await syncBlueskyHome(database, actor)
+
+    const home = await homeStatusIds()
+    expect(home).toContain(fannedBoost?.id)
+    expect(home).not.toContain(boostedPostId)
+    expect(home).toContain(olderPostId)
   })
 })

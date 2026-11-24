@@ -30,6 +30,7 @@ import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { blueskyActorId, blueskyPostId } from '@/lib/services/bluesky/records'
 import { Timeline } from '@/lib/services/timelines/types'
+import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { BLUESKY_DOMAIN, BLUESKY_PROFILE_PREFIX } from '@/lib/utils/blueskyId'
 
@@ -367,6 +368,23 @@ export const isBlueskyPostInHome = async (
       .executeTakeFirst()
   )
 
+export const isBoostOfStatusInHome = async (
+  db: Db,
+  { actorId, statusId }: { actorId: string; statusId: string }
+): Promise<boolean> =>
+  Boolean(
+    await db
+      .selectFrom('timelines')
+      .innerJoin('statuses', 'statuses.id', 'timelines.statusId')
+      .select('timelines.id')
+      .where('timelines.actorId', '=', actorId)
+      .where('timelines.timeline', '=', Timeline.MAIN)
+      .where('statuses.type', '=', StatusType.enum.Announce)
+      .where('statuses.originalStatusId', '=', statusId)
+      .limit(1)
+      .executeTakeFirst()
+  )
+
 export const createBlueskyFollow = async (
   db: Db,
   {
@@ -555,6 +573,7 @@ export const blueskyQueries = {
   getBlueskyRecordByStatusId,
   getBlueskyRecordByUri,
   isBlueskyPostInHome,
+  isBoostOfStatusInHome,
   createBlueskyFollow,
   deleteBlueskyFollow,
   getBlueskyFollow,

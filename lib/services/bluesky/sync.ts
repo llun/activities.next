@@ -39,8 +39,8 @@ const REPOST_REASON = 'app.bsky.feed.defs#reasonRepost'
 // One sweep interval: a crashed holder blocks the actor's sync no longer.
 const SYNC_LOCK_TTL_MS = 5 * 60 * 1000
 
-// One Home entry as the PDS lists it: the post, and when/by whom it was reposted.
-type HomeItem = { uri: string; repostedAt?: number; repostByDid?: string }
+// One Home entry as the PDS lists it: the post, and when it was reposted.
+type HomeItem = { uri: string; repostedAt?: number }
 
 // The AppView's views of `uris`, keyed by uri; a post it does not return is
 // missing.
@@ -99,22 +99,19 @@ export const syncBlueskyHome = async (
 const storeHomeItem = async (
   database: Database,
   actor: Actor,
-  agentDid: string,
   item: HomeItem,
   post: BlueskyPostView
 ) => {
   const statusId = await storeBlueskyPostView(database, post)
   if (!statusId) return
-  // A repost made by this actor from here already has a local boost row in
-  // Home; skip adding the original post a second time. Other reposts still
-  // show the original post in Home.
+  // Skip adding a Home item when the actor's Home already holds a boost
+  // (Announce) of this post (either their own local boost or a fanned-out
+  // boost from someone they follow).
   if (
-    item.repostByDid === agentDid &&
-    (await database.getBlueskyInteraction({
+    await database.isBoostOfStatusInHome({
       actorId: actor.id,
-      statusId,
-      kind: 'repost'
-    }))
+      statusId
+    })
   ) {
     return
   }
@@ -164,6 +161,9 @@ const runSync = async (database: Database, actor: Actor) => {
         // stopped, so only an original post ends the walk. The posts are
         // shared rows (another user's Home, a reply's parent, a profile), so
         // only one already in this actor's Home says this sync got there.
+        // A boost (Announce) of a post can enter Home out-of-band (a local
+        // repost or a fanned-out boost) before sync reaches older posts, so it
+        // does not stop the walk; storeHomeItem skips adding the original row.
         const reason = isRecord(item.reason) ? item.reason : null
         const repost = reason?.$type === REPOST_REASON
         if (
@@ -179,11 +179,7 @@ const runSync = async (database: Database, actor: Actor) => {
           uri,
           repostedAt: repost
             ? Date.parse(optionalString(reason?.indexedAt) ?? '') || undefined
-            : undefined,
-          repostByDid:
-            repost && isRecord(reason?.by)
-              ? optionalString(reason.by.did)
-              : undefined
+            : undefined
         })
       }
       cursor = optionalString(response?.cursor)
@@ -227,7 +223,7 @@ const runSync = async (database: Database, actor: Actor) => {
         )
       }
       await skipOnError(item.uri, () =>
-        storeHomeItem(database, actor, agent.did, item, post)
+        storeHomeItem(database, actor, item, post)
       )
     }
     const homeSyncedAt = Date.now()

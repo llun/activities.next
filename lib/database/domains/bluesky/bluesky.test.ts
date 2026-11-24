@@ -366,6 +366,81 @@ describe('Bluesky', () => {
       expect(await inHome('https://local.test/users/other')).toBe(false)
     })
 
+    it("tells whether a boost of a status is in an actor's Home", async () => {
+      const statusId = blueskyPostId(did, '3kpost')
+      const { statusId: otherStatusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/3kotherboost`,
+        cid: 'bafyotherboost',
+        did,
+        rkey: '3kotherboost',
+        actorId,
+        text: '<p>Other</p>',
+        createdAt: Date.UTC(2026, 10, 8),
+        attachments: []
+      })
+      const reader = 'https://local.test/users/boost-reader'
+      const booster = 'https://local.test/users/boost-booster'
+      const otherReader = 'https://local.test/users/boost-other-reader'
+
+      const hasBoostInHome = (viewer: string, target = statusId) =>
+        database.isBoostOfStatusInHome({ actorId: viewer, statusId: target })
+
+      expect(await hasBoostInHome(reader)).toBe(false)
+
+      // The original status itself in Home is not a boost.
+      const original = (await database.getStatus({ statusId })) as Status
+      await database.createTimelineStatus({
+        actorId: reader,
+        status: original,
+        timeline: Timeline.MAIN
+      })
+      expect(await hasBoostInHome(reader)).toBe(false)
+
+      // A boost of a different status in Home does not match.
+      const otherBoost = (await database.createAnnounce({
+        id: `${booster}/statuses/announce-other`,
+        actorId: booster,
+        originalStatusId: otherStatusId,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })) as Status
+      await database.createTimelineStatus({
+        actorId: reader,
+        status: otherBoost,
+        timeline: Timeline.MAIN
+      })
+      expect(await hasBoostInHome(reader)).toBe(false)
+
+      // A boost of this status in DIRECT or another actor's Home does not match.
+      const boost = (await database.createAnnounce({
+        id: `${booster}/statuses/announce-target`,
+        actorId: booster,
+        originalStatusId: statusId,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })) as Status
+      await database.createTimelineStatus({
+        actorId: reader,
+        status: boost,
+        timeline: Timeline.DIRECT
+      })
+      await database.createTimelineStatus({
+        actorId: otherReader,
+        status: boost,
+        timeline: Timeline.MAIN
+      })
+      expect(await hasBoostInHome(reader)).toBe(false)
+      expect(await hasBoostInHome(otherReader)).toBe(true)
+
+      // Once the boost is in the reader's MAIN timeline, it matches.
+      await database.createTimelineStatus({
+        actorId: reader,
+        status: boost,
+        timeline: Timeline.MAIN
+      })
+      expect(await hasBoostInHome(reader)).toBe(true)
+    })
+
     it('stores a sensitive post and defaults to not sensitive', async () => {
       const sensitiveId = blueskyPostId(did, '3knsfw')
       await database.upsertBlueskyPost({
