@@ -1,0 +1,35 @@
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_04d16aed40a52c 1392
+lib/services/bluesky/account.ts
+  s_f193227df3df34::t_04d16aed40a52c 520-522
+app/api/v1/accounts/search/route.ts
+  s_f193227df3df34::t_04d16aed40a52c 11
+  s_f193227df3df34::t_774efc382b192d 124
+lib/services/bluesky/profiles.ts
+  s_f193227df3df34::t_774efc382b192d 40
+app/api/v2/search/route.ts
+  s_f193227df3df34::t_774efc382b192d 421
+  s_f193227df3df34::t_04d16aed40a52c 15
+app/api/v1/accounts/search/route.test.ts
+  s_f193227df3df34::t_309684f6713793 881-905
+app/api/v2/search/route.test.ts
+  s_f193227df3df34::t_d7aa9d02879811 2368-2388
+lib/services/bluesky/account.test.ts
+  s_f193227df3df34::t_78becf49013b77 713-733
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "30dc15dcfd340740665693339d9f131e191bca49",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
