@@ -1,0 +1,60 @@
+app/api/v1/statuses/[id]/context/route.test.ts
+  h_580a04e334fef4 671-697
+app/api/v1/statuses/[id]/context/route.ts
+  h_580a04e334fef4 14,42,51-60,70
+app/api/v1/statuses/route.test.ts
+  h_580a04e334fef4 28-30,476,579-681
+app/api/v1/statuses/route.ts
+  h_580a04e334fef4 23-24,638,640,654-662,664,685-704
+lib/client/drafts/sendQueue.test.ts
+  h_580a04e334fef4 1837-1897
+lib/client/drafts/sendQueue.ts
+  h_580a04e334fef4 25-29,183-207,332-334,548-553
+lib/components/post-box/OfflineSubmitButtons.test.tsx
+  h_580a04e334fef4 14,17,26-28
+lib/components/post-box/OfflineSubmitButtons.tsx
+  h_580a04e334fef4 7,9,11-17,20
+lib/components/post-box/post-box.bluesky.test.tsx
+  h_580a04e334fef4 15,20,22,26-30,58-66,101,103,127-128,152,159,166,168,263-345
+lib/components/post-box/post-box.tsx
+  h_580a04e334fef4 40,89,91,263,265-282,637-638,640-643,649-650,1220,1222,1276,1278,1547-1562,1683,1699,1746,1767,2295-2298,2309-2321,2521-2531,2537,2539-2540,2564-2566,2578-2579,2605-2607
+lib/components/post-box/useComposerDraft.ts
+  h_580a04e334fef4 25-29,873-879
+lib/components/posts/status-reply-box.bluesky.test.tsx
+  h_580a04e334fef4 15,20,22,26-30,43-51,108-109,187-303
+lib/components/posts/status-reply-box.tsx
+  h_580a04e334fef4 19-23,75,77,254-266,270-272,274-275,277-279,288-291,481,522-524,685-699,967-969,1063-1073,1079,1081-1082
+lib/services/bluesky/records.test.ts
+  h_580a04e334fef4 769-820
+lib/services/bluesky/records.ts
+  h_580a04e334fef4 403-406
+lib/services/bluesky/reply.test.ts
+  h_580a04e334fef4 1,19-21,48-49,52,56,156-159,264-277,303,309-406,464,476-480,574-620,635,645-646,648-652,655,684-689,691,699-727,737,739,742-753
+lib/services/bluesky/reply.ts
+  h_580a04e334fef4 3-8,14-15,17-18,30,41-43,46,54-71,128-131,148,151-154,183-184,188,203,211,215-216,230-239,246,249,254,270-291,293-309,311-327,333-335,342
+lib/services/bluesky/richText.test.ts
+  h_580a04e334fef4 2-5,130,137-174
+lib/services/bluesky/richText.ts
+  h_580a04e334fef4 127-158
+lib/services/bluesky/thread.test.ts
+  h_580a04e334fef4 1,9-12,109,111-114,284-306
+lib/services/bluesky/thread.ts
+  h_580a04e334fef4 7-9,33-36,61-70
+lib/types/domain/status.ts
+  h_580a04e334fef4 242-244
+lib/utils/blueskyText.test.ts
+  h_580a04e334fef4 3-7,23-79
+lib/utils/blueskyText.ts
+  h_580a04e334fef4 5,10-15,19,29-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79e1dc92099d322d41c53142ca2aa3bd503c0798",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
