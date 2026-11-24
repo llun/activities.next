@@ -801,6 +801,33 @@ describe('Bluesky', () => {
       )
     })
 
+    it('resets a stale pending cross-post but not a fresh one', async () => {
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      // A fresh pending row may still have a job working on it.
+      expect(await database.resetBlueskyCrosspostForRetry({ statusId })).toBe(
+        false
+      )
+
+      // Older than STALE_CROSSPOST_MS: its job was dead-lettered.
+      await testDb.db
+        .updateTable('bluesky_crossposts')
+        .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+        .where('statusId', '=', statusId)
+        .execute()
+
+      expect(await database.resetBlueskyCrosspostForRetry({ statusId })).toBe(
+        true
+      )
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        state: 'pending',
+        error: null
+      })
+      // The reset refreshed updatedAt, so the row is no longer stale.
+      expect(await database.resetBlueskyCrosspostForRetry({ statusId })).toBe(
+        false
+      )
+    })
+
     it('deletes a cross-post', async () => {
       await database.claimBlueskyCrosspost({ statusId, actorId })
       await database.deleteBlueskyCrosspost({ statusId })

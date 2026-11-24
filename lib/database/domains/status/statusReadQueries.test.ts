@@ -3439,4 +3439,59 @@ describe('hydration context', () => {
       }
     })
   })
+
+  it('reports a stale pending cross-post as failed and a fresh one as pending', async () => {
+    const prefix = nextPrefix()
+    const viewer = await seedActor(actorIn(prefix, 'viewer'))
+    const staleId = await seedStatus({
+      id: `${viewer}/statuses/stale-crosspost`,
+      actorId: viewer
+    })
+    const freshId = await seedStatus({
+      id: `${viewer}/statuses/fresh-crosspost`,
+      actorId: viewer
+    })
+    const crosspost = (statusId: string, updatedAt: number) =>
+      db
+        .insertInto('bluesky_crossposts')
+        .values({
+          statusId,
+          actorId: viewer,
+          state: 'pending',
+          createdAt: new Date(BASE),
+          updatedAt: new Date(updatedAt)
+        })
+        .execute()
+    // Older than STALE_CROSSPOST_MS: its job was dead-lettered.
+    await crosspost(staleId, Date.now() - 31 * MINUTE)
+    await crosspost(freshId, Date.now() - MINUTE)
+    const rows = (await db
+      .selectFrom('statuses')
+      .selectAll()
+      .where('id', 'in', [staleId, freshId])
+      .execute()) as StatusRow[]
+    const rowOf = (id: string) => rows.find((row) => row.id === id) as StatusRow
+
+    const stale = (await hydrateStatusRow(
+      db,
+      rowOf(staleId),
+      viewer
+    )) as StatusNote
+    expect(stale.blueskyCrosspost).toEqual({
+      state: 'failed',
+      url: null,
+      error: 'Bluesky did not answer. Try again.'
+    })
+
+    const fresh = (await hydrateStatusRow(
+      db,
+      rowOf(freshId),
+      viewer
+    )) as StatusNote
+    expect(fresh.blueskyCrosspost).toEqual({
+      state: 'pending',
+      url: null,
+      error: null
+    })
+  })
 })

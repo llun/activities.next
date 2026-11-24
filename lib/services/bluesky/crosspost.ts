@@ -546,8 +546,11 @@ export const crosspostStatus = async (
     // An inline queue (NoQueue) never retries, so a transient failure there is
     // marked failed too: the owner's Retry is then the way to post it.
     // shortcut: the job runner does not expose the attempt number or the last
-    // attempt, so a real queue's final attempt is not detected here; the row
-    // stays pending until the queue gives up, and the owner's Retry covers it.
+    // attempt, so a real queue's final attempt is not detected here. A
+    // retryable error is rethrown for the queue to retry; when the queue
+    // dead-letters the job the row stays pending, and once it is older than
+    // STALE_CROSSPOST_MS hydration reports it as failed and the owner's Retry
+    // resets it (resetBlueskyCrosspostForRetry).
     if (isRetryableCrosspostError(error) && !getQueue().runsInline) throw error
     logger.warn({
       message: 'Bluesky cross-post failed',

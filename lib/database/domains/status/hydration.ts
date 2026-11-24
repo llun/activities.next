@@ -1,5 +1,9 @@
 import { getActorFromId } from '@/lib/database/domains/actor/lookups'
-import { getBlueskyCrosspostsByStatusIds } from '@/lib/database/domains/bluesky/queries'
+import {
+  STALE_CROSSPOST_ERROR,
+  STALE_CROSSPOST_MS,
+  getBlueskyCrosspostsByStatusIds
+} from '@/lib/database/domains/bluesky/queries'
 import type { BlueskyCrosspost } from '@/lib/database/domains/bluesky/types'
 import { getActorBookmark } from '@/lib/database/domains/bookmark/queries'
 import { parseElevationSeries } from '@/lib/database/domains/fitnessFile/rows'
@@ -701,6 +705,11 @@ export const hydrateStatusRow = async (
     },
     data.type === StatusType.enum.Poll
   )
+  // A pending cross-post whose job never finished (the queue dead-lettered it
+  // after its retries) reads as failed, so the owner's post menu offers Retry.
+  const staleCrosspost =
+    blueskyCrosspost?.state === 'pending' &&
+    blueskyCrosspost.updatedAt < Date.now() - STALE_CROSSPOST_MS
   const base = {
     id: data.id,
     publicId: data.publicId ?? null,
@@ -731,9 +740,11 @@ export const hydrateStatusRow = async (
       ? {
           blueskyCrosspost: blueskyCrosspost
             ? {
-                state: blueskyCrosspost.state,
+                state: staleCrosspost ? 'failed' : blueskyCrosspost.state,
                 url: blueskyPostWebUrl(blueskyCrosspost.uri ?? ''),
-                error: blueskyCrosspost.error
+                error: staleCrosspost
+                  ? STALE_CROSSPOST_ERROR
+                  : blueskyCrosspost.error
               }
             : null
         }

@@ -26,7 +26,7 @@ import type {
   BlueskyInteractions,
   BlueskyRecords
 } from '@/lib/database/kysely/db'
-import { forUpdate } from '@/lib/database/kysely/dialect'
+import { forUpdate, timestampValue } from '@/lib/database/kysely/dialect'
 import { selectInChunks } from '@/lib/database/kysely/inList'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
@@ -39,6 +39,13 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { BLUESKY_DOMAIN, BLUESKY_PROFILE_PREFIX } from '@/lib/utils/blueskyId'
 
 const BLUESKY_NETWORK = 'bluesky'
+
+// A 'pending' cross-post row older than this has no job left to finish it: the
+// queue dead-letters a job after its retries, leaving the row pending forever.
+// The owner's Retry treats such a row as stuck, and hydration reports it as
+// failed so the post menu offers that Retry.
+export const STALE_CROSSPOST_MS = 30 * 60 * 1000
+export const STALE_CROSSPOST_ERROR = 'Bluesky did not answer. Try again.'
 
 // Frees `handle` from any other Bluesky actor row (the handle moved to another
 // DID), the way updateRemoteActorHandle displaces a stale remote row, so the
@@ -636,7 +643,7 @@ export const claimBlueskyCrosspost = async (
 ): Promise<boolean> => {
   const result = await db
     .insertInto('bluesky_crossposts')
-    .values({ statusId, actorId, state: 'pending' })
+    .values({ statusId, actorId, state: 'pending', updatedAt: new Date() })
     .onConflict((oc) => oc.column('statusId').doNothing())
     .executeTakeFirst()
   return Number(result.numInsertedOrUpdatedRows ?? 0) > 0
@@ -665,15 +672,30 @@ export const markBlueskyCrosspostFailed = async (
     .execute()
 }
 
+// Moves a failed cross-post, or a pending one whose job never finished (older
+// than STALE_CROSSPOST_MS), back to pending. Returns whether a row was reset.
 export const resetBlueskyCrosspostForRetry = async (
   db: Db,
   { statusId }: { statusId: string }
 ): Promise<boolean> => {
+  const now = new Date()
   const result = await db
     .updateTable('bluesky_crossposts')
-    .set({ state: 'pending', error: null, updatedAt: new Date() })
+    .set({ state: 'pending', error: null, updatedAt: now })
     .where('statusId', '=', statusId)
-    .where('state', '=', 'failed')
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'failed'),
+        eb.and([
+          eb('state', '=', 'pending'),
+          eb(
+            'updatedAt',
+            '<',
+            timestampValue(now.getTime() - STALE_CROSSPOST_MS)
+          )
+        ])
+      ])
+    )
     .executeTakeFirst()
   return Number(result.numUpdatedRows ?? 0) > 0
 }

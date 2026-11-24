@@ -56,7 +56,7 @@ const callRetry = (statusId: string) =>
   )
 
 describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
-  const { database, prepare } = createTestDatabase()
+  const { database, db, prepare } = createTestDatabase()
 
   const seed = async (suffix: string, actorId = ACTOR1_ID) => {
     const status = await database.createNote({
@@ -128,6 +128,30 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
       error: expect.any(String)
     })
     expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+
+  it('accepts a stale pending cross-post whose job never finished', async () => {
+    const status = await seed('stale')
+    // Older than STALE_CROSSPOST_MS: the queue dead-lettered its job.
+    await db
+      .updateTable('bluesky_crossposts')
+      .set({ updatedAt: new Date(Date.now() - 31 * 60 * 1000) })
+      .where('statusId', '=', status.id)
+      .execute()
+
+    const response = await callRetry(status.id)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      uri: status.id,
+      bluesky_crosspost: { state: 'pending', url: null, error: null }
+    })
+    const publish = vi.mocked(getQueue().publish)
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(publish.mock.calls[0][0]).toMatchObject({
+      name: CROSSPOST_BLUESKY_JOB_NAME,
+      data: { statusId: status.id }
+    })
   })
 
   it('answers 422 when the post is no longer public', async () => {
