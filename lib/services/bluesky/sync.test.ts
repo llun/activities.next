@@ -690,4 +690,73 @@ describe('syncBlueskyHome', () => {
       syncError: 'Bluesky ended this session.'
     })
   })
+
+  it('skips the user own repost when a local bluesky_interactions repost row exists, and keeps it otherwise', async () => {
+    const localReposted = postView('nina', 'n1')
+    const externalReposted = postView('nina', 'n2')
+    const othersReposted = postView('nina', 'n3')
+    publish(localReposted, externalReposted, othersReposted)
+
+    const localRepostedId = blueskyPostId(did('nina'), 'n1')
+    const externalRepostedId = blueskyPostId(did('nina'), 'n2')
+    const othersRepostedId = blueskyPostId(did('nina'), 'n3')
+
+    // Local repost interaction exists for n1 (boosted from here) and n3 (also
+    // reposted by another user); n2 only has a like interaction (reposted from
+    // another Bluesky app).
+    await database.createBlueskyInteraction({
+      actorId: actor.id,
+      statusId: localRepostedId,
+      kind: 'repost',
+      uri: 'at://did:plc:reader/app.bsky.feed.repost/n1'
+    })
+    await database.createBlueskyInteraction({
+      actorId: actor.id,
+      statusId: externalRepostedId,
+      kind: 'like',
+      uri: 'at://did:plc:reader/app.bsky.feed.like/n2'
+    })
+    await database.createBlueskyInteraction({
+      actorId: actor.id,
+      statusId: othersRepostedId,
+      kind: 'repost',
+      uri: 'at://did:plc:reader/app.bsky.feed.repost/n3'
+    })
+
+    get.mockResolvedValueOnce({
+      feed: [
+        {
+          post: localReposted,
+          reason: {
+            $type: 'app.bsky.feed.defs#reasonRepost',
+            by: { did: 'did:plc:reader', handle: 'reader.bsky.social' },
+            indexedAt: '2026-04-01T00:00:00.000Z'
+          }
+        },
+        {
+          post: externalReposted,
+          reason: {
+            $type: 'app.bsky.feed.defs#reasonRepost',
+            by: { did: 'did:plc:reader', handle: 'reader.bsky.social' },
+            indexedAt: '2026-04-01T00:01:00.000Z'
+          }
+        },
+        {
+          post: othersReposted,
+          reason: {
+            $type: 'app.bsky.feed.defs#reasonRepost',
+            by: author('gina'),
+            indexedAt: '2026-04-01T00:02:00.000Z'
+          }
+        }
+      ]
+    })
+
+    await syncBlueskyHome(database, actor)
+
+    const home = await homeStatusIds()
+    expect(home).not.toContain(localRepostedId)
+    expect(home).toContain(externalRepostedId)
+    expect(home).toContain(othersRepostedId)
+  })
 })

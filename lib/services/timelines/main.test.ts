@@ -1,7 +1,9 @@
 import { randomBytes } from 'crypto'
 
+import { createLocalAnnounce } from '@/lib/actions/announce'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
+import { blueskyActorId } from '@/lib/services/bluesky/records'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -925,5 +927,148 @@ describe('mainTimelineRule', () => {
         status: outerAnnounce
       })
     ).toBeNull()
+  })
+
+  describe('Bluesky reposts', () => {
+    const createBlueskyPost = async (name: string, rkey: string) => {
+      const did = `did:plc:${name.padEnd(24, 'a')}`
+      const actorId = (await database.upsertBlueskyActor({
+        did,
+        handle: `${name}.bsky.social`
+      })) as string
+      const { statusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/${rkey}`,
+        cid: `cid-${rkey}`,
+        did,
+        rkey,
+        actorId,
+        text: `<p>Bluesky post ${rkey}</p>`,
+        createdAt: Date.now(),
+        attachments: []
+      })
+      return {
+        did,
+        actorId,
+        status: (await database.getStatus({ statusId })) as Status
+      }
+    }
+
+    it('adds no second Home row when reposting a Bluesky post already in the booster Home', async () => {
+      const booster = (await database.getActorFromId({
+        id: ACTOR3_ID
+      })) as Actor
+      const { status: blueskyPost } = await createBlueskyPost(
+        'bskyinhome',
+        'r1'
+      )
+      await database.createTimelineStatus({
+        actorId: booster.id,
+        status: blueskyPost,
+        timeline: Timeline.MAIN
+      })
+
+      const announce = await createLocalAnnounce({
+        database,
+        currentActor: booster,
+        originalStatusId: blueskyPost.id
+      })
+      if (!announce) fail('Announce must be defined')
+
+      expect(
+        await mainTimelineRule({
+          database,
+          currentActor: booster,
+          status: announce
+        })
+      ).toBeNull()
+      const homeStatuses = await database.getTimeline({
+        timeline: Timeline.MAIN,
+        actorId: booster.id
+      })
+      const matchingIds = homeStatuses
+        .filter((s) => s.id === blueskyPost.id || s.id === announce.id)
+        .map((s) => s.id)
+      expect(matchingIds).toEqual([blueskyPost.id])
+    })
+
+    it('does not add a Bluesky boost to Home for a follower who bluesky-follows the author', async () => {
+      const follower = (await database.getActorFromId({
+        id: ACTOR3_ID
+      })) as Actor
+      const booster = (await database.getActorFromId({
+        id: ACTOR2_ID
+      })) as Actor
+      const {
+        did,
+        actorId: bskyAuthorId,
+        status: blueskyPost
+      } = await createBlueskyPost('bskyfollowed', 'r2')
+      await database.createBlueskyFollow({
+        actorId: follower.id,
+        targetActorId: blueskyActorId(did),
+        uri: `at://did:plc:follower/app.bsky.graph.follow/${did}`
+      })
+
+      const announce = await createLocalAnnounce({
+        database,
+        currentActor: booster,
+        originalStatusId: blueskyPost.id
+      })
+      if (!announce) fail('Announce must be defined')
+
+      expect(bskyAuthorId).toBe(blueskyActorId(did))
+      expect(
+        await mainTimelineRule({
+          database,
+          currentActor: follower,
+          status: announce
+        })
+      ).toBeNull()
+      const homeStatuses = await database.getTimeline({
+        timeline: Timeline.MAIN,
+        actorId: follower.id
+      })
+      expect(homeStatuses.map((s) => s.id)).not.toContain(announce.id)
+    })
+
+    it('adds a Bluesky boost to Home when neither the original is in Home nor its author is bluesky-followed', async () => {
+      const follower = (await database.getActorFromId({
+        id: ACTOR3_ID
+      })) as Actor
+      const booster = (await database.getActorFromId({
+        id: ACTOR2_ID
+      })) as Actor
+      const { status: blueskyPost } = await createBlueskyPost(
+        'bskyunfollowed',
+        'r3'
+      )
+
+      const announce = await createLocalAnnounce({
+        database,
+        currentActor: booster,
+        originalStatusId: blueskyPost.id
+      })
+      if (!announce) fail('Announce must be defined')
+
+      expect(
+        await mainTimelineRule({
+          database,
+          currentActor: follower,
+          status: announce
+        })
+      ).toEqual(Timeline.MAIN)
+      expect(
+        await mainTimelineRule({
+          database,
+          currentActor: booster,
+          status: announce
+        })
+      ).toEqual(Timeline.MAIN)
+      const followerHome = await database.getTimeline({
+        timeline: Timeline.MAIN,
+        actorId: follower.id
+      })
+      expect(followerHome.map((s) => s.id)).toContain(announce.id)
+    })
   })
 })

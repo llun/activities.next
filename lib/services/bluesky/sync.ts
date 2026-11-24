@@ -39,8 +39,8 @@ const REPOST_REASON = 'app.bsky.feed.defs#reasonRepost'
 // One sweep interval: a crashed holder blocks the actor's sync no longer.
 const SYNC_LOCK_TTL_MS = 5 * 60 * 1000
 
-// One Home entry as the PDS lists it: the post, and when it was reposted.
-type HomeItem = { uri: string; repostedAt?: number }
+// One Home entry as the PDS lists it: the post, and when/by whom it was reposted.
+type HomeItem = { uri: string; repostedAt?: number; repostByDid?: string }
 
 // The AppView's views of `uris`, keyed by uri; a post it does not return is
 // missing.
@@ -99,12 +99,25 @@ export const syncBlueskyHome = async (
 const storeHomeItem = async (
   database: Database,
   actor: Actor,
+  agentDid: string,
   item: HomeItem,
   post: BlueskyPostView
 ) => {
-  // A repost shows the original post; there is no boost row for it yet.
   const statusId = await storeBlueskyPostView(database, post)
   if (!statusId) return
+  // A repost made by this actor from here already has a local boost row in
+  // Home; skip adding the original post a second time. Other reposts still
+  // show the original post in Home.
+  if (
+    item.repostByDid === agentDid &&
+    (await database.getBlueskyInteraction({
+      actorId: actor.id,
+      statusId,
+      kind: 'repost'
+    }))
+  ) {
+    return
+  }
   const status = await database.getStatus({ statusId })
   if (!status) return
   await database.createTimelineStatus({
@@ -166,7 +179,11 @@ const runSync = async (database: Database, actor: Actor) => {
           uri,
           repostedAt: repost
             ? Date.parse(optionalString(reason?.indexedAt) ?? '') || undefined
-            : undefined
+            : undefined,
+          repostByDid:
+            repost && isRecord(reason?.by)
+              ? optionalString(reason.by.did)
+              : undefined
         })
       }
       cursor = optionalString(response?.cursor)
@@ -210,7 +227,7 @@ const runSync = async (database: Database, actor: Actor) => {
         )
       }
       await skipOnError(item.uri, () =>
-        storeHomeItem(database, actor, item, post)
+        storeHomeItem(database, actor, agent.did, item, post)
       )
     }
     const homeSyncedAt = Date.now()
