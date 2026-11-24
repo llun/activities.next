@@ -138,6 +138,30 @@ describe('rateLimit domain', () => {
     expect(results.every((result) => result.allowed)).toBe(true)
   })
 
+  it('checks a key without counting a hit', async () => {
+    const params = { key: `${KEY_PREFIX}test:peek`, limit: 2, now: 1_000 }
+    expect(await database.checkRateLimit(params)).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+
+    await consume('peek', { limit: 2, windowMs: 1_000, now: 1_000 })
+    await consume('peek', { limit: 2, windowMs: 1_000, now: 1_000 })
+    // The window is full, but checking it again does not extend or reset it.
+    expect(await database.checkRateLimit(params)).toEqual({
+      allowed: false,
+      retryAfterSeconds: 1
+    })
+    expect(await database.checkRateLimit(params)).toMatchObject({
+      allowed: false
+    })
+    // The window ended: the same key admits a hit again.
+    expect(await database.checkRateLimit({ ...params, now: 2_001 })).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+  })
+
   it('reads the clock once per consume', async () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(5_000)
     try {

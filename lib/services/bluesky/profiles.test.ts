@@ -438,5 +438,50 @@ describe('Bluesky profiles', () => {
       await loadBlueskyAuthorFeed(database, viewer, secondId, { limit: 10 })
       expect(getPublicAuthorFeed).toHaveBeenCalledTimes(2)
     })
+
+    it('leaves the author claim available when the viewer is over budget', async () => {
+      await database.deleteRateLimits({
+        keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+        before: Date.now() + 24 * 60 * 60 * 1000
+      })
+      vi.mocked(getPublicAuthorFeed).mockResolvedValue({ feed: [] })
+
+      const otherViewer = {
+        id: 'https://local.test/users/other-viewer'
+      } as Actor
+      await database.saveBlueskyAccount({
+        actorId: otherViewer.id,
+        did: `did:plc:${'v'.repeat(24)}`,
+        handle: 'other-viewer.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+
+      const didFor = (index: number) =>
+        `did:plc:${index.toString(2).padStart(8, '0').replace(/0/g, 'a').replace(/1/g, 'b').padEnd(24, 'c')}`
+
+      // Spend the viewer's 30-author budget on other authors.
+      for (let i = 0; i < 30; i += 1) {
+        await loadBlueskyAuthorFeed(
+          database,
+          viewer,
+          blueskyActorId(didFor(i)),
+          { limit: 10 }
+        )
+      }
+      expect(getPublicAuthorFeed).toHaveBeenCalledTimes(30)
+
+      // Over budget: the read is skipped and the author's claim stays free.
+      const targetId = blueskyActorId(`did:plc:${'ov'.padEnd(24, 'a')}`)
+      await loadBlueskyAuthorFeed(database, viewer, targetId, { limit: 10 })
+      expect(getPublicAuthorFeed).toHaveBeenCalledTimes(30)
+
+      // Another viewer can still claim that author.
+      await loadBlueskyAuthorFeed(database, otherViewer, targetId, {
+        limit: 10
+      })
+      expect(getPublicAuthorFeed).toHaveBeenCalledTimes(31)
+    })
   })
 })

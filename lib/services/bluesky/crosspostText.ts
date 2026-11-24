@@ -10,6 +10,7 @@ import {
   MAX_AVIF_INPUT_PIXELS,
   MAX_IMAGE_INPUT_PIXELS
 } from '@/lib/services/medias/constants'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
 import {
   BLUESKY_MAX_GRAPHEMES,
   BLUESKY_MAX_UTF8_BYTES,
@@ -272,6 +273,20 @@ const mentionFromHref = (href: string | undefined): string | null => {
   }
 }
 
+// A Bluesky profile or hashtag link, the shape the AppView renders a mention
+// or a tag as. Its visible text is the mention or tag itself, so the URL is
+// not appended; any other link keeps its URL even when its label starts with
+// `@` or `#`.
+const isBlueskyProfileOrHashtagUrl = (href: string): boolean => {
+  if (!isBlueskyHostUrl(href)) return false
+  try {
+    const { pathname } = new URL(href)
+    return /^\/(?:profile|hashtag)\/[^/]+\/?$/.test(pathname)
+  } catch {
+    return false
+  }
+}
+
 const isDisplayTextForHref = (label: string, href: string): boolean => {
   if (label === href) return true
   const candidates = new Set<string>([href])
@@ -391,16 +406,18 @@ const walkPollHtmlNodes = (
     const hasTrailingSpace = /\s$/.test(rawVisible)
     const visible = rawVisible.trim()
 
+    const href = node.attribs?.href?.trim() ?? ''
     let text = visible
     let url = ''
     if (hasClass(node, 'mention')) {
-      text = mentionFromHref(node.attribs?.href) ?? visible
+      text = mentionFromHref(href) ?? visible
     } else if (
       !hasClass(node, 'hashtag') &&
-      !visible.startsWith('@') &&
-      !visible.startsWith('#')
+      !(
+        (visible.startsWith('@') || visible.startsWith('#')) &&
+        isBlueskyProfileOrHashtagUrl(href)
+      )
     ) {
-      const href = node.attribs?.href?.trim() ?? ''
       if (href && isAbsoluteHttpUrl(href)) {
         url = href
         if (isDisplayTextForHref(visible, href)) text = ''

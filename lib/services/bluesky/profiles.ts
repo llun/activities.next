@@ -136,6 +136,22 @@ export const claimAppViewRead = async (
   return allowed
 }
 
+// Whether `claimAppViewRead` would succeed, without taking the claim: a caller
+// with its own budget to spend can peek first and only spend it when the
+// shared read would actually happen.
+const checkAppViewRead = async (
+  database: Database,
+  kind: 'feed' | 'profile' | 'thread',
+  targetId: string
+) => {
+  const digest = crypto.createHash('sha256').update(targetId).digest('hex')
+  const { allowed } = await database.checkRateLimit({
+    key: `${APP_RATE_LIMIT_KEY_PREFIX}bluesky-${kind}:${digest}`,
+    limit: 1
+  })
+  return allowed
+}
+
 /**
  * Refreshes a stored Bluesky actor from the AppView for a viewer with a
  * linked account, at most once per ten minutes per actor, counted from
@@ -180,7 +196,10 @@ export const loadBlueskyAuthorFeed = async (
   const did = actorId.slice(BLUESKY_PROFILE_PREFIX.length)
   if (!BLUESKY_DID_PATTERN.test(did)) return
   if (!(await hasLinkedAccount(database, viewer))) return
-  if (!(await claimAppViewRead(database, 'feed', actorId))) return
+  // Peek the shared claim before spending the viewer's budget: an over-budget
+  // viewer must not burn the author's one read per ten minutes, and revisiting
+  // an author already read must not cost the viewer anything.
+  if (!(await checkAppViewRead(database, 'feed', actorId))) return
   const viewerDigest = crypto
     .createHash('sha256')
     .update(viewer.id)
@@ -191,6 +210,7 @@ export const loadBlueskyAuthorFeed = async (
     ...BLUESKY_AUTHOR_FEED_VIEWER_RATE_LIMIT
   })
   if (!viewerBudget.allowed) return
+  if (!(await claimAppViewRead(database, 'feed', actorId))) return
   const response = await getPublicAuthorFeed(did, {
     limit: Math.min(Math.max(limit, 1), MAX_FEED_LIMIT)
   })
