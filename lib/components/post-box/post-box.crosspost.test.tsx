@@ -20,7 +20,12 @@ import {
 import { useDrafts } from '@/lib/components/drafts/DraftsProvider'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { useConnectionStatus } from '@/lib/hooks/useConnectionStatus'
-import { EditableStatus, Status, StatusType } from '@/lib/types/domain/status'
+import {
+  EditableStatus,
+  Status,
+  StatusNote,
+  StatusType
+} from '@/lib/types/domain/status'
 import type { BlueskyLinkedAccount } from '@/lib/utils/blueskyAccount'
 import { BLUESKY_CROSSPOST_CUT_MESSAGE } from '@/lib/utils/blueskyText'
 
@@ -312,6 +317,35 @@ describe('PostBox cross-posting to Bluesky', () => {
     closeMenu()
     type('@bob hi')
     expect((await post()).blueskyCrosspost).toBeUndefined()
+  })
+
+  it('offers the switch on a self-reply only when the parent has a live Bluesky copy', async () => {
+    setLinkedBlueskyAccount(profile.id, linkedAccount(true))
+
+    const renderReply = (blueskyCrosspost: StatusNote['blueskyCrosspost']) =>
+      renderPostBox({
+        replyStatus: { ...ownPost, blueskyCrosspost } as unknown as Status
+      })
+
+    // No copy row: the server would post nothing, so no switch.
+    await renderReply(null)
+    expect(await crosspostItem()).not.toBeInTheDocument()
+    closeMenu()
+    cleanup()
+
+    // A failed copy is not continued either.
+    await renderReply({ state: 'failed', url: null, error: 'Nope' })
+    expect(await crosspostItem()).not.toBeInTheDocument()
+    closeMenu()
+    cleanup()
+
+    // A posted copy continues the thread.
+    await renderReply({
+      state: 'posted',
+      url: 'https://bsky.app/profile/did:plc:me/post/3k',
+      error: null
+    })
+    expect(await crosspostItem()).toBeInTheDocument()
   })
 
   it('warns that a long post is cut on Bluesky, without blocking Post', async () => {

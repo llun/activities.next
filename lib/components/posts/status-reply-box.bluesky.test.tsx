@@ -723,6 +723,46 @@ describe('StatusReplyBox cross-posting self-replies to Bluesky', () => {
     })
   })
 
+  it('offers the switch on a self-reply only when the parent has a live Bluesky copy', () => {
+    setLinkedBlueskyAccount(viewerProfile.id, linkedCrosspostAccount(true))
+
+    const renderReply = (blueskyCrosspost: StatusNote['blueskyCrosspost']) =>
+      render(
+        <InstanceLimitsProvider maxStatusCharacters={5000}>
+          <StatusReplyBox
+            profile={viewerProfile}
+            replyStatus={{ ...ownPublicStatus, blueskyCrosspost }}
+            onCancel={vi.fn()}
+            onPostCreated={vi.fn()}
+          />
+        </InstanceLimitsProvider>
+      )
+
+    // No copy row: the server would post nothing, so no switch.
+    renderReply(null)
+    expect(
+      screen.queryByRole('switch', { name: 'Also post to Bluesky' })
+    ).not.toBeInTheDocument()
+    cleanup()
+
+    // A failed copy is not continued either.
+    renderReply({ state: 'failed', url: null, error: 'Nope' })
+    expect(
+      screen.queryByRole('switch', { name: 'Also post to Bluesky' })
+    ).not.toBeInTheDocument()
+    cleanup()
+
+    // A posted copy continues the thread.
+    renderReply({
+      state: 'posted',
+      url: 'https://bsky.app/profile/did:plc:viewer/post/3k',
+      error: null
+    })
+    expect(
+      screen.getByRole('switch', { name: 'Also post to Bluesky' })
+    ).toBeInTheDocument()
+  })
+
   it('does not show the switch for replies to other people, Bluesky posts, or when unlinked', () => {
     setLinkedBlueskyAccount(viewerProfile.id, linkedCrosspostAccount(true))
 

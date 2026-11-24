@@ -213,9 +213,11 @@ export const updateNoteVisibilityFromUserInput = async ({
       }
 
       // A cross-post only exists for a public post. Narrowing the audience
-      // takes the Bluesky copy with it: a pending or failed row is dropped, and
-      // a posted one is deleted on Bluesky first. Best effort — a Bluesky
-      // failure must never fail the visibility edit.
+      // takes the Bluesky copy with it: a posted row queues a delete for its
+      // uri, while a pending, posting or failed row (unless it hit a foreign
+      // record) queues a verified delete of the deterministic key when an
+      // account is linked. Best effort — a Bluesky failure must never fail the
+      // visibility edit.
       const wasPublic =
         getVisibility(status.to, status.cc, currentActor.followersUrl) ===
         'public'

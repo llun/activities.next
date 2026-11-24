@@ -80,6 +80,7 @@ import {
   Status,
   StatusNote,
   StatusType,
+  getOriginalStatus,
   isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
@@ -264,8 +265,9 @@ export const PostBox: FC<Props> = ({
     maxMediaAttachments,
     maxMediaFileSize
   } = useInstanceLimits()
+  const replyTarget = replyStatus ? getOriginalStatus(replyStatus) : null
   const isBlueskyReply = Boolean(
-    replyStatus && !editStatus && isBlueskyStatus(replyStatus)
+    replyTarget && !editStatus && isBlueskyStatus(replyTarget)
   )
   const isWithinPostLengthLimit = useCallback(
     (value: string) =>
@@ -288,12 +290,23 @@ export const PostBox: FC<Props> = ({
         : hasNewPostContent(value, extension, maxStatusCharacters),
     [isBlueskyReply, maxStatusCharacters]
   )
-  // A new post, or a reply to one's own post, may also go to Bluesky (the
-  // server cross-posts a reply only under the author's own cross-post).
+  // A new post, or a reply to one's own post, may also go to Bluesky, but a
+  // reply only when the server would continue the thread: the parent must have
+  // a cross-post row that is posted or still on its way. A parent with no row
+  // (null) or a failed one is not cross-posted, so the switch would promise
+  // nothing. `undefined` means this caller did not hydrate the parent's row;
+  // keep offering it. Hydration reports an active 'posting' attempt as
+  // 'pending'.
+  const parentCrosspost = replyTarget?.blueskyCrosspost
+  const parentCrosspostContinues =
+    parentCrosspost === undefined ||
+    parentCrosspost?.state === 'posted' ||
+    parentCrosspost?.state === 'pending'
   const canCrosspost =
     !editStatus &&
     !isBlueskyReply &&
-    (!replyStatus || replyStatus.actorId === profile.id)
+    (!replyTarget ||
+      (replyTarget.actorId === profile.id && parentCrosspostContinues))
   const needsBlueskyAccount = isBlueskyReply || canCrosspost
   const linkedBlueskyAccount = useLinkedBlueskyAccount(
     needsBlueskyAccount ? profile.id : undefined
@@ -304,22 +317,12 @@ export const PostBox: FC<Props> = ({
     }
   }, [needsBlueskyAccount, profile.id])
   const crosspostAccount = canCrosspost ? linkedBlueskyAccount : null
-  const crosspostAccountRef = useRef(crosspostAccount)
-  crosspostAccountRef.current = crosspostAccount
   // What the switch shows: the account's default until the user toggles it.
   // What `bluesky_crosspost` SENDS is the explicit toggle alone
   // (`postExtension.blueskyCrosspost`), so the server applies the default and
   // the Idempotency-Key fingerprint never depends on the account having
   // loaded. The draft stores the same explicit value, so a queued send
   // fingerprints like the composer.
-  const resolveBlueskyCrosspost = (extension: {
-    blueskyCrosspost?: boolean
-  }): boolean | undefined => {
-    const account = crosspostAccountRef.current
-    return account
-      ? (extension.blueskyCrosspost ?? account.crosspostByDefault)
-      : undefined
-  }
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [showPreview, setShowPreview] = useState<boolean>(false)
@@ -2386,7 +2389,11 @@ export const PostBox: FC<Props> = ({
     blueskyLengthError === BLUESKY_TOO_LONG_MESSAGE
   const isInstanceLimitError =
     Boolean(blueskyLengthError) && !isBlueskyLimitWarning
-  const blueskyCrosspostOn = Boolean(resolveBlueskyCrosspost(postExtension))
+  const blueskyCrosspostOn = Boolean(
+    crosspostAccount
+      ? (postExtension.blueskyCrosspost ?? crosspostAccount.crosspostByDefault)
+      : undefined
+  )
   const blueskyCrosspostApplies = postExtension.visibility === 'public'
   const blueskyCrosspostCut = isBlueskyCrosspostCut({
     enabled: blueskyCrosspostOn,

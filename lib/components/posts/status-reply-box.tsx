@@ -124,10 +124,21 @@ export const StatusReplyBox: FC<Props> = ({
   const { maxStatusCharacters, maxMediaAttachments } = useInstanceLimits()
   const actualReplyStatus = getOriginalStatus(replyStatus)
   const isBlueskyReply = isBlueskyStatus(actualReplyStatus)
-  // A reply to one's own non-Bluesky post may also go to Bluesky (the server
-  // cross-posts a reply only under the author's own cross-post).
+  // A reply to one's own non-Bluesky post may also go to Bluesky, but only when
+  // the server would continue the thread: the parent must have a cross-post row
+  // that is posted or still on its way. A parent with no row (null) or a failed
+  // one is not cross-posted, so the switch would promise nothing. `undefined`
+  // means this caller did not hydrate the parent's row; keep offering it.
+  // Hydration reports an active 'posting' attempt as 'pending'.
+  const parentCrosspost = actualReplyStatus.blueskyCrosspost
+  const parentCrosspostContinues =
+    parentCrosspost === undefined ||
+    parentCrosspost?.state === 'posted' ||
+    parentCrosspost?.state === 'pending'
   const canCrosspost =
-    !isBlueskyReply && actualReplyStatus.actorId === profile.id
+    !isBlueskyReply &&
+    actualReplyStatus.actorId === profile.id &&
+    parentCrosspostContinues
   const needsBlueskyAccount = isBlueskyReply || canCrosspost
   const linkedBlueskyAccount = useLinkedBlueskyAccount(
     needsBlueskyAccount ? profile.id : undefined

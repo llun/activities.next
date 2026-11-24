@@ -3,6 +3,7 @@ import { type Kysely, SqliteAdapter, sql } from 'kysely'
 // Cross-posting a local post to Bluesky (lib/services/bluesky/):
 // - `bluesky_crossposts`: one row per local status that is being (or was)
 //   posted to Bluesky. `state` is 'pending' while a job holds the claim,
+//   'posting' while one attempt owns the upload (its token in `attemptId`),
 //   'posted' once the record exists (with its AT-URI and CID) and 'failed'
 //   with the reason. The unique `uri` keeps one Bluesky record per row.
 // - `bluesky_accounts.crosspostByDefault`: whether new posts are cross-posted
