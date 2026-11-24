@@ -290,6 +290,29 @@ describe('buildSubmitRequest', () => {
       )
       expect(poll.params).toMatchObject({ blueskyCrosspost: true })
       expect(poll.fingerprint).toMatch(/"blueskyCrosspost":true}$/)
+
+      const reply = buildSubmitRequest(
+        draft({
+          composer: 'reply-box',
+          replyTo: target('r1'),
+          blueskyCrosspost: false
+        })
+      )
+      expect(reply.params).toMatchObject({ blueskyCrosspost: false })
+      expect(reply.fingerprint).toBe(
+        '{"message":"Hello","contentWarning":null,"inReplyToId":"r1","visibility":"public","language":null,"attachmentIds":[],"blueskyCrosspost":false}'
+      )
+      expect(reply.fingerprint).toBe(
+        replyBoxFingerprint({
+          message: 'Hello',
+          contentWarning: undefined,
+          inReplyToId: 'r1',
+          visibility: 'public',
+          language: undefined,
+          attachmentIds: [],
+          blueskyCrosspost: false
+        })
+      )
     })
   })
 

@@ -15,6 +15,7 @@ import { resolveStatusPreviewUrl } from '@/lib/services/link-previews/resolveSta
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import { readStoredImage } from '@/lib/services/medias/readStoredMedia'
 import { getQueue } from '@/lib/services/queue'
+import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
 import type { Actor } from '@/lib/types/domain/actor'
 import { isFitnessAttachment } from '@/lib/types/domain/attachment'
 import {
@@ -53,14 +54,27 @@ import {
 import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 import { optionalString, parseAtUri, parseBlueskyPostView } from './records'
 import { buildBlueskyFacets, normalizeBlueskyMentions } from './richText'
+import { deterministicTid } from './tid'
 
 const POST_COLLECTION = 'app.bsky.feed.post'
 // A CIDv1 in base32, bounded so a hostile PDS cannot hand back a megabyte.
 const CID_V1_BASE32_PATTERN = /^b[a-z2-7]{50,100}$/
+// BCP-47 language tag: 2–3 letter primary subtag with optional
+// hyphen-separated alphanumeric subtags (1–8 chars each).
+const BCP47_LANGUAGE_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/
+const MAX_LANGUAGE_LENGTH = 64
 const MAX_URI_LENGTH = 512
 const MAX_CID_LENGTH = 255
 const MAX_IMAGES = 4
 const LINK_PREVIEW_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+
+const normalizeBlueskyLanguage = (
+  language: string | null | undefined
+): string | null => {
+  const normalized = language?.trim().replace(/_/g, '-')
+  if (!normalized || normalized.length > MAX_LANGUAGE_LENGTH) return null
+  return BCP47_LANGUAGE_PATTERN.test(normalized) ? normalized : null
+}
 
 export const BLUESKY_CROSSPOST_LOCK_PREFIX = 'bluesky-crosspost:'
 export const BLUESKY_CROSSPOST_NOT_LINKED_MESSAGE =
@@ -295,19 +309,22 @@ const buildRecord = async (
   }
 
   // Quoting a Bluesky post is refused when the quote is created, so a quote
-  // here is always of a fediverse post: only its URL is appended to the text.
+  // here is always of a fediverse post: append its URL only when the quote is
+  // accepted and the quoted status exists and is publicly readable.
   let fediverseQuoteUrl: string | null = null
-  if (status.quote) {
+  if (status.quote?.state === 'accepted') {
     const quotedStatus = await database.getStatus({
       statusId: status.quote.quotedStatusId,
       withReplies: false
     })
-    fediverseQuoteUrl =
-      (quotedStatus && quotedStatus.type !== StatusType.enum.Announce
-        ? quotedStatus.url
-        : null) ??
-      status.quote.quotedStatusUrl ??
-      null
+    if (
+      quotedStatus &&
+      quotedStatus.type !== StatusType.enum.Announce &&
+      isStatusPubliclyReadable(quotedStatus)
+    ) {
+      fediverseQuoteUrl =
+        quotedStatus.url || status.quote.quotedStatusUrl || null
+    }
   }
 
   const isPoll = status.type === StatusType.enum.Poll
@@ -361,7 +378,7 @@ const buildRecord = async (
         }
       : undefined
 
-  const language = status.language?.trim()
+  const language = normalizeBlueskyLanguage(status.language)
 
   return {
     $type: POST_COLLECTION,
@@ -423,6 +440,83 @@ const failureMessage = (error: unknown): string => {
   return BLUESKY_CROSSPOST_FAILED_MESSAGE
 }
 
+const DUPLICATE_RECORD_ERRORS = new Set([
+  'RecordAlreadyExists',
+  'InvalidSwap',
+  'DuplicateRecord'
+])
+
+// Different ATProto PDS implementations report a duplicate rkey on
+// createRecord as RecordAlreadyExists, InvalidSwap (reference PDS), HTTP 409,
+// or 400 InvalidRequest with an already-exists/duplicate-key message.
+const isDuplicateRecordError = (error: unknown): boolean => {
+  if (!(error instanceof BlueskyRequestError)) return false
+  if (error.error && DUPLICATE_RECORD_ERRORS.has(error.error)) return true
+  if (error.status === 409) return true
+  return (
+    error.status === 400 &&
+    error.error === 'InvalidRequest' &&
+    /\b(?:already\s+(?:exists?|a\s+value\s+at\s+key)|duplicate\s+(?:key|record))\b/i.test(
+      error.message
+    )
+  )
+}
+
+const createOrRecoverPostRecord = async (
+  agent: BlueskyAgent,
+  rkey: string,
+  record: Record<string, unknown>
+): Promise<{ uri: string; cid: string }> => {
+  let nsid = 'com.atproto.repo.createRecord'
+  let answer: { uri?: unknown; cid?: unknown } | undefined
+  let recovered = false
+  try {
+    answer = await agent.post<{ uri?: unknown; cid?: unknown }>(nsid, {
+      repo: agent.did,
+      collection: POST_COLLECTION,
+      rkey,
+      record
+    })
+  } catch (error) {
+    if (!isDuplicateRecordError(error)) {
+      throw error
+    }
+    nsid = 'com.atproto.repo.getRecord'
+    try {
+      answer = await agent.get<{ uri?: unknown; cid?: unknown }>(nsid, {
+        repo: agent.did,
+        collection: POST_COLLECTION,
+        rkey
+      })
+      recovered = true
+    } catch (getError) {
+      if (
+        getError instanceof BlueskyRequestError &&
+        (getError.error === 'RecordNotFound' || getError.status === 404)
+      ) {
+        throw error
+      }
+      throw getError
+    }
+  }
+
+  const uri = typeof answer?.uri === 'string' ? answer.uri : ''
+  const cid = typeof answer?.cid === 'string' ? answer.cid : ''
+  const parsed = parseAtUri(uri)
+  if (
+    uri.length > MAX_URI_LENGTH ||
+    cid.length > MAX_CID_LENGTH ||
+    !CID_V1_BASE32_PATTERN.test(cid) ||
+    parsed?.did !== agent.did ||
+    parsed.collection !== POST_COLLECTION ||
+    (recovered && parsed.rkey !== rkey)
+  ) {
+    throw new BlueskyUnexpectedAnswerError(nsid)
+  }
+
+  return { uri, cid }
+}
+
 // Best effort: removes a record this server created but could not keep (the
 // post was deleted while the record was being written).
 const deleteCrosspostRecord = async (agent: BlueskyAgent, uri: string) => {
@@ -446,6 +540,31 @@ const deleteCrosspostRecord = async (agent: BlueskyAgent, uri: string) => {
       uri,
       err: toLoggableError(error)
     })
+  }
+}
+
+const deleteUnownedCrosspostRecord = async (
+  database: Database,
+  agent: BlueskyAgent,
+  statusId: string,
+  uri: string
+) => {
+  let ownedByRow: BlueskyCrosspost | null = null
+  let ownershipChecked = false
+  try {
+    ownedByRow = await database.getBlueskyCrosspostByUri({ uri })
+    ownershipChecked = true
+  } catch (lookupError) {
+    logger.warn({
+      message:
+        'Could not check ownership before deleting an unrecorded Bluesky cross-post',
+      statusId,
+      uri,
+      err: toLoggableError(lookupError)
+    })
+  }
+  if (ownershipChecked && !ownedByRow) {
+    await deleteCrosspostRecord(agent, uri)
   }
 }
 
@@ -578,29 +697,12 @@ export const crosspostStatus = async (
           currentStatus,
           replyRefs
         )
-        const answer = await agent.post<{ uri?: unknown; cid?: unknown }>(
-          'com.atproto.repo.createRecord',
-          {
-            repo: agent.did,
-            collection: POST_COLLECTION,
-            record
-          }
+        const rkey = deterministicTid(currentStatus.createdAt, currentStatus.id)
+        const { uri, cid } = await createOrRecoverPostRecord(
+          agent,
+          rkey,
+          record
         )
-
-        const uri = typeof answer?.uri === 'string' ? answer.uri : ''
-        const cid = typeof answer?.cid === 'string' ? answer.cid : ''
-        const parsed = parseAtUri(uri)
-        if (
-          uri.length > MAX_URI_LENGTH ||
-          cid.length > MAX_CID_LENGTH ||
-          !CID_V1_BASE32_PATTERN.test(cid) ||
-          parsed?.did !== agent.did ||
-          parsed.collection !== POST_COLLECTION
-        ) {
-          throw new BlueskyUnexpectedAnswerError(
-            'com.atproto.repo.createRecord'
-          )
-        }
 
         // Record the uri before anything else can throw: a retry must never
         // post the same status twice.
@@ -629,23 +731,7 @@ export const crosspostStatus = async (
               error: BLUESKY_CROSSPOST_UNEXPECTED_MESSAGE
             })
             .catch(() => undefined)
-          let ownedByRow: BlueskyCrosspost | null = null
-          let ownershipChecked = false
-          try {
-            ownedByRow = await database.getBlueskyCrosspostByUri({ uri })
-            ownershipChecked = true
-          } catch (lookupError) {
-            logger.warn({
-              message:
-                'Could not check ownership before deleting an unrecorded Bluesky cross-post',
-              statusId,
-              uri,
-              err: toLoggableError(lookupError)
-            })
-          }
-          if (ownershipChecked && !ownedByRow) {
-            await deleteCrosspostRecord(agent, uri)
-          }
+          await deleteUnownedCrosspostRecord(database, agent, statusId, uri)
           throw new BlueskyUnexpectedAnswerError(
             'com.atproto.repo.createRecord'
           )
@@ -654,8 +740,8 @@ export const crosspostStatus = async (
         if (!posted) {
           // The post was deleted (or narrowed from public), or another attempt
           // took over after this one went stale, while its record was being
-          // created: remove the copy so Bluesky does not keep an orphaned post.
-          await deleteCrosspostRecord(agent, uri)
+          // created: remove the copy unless a cross-post row already owns it.
+          await deleteUnownedCrosspostRecord(database, agent, statusId, uri)
         }
       }
     )

@@ -27,6 +27,7 @@ import {
   BLUESKY_NOT_ALLOWED_MESSAGE,
   isBlueskyAllowed
 } from '@/lib/services/bluesky/policy'
+import { deterministicTid } from '@/lib/services/bluesky/tid'
 import { readStoredImage } from '@/lib/services/medias/readStoredMedia'
 import { getQueue } from '@/lib/services/queue'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
@@ -93,6 +94,7 @@ describe('Bluesky cross-post', () => {
   const { database } = testDb
   let actor: Actor
   let unlinked: Actor
+  const get = vi.fn()
   const post = vi.fn()
   const uploadBlob = vi.fn()
   let png: Buffer
@@ -195,10 +197,12 @@ describe('Bluesky cross-post', () => {
     return media!
   }
 
-  const createdRecord = (call = 0) =>
+  const createCall = (call = 0) =>
     post.mock.calls.filter(
       ([nsid]) => nsid === 'com.atproto.repo.createRecord'
-    )[call]?.[1].record
+    )[call]?.[1]
+
+  const createdRecord = (call = 0) => createCall(call)?.record
 
   const answerCreate = (rkey: string) =>
     post.mockResolvedValueOnce({ uri: postUri(rkey), cid: cid('c') })
@@ -239,6 +243,7 @@ describe('Bluesky cross-post', () => {
     vi.mocked(getQueue).mockClear()
     queue.publish.mockReset().mockResolvedValue(undefined)
     queue.runsInline = false
+    get.mockReset()
     post.mockReset()
     uploadBlob.mockReset()
     uploadBlob.mockImplementation(async (_bytes, mimeType: string) => ({
@@ -252,7 +257,7 @@ describe('Bluesky cross-post', () => {
       .mockResolvedValue({
         did: OWN_DID,
         pdsUrl: 'https://pds.example.net/',
-        get: vi.fn(),
+        get,
         post,
         uploadBlob
       } as BlueskyAgent)
@@ -296,6 +301,7 @@ describe('Bluesky cross-post', () => {
       expect(post).toHaveBeenCalledWith('com.atproto.repo.createRecord', {
         repo: OWN_DID,
         collection: 'app.bsky.feed.post',
+        rkey: deterministicTid(status.createdAt, status.id),
         record
       })
       await expect(
@@ -306,6 +312,29 @@ describe('Bluesky cross-post', () => {
         cid: cid('c'),
         error: null
       })
+    })
+
+    it('normalizes underscore language tags to BCP-47 hyphens and omits invalid language values', async () => {
+      const zhTw = await claim(
+        await createNote({ text: 'Traditional Chinese', language: 'zh_TW' })
+      )
+      answerCreate('3kzhtw')
+      await crosspostStatus(database, zhTw.id)
+      expect(createdRecord(0).langs).toEqual(['zh-TW'])
+
+      const invalid = await claim(
+        await createNote({ text: 'Bad lang', language: 'not_a_valid_tag!' })
+      )
+      answerCreate('3kbadlang')
+      await crosspostStatus(database, invalid.id)
+      expect(createdRecord(1)).not.toHaveProperty('langs')
+
+      const longPrimary = await claim(
+        await createNote({ text: 'Long primary', language: 'english' })
+      )
+      answerCreate('3klonglang')
+      await crosspostStatus(database, longPrimary.id)
+      expect(createdRecord(2)).not.toHaveProperty('langs')
     })
 
     it('cuts a long post at a sentence end with a link to the full post', async () => {
@@ -521,6 +550,55 @@ describe('Bluesky cross-post', () => {
       const record = createdRecord(1)
       expect(record.text).toBe(`Quoting\n\n${fediversePost.url}`)
       expect(record).not.toHaveProperty('embed')
+    })
+
+    it('omits the quote URL when quoting own followers-only post or a non-accepted quote', async () => {
+      const followersOnly = await createNote({
+        text: 'Followers secret',
+        to: [`${actor.id}/followers`]
+      })
+      const quoteFollowers = await createNote({ text: 'Quoting my private' })
+      await database.createStatusQuote({
+        statusId: quoteFollowers.id,
+        quotedStatusId: followersOnly.id,
+        state: 'accepted'
+      })
+      await claim(quoteFollowers)
+      answerCreate('3kqpriv')
+
+      await crosspostStatus(database, quoteFollowers.id)
+
+      expect(createdRecord(0).text).toBe('Quoting my private')
+      expect(createdRecord(0).text).not.toContain(followersOnly.url)
+
+      const publicPost = await createNote({ text: 'Public post', by: unlinked })
+      const revokedQuote = await createNote({ text: 'Revoked quote' })
+      await database.createStatusQuote({
+        statusId: revokedQuote.id,
+        quotedStatusId: publicPost.id,
+        state: 'revoked'
+      })
+      await claim(revokedQuote)
+      answerCreate('3kqrev')
+
+      await crosspostStatus(database, revokedQuote.id)
+
+      expect(createdRecord(1).text).toBe('Revoked quote')
+      expect(createdRecord(1).text).not.toContain(publicPost.url)
+
+      const pendingQuote = await createNote({ text: 'Pending quote' })
+      await database.createStatusQuote({
+        statusId: pendingQuote.id,
+        quotedStatusId: publicPost.id,
+        state: 'pending'
+      })
+      await claim(pendingQuote)
+      answerCreate('3kqpend')
+
+      await crosspostStatus(database, pendingQuote.id)
+
+      expect(createdRecord(2).text).toBe('Pending quote')
+      expect(createdRecord(2).text).not.toContain(publicPost.url)
     })
 
     it('never embeds anything on a content-warning post, even with a quote', async () => {
@@ -1211,6 +1289,187 @@ describe('Bluesky cross-post', () => {
       await expect(
         database.getBlueskyCrosspost({ statusId: inlineStatus.id })
       ).resolves.toMatchObject({ state: 'failed' })
+    })
+
+    it('passes a valid, stable TID rkey to createRecord for a status', async () => {
+      const status = await claim(await createNote({ text: 'Deterministic' }))
+      post.mockRejectedValueOnce(
+        new BlueskyRequestError('com.atproto.repo.createRecord', 502)
+      )
+
+      await expect(crosspostStatus(database, status.id)).rejects.toThrow()
+      const firstRkey = createCall(0)?.rkey
+
+      expect(typeof firstRkey).toBe('string')
+      // 13 chars, base32-sortable alphabet, top bit 0 -> first char in [234567ab].
+      expect(firstRkey).toMatch(
+        /^[234567ab][234567abcdefghijklmnopqrstuvwxyz]{12}$/
+      )
+
+      post.mockResolvedValueOnce({ uri: postUri(firstRkey), cid: cid('d') })
+      await crosspostStatus(database, status.id)
+
+      expect(createCall(1)?.rkey).toBe(firstRkey)
+    })
+
+    it.each([
+      {
+        name: 'RecordAlreadyExists',
+        duplicateError: new BlueskyRequestError(
+          'com.atproto.repo.createRecord',
+          400,
+          'RecordAlreadyExists'
+        )
+      },
+      {
+        name: 'InvalidSwap',
+        duplicateError: new BlueskyRequestError(
+          'com.atproto.repo.createRecord',
+          400,
+          'InvalidSwap',
+          'Record already exists'
+        )
+      },
+      {
+        name: 'InvalidRequest with already-exists message',
+        duplicateError: new BlueskyRequestError(
+          'com.atproto.repo.createRecord',
+          400,
+          'InvalidRequest',
+          'There is already a value at key: app.bsky.feed.post/3k'
+        )
+      }
+    ])(
+      'adopts the existing record via getRecord on retry after a lost answer ($name)',
+      async ({ duplicateError }) => {
+        const status = await claim(
+          await createNote({ text: 'Lost answer recovery' })
+        )
+        const storedRecords = new Map<string, { uri: string; cid: string }>()
+
+        // Simulate a PDS that commits the record on attempt 1, then drops the
+        // HTTP response (502), and rejects attempt 2 with the duplicate error.
+        post.mockImplementationOnce(async (_nsid, body) => {
+          const rkey = body.rkey as string
+          storedRecords.set(rkey, { uri: postUri(rkey), cid: cid('r') })
+          throw new BlueskyRequestError('com.atproto.repo.createRecord', 502)
+        })
+        post.mockImplementationOnce(async (_nsid, body) => {
+          const rkey = body.rkey as string
+          if (storedRecords.has(rkey)) throw duplicateError
+          const created = { uri: postUri(rkey), cid: cid('z') }
+          storedRecords.set(rkey, created)
+          return created
+        })
+        get.mockImplementationOnce(async (nsid, params) => {
+          expect(nsid).toBe('com.atproto.repo.getRecord')
+          const found = storedRecords.get(params.rkey)
+          if (!found) {
+            throw new BlueskyRequestError(
+              'com.atproto.repo.getRecord',
+              400,
+              'RecordNotFound'
+            )
+          }
+          return { ...found, value: { $type: 'app.bsky.feed.post' } }
+        })
+
+        // Attempt 1: PDS committed the record, response lost -> retryable.
+        await expect(crosspostStatus(database, status.id)).rejects.toThrow()
+        const rkey = createCall(0)?.rkey as string
+        expect(rkey).toMatch(
+          /^[234567ab][234567abcdefghijklmnopqrstuvwxyz]{12}$/
+        )
+
+        // Attempt 2: createRecord reuses the same rkey, gets duplicate error,
+        // getRecord recovers the existing record and marks the row posted.
+        await crosspostStatus(database, status.id)
+
+        expect(createCall(1)?.rkey).toBe(rkey)
+        expect(storedRecords.size).toBe(1)
+        expect(get).toHaveBeenCalledWith('com.atproto.repo.getRecord', {
+          repo: OWN_DID,
+          collection: 'app.bsky.feed.post',
+          rkey
+        })
+        await expect(
+          database.getBlueskyCrosspost({ statusId: status.id })
+        ).resolves.toMatchObject({
+          state: 'posted',
+          uri: postUri(rkey),
+          cid: cid('r'),
+          error: null
+        })
+      }
+    )
+
+    it('deletes a recovered record when the row was removed while retrying', async () => {
+      const status = await claim(
+        await createNote({ text: 'Removed during recovery' })
+      )
+      post.mockRejectedValueOnce(
+        new BlueskyRequestError(
+          'com.atproto.repo.createRecord',
+          400,
+          'InvalidSwap'
+        )
+      )
+      get.mockImplementationOnce(async (_nsid, params) => ({
+        uri: postUri(params.rkey),
+        cid: cid('m'),
+        value: { $type: 'app.bsky.feed.post' }
+      }))
+      post.mockResolvedValueOnce({}) // deleteRecord
+
+      const spy = vi
+        .spyOn(database, 'markBlueskyCrosspostPosted')
+        .mockResolvedValue(false)
+      try {
+        await crosspostStatus(database, status.id)
+      } finally {
+        spy.mockRestore()
+      }
+
+      const rkey = createCall(0)?.rkey as string
+      expect(post).toHaveBeenCalledWith('com.atproto.repo.deleteRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey
+      })
+    })
+
+    it('marks failed when createRecord reports duplicate but getRecord returns RecordNotFound', async () => {
+      const status = await claim(
+        await createNote({ text: 'Missing on getRecord' })
+      )
+      post.mockRejectedValueOnce(
+        new BlueskyRequestError(
+          'com.atproto.repo.createRecord',
+          400,
+          'InvalidSwap'
+        )
+      )
+      get.mockRejectedValueOnce(
+        new BlueskyRequestError(
+          'com.atproto.repo.getRecord',
+          400,
+          'RecordNotFound'
+        )
+      )
+
+      await crosspostStatus(database, status.id)
+
+      expect(get).toHaveBeenCalledWith('com.atproto.repo.getRecord', {
+        repo: OWN_DID,
+        collection: 'app.bsky.feed.post',
+        rkey: deterministicTid(status.createdAt, status.id)
+      })
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_FAILED_MESSAGE
+      })
     })
 
     it.each([

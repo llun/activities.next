@@ -26,6 +26,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import {
+  BLUESKY_CROSSPOST_CUT_MESSAGE,
   BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE,
   BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
   BLUESKY_REPLY_QUEUE_DISABLED_REASON,
@@ -514,5 +515,377 @@ describe('StatusReplyBox replying to a Bluesky post', () => {
       URL.createObjectURL = originalCreateObjectURL
       URL.revokeObjectURL = originalRevokeObjectURL
     }
+  })
+})
+
+const linkedCrosspostAccount = (crosspostByDefault = true) => ({
+  did: 'did:plc:viewer1234567890abcdef',
+  handle: 'viewer.bsky.social',
+  pdsUrl: 'https://bsky.social',
+  authType: 'oauth' as const,
+  domainHandle: false,
+  sessionActive: true,
+  lastSyncedAt: null,
+  syncError: null,
+  crosspostByDefault
+})
+
+const ownPublicStatus: StatusNote = {
+  ...blueskyStatus,
+  id: 'https://activities.local/users/llun/statuses/own-1',
+  actorId: viewerProfile.id,
+  actor: viewerProfile,
+  isLocalActor: true,
+  network: undefined,
+  url: 'https://activities.local/@llun/own-1',
+  text: '<p>My own post</p>',
+  to: [ACTIVITY_STREAM_PUBLIC],
+  cc: []
+}
+
+const ownUnlistedStatus: StatusNote = {
+  ...ownPublicStatus,
+  id: 'https://activities.local/users/llun/statuses/own-unlisted',
+  url: 'https://activities.local/@llun/own-unlisted',
+  to: ['https://activities.local/users/llun/followers'],
+  cc: [ACTIVITY_STREAM_PUBLIC]
+}
+
+const otherActor: ActorProfile = {
+  ...viewerProfile,
+  id: 'https://other.example/users/bob',
+  username: 'bob',
+  domain: 'other.example',
+  name: 'Bob'
+}
+
+const othersStatus: StatusNote = {
+  ...ownPublicStatus,
+  id: 'https://other.example/users/bob/statuses/1',
+  actorId: otherActor.id,
+  actor: otherActor,
+  isLocalActor: false,
+  url: 'https://other.example/@bob/1',
+  text: '<p>Someone else’s post</p>'
+}
+
+describe('StatusReplyBox cross-posting self-replies to Bluesky', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetBlueskyAccountStore()
+    vi.mocked(getBlueskyAccount).mockResolvedValue(null)
+    vi.mocked(useConnectionStatus).mockReturnValue({ state: 'online' } as never)
+    vi.mocked(useDrafts).mockReturnValue(null)
+    vi.mocked(createNote).mockResolvedValue({
+      status: {
+        ...ownPublicStatus,
+        id: 'https://activities.local/users/llun/statuses/reply-new'
+      },
+      attachments: []
+    })
+  })
+
+  afterEach(() => {
+    cleanup()
+    resetBlueskyAccountStore()
+  })
+
+  it('loads the linked account for a self-reply, defaults to crosspostByDefault, and omits blueskyCrosspost until flipped', async () => {
+    vi.mocked(getBlueskyAccount).mockResolvedValue({
+      oauthAvailable: true,
+      account: linkedCrosspostAccount(true),
+      instanceHandle: null
+    })
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={5000}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={ownPublicStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    await waitFor(() => expect(getBlueskyAccount).toHaveBeenCalled())
+    const toggle = await screen.findByRole('switch', {
+      name: 'Also post to Bluesky'
+    })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Continuing my thread' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => expect(createNote).toHaveBeenCalledTimes(1))
+    expect(
+      vi.mocked(createNote).mock.calls[0][0].blueskyCrosspost
+    ).toBeUndefined()
+  })
+
+  it('keeps the same Idempotency-Key when the account loads between retry attempts and sends explicit choice once flipped', async () => {
+    let resolveAccount: (value: unknown) => void = () => undefined
+    vi.mocked(getBlueskyAccount).mockReturnValue(
+      new Promise((resolve) => {
+        resolveAccount = resolve
+      }) as never
+    )
+    vi.mocked(createNote)
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValueOnce({
+        status: {
+          ...ownPublicStatus,
+          id: 'https://activities.local/users/llun/statuses/reply-new'
+        },
+        attachments: []
+      })
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={5000}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={ownPublicStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Retry self-reply' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNote).toHaveBeenCalledTimes(1))
+
+    // Account arrives between first and second attempt: fingerprint stays the same.
+    resolveAccount({
+      oauthAvailable: true,
+      account: linkedCrosspostAccount(true),
+      instanceHandle: null
+    })
+    const toggle = await screen.findByRole('switch', {
+      name: 'Also post to Bluesky'
+    })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNote).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(createNote).mock.calls[1][0].idempotencyKey).toBe(
+      vi.mocked(createNote).mock.calls[0][0].idempotencyKey
+    )
+    expect(
+      vi.mocked(createNote).mock.calls[1][0].blueskyCrosspost
+    ).toBeUndefined()
+
+    // Flipping the switch changes the fingerprint (new key) and sends false.
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNote).toHaveBeenCalledTimes(3))
+    expect(vi.mocked(createNote).mock.calls[2][0].blueskyCrosspost).toBe(false)
+    expect(vi.mocked(createNote).mock.calls[2][0].idempotencyKey).not.toBe(
+      vi.mocked(createNote).mock.calls[1][0].idempotencyKey
+    )
+  })
+
+  it('starts off when crosspostByDefault is false and sends true once flipped on', async () => {
+    setLinkedBlueskyAccount(viewerProfile.id, linkedCrosspostAccount(false))
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={5000}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={ownPublicStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    const toggle = screen.getByRole('switch', { name: 'Also post to Bluesky' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Opt-in reply' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => expect(createNote).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(createNote).mock.calls[0][0]).toMatchObject({
+      blueskyCrosspost: true
+    })
+  })
+
+  it('does not show the switch for replies to other people, Bluesky posts, or when unlinked', () => {
+    setLinkedBlueskyAccount(viewerProfile.id, linkedCrosspostAccount(true))
+
+    const { rerender } = render(
+      <InstanceLimitsProvider maxStatusCharacters={5000}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={othersStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+    expect(
+      screen.queryByRole('switch', { name: 'Also post to Bluesky' })
+    ).not.toBeInTheDocument()
+
+    rerender(
+      <InstanceLimitsProvider maxStatusCharacters={5000}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={blueskyStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+    expect(
+      screen.queryByRole('switch', { name: 'Also post to Bluesky' })
+    ).not.toBeInTheDocument()
+
+    setLinkedBlueskyAccount(viewerProfile.id, null)
+    rerender(
+      <InstanceLimitsProvider maxStatusCharacters={5000}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={ownPublicStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+    expect(
+      screen.queryByRole('switch', { name: 'Also post to Bluesky' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('disables the switch with the public-only reason and hides the cut warning on a non-public self-reply', () => {
+    setLinkedBlueskyAccount(viewerProfile.id, linkedCrosspostAccount(true))
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={5000}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={ownUnlistedStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    const toggle = screen.getByRole('switch', { name: 'Also post to Bluesky' })
+    expect(toggle).toBeDisabled()
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(toggle).toHaveAccessibleDescription(
+      'Only public posts go to Bluesky.'
+    )
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'a'.repeat(350) }
+    })
+    expect(
+      screen.queryByText(BLUESKY_CROSSPOST_CUT_MESSAGE)
+    ).not.toBeInTheDocument()
+  })
+
+  it('warns when a cross-posted self-reply exceeds Bluesky limits and honors content warnings', () => {
+    setLinkedBlueskyAccount(viewerProfile.id, linkedCrosspostAccount(true))
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={5000}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={ownPublicStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    const textarea = screen.getByRole('textbox')
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(300) } })
+    expect(
+      screen.queryByText(BLUESKY_CROSSPOST_CUT_MESSAGE)
+    ).not.toBeInTheDocument()
+
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(301) } })
+    expect(screen.getByText(BLUESKY_CROSSPOST_CUT_MESSAGE)).toHaveClass(
+      'text-warning-text'
+    )
+    expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+
+    // Non-empty short content warning replaces the body on Bluesky: no cut warning.
+    fireEvent.click(screen.getByRole('button', { name: 'Add content warning' }))
+    const cwInput = screen.getByRole('textbox', { name: 'Content warning' })
+    fireEvent.change(cwInput, { target: { value: 'Spoilers' } })
+    expect(
+      screen.queryByText(BLUESKY_CROSSPOST_CUT_MESSAGE)
+    ).not.toBeInTheDocument()
+
+    // Long content warning plus post link exceeds 300 even with a short body.
+    fireEvent.change(textarea, { target: { value: 'Short reply' } })
+    fireEvent.change(cwInput, { target: { value: 'w'.repeat(260) } })
+    expect(screen.getByText(BLUESKY_CROSSPOST_CUT_MESSAGE)).toBeInTheDocument()
+
+    // Turning cross-post off clears the warning.
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Also post to Bluesky' })
+    )
+    expect(
+      screen.queryByText(BLUESKY_CROSSPOST_CUT_MESSAGE)
+    ).not.toBeInTheDocument()
+  })
+
+  it('reopens a reply draft with its saved blueskyCrosspost state', async () => {
+    setLinkedBlueskyAccount(viewerProfile.id, linkedCrosspostAccount(true))
+    const savedDraft: DraftRecord = {
+      id: 'draft-reply-crosspost-off',
+      accountId: 'account-1',
+      actorId: viewerProfile.id,
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
+      composer: 'reply-box',
+      text: 'Saved self-reply without Bluesky',
+      contentWarning: '',
+      contentWarningVisible: false,
+      visibility: 'public',
+      quoteApprovalPolicy: 'public',
+      blueskyCrosspost: false,
+      replyTo: ownPublicStatus,
+      attachments: []
+    }
+
+    render(
+      <InstanceLimitsProvider maxStatusCharacters={5000}>
+        <StatusReplyBox
+          profile={viewerProfile}
+          replyStatus={ownPublicStatus}
+          draft={savedDraft}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      </InstanceLimitsProvider>
+    )
+
+    const toggle = screen.getByRole('switch', { name: 'Also post to Bluesky' })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNote).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(createNote).mock.calls[0][0]).toMatchObject({
+      blueskyCrosspost: false
+    })
   })
 })

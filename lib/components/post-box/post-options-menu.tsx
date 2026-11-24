@@ -24,6 +24,7 @@ import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
+import { BLUESKY_CROSSPOST_LABEL, SwitchIndicator } from './bluesky-crosspost'
 import {
   QUOTE_POLICY_OPTIONS,
   VISIBILITY_OPTIONS,
@@ -74,28 +75,6 @@ const BLUESKY_VISIBILITY_EXPLANATION = 'Bluesky replies are public'
 const SUBMENU_WIDTH = 256
 
 const ITEM_CLASS = 'min-h-10 cursor-pointer gap-3 md:min-h-9'
-
-/**
- * A switch drawn inside a menu row. The row itself is the interactive
- * `menuitemcheckbox`, so this is deliberately not a `role="switch"` control:
- * nesting a second interactive element inside a menu item is invalid.
- */
-const SwitchIndicator: FC<{ checked: boolean }> = ({ checked }) => (
-  <span
-    aria-hidden="true"
-    data-state={checked ? 'checked' : 'unchecked'}
-    className="ml-auto inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-sm border border-input bg-control-off transition-colors data-[state=checked]:bg-primary"
-  >
-    <span
-      className={cn(
-        'block size-4 rounded-[1px] bg-background transition-transform dark:bg-foreground',
-        checked
-          ? 'translate-x-[calc(100%-2px)] dark:bg-primary-foreground'
-          : 'translate-x-0'
-      )}
-    />
-  </span>
-)
 
 const MenuRowText: FC<{
   children: ReactNode
@@ -323,7 +302,10 @@ export const PostOptionsMenu: FC<Props> = ({
           >
             Content warning
           </MenuRowText>
-          <SwitchIndicator checked={!blueskyReply && contentWarningVisible} />
+          <SwitchIndicator
+            checked={!blueskyReply && contentWarningVisible}
+            className="ml-auto"
+          />
         </DropdownMenuItem>
         {blueskyCrosspost ? (
           <DropdownMenuItem
@@ -350,9 +332,9 @@ export const PostOptionsMenu: FC<Props> = ({
               descriptionId={crosspostDescriptionId}
               dimmed={Boolean(crosspostDisabledReason)}
             >
-              Also post to Bluesky
+              {BLUESKY_CROSSPOST_LABEL}
             </MenuRowText>
-            <SwitchIndicator checked={crosspostChecked} />
+            <SwitchIndicator checked={crosspostChecked} className="ml-auto" />
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem
@@ -366,7 +348,7 @@ export const PostOptionsMenu: FC<Props> = ({
         >
           <Eye />
           <MenuRowText>Preview</MenuRowText>
-          <SwitchIndicator checked={previewShowing} />
+          <SwitchIndicator checked={previewShowing} className="ml-auto" />
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

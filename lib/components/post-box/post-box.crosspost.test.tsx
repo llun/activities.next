@@ -373,6 +373,55 @@ describe('PostBox cross-posting to Bluesky', () => {
     expect(screen.getByText(BLUESKY_CROSSPOST_CUT_MESSAGE)).toBeInTheDocument()
   })
 
+  it('checks the content warning plus post link instead of the body when a content warning is non-empty', async () => {
+    setLinkedBlueskyAccount(profile.id, linkedAccount(true))
+    await renderPostBox()
+
+    // Long body with no content warning warns.
+    type('a'.repeat(350))
+    expect(screen.getByText(BLUESKY_CROSSPOST_CUT_MESSAGE)).toBeInTheDocument()
+
+    // Turning on a short content warning replaces the Bluesky copy with the
+    // warning plus the post link, so the long body is no longer cut.
+    await openPostOptions()
+    fireEvent.click(
+      screen.getByRole('menuitemcheckbox', { name: 'Content warning' })
+    )
+    closeMenu()
+
+    const cwInput = screen.getByRole('textbox', { name: 'Content warning' })
+    // Empty/whitespace content warning is ignored on the server, so body still warns.
+    fireEvent.change(cwInput, { target: { value: '   ' } })
+    expect(screen.getByText(BLUESKY_CROSSPOST_CUT_MESSAGE)).toBeInTheDocument()
+
+    // Short non-empty content warning fits with the post link: no warning.
+    fireEvent.change(cwInput, { target: { value: 'Spoilers' } })
+    expect(
+      screen.queryByText(BLUESKY_CROSSPOST_CUT_MESSAGE)
+    ).not.toBeInTheDocument()
+
+    // Short body with a long content warning (under 300 alone, over 300 with
+    // the post link) warns without blocking Post.
+    fireEvent.change(screen.getByPlaceholderText('What is on your mind?'), {
+      target: { value: 'Short body' }
+    })
+    fireEvent.change(cwInput, { target: { value: 'w'.repeat(260) } })
+    expect(screen.getByText(BLUESKY_CROSSPOST_CUT_MESSAGE)).toHaveClass(
+      'text-warning-text'
+    )
+    expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+
+    // Hiding the content warning falls back to the short body: no warning.
+    await openPostOptions()
+    fireEvent.click(
+      screen.getByRole('menuitemcheckbox', { name: 'Content warning' })
+    )
+    closeMenu()
+    expect(
+      screen.queryByText(BLUESKY_CROSSPOST_CUT_MESSAGE)
+    ).not.toBeInTheDocument()
+  })
+
   it('does not warn for a long post that is not public', async () => {
     setLinkedBlueskyAccount(profile.id, linkedAccount(true))
     await renderPostBox()

@@ -73,6 +73,7 @@ export const replyBoxFingerprint = (f: {
   visibility: MastodonVisibility
   language?: string | null
   attachmentIds: string[]
+  blueskyCrosspost?: boolean
 }): string =>
   JSON.stringify({
     message: f.message,
@@ -80,7 +81,8 @@ export const replyBoxFingerprint = (f: {
     inReplyToId: f.inReplyToId,
     visibility: f.visibility,
     language: f.language ?? null,
-    attachmentIds: f.attachmentIds
+    attachmentIds: f.attachmentIds,
+    ...withBlueskyCrosspost(f.blueskyCrosspost)
   })
 
 /** The uploaded (`mediaId`) branch of a draft attachment as a PostBox attachment. */
@@ -165,7 +167,8 @@ export const buildSubmitRequest = (draft: DraftRecord): SubmitRequest => {
         inReplyToId: draft.replyTo.id,
         visibility: draft.visibility,
         language: draft.language,
-        attachments
+        attachments,
+        blueskyCrosspost: draft.blueskyCrosspost
       },
       fingerprint: replyBoxFingerprint({
         message: draft.text,
@@ -173,7 +176,8 @@ export const buildSubmitRequest = (draft: DraftRecord): SubmitRequest => {
         inReplyToId: draft.replyTo.id,
         visibility: draft.visibility,
         language: draft.language,
-        attachmentIds
+        attachmentIds,
+        blueskyCrosspost: draft.blueskyCrosspost
       })
     }
   }

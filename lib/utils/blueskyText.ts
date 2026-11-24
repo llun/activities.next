@@ -90,8 +90,10 @@ export const getBlueskyReplyLengthState = (
  * The server also appends a link to the original post for a poll
  * (`Vote here: <url>`), a quote of a fediverse post, a content warning and
  * dropped media. Pass the link the composer knows as `appendedLink` so those
- * cases warn too. A content warning replaces the text with the summary, so it
- * never cuts; dropped media is not predicted here.
+ * cases warn too. When a content warning is on and non-empty, pass the warning
+ * text and the post's link instead of the body, since the server sends only
+ * the warning plus the link (and still cuts it if that exceeds the limit);
+ * dropped media is not predicted here.
  */
 export const isOverBlueskyLimit = (
   text: string,

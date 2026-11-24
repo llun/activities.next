@@ -86,12 +86,10 @@ import { Tag } from '@/lib/types/domain/tag'
 import type { CustomEmoji } from '@/lib/types/mastodon/customEmoji'
 import { cn } from '@/lib/utils'
 import {
-  BLUESKY_CROSSPOST_CUT_MESSAGE,
   BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE,
   BLUESKY_REPLY_POSTED_NOT_STORED_MESSAGE,
   BLUESKY_TOO_LONG_MESSAGE,
-  getBlueskyReplyLengthState,
-  isOverBlueskyLimit
+  getBlueskyReplyLengthState
 } from '@/lib/utils/blueskyText'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 import { getStatusVisibility } from '@/lib/utils/getVisibility'
@@ -106,6 +104,11 @@ import {
   OfflineSubmitCaption,
   getQueueDisabledReason
 } from './OfflineSubmitButtons'
+import {
+  BLUESKY_CROSSPOST_PUBLIC_ONLY_REASON,
+  BlueskyCrosspostCutNotice,
+  isBlueskyCrosspostCut
+} from './bluesky-crosspost'
 import {
   ComposerAttachmentTiles,
   getAttachmentLabel
@@ -2385,21 +2388,16 @@ export const PostBox: FC<Props> = ({
     Boolean(blueskyLengthError) && !isBlueskyLimitWarning
   const blueskyCrosspostOn = Boolean(resolveBlueskyCrosspost(postExtension))
   const blueskyCrosspostApplies = postExtension.visibility === 'public'
-  // The server appends a link to the original post for a poll and for a quote
-  // of a fediverse post; the composer knows both, so the cut warning counts
-  // them. The post's own id is minted at submit, so a 36-character UUIDv7
-  // placeholder stands in for it (only its length matters).
-  const blueskyCrosspostLink = postExtension.poll.showing
-    ? `Vote here: https://${profile.domain}/${getMention(profile)}/${'0'.repeat(36)}`
-    : quotedStatus &&
-        !isBlueskyStatus(quotedStatus) &&
-        quotedStatus.type !== StatusType.enum.Announce
-      ? quotedStatus.url
-      : null
-  const blueskyCrosspostCut =
-    blueskyCrosspostOn &&
-    blueskyCrosspostApplies &&
-    isOverBlueskyLimit(text, blueskyCrosspostLink)
+  const blueskyCrosspostCut = isBlueskyCrosspostCut({
+    enabled: blueskyCrosspostOn,
+    visibility: postExtension.visibility,
+    text,
+    contentWarningVisible: postExtension.contentWarningVisible,
+    contentWarning: postExtension.contentWarning,
+    profile,
+    isPoll: postExtension.poll.showing,
+    quotedStatus
+  })
 
   const form = (
     <>
@@ -2587,7 +2585,7 @@ export const PostBox: FC<Props> = ({
                       checked: blueskyCrosspostOn,
                       disabledReason: blueskyCrosspostApplies
                         ? undefined
-                        : 'Only public posts go to Bluesky.',
+                        : BLUESKY_CROSSPOST_PUBLIC_ONLY_REASON,
                       onToggle: () =>
                         dispatch(setBlueskyCrosspost(!blueskyCrosspostOn))
                     }
@@ -2624,11 +2622,7 @@ export const PostBox: FC<Props> = ({
                 {blueskyLengthError}
               </span>
             ) : null}
-            {blueskyCrosspostCut ? (
-              <span role="status" className="text-xs text-warning-text">
-                {BLUESKY_CROSSPOST_CUT_MESSAGE}
-              </span>
-            ) : null}
+            <BlueskyCrosspostCutNotice show={blueskyCrosspostCut} />
             {editStatus?.blueskyCrosspost?.state === 'posted' ? (
               <span className="text-xs text-muted-foreground">
                 Edits are not sent to Bluesky.

@@ -35,11 +35,18 @@ import {
   getQueueDisabledReason
 } from '@/lib/components/post-box/OfflineSubmitButtons'
 import {
+  BLUESKY_CROSSPOST_PUBLIC_ONLY_REASON,
+  BlueskyCrosspostCutNotice,
+  BlueskyCrosspostSwitch,
+  isBlueskyCrosspostCut
+} from '@/lib/components/post-box/bluesky-crosspost'
+import {
   addAttachment,
   createDefaultState,
   loadExtension,
   resetExtension,
   setAttachments,
+  setBlueskyCrosspost,
   setContentWarning,
   setContentWarningVisibility,
   statusExtensionReducer,
@@ -77,7 +84,10 @@ import {
   BLUESKY_TOO_LONG_MESSAGE,
   getBlueskyReplyLengthState
 } from '@/lib/utils/blueskyText'
-import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import {
+  MastodonVisibility,
+  getStatusVisibility
+} from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 import {
@@ -112,15 +122,22 @@ export const StatusReplyBox: FC<Props> = ({
   // The reply endpoint enforces it too, so without this the reply box would let
   // a draft grow past the limit and only fail on submit.
   const { maxStatusCharacters, maxMediaAttachments } = useInstanceLimits()
-  const isBlueskyReply = isBlueskyStatus(replyStatus)
+  const actualReplyStatus = getOriginalStatus(replyStatus)
+  const isBlueskyReply = isBlueskyStatus(actualReplyStatus)
+  // A reply to one's own non-Bluesky post may also go to Bluesky (the server
+  // cross-posts a reply only under the author's own cross-post).
+  const canCrosspost =
+    !isBlueskyReply && actualReplyStatus.actorId === profile.id
+  const needsBlueskyAccount = isBlueskyReply || canCrosspost
   const linkedBlueskyAccount = useLinkedBlueskyAccount(
-    isBlueskyReply ? profile.id : undefined
+    needsBlueskyAccount ? profile.id : undefined
   )
   useEffect(() => {
-    if (isBlueskyReply && profile.id) {
+    if (needsBlueskyAccount && profile.id) {
       void loadLinkedBlueskyAccount(profile.id)
     }
-  }, [isBlueskyReply, profile.id])
+  }, [needsBlueskyAccount, profile.id])
+  const crosspostAccount = canCrosspost ? linkedBlueskyAccount : null
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [text, setText] = useState<string>('')
   const [warningMsg, setWarningMsg] = useState<string | null>(null)
@@ -145,7 +162,11 @@ export const StatusReplyBox: FC<Props> = ({
     null
   )
   const [inheritedVisibility, setInheritedVisibility] =
-    useState<MastodonVisibility>('public')
+    useState<MastodonVisibility>(
+      () =>
+        draft?.visibility ??
+        (isBlueskyReply ? 'public' : getStatusVisibility(actualReplyStatus))
+    )
   const [inheritedLanguage, setInheritedLanguage] = useState<
     string | undefined
   >(undefined)
@@ -219,6 +240,9 @@ export const StatusReplyBox: FC<Props> = ({
       visibility: inheritedRef.current.visibility,
       quoteApprovalPolicy: extension.quoteApprovalPolicy,
       language: inheritedRef.current.language,
+      // The explicit toggle, not the resolved default: the fingerprint must
+      // not change when the linked account finishes loading.
+      blueskyCrosspost: extension.blueskyCrosspost,
       attachments
     }
   }
@@ -339,7 +363,8 @@ export const StatusReplyBox: FC<Props> = ({
         attachments,
         contentWarning: seed.contentWarning,
         contentWarningVisible: seed.contentWarningVisible,
-        quoteApprovalPolicy: seed.quoteApprovalPolicy
+        quoteApprovalPolicy: seed.quoteApprovalPolicy,
+        blueskyCrosspost: seed.blueskyCrosspost
       }
       postExtensionRef.current = nextExtension
       dispatch(loadExtension(nextExtension))
@@ -636,13 +661,19 @@ export const StatusReplyBox: FC<Props> = ({
         attachments
       }
 
+      // The explicit toggle: the server applies the account default, and the
+      // fingerprint stays the same whether or not the account has loaded.
+      const blueskyCrosspost = canCrosspost
+        ? postExtension.blueskyCrosspost
+        : undefined
       const replyFingerprint = replyBoxFingerprint({
         message,
         contentWarning,
         inReplyToId: replyStatus.id,
         visibility: inheritedVisibility,
         language: inheritedLanguage,
-        attachmentIds: attachments.map((attachment) => attachment.id)
+        attachmentIds: attachments.map((attachment) => attachment.id),
+        blueskyCrosspost
       })
       if (submitIdempotencyRef.current?.fingerprint !== replyFingerprint) {
         submitIdempotencyRef.current = {
@@ -673,6 +704,7 @@ export const StatusReplyBox: FC<Props> = ({
         visibility: isBlueskyReply ? 'public' : inheritedVisibility,
         language: inheritedLanguage,
         attachments: isBlueskyReply ? [] : attachments,
+        blueskyCrosspost,
         idempotencyKey: submitIdempotencyRef.current.key
       })
 
@@ -807,7 +839,20 @@ export const StatusReplyBox: FC<Props> = ({
     setText(value)
   }
 
-  const actualReplyStatus = getOriginalStatus(replyStatus)
+  const blueskyCrosspostOn = Boolean(
+    crosspostAccount
+      ? (postExtension.blueskyCrosspost ?? crosspostAccount.crosspostByDefault)
+      : undefined
+  )
+  const blueskyCrosspostApplies = inheritedVisibility === 'public'
+  const blueskyCrosspostCut = isBlueskyCrosspostCut({
+    enabled: blueskyCrosspostOn,
+    visibility: inheritedVisibility,
+    text,
+    contentWarningVisible: postExtension.contentWarningVisible,
+    contentWarning: postExtension.contentWarning,
+    profile
+  })
 
   const getPlaceholder = () => {
     if (targetPreview) {
@@ -1072,6 +1117,23 @@ export const StatusReplyBox: FC<Props> = ({
                 onFilesRejected={(message) => setWarningMsg(message)}
                 onUploadStart={() => setWarningMsg(null)}
               />
+              {crosspostAccount ? (
+                <BlueskyCrosspostSwitch
+                  checked={blueskyCrosspostOn}
+                  disabled={isPosting || draftLocked}
+                  disabledReason={
+                    blueskyCrosspostApplies
+                      ? undefined
+                      : BLUESKY_CROSSPOST_PUBLIC_ONLY_REASON
+                  }
+                  onToggle={() => {
+                    if (isPosting || draftLocked || !blueskyCrosspostApplies) {
+                      return
+                    }
+                    dispatch(setBlueskyCrosspost(!blueskyCrosspostOn))
+                  }}
+                />
+              ) : null}
               <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
                 {isBlueskyReply ? (
                   <span className="text-xs text-muted-foreground">
@@ -1093,6 +1155,7 @@ export const StatusReplyBox: FC<Props> = ({
                     {blueskyLengthError}
                   </span>
                 ) : null}
+                <BlueskyCrosspostCutNotice show={blueskyCrosspostCut} />
                 <span
                   className={cn(
                     'font-mono text-xs tabular-nums',
