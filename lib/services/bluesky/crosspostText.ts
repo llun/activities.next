@@ -233,6 +233,10 @@ const MAX_POLL_HTML_DEPTH = 64
 
 const MENTION_HREF_PATH_PATTERN = /^\/(@[^/\s@]+@[^/\s@]+)$/
 
+// Next text starting with whitespace or closing/clause punctuation drops a
+// pending trailing space from a preceding anchor label.
+const DROP_PENDING_SPACE_PATTERN = /^[\s.,;:!?)\]]/
+
 const isHtmlText = (node: HtmlDomNode): node is HtmlText => node.type === 'text'
 
 const isHtmlElement = (node: HtmlDomNode): node is HtmlElement =>
@@ -246,59 +250,6 @@ const isAbsoluteHttpUrl = (value: string): boolean => {
   } catch {
     return false
   }
-}
-
-// Tags that start a new line in the iterative fallback, so deep text is not
-// glued together when the recursive walk stops.
-const POLL_FALLBACK_BLOCK_TAGS = new Set([
-  'blockquote',
-  'div',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'h5',
-  'h6',
-  'li',
-  'ol',
-  'p',
-  'pre',
-  'ul'
-])
-
-type FallbackStackEntry = { node: HtmlDomNode } | { newline: true }
-
-const collectTextIteratively = (nodes: HtmlDomNode[]): string => {
-  const stack: FallbackStackEntry[] = [...nodes]
-    .reverse()
-    .map((node) => ({ node }))
-  let text = ''
-  while (stack.length > 0) {
-    const entry = stack.pop()
-    if (!entry) continue
-    if ('newline' in entry) {
-      text += '\n'
-      continue
-    }
-    const node = entry.node
-    if (isHtmlText(node)) {
-      text += node.data
-    } else if (isHtmlElement(node)) {
-      const tag = node.name.toLowerCase()
-      if (tag === 'br') {
-        text += '\n'
-        continue
-      }
-      if (POLL_FALLBACK_BLOCK_TAGS.has(tag)) {
-        text += '\n'
-        stack.push({ newline: true })
-      }
-      for (let index = node.children.length - 1; index >= 0; index -= 1) {
-        stack.push({ node: node.children[index] })
-      }
-    }
-  }
-  return text
 }
 
 const hasClass = (node: HtmlElement, className: string): boolean => {
@@ -359,73 +310,64 @@ const isDisplayTextForHref = (label: string, href: string): boolean => {
   return false
 }
 
-// A link label may end in a space, which separates its URL from a following
-// word but not from punctuation or the end of the text.
-const LINK_TRAILING_SPACE_PUNCTUATION = new Set([
-  '.',
-  ',',
-  ';',
-  ':',
-  '!',
-  '?',
-  ')',
-  ']'
-])
-
-const followedByWord = (nodes: HtmlDomNode[], index: number): boolean => {
-  const following = collectTextIteratively(nodes.slice(index + 1)).trimStart()
-  if (!following) return false
-  return !LINK_TRAILING_SPACE_PUNCTUATION.has(following[0])
+const blockNewlines = (tag: string, insideList: boolean): number => {
+  if (tag === 'li') return 1
+  if (tag === 'ul' || tag === 'ol') return insideList ? 1 : 2
+  return POLL_BLOCK_TAGS.has(tag) ? 2 : 0
 }
 
-const anchorToText = (node: HtmlElement, depth: number): string => {
-  const rawVisible = walkPollHtmlNodes(node.children, false, {
-    depth,
-    preserveLeadingSpace: true
-  })
-  const leadingSpace = /^\s/.test(rawVisible) ? ' ' : ''
-  const trailingSpace = /\s$/.test(rawVisible) ? ' ' : ''
-  const visible = rawVisible.trim()
-
-  let body: string
-  if (hasClass(node, 'mention')) {
-    body = mentionFromHref(node.attribs?.href) ?? visible
-  } else if (hasClass(node, 'hashtag')) {
-    body = visible
-  } else {
-    const href = node.attribs?.href?.trim() ?? ''
-    if (!href || !isAbsoluteHttpUrl(href)) {
-      body = visible
-    } else if (!visible || isDisplayTextForHref(visible, href)) {
-      body = href
-    } else {
-      body = `${visible} ${href}`
-    }
-  }
-
-  if (!body) return leadingSpace || trailingSpace
-  return `${leadingSpace}${body}${trailingSpace}`
-}
+type FallbackStackEntry =
+  | { node: HtmlDomNode; pre: boolean; insideList: boolean }
+  | { newlines: number }
 
 type WalkPollHtmlOptions = {
   depth?: number
-  inList?: boolean
   preserveLeadingSpace?: boolean
 }
 
 const walkPollHtmlNodes = (
   nodes: HtmlDomNode[],
-  inPre: boolean,
   options: WalkPollHtmlOptions = {}
 ): string => {
-  const { depth = 0, inList = false, preserveLeadingSpace = false } = options
+  const { depth = 0, preserveLeadingSpace = false } = options
   let out = ''
+  let pendingSpace = false
 
   const trimTrailingHorizontalSpace = () => {
     out = out.replace(/[ \t]+$/, '')
   }
 
+  const appendText = (raw: string, pre = false) => {
+    const text = pre ? raw : raw.replace(/\s+/g, ' ')
+    if (!text) return
+    const emitPending = pendingSpace && !DROP_PENDING_SPACE_PATTERN.test(text)
+    pendingSpace = false
+    if (emitPending && out && !/\s$/.test(out)) out += ' '
+    if (pre) {
+      out += text
+      return
+    }
+    const atBoundary =
+      out.endsWith('\n') || out.endsWith(' ') || (!out && !preserveLeadingSpace)
+    out += atBoundary && text.startsWith(' ') ? text.slice(1) : text
+  }
+
+  const appendUrl = (url: string, afterLabel = false) => {
+    const needsSpace =
+      afterLabel || pendingSpace || (out.length > 0 && !/[\s([]$/.test(out))
+    pendingSpace = false
+    if (needsSpace && out.length > 0 && !/\s$/.test(out)) out += ' '
+    out += url
+  }
+
+  const appendLineBreak = (pre: boolean) => {
+    pendingSpace = false
+    if (!pre) trimTrailingHorizontalSpace()
+    out += '\n'
+  }
+
   const ensureNewlines = (count: number, trimTrailing = true) => {
+    pendingSpace = false
     if (!out) return
     if (trimTrailing) trimTrailingHorizontalSpace()
     if (!out) return
@@ -433,43 +375,94 @@ const walkPollHtmlNodes = (
     while (trailing < out.length && out[out.length - 1 - trailing] === '\n') {
       trailing += 1
     }
-    if (trailing < count) {
-      out += '\n'.repeat(count - trailing)
-    }
+    if (trailing < count) out += '\n'.repeat(count - trailing)
   }
 
-  const appendCollapsedText = (raw: string) => {
-    const collapsed = raw.replace(/\s+/g, ' ')
-    if (!collapsed) return
-    const atBoundary = out.endsWith('\n') || out.endsWith(' ')
-    if (collapsed === ' ') {
-      if (atBoundary || (!out && !preserveLeadingSpace)) return
-      out += ' '
-      return
-    }
-    if (
-      collapsed.startsWith(' ') &&
-      (atBoundary || (!out && !preserveLeadingSpace))
-    ) {
-      out += collapsed.slice(1)
-      return
-    }
-    out += collapsed
-  }
+  const emitAnchor = (
+    node: HtmlElement,
+    pre: boolean,
+    currentDepth: number
+  ) => {
+    const rawVisible = walkPollHtmlNodes(node.children, {
+      depth: currentDepth + 1,
+      preserveLeadingSpace: true
+    })
+    const hasLeadingSpace = /^\s/.test(rawVisible)
+    const hasTrailingSpace = /\s$/.test(rawVisible)
+    const visible = rawVisible.trim()
 
-  // The fallback text carries newlines for <br> and block boundaries, which
-  // appendCollapsedText would flatten.
-  const appendFallbackText = (raw: string) => {
-    let first = true
-    for (const line of raw.split('\n')) {
-      const collapsed = line.replace(/\s+/g, ' ').trim()
-      if (!collapsed) continue
-      if (!first) {
-        trimTrailingHorizontalSpace()
-        out += '\n'
+    let text = visible
+    let url = ''
+    if (hasClass(node, 'mention')) {
+      text = mentionFromHref(node.attribs?.href) ?? visible
+    } else if (!hasClass(node, 'hashtag')) {
+      const href = node.attribs?.href?.trim() ?? ''
+      if (href && isAbsoluteHttpUrl(href)) {
+        url = href
+        if (isDisplayTextForHref(visible, href)) text = ''
       }
-      appendCollapsedText(collapsed)
-      first = false
+    }
+
+    if (!text && !url) {
+      if (hasLeadingSpace || hasTrailingSpace) appendText(' ', pre)
+      return
+    }
+    if (hasLeadingSpace) appendText(' ', pre)
+    if (text) appendText(text, pre)
+    if (url) appendUrl(url, Boolean(text))
+    if (hasTrailingSpace && out && !/\s$/.test(out)) pendingSpace = true
+  }
+
+  const visitIteratively = (
+    list: HtmlDomNode[],
+    initialPre: boolean,
+    initialInsideList: boolean
+  ) => {
+    const stack: FallbackStackEntry[] = []
+    for (let index = list.length - 1; index >= 0; index -= 1) {
+      stack.push({
+        node: list[index],
+        pre: initialPre,
+        insideList: initialInsideList
+      })
+    }
+
+    while (stack.length > 0) {
+      const entry = stack.pop()
+      if (!entry) continue
+      if ('newlines' in entry) {
+        ensureNewlines(entry.newlines)
+        continue
+      }
+
+      const { node, pre, insideList } = entry
+      if (isHtmlText(node)) {
+        appendText(node.data, pre)
+        continue
+      }
+      if (!isHtmlElement(node)) continue
+
+      const tag = node.name.toLowerCase()
+      if (tag === 'br') {
+        appendLineBreak(pre)
+        continue
+      }
+
+      const newlines = blockNewlines(tag, insideList)
+      if (newlines > 0) {
+        ensureNewlines(newlines)
+        stack.push({ newlines })
+      }
+      const childPre = pre || tag === 'pre'
+      const childInsideList =
+        insideList || tag === 'ul' || tag === 'ol' || tag === 'li'
+      for (let index = node.children.length - 1; index >= 0; index -= 1) {
+        stack.push({
+          node: node.children[index],
+          pre: childPre,
+          insideList: childInsideList
+        })
+      }
     }
   }
 
@@ -480,98 +473,54 @@ const walkPollHtmlNodes = (
     currentDepth: number
   ) => {
     if (currentDepth >= MAX_POLL_HTML_DEPTH) {
-      const text = collectTextIteratively(list)
-      if (text) {
-        if (pre) {
-          out += text
-        } else {
-          appendFallbackText(text)
-        }
-      }
+      visitIteratively(list, pre, insideList)
       return
     }
 
-    for (let index = 0; index < list.length; index += 1) {
-      const node = list[index]
+    for (const node of list) {
       if (isHtmlText(node)) {
-        if (pre) {
-          out += node.data
-        } else {
-          appendCollapsedText(node.data)
-        }
+        appendText(node.data, pre)
         continue
       }
-
       if (!isHtmlElement(node)) continue
 
       const tag = node.name.toLowerCase()
-
       if (tag === 'br') {
-        if (!pre) trimTrailingHorizontalSpace()
-        out += '\n'
+        appendLineBreak(pre)
         continue
       }
-
       if (tag === 'img') {
         const alt = (node.attribs?.alt ?? '').trim()
         const src = (node.attribs?.src ?? '').trim()
-        const text = isAbsoluteHttpUrl(src) ? linkToText(alt, src) : alt
-        if (text) appendCollapsedText(text)
+        const hasHttpSrc = isAbsoluteHttpUrl(src)
+        const label = hasHttpSrc && alt === src ? '' : alt
+        if (label) appendText(label, pre)
+        if (hasHttpSrc) appendUrl(src, Boolean(label))
         continue
       }
-
       if (tag === 'a') {
-        let text = anchorToText(node, currentDepth + 1)
-        if (text.endsWith(' ') && !followedByWord(list, index)) {
-          text = text.slice(0, -1)
-        }
-        if (text) {
-          if (pre) {
-            out += text
-          } else {
-            appendCollapsedText(text)
-          }
-        }
+        emitAnchor(node, pre, currentDepth)
         continue
       }
-
       if (tag === 'pre') {
         ensureNewlines(2)
-        const preText = walkPollHtmlNodes(node.children, true, {
-          depth: currentDepth + 1
-        }).replace(/\n$/, '')
-        out += preText
-        if (preText) ensureNewlines(2, false)
+        const start = out.length
+        visit(node.children, true, false, currentDepth + 1)
+        if (out.length > start && out.endsWith('\n')) out = out.slice(0, -1)
+        if (out.length > start) ensureNewlines(2, false)
         continue
       }
 
-      if (tag === 'ul' || tag === 'ol') {
-        const newlines = insideList ? 1 : 2
-        ensureNewlines(newlines)
-        visit(node.children, pre, true, currentDepth + 1)
-        ensureNewlines(newlines)
-        continue
-      }
-
-      if (tag === 'li') {
-        ensureNewlines(1)
-        visit(node.children, pre, true, currentDepth + 1)
-        ensureNewlines(1)
-        continue
-      }
-
-      if (POLL_BLOCK_TAGS.has(tag)) {
-        ensureNewlines(2)
-        visit(node.children, pre, insideList, currentDepth + 1)
-        ensureNewlines(2)
-        continue
-      }
-
-      visit(node.children, pre, insideList, currentDepth + 1)
+      const newlines = blockNewlines(tag, insideList)
+      if (newlines > 0) ensureNewlines(newlines)
+      const childInsideList =
+        insideList || tag === 'ul' || tag === 'ol' || tag === 'li'
+      visit(node.children, pre, childInsideList, currentDepth + 1)
+      if (newlines > 0) ensureNewlines(newlines)
     }
   }
 
-  visit(nodes, inPre, inList, depth)
+  visit(nodes, false, false, depth)
   return out
 }
 
@@ -580,7 +529,7 @@ const walkPollHtmlNodes = (
 // breaks, and decoded entities consistent with markdownToBlueskyPlainText.
 export const pollHtmlToBlueskyPlainText = (html: string): string => {
   if (!html) return ''
-  return walkPollHtmlNodes(htmlToDOM(html), false)
+  return walkPollHtmlNodes(htmlToDOM(html))
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }

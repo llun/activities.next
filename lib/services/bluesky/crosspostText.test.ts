@@ -330,8 +330,41 @@ describe('pollHtmlToBlueskyPlainText', () => {
       description: 'drops anchor trailing whitespace before a closing bracket',
       markdown: '([link ](https://example.com))',
       expected: '(link https://example.com)'
+    },
+    {
+      description:
+        'separates a link with trailing whitespace from a following image',
+      markdown: '[link ](https://example.com)![alt](https://example.com/a.png)',
+      expected: 'link https://example.com alt https://example.com/a.png'
+    },
+    {
+      description:
+        'separates a link with trailing whitespace from a following altless image',
+      markdown: '[link ](https://example.com)![](https://example.com/a.png)',
+      expected: 'link https://example.com https://example.com/a.png'
+    },
+    {
+      description:
+        'preserves anchor trailing whitespace across wrapper elements before a word',
+      markdown: '<strong>[link ](https://example.com)</strong>next',
+      expected: 'link https://example.com next'
+    },
+    {
+      description:
+        'drops anchor trailing whitespace across wrapper elements before punctuation',
+      markdown: '**[link ](https://example.com)**.',
+      expected: 'link https://example.com.'
     }
   ])('$description (via convertMarkdownText)', ({ markdown, expected }) => {
+    expect(pollHtmlToBlueskyPlainText(renderPollHtml(markdown))).toBe(expected)
+  })
+
+  it('handles a paragraph of 3000 links with trailing whitespace linearly', () => {
+    const markdown = '[a ](https://x.com) '.repeat(3000)
+    const expected = Array.from({ length: 3000 }, () => 'a https://x.com').join(
+      ' '
+    )
+
     expect(pollHtmlToBlueskyPlainText(renderPollHtml(markdown))).toBe(expected)
   })
 
@@ -350,6 +383,27 @@ describe('pollHtmlToBlueskyPlainText', () => {
     expect(pollHtmlToBlueskyPlainText(renderPollHtml(markdown))).toBe(
       'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'
     )
+  })
+
+  it.each([
+    {
+      description: 'preserves leading space across the depth fallback boundary',
+      html: `<span>foo</span>${'<b>'.repeat(65)} bar`,
+      expected: 'foo bar'
+    },
+    {
+      description: 'preserves a leading br across the depth fallback boundary',
+      html: `x${'<b>'.repeat(65)}<br>b`,
+      expected: 'x\nb'
+    },
+    {
+      description:
+        'preserves a paragraph boundary across the depth fallback boundary',
+      html: `foo${'<b>'.repeat(65)}<p>bar</p>`,
+      expected: 'foo\n\nbar'
+    }
+  ])('$description', ({ html, expected }) => {
+    expect(pollHtmlToBlueskyPlainText(html)).toBe(expected)
   })
 
   it('keeps a line break in deeply nested markup', () => {
