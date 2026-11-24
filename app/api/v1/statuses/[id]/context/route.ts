@@ -1,12 +1,15 @@
+import { loadBlueskyThread } from '@/lib/services/bluesky/thread'
 import {
   annotateMastodonStatusesWithFilters,
   getActiveFilters
 } from '@/lib/services/filters/applyFilters'
 import { OptionalOAuthGuard } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonStatuses } from '@/lib/services/mastodon/getMastodonStatus'
+import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getStatusContext } from '@/lib/services/statuses/getStatusContext'
 import { queueThreadGapBackfill } from '@/lib/services/statuses/parentBackfill'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   ERROR_404,
@@ -34,6 +37,16 @@ export const GET = traceApiRoute(
       if (!encodedStatusId) return apiCorsError(req, CORS_HEADERS, 404)
 
       const { database, currentActor } = context
+
+      if (currentActor) {
+        const resolvedStatusId = await resolveStatusIdParam(
+          database,
+          encodedStatusId
+        )
+        if (isBlueskyId(resolvedStatusId)) {
+          await loadBlueskyThread(database, currentActor, resolvedStatusId)
+        }
+      }
 
       const {
         status,

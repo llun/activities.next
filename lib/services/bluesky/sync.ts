@@ -21,6 +21,7 @@ import {
   getBlueskyAgent
 } from './agent'
 import { getPublicPosts } from './appview'
+import { syncBlueskyNotifications } from './notifications'
 import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 import {
   type BlueskyPostView,
@@ -217,6 +218,22 @@ const runSync = async (database: Database, actor: Actor) => {
       lastSyncedAt: Date.now(),
       syncError: null
     })
+    try {
+      await syncBlueskyNotifications(database, actor, agent)
+    } catch (error) {
+      if (error instanceof BlueskySessionChangedError) {
+        logger.info({
+          message: 'Bluesky notification sync stopped by a relink',
+          actorId: actor.id
+        })
+      } else {
+        logger.warn({
+          message: 'Bluesky notification sync failed',
+          actorId: actor.id,
+          err: toLoggableError(error)
+        })
+      }
+    }
   } catch (error) {
     // Relinked while this run worked: the new link starts clean and its own
     // sync comes on the next sweep, so leave no error on it.

@@ -3,6 +3,7 @@ import {
   BLUESKY_APPVIEW_URL,
   appViewGet,
   getPublicAuthorFeed,
+  getPublicPostThread,
   getPublicPosts,
   getPublicProfile
 } from '@/lib/services/bluesky/appview'
@@ -81,6 +82,31 @@ describe('Bluesky AppView', () => {
     expect(Object.fromEntries(url.searchParams)).toEqual({
       actor: 'did:plc:x',
       limit: '10'
+    })
+  })
+
+  it('reads a post thread with default depth 6 and parentHeight 20 and clamps bounds', async () => {
+    vi.mocked(safeRemoteFetch).mockResolvedValue(answer({ thread: {} }))
+    const uri = 'at://did:plc:x/app.bsky.feed.post/3k1'
+    await getPublicPostThread(uri)
+    await getPublicPostThread(uri, { depth: 99, parentHeight: 999 })
+    await getPublicPostThread(uri, { depth: -1, parentHeight: -5 })
+    const [defaultUrl, clampedHighUrl, clampedLowUrl] = requestedUrls()
+    expect(defaultUrl.pathname).toBe('/xrpc/app.bsky.feed.getPostThread')
+    expect(Object.fromEntries(defaultUrl.searchParams)).toEqual({
+      uri,
+      depth: '6',
+      parentHeight: '20'
+    })
+    expect(Object.fromEntries(clampedHighUrl.searchParams)).toEqual({
+      uri,
+      depth: '6',
+      parentHeight: '20'
+    })
+    expect(Object.fromEntries(clampedLowUrl.searchParams)).toEqual({
+      uri,
+      depth: '0',
+      parentHeight: '0'
     })
   })
 })

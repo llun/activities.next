@@ -92,3 +92,22 @@ export const getPublicAuthorFeed = (
     'app.bsky.feed.getAuthorFeed',
     { actor: did, limit, cursor }
   )
+
+const DEFAULT_THREAD_DEPTH = 6
+const DEFAULT_THREAD_PARENT_HEIGHT = 20
+
+export const getPublicPostThread = (
+  uri: string,
+  {
+    depth = DEFAULT_THREAD_DEPTH,
+    parentHeight = DEFAULT_THREAD_PARENT_HEIGHT
+  }: { depth?: number; parentHeight?: number } = {}
+) =>
+  appViewGet<{ thread?: unknown }>('app.bsky.feed.getPostThread', {
+    uri,
+    depth: Math.min(Math.max(Math.floor(depth), 0), DEFAULT_THREAD_DEPTH),
+    parentHeight: Math.min(
+      Math.max(Math.floor(parentHeight), 0),
+      DEFAULT_THREAD_PARENT_HEIGHT
+    )
+  })
