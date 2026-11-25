@@ -25,7 +25,10 @@ import {
   reactionActivityId
 } from '@/lib/activities/reactionActivity'
 import { RejectFollow } from '@/lib/activities/rejectFollow'
-import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
+import {
+  ERR_BLUESKY_HOST_REFUSED,
+  signedActivityPubRequest
+} from '@/lib/activities/signedRequest'
 import { UndoBlock } from '@/lib/activities/undoBlock'
 import { UndoFollow } from '@/lib/activities/undoFollow'
 import { UndoLike } from '@/lib/activities/undoLike'
@@ -52,6 +55,7 @@ import {
   StatusAnnounce,
   StatusPoll,
   StatusType,
+  getOriginalStatus,
   isBlueskyStatus
 } from '@/lib/types/domain/status'
 import {
@@ -157,6 +161,9 @@ export const getNote = async ({
           return compactActivityPub(JSON.parse(response.body))
         } catch (error) {
           const nodeError = error as NodeJS.ErrnoException
+          if (nodeError.code === ERR_BLUESKY_HOST_REFUSED) {
+            return null
+          }
           if (nodeError.code === 'ETIMEDOUT') {
             span.setAttribute('timeout', true)
             return null
@@ -693,6 +700,7 @@ export const follow = async (
       targetActorId
     },
     async (span) => {
+      if (isBlueskyId(targetActorId)) return false
       const activity: FollowRequest = {
         '@context': ACTIVITY_STREAM_URL,
         id: `https://${currentActor.domain}/${id}`,
@@ -733,6 +741,7 @@ export const unfollow = async (
       follow: follow.id
     },
     async (span) => {
+      if (isBlueskyId(follow.targetActorId)) return false
       const activity: UndoFollow = {
         '@context': ACTIVITY_STREAM_URL,
         id: `${currentActor.id}#follows/${follow.id}/undo`,
@@ -856,6 +865,7 @@ export const block = async ({
       uri
     },
     async (span) => {
+      if (isBlueskyId(targetActorId)) return { ok: false, uri }
       const activity: BlockRequest = {
         '@context': ACTIVITY_STREAM_URL,
         id: uri,
@@ -907,6 +917,7 @@ export const sendFlag = async ({
       uri
     },
     async (span) => {
+      if (isBlueskyId(targetActorId)) return { ok: false, uri }
       const activity: FlagRequest = {
         '@context': ACTIVITY_STREAM_URL,
         id: uri,
@@ -946,6 +957,7 @@ export const unblock = async (
       block: block.id
     },
     async (span) => {
+      if (isBlueskyId(block.targetActorId)) return false
       const activity: UndoBlock = {
         '@context': ACTIVITY_STREAM_URL,
         id: `${block.uri}/undo`,
@@ -1089,6 +1101,9 @@ const publishInteractionDelivery = async ({
   }
 }
 
+const isBlueskyInteractionTarget = (status: Status): boolean =>
+  isBlueskyStatus(status) || isBlueskyId(getOriginalStatus(status).id)
+
 interface LikeParams {
   currentActor: Actor
   status: Status
@@ -1099,7 +1114,7 @@ export const sendLike = async ({ currentActor, status }: LikeParams) =>
     'sendLike',
     { actorId: currentActor.id, statusId: status.id },
     async (span) => {
-      if (!status.actor?.inboxUrl) return
+      if (isBlueskyInteractionTarget(status) || !status.actor?.inboxUrl) return
 
       const activity: LikeStatus = {
         '@context': ACTIVITY_STREAM_URL,
@@ -1159,7 +1174,7 @@ export const sendReaction = async (params: ReactionParams) =>
     },
     async (span) => {
       const { currentActor, status } = params
-      if (!status.actor?.inboxUrl) return
+      if (isBlueskyInteractionTarget(status) || !status.actor?.inboxUrl) return
 
       const activity = buildReactionActivity(params)
       await publishInteractionDelivery({
@@ -1183,7 +1198,7 @@ export const sendUndoReaction = async (params: ReactionParams) =>
     },
     async (span) => {
       const { currentActor, status } = params
-      if (!status.actor?.inboxUrl) return
+      if (isBlueskyInteractionTarget(status) || !status.actor?.inboxUrl) return
 
       const reactionActivity = buildReactionActivity(params)
       const activity: UndoReactionActivity = {
@@ -1216,7 +1231,7 @@ export const sendUndoLike = async ({ currentActor, status }: UndoLikeParams) =>
     'sendUndoLike',
     { actorId: currentActor.id, statusId: status.id },
     async (span) => {
-      if (!status.actor?.inboxUrl) return
+      if (isBlueskyInteractionTarget(status) || !status.actor?.inboxUrl) return
 
       const activity: UndoLike = {
         '@context': ACTIVITY_STREAM_URL,
@@ -1261,7 +1276,7 @@ export const sendPollVotes = async ({
       choices: choices.join(',')
     },
     async (span) => {
-      if (!status.actor?.inboxUrl) return
+      if (isBlueskyInteractionTarget(status) || !status.actor?.inboxUrl) return
 
       for (const choiceIndex of choices) {
         const choice = status.choices[choiceIndex]

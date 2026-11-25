@@ -12,6 +12,7 @@ import {
 import { getQueue } from '@/lib/services/queue'
 import { serializeReportEntity } from '@/lib/services/reports/serializeReportEntity'
 import { ReportCategory, Scope } from '@/lib/types/database/operations'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
 import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -194,7 +195,9 @@ export const POST = traceApiRoute(
             data: {
               reportId: report.id,
               targetActorId,
-              statusIds: report.statusIds,
+              statusIds: report.statusIds.filter(
+                (id) => !isBlueskyId(id) && !isBlueskyHostUrl(id)
+              ),
               content: report.comment
             }
           })

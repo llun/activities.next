@@ -40,6 +40,7 @@ const mockGetAllServerSettings = vi.fn()
 const mockGetDomainBlockForDomain = vi.fn()
 const mockGetDomainAllowForDomain = vi.fn()
 const mockGetBlueskyAccount = vi.fn()
+const mockGetBlueskyFollow = vi.fn()
 const mockResolveBlueskyProfile = vi.fn()
 
 // The dedicated headless federation signer. It is intentionally a different
@@ -86,7 +87,8 @@ vi.mock('@/lib/database', () => ({
     getAllServerSettings: mockGetAllServerSettings,
     getDomainBlockForDomain: mockGetDomainBlockForDomain,
     getDomainAllowForDomain: mockGetDomainAllowForDomain,
-    getBlueskyAccount: mockGetBlueskyAccount
+    getBlueskyAccount: mockGetBlueskyAccount,
+    getBlueskyFollow: mockGetBlueskyFollow
   })
 }))
 
@@ -2318,7 +2320,53 @@ describe('GET /api/v2/search', () => {
 
     beforeEach(() => {
       mockGetBlueskyAccount.mockResolvedValue({ actorId: oauthActor.id })
+      mockGetBlueskyFollow.mockResolvedValue(null)
       mockResolveBlueskyProfile.mockResolvedValue(blueskyId)
+    })
+
+    it('returns a followed Bluesky account when following=true&resolve=true with a bsky.app profile URL', async () => {
+      mockSearchAccountIds.mockResolvedValueOnce([])
+      mockIsCurrentActorFollowing.mockResolvedValue(false)
+      mockGetBlueskyFollow.mockResolvedValueOnce({
+        actorId: oauthActor.id,
+        targetActorId: blueskyId,
+        uri: 'at://did:plc:viewer/app.bsky.graph.follow/1',
+        createdAt: Date.now()
+      })
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v2/search?q=${encodeURIComponent('https://bsky.app/profile/river.bsky.social')}&type=accounts&resolve=true&following=true`,
+          { headers: { Authorization: 'Bearer read-search-token' } }
+        ),
+        context
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockGetBlueskyFollow).toHaveBeenCalledWith({
+        actorId: oauthActor.id,
+        targetActorId: blueskyId
+      })
+      expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({
+        ids: [blueskyId]
+      })
+    })
+
+    it('omits an unfollowed Bluesky account when following=true&resolve=true', async () => {
+      mockSearchAccountIds.mockResolvedValueOnce([])
+      mockIsCurrentActorFollowing.mockResolvedValue(false)
+      mockGetBlueskyFollow.mockResolvedValueOnce(null)
+
+      const response = await GET(
+        new NextRequest(
+          `https://llun.test/api/v2/search?q=${encodeURIComponent('https://bsky.app/profile/river.bsky.social')}&type=accounts&resolve=true&following=true`,
+          { headers: { Authorization: 'Bearer read-search-token' } }
+        ),
+        context
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockGetMastodonActorsFromIds).toHaveBeenCalledWith({ ids: [] })
     })
 
     it.each([

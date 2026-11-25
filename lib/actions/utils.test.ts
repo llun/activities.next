@@ -899,6 +899,43 @@ describe('recordActorIfNeeded', () => {
       })
     })
 
+    it('drops Bluesky ids and bsky.app URLs from movedTo and alsoKnownAs', () => {
+      const base = {
+        id: 'https://remote.test/users/alice',
+        type: 'Person' as const,
+        preferredUsername: 'alice',
+        inbox: 'https://remote.test/users/alice/inbox'
+      }
+      const bskyDidUrl = `https://bsky.app/profile/did:plc:${'a'.repeat(24)}`
+      expect(
+        getPersistableProfile({
+          ...base,
+          movedTo: bskyDidUrl,
+          alsoKnownAs: [
+            bskyDidUrl,
+            'https://bsky.app/profile/alice.bsky.social',
+            'http://bsky.app/inbox',
+            'https://BSKY.APP./profile/alice.bsky.social',
+            'https://old.test/users/alice',
+            'https://bsky.brid.gy/ap/did:plc:abcdefghijklmnopqrstuvwx'
+          ]
+        } as never)
+      ).toMatchObject({
+        movedTo: null,
+        alsoKnownAs: [
+          'https://old.test/users/alice',
+          'https://bsky.brid.gy/ap/did:plc:abcdefghijklmnopqrstuvwx'
+        ]
+      })
+
+      expect(
+        getPersistableProfile({
+          ...base,
+          movedTo: 'https://BSKY.APP/profile/alice.bsky.social'
+        } as never).movedTo
+      ).toBeNull()
+    })
+
     it('keeps only URL aliases, capped at 20, and drops a non-URL movedTo', () => {
       const base = {
         id: 'https://remote.test/users/alice',

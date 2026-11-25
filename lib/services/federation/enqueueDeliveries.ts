@@ -3,6 +3,7 @@ import type { Span } from '@opentelemetry/api'
 import type { Database } from '@/lib/database/types'
 import { DELIVER_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
 import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -57,40 +58,29 @@ export interface EnqueueDeliveriesParams {
   statusId?: string
 }
 
-// Never federate an Announce, Undo of an Announce, or Delete targeting a Bluesky post.
-const isBlueskyForbiddenActivity = (
-  activity: Record<string, unknown>
-): boolean => {
-  if (
-    activity.type === 'Announce' &&
-    typeof activity.object === 'string' &&
-    isBlueskyId(activity.object)
-  ) {
-    return true
+const isBlueskyReference = (value: unknown, depth = 0): boolean => {
+  if (typeof value === 'string') {
+    return isBlueskyId(value) || isBlueskyHostUrl(value)
   }
-  if (
-    activity.type === 'Undo' &&
-    isRecord(activity.object) &&
-    activity.object.type === 'Announce' &&
-    typeof activity.object.object === 'string' &&
-    isBlueskyId(activity.object.object)
-  ) {
-    return true
+  if (depth >= 2) return false
+  if (Array.isArray(value)) {
+    return value.some((item) => isBlueskyReference(item, depth + 1))
   }
-  if (activity.type === 'Delete') {
-    if (typeof activity.object === 'string' && isBlueskyId(activity.object)) {
-      return true
-    }
-    if (
-      isRecord(activity.object) &&
-      typeof activity.object.id === 'string' &&
-      isBlueskyId(activity.object.id)
-    ) {
-      return true
-    }
+  if (isRecord(value)) {
+    return (
+      isBlueskyReference(value.id, depth + 1) ||
+      isBlueskyReference(value.object, depth + 1)
+    )
   }
   return false
 }
+
+// Never federate an activity whose object (string or object.id), object.object,
+// or target names a Bluesky id or bsky.app URL.
+const isBlueskyForbiddenActivity = (
+  activity: Record<string, unknown>
+): boolean =>
+  isBlueskyReference(activity.object) || isBlueskyReference(activity.target)
 
 export const enqueueDeliveries = async ({
   database,
@@ -103,9 +93,9 @@ export const enqueueDeliveries = async ({
 }: EnqueueDeliveriesParams): Promise<void> => {
   if (isBlueskyForbiddenActivity(activity)) return
 
-  // Never deliver to an empty inbox or a Bluesky actor (not ActivityPub).
+  // Never deliver to an empty inbox or a Bluesky host (not ActivityPub).
   const uniqueInboxes = Array.from(new Set(inboxes)).filter(
-    (inbox) => !!inbox && !isBlueskyId(inbox)
+    (inbox) => !!inbox && !isBlueskyId(inbox) && !isBlueskyHostUrl(inbox)
   )
 
   let unavailableInboxes = new Set<string>()

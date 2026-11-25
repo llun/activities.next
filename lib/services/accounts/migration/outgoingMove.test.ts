@@ -391,6 +391,48 @@ describe('performOutgoingMove on a real database', () => {
       expect(getActorPerson).not.toHaveBeenCalled()
       expect(publish).not.toHaveBeenCalled()
     })
+
+    it.each(['move', 'redirect'] as const)(
+      'refuses a Bluesky target with 422 for kind %s before storing or federating',
+      async (kind) => {
+        const { actor } = await setup(`bsky-${kind}`)
+        const blueskyTarget = Actor.parse({
+          ...MockActor({
+            id: 'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+          }),
+          username: 'alice.bsky.social',
+          domain: 'bsky.app',
+          inboxUrl: '',
+          sharedInboxUrl: '',
+          publicKey: '',
+          privateKey: undefined
+        })
+        vi.mocked(getActorPerson).mockClear()
+
+        const outcome = await performOutgoingMove({
+          database,
+          actor,
+          target: blueskyTarget,
+          kind
+        })
+
+        expect(outcome).toEqual({
+          ok: false,
+          status: 422,
+          error: "Bluesky accounts can't be used for account moves.",
+          cooldownUntil: undefined
+        })
+        expect(
+          await database.getActorMigrations({ actorId: actor.id })
+        ).toEqual([])
+        expect((await database.getActorFromId({ id: actor.id }))?.movedTo).toBe(
+          undefined
+        )
+        expect(getActorPerson).not.toHaveBeenCalled()
+        expect(publishActorUpdate).not.toHaveBeenCalled()
+        expect(publish).not.toHaveBeenCalled()
+      }
+    )
   })
 })
 

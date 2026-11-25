@@ -23,6 +23,19 @@ export const createInMemoryRateLimitDatabase = (): RateLimitDatabase => {
           : Math.max(1, Math.ceil((current.lastRequest - now) / 1000))
       }
     },
+    async checkRateLimit({ key, limit, now = Date.now() }) {
+      const current = rows.get(key)
+      if (!current || current.lastRequest <= now) {
+        return { allowed: true, retryAfterSeconds: 0 }
+      }
+      const allowed = current.count < limit
+      return {
+        allowed,
+        retryAfterSeconds: allowed
+          ? 0
+          : Math.max(1, Math.ceil((current.lastRequest - now) / 1000))
+      }
+    },
     async deleteRateLimits({ keyPrefix, before, limit }) {
       let deleted = 0
       for (const [key, row] of rows) {

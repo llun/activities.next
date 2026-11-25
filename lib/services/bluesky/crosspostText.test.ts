@@ -8,6 +8,7 @@ import {
   markdownToBlueskyPlainText,
   pollHtmlToBlueskyPlainText
 } from '@/lib/services/bluesky/crosspostText'
+import { blueskyPostToHtml } from '@/lib/services/bluesky/records'
 import { buildBlueskyFacets } from '@/lib/services/bluesky/richText'
 import {
   BLUESKY_MAX_GRAPHEMES,
@@ -410,6 +411,79 @@ describe('pollHtmlToBlueskyPlainText', () => {
     const html = renderPollHtml(`${'<b>'.repeat(15000)}a<br>b`)
 
     expect(pollHtmlToBlueskyPlainText(html)).toBe('a\nb')
+  })
+
+  it('keeps Bluesky mention and hashtag facets as visible text without appending bsky.app URLs', () => {
+    const text = 'Hello @alice.bsky.social check example.com/docs #bluesky!'
+    const mentionStart = Buffer.byteLength('Hello ')
+    const mentionEnd = mentionStart + Buffer.byteLength('@alice.bsky.social')
+    const linkStart = Buffer.byteLength('Hello @alice.bsky.social check ')
+    const linkEnd = linkStart + Buffer.byteLength('example.com/docs')
+    const tagStart = Buffer.byteLength(
+      'Hello @alice.bsky.social check example.com/docs '
+    )
+    const tagEnd = tagStart + Buffer.byteLength('#bluesky')
+
+    const html = blueskyPostToHtml(text, [
+      {
+        index: { byteStart: mentionStart, byteEnd: mentionEnd },
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#mention',
+            did: `did:plc:${'a'.repeat(24)}`
+          }
+        ]
+      },
+      {
+        index: { byteStart: linkStart, byteEnd: linkEnd },
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#link',
+            uri: 'https://example.com/docs'
+          }
+        ]
+      },
+      {
+        index: { byteStart: tagStart, byteEnd: tagEnd },
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#tag',
+            tag: 'bluesky'
+          }
+        ]
+      }
+    ])
+
+    expect(pollHtmlToBlueskyPlainText(html)).toBe(
+      'Hello @alice.bsky.social check https://example.com/docs #bluesky!'
+    )
+  })
+
+  it('keeps the URL of a real link whose label starts with @ or #', () => {
+    const render = convertMarkdownText('llun.test')
+
+    expect(
+      pollHtmlToBlueskyPlainText(
+        render('[#42](https://github.com/o/r/issues/42)')
+      )
+    ).toBe('#42 https://github.com/o/r/issues/42')
+    expect(
+      pollHtmlToBlueskyPlainText(render('[@scope/pkg](https://github.com/o/r)'))
+    ).toBe('@scope/pkg https://github.com/o/r')
+    // A Bluesky post link is not a profile link: its URL stays.
+    expect(
+      pollHtmlToBlueskyPlainText(
+        '<p><a href="https://bsky.app/profile/did:plc:abc/post/3k1">#42</a></p>'
+      )
+    ).toBe('#42 https://bsky.app/profile/did:plc:abc/post/3k1')
+  })
+
+  it('drops the URL of a Bluesky profile or hashtag link labelled as a mention or tag', () => {
+    expect(
+      pollHtmlToBlueskyPlainText(
+        '<p><a href="https://bsky.app/profile/did:plc:abc">@alice.bsky.social</a> and <a href="https://bsky.app/hashtag/tea">#tea</a></p>'
+      )
+    ).toBe('@alice.bsky.social and #tea')
   })
 
   it('handles deeply nested tags without overflowing the stack', () => {

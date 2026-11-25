@@ -138,6 +138,46 @@ describe('rateLimit domain', () => {
     expect(results.every((result) => result.allowed)).toBe(true)
   })
 
+  it('checks a key without counting a hit', async () => {
+    const params = { key: `${KEY_PREFIX}test:peek`, limit: 2, now: 1_000 }
+    expect(await database.checkRateLimit(params)).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+
+    const window = { limit: 2, windowMs: 1_000, now: 1_000 }
+    // The peeks above added no hit: both of these still fit the limit of 2.
+    expect(await consume('peek', window)).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+    expect(await database.checkRateLimit(params)).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+    expect(await consume('peek', window)).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+    // The window is full, but checking it again does not extend or reset it.
+    expect(await database.checkRateLimit(params)).toEqual({
+      allowed: false,
+      retryAfterSeconds: 1
+    })
+    expect(await database.checkRateLimit(params)).toMatchObject({
+      allowed: false
+    })
+    // At the window end the key admits a hit again, as consumeRateLimit does.
+    expect(await database.checkRateLimit({ ...params, now: 2_000 })).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+    expect(await database.checkRateLimit({ ...params, now: 2_001 })).toEqual({
+      allowed: true,
+      retryAfterSeconds: 0
+    })
+  })
+
   it('reads the clock once per consume', async () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(5_000)
     try {

@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
   acceptFollow,
+  block,
   buildAnnounceActivity,
   buildDeleteStatusActivity,
   buildUndoAnnounceActivity,
@@ -22,6 +23,7 @@ import {
   sendUndoLike,
   sendUndoReaction,
   sendUpdateNote,
+  unblock,
   unfollow,
   unfollowRelay
 } from '@/lib/activities'
@@ -40,9 +42,16 @@ import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { Block as DomainBlock } from '@/lib/types/domain/block'
 import { Follow } from '@/lib/types/domain/follow'
 import { Relay } from '@/lib/types/domain/relay'
-import { Status, StatusType, fromNote } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusAnnounce,
+  StatusPoll,
+  StatusType,
+  fromNote
+} from '@/lib/types/domain/status'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
 
@@ -1369,6 +1378,160 @@ describe('activities', () => {
         expect(errorSpy).toHaveBeenCalledWith(
           expect.stringContaining('[unfollow]')
         )
+      })
+    })
+
+    describe('Bluesky early refusals', () => {
+      const bskyActorId =
+        'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+      const bskyPostId = `${bskyActorId}/post/3kxyz`
+
+      it('skips sendLike, sendUndoLike, sendReaction, sendUndoReaction, and sendPollVotes for Bluesky statuses and boosts wrapping them', async () => {
+        if (!actor1) fail('Actor1 is required')
+        const publishSpy = vi
+          .spyOn(getQueue(), 'publish')
+          .mockResolvedValue(undefined)
+        fetchMock.resetMocks()
+
+        const bskyOriginal = {
+          id: bskyPostId,
+          url: bskyPostId,
+          actorId: bskyActorId,
+          actor: {
+            ...MockActor({ id: bskyActorId }),
+            username: 'alice.bsky.social',
+            domain: 'bsky.app',
+            inboxUrl: 'https://somewhere.test/unexpected-inbox'
+          },
+          type: StatusType.enum.Note,
+          text: 'Bluesky post',
+          summary: null,
+          to: [],
+          cc: [],
+          edits: [],
+          reply: '',
+          replies: [],
+          actorAnnounceStatusId: null,
+          isActorLiked: false,
+          isActorBookmarked: false,
+          totalLikes: 0,
+          totalShares: 0,
+          attachments: [],
+          tags: [],
+          isLocalActor: false,
+          network: 'bluesky' as const,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+
+        // Local Announce wrapping the Bluesky post: its outer `actor` has a real inboxUrl.
+        const localBoostOfBsky: StatusAnnounce = {
+          id: `${actor1.id}/statuses/local-boost-bsky`,
+          actorId: actor1.id,
+          actor: actor1,
+          type: StatusType.enum.Announce,
+          to: [],
+          cc: [],
+          edits: [],
+          originalStatus: bskyOriginal,
+          isLocalActor: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+
+        const bskyPoll: StatusPoll = {
+          ...bskyOriginal,
+          type: StatusType.enum.Poll,
+          choices: [
+            {
+              statusId: bskyPostId,
+              title: 'Yes',
+              totalVotes: 0,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            }
+          ],
+          endAt: Date.now() + 60_000,
+          pollType: 'oneOf'
+        }
+
+        await sendLike({ currentActor: actor1, status: localBoostOfBsky })
+        await sendUndoLike({ currentActor: actor1, status: localBoostOfBsky })
+        await sendReaction({
+          currentActor: actor1,
+          status: localBoostOfBsky,
+          reaction: '🔥',
+          customEmoji: null
+        })
+        await sendUndoReaction({
+          currentActor: actor1,
+          status: localBoostOfBsky,
+          reaction: '🔥',
+          customEmoji: null
+        })
+        await sendPollVotes({
+          currentActor: actor1,
+          status: bskyPoll,
+          choices: [0]
+        })
+
+        expect(publishSpy).not.toHaveBeenCalled()
+        expect(fetchMock).not.toHaveBeenCalled()
+        publishSpy.mockRestore()
+      })
+
+      it('returns early without falling back to {target}/inbox for unfollow, block, sendFlag, and unblock targeting a Bluesky actor', async () => {
+        if (!actor1) fail('Actor1 is required')
+        const errorSpy = vi.spyOn(logger, 'error')
+        fetchMock.resetMocks()
+
+        await expect(
+          unfollow(actor1, {
+            id: 'follow-bsky',
+            actorId: actor1.id,
+            actorHost: actor1.domain,
+            targetActorId: bskyActorId,
+            targetActorHost: 'bsky.app',
+            status: 'Undo',
+            inbox: '',
+            sharedInbox: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          } as unknown as Follow)
+        ).resolves.toBe(false)
+
+        await expect(
+          block({
+            uri: `${actor1.id}#blocks/bsky`,
+            currentActor: actor1,
+            targetActorId: bskyActorId
+          })
+        ).resolves.toEqual({ ok: false, uri: `${actor1.id}#blocks/bsky` })
+
+        await expect(
+          sendFlag({
+            uri: `${actor1.id}#reports/bsky`,
+            currentActor: actor1,
+            targetActorId: bskyActorId,
+            objects: [bskyActorId],
+            content: 'report'
+          })
+        ).resolves.toEqual({ ok: false, uri: `${actor1.id}#reports/bsky` })
+
+        await expect(
+          unblock(actor1, {
+            id: 'block-bsky',
+            actorId: actor1.id,
+            targetActorId: bskyActorId,
+            uri: `${actor1.id}#blocks/bsky`,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          } as DomainBlock)
+        ).resolves.toBe(false)
+
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(errorSpy).not.toHaveBeenCalled()
+        errorSpy.mockRestore()
       })
     })
   })

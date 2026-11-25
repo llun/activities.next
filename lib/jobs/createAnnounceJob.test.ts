@@ -9,6 +9,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
 import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockAnnounceStatus } from '@/lib/stub/announce'
+import { storeBlueskyPost } from '@/lib/stub/blueskyPost'
 import { seedDatabase } from '@/lib/stub/database'
 import { stubNoteId } from '@/lib/stub/note'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -1005,4 +1006,56 @@ describe('Announce action', () => {
       database.getStatus({ statusId: `${localId}/activity` })
     ).resolves.toBeNull()
   })
+
+  it.each([
+    {
+      label: 'followers-only',
+      to: ['https://somewhere.test/actors/friend/followers'],
+      cc: [] as string[]
+    },
+    {
+      label: 'direct',
+      to: [ACTOR1_ID],
+      cc: [] as string[]
+    },
+    {
+      label: 'unlisted',
+      to: ['https://somewhere.test/actors/friend/followers'],
+      cc: [ACTIVITY_STREAM_PUBLIC]
+    },
+    {
+      label: 'public',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: ['https://somewhere.test/actors/friend/followers']
+    }
+  ])(
+    'rejects a $label inbound announce of a stored Bluesky post',
+    async ({ label, to, cc }) => {
+      const { statusId: bskyPostId } = await storeBlueskyPost(
+        database,
+        `ann${label}`
+      )
+
+      const statusId = `https://somewhere.test/actors/friend/statuses/bsky-boost-${label}`
+      const announce = MockAnnounceStatus({
+        actorId: 'https://somewhere.test/actors/friend',
+        statusId,
+        announceStatusId: bskyPostId
+      })
+      announce.to = to
+      announce.cc = cc
+
+      fetchMock.resetMocks()
+      await createAnnounceJob(database, {
+        id: `id-announce-bsky-${label}`,
+        name: CREATE_ANNOUNCE_JOB_NAME,
+        data: announce
+      })
+
+      await expect(
+        database.getStatus({ statusId: `${statusId}/activity` })
+      ).resolves.toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    }
+  )
 })

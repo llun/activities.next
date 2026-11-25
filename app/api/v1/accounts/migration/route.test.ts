@@ -354,6 +354,41 @@ describe('Account migration API route', () => {
       expect((await post(goodBody)).status).toBe(HTTP_STATUS.OK)
     })
 
+    it.each(['move', 'redirect'] as const)(
+      'refuses a Bluesky target with 422 for kind %s before storing or federating',
+      async (kind) => {
+        const blueskyActor = Actor.parse({
+          ...MockActor({
+            id: 'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx'
+          }),
+          username: 'alice.bsky.social',
+          domain: 'bsky.app',
+          inboxUrl: '',
+          sharedInboxUrl: '',
+          publicKey: '',
+          privateKey: undefined
+        })
+        vi.mocked(resolveAccountTarget).mockResolvedValueOnce({
+          type: 'resolved',
+          actor: blueskyActor
+        })
+
+        const res = await post({
+          ...goodBody,
+          acct: 'alice.bsky.social@bsky.app',
+          kind
+        })
+        expect(res.status).toBe(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+        expect(await res.json()).toEqual({
+          error: "Bluesky accounts can't be used for account moves."
+        })
+        expect(mockDatabase.recordActorMigration).not.toHaveBeenCalled()
+        expect(publishActorUpdate).not.toHaveBeenCalled()
+        expect(getActorPerson).not.toHaveBeenCalled()
+        expect(publish).not.toHaveBeenCalled()
+      }
+    )
+
     describe('account without a password', () => {
       beforeEach(() => {
         mockCurrentActor = Actor.parse({

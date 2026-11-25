@@ -336,4 +336,27 @@ describe('GET /api/v1/accounts/:id/followers for a remote actor', () => {
     )
     getLocal.mockRestore()
   })
+
+  it('answers 404 for a Bluesky account without a signed-in viewer and 200 with one', async () => {
+    const blueskyId = (await database.upsertBlueskyActor({
+      did: `did:plc:${'b'.repeat(24)}`,
+      handle: 'followers.bsky.social'
+    })) as string
+
+    mockGetServerSession.mockResolvedValue(null)
+    const anonResponse = await GET(createRequest(blueskyId), {
+      params: Promise.resolve({ id: urlToId(blueskyId) })
+    })
+    expect(anonResponse.status).toBe(404)
+
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    const signedInResponse = await GET(createRequest(blueskyId), {
+      params: Promise.resolve({ id: urlToId(blueskyId) })
+    })
+    expect(signedInResponse.status).toBe(200)
+    expect(await signedInResponse.json()).toEqual([])
+    expect(getRemoteFollowCollectionPage).not.toHaveBeenCalled()
+  })
 })

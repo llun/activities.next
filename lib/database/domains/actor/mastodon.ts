@@ -15,6 +15,8 @@ import type {
 } from '@/lib/database/domains/actor/types'
 import type { Db } from '@/lib/database/kysely'
 import type { Mastodon } from '@/lib/types/activitypub'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 
 // One Account per requested id that has an actor row, in request order. A
 // repeated id yields its Account again.
@@ -37,10 +39,17 @@ export const getMastodonActors = async (
 
   // Remote actors that moved: serialize the target only when its row is
   // already stored here (no remote fetch). A target is not followed further.
+  // Bluesky rows are never valid ActivityPub move targets.
   const movedToById = new Map<string, string>()
   for (const sqlActor of sqlActorById.values()) {
     const movedTo = getSettings(sqlActor).movedTo
-    if (movedTo && movedTo !== sqlActor.id && !sqlActor.suspendedAt) {
+    if (
+      movedTo &&
+      movedTo !== sqlActor.id &&
+      !sqlActor.suspendedAt &&
+      !isBlueskyId(movedTo) &&
+      !isBlueskyHostUrl(movedTo)
+    ) {
       movedToById.set(sqlActor.id, movedTo)
     }
   }
@@ -69,8 +78,13 @@ export const getMastodonActors = async (
   const movedAccountById = new Map(
     [...new Set(movedToById.values())].flatMap((targetId) => {
       const target = targetSqlActorById.get(targetId)
-      // Mastodon hides `moved` for a suspended or deleted target.
-      return target && !target.suspendedAt && !target.deletionStatus
+      // Mastodon hides `moved` for a suspended or deleted target; Bluesky rows
+      // are also excluded so already-stored `movedTo` pointers never embed one.
+      return target &&
+        !target.suspendedAt &&
+        !target.deletionStatus &&
+        target.network !== 'bluesky' &&
+        !isBlueskyId(target.id)
         ? [
             [
               targetId,

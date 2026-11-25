@@ -6,6 +6,7 @@ import { SEND_UNDO_FOLLOW_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { JobHandle } from '@/lib/services/queue/type'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
@@ -20,6 +21,9 @@ export const sendUndoFollowJob: JobHandle = createJobHandle(
       const { actorId, follow } = JobData.parse(message.data)
       span.setAttribute('actorId', actorId)
       span.setAttribute('followId', follow.id)
+
+      // A Bluesky account has no ActivityPub inbox: nothing to send.
+      if (isBlueskyId(follow.targetActorId)) return
 
       const currentFollow = await database.getFollowFromId({
         followId: follow.id

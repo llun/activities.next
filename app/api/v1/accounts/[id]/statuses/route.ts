@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { loadBlueskyAuthorFeed } from '@/lib/services/bluesky/profiles'
 import {
   OptionalOAuthGuard,
   corsErrorResponse
@@ -26,12 +28,14 @@ import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   apiCorsError,
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -137,6 +141,29 @@ export const GET = traceApiRoute(
       const maxId = await resolveStatusCursor(database, decodedMaxId)
       const minId = await resolveStatusCursor(database, decodedMinId)
       const sinceId = await resolveStatusCursor(database, decodedSinceId)
+      const isFirstPage = !maxId && !minId && !sinceId
+
+      // For a Bluesky account, load the author's recent posts from the public
+      // AppView the way the web profile does (gated on server policy, a linked
+      // Bluesky account on the viewer, the shared per-actor rate window, and
+      // the per-viewer budget), then read the stored page below. Best-effort:
+      // a failure or an exhausted budget keeps whatever is already stored.
+      if (
+        currentActor &&
+        isBlueskyId(actor.id) &&
+        isFirstPage &&
+        parsedParams.pinned !== true
+      ) {
+        await loadBlueskyAuthorFeed(database, currentActor, actor.id, {
+          limit: Math.max(limit, PER_PAGE_LIMIT)
+        }).catch((error: unknown) => {
+          logger.warn({
+            message: 'Failed to load Bluesky author feed',
+            actorId: actor.id,
+            err: toLoggableError(error)
+          })
+        })
+      }
 
       const audience = await resolveActorStatusesAudience({
         database,
@@ -252,7 +279,6 @@ export const GET = traceApiRoute(
       // remote lookups) and a first-page request; failures fall back to the
       // locally-stored statuses.
       let liveRemoteStatuses: Status[] = []
-      const isFirstPage = !maxId && !minId && !sinceId
       // Internal actors (account-backed users and the headless signer, which
       // always carries a private key) never live-fetch their own outbox; the
       // actor row loaded above already answers this without an

@@ -7,6 +7,7 @@ import { FederationPolicyUnavailableError } from '@/lib/services/federation/poli
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -54,6 +55,14 @@ export const undoFollow = async (
   currentActor: Actor,
   follow: Follow
 ) => {
+  if (isBlueskyId(follow.targetActorId)) {
+    await database.updateFollowStatus({
+      followId: follow.id,
+      status: FollowStatus.enum.Undo
+    })
+    return
+  }
+
   let canFederate: boolean | 'unknown'
   try {
     canFederate = await canFederateWithDomain(database, follow.targetActorId)

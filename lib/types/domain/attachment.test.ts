@@ -185,20 +185,57 @@ describe('attachment', () => {
 
     it.each([
       { description: 'image', mediaType: 'image/jpeg' },
-      { description: 'video', mediaType: 'video/mp4' }
-    ])('handles missing dimensions in $description', ({ mediaType }) => {
-      const attachmentNoDimensions: Attachment = {
-        ...baseAttachment,
-        mediaType,
-        width: undefined,
-        height: undefined
+      { description: 'video', mediaType: 'video/mp4' },
+      {
+        description: 'gifv',
+        mediaType: 'video/mp4',
+        playbackType: 'gifv' as const
       }
+    ])(
+      'omits size metadata when dimensions are unknown in $description',
+      ({ mediaType, playbackType }) => {
+        const attachmentNoDimensions: Attachment = {
+          ...baseAttachment,
+          mediaType,
+          playbackType,
+          width: undefined,
+          height: undefined
+        }
 
-      const result = getMastodonAttachment(attachmentNoDimensions)
+        const result = getMastodonAttachment(attachmentNoDimensions)
+        const serialized = JSON.stringify(result)
 
-      expect(result).not.toBeNull()
-      expect(metaOf(result)?.original?.width).toEqual(0)
-      expect(metaOf(result)?.original?.height).toEqual(0)
+        expect(result).not.toBeNull()
+        expect(metaOf(result)).toBeUndefined()
+        expect(serialized).not.toContain('undefined')
+        expect(serialized).not.toContain('0x0')
+      }
+    )
+
+    it('drops meta, focus included, when image dimensions are unknown', () => {
+      const result = getMastodonAttachment({
+        ...baseAttachment,
+        width: undefined,
+        height: undefined,
+        focus: { x: 0.2, y: -0.4 }
+      })
+
+      expect(metaOf(result)).toBeUndefined()
+      expect(JSON.stringify(result)).not.toContain('undefined')
+    })
+
+    it('falls back preview_url to url for images when thumbnailUrl is absent', () => {
+      const withoutThumb = getMastodonAttachment({
+        ...baseAttachment,
+        thumbnailUrl: null
+      })
+      const withThumb = getMastodonAttachment({
+        ...baseAttachment,
+        thumbnailUrl: 'https://example.com/media/thumb.jpg'
+      })
+
+      expect(withoutThumb.preview_url).toBe(baseAttachment.url)
+      expect(withThumb.preview_url).toBe('https://example.com/media/thumb.jpg')
     })
 
     it('calculates aspect ratio correctly', () => {

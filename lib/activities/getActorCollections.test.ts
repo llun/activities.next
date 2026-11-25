@@ -483,7 +483,19 @@ describe('getActorCollections federation policy', () => {
 
     expect(mockRequest).toHaveBeenCalledTimes(2)
     for (const [options] of mockRequest.mock.calls) {
-      expect(options.allowCrossHostRedirects).toBe(isFederatedRedirect)
+      expect(typeof options.allowCrossHostRedirects).toBe('function')
+      const policy = options.allowCrossHostRedirects as (
+        url: URL
+      ) => boolean | Promise<boolean>
+      const otherUrl = new URL('https://other.example/collections/1')
+      vi.mocked(isFederatedRedirect).mockResolvedValueOnce(true)
+      await expect(policy(otherUrl)).resolves.toBe(true)
+      expect(isFederatedRedirect).toHaveBeenLastCalledWith(otherUrl)
+      vi.mocked(isFederatedRedirect).mockResolvedValueOnce(false)
+      await expect(policy(otherUrl)).resolves.toBe(false)
+      expect(
+        await policy(new URL('https://bsky.app/profile/did:plc:abc'))
+      ).toBe(false)
     }
   })
 
@@ -591,6 +603,45 @@ describe('getActorCollections federation policy', () => {
     ])
     expect(mockRequest).toHaveBeenLastCalledWith(
       expect.objectContaining({ url: allowedPage })
+    )
+  })
+
+  it('returns null without throwing or fetching when collection root is on bsky.app', async () => {
+    const person = {
+      id: 'https://example.com/users/alice',
+      followers: 'https://bsky.app/followers'
+    } as Actor
+
+    const result = await getActorCollections({ person, field: 'followers' })
+
+    expect(result).toBeNull()
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('skips a collection page on bsky.app without throwing or fetching', async () => {
+    const person = {
+      id: 'https://example.com/users/alice',
+      followers: 'https://example.com/users/alice/followers'
+    } as Actor
+    const bskyPage = 'https://bsky.app/followers/page/1'
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: person.followers,
+        type: 'OrderedCollection',
+        totalItems: 3,
+        first: bskyPage
+      })
+    })
+
+    const result = await getActorCollections({ person, field: 'followers' })
+
+    expect(result).toEqual({ page: null, totalItems: 3 })
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+    expect(mockRequest).not.toHaveBeenCalledWith(
+      expect.objectContaining({ url: bskyPage })
     )
   })
 })

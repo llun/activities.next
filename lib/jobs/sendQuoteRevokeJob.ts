@@ -8,6 +8,8 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { getExplicitRecipientInboxes } from '@/lib/services/federation/statusDelivery'
 import { JobHandle } from '@/lib/services/queue/type'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { logger } from '@/lib/utils/logger'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -39,6 +41,9 @@ export const sendQuoteRevokeJob: JobHandle = createJobHandle(
       const { actorId, quotingActorId, quotingStatusId, stampId } =
         JobData.parse(message.data)
 
+      if (isBlueskyId(quotingActorId) || isBlueskyHostUrl(quotingActorId)) {
+        return
+      }
       if (!(await canFederateWithDomain(database, quotingActorId))) {
         return
       }
@@ -74,7 +79,10 @@ export const sendQuoteRevokeJob: JobHandle = createJobHandle(
           })
         : []
 
-      const inboxes = [...new Set([authorInbox, ...recipientInboxes])]
+      const inboxes = [...new Set([authorInbox, ...recipientInboxes])].filter(
+        (inbox) =>
+          Boolean(inbox) && !isBlueskyId(inbox) && !isBlueskyHostUrl(inbox)
+      )
 
       await Promise.all(
         inboxes.map(async (inbox) => {

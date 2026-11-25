@@ -151,6 +151,7 @@ export interface SQLActor {
   type?: ActorType
   username: string
   domain: string
+  network?: string | null
   name?: string
   summary?: string
   accountId: string | null

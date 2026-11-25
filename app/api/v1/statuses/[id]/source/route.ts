@@ -1,7 +1,9 @@
+import { pollHtmlToBlueskyPlainText } from '@/lib/services/bluesky/crosspostText'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
+import { isBlueskyStatus } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { getClientStatusId } from '@/lib/utils/publicId'
 import {
@@ -53,7 +55,9 @@ export const GET = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: {
           id: getClientStatusId(status),
-          text: status.text ?? '',
+          text: isBlueskyStatus(status)
+            ? pollHtmlToBlueskyPlainText(status.text ?? '')
+            : (status.text ?? ''),
           spoiler_text: status.summary ?? ''
         }
       })

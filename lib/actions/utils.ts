@@ -15,6 +15,7 @@ import {
   getActorImageUrl,
   getActorProfileFields
 } from '@/lib/utils/activitypubActor'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
 import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getTrustedFollowersUrl } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
@@ -119,8 +120,11 @@ const isHttpUrl = (value: string) => {
   }
 }
 
+const isPersistableMoveOrAliasUrl = (value: string) =>
+  isHttpUrl(value) && !isBlueskyId(value) && !isBlueskyHostUrl(value)
+
 const getStoredAliases = (aliases: string[] = []) =>
-  aliases.filter(isHttpUrl).slice(0, MAX_STORED_ALIASES)
+  aliases.filter(isPersistableMoveOrAliasUrl).slice(0, MAX_STORED_ALIASES)
 
 // The remote profile data persisted whenever a remote actor is recorded or
 // refreshed (recordActorIfNeeded here, plus the web profile page), so
@@ -155,7 +159,9 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
     publicKey: person.publicKey?.publicKeyPem || '',
     // A refresh that no longer carries them clears a recorded move/aliases.
     movedTo:
-      person.movedTo && isHttpUrl(person.movedTo) ? person.movedTo : null,
+      person.movedTo && isPersistableMoveOrAliasUrl(person.movedTo)
+        ? person.movedTo
+        : null,
     alsoKnownAs: getStoredAliases(person.alsoKnownAs),
     ...(tags.length > 0 ? { tags } : {})
   }

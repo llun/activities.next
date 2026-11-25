@@ -2,10 +2,12 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import type { Database } from '@/lib/database/types'
+import { BLUESKY_MOVE_UNSUPPORTED } from '@/lib/services/accounts/migration/outgoingMove'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { resolveAccountTarget } from '@/lib/services/actors/resolveAccountTarget'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { actorIdsMatch } from '@/lib/utils/activitypub'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
   HTTP_STATUS,
@@ -120,6 +122,9 @@ export const POST = traceApiRoute(
     }
 
     const targetActor = result.actor
+    if (isBlueskyId(targetActor.id)) {
+      return errorResponse(req, BLUESKY_MOVE_UNSUPPORTED)
+    }
     if (actorIdsMatch(targetActor.id, currentActor.id)) {
       return errorResponse(req, 'Cannot alias yourself')
     }

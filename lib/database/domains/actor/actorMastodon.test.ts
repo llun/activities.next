@@ -399,6 +399,107 @@ describe('ActorDatabase mastodon actors', () => {
         ).toBeFalsy()
       })
 
+      it('skips a moved target that is a Bluesky actor in single and batch reads', async () => {
+        await withFreshDatabase(async (database, db) => {
+          const suffix = crypto.randomUUID().slice(0, 8)
+          const host = `remote-bsky-move-${suffix}.example`
+          const did = `did:plc:${suffix.padEnd(24, 'b')}`
+          const bskyActorId = (await database.upsertBlueskyActor({
+            did,
+            handle: `moved-${suffix}.bsky.social`,
+            name: 'Bluesky Target'
+          })) as string
+
+          const originId = `https://${host}/users/origin`
+          await database.createActor({
+            actorId: originId,
+            username: 'origin',
+            domain: host,
+            followersUrl: `https://${host}/users/origin/followers`,
+            inboxUrl: `https://${host}/users/origin/inbox`,
+            sharedInboxUrl: `https://${host}/inbox`,
+            publicKey: 'originPublicKey',
+            createdAt: Date.now(),
+            movedTo: bskyActorId
+          })
+
+          // Single-actor lookup must not embed the Bluesky row as `moved`.
+          const single = await database.getMastodonActorFromId({ id: originId })
+          expect(single?.moved).toBeFalsy()
+
+          // Batch lookup that also loads the Bluesky row must still omit `moved`.
+          const batch = await database.getMastodonActorsFromIds({
+            ids: [originId, bskyActorId]
+          })
+          expect(batch).toHaveLength(2)
+          expect(batch[0].moved).toBeFalsy()
+
+          // A stored row with network='bluesky' and a non-bsky.app id is also
+          // skipped: only the network marks it, not the id's shape.
+          const customOriginId = `https://${host}/users/origin2`
+          const bskyIdOnlyTarget = `https://other.example/users/bsky-${suffix}`
+          await database.createActor({
+            actorId: bskyIdOnlyTarget,
+            username: `bsky-only-${suffix}`,
+            domain: 'other.example',
+            followersUrl: `${bskyIdOnlyTarget}/followers`,
+            inboxUrl: `${bskyIdOnlyTarget}/inbox`,
+            sharedInboxUrl: `${bskyIdOnlyTarget}/inbox`,
+            publicKey: 'k',
+            createdAt: Date.now()
+          })
+          await db
+            .updateTable('actors')
+            .set({ network: 'bluesky' })
+            .where('id', '=', bskyIdOnlyTarget)
+            .execute()
+          await database.createActor({
+            actorId: customOriginId,
+            username: 'origin2',
+            domain: host,
+            followersUrl: `https://${host}/users/origin2/followers`,
+            inboxUrl: `https://${host}/users/origin2/inbox`,
+            sharedInboxUrl: `https://${host}/inbox`,
+            publicKey: 'origin2PublicKey',
+            createdAt: Date.now(),
+            movedTo: bskyIdOnlyTarget
+          })
+          expect(
+            (await database.getMastodonActorFromId({ id: customOriginId }))
+              ?.moved
+          ).toBeFalsy()
+
+          // Any bsky.app movedTo is skipped by its host alone, even one that is
+          // not a profile id and whose stored row is not marked as Bluesky.
+          const urlOnlyTarget = `https://bsky.app/starter-pack/${suffix}`
+          await database.createActor({
+            actorId: urlOnlyTarget,
+            username: `url-only-${suffix}`,
+            domain: 'bsky.app',
+            followersUrl: '',
+            inboxUrl: '',
+            sharedInboxUrl: '',
+            publicKey: '',
+            createdAt: Date.now()
+          })
+          const urlOriginId = `https://${host}/users/origin3`
+          await database.createActor({
+            actorId: urlOriginId,
+            username: 'origin3',
+            domain: host,
+            followersUrl: `https://${host}/users/origin3/followers`,
+            inboxUrl: `https://${host}/users/origin3/inbox`,
+            sharedInboxUrl: `https://${host}/inbox`,
+            publicKey: 'origin3PublicKey',
+            createdAt: Date.now(),
+            movedTo: urlOnlyTarget
+          })
+          expect(
+            (await database.getMastodonActorFromId({ id: urlOriginId }))?.moved
+          ).toBeFalsy()
+        })
+      })
+
       it('serializes suspended actors with suspended: true and silenced actors with limited: true', async () => {
         await withFreshDatabase(async (database) => {
           const suffix = crypto.randomUUID().slice(0, 8)

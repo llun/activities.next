@@ -8,7 +8,7 @@ import type { Database } from '@/lib/database/types'
 import { normalizeActorHost } from '@/lib/services/federation/domainRules'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Actor } from '@/lib/types/domain/actor'
-import { isBlueskyId } from '@/lib/utils/blueskyId'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
 import { getHeaderValue } from '@/lib/utils/getHeaderValue'
 import { signHttpMessage } from '@/lib/utils/httpMessageSignature'
 import { logger } from '@/lib/utils/logger'
@@ -414,6 +414,22 @@ const isSuccess = (statusCode: number): boolean =>
  * Headers are built per hop, so a same-host redirect is re-signed over its own
  * URL. A hop onto another host is never signed.
  */
+export const ERR_BLUESKY_HOST_REFUSED = 'ERR_BLUESKY_HOST_REFUSED'
+
+// Refuse any cross-host redirect onto bsky.app even when the caller uses the
+// default permissive redirect policy (such as inbox delivery POSTs) or supplies
+// its own per-hop predicate.
+const wrapCrossHostRedirectPolicy = (
+  policy: RequestOptions['allowCrossHostRedirects']
+): RequestOptions['allowCrossHostRedirects'] => {
+  if (policy === false) return false
+  return (hopUrl: URL) => {
+    if (isBlueskyHostUrl(hopUrl.href)) return false
+    if (typeof policy === 'function') return policy(hopUrl)
+    return true
+  }
+}
+
 export const signedActivityPubRequest = async ({
   actor,
   accept = DEFAULT_ACCEPT,
@@ -424,9 +440,13 @@ export const signedActivityPubRequest = async ({
   requestOptions,
   url
 }: SignedActivityPubRequestOptions): Promise<RequestResult> => {
-  // Bluesky ids are not ActivityPub endpoints: never sign for or contact them.
-  if (isBlueskyId(url))
-    throw new Error('Refused ActivityPub request to a Bluesky id')
+  // bsky.app is not an ActivityPub host: never sign for or contact it.
+  if (isBlueskyHostUrl(url)) {
+    throw Object.assign(
+      new Error('Refused ActivityPub request to a Bluesky host'),
+      { code: ERR_BLUESKY_HOST_REFUSED }
+    )
+  }
   const rawUrlHost = new URL(url).host
   const initialHost = normalizeComparableHost(rawUrlHost)
   const hostKey = normalizeHostKey(rawUrlHost)
@@ -447,6 +467,9 @@ export const signedActivityPubRequest = async ({
     const response = await request({
       ...requestOptions,
       ...overrides,
+      allowCrossHostRedirects: wrapCrossHostRedirectPolicy(
+        requestOptions?.allowCrossHostRedirects
+      ),
       url,
       method,
       body,

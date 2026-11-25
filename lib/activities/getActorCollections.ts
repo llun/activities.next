@@ -5,7 +5,10 @@ import {
   getOrderCollectionFirstPage,
   toCollectionItems
 } from '@/lib/activities/orderedCollection'
-import { signedActivityPubRequest } from '@/lib/activities/signedRequest'
+import {
+  ERR_BLUESKY_HOST_REFUSED,
+  signedActivityPubRequest
+} from '@/lib/activities/signedRequest'
 import { isFederatedRedirect } from '@/lib/services/federation/federatedRedirect'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
@@ -84,8 +87,13 @@ export const fetchCollectionRoot = async ({
       requestOptions: { allowCrossHostRedirects: isFederatedRedirect }
     })
   } catch (error) {
-    // A refused redirect is a refusal, like the check above, not a failure.
-    if ((error as NodeJS.ErrnoException).code === 'ERR_CROSS_HOST_REDIRECT') {
+    // A refused redirect or Bluesky host refusal is a refusal, like the check
+    // above, not a failure.
+    const code = (error as NodeJS.ErrnoException).code
+    if (
+      code === 'ERR_CROSS_HOST_REDIRECT' ||
+      code === ERR_BLUESKY_HOST_REFUSED
+    ) {
       return { statusCode: 0, collection: null }
     }
     throw error
@@ -239,8 +247,10 @@ export const getActorCollections = async ({
         }
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException
-        span.recordException(nodeError)
-        logger.error(`[getActorCollections.${field}] ${nodeError.message}`)
+        if (nodeError.code !== ERR_BLUESKY_HOST_REFUSED) {
+          span.recordException(nodeError)
+          logger.error(`[getActorCollections.${field}] ${nodeError.message}`)
+        }
         // Return totalItems even on error
         return {
           page: null,

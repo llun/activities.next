@@ -7,6 +7,8 @@ import { SEND_QUOTE_ACCEPT_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
+import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { withSpan } from '@/lib/utils/trace'
 
 export const JobData = z.object({
@@ -36,6 +38,14 @@ export const sendQuoteAcceptJob: JobHandle = createJobHandle(
         stampId
       } = JobData.parse(message.data)
 
+      if (
+        isBlueskyId(quotingActorId) ||
+        isBlueskyHostUrl(quotingActorId) ||
+        isBlueskyId(quotedStatusId) ||
+        isBlueskyHostUrl(quotedStatusId)
+      ) {
+        return
+      }
       if (!(await canFederateWithDomain(database, quotingActorId))) {
         return
       }

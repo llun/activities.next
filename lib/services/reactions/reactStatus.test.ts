@@ -580,4 +580,33 @@ describe('unreactStatus', () => {
       )
     ).toHaveLength(2)
   })
+
+  it('refuses unreactStatus for a Bluesky post and for a local boost of one', async () => {
+    const { statusId: bskyPostId } = await storeBlueskyPost(database, 'unreact')
+    const localBoostId = `${reactor.id}/statuses/boost-bsky-unreact`
+    await database.createAnnounce({
+      id: localBoostId,
+      actorId: reactor.id,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      originalStatusId: bskyPostId
+    })
+
+    const directResult = await unreactStatus({
+      database,
+      currentActor: reactor,
+      statusId: bskyPostId,
+      name: '🔥'
+    })
+    expect(directResult).toEqual({ ok: false, reason: 'bluesky' })
+
+    const boostResult = await unreactStatus({
+      database,
+      currentActor: reactor,
+      statusId: localBoostId,
+      name: '🔥'
+    })
+    expect(boostResult).toEqual({ ok: false, reason: 'bluesky' })
+    expect(mockSendUndoReaction).not.toHaveBeenCalled()
+  })
 })

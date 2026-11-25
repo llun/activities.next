@@ -6,6 +6,7 @@ import { SEND_FLAG_JOB_NAME } from '@/lib/jobs/names'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { JobHandle } from '@/lib/services/queue/type'
+import { isBlueskyHostUrl } from '@/lib/utils/blueskyHost'
 import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -48,12 +49,15 @@ export const sendFlagJob: JobHandle = createJobHandle(
       }
 
       const uri = `${signingActor.id}#reports/${reportId}`
+      const federatedStatusIds = statusIds.filter(
+        (id) => !isBlueskyId(id) && !isBlueskyHostUrl(id)
+      )
       const result = await sendFlag({
         uri,
         currentActor: signingActor,
         targetActorId,
-        // The reported actor plus every reported status URI.
-        objects: [targetActorId, ...statusIds],
+        // The reported actor plus every non-Bluesky reported status URI.
+        objects: [targetActorId, ...federatedStatusIds],
         content,
         signingActor
       })

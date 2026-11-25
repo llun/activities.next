@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId } from '@/lib/stub/publicIds'
+import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -85,6 +86,38 @@ describe('GET /api/v1/accounts/:id/endorsements', () => {
       params: Promise.resolve({ id: urlToId(unknown) })
     })
     expect(response.status).toBe(404)
+  })
+
+  it('returns 404 to a signed-out caller for a Bluesky account and 200 when signed in', async () => {
+    const did = `did:plc:${'e'.repeat(24)}`
+    const blueskyId = (await database.upsertBlueskyActor({
+      did,
+      handle: 'endorsed.bsky.social'
+    })) as string
+    const publicId = await actorPublicId(database, blueskyId)
+
+    const anonByEncoded = await GET(createRequest(blueskyId), {
+      params: Promise.resolve({ id: urlToId(blueskyId) })
+    })
+    expect(anonByEncoded.status).toBe(404)
+
+    const anonByPublicId = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/${publicId}/endorsements`,
+        { method: 'GET', headers: { host: 'llun.test' } }
+      ),
+      { params: Promise.resolve({ id: publicId }) }
+    )
+    expect(anonByPublicId.status).toBe(404)
+
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { email: seedActor1.email }
+    })
+    const signedIn = await GET(createRequest(blueskyId), {
+      params: Promise.resolve({ id: urlToId(blueskyId) })
+    })
+    expect(signedIn.status).toBe(200)
+    expect(await signedIn.json()).toEqual([])
   })
 
   it.each([

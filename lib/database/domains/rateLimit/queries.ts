@@ -2,6 +2,7 @@ import { sql } from 'kysely'
 import { randomUUID } from 'node:crypto'
 
 import type {
+  CheckRateLimitParams,
   ConsumeRateLimitParams,
   DeleteRateLimitsParams,
   RateLimitConsumeResult
@@ -94,6 +95,30 @@ export const consumeRateLimit = async (
   }
 }
 
+// The read-only twin of `consumeRateLimit`: the same window rules, without the
+// increment. A row whose window has ended (or no row at all) admits a hit; a
+// live row admits one while its count is still under the limit.
+export const checkRateLimit = async (
+  db: Db,
+  { key, limit, now = Date.now() }: CheckRateLimitParams
+): Promise<RateLimitConsumeResult> => {
+  const row = await db
+    .selectFrom('rateLimit')
+    .select(['count', 'lastRequest'])
+    .where('key', '=', key)
+    .executeTakeFirst()
+  if (!row || row.lastRequest <= now) {
+    return { allowed: true, retryAfterSeconds: 0 }
+  }
+  const allowed = row.count < limit
+  return {
+    allowed,
+    retryAfterSeconds: allowed
+      ? 0
+      : Math.max(1, Math.ceil((row.lastRequest - now) / 1000))
+  }
+}
+
 export const deleteRateLimits = async (
   db: Db,
   { keyPrefix, before, limit }: DeleteRateLimitsParams
@@ -131,4 +156,8 @@ export const deleteRateLimits = async (
   return Number(result.numDeletedRows)
 }
 
-export const rateLimitQueries = { consumeRateLimit, deleteRateLimits }
+export const rateLimitQueries = {
+  consumeRateLimit,
+  checkRateLimit,
+  deleteRateLimits
+}

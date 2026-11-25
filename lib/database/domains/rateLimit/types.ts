@@ -22,6 +22,15 @@ export interface ConsumeRateLimitParams {
   now?: number
 }
 
+export interface CheckRateLimitParams {
+  // The row key, as `consumeRateLimit` takes it.
+  key: string
+  // How many hits the window admits.
+  limit: number
+  // Injectable clock so tests can exercise window resets deterministically.
+  now?: number
+}
+
 export interface RateLimitConsumeResult {
   allowed: boolean
   // Seconds until the current window ends; 0 when allowed.
@@ -46,6 +55,12 @@ export interface RateLimitDatabase {
   consumeRateLimit(
     params: ConsumeRateLimitParams
   ): Promise<RateLimitConsumeResult>
+  /**
+   * Reports whether one more hit for `key` would be allowed, without counting
+   * it. A caller that has its own budget to spend first can peek at a shared
+   * counter and only spend its budget when the shared hit would happen.
+   */
+  checkRateLimit(params: CheckRateLimitParams): Promise<RateLimitConsumeResult>
   /**
    * Deletes rows under `keyPrefix`, optionally only those whose window ended
    * before `before` and at most `limit` of them. Returns the number deleted.

@@ -414,6 +414,41 @@ describe('getMastodonStatus', () => {
       }
     )
 
+    it('denies quoting for a Bluesky status', async () => {
+      const did = `did:plc:${'q'.repeat(24)}`
+      const blueskyActorId = (await database.upsertBlueskyActor({
+        did,
+        handle: 'quotetest.bsky.social'
+      })) as string
+      const { statusId } = await database.upsertBlueskyPost({
+        uri: `at://${did}/app.bsky.feed.post/noquote`,
+        cid: 'cid-noquote',
+        did,
+        rkey: 'noquote',
+        actorId: blueskyActorId,
+        text: '<p>Bluesky post cannot be quoted</p>',
+        createdAt: Date.now(),
+        attachments: []
+      })
+      const status = (await database.getStatus({ statusId })) as Status
+
+      const forViewer = await getMastodonStatus(database, status, ACTOR1_ID)
+      const forAuthor = await getMastodonStatus(
+        database,
+        status,
+        blueskyActorId
+      )
+      const forAnon = await getMastodonStatus(database, status)
+
+      for (const result of [forViewer, forAuthor, forAnon]) {
+        expect(result?.quote_approval).toEqual({
+          automatic: [],
+          manual: [],
+          current_user: 'denied'
+        })
+      }
+    })
+
     it('resolves followers-policy current_user with a single batched follow query', async () => {
       // Three followers-policy statuses by ACTOR2; ACTOR3 is an accepted
       // follower of ACTOR2 (seed), so all three report current_user

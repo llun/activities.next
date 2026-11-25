@@ -298,6 +298,41 @@ describe('POST /api/v1/reports', () => {
     expect(mockPublish).not.toHaveBeenCalled()
   })
 
+  it('leaves Bluesky status ids out of the forwarded Flag object for a non-Bluesky remote account', async () => {
+    const blueskyStatusId =
+      'https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx/post/3kxyz'
+    const remoteStatusId = idToUrl('s1')
+
+    const response = await POST(
+      createJsonRequest({
+        account_id: 'acc1',
+        forward: true,
+        comment: 'mixed statuses',
+        status_ids: ['s1', urlToId(blueskyStatusId)]
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.createReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetActorId: idToUrl('acc1'),
+        statusIds: [remoteStatusId, blueskyStatusId]
+      })
+    )
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: SEND_FLAG_JOB_NAME,
+        data: expect.objectContaining({
+          reportId: 'report-1',
+          targetActorId: idToUrl('acc1'),
+          statusIds: [remoteStatusId],
+          content: 'mixed statuses'
+        })
+      })
+    )
+  })
+
   it('does not federate a Flag job when forward=false', async () => {
     const response = await POST(
       createJsonRequest({ account_id: 'acc1', forward: false }),

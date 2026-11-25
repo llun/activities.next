@@ -75,6 +75,67 @@ describe('SearchDatabase accounts', () => {
     }
   })
 
+  it('includes followed Bluesky accounts when filtering by followingActorId', async () => {
+    const testDb = createTestDatabase()
+    const { database } = testDb
+    const viewerId = 'https://remote.test/users/bsky-viewer'
+
+    try {
+      await testDb.prepare()
+      await database.migrate()
+      await createSearchActor(database, {
+        id: viewerId,
+        username: 'bsky-viewer'
+      })
+      const followedBlueskyId = (await database.upsertBlueskyActor({
+        did: `did:plc:${'f'.repeat(24)}`,
+        handle: 'followedsky.bsky.social'
+      })) as string
+      const unfollowedBlueskyId = (await database.upsertBlueskyActor({
+        did: `did:plc:${'u'.repeat(24)}`,
+        handle: 'unfollowedsky.bsky.social'
+      })) as string
+      await database.createBlueskyFollow({
+        actorId: viewerId,
+        targetActorId: followedBlueskyId,
+        uri: 'at://did:plc:viewer/app.bsky.graph.follow/3k1'
+      })
+
+      await expect(
+        database.searchAccountIds({
+          q: 'followedsky',
+          limit: 10,
+          followingActorId: viewerId
+        })
+      ).resolves.toEqual([followedBlueskyId])
+      await expect(
+        database.searchAccountIds({
+          q: 'followedsky.bsky.social@bsky.app',
+          limit: 10,
+          followingActorId: viewerId
+        })
+      ).resolves.toEqual([followedBlueskyId])
+      await expect(
+        database.searchAccountIds({
+          q: 'unfollowedsky',
+          limit: 10,
+          followingActorId: viewerId
+        })
+      ).resolves.toEqual([])
+      await expect(
+        database.searchAccountIds({
+          q: 'followedsky',
+          limit: 10,
+          followingActorId: viewerId,
+          excludeBluesky: true
+        })
+      ).resolves.toEqual([])
+      expect(unfollowedBlueskyId).not.toBe(followedBlueskyId)
+    } finally {
+      await database.destroy()
+    }
+  })
+
   it('filters account search to followed actors when requested', async () => {
     const testDb = createTestDatabase()
     const { database, db } = testDb
