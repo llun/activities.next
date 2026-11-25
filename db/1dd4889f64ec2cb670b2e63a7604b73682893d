@@ -1,0 +1,44 @@
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_999efe4f02b4c4 176-178,215,222-223,322
+migrations/schema.sql
+  s_f193227df3df34::t_2d4d193b55fcb8 2620-2621
+migrations/20261125105453_add_bluesky_pds_accounts.ts
+  s_f193227df3df34::t_4005998961561a 5-8,48-53,55-57
+  s_f193227df3df34::t_d4c46c457c39eb 54
+  s_f193227df3df34::t_e0c5f0ecc52abb 72
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_74857c737fe21d 1412
+lib/services/pds/reads.ts
+  s_f193227df3df34::t_999efe4f02b4c4 129-133
+lib/services/pds/accounts.ts
+  s_f193227df3df34::t_a774eac77a7422 500
+  s_f193227df3df34::t_e0c5f0ecc52abb 53
+  s_f193227df3df34::t_a67b96849a4e4d 13,37,210-229,330-364,380,411,528-536
+lib/database/domains/pds/pds.test.ts
+  s_f193227df3df34::t_7d7c14089a22b3 1768-1771,1775,1795,1823,1825-1828,1831-1834,1836-1848,1850,1852-1876,1882-1883,1885-1886
+  s_f193227df3df34::t_50cc27b7d2d446 1877-1881,1884,1887
+lib/database/domains/pds/types.ts
+  s_f193227df3df34::t_999efe4f02b4c4 77-78
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_c250047a4209c5 385
+lib/services/pds/accounts.test.ts
+  s_f193227df3df34::t_e0c5f0ecc52abb 76-81,1176-1287
+lib/services/pds/errors.ts
+  s_f193227df3df34::t_a67b96849a4e4d 195-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db1dd4889f64ec2cb670b2e63a7604b73682893d",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
