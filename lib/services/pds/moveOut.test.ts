@@ -96,6 +96,7 @@ const ALLOWED_USERNAMES = [
   'move-dest-did',
   'move-blob-bounds',
   'move-retry-active',
+  'move-retry-event',
   'move-refresh-cancel',
   'move-rotation-dir',
   'move-cancel-switched',
@@ -2080,6 +2081,84 @@ describe('hosted Bluesky account move-out', () => {
     }
 
     await finishMoveOut({ database, actor })
+
+    const repo = await database.getPdsRepo({ did })
+    expect(repo?.status).toBe('deactivated')
+    expect(repo?.handle).toBeNull()
+    const tail = (await database.listPdsEvents({ did }))
+      .map(decodePdsEvent)
+      .slice(-2)
+    expect(tail[0]).toMatchObject({ type: 'identity', did })
+    expect(tail[1]).toMatchObject({
+      type: 'account',
+      did,
+      active: false,
+      status: 'deactivated'
+    })
+  })
+
+  it('still announces the switch when an event write failed on the first try', async () => {
+    const { actor, did } = await setupHostedAccount('move-retry-event')
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+    const currentRepo = await database.getPdsRepo({ did })
+
+    // Simulate a crash after storing the switched operation, before the switch.
+    await database.updatePdsRepoIdentity({
+      did,
+      plcOperation: JSON.stringify({
+        type: 'plc_operation',
+        rotationKeys: [destRotKey.did()],
+        verificationMethods: { atproto: destSigningKey.did() },
+        alsoKnownAs: ['at://retry-active.dest.pds.example'],
+        services: {
+          atproto_pds: {
+            type: 'AtprotoPersonalDataServer',
+            endpoint: DEST_PDS
+          }
+        },
+        prev: 'bafyprev',
+        sig: 'sig'
+      })
+    })
+    expect((await database.getPdsRepo({ did }))?.status).toBe('active')
+
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'retry-active.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: currentRepo!.rev,
+      switchedAt: null
+    })
+
+    destHandler = (options) => {
+      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+        return okResponse(options.url, '')
+      }
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, defaultDestBody(options.url))
+    }
+
+    // The #account write fails once; the retry must still send it.
+    const append = database.appendPdsEvent.bind(database)
+    let calls = 0
+    const spy = vi
+      .spyOn(database, 'appendPdsEvent')
+      .mockImplementation(async (params) => {
+        calls += 1
+        if (calls === 2) throw new Error('database unavailable')
+        return append(params)
+      })
+    await expect(finishMoveOut({ database, actor })).rejects.toThrow(
+      'database unavailable'
+    )
+    await finishMoveOut({ database, actor })
+    spy.mockRestore()
 
     const repo = await database.getPdsRepo({ did })
     expect(repo?.status).toBe('deactivated')

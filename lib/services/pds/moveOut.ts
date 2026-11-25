@@ -1430,7 +1430,11 @@ export const finishMoveOut = async ({
           await submitPlcOperation(repo.did, operation)
         } else if (
           isPlcOperationPointingAway(JSON.stringify(last), repo.domain) &&
-          !last.rotationKeys.includes(serverKeyDid)
+          !last.rotationKeys.includes(serverKeyDid) &&
+          // Only this move's own switch: the destination's endpoint and key.
+          getPlcOperationPdsEndpoint(JSON.stringify(last))?.origin ===
+            new URL(credentials.pdsEndpoint).origin &&
+          last.verificationMethods.atproto === credentials.signingKeyDid
         ) {
           // A previous finish attempt already landed the PLC update before
           // persisting it locally; adopt it and finish the local switch. It
@@ -1457,17 +1461,9 @@ export const finishMoveOut = async ({
           : current.plcOperation
         if (!isPlcOperationPointingAway(operationJson, repo.domain))
           return false
-        await database.updatePdsRepoIdentity({
-          did: repo.did,
-          plcOperation: operationJson,
-          // The handle now belongs to the destination; clearing it frees a
-          // bare-domain handle for a relinked account.
-          handle: null
-        })
-        await database.updatePdsRepoStatus({
-          did: repo.did,
-          status: 'deactivated'
-        })
+        // The events go first: these writes aren't one transaction, and once
+        // the row is switched a retry skips this block, so an event that
+        // failed after them would never be sent. A repeat on retry is harmless.
         await database.appendPdsEvent({
           did: repo.did,
           type: 'identity',
@@ -1484,6 +1480,17 @@ export const finishMoveOut = async ({
             active: false,
             status: 'deactivated'
           })
+        })
+        await database.updatePdsRepoIdentity({
+          did: repo.did,
+          plcOperation: operationJson,
+          // The handle now belongs to the destination; clearing it frees a
+          // bare-domain handle for a relinked account.
+          handle: null
+        })
+        await database.updatePdsRepoStatus({
+          did: repo.did,
+          status: 'deactivated'
         })
         return true
       })

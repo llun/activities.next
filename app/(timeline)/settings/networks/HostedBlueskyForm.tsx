@@ -11,6 +11,7 @@ import {
   createHostedBlueskyAccount,
   deleteHostedBlueskyAccount,
   finishHostedBlueskyMoveOut,
+  getHostedBlueskyAccount,
   getHostedBlueskyMoveOut,
   sendHostedBlueskyMoveOutRepo,
   startHostedBlueskyMoveOut,
@@ -401,8 +402,10 @@ export const HostedBlueskyForm = ({
       // A failed finish may have switched the identity before failing, so read
       // the state back rather than leaving the panel on the old stage.
       try {
-        const { state: next } = await getHostedBlueskyMoveOut()
-        applyState(next)
+        // The local state only: the move route also asks the destination,
+        // which may be the very thing that just failed.
+        const next = await getHostedBlueskyAccount()
+        if (next) applyState(next)
       } catch {
         // The reload is best effort; the error above already says what failed.
       }
