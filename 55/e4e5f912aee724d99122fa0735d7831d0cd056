@@ -1,0 +1,35 @@
+lib/database/domains/actor/actorMastodon.test.ts
+  s_f193227df3df34::t_df1c215ea53b03 403-424,426-428,430-470
+lib/database/domains/rateLimit/queries.ts
+  s_f193227df3df34::t_067e833e6711f3 5,98-121,159-163
+lib/database/domains/rateLimit/rateLimit.test.ts
+  s_f193227df3df34::t_e8a3d80c08e453 141-164
+lib/database/domains/rateLimit/types.ts
+  s_f193227df3df34::t_84c8c8a3727cac 25-33,58-63
+lib/database/testing/inMemoryRateLimit.ts
+  s_f193227df3df34::t_789ba5170ae19c 26-38
+lib/services/bluesky/crosspostText.test.ts
+  s_f193227df3df34::t_4d037d1958bb5f 462-488
+lib/services/bluesky/crosspostText.ts
+  s_f193227df3df34::t_9a7a55072f69f7 13,276-289,409,413,416-419
+lib/services/bluesky/profiles.test.ts
+  s_f193227df3df34::t_68e0d148f8f470 441-485
+lib/services/bluesky/profiles.ts
+  s_f193227df3df34::t_83fa4c4d830c39 139-154,199-202,213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "55e4e5f912aee724d99122fa0735d7831d0cd056",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
