@@ -1,0 +1,65 @@
+app/(timeline)/settings/networks/HostedBlueskyForm.test.tsx
+  s_4fb28ab57323fe::t_8aa60b34ce58ff 368,371,374-376,459-461,483,485,487-488,554-556,558,561-570,603-694,796,798-802
+app/(timeline)/settings/networks/HostedBlueskyForm.tsx
+  s_4fb28ab57323fe::t_5e31eb2b4534ae 63-65,77,83-87,135,228-233,279-280,282-293,297-309,327-334,389-396,418-425,441-444,572,575,705,738,777-795,854-858,1061-1063,1129,1134-1149
+app/api/v1/bluesky/hosted/move/route.ts
+  s_4fb28ab57323fe::t_1259a534cb728c 15,63-78,100-140,147-155
+app/api/v1/bluesky/hosted/route.test.ts
+  s_4fb28ab57323fe::t_64f637bb803133 19-20,354-366
+app/api/v1/bluesky/hosted/route.ts
+  s_4fb28ab57323fe::t_c9c1f14a228198 44-46
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  s_4fb28ab57323fe::t_4bc242ca2f2509 312-339
+lib/database/domains/pds/pds.test.ts
+  s_4fb28ab57323fe::t_c2ca1e5610fc7c 1449,1466-1468,1492-1533
+lib/services/bluesky/account.test.ts
+  s_4fb28ab57323fe::t_aee24491899073 23,717-780
+lib/services/pds/accountEvents.test.ts
+  s_4fb28ab57323fe::t_d0f9f81b028df0 1-103
+lib/services/pds/moved.test.ts
+  s_4fb28ab57323fe::t_24aee7534ada56 1-146
+docs/mastodon-api-compatibility.md
+  s_4fb28ab57323fe::t_3b355766d77edb 1415
+docs/setup.md
+  s_4fb28ab57323fe::t_db76e10ce346c5 437
+lib/config/blueskyPds.ts
+  s_4fb28ab57323fe::t_ea6e754453712d 53-57
+lib/database/domains/blueskyAccount/queries.ts
+  s_4fb28ab57323fe::t_c9ef07f2590472 285-291
+lib/database/domains/pds/queries.ts
+  s_4fb28ab57323fe::t_1a008bc6f4a7cf 739-741
+lib/services/pds/accounts.test.ts
+  s_4fb28ab57323fe::t_22d1c6694e5c2e 16,35,134-136,2004-2084
+lib/services/pds/accounts.ts
+  s_4fb28ab57323fe::t_0eeebd7f363e47 15,47,57-62,206-217,407-411,562-564,566-568,646,676-678,723,747-750,755,778-795,797-813,817-835,837-839
+lib/services/pds/errors.ts
+  s_4fb28ab57323fe::t_420e9e4ae8c62f 269-275
+lib/services/pds/firehose/subscriber.test.ts
+  s_4fb28ab57323fe::t_687d05e3dc07f0 662,687-690,715,721
+lib/services/pds/moveOut.test.ts
+  s_4fb28ab57323fe::t_0aa1050210c85b 21,31-32,39-40,95-109,794-801,912,933-935,967-970,1063-1076,1285-1293,1306,1488,1496,1508-1511,1608-2243
+lib/services/pds/moveOut.ts
+  s_4fb28ab57323fe::t_1080ae5199b60f 5,8-9,15,20,47-57,68,79-80,82-90,94,379-398,400-427,509-514,528,660-665,667,671,682-683,741,789-797,855-864,870,920-921,932-1033,1057,1072-1073,1083-1086,1089-1092,1129-1130,1186-1190,1209-1239,1242-1252,1254-1255,1274-1277,1283,1290,1309,1311,1343,1345-1373,1375,1377-1381,1383,1387-1388,1390,1396-1418,1432-1433,1474-1481,1483-1484,1489-1490
+lib/services/pds/moveSession.test.ts
+  s_4fb28ab57323fe::t_69e664f13c38b6 1-84
+lib/services/pds/moveSession.ts
+  s_4fb28ab57323fe::t_bbc67de6ca6bfb 1-88
+lib/services/pds/routeResponse.ts
+  s_4fb28ab57323fe::t_adfa7014e0f901 19-21,23-30,80-83,107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "412bd8b2090933d75639b1f7990892fb8e092e0a",
+  "prompts": {},
+  "sessions": {
+    "s_4fb28ab57323fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "143ac5cb-61e1-4174-a644-dcb4b80dc66b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
