@@ -25,10 +25,10 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import {
   BLUESKY_OAUTH_SCOPE,
-  createBlueskyIdentityResolver,
   getBlueskyOAuthClient,
   writeStoredBlueskySession
 } from './client'
+import { createBlueskyIdentityResolver } from './identityResolver'
 import { BLUESKY_NOT_ALLOWED_MESSAGE, isBlueskyAllowed } from './policy'
 
 const INVALID_HANDLE = 'handle.invalid'

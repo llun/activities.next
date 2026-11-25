@@ -1,9 +1,3 @@
-import {
-  TokenInvalidError,
-  TokenRefreshError,
-  TokenRevokedError
-} from '@atproto/oauth-client-node'
-
 import type { Database } from '@/lib/database/types'
 import type { Actor } from '@/lib/types/domain/actor'
 import { getServedAuthority } from '@/lib/utils/host'
@@ -178,6 +172,10 @@ const createOAuthSend = (database: Database, actor: Actor, did: string) => {
           : {})
       })
     } catch (error) {
+      // Loaded here, not at the top: `@atproto/*` is ESM-only and this module
+      // is reached from CommonJS scripts through the job registry.
+      const { TokenInvalidError, TokenRefreshError, TokenRevokedError } =
+        await import('@atproto/oauth-client-node')
       if (
         error instanceof TokenRefreshError ||
         error instanceof TokenRevokedError ||

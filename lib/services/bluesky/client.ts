@@ -1,12 +1,9 @@
-import { createIdentityResolver } from '@atproto-labs/identity-resolver'
-import {
-  AtprotoHandleResolverNode,
-  JoseKey,
+import type {
   NodeOAuthClient,
-  type NodeSavedSession,
-  type NodeSavedSessionStore,
-  type NodeSavedStateStore,
-  type RuntimeLock
+  NodeSavedSession,
+  NodeSavedSessionStore,
+  NodeSavedStateStore,
+  RuntimeLock
 } from '@atproto/oauth-client-node'
 import crypto from 'node:crypto'
 
@@ -39,12 +36,6 @@ export const getBlueskyOAuthUrls = (domain: string) => {
     redirectUri: `${base}/api/v1/bluesky/callback`
   }
 }
-
-export const createBlueskyIdentityResolver = () =>
-  createIdentityResolver({
-    fetch: blueskyFetch,
-    handleResolver: new AtprotoHandleResolverNode({ fetch: blueskyFetch })
-  })
 
 // What `bluesky_sessions` holds for a DID, encrypted with the server secret.
 // The tag keeps an app-password session from ever being read as an OAuth one.
@@ -147,6 +138,13 @@ const buildClient = async (
   config: Config & { bluesky: NonNullable<Config['bluesky']> },
   domain: string
 ) => {
+  // Loaded on first use: `@atproto/*` is ESM-only (multiformats), and the job
+  // registry and actor deletion reach this module from CommonJS scripts.
+  const [{ JoseKey, NodeOAuthClient }, { createBlueskyIdentityResolver }] =
+    await Promise.all([
+      import('@atproto/oauth-client-node'),
+      import('./identityResolver')
+    ])
   const keyset = await Promise.all(
     config.bluesky.oauthPrivateKeys.map((jwk) => JoseKey.fromJWK(jwk))
   )
