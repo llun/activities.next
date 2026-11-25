@@ -1,0 +1,122 @@
+lib/services/pds/plc.test.ts
+  s_f193227df3df34::t_b117e9051c86cd 67,73,78,107,120,122,148,157,163,182,186,189,203,206,213,215-217,219,226,228-244,246,251,256,259,262,265,277,294,298-299,308,312
+  s_f193227df3df34::t_98473e546e1f08 1-66,68-72,74-77,79-106,108-119,121,123-147,149-156,158-162,164-181,183-185,187-188,190-202,204-205,207-212,214,218,220-225,227,245,247-250,252-255,257-258,260-261,263-264,266-276,278-293,295-297,300-307,309-311,313
+lib/services/pds/errors.ts
+  h_580a04e334fef4 128-215
+  s_f193227df3df34::t_0f4149e092274c 69-76
+lib/database/domains/pds/types.ts
+  h_580a04e334fef4 66-69,107-112,247-248,273-275
+  s_f193227df3df34::t_0c72b3f81ebe3b 1,13-18,75-100,268,277,283-287,367-369
+lib/services/pds/repo.ts
+  h_580a04e334fef4 65-66,148,220-221
+lib/services/pds/plc.ts
+  s_f193227df3df34::t_e4eb658bd36bb4 66-69
+  s_f193227df3df34::t_4f734262fcc721 71,88,91,137,186,253,262,267,271,281,316,326,357-375,379,386,425,448
+  s_f193227df3df34::t_1af1ca3d6bceb7 1-65,70,72-87,89-90,92-136,138-185,187-252,254-261,263-266,268-270,272-280,282-315,317-325,327-356,376-378,380-385,387-424,426-447,449-450
+lib/config/blueskyPds.ts
+  s_f193227df3df34::t_85b7faebac67ca 271-371
+lib/database/domains/actor/deletion.ts
+  h_580a04e334fef4 5-8,23,624-626,633-639
+lib/services/pds/host.ts
+  h_580a04e334fef4 176-203
+app/api/well-known/atproto-did/route.ts
+  h_580a04e334fef4 5,11-22,28-68
+lib/database/domains/pds/pds.test.ts
+  h_580a04e334fef4 942-945,961-969
+  s_f193227df3df34::t_b3b137482f3342 946
+  s_f193227df3df34::t_de592d0a1ff5e1 1732-1874
+app/(timeline)/settings/networks/HostedBlueskyForm.tsx
+  h_580a04e334fef4 1-428
+app/(timeline)/settings/networks/page.tsx
+  h_580a04e334fef4 10,15,32,34-35,56-67
+app/(timeline)/settings/networks/page.test.tsx
+  h_580a04e334fef4 7,25-27,31-32,36-37,67-74,98-131
+lib/services/actors/actorDeletion.ts
+  h_580a04e334fef4 8-11,254-267
+app/api/well-known/atproto-did/route.test.ts
+  h_580a04e334fef4 5,11,14-20,31,39-40,42,62-142
+app/api/v1/bluesky/hosted/route.test.ts
+  h_580a04e334fef4 1-226
+lib/services/bluesky/account.ts
+  s_f193227df3df34::t_8ae5ce5bdf0f96 226-234,244-246,361,428-430
+lib/services/pds/retention.ts
+  h_580a04e334fef4 3,24-51
+app/(timeline)/settings/networks/HostedBlueskyForm.test.tsx
+  h_580a04e334fef4 1-268
+lib/client/blueskyHosted.ts
+  h_580a04e334fef4 1-50
+lib/services/pds/accounts.ts
+  h_580a04e334fef4 1-533
+lib/utils/blueskyHosted.ts
+  h_580a04e334fef4 1-35
+lib/services/pds/accountEvents.ts
+  h_580a04e334fef4 1-68
+lib/services/pds/accounts.test.ts
+  h_580a04e334fef4 1-44,46-447,451-523,541-583
+  s_f193227df3df34::t_d23c028f70d3c8 45
+  s_f193227df3df34::t_1f3be2ddfa9c52 539-540
+  s_f193227df3df34::t_2c56c9228d2b06 448-450,524-538
+docs/architecture.md
+  h_580a04e334fef4 1760
+lib/database/domains/moderation/queries.ts
+  h_580a04e334fef4 30,310-333,368-372,379-390,413-417,424-435
+lib/services/bluesky/account.test.ts
+  s_f193227df3df34::t_64bc16e9b143f3 163-191
+lib/services/pds/routeResponse.ts
+  h_580a04e334fef4 1-65
+lib/database/domains/pds/queries.ts
+  h_580a04e334fef4 14,159-161,176-177,250-269,1062-1063,1077-1079,1336
+  s_f193227df3df34::t_3ccc70a79c7878 292-299
+  s_f193227df3df34::t_3b87dd9d398482 9-10,25,30,32,91-93,108-110,211-224,300-321,327-358,1304,1309-1329,1333,1338,1340-1341,1367-1368
+app/api/v1/bluesky/hosted/route.ts
+  h_580a04e334fef4 1-111
+lib/client.ts
+  h_580a04e334fef4 79
+lib/jobs/deleteActorJob.test.ts
+  h_580a04e334fef4 943-944
+.env.example
+  s_f193227df3df34::t_a83b18d74a9c3c 267-273
+docs/environment-variables.md
+  s_f193227df3df34::t_8548680eb8c0d8 522-523
+lib/config/blueskyPds.test.ts
+  s_f193227df3df34::t_5b86fa786b47a3 353-448
+lib/config/index.ts
+  s_f193227df3df34::t_d95f0a11642f12 18-20,258-266
+lib/database/kysely/db.ts
+  s_f193227df3df34::t_8ebd30e9705891 1270-1275,1296-1298,1777
+lib/services/pds/index.ts
+  s_f193227df3df34::t_d65d6274915329 61-81
+lib/services/pds/reads.ts
+  s_f193227df3df34::t_4716837faa4277 56-58
+migrations/20261125105453_add_bluesky_pds_accounts.ts
+  s_f193227df3df34::t_c201b2ad08abb4 1-79
+migrations/index.ts
+  s_f193227df3df34::t_7295806f8027a8 35,78-79
+migrations/names.ts
+  s_f193227df3df34::t_1febf7ba143f95 35-36
+migrations/schema.sql
+  s_f193227df3df34::t_0109e158116c4e 1329-1334,1360-1363,2226-2228
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_1eb7a83a1d5fd7 373,385
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1161cad7a196dcb7e9a95fe7bb75ab703c9a9e18",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  },
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
