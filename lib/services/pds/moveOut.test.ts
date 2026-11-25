@@ -116,6 +116,7 @@ const ALLOWED_USERNAMES = [
   'move-delete-unrecorded',
   'move-cancel-no-key',
   'move-cancel-no-config',
+  'move-cancel-no-config-away',
   'move-blob-budget',
   'move-finish-budget',
   'move-finish-stuck',
@@ -3619,8 +3620,8 @@ describe('hosted Bluesky account move-out', () => {
       switchedAt: null
     })
     delete process.env.ACTIVITIES_BLUESKY_PDS_ROTATION_KEY
-    // An invalid entry elsewhere drops the whole config; this server's own
-    // origin is then unknown, and the directory still points here.
+    // With no config (an empty value here; an invalid entry anywhere does the
+    // same) this server's origin is unknown, and the directory still points here.
     process.env.ACTIVITIES_BLUESKY_PDS = ''
     destHandler = (options) => okResponse(options.url, '')
 
@@ -3629,6 +3630,38 @@ describe('hosted Bluesky account move-out', () => {
     expect(cancelled.cancelled).toBe(true)
     expect(await database.getBlueskySession({ did })).toBeNull()
     expect((await database.getPdsRepo({ did }))?.status).toBe('active')
+  })
+
+  it('refuses to cancel without PDS config when the directory already points away', async () => {
+    const { actor, did } = await setupHostedAccount(
+      'move-cancel-no-config-away'
+    )
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'cancel.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+    delete process.env.ACTIVITIES_BLUESKY_PDS_ROTATION_KEY
+    process.env.ACTIVITIES_BLUESKY_PDS = ''
+    destHandler = (options) => okResponse(options.url, '')
+    // The switch landed at the directory but not here.
+    const ops = plcOpsByDid.get(did)!
+    ops.push({
+      ...ops[ops.length - 1],
+      services: {
+        atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: DEST_PDS }
+      }
+    })
+
+    await expect(cancelMoveOut({ database, actor })).rejects.toBeInstanceOf(
+      PdsMoveOutSwitchedError
+    )
+    expect(await database.getBlueskySession({ did })).not.toBeNull()
   })
 
   it('passes over a blob that fails and hands on the next cursor', async () => {
