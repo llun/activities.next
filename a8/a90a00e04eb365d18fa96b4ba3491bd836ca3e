@@ -1,0 +1,53 @@
+lib/client/blueskyHosted.ts
+  s_f193227df3df34::t_536b59b224d7b5 91-92,123
+  s_f193227df3df34::t_23af8bff189b18 2-14,17,22,38,49-51,60-65,70,73-90,93-122,124-133
+app/api/v1/bluesky/hosted/move/route.test.ts
+  s_f193227df3df34::t_a30b9ab317456c 181-182,291-309
+  s_f193227df3df34::t_492fdb31ab97cf 310
+lib/client/blueskyHosted.test.ts
+  s_f193227df3df34::t_bd9b942e82de40 40
+  s_f193227df3df34::t_a30b9ab317456c 28
+  s_f193227df3df34::t_8de1d6fe2aed6f 1-27,29-39,41-100
+docs/setup.md
+  s_f193227df3df34::t_6e83700f618430 437
+  s_f193227df3df34::t_416ef08ecec0a7 362-436,438
+app/(timeline)/settings/networks/HostedBlueskyForm.tsx
+  s_f193227df3df34::t_ae2eb0f6979782 702,769,773-774,782-784,787-788,794-795,797,803-805,809-810,812,816-856,870
+  s_f193227df3df34::t_536b59b224d7b5 120-128,230-318
+  s_f193227df3df34::t_bb3cde7fc64692 3,5,8-10,13-16,47-84,113-119,319-354,360-362,379-439,499-501,510-514,523-525,640,646,648,650-682,686-701,703-768,770-772,775-781,785-786,789-793,796,798-802,806-808,811,813-815,857-869,871-873,949-1014
+app/api/v1/bluesky/hosted/move/route.ts
+  s_f193227df3df34::t_ae2eb0f6979782 33-36,82
+app/(timeline)/settings/networks/HostedBlueskyForm.test.tsx
+  s_f193227df3df34::t_a30b9ab317456c 77,81,87,90,460,467,470,473,476,479-493,522-523,526,541,544,563,571,575,591,597,601,616,618,625,640,643,646,650
+  s_f193227df3df34::t_44306d6563b461 12-14,17-20,31-33,36-39,74-76,78-80,82-86,88-89,447-459,461-466,468-469,471-472,474-475,477-478,494-521,524-525,527-540,542-543,545-562,564-570,572-574,576-590,592-596,598-600,602-615,617,619-624,626-639,641-642,644-645,647-649,651-653
+docs/architecture.md
+  s_f193227df3df34::t_0570af77b4f559 1764
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_d0d28650440f5f 1415,1417
+lib/utils/blueskyHosted.ts
+  s_4fb28ab57323fe::t_0b34248b452119 48-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8a90a00e04eb365d18fa96b4ba3491bd836ca3e",
+  "prompts": {},
+  "sessions": {
+    "s_4fb28ab57323fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "143ac5cb-61e1-4174-a644-dcb4b80dc66b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
