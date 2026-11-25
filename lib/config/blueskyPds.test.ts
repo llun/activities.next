@@ -446,4 +446,46 @@ describe('Bluesky PDS config', () => {
       expect(logger.warn).toHaveBeenCalledTimes(1)
     }
   })
+  it('defaults the AppView URL and DID to Bluesky’s and accepts overrides', async () => {
+    delete process.env.ACTIVITIES_BLUESKY_APPVIEW_URL
+    delete process.env.ACTIVITIES_BLUESKY_APPVIEW_DID
+    const { logger } = await import('@/lib/utils/logger')
+    const config = await import('./blueskyPds')
+    expect(config.getBlueskyAppViewUrl()).toBe('https://api.bsky.app')
+    expect(config.getBlueskyAppViewDid()).toBe(
+      'did:web:api.bsky.app#bsky_appview'
+    )
+
+    process.env.ACTIVITIES_BLUESKY_APPVIEW_URL = ' https://AppView.Example/ '
+    process.env.ACTIVITIES_BLUESKY_APPVIEW_DID =
+      'did:web:appview.example#bsky_appview'
+    expect(config.getBlueskyAppViewUrl()).toBe('https://appview.example')
+    expect(config.getBlueskyAppViewDid()).toBe(
+      'did:web:appview.example#bsky_appview'
+    )
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('warns once and uses the defaults for an invalid AppView URL or DID', async () => {
+    const { logger } = await import('@/lib/utils/logger')
+    const config = await import('./blueskyPds')
+    for (const value of [
+      'http://api.bsky.app',
+      'https://api.bsky.app/xrpc',
+      'https://user@api.bsky.app',
+      'not a url'
+    ]) {
+      process.env.ACTIVITIES_BLUESKY_APPVIEW_URL = value
+      expect(config.getBlueskyAppViewUrl()).toBe(
+        config.DEFAULT_BLUESKY_APPVIEW_URL
+      )
+    }
+    for (const value of ['api.bsky.app', 'did:web:', 'did:web:x#a#b']) {
+      process.env.ACTIVITIES_BLUESKY_APPVIEW_DID = value
+      expect(config.getBlueskyAppViewDid()).toBe(
+        config.DEFAULT_BLUESKY_APPVIEW_DID
+      )
+    }
+    expect(logger.warn).toHaveBeenCalledTimes(2)
+  })
 })

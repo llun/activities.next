@@ -234,6 +234,20 @@ describe('BlueskyAccount', () => {
     }
     const noSession = await createAdmin('sync-no-session')
     await link(noSession.actorId, 'did:plc:sync-no-session')
+    // A hosted account has no stored session and is still synced.
+    const hosted = await createAdmin('sync-hosted')
+    await database.saveBlueskyAccount({
+      actorId: hosted.actorId,
+      did: 'did:plc:sync-hosted',
+      handle: 'sync-hosted.pds.example.com',
+      pdsUrl: 'https://pds.example.com',
+      authType: 'hosted',
+      domainHandle: false,
+      crosspostByDefault: false
+    })
+    expect(
+      await database.getBlueskyAccount({ actorId: hosted.actorId })
+    ).toMatchObject({ authType: 'hosted', crosspostByDefault: false })
     const suspended = await linked('sync-suspended')
     await testDb.db
       .updateTable('actors')
@@ -264,6 +278,7 @@ describe('BlueskyAccount', () => {
     expect(actorIds).toContain(confirmed.actorId)
     expect(actorIds).toContain(nullCode.actorId)
     expect(actorIds).toContain(emptyCode.actorId)
+    expect(actorIds).toContain(hosted.actorId)
     for (const skipped of [
       noSession,
       suspended,

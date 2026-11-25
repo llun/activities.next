@@ -6,10 +6,13 @@ import {
   updateBlueskyCrosspostDefault
 } from '@/lib/services/bluesky/account'
 
-import { PATCH } from './route'
+import { DELETE, PATCH } from './route'
 
 const currentActor = { id: 'actor-a', domain: 'social.example' }
-const database = {}
+const database = {
+  getBlueskyAccount: vi.fn(),
+  deleteBlueskyAccount: vi.fn()
+}
 const guardCalls: string[] = []
 
 vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
@@ -89,5 +92,33 @@ describe('PATCH /api/v1/bluesky/account', () => {
     expect(await response.json()).toEqual({
       error: 'Link a Bluesky account first.'
     })
+  })
+})
+
+describe('DELETE /api/v1/bluesky/account', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('refuses to unlink an account hosted on this server', async () => {
+    database.getBlueskyAccount.mockResolvedValue({
+      actorId: currentActor.id,
+      did: 'did:plc:hosted',
+      authType: 'hosted'
+    })
+
+    const response = await DELETE(
+      new NextRequest('https://social.example/api/v1/bluesky/account', {
+        method: 'DELETE'
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error:
+        'Your Bluesky account is hosted on this server. Manage it under “Host my Bluesky account here”.'
+    })
+    expect(database.deleteBlueskyAccount).not.toHaveBeenCalled()
   })
 })

@@ -2,7 +2,9 @@
 // session the atproto client keeps for it, and pending OAuth sign-ins. The
 // session and state values are stored as given: the service encrypts them.
 
-export type BlueskyAuthType = 'oauth' | 'app_password'
+// `hosted`: the account is on this server's embedded PDS
+// (lib/services/pds/accounts.ts), so it has no stored session.
+export type BlueskyAuthType = 'oauth' | 'app_password' | 'hosted'
 
 export interface BlueskyAccount {
   actorId: string
@@ -35,7 +37,10 @@ export type SaveBlueskyAccountParams = Omit<
   | 'crosspostByDefault'
   | 'createdAt'
   | 'updatedAt'
->
+> & {
+  // Left out, a new row cross-posts by default and a relink keeps its choice.
+  crosspostByDefault?: boolean
+}
 
 export interface BlueskyAccountDatabase {
   getBlueskyAccount(params: { actorId: string }): Promise<BlueskyAccount | null>
@@ -94,8 +99,9 @@ export interface BlueskyAccountDatabase {
     host: string | null
   }): Promise<boolean>
   /**
-   * Actors whose linked account still has a stored session, leaving out ones
-   * that are suspended, being deleted, disabled or unconfirmed.
+   * Actors whose linked account still has a stored session, or is hosted on
+   * this server, leaving out ones that are suspended, being deleted, disabled
+   * or unconfirmed.
    */
   listBlueskyAccountsToSync(): Promise<string[]>
   /** Removes the link, its stored session, its follows and its interactions. */

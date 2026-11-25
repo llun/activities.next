@@ -289,6 +289,22 @@ const createAppPasswordSend = (
   }
 }
 
+// The hosted account's client runs the embedded PDS, whose `@atproto/*`
+// imports CommonJS callers (scripts, the queue worker) cannot load, so it is
+// loaded on first use. Under tsx/cjs this `@/` import cannot resolve: hosted
+// accounts are served by the app process (its in-process queue runner, or a
+// QStash or Cloud Tasks queue), not by the CommonJS worker.
+const loadHostedAgent = async () => {
+  try {
+    return await import('@/lib/services/pds/hostedAgent')
+  } catch (error) {
+    throw new Error(
+      'Hosted Bluesky accounts cannot be served from this process; run the queue in the app process',
+      { cause: error }
+    )
+  }
+}
+
 /** Null when the actor has no linked Bluesky account or no stored session. */
 export const getBlueskyAgent = async (
   database: Database,
@@ -296,6 +312,10 @@ export const getBlueskyAgent = async (
 ): Promise<BlueskyAgent | null> => {
   const account = await database.getBlueskyAccount({ actorId: actor.id })
   if (!account) return null
+  if (account.authType === 'hosted') {
+    const { createHostedBlueskyAgent } = await loadHostedAgent()
+    return createHostedBlueskyAgent(database, actor, account)
+  }
   const { did, pdsUrl } = account
   const stored = await readStoredBlueskySession(database, did)
   if (!stored) return null

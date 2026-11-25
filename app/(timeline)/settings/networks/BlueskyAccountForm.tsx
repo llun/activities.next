@@ -225,13 +225,22 @@ export const BlueskyAccountForm = ({
   }
 
   const dnsRecord = getBlueskyDnsRecord(account.handle, account.did)
-  const instance = state.instanceHandle
+  // A hosted account is read-only here: the hosted card below manages it.
+  const hosted = account.authType === 'hosted'
+  const instance = hosted ? null : state.instanceHandle
 
   return (
     <div className="space-y-4">
       {alerts}
       <Frame form>
-        <FormRow label="Account">
+        <FormRow
+          label="Account"
+          hint={
+            hosted
+              ? 'Manage it under “Host my Bluesky account here”.'
+              : undefined
+          }
+        >
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <a
               className="min-w-0 font-medium break-all underline"
@@ -240,18 +249,24 @@ export const BlueskyAccountForm = ({
               {account.handle}
             </a>
             <Badge>
-              {account.authType === 'oauth' ? 'OAuth' : 'App password'}
+              {hosted
+                ? 'Hosted here'
+                : account.authType === 'oauth'
+                  ? 'OAuth'
+                  : 'App password'}
             </Badge>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="ml-auto"
-              disabled={busy !== null}
-              onClick={() => setConfirmUnlink(true)}
-            >
-              Unlink
-            </Button>
+            {hosted ? null : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="ml-auto"
+                disabled={busy !== null}
+                onClick={() => setConfirmUnlink(true)}
+              >
+                Unlink
+              </Button>
+            )}
           </div>
         </FormRow>
         <FormRow label="DID">
@@ -307,72 +322,74 @@ export const BlueskyAccountForm = ({
             ) : null}
           </div>
         </FormRow>
-        <FormRow
-          label="Handle check"
-          hint={
-            account.domainHandle
-              ? 'A handle on your own domain needs this TXT record at your DNS host.'
-              : undefined
-          }
-        >
-          <div className="space-y-2 text-sm">
-            {account.domainHandle ? (
-              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                <dt className="text-muted-foreground">Name</dt>
-                <dd className="min-w-0">
-                  <code className="text-xs break-all">{dnsRecord.name}</code>
-                </dd>
-                <dt className="text-muted-foreground">Type</dt>
-                <dd>
-                  <code className="text-xs">TXT</code>
-                </dd>
-                <dt className="text-muted-foreground">Value</dt>
-                <dd className="min-w-0">
-                  <code className="text-xs break-all">{dnsRecord.value}</code>
-                </dd>
-              </dl>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={busy !== null}
-                onClick={() =>
-                  void run('check', async () => {
-                    const result = await checkBlueskyHandle()
-                    setCheck(result)
-                    router.refresh()
-                  })
-                }
-              >
-                {busy === 'check' ? 'Checking…' : 'Check handle'}
-              </Button>
-              <span
-                className="flex flex-wrap items-center gap-2"
-                role="status"
-                aria-live="polite"
-              >
-                {check ? (
-                  <>
-                    <Badge tone={check.verified ? 'success' : 'warning'}>
-                      {check.verified ? 'Verified' : 'Not verified'}
-                    </Badge>
-                    {account.domainHandle ? (
-                      <span className="text-muted-foreground">
-                        {check.dnsRecord === null
-                          ? 'DNS could not be checked'
-                          : check.dnsRecord
-                            ? 'DNS record found'
-                            : 'No DNS record found yet'}
-                      </span>
-                    ) : null}
-                  </>
-                ) : null}
-              </span>
+        {hosted ? null : (
+          <FormRow
+            label="Handle check"
+            hint={
+              account.domainHandle
+                ? 'A handle on your own domain needs this TXT record at your DNS host.'
+                : undefined
+            }
+          >
+            <div className="space-y-2 text-sm">
+              {account.domainHandle ? (
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                  <dt className="text-muted-foreground">Name</dt>
+                  <dd className="min-w-0">
+                    <code className="text-xs break-all">{dnsRecord.name}</code>
+                  </dd>
+                  <dt className="text-muted-foreground">Type</dt>
+                  <dd>
+                    <code className="text-xs">TXT</code>
+                  </dd>
+                  <dt className="text-muted-foreground">Value</dt>
+                  <dd className="min-w-0">
+                    <code className="text-xs break-all">{dnsRecord.value}</code>
+                  </dd>
+                </dl>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    void run('check', async () => {
+                      const result = await checkBlueskyHandle()
+                      setCheck(result)
+                      router.refresh()
+                    })
+                  }
+                >
+                  {busy === 'check' ? 'Checking…' : 'Check handle'}
+                </Button>
+                <span
+                  className="flex flex-wrap items-center gap-2"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {check ? (
+                    <>
+                      <Badge tone={check.verified ? 'success' : 'warning'}>
+                        {check.verified ? 'Verified' : 'Not verified'}
+                      </Badge>
+                      {account.domainHandle ? (
+                        <span className="text-muted-foreground">
+                          {check.dnsRecord === null
+                            ? 'DNS could not be checked'
+                            : check.dnsRecord
+                              ? 'DNS record found'
+                              : 'No DNS record found yet'}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : null}
+                </span>
+              </div>
             </div>
-          </div>
-        </FormRow>
+          </FormRow>
+        )}
         {instance ? (
           <FormRow
             label="Server handle"

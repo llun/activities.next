@@ -269,7 +269,7 @@ export const setBlueskyInstanceHandle = async (
 export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
   const rows = await db
     .selectFrom('bluesky_accounts')
-    .innerJoin(
+    .leftJoin(
       'bluesky_sessions',
       'bluesky_sessions.did',
       'bluesky_accounts.did'
@@ -277,6 +277,13 @@ export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
     .innerJoin('actors', 'actors.id', 'bluesky_accounts.actorId')
     .innerJoin('accounts', 'accounts.id', 'actors.accountId')
     .select('bluesky_accounts.actorId')
+    // A hosted account (on this server's PDS) has no stored session.
+    .where((eb) =>
+      eb.or([
+        eb('bluesky_sessions.did', 'is not', null),
+        eb('bluesky_accounts.authType', '=', 'hosted')
+      ])
+    )
     // An actor that may not act (isActorModerationBlocked,
     // isActorConfirmationPending) or is being deleted is not synced.
     .where('actors.suspendedAt', 'is', null)

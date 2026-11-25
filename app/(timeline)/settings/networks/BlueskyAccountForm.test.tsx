@@ -287,6 +287,59 @@ describe('BlueskyAccountForm', () => {
     )
   })
 
+  describe('a hosted account', () => {
+    const hostedState = (overrides: Partial<BlueskyLinkedAccount> = {}) =>
+      linkedState(
+        {
+          authType: 'hosted',
+          handle: 'alice.pds.example.com',
+          pdsUrl: 'https://pds.example.com',
+          domainHandle: false,
+          crosspostByDefault: false,
+          ...overrides
+        },
+        // Even a stale claim from the server is not shown for it.
+        { instanceHandle: { host: 'example.com', status: 'free' } }
+      )
+
+    it('shows the handle read-only with a Hosted here badge and a pointer to the hosted card', () => {
+      show(hostedState())
+      expect(screen.getByText('alice.pds.example.com')).toBeInTheDocument()
+      expect(screen.getByText('Hosted here')).toBeInTheDocument()
+      expect(
+        screen.getByText('Manage it under “Host my Bluesky account here”.')
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Unlink' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Check handle' })
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText('Server handle')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('App password')).not.toBeInTheDocument()
+    })
+
+    it('keeps the cross-post default and the sync status', async () => {
+      vi.mocked(setBlueskyCrosspostByDefault).mockResolvedValue()
+      show(
+        hostedState({
+          syncError: 'Bluesky ended this session.'
+        })
+      )
+      expect(screen.getByText('Not synced yet')).toBeInTheDocument()
+      expect(
+        screen.getByText('Bluesky ended this session.')
+      ).toBeInTheDocument()
+      const toggle = screen.getByRole('switch', {
+        name: 'Post to Bluesky by default'
+      })
+      expect(toggle).not.toBeChecked()
+      fireEvent.click(toggle)
+      await waitFor(() => expect(toggle).toBeChecked())
+      expect(setBlueskyCrosspostByDefault).toHaveBeenCalledWith(true)
+    })
+  })
+
   it('shows the already-linked error from the callback', () => {
     show(unlinkedState, 'did_taken')
     expect(

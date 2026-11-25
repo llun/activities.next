@@ -7,9 +7,11 @@ export interface BlueskyLinkedAccount {
   did: string
   handle: string
   pdsUrl: string
-  authType: 'oauth' | 'app_password'
+  // hosted: on this server's PDS, managed under "Host my Bluesky account here".
+  authType: 'oauth' | 'app_password' | 'hosted'
   domainHandle: boolean
   // False once the PDS refused the stored session: link again to fix it.
+  // Always true for a hosted account, which has no session.
   sessionActive: boolean
   // ISO time of the last Home sync that finished; null before the first.
   lastSyncedAt: string | null
