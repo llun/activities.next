@@ -325,7 +325,7 @@ docker run -p 3000:3000 \
   ghcr.io/llun/activities.next:main node pds-server.js
 ```
 
-`pds-server.js` forwards every normal HTTP request and non-firehose upgrade to Next.js unchanged, and accepts WebSocket upgrades on `/xrpc/com.atproto.sync.subscribeRepos` only for enabled PDS hostnames in `ACTIVITIES_BLUESKY_PDS` (all other hosts receive `404`). At start-up it calls `com.atproto.sync.requestCrawl` on each domain's configured `relays` (defaulting to `https://bsky.network`), retrying with backoff for up to an hour; set `"relays": []` on a domain entry to disable crawl requests. See [Embedded Bluesky PDS (preview)](mastodon-api-compatibility.md#embedded-bluesky-pds-preview).
+`pds-server.js` passes every normal HTTP request to Next.js unchanged, answers any other WebSocket upgrade with `404`, and accepts WebSocket upgrades on `/xrpc/com.atproto.sync.subscribeRepos` only for enabled PDS hostnames in `ACTIVITIES_BLUESKY_PDS` (all other hosts receive `404`). At start-up it calls `com.atproto.sync.requestCrawl` on each domain's configured `relays` (defaulting to `https://bsky.network`), retrying with backoff for up to an hour; set `"relays": []` on a domain entry to disable crawl requests. See [Embedded Bluesky PDS (preview)](mastodon-api-compatibility.md#embedded-bluesky-pds-preview).
 
 #### Custom Docker Builds with Optional Workspaces
 
