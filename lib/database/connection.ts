@@ -14,7 +14,7 @@ import {
   SqliteDialect,
   type TransactionSettings
 } from 'kysely'
-import type { Pool, PoolConfig } from 'pg'
+import type { Client, Pool, PoolConfig } from 'pg'
 
 import {
   DEFAULT_POSTGRES_POOL,
@@ -483,6 +483,24 @@ const getPostgresClientConfig = (config: PostgresDatabaseConfig) => {
   return { application_name: APPLICATION_NAME, ...connection } as PoolConfig
 }
 
+/**
+ * Opens a standalone node-postgres `Client` (outside the Kysely pool) using
+ * the same dynamic `pg` loader and connection settings as the app's pool.
+ * Callers own `client.connect()` and `client.end()`.
+ */
+export const createPostgresClient = async (
+  config: PostgresDatabaseConfig,
+  options?: { connectionTimeoutMillis?: number }
+): Promise<Client> => {
+  const pgModule = await loadPg()
+  return new pgModule.Client({
+    ...getPostgresClientConfig(config),
+    ...(options?.connectionTimeoutMillis !== undefined
+      ? { connectionTimeoutMillis: options.connectionTimeoutMillis }
+      : {})
+  })
+}
+
 const createPool = (
   pg: PgModule,
   config: PostgresDatabaseConfig,
@@ -529,7 +547,7 @@ const createPool = (
 // node-postgres attaches the client to an idle client's error (`err.client`);
 // the log gets the error without it, so a whole client object and its
 // connection settings never reach the log.
-const describeError = (error: Error) => {
+export const describeError = (error: Error) => {
   const { client: _client, ...fields } = error as Error & { client?: unknown }
   // The spread copies the error's own fields (code, severity, detail, ...);
   // message and stack are not own enumerable fields, so they are set after.
@@ -610,6 +628,19 @@ const releaseLateClients = (
   }
 }
 
+export const getDatabaseBackend = (config: DatabaseConfig): DatabaseBackend => {
+  // Typed as a supported client, but it comes from the environment.
+  const client: unknown = (config as { client?: unknown } | undefined)?.client
+  if (client !== 'better-sqlite3' && client !== 'pg') {
+    throw new Error(
+      `Unsupported database client "${String(client)}": only ` +
+        'better-sqlite3 (SQLite) and pg (PostgreSQL) are supported; set ' +
+        'ACTIVITIES_DATABASE_CLIENT accordingly (see docs/setup.md).'
+    )
+  }
+  return config.client === 'better-sqlite3' ? 'sqlite' : 'pg'
+}
+
 /**
  * Opens a database connection on Kysely's own dialects. Nothing connects
  * until the first query. Only better-sqlite3 and pg are supported.
@@ -621,17 +652,7 @@ export const createDatabaseConnection = (
     normalizeResults = true
   }: CreateDatabaseConnectionOptions = {}
 ): DatabaseHandle => {
-  // Typed as a supported client, but it comes from the environment.
-  const client: unknown = (config as { client?: unknown } | undefined)?.client
-  if (client !== 'better-sqlite3' && client !== 'pg') {
-    throw new Error(
-      `Unsupported database client "${String(client)}": only ` +
-        'better-sqlite3 (SQLite) and pg (PostgreSQL) are supported; set ' +
-        'ACTIVITIES_DATABASE_CLIENT accordingly (see docs/setup.md).'
-    )
-  }
-  const backend: DatabaseBackend =
-    config.client === 'better-sqlite3' ? 'sqlite' : 'pg'
+  const backend = getDatabaseBackend(config)
   const listeners: Listeners = { query: new Set(), end: new Set() }
 
   let sqliteDatabase: BetterSqliteDatabase | null = null

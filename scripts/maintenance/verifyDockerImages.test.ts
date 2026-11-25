@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseArgs } from './verifyDockerImages'
+import { buildPdsSmokeConfig, parseArgs } from './verifyDockerImages'
 
 describe('verifyDockerImages parseArgs', () => {
   it('returns default options when no args are provided', () => {
@@ -92,5 +92,22 @@ describe('verifyDockerImages parseArgs', () => {
       '--only must be "minimal" or "full", got "both"'
     )
     expect(() => parseArgs(['--only=everything'])).toThrow()
+  })
+})
+
+describe('verifyDockerImages buildPdsSmokeConfig', () => {
+  it('builds a valid enabled PDS smoke config with relays disabled and a distinct hostname', () => {
+    const config = buildPdsSmokeConfig(3456)
+    expect(config.servedDomain).toBe('localhost:3456')
+    expect(config.pdsHostname).toBe('pds.localhost:3456')
+    expect(JSON.parse(config.envValue)).toEqual({
+      'localhost:3456': {
+        enabled: true,
+        hostname: 'pds.localhost:3456',
+        allowEmails: [],
+        allowActors: [],
+        relays: []
+      }
+    })
   })
 })

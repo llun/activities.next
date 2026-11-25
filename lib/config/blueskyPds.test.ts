@@ -80,7 +80,8 @@ describe('Bluesky PDS config', () => {
         hostname: 'pds.example.com',
         did: 'did:web:pds.example.com',
         allowEmails: ['alice@example.com'],
-        allowActors: ['alice@example.com', 'bob@example.com']
+        allowActors: ['alice@example.com', 'bob@example.com'],
+        relays: ['https://bsky.network']
       },
       'disabled.example.com': {
         domain: 'disabled.example.com',
@@ -88,7 +89,8 @@ describe('Bluesky PDS config', () => {
         hostname: 'pds.disabled.example.com',
         did: 'did:web:pds.disabled.example.com',
         allowEmails: ['carol@example.com'],
-        allowActors: []
+        allowActors: [],
+        relays: ['https://bsky.network']
       }
     })
 
@@ -201,7 +203,8 @@ describe('Bluesky PDS config', () => {
         hostname: 'pds.ok.example.com',
         did: 'did:web:pds.ok.example.com',
         allowEmails: ['c@example.com'],
-        allowActors: []
+        allowActors: [],
+        relays: ['https://bsky.network']
       }
     })
     expect(getPdsDomainForHostname('self.example.com')).toBeNull()
@@ -278,5 +281,73 @@ describe('Bluesky PDS config', () => {
       })
     ).toBe(false)
     expect(isPdsAllowed({ domain: 'example.com' })).toBe(false)
+  })
+
+  it('normalizes and deduplicates per-domain relays and allows an empty list', async () => {
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      'custom.example.com': {
+        enabled: true,
+        hostname: 'pds.custom.example.com',
+        relays: [
+          '  https://Relay.Example.COM/ ',
+          'https://relay.example.com:443',
+          'https://relay2.example.com:8443/'
+        ]
+      },
+      'none.example.com': {
+        enabled: true,
+        hostname: 'pds.none.example.com',
+        relays: []
+      }
+    })
+
+    const { logger } = await import('@/lib/utils/logger')
+    const { getPdsConfig } = await import('./blueskyPds')
+
+    const pds = getPdsConfig()
+    expect(pds?.['custom.example.com']?.relays).toEqual([
+      'https://relay.example.com',
+      'https://relay2.example.com:8443'
+    ])
+    expect(pds?.['none.example.com']?.relays).toEqual([])
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('warns and disables the whole config when any relay URL is invalid', async () => {
+    const invalidRelayConfigs = [
+      ['http://bsky.network'],
+      ['https://bsky.network/xrpc'],
+      ['https://bsky.network//'],
+      ['https://bsky.network?foo=1'],
+      ['https://bsky.network/#frag'],
+      ['https://user:pass@bsky.network'],
+      ['https://user@bsky.network'],
+      ['https://@bsky.network'],
+      ['bsky.network'],
+      [''],
+      'https://bsky.network'
+    ]
+
+    for (const relays of invalidRelayConfigs) {
+      vi.resetModules()
+      vi.clearAllMocks()
+      process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+        'example.com': {
+          enabled: true,
+          hostname: 'pds.example.com',
+          relays
+        },
+        'other.example.com': {
+          enabled: true,
+          hostname: 'pds.other.example.com'
+        }
+      })
+
+      const { logger } = await import('@/lib/utils/logger')
+      const { getPdsConfig } = await import('./blueskyPds')
+
+      expect(getPdsConfig()).toBeNull()
+      expect(logger.warn).toHaveBeenCalled()
+    }
   })
 })
