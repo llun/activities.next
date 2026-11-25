@@ -9,8 +9,15 @@ import {
 } from '@testing-library/react'
 
 import {
+  cancelHostedBlueskyMoveOut,
+  copyHostedBlueskyMoveOutBlobs,
+  copyHostedBlueskyMoveOutPreferences,
   createHostedBlueskyAccount,
   deleteHostedBlueskyAccount,
+  finishHostedBlueskyMoveOut,
+  getHostedBlueskyMoveOut,
+  sendHostedBlueskyMoveOutRepo,
+  startHostedBlueskyMoveOut,
   updateHostedBlueskyAccount
 } from '@/lib/client'
 import type {
@@ -21,8 +28,15 @@ import type {
 import { HostedBlueskyForm } from './HostedBlueskyForm'
 
 vi.mock('@/lib/client', () => ({
+  cancelHostedBlueskyMoveOut: vi.fn(),
+  copyHostedBlueskyMoveOutBlobs: vi.fn(),
+  copyHostedBlueskyMoveOutPreferences: vi.fn(),
   createHostedBlueskyAccount: vi.fn(),
   deleteHostedBlueskyAccount: vi.fn(),
+  finishHostedBlueskyMoveOut: vi.fn(),
+  getHostedBlueskyMoveOut: vi.fn(),
+  sendHostedBlueskyMoveOutRepo: vi.fn(),
+  startHostedBlueskyMoveOut: vi.fn(),
   updateHostedBlueskyAccount: vi.fn()
 }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
@@ -57,6 +71,23 @@ const show = (initialState: HostedBlueskyAccountState, linked = false) =>
 describe('HostedBlueskyForm', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(getHostedBlueskyMoveOut).mockResolvedValue({
+      progress: null,
+      state: state()
+    })
+    vi.mocked(sendHostedBlueskyMoveOutRepo).mockResolvedValue({
+      importedRev: 'rev1',
+      bytes: 1
+    })
+    vi.mocked(copyHostedBlueskyMoveOutBlobs).mockResolvedValue({
+      copied: 0,
+      failed: [],
+      cursor: null,
+      done: true
+    })
+    vi.mocked(copyHostedBlueskyMoveOutPreferences).mockResolvedValue({
+      count: 0
+    })
   })
 
   it('asks an admin for the rotation key when the server has none', () => {
@@ -412,5 +443,212 @@ describe('HostedBlueskyForm', () => {
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('New handle')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Recovery key')).toHaveValue('')
+  })
+
+  const moveOut = (
+    stage: 'started' | 'switched' = 'started'
+  ): NonNullable<HostedBlueskyAccountState['moveOut']> => ({
+    pdsUrl: 'https://bsky.social',
+    handle: 'alex.bsky.social',
+    stage
+  })
+
+  it('posts the start body and never renders the new password', async () => {
+    vi.mocked(startHostedBlueskyMoveOut).mockResolvedValue({
+      moveOut: moveOut(),
+      state: state({ repo: activeRepo, moveOut: moveOut() })
+    })
+    show(state({ repo: activeRepo }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Move to another server' })
+    )
+    fireEvent.change(screen.getByLabelText('New server'), {
+      target: { value: 'https://bsky.social' }
+    })
+    fireEvent.change(screen.getByLabelText('Handle there'), {
+      target: { value: 'alex.bsky.social' }
+    })
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'alex@example.com' }
+    })
+    fireEvent.change(screen.getByLabelText('Password there'), {
+      target: { value: 'hunter2' }
+    })
+    fireEvent.change(screen.getByLabelText('Invite code'), {
+      target: { value: 'code' }
+    })
+    expect(
+      screen.getByRole('button', { name: 'Start the move' })
+    ).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Your password here'), {
+      target: { value: 'local-secret' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Start the move' }))
+    await waitFor(() =>
+      expect(startHostedBlueskyMoveOut).toHaveBeenCalledWith({
+        pdsUrl: 'https://bsky.social',
+        handle: 'alex.bsky.social',
+        email: 'alex@example.com',
+        password: 'hunter2',
+        currentPassword: 'local-secret',
+        inviteCode: 'code'
+      })
+    )
+    expect(screen.queryByText('hunter2')).not.toBeInTheDocument()
+  })
+
+  it('copies the repo, every blob batch and the preferences in order', async () => {
+    vi.mocked(copyHostedBlueskyMoveOutBlobs)
+      .mockResolvedValueOnce({
+        copied: 2,
+        failed: [],
+        cursor: 'c1',
+        done: false
+      })
+      .mockResolvedValueOnce({
+        copied: 1,
+        failed: [],
+        cursor: null,
+        done: true
+      })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    await waitFor(() =>
+      expect(copyHostedBlueskyMoveOutPreferences).toHaveBeenCalled()
+    )
+    expect(sendHostedBlueskyMoveOutRepo).toHaveBeenCalledTimes(1)
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(1, {})
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(2, {
+      cursor: 'c1'
+    })
+    expect(
+      await screen.findByText('Images and videos: 3 copied')
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Switch to bsky.social' })
+    ).toBeInTheDocument()
+  })
+
+  it('shows a failed step and resumes from it with Try again', async () => {
+    vi.mocked(copyHostedBlueskyMoveOutBlobs)
+      .mockRejectedValueOnce(new Error('Destination server is down.'))
+      .mockResolvedValueOnce({
+        copied: 0,
+        failed: [],
+        cursor: null,
+        done: true
+      })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    expect(
+      await screen.findByText('Destination server is down.')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Stopped while copying images and videos.')
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() =>
+      expect(copyHostedBlueskyMoveOutPreferences).toHaveBeenCalled()
+    )
+    expect(sendHostedBlueskyMoveOutRepo).toHaveBeenCalledTimes(1)
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(2)
+  })
+
+  it('switches only after the current password', async () => {
+    vi.mocked(finishHostedBlueskyMoveOut).mockResolvedValue({
+      movedTo: 'bsky.social',
+      handle: 'alex.bsky.social',
+      state: state({
+        repo: { ...activeRepo, status: 'deactivated' },
+        movedTo: 'bsky.social'
+      })
+    })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Switch to bsky.social' })
+    )
+    const dialog = screen.getByRole('dialog')
+    const submit = within(dialog).getByRole('button', {
+      name: 'Switch to bsky.social'
+    })
+    expect(submit).toBeDisabled()
+    fireEvent.change(within(dialog).getByLabelText('Current password'), {
+      target: { value: 'hunter2' }
+    })
+    fireEvent.click(submit)
+    await waitFor(() =>
+      expect(finishHostedBlueskyMoveOut).toHaveBeenCalledWith('hunter2')
+    )
+    expect(await screen.findByText('Moved to bsky.social')).toBeInTheDocument()
+  })
+
+  it('finishes an interrupted switch after the current password', async () => {
+    vi.mocked(finishHostedBlueskyMoveOut).mockResolvedValue({
+      movedTo: 'bsky.social',
+      handle: 'alex.bsky.social',
+      state: state({
+        repo: { ...activeRepo, status: 'deactivated' },
+        movedTo: 'bsky.social'
+      })
+    })
+    show(state({ repo: activeRepo, moveOut: moveOut('switched') }))
+    fireEvent.click(screen.getByRole('button', { name: 'Finish the move' }))
+    const dialog = screen.getByRole('dialog')
+    const submit = within(dialog).getByRole('button', {
+      name: 'Finish the move'
+    })
+    expect(submit).toBeDisabled()
+    fireEvent.change(within(dialog).getByLabelText('Current password'), {
+      target: { value: 'hunter2' }
+    })
+    fireEvent.click(submit)
+    await waitFor(() =>
+      expect(finishHostedBlueskyMoveOut).toHaveBeenCalledWith('hunter2')
+    )
+  })
+
+  it('cancels the move with DELETE', async () => {
+    vi.mocked(cancelHostedBlueskyMoveOut).mockResolvedValue({
+      cancelled: true,
+      pdsUrl: 'https://bsky.social',
+      handle: 'alex.bsky.social',
+      remoteAccountRemains: true,
+      message: 'Move cancelled.',
+      state: state({ repo: activeRepo })
+    })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    expect(
+      screen.getByText(
+        'Cancelling leaves the switched-off account on bsky.social; delete it there if you want.'
+      )
+    ).toBeInTheDocument()
+    const cancel = await screen.findByRole('button', {
+      name: 'Cancel the move'
+    })
+    await waitFor(() => expect(cancel).toBeEnabled())
+    fireEvent.click(cancel)
+    await waitFor(() => expect(cancelHostedBlueskyMoveOut).toHaveBeenCalled())
+    expect(await screen.findByText('Move cancelled.')).toBeInTheDocument()
+  })
+
+  it('shows a moved account with only the copy’s delete action', () => {
+    show(
+      state({
+        repo: { ...activeRepo, status: 'deactivated' },
+        movedTo: 'bsky.social'
+      })
+    )
+    expect(screen.getByText('Moved to bsky.social')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Link it again under “Your Bluesky account”/)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Turn on' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Change' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Recovery key')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Delete the copy left here' })
+    ).toBeInTheDocument()
   })
 })

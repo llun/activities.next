@@ -30,7 +30,10 @@ const MoveStepBody = z.discriminatedUnion('step', [
     handle: z.string().min(1),
     email: z.string().min(1),
     password: z.string().min(1),
-    inviteCode: z.string().optional()
+    inviteCode: z.string().optional(),
+    // The profile's password: starting a move sends a token signed with the
+    // account's key and its data to a server the request names.
+    currentPassword: z.string().optional()
   }),
   z.object({
     step: z.literal('repo')
@@ -76,7 +79,7 @@ export const POST = traceApiRoute(
     const parsed = MoveStepBody.safeParse(await req.json().catch(() => null))
     if (!parsed.success) return apiCorsError(req, METHODS, 400)
 
-    if (parsed.data.step === 'finish') {
+    if (parsed.data.step === 'start' || parsed.data.step === 'finish') {
       const refused = await checkCurrentPassword(
         req,
         currentActor,

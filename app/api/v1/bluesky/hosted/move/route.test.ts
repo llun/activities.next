@@ -178,7 +178,8 @@ describe('/api/v1/bluesky/hosted/move', () => {
       handle: 'alice.dest.pds.example',
       email: 'alice@example.com',
       password: 'new-password',
-      inviteCode: 'code-1'
+      inviteCode: 'code-1',
+      currentPassword: 'right-password'
     })
     expect(startRes.status).toBe(200)
     expect(startMoveOut).toHaveBeenCalledWith({
@@ -286,6 +287,26 @@ describe('/api/v1/bluesky/hosted/move', () => {
     expect(response.status).toBe(429)
     expect(finishMoveOut).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['missing', undefined, 'Current password is required'],
+    ['wrong', 'wrong-password', 'Current password is incorrect']
+  ])(
+    'POST start refuses %s current password with 403 and does not call startMoveOut',
+    async (_label, currentPassword, error) => {
+      const response = await call('POST', {
+        step: 'start',
+        pdsUrl: 'https://dest.pds.example',
+        handle: 'alice.dest.pds.example',
+        email: 'alice@example.com',
+        password: 'new-password',
+        ...(currentPassword !== undefined ? { currentPassword } : {})
+      })
+      expect(response.status).toBe(403)
+      expect(await response.json()).toEqual({ error })
+      expect(startMoveOut).not.toHaveBeenCalled()
+    }
+  )
 
   it('DELETE cancels the move', async () => {
     vi.mocked(cancelMoveOut).mockResolvedValue({

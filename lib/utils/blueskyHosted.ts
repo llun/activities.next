@@ -45,3 +45,75 @@ export interface HostedBlueskyAccountState {
   // Summary of an in-progress move to another PDS, or null when none.
   moveOut: HostedBlueskyMoveOutSummary | null
 }
+
+// The destination server's own account status, as
+// `com.atproto.server.checkAccountStatus` answers it for a move in progress.
+export interface HostedBlueskyMoveOutAccountStatus {
+  activated: boolean
+  validDid: boolean
+  repoCommit: string | null
+  repoRev: string | null
+  repoBlocks: number
+  indexedRecords: number
+  privateStateValues: number
+  expectedBlobs: number
+  importedBlobs: number
+}
+
+// `GET /api/v1/bluesky/hosted/move`: the stored move's progress, or null when
+// no move is in progress.
+export interface HostedBlueskyMoveOutProgress {
+  pdsUrl: string
+  handle: string
+  stage: 'started' | 'switched'
+  importedRev: string | null
+  localRev: string | null
+  switchedAt: number | null
+  status: HostedBlueskyMoveOutAccountStatus
+}
+
+export interface HostedBlueskyMoveOutState {
+  progress: HostedBlueskyMoveOutProgress | null
+  state: HostedBlueskyAccountState
+}
+
+export interface HostedBlueskyMoveOutStartResult {
+  moveOut: HostedBlueskyMoveOutSummary
+  state: HostedBlueskyAccountState
+}
+
+export interface HostedBlueskyMoveOutRepoResult {
+  importedRev: string | null
+  bytes: number
+}
+
+export interface HostedBlueskyMoveOutBlobFailure {
+  cid: string
+  reason: string
+}
+
+export interface HostedBlueskyMoveOutBlobsResult {
+  copied: number
+  failed: HostedBlueskyMoveOutBlobFailure[]
+  cursor: string | null
+  done: boolean
+}
+
+export interface HostedBlueskyMoveOutPreferencesResult {
+  count: number
+}
+
+export interface HostedBlueskyMoveOutFinishResult {
+  movedTo: string
+  handle: string
+  state: HostedBlueskyAccountState
+}
+
+export interface HostedBlueskyMoveOutCancelResult {
+  cancelled: true
+  pdsUrl: string
+  handle: string
+  remoteAccountRemains: true
+  message: string
+  state: HostedBlueskyAccountState
+}
