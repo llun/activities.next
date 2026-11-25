@@ -382,4 +382,5 @@ CREATE INDEX "pds_events_did_seq_idx" on "pds_events" ("did", "seq");
 CREATE TABLE IF NOT EXISTS "pds_blobs" ("did" varchar(255) not null, "cid" varchar(255) not null, "mimeType" varchar(255) not null, "size" bigint not null, "storageKey" varchar(512) not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, constraint "pds_blobs_pkey" primary key ("did", "cid"));
 CREATE TABLE IF NOT EXISTS "pds_record_blobs" ("did" varchar(255) not null, "recordUri" varchar(2048) not null, "blobCid" varchar(255) not null, constraint "pds_record_blobs_pkey" primary key ("did", "recordUri", "blobCid"));
 CREATE INDEX "pds_record_blobs_did_blob_cid_idx" on "pds_record_blobs" ("did", "blobCid");
+CREATE UNIQUE INDEX "pds_repos_handle_live_unique" on "pds_repos" ("handle") where "status" <> 'deleted' and "handle" is not null;
 CREATE TABLE IF NOT EXISTS "pds_preferences" ("did" varchar(255) primary key, "preferences" text not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);

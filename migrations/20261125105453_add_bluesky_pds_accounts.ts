@@ -2,8 +2,10 @@ import { type Kysely, SqliteAdapter, sql } from 'kysely'
 
 // Adds the identity and lifecycle columns behind hosted Bluesky accounts
 // (D2.3a):
-// - `pds_repos.handle`: the account's current atproto handle, or null while it
-//   has none. `getPdsRepoByHandle` resolves it case-insensitively.
+// - `pds_repos.handle`: the account's current atproto handle, stored
+//   lowercase, or null while it has none. `pds_repos_handle_live_unique` keeps
+//   it unique among live repos; a tombstone keeps its handle, which a new
+//   account may take again.
 // - `pds_repos.recoveryKeyDid`: the `did:key` an operator added as the first
 //   rotation key, or null.
 // - `pds_repos.plcOperation`: the latest signed `did:plc` operation as JSON, so
@@ -44,6 +46,16 @@ export const up = async (db: Kysely<any>): Promise<void> => {
   }
 
   await db.schema
+    .createIndex('pds_repos_handle_live_unique')
+    .ifNotExists()
+    .on('pds_repos')
+    .column('handle')
+    .unique()
+    .where(sql.ref('status'), '<>', 'deleted')
+    .where('handle', 'is not', null)
+    .execute()
+
+  await db.schema
     .createTable('pds_preferences')
     .ifNotExists()
     .addColumn('did', 'varchar(255)', (col) => col.primaryKey())
@@ -57,6 +69,7 @@ export const up = async (db: Kysely<any>): Promise<void> => {
 // oxlint-disable-next-line typescript/no-explicit-any
 export const down = async (db: Kysely<any>): Promise<void> => {
   await db.schema.dropTable('pds_preferences').ifExists().execute()
+  await db.schema.dropIndex('pds_repos_handle_live_unique').ifExists().execute()
 
   const tables = await db.introspection.getTables()
   const repoColumns =

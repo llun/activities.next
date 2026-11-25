@@ -192,6 +192,17 @@ export class PdsHandleNotAllowedError extends PdsError {
   }
 }
 
+/** Another live hosted repo on this server holds the handle. */
+export class PdsHandleTakenError extends PdsError {
+  constructor() {
+    super(
+      'That handle is already used by another account on this server.',
+      'HandleTaken',
+      409
+    )
+  }
+}
+
 /** A custom handle does not resolve to the account's DID. */
 export class PdsHandleNotResolvedError extends PdsError {
   constructor(handle: string) {

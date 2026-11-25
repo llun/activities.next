@@ -73,7 +73,12 @@ const ALLOWED_USERNAMES = [
   'hosted_under',
   'hosted-inactive-handle',
   'hosted-avail-blocked',
-  'hosted-avail-off'
+  'hosted-avail-off',
+  'hosted-concurrent',
+  'hosted-taken-create',
+  'hosted-taken-change',
+  'hosted-taken-race',
+  'hosted-taken-race2'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -1167,5 +1172,117 @@ describe('hosted Bluesky accounts', () => {
         (await getHostedBlueskyAccountState({ database, actor })).available
       ).toBe(false)
     })
+  })
+
+  it('runs one create per actor at a time, so a concurrent one registers no DID', async () => {
+    const actor = await createActor('hosted-concurrent')
+    const handle = pdsHandle('hosted-concurrent')
+    const directory = vi.mocked(safeRemoteFetch).getMockImplementation()!
+    vi.mocked(safeRemoteFetch).mockImplementation(async (options) => {
+      // A slow directory: both creates are past their first checks before
+      // either submit lands.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      return directory(options)
+    })
+
+    const results = await Promise.allSettled([
+      createHostedBlueskyAccount({ database, actor, handle }),
+      createHostedBlueskyAccount({ database, actor, handle })
+    ])
+
+    expect(submissions).toHaveLength(1)
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+    expect(results.find((r) => r.status === 'rejected')).toMatchObject({
+      reason: { code: 'HostedAccountExists' }
+    })
+  })
+
+  // A live repo on this domain that already holds `handle`, as a moved custom
+  // domain would leave behind.
+  const holdHandle = (name: string, handle: string) =>
+    database.createPdsRepo({
+      did: `did:plc:${name}`,
+      actorId: `https://${TEST_DOMAIN}/users/holder-${name}`,
+      domain: TEST_DOMAIN,
+      signingKey: `v1:key-${name}`,
+      signingKeyDid: `did:key:zQ3sh${name}`,
+      handle
+    })
+
+  it('refuses to create an account with a handle another live account holds', async () => {
+    const actor = await createActor('hosted-taken-create')
+    const handle = pdsHandle('hosted-taken-create')
+    await holdHandle('takencreateholder0000000', handle)
+
+    await expect(
+      createHostedBlueskyAccount({ database, actor, handle })
+    ).rejects.toMatchObject({ code: 'HandleTaken', statusCode: 409 })
+    expect(submissions).toHaveLength(0)
+  })
+
+  it('refuses to change to a handle another live account holds', async () => {
+    const actor = await createActor('hosted-taken-change')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-taken-change')
+    })
+    await holdHandle('takenchangeholder0000000', 'taken.example.com')
+    submissions = []
+
+    await expect(
+      changeHostedBlueskyHandle({
+        database,
+        actor,
+        handle: 'Taken.Example.com'
+      })
+    ).rejects.toMatchObject({
+      code: 'HandleTaken',
+      message: 'That handle is already used by another account on this server.'
+    })
+    expect(createBlueskyIdentityResolver).not.toHaveBeenCalled()
+    expect(submissions).toHaveLength(0)
+  })
+
+  it('maps a lost race on the live-handle index to the same refusal', async () => {
+    const actor = await createActor('hosted-taken-race')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-taken-race')
+    })
+    const repo = await database.getPdsRepo({ actorId: actor.id })
+    await holdHandle('takenraceholder000000000', 'race.example.com')
+    vi.mocked(createBlueskyIdentityResolver).mockReturnValue({
+      resolve: async () => ({ did: repo!.did })
+    } as unknown as ReturnType<typeof createBlueskyIdentityResolver>)
+    // The holder lands between the check and the write.
+    const lookup = vi
+      .spyOn(database, 'getPdsRepoByHandle')
+      .mockResolvedValue(null)
+    try {
+      await expect(
+        changeHostedBlueskyHandle({
+          database,
+          actor,
+          handle: 'race.example.com'
+        })
+      ).rejects.toMatchObject({ code: 'HandleTaken' })
+
+      const other = await createActor('hosted-taken-race2')
+      await holdHandle(
+        'takenraceholder200000000',
+        pdsHandle('hosted-taken-race2')
+      )
+      await expect(
+        createHostedBlueskyAccount({
+          database,
+          actor: other,
+          handle: pdsHandle('hosted-taken-race2')
+        })
+      ).rejects.toMatchObject({ code: 'HandleTaken' })
+    } finally {
+      lookup.mockRestore()
+    }
   })
 })

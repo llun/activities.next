@@ -173,7 +173,9 @@ export const createPdsRepo = async (
       rootCid,
       rev,
       status,
-      handle,
+      // Stored lowercase: `getPdsRepoByHandle` and the unique index on live
+      // handles compare it as is.
+      handle: handle?.toLowerCase() ?? null,
       plcOperation,
       createdAt: now,
       updatedAt: now
@@ -210,14 +212,15 @@ export const getPdsRepoSigningKey = async (
 
 export const getPdsRepoByHandle = async (
   db: Db,
-  { handle }: GetPdsRepoByHandleParams
+  { handle, domain }: GetPdsRepoByHandleParams
 ): Promise<PdsRepo | null> => {
   const normalized = handle.trim().toLowerCase()
   if (!normalized) return null
   const row = await db
     .selectFrom('pds_repos')
     .select(PDS_REPO_COLUMNS)
-    .where(sql`lower(${sql.ref('handle')})`, '=', normalized)
+    .where('handle', '=', normalized)
+    .where('domain', '=', domain)
     // A tombstone keeps its handle, which a new account may take again.
     .where('status', '!=', 'deleted')
     .executeTakeFirst()
@@ -316,7 +319,7 @@ export const updatePdsRepoIdentity = async (
     recoveryKeyDid?: string | null
     plcOperation?: string | null
   } = { updatedAt: new Date() }
-  if (handle !== undefined) updates.handle = handle
+  if (handle !== undefined) updates.handle = handle?.toLowerCase() ?? null
   if (recoveryKeyDid !== undefined) updates.recoveryKeyDid = recoveryKeyDid
   if (plcOperation !== undefined) updates.plcOperation = plcOperation
 

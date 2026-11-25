@@ -126,10 +126,11 @@ export const resolvePdsRepoDidForDomain = async (
 
   const normalized = normalizeHandle(repoIdentifier)
   const normalizedDomain = domain.toLowerCase()
-  const stored = await database.getPdsRepoByHandle({ handle: normalized })
-  if (stored && stored.domain === normalizedDomain) {
-    return stored.did
-  }
+  const stored = await database.getPdsRepoByHandle({
+    handle: normalized,
+    domain: normalizedDomain
+  })
+  if (stored) return stored.did
   const suffix = `.${normalizedDomain}`
   if (!normalized.endsWith(suffix)) {
     throw new PdsRepoNotFoundError(repoIdentifier)

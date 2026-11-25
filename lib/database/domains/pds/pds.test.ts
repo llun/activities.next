@@ -1765,11 +1765,14 @@ describe('PDS database domain', () => {
     })
     // A tombstone keeps its handle but no longer answers to it.
     expect(
-      await database.getPdsRepoByHandle({ handle: 'alice.tombstone.example' })
+      await database.getPdsRepoByHandle({
+        handle: 'alice.tombstone.example',
+        domain: 'tombstone.example'
+      })
     ).toBeNull()
   })
 
-  it('updates a repo identity, resolves it by handle case-insensitively, and clears fields with null', async () => {
+  it('updates a repo identity, stores the handle lowercase, resolves it by handle and domain, and clears fields with null', async () => {
     const did = 'did:plc:identitytest000000000000'
     await database.createPdsRepo({
       did,
@@ -1789,7 +1792,7 @@ describe('PDS database domain', () => {
     ).toBe(true)
 
     expect(await database.getPdsRepo({ did })).toMatchObject({
-      handle: 'Alice.Identity.Example',
+      handle: 'alice.identity.example',
       recoveryKeyDid: 'did:key:zQ3shRecovery',
       plcOperation: '{"type":"plc_operation"}'
     })
@@ -1817,16 +1820,71 @@ describe('PDS database domain', () => {
       plcOperation: null
     })
 
+    const domain = 'identity.example'
     expect(
-      await database.getPdsRepoByHandle({ handle: 'BOB.IDENTITY.EXAMPLE' })
+      await database.getPdsRepoByHandle({
+        handle: 'BOB.IDENTITY.EXAMPLE',
+        domain
+      })
     ).toMatchObject({ did })
     expect(
-      await database.getPdsRepoByHandle({ handle: '  bob.identity.example  ' })
+      await database.getPdsRepoByHandle({
+        handle: '  bob.identity.example  ',
+        domain
+      })
     ).toMatchObject({ did })
+    // Another domain's lookup does not reach it.
     expect(
-      await database.getPdsRepoByHandle({ handle: 'nobody.identity.example' })
+      await database.getPdsRepoByHandle({
+        handle: 'bob.identity.example',
+        domain: 'other.example'
+      })
     ).toBeNull()
-    expect(await database.getPdsRepoByHandle({ handle: '   ' })).toBeNull()
+    expect(
+      await database.getPdsRepoByHandle({
+        handle: 'nobody.identity.example',
+        domain
+      })
+    ).toBeNull()
+    expect(
+      await database.getPdsRepoByHandle({ handle: '   ', domain })
+    ).toBeNull()
+  })
+
+  it('keeps live handles unique but lets a tombstone share one', async () => {
+    const repo = (name: string, handle: string | null) =>
+      database.createPdsRepo({
+        did: `did:plc:${name}`,
+        actorId: `https://unique.example/users/${name}`,
+        domain: 'unique.example',
+        signingKey: `v1:key-${name}`,
+        signingKeyDid: `did:key:zQ3sh${name}`,
+        handle
+      })
+
+    await repo('uniquefirst00000000000000', 'shared.unique.example')
+    // A second live repo cannot take it, in any case spelling.
+    await expect(
+      repo('uniquesecond0000000000000', 'Shared.Unique.Example')
+    ).rejects.toThrow()
+
+    // Once the holder is a tombstone, a new account may take the handle.
+    await database.updatePdsRepoStatus({
+      did: 'did:plc:uniquefirst00000000000000',
+      status: 'deleted'
+    })
+    await repo('uniquethird00000000000000', 'shared.unique.example')
+
+    // Repos without a handle never collide, and an update cannot take a
+    // live handle either.
+    await repo('uniquenone100000000000000', null)
+    await repo('uniquenone200000000000000', null)
+    await expect(
+      database.updatePdsRepoIdentity({
+        did: 'did:plc:uniquenone100000000000000',
+        handle: 'shared.unique.example'
+      })
+    ).rejects.toThrow()
   })
 
   it('upserts per-DID preferences', async () => {

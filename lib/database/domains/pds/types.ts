@@ -74,6 +74,8 @@ export type GetPdsRepoParams =
 
 export type GetPdsRepoByHandleParams = {
   handle: string
+  /** The served domain the repo belongs to. */
+  domain: string
 }
 
 export type UpdatePdsRepoIdentityParams = {

@@ -10,6 +10,7 @@ import {
 } from '@/lib/config/blueskyPds'
 import type { PdsRepo } from '@/lib/database/domains/pds/types'
 import type { Database } from '@/lib/database/types'
+import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import { getLocalDomainMatcher } from '@/lib/services/domains/localDomains'
 import {
@@ -33,6 +34,7 @@ import {
   PdsDisabledError,
   PdsHandleNotAllowedError,
   PdsHandleNotResolvedError,
+  PdsHandleTakenError,
   PdsHostedAccountExistsError,
   PdsHostedAccountInactiveError,
   PdsHostedAccountLinkedError,
@@ -48,6 +50,7 @@ import { isReservedPdsSubdomainHandle } from './host'
 import { createPdsSigningKey } from './keys'
 import { withPdsRepoLock } from './lock'
 import {
+  PLC_DIRECTORY_TIMEOUT_MS,
   type PlcOperationChanges,
   type PlcSignedOperation,
   cidForOperation,
@@ -204,6 +207,26 @@ const createChainedUpdate = async (
   })
 }
 
+// A live repo holding the handle, other than `ownDid`'s, refuses it. The
+// unique index on live handles backs this up across domains and races.
+const assertHandleFree = async (
+  database: Database,
+  handle: string,
+  domain: string,
+  ownDid: string | null
+): Promise<void> => {
+  const holder = await database.getPdsRepoByHandle({ handle, domain })
+  if (holder && holder.did !== ownDid) throw new PdsHandleTakenError()
+}
+
+const isHandleTakenError = (error: unknown): boolean =>
+  isUniqueConstraintError(error) &&
+  /pds_repos_handle_live_unique|pds_repos\.handle/.test(
+    `${(error as { constraint?: string }).constraint ?? ''} ${
+      (error as { message?: string }).message ?? ''
+    }`
+  )
+
 // Runs a repo write under the per-DID lock, re-reading the repo there: a
 // delete that landed after the caller's read leaves a tombstone, which no
 // write may touch. `write` answers whether it changed the row.
@@ -304,6 +327,41 @@ export const createHostedBlueskyAccount = async ({
   const context = requireUsableHostedContext(actor)
   const rotationKeypair = await requireRotationKeypair()
 
+  // One create per actor at a time: two that both passed the checks would
+  // both register a DID at the directory, and the loser's would be orphaned.
+  await withPdsRepoLock(
+    database,
+    `actor:${actor.id}`,
+    () =>
+      createHostedRepoLocked({
+        database,
+        actor,
+        handle,
+        context,
+        rotationKeypair
+      }),
+    { ttlMs: CREATE_LOCK_MS, waitMs: CREATE_LOCK_MS }
+  )
+
+  return getHostedBlueskyAccountState({ database, actor })
+}
+
+// Covers the PLC submit's timeout and the local create after it.
+const CREATE_LOCK_MS = PLC_DIRECTORY_TIMEOUT_MS + 30_000
+
+const createHostedRepoLocked = async ({
+  database,
+  actor,
+  handle,
+  context,
+  rotationKeypair
+}: {
+  database: Database
+  actor: Actor
+  handle: string
+  context: HostedAccountContext
+  rotationKeypair: Secp256k1Keypair
+}): Promise<void> => {
   const existing = await database.getPdsRepo({ actorId: actor.id })
   if (existing && existing.status !== 'deleted') {
     throw new PdsHostedAccountExistsError()
@@ -319,6 +377,7 @@ export const createHostedBlueskyAccount = async ({
       'Choose one of the offered handles for a new account.'
     )
   }
+  await assertHandleFree(database, normalizedHandle, context.domain, null)
 
   await consumeHostedBlueskyRateLimit(database, actor.id, 'create')
   const signingKey = await createPdsSigningKey()
@@ -349,10 +408,8 @@ export const createHostedBlueskyAccount = async ({
       did,
       err: toLoggableError(error)
     })
-    throw error
+    throw isHandleTakenError(error) ? new PdsHandleTakenError() : error
   }
-
-  return getHostedBlueskyAccountState({ database, actor })
 }
 
 /** Turns the account off: status `deactivated` and `#account` active:false. */
@@ -440,6 +497,7 @@ export const changeHostedBlueskyHandle = async ({
   if (repo.status !== 'active') throw new PdsHostedAccountInactiveError()
 
   const normalizedHandle = normalizeHandleInput(handle)
+  await assertHandleFree(database, normalizedHandle, repo.domain, repo.did)
   const choices = await getHandleChoices(database, actor, context)
   const selfAnswered = choices.some(
     (choice) => choice.handle === normalizedHandle
@@ -467,11 +525,15 @@ export const changeHostedBlueskyHandle = async ({
   await submitPlcOperation(repo.did, operation)
 
   await writeLiveRepo(database, repo.did, async () => {
-    const changed = await database.updatePdsRepoIdentity({
-      did: repo.did,
-      handle: normalizedHandle,
-      plcOperation: JSON.stringify(operation)
-    })
+    const changed = await database
+      .updatePdsRepoIdentity({
+        did: repo.did,
+        handle: normalizedHandle,
+        plcOperation: JSON.stringify(operation)
+      })
+      .catch((error: unknown) => {
+        throw isHandleTakenError(error) ? new PdsHandleTakenError() : error
+      })
     if (!changed) return false
     await database.appendPdsEvent({
       did: repo.did,

@@ -2617,6 +2617,8 @@ CREATE INDEX pds_records_did_repo_rev_idx ON public.pds_records USING btree (did
 
 CREATE INDEX pds_repos_domain_idx ON public.pds_repos USING btree (domain);
 
+CREATE UNIQUE INDEX pds_repos_handle_live_unique ON public.pds_repos USING btree (handle) WHERE (((status)::text <> 'deleted'::text) AND (handle IS NOT NULL));
+
 CREATE INDEX poll_answers_statusid_actorid_index ON public.poll_answers USING btree ("statusId", "actorId");
 
 CREATE INDEX poll_voters_statusid_index ON public.poll_voters USING btree ("statusId");
