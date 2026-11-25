@@ -117,6 +117,7 @@ const ALLOWED_USERNAMES = [
   'move-finish-budget',
   'move-finish-stuck',
   'move-finish-list-fails',
+  'move-finish-list-bad',
   'move-finish-list-429',
   'move-stale-actor',
   'move-not-copied',
@@ -2700,6 +2701,94 @@ describe('hosted Bluesky account move-out', () => {
           JSON.stringify({ error: 'InternalServerError' }),
           500
         )
+      }
+      if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
+        // Each upload spends more than the whole finish budget.
+        uploads += 1
+        now += 61_000
+        return okResponse(
+          options.url,
+          JSON.stringify({ blob: { $type: 'blob' } })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+        activateCalls += 1
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, defaultDestBody(options.url))
+    }
+
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const finished = await finishMoveOut({ database, actor, store })
+    nowSpy.mockRestore()
+
+    expect(uploads).toBe(0)
+    expect(activateCalls).toBe(1)
+    expect(finished.copyIncomplete).toBe(true)
+  })
+
+  it('activates when the destination answers the catch-up list with a bad body', async () => {
+    const { actor, did } = await setupHostedAccount('move-finish-list-bad')
+    const store = createMemoryBlobStore()
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+
+    const blob = await uploadPdsBlob(
+      database,
+      { did, bytes: Buffer.from('slow-image'), mimeType: 'image/png' },
+      { store }
+    )
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'post',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [{ alt: 'one', image: blob.blob }]
+        }
+      }
+    })
+    const currentRepo = await database.getPdsRepo({ did })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'budget.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: currentRepo!.rev,
+      switchedAt: null
+    })
+
+    let now = Date.now()
+    let activateCalls = 0
+    let uploads = 0
+    destHandler = (options) => {
+      if (
+        options.url.endsWith(
+          '/com.atproto.identity.getRecommendedDidCredentials'
+        )
+      ) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            services: {
+              atproto_pds: {
+                type: 'AtprotoPersonalDataServer',
+                endpoint: DEST_PDS
+              }
+            },
+            verificationMethods: { atproto: destSigningKey.did() },
+            alsoKnownAs: ['at://budget.dest.pds.example'],
+            rotationKeys: [destRotKey.did()]
+          })
+        )
+      }
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        return okResponse(options.url, JSON.stringify({ blobs: null }))
       }
       if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
         // Each upload spends more than the whole finish budget.

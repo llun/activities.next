@@ -368,12 +368,16 @@ const fetchDestination = async ({
     throw new PdsMoveOutRemoteError(
       'Could not reach the destination server.',
       0,
-      null,
+      UNREACHABLE_REMOTE_ERROR,
       null,
       { cause: error }
     )
   }
 }
+
+// Marks a request that never got an answer (timeout, DNS, refused), as
+// opposed to a destination that answered with something unusable.
+const UNREACHABLE_REMOTE_ERROR = 'Unreachable'
 
 const parseJsonBody = (nsid: string, body: string): unknown => {
   try {
@@ -1013,8 +1017,11 @@ const copyBlobBatch = async (
     )
   }
 
+  // An empty page ends the listing whatever cursor it echoes.
   const nextCursor =
-    typeof parsed.cursor === 'string' && parsed.cursor.length > 0
+    parsed.blobs.length > 0 &&
+    typeof parsed.cursor === 'string' &&
+    parsed.cursor.length > 0
       ? parsed.cursor
       : null
   // An empty page or a cursor that did not move ends the copy: a server that
@@ -1278,7 +1285,12 @@ const countMissingBlobs = async (
   database: Database,
   did: string,
   session: StoredBlueskyMoveOutSession
-): Promise<{ count: number; session: StoredBlueskyMoveOutSession }> => {
+): Promise<{
+  count: number
+  /** The count request failed, so `count` is only a lower bound. */
+  unknown: boolean
+  session: StoredBlueskyMoveOutSession
+}> => {
   const nsid = 'com.atproto.repo.listMissingBlobs'
   try {
     const response = await requestWithMoveAuth({
@@ -1296,6 +1308,7 @@ const countMissingBlobs = async (
         isRecord(parsed) && Array.isArray(parsed.blobs)
           ? parsed.blobs.length
           : 0,
+      unknown: false,
       session: response.session
     }
   } catch (error) {
@@ -1305,7 +1318,7 @@ const countMissingBlobs = async (
       err: toLoggableError(error)
     })
     // The copy stopped before `done`, so at least one file is still missing.
-    return { count: 1, session }
+    return { count: 1, unknown: true, session }
   }
 }
 
@@ -1545,6 +1558,7 @@ export const finishMoveOut = async ({
             const remaining = await countMissingBlobs(database, repo.did, move)
             move = remaining.session
             missingBlobs = Math.max(failedCids.size, remaining.count)
+            if (remaining.unknown) copyIncomplete = true
           }
           if (!moderated) {
             const preferencesRes = await requestWithMoveAuth({
@@ -1565,7 +1579,10 @@ export const finishMoveOut = async ({
           if (!(error instanceof PdsMoveOutRemoteError)) throw error
           // Unreachable or rate limited is likely transient: fail so a retry
           // redoes the catch-up, instead of losing it to one blip.
-          if (error.remoteStatus === 0 || error.remoteStatus === 429) {
+          if (
+            error.remoteError === UNREACHABLE_REMOTE_ERROR ||
+            error.remoteStatus === 429
+          ) {
             throw error
           }
           // Reported to the owner in the result; the session row may have a

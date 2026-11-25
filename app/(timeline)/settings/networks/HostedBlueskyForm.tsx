@@ -298,6 +298,8 @@ export const HostedBlueskyForm = ({
           // A cursor that did not move is a stuck destination, not the end
           // (the server reports it as done so it never loops).
           if (result.cursor !== null && result.cursor === previousCursor) {
+            // Try again then starts over from the top, not the stuck page.
+            cursorRef.current = undefined
             throw new Error(
               'The destination server stopped making progress. Try again.'
             )
