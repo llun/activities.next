@@ -1,0 +1,54 @@
+app/api/v1/bluesky/hosted/route.test.ts
+  h_580a04e334fef4 1-226
+app/api/v1/bluesky/hosted/route.ts
+  h_580a04e334fef4 1-111
+app/api/well-known/atproto-did/route.test.ts
+  h_580a04e334fef4 5,11,14-20,31,39-40,42,62-142
+app/api/well-known/atproto-did/route.ts
+  h_580a04e334fef4 5,11-22,28-68
+lib/client/blueskyHosted.ts
+  h_580a04e334fef4 1-50
+lib/database/domains/actor/deletion.ts
+  h_580a04e334fef4 5-8,23,624-626,633-639
+lib/database/domains/moderation/queries.ts
+  h_580a04e334fef4 30,310-333,368-372,379-390,413-417,424-435
+lib/database/domains/pds/pds.test.ts
+  h_580a04e334fef4 942-948,962-970
+lib/database/domains/pds/queries.ts
+  h_580a04e334fef4 14,159-161,176-177,250-269,1055-1056,1070-1072,1329
+lib/database/domains/pds/types.ts
+  h_580a04e334fef4 66-69,107-112,247-248,273-275
+lib/jobs/deleteActorJob.test.ts
+  h_580a04e334fef4 943-944
+lib/services/actors/actorDeletion.ts
+  h_580a04e334fef4 8-11,254-267
+lib/services/pds/accountEvents.ts
+  h_580a04e334fef4 1-68
+lib/services/pds/accounts.test.ts
+  h_580a04e334fef4 1-564
+lib/services/pds/accounts.ts
+  h_580a04e334fef4 1-533
+lib/services/pds/errors.ts
+  h_580a04e334fef4 128-215
+lib/services/pds/host.ts
+  h_580a04e334fef4 176-203
+lib/services/pds/repo.ts
+  h_580a04e334fef4 65-66,148,220-221
+lib/services/pds/retention.ts
+  h_580a04e334fef4 3,24-51
+lib/services/pds/routeResponse.ts
+  h_580a04e334fef4 1-65
+lib/utils/blueskyHosted.ts
+  h_580a04e334fef4 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed9f75c49d31a4c8677788db5e6b4ccde72c6342",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
