@@ -1,0 +1,103 @@
+app/api/well-known/did.json/route.test.ts
+  s_f193227df3df34::t_e45c525ff793cd 3-5,31-32,34,65-68,116-120,127-155,176-180,187-188,192-196
+app/api/well-known/did.json/route.ts
+  s_f193227df3df34::t_12c3e0ccd2ae7d 5,23,26-41,48,50
+app/xrpc/[...nsid]/route.test.ts
+  s_f193227df3df34::t_859d590ab49156 19,21,26-28,36,54-60,66,91-99,101,104-105,109,111,113-119,122-127,130-132,135-142,148,152,317-334,401-402,427-432,437,466-470,479,487-490,497-500,507-508,516-562,573-579,581-604,613-617,654-745,803,816-817,828-830,864-868,873,898,955,967-977,997-1064,1150-1152,1166-1167,1180-1184,1189,1194-1196,1207,1212-1214,1414-1418,1451-1452
+app/xrpc/[...nsid]/route.ts
+  s_f193227df3df34::t_7965350261f03a 8,17,30-31,40-41,62,192-198,214,217-220,223,230-235,261-274,283-286,304-307,334-337,522-530,536,539-542,545-549,551,571-576,579-582,584,589-592,595-599,601-604
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_1be106e5515711 1399
+docs/setup.md
+  s_f193227df3df34::t_e8f8bd45f0795d 134-143
+lib/database/domains/actor/deletion.ts
+  s_f193227df3df34::t_483590b2003622 5,614
+lib/database/domains/moderation/moderationQueries.test.ts
+  s_f193227df3df34::t_b326b4d98c1753 2,4-5,7-8,11-14,490-589
+lib/database/domains/moderation/queries.ts
+  s_f193227df3df34::t_1002927c8e9ee8 27,29-32,92-110,112-123,125-171,173-177,179,181-182,184-214,325,336-339,388,393-394,421-427
+lib/database/domains/pds/pds.test.ts
+  s_f193227df3df34::t_3a727f40550fce 29,34-35,42,50-51,58,63-70,72-79,84,97,131-132,198,211-222,237,239,241,243,245,247,249,366-442,488,494-495,511-537,594-598,661,674,683-691,693-694,702-704,710-713,716-717,723,726,742-745,754,771-772
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_8f3ed07a8ea174 36,61-75,79,128,142,149,158,167-178,184,251-255,283-307,331,334-388,577-581,583,588-599,624-633,651-662,755,769,832,846,851-857,874-880,893-930,979,1004,1010,1024
+lib/database/domains/pds/types.ts
+  s_f193227df3df34::t_c7325a49e7384d 9,56,92,177-186,193,216,228-231,262-266,270
+lib/database/kysely/db.ts
+  s_f193227df3df34::t_f41978328dfec6 1280
+lib/database/kysely/dialect.ts
+  s_f193227df3df34::t_c7e8e24d5b7294 50-56
+lib/jobs/deleteActorJob.test.ts
+  s_f193227df3df34::t_46b685f927a4b8 16-19,882-1025
+lib/jobs/deleteActorJob.ts
+  s_f193227df3df34::t_c4be22d0986fd8 19,297-300
+lib/jobs/index.test.ts
+  s_f193227df3df34::t_692b1f3b12ac59 30-59
+lib/services/pds/blobStorage.ts
+  s_f193227df3df34::t_943e85f9eab3e3 1-264
+lib/services/pds/blobs.test.ts
+  s_f193227df3df34::t_938eb4715654df 20,28,31,33-34,36-37,60-80,97,112,114,117,140,148,150-152,155-163,181-207,237-455,458,461,470-481,494,497,573-598,610-649
+lib/services/pds/blobs.ts
+  s_f193227df3df34::t_00239a3f9c6eaf 8-13,16-19,37-38,45,49-55,66,68,73-78,84,102-107,139
+lib/services/pds/constants.ts
+  s_f193227df3df34::t_daed74eea61f63 21-23,27-28
+lib/services/pds/errors.ts
+  s_f193227df3df34::t_459e48cb46b223 25-34
+lib/services/pds/events.ts
+  s_f193227df3df34::t_3cb32f2dccb8fd 8-9,100-106,112
+lib/services/pds/host.test.ts
+  s_f193227df3df34::t_475b4a6768e3ac 1-11,39-40,44-45,131-205
+lib/services/pds/host.ts
+  s_f193227df3df34::t_0dfd29b4a484cf 7-8,15-18,38-41,45-46,51-75
+lib/services/pds/index.ts
+  s_f193227df3df34::t_313a4b70a687f4 8,11-16,23,36,59-64,84-91,109-111,125,127,133-135,144-145
+lib/services/pds/keys.ts
+  s_f193227df3df34::t_573cb6863b262b 9-12,22,26-27,29-31,40,46-47,50-51,53-55,58
+lib/services/pds/lock.ts
+  s_f193227df3df34::t_a1fe3b0b7cd746 4-5,88-97
+lib/services/pds/rateLimit.ts
+  s_f193227df3df34::t_c5a1f78ed7a01b 1-46
+lib/services/pds/reads.ts
+  s_f193227df3df34::t_3ed2b589d4ea22 1,5,9,11,14-21,26,34,37-38,40-57,64,69-79,81-136,152-156,164-165,177-305,312-314,320-321,333-336,338-341,351-352,382,430,503-509,512-516,523,553-555,558-565,569,577,605
+lib/services/pds/repo.test.ts
+  s_f193227df3df34::t_42a26fd3b0cb4f 18,21-22,25,35,46-48,51,62-79,84-85,172-189,248,251-260,656,659,694,697,736,739,781,784,958-1513
+lib/services/pds/repo.ts
+  s_f193227df3df34::t_a130518115a7ca 12,20-24,28,54,118-119,121-123,132-136,151,155-177,179-180,210,228,242-243,248,251,349-356,412-418,435-436,467-468,487-488,495-503,530-531,550,579-580,603-604,623,646-647
+lib/services/pds/storage.ts
+  s_f193227df3df34::t_e5859f09f7f6bb 190-241
+lib/services/pds/xrpc.ts
+  s_f193227df3df34::t_2398c812edb048 3-4,14,19-31,33-35,43-56,61-63,75-89,97-100,119-121,178-191,295-304,306-315,319
+lib/utils/secretBox.test.ts
+  s_f193227df3df34::t_7b54042766e1a6 4,8,12-13,23,32,35-38,42-43,47-48,52-56,60,64-66,69-71,74-76,81,84-90,93,96-107,110,113-114,120-121,128-129,136-152,157-184
+lib/utils/secretBox.ts
+  s_f193227df3df34::t_4a6b3e4f843188 15-16,19-20,24-37,40-42,45,53-59,87,89-92,94,99,111,127-130,135,146
+migrations/20261124234607_add_bluesky_pds.ts
+  s_f193227df3df34::t_498de0824d67b6 25,70-79,143
+migrations/schema.sql
+  s_f193227df3df34::t_6a62a6ac0c49c5 1318,1324-1325,1336
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_4b490f58c2b8ea 371,381
+proxy.ts
+  s_f193227df3df34::t_3e03f240aa9788 36-42,47
+scripts/backup/productionArchive.database.test.ts
+  s_f193227df3df34::t_383ff5d5f94279 46,190-210,916-940,1118-1147
+scripts/backup/productionArchive.ts
+  s_f193227df3df34::t_6585f1266835b3 2178-2213,2232-2261,2288,2302-2305
+test/proxy.test.ts
+  s_f193227df3df34::t_c55888144cd715 380,385-393
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "647d2610b454967e18ece746f9684c7926cfe243",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
