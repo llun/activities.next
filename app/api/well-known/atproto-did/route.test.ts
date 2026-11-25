@@ -194,4 +194,25 @@ describe('GET /.well-known/atproto-did', () => {
 
     expect(await response.text()).not.toBe('did:plc:hostedalice')
   })
+
+  it('answers the linked DID for a claimed handle whose hosted repo is turned off', async () => {
+    vi.mocked(headerHost).mockReturnValue('social.example')
+    getBlueskyAccountByInstanceHandle.mockResolvedValue({
+      did: 'did:plc:linkedoutside',
+      actorId: 'actor-a'
+    })
+    getPdsRepo.mockResolvedValue({
+      did: 'did:plc:hostedalice',
+      status: 'deactivated',
+      handle: 'social.example'
+    })
+    getActorFromId.mockResolvedValue(activeActor)
+
+    const response = await call()
+
+    // The claim belongs to the linked account; an inactive hosted repo never
+    // takes the handle over.
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('did:plc:linkedoutside')
+  })
 })

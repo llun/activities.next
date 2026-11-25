@@ -129,6 +129,30 @@ describe('/settings/networks', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows the hosted account card for an existing account the server no longer offers', async () => {
+    vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
+      available: false,
+      pdsHostname: 'pds.example.com',
+      rotationKeyConfigured: true,
+      repo: {
+        did: 'did:plc:abc123',
+        handle: 'alice.pds.example.com',
+        status: 'active',
+        recoveryKeyDid: null
+      },
+      handleChoices: [],
+      customHandleAllowed: true
+    })
+    render(await Page())
+    expect(
+      screen.getByRole('heading', { name: 'Host my Bluesky account here' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Your Bluesky account on this server.')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Turn off' })).toBeInTheDocument()
+  })
+
   it('redirects unauthenticated visitors', async () => {
     vi.mocked(getActorFromSession).mockResolvedValue(null)
     await expect(Page()).rejects.toThrow('redirect:/auth/signin')

@@ -139,6 +139,10 @@ describe('HostedBlueskyForm', () => {
     )
     expect(await screen.findByText('Off')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Turn on' })).toBeInTheDocument()
+    // The success message is an Alert outside the card's frame.
+    const message = screen.getByRole('status')
+    expect(message).toHaveTextContent('Bluesky account turned off.')
+    expect(message.closest('[data-slot="frame"]')).toBeNull()
   })
 
   it('turns the account back on', async () => {
@@ -160,6 +164,9 @@ describe('HostedBlueskyForm', () => {
     )
     show(state({ repo: activeRepo, customHandleAllowed: true }))
     fireEvent.click(screen.getByRole('button', { name: 'Change' }))
+    expect(screen.getByRole('radiogroup', { name: 'Handle' })).toHaveAttribute(
+      'aria-labelledby'
+    )
     const input = screen.getByLabelText('New handle')
     expect(input).toHaveValue('alice.pds.example.com')
     fireEvent.change(input, { target: { value: 'alice.example.com' } })
@@ -295,5 +302,113 @@ describe('HostedBlueskyForm', () => {
     expect(
       screen.queryByRole('button', { name: 'Change' })
     ).not.toBeInTheDocument()
+  })
+
+  const expectNoteOutsideFrame = (text: string) => {
+    const note = screen.getByText(text)
+    expect(note.closest('[role="status"]')).not.toBeNull()
+    expect(note.closest('[data-slot="frame"]')).toBeNull()
+  }
+
+  it('shows the not-ready and linked-elsewhere notes as alerts outside the frame', () => {
+    const { unmount } = show(state({ rotationKeyConfigured: false }))
+    expectNoteOutsideFrame(
+      'This server isn’t ready to host Bluesky accounts yet. Ask an admin to set its rotation key.'
+    )
+    unmount()
+    show(state(), true)
+    expectNoteOutsideFrame(
+      'Your account above is on another server. Unlink it first to create one here; moving it here comes later.'
+    )
+  })
+
+  it('explains when no handle can be offered instead of offering Create', () => {
+    show(state({ handleChoices: [] }))
+    expectNoteOutsideFrame(
+      'Your username can’t be used as a Bluesky handle. Ask an admin to claim this server’s name for you.'
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Create Bluesky account' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('offers only Turn off and Delete when the server no longer offers accounts', () => {
+    show(state({ available: false, repo: activeRepo }))
+    expectNoteOutsideFrame(
+      'This server no longer offers Bluesky accounts to this profile. You can still turn yours off or delete it.'
+    )
+    expect(screen.getByRole('button', { name: 'Turn off' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Delete account' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Change' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Recovery key')).not.toBeInTheDocument()
+  })
+
+  it('does not offer Turn on when the server no longer offers accounts', () => {
+    show(
+      state({
+        available: false,
+        repo: { ...activeRepo, status: 'deactivated' }
+      })
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Turn on' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Delete account' })
+    ).toBeInTheDocument()
+  })
+
+  it('does not offer Create after deleting an account the server no longer offers', async () => {
+    vi.mocked(deleteHostedBlueskyAccount).mockResolvedValue(
+      state({ available: false })
+    )
+    show(state({ available: false, repo: activeRepo }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete account' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Handle'), {
+      target: { value: 'alice.pds.example.com' }
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete account' })
+    )
+    expect(
+      await screen.findByText('Bluesky account deleted.')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Create Bluesky account' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('forgets an open handle edit and a typed recovery key after deleting', async () => {
+    vi.mocked(deleteHostedBlueskyAccount).mockResolvedValue(state())
+    vi.mocked(createHostedBlueskyAccount).mockResolvedValue(
+      state({ repo: activeRepo, customHandleAllowed: true })
+    )
+    show(state({ repo: activeRepo, customHandleAllowed: true }))
+    fireEvent.change(screen.getByLabelText('Recovery key'), {
+      target: { value: 'did:key:zTyped' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Change' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete account' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Handle'), {
+      target: { value: 'alice.pds.example.com' }
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete account' })
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Create Bluesky account' })
+    )
+
+    expect(
+      await screen.findByRole('button', { name: 'Change' })
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('New handle')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Recovery key')).toHaveValue('')
   })
 })

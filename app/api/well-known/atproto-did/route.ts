@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 
 import { getDatabase } from '@/lib/database'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { resolveEffectivePdsRepoStatus } from '@/lib/services/pds/effectiveStatus'
 import { getPdsSubdomainHandle } from '@/lib/services/pds/host'
-import { resolveEffectivePdsRepoStatus } from '@/lib/services/pds/reads'
 import { getServedAuthority } from '@/lib/utils/host'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 

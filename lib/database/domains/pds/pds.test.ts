@@ -1763,6 +1763,10 @@ describe('PDS database domain', () => {
       handle: 'alice.tombstone.example',
       plcOperation: null
     })
+    // A tombstone keeps its handle but no longer answers to it.
+    expect(
+      await database.getPdsRepoByHandle({ handle: 'alice.tombstone.example' })
+    ).toBeNull()
   })
 
   it('updates a repo identity, resolves it by handle case-insensitively, and clears fields with null', async () => {
@@ -1841,7 +1845,7 @@ describe('PDS database domain', () => {
     expect(await database.getPdsPreferences({ did })).toEqual(['compact'])
   })
 
-  it('deletes repo content but keeps the tombstone row and events, and deletePdsRepoData also removes preferences', async () => {
+  it('deletes repo content and preferences but keeps the tombstone row and events', async () => {
     const did = 'did:plc:contenttest0000000000000'
     await database.createPdsRepo({
       did,
@@ -1900,11 +1904,10 @@ describe('PDS database domain', () => {
         recordUri: `at://${did}/app.bsky.feed.post/3k1`
       })
     ).toEqual([])
-    // Preferences survive a content delete.
-    expect(await database.getPdsPreferences({ did })).toEqual(['x'])
+    // The account's preferences go with its content.
+    expect(await database.getPdsPreferences({ did })).toBeNull()
 
     await database.deletePdsRepoData({ did })
     expect(await database.getPdsRepo({ did })).toBeNull()
-    expect(await database.getPdsPreferences({ did })).toBeNull()
   })
 })

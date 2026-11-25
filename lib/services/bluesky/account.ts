@@ -219,10 +219,6 @@ export const getBlueskyAccountState = async (
   }
 }
 
-/**
- * Returns the authorization URL to send the browser to. `requestHost` is the
- * served host the request arrived on.
- */
 // One Bluesky account per profile: a hosted account (lib/services/pds) and a
 // linked outside one cannot both exist. A deleted hosted account gives up the
 // actor's row, so getPdsRepo finds only live ones.
@@ -232,6 +228,10 @@ const HOSTED_ACCOUNT_EXISTS_MESSAGE =
 const hasHostedBlueskyAccount = async (database: Database, actor: Actor) =>
   Boolean(await database.getPdsRepo({ actorId: actor.id }))
 
+/**
+ * Returns the authorization URL to send the browser to. `requestHost` is the
+ * served host the request arrived on.
+ */
 export const startBlueskyOAuth = async (
   database: Database,
   actor: Actor,

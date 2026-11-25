@@ -27,17 +27,18 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { deletePdsBlobFilesBestEffort } from './blobStorage'
+import { resolveEffectivePdsRepoStatus } from './effectiveStatus'
 import {
   PdsConfirmHandleMismatchError,
   PdsDisabledError,
   PdsHandleNotAllowedError,
   PdsHandleNotResolvedError,
   PdsHostedAccountExistsError,
+  PdsHostedAccountInactiveError,
   PdsHostedAccountLinkedError,
   PdsHostedAccountNotFoundError,
   PdsIdentityMovedError,
   PdsNotAllowedError,
-  PdsPlcOperationInvalidError,
   PdsRecoveryKeyInvalidError,
   PdsRotationKeyMissingError,
   PdsValidationError
@@ -53,8 +54,7 @@ import {
   createGenesisOperation,
   createUpdateOperation,
   getLastPlcOperation,
-  submitPlcOperation,
-  verifyPlcOperationSignature
+  submitPlcOperation
 } from './plc'
 import { consumeHostedBlueskyRateLimit } from './rateLimit'
 import { createPdsRepo } from './repo'
@@ -122,14 +122,17 @@ const requireUsableHostedContext = (actor: Actor): HostedAccountContext => {
   return context
 }
 
+// The card shows the effective status, so a suspended or disabled profile's
+// account reads as suspended and a deleting or unapproved one's as off.
 const summarizeRepo = (
-  repo: PdsRepo | null
+  repo: PdsRepo | null,
+  actor: Actor
 ): HostedBlueskyRepoSummary | null =>
   repo && repo.status !== 'deleted'
     ? {
         did: repo.did,
         handle: repo.handle,
-        status: repo.status,
+        status: resolveEffectivePdsRepoStatus(repo, actor),
         recoveryKeyDid: repo.recoveryKeyDid
       }
     : null
@@ -143,16 +146,20 @@ const getHandleChoices = async (
   { entry, config }: Pick<HostedAccountContext, 'entry' | 'config'>
 ): Promise<HostedBlueskyHandleChoice[]> => {
   const choices: HostedBlueskyHandleChoice[] = []
-  // The served domain this profile claimed in Settings › Other networks. A
-  // hosted account cannot coexist with a linked one, so this is normally
-  // absent; it is read anyway so a claim made before D2.3 is offered.
+  // The served domain this profile claimed in Settings › Other networks, when
+  // it has a linked account row carrying one.
   const linked = await database.getBlueskyAccount({ actorId: actor.id })
   if (linked?.instanceHandle) {
     choices.push({ handle: linked.instanceHandle, kind: 'instance' })
   }
+  // `<username>.<PDS host>`, unless the username makes it an invalid handle
+  // (an `_` or `~`) or another host owns that name.
   const pdsHandle = pdsSubdomainHandle(actor, entry)
   const isServedDomain = await getLocalDomainMatcher(database)
-  if (!isReservedPdsSubdomainHandle(pdsHandle, isServedDomain, config)) {
+  if (
+    isValidHandle(pdsHandle) &&
+    !isReservedPdsSubdomainHandle(pdsHandle, isServedDomain, config)
+  ) {
     choices.push({ handle: pdsHandle, kind: 'pds' })
   }
   return choices
@@ -184,10 +191,8 @@ const createChainedUpdate = async (
   rotationKeypair: Secp256k1Keypair,
   changes: PlcOperationChanges
 ): Promise<PlcSignedOperation> => {
+  // Trusted as given: the configured directory over TLS verifies the chain.
   const last = await getLastPlcOperation(did)
-  if (!(await verifyPlcOperationSignature(last, last.rotationKeys))) {
-    throw new PdsPlcOperationInvalidError()
-  }
   if (!last.rotationKeys.includes(rotationKeypair.did())) {
     throw new PdsIdentityMovedError()
   }
@@ -260,7 +265,7 @@ export const getHostedBlueskyAccountState = async ({
       available: false,
       pdsHostname: null,
       rotationKeyConfigured,
-      repo: summarizeRepo(repo),
+      repo: summarizeRepo(repo, actor),
       handleChoices: [],
       customHandleAllowed: false
     }
@@ -270,7 +275,7 @@ export const getHostedBlueskyAccountState = async ({
     available: context.available,
     pdsHostname: context.entry.hostname,
     rotationKeyConfigured,
-    repo: summarizeRepo(repo),
+    repo: summarizeRepo(repo, actor),
     handleChoices: await getHandleChoices(database, actor, context),
     customHandleAllowed: Boolean(repo && repo.status !== 'deleted')
   }
@@ -432,6 +437,7 @@ export const changeHostedBlueskyHandle = async ({
   const context = requireUsableHostedContext(actor)
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
+  if (repo.status !== 'active') throw new PdsHostedAccountInactiveError()
 
   const normalizedHandle = normalizeHandleInput(handle)
   const choices = await getHandleChoices(database, actor, context)
@@ -439,8 +445,8 @@ export const changeHostedBlueskyHandle = async ({
     (choice) => choice.handle === normalizedHandle
   )
   if (!selfAnswered) {
-    // The PDS subdomain handle is left out of the choices only when another
-    // host owns that name.
+    // A valid PDS subdomain handle is left out of the choices only when
+    // another host owns that name.
     if (normalizedHandle === pdsSubdomainHandle(actor, context.entry)) {
       throw new PdsHandleNotAllowedError(
         'That handle belongs to another domain on this server. Choose another handle.'

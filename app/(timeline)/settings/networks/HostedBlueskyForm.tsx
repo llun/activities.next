@@ -155,6 +155,8 @@ export const HostedBlueskyForm = ({
     try {
       applyState(await deleteHostedBlueskyAccount(confirmHandle))
       closeDelete()
+      setEditingHandle(false)
+      setRecoveryKey('')
       setStatus('Bluesky account deleted.')
     } catch (error) {
       setDeleteError(errorMessage(error))
@@ -164,21 +166,12 @@ export const HostedBlueskyForm = ({
   }
 
   const repo = state.repo
-  const statusLine = status ? (
-    <p
-      role="status"
-      aria-live="polite"
-      className="text-muted-foreground px-4 py-2.5 text-sm"
-    >
-      {status}
-    </p>
-  ) : null
+  // The server stopped offering accounts to this profile (allowlist, domain
+  // switched off), but the profile still has one: it may only turn it off or
+  // delete it.
+  const limited = !state.available
 
-  const notice = (text: string) => (
-    <Frame form>
-      <p className="text-muted-foreground px-4 py-2.5 text-sm">{text}</p>
-    </Frame>
-  )
+  const info = (title: string) => <Alert tone="info" title={title} />
 
   const deleteButton = (
     <Button
@@ -195,14 +188,20 @@ export const HostedBlueskyForm = ({
 
   const card = (() => {
     if (!repo) {
+      if (limited) return null
       if (!state.rotationKeyConfigured) {
-        return notice(
+        return info(
           'This server isn’t ready to host Bluesky accounts yet. Ask an admin to set its rotation key.'
         )
       }
       if (linked) {
-        return notice(
+        return info(
           'Your account above is on another server. Unlink it first to create one here; moving it here comes later.'
+        )
+      }
+      if (state.handleChoices.length === 0) {
+        return info(
+          'Your username can’t be used as a Bluesky handle. Ask an admin to claim this server’s name for you.'
         )
       }
       return (
@@ -225,7 +224,6 @@ export const HostedBlueskyForm = ({
               </Button>
             </FormRow>
           </form>
-          {statusLine}
         </Frame>
       )
     }
@@ -242,155 +240,171 @@ export const HostedBlueskyForm = ({
               </p>
             </div>
           </FormRow>
-          {statusLine}
         </Frame>
       )
     }
 
     const active = repo.status === 'active'
+    // Handle and recovery key changes need the server's offer.
+    const editable = active && !limited
 
     return (
-      <Frame form>
-        <FormRow label="Status">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-            {active ? <Badge tone="success">Active</Badge> : <Badge>Off</Badge>}
-            {active ? (
-              <code
-                className="min-w-0 truncate font-mono text-xs"
-                title={repo.did}
-              >
-                {repo.did}
-              </code>
-            ) : null}
-          </div>
-        </FormRow>
-        {active ? (
-          <FormRow label="Handle">
-            {editingHandle ? (
-              <div className="space-y-2">
-                <SegmentedControl
-                  aria-label="Handle"
-                  items={handleItems(state)}
-                  value={handleDraft}
-                  onValueChange={setHandleDraft}
-                  size="sm"
-                />
-                {state.customHandleAllowed ? (
-                  <Input
-                    aria-label="New handle"
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    value={handleDraft}
-                    onChange={(event) => setHandleDraft(event.target.value)}
-                  />
-                ) : null}
-                <div className="flex flex-wrap items-center gap-2">
+      <>
+        {limited
+          ? info(
+              'This server no longer offers Bluesky accounts to this profile. You can still turn yours off or delete it.'
+            )
+          : null}
+        <Frame form>
+          <FormRow label="Status">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+              {active ? (
+                <Badge tone="success">Active</Badge>
+              ) : (
+                <Badge>Off</Badge>
+              )}
+              {active ? (
+                <code
+                  className="min-w-0 truncate font-mono text-xs"
+                  title={repo.did}
+                >
+                  {repo.did}
+                </code>
+              ) : null}
+            </div>
+          </FormRow>
+          {editable ? (
+            <FormRow label="Handle">
+              {({ labelledBy }) =>
+                editingHandle ? (
+                  <div className="space-y-2">
+                    <SegmentedControl
+                      aria-labelledby={labelledBy}
+                      items={handleItems(state)}
+                      value={handleDraft}
+                      onValueChange={setHandleDraft}
+                      size="sm"
+                    />
+                    {state.customHandleAllowed ? (
+                      <Input
+                        aria-label="New handle"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        value={handleDraft}
+                        onChange={(event) => setHandleDraft(event.target.value)}
+                      />
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={busy !== null || handleDraft === ''}
+                        onClick={saveHandle}
+                      >
+                        {busy === 'handle' ? 'Saving…' : 'Save'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={busy !== null}
+                        onClick={() => setEditingHandle(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="min-w-0 break-all">@{repo.handle}</span>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto px-0"
+                      disabled={busy !== null}
+                      onClick={startEditingHandle}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                )
+              }
+            </FormRow>
+          ) : null}
+          {editable ? (
+            <FormRow label="Recovery key" hint="Keep it off this server">
+              {repo.recoveryKeyDid ? (
+                <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+                  <code className="min-w-0 break-all font-mono text-xs">
+                    {repo.recoveryKeyDid}
+                  </code>
                   <Button
                     type="button"
+                    variant="link"
                     size="sm"
-                    disabled={busy !== null || handleDraft === ''}
-                    onClick={saveHandle}
+                    className="h-auto px-0"
+                    disabled={busy !== null}
+                    onClick={() => setRecoveryChange({ recoveryKeyDid: null })}
                   >
-                    {busy === 'handle' ? 'Saving…' : 'Save'}
+                    Remove
                   </Button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    aria-label="Recovery key"
+                    className="min-w-0 flex-1 basis-48 font-mono"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    placeholder="did:key:z…"
+                    value={recoveryKey}
+                    onChange={(event) => setRecoveryKey(event.target.value)}
+                  />
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
-                    disabled={busy !== null}
-                    onClick={() => setEditingHandle(false)}
+                    disabled={busy !== null || recoveryKey.trim() === ''}
+                    onClick={() =>
+                      setRecoveryChange({ recoveryKeyDid: recoveryKey.trim() })
+                    }
                   >
-                    Cancel
+                    Add
                   </Button>
                 </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="min-w-0 break-all">@{repo.handle}</span>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="h-auto px-0"
-                  disabled={busy !== null}
-                  onClick={startEditingHandle}
-                >
-                  Change
-                </Button>
-              </div>
-            )}
-          </FormRow>
-        ) : null}
-        {active ? (
-          <FormRow label="Recovery key" hint="Keep it off this server">
-            {repo.recoveryKeyDid ? (
-              <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-                <code className="min-w-0 break-all font-mono text-xs">
-                  {repo.recoveryKeyDid}
-                </code>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="h-auto px-0"
-                  disabled={busy !== null}
-                  onClick={() => setRecoveryChange({ recoveryKeyDid: null })}
-                >
-                  Remove
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                <Input
-                  aria-label="Recovery key"
-                  className="min-w-0 flex-1 basis-48 font-mono"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  placeholder="did:key:z…"
-                  value={recoveryKey}
-                  onChange={(event) => setRecoveryKey(event.target.value)}
-                />
+              )}
+            </FormRow>
+          ) : null}
+          <FormRow label="Account">
+            <div className="flex flex-wrap items-center gap-2">
+              {active || !limited ? (
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={busy !== null || recoveryKey.trim() === ''}
-                  onClick={() =>
-                    setRecoveryChange({ recoveryKeyDid: recoveryKey.trim() })
-                  }
+                  size="sm"
+                  disabled={busy !== null}
+                  onClick={() => setActive(!active)}
                 >
-                  Add
+                  {busy === 'active'
+                    ? active
+                      ? 'Turning off…'
+                      : 'Turning on…'
+                    : active
+                      ? 'Turn off'
+                      : 'Turn on'}
                 </Button>
-              </div>
-            )}
+              ) : null}
+              {deleteButton}
+            </div>
           </FormRow>
-        ) : null}
-        <FormRow label="Account">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy !== null}
-              onClick={() => setActive(!active)}
-            >
-              {busy === 'active'
-                ? active
-                  ? 'Turning off…'
-                  : 'Turning on…'
-                : active
-                  ? 'Turn off'
-                  : 'Turn on'}
-            </Button>
-            {deleteButton}
-          </div>
-        </FormRow>
-        {statusLine}
-      </Frame>
+        </Frame>
+      </>
     )
   })()
 
   return (
     <div className="space-y-4">
+      {status && !error ? <Alert tone="success" title={status} /> : null}
       {error ? <Alert title={error} /> : null}
       {card}
       <Dialog

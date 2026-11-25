@@ -75,6 +75,7 @@ const ALLOWED_USERNAMES = [
   'pds-mod-deleting',
   'pds-rename-old',
   'bad_handle_user',
+  'pds-stored-handle',
   'MixedCaseUser',
   'pds-many-records',
   'pds-gate-unconfirmed',
@@ -1403,6 +1404,43 @@ describe('PDS repository service', () => {
     })
     expect(mixedDescribed.handle).toBe(`mixedcaseuser.${TEST_DOMAIN}`)
     expect(mixedDescribed.handleIsCorrect).toBe(true)
+  })
+
+  it('resolves and describes a repo by its stored handle, not <username>.<domain>', async () => {
+    const did = 'did:plc:storedhandle00000000000000'
+    const actorId = await createLocalActor('pds-stored-handle')
+    const handle = `pds-stored-handle.pds.${TEST_DOMAIN}`
+    await createPdsRepo(database, {
+      did,
+      actorId,
+      domain: TEST_DOMAIN,
+      handle,
+      signingKey: fixedKey
+    })
+
+    expect(
+      await resolvePdsRepoDidForDomain(database, {
+        repo: handle.toUpperCase(),
+        domain: TEST_DOMAIN
+      })
+    ).toBe(did)
+    await expect(
+      resolvePdsRepoDidForDomain(database, {
+        repo: `pds-stored-handle.${TEST_DOMAIN}`,
+        domain: TEST_DOMAIN
+      })
+    ).rejects.toBeInstanceOf(PdsRepoNotFoundError)
+    // Another domain's request does not reach it.
+    await expect(
+      resolvePdsRepoDidForDomain(database, {
+        repo: handle,
+        domain: 'other.example'
+      })
+    ).rejects.toBeInstanceOf(PdsRepoNotFoundError)
+
+    const described = await describePdsRepo(database, { did })
+    expect(described.handle).toBe(handle)
+    expect(described.didDoc).toMatchObject({ alsoKnownAs: [`at://${handle}`] })
   })
 
   it('PdsReadOnlyRepoStorage does not retain a block cache across reads', async () => {

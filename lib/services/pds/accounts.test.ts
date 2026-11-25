@@ -58,10 +58,22 @@ const ALLOWED_USERNAMES = [
   'hosted-rate-recovery',
   'hosted-chain-stale',
   'hosted-chain-moved',
-  'hosted-chain-badsig',
+  'hosted-chain-swap',
   'hosted-collide',
   'hosted-collide-pds',
-  'hosted-race'
+  'hosted-race',
+  'hosted-acct-a',
+  'hosted-acct-b',
+  'hosted-mod-disable',
+  'hosted-mod-suspend',
+  'hosted-mod-off',
+  'hosted-mod-deleting',
+  'hosted-limited',
+  'hosted-effective',
+  'hosted_under',
+  'hosted-inactive-handle',
+  'hosted-avail-blocked',
+  'hosted-avail-off'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -812,28 +824,39 @@ describe('hosted Bluesky accounts', () => {
     expect(submissions).toHaveLength(0)
   })
 
-  it('refuses an update when the directory’s last operation does not verify', async () => {
-    const actor = await createActor('hosted-chain-badsig')
+  it('chains on an operation the owner signed with a key it swapped out', async () => {
+    const actor = await createActor('hosted-chain-swap')
     await createHostedBlueskyAccount({
       database,
       actor,
-      handle: pdsHandle('hosted-chain-badsig')
+      handle: pdsHandle('hosted-chain-swap')
     })
     const repo = await database.getPdsRepo({ actorId: actor.id })
-    const genesis = directoryLog.get(repo!.did)!.at(-1)!
-    directoryLog
-      .get(repo!.did)!
-      .push({ ...genesis, alsoKnownAs: ['at://evil.example'] })
+    const oldKey = await Secp256k1Keypair.create()
+    const newKey = await Secp256k1Keypair.create()
+    await appendOwnerOperation(repo!.did, rotationKeypair, [
+      oldKey.did(),
+      rotationKeypair.did()
+    ])
+    // Signed by the old recovery key, which the operation itself no longer lists.
+    const swap = await appendOwnerOperation(repo!.did, oldKey, [
+      newKey.did(),
+      rotationKeypair.did()
+    ])
     submissions = []
 
-    await expect(
-      changeHostedBlueskyHandle({
-        database,
-        actor,
-        handle: pdsHandle('hosted-chain-badsig')
-      })
-    ).rejects.toMatchObject({ code: 'PlcOperationInvalid' })
-    expect(submissions).toHaveLength(0)
+    await changeHostedBlueskyHandle({
+      database,
+      actor,
+      handle: pdsHandle('hosted-chain-swap')
+    })
+
+    expect(submissions).toHaveLength(1)
+    expect(submissions[0].operation.prev).toBe(await cidForOperation(swap))
+    expect(submissions[0].operation.rotationKeys).toEqual([
+      newKey.did(),
+      rotationKeypair.did()
+    ])
   })
 
   describe('a PDS handle another host owns', () => {
@@ -902,5 +925,247 @@ describe('hosted Bluesky accounts', () => {
 
     expect(await database.getPdsRepo({ did: stale!.did })).toEqual(tombstone)
     expect(await countEvents(stale!.did)).toBe(eventsBefore)
+  })
+
+  describe('moderation #account events', () => {
+    const moderate = (
+      actor: Awaited<ReturnType<typeof createActor>>,
+      action: 'suspend' | 'unsuspend' | 'disable' | 'enable'
+    ) =>
+      database.applyModerationAction({
+        targetActorId: actor.id,
+        accountId: actor.account!.id,
+        action,
+        moderatorAccountId: 'moderator'
+      })
+
+    const accountEvents = async (did: string) =>
+      (await database.listPdsEvents({ did }))
+        .map(decodePdsEvent)
+        .filter((event) => event.type === 'account')
+
+    const hosted = async (actor: Awaited<ReturnType<typeof createActor>>) => {
+      await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle: pdsHandle(actor.username)
+      })
+      return (await database.getPdsRepo({ actorId: actor.id }))!.did
+    }
+
+    it('announces disable and enable for every profile of the account', async () => {
+      const first = await createActor('hosted-acct-a')
+      await database.createActorForAccount({
+        accountId: first.account!.id,
+        username: 'hosted-acct-b',
+        domain: TEST_DOMAIN,
+        privateKey: 'ap-priv-hosted-acct-b',
+        publicKey: 'ap-pub-hosted-acct-b'
+      })
+      const second = (await database.getActorFromUsername({
+        username: 'hosted-acct-b',
+        domain: TEST_DOMAIN
+      }))!
+      const firstDid = await hosted(first)
+      const secondDid = await hosted(second)
+
+      await moderate(first, 'disable')
+      for (const did of [firstDid, secondDid]) {
+        expect((await accountEvents(did)).at(-1)).toMatchObject({
+          active: false,
+          status: 'takendown'
+        })
+      }
+
+      // The second profile is also suspended, so enabling leaves it off.
+      await moderate(second, 'suspend')
+      const secondBefore = (await accountEvents(secondDid)).length
+      await moderate(first, 'enable')
+      expect((await accountEvents(firstDid)).at(-1)).toMatchObject({
+        active: true
+      })
+      expect(await accountEvents(secondDid)).toHaveLength(secondBefore)
+    })
+
+    it('does not announce active:true on unsuspend while the account is disabled', async () => {
+      const actor = await createActor('hosted-mod-disable')
+      const did = await hosted(actor)
+      await moderate(actor, 'disable')
+      await moderate(actor, 'suspend')
+      const before = await accountEvents(did)
+
+      await moderate(actor, 'unsuspend')
+
+      expect(await accountEvents(did)).toHaveLength(before.length)
+    })
+
+    it('does not announce active:true on enable while the profile is suspended', async () => {
+      const actor = await createActor('hosted-mod-suspend')
+      const did = await hosted(actor)
+      await moderate(actor, 'suspend')
+      await moderate(actor, 'disable')
+      const before = await accountEvents(did)
+
+      await moderate(actor, 'enable')
+
+      expect(await accountEvents(did)).toHaveLength(before.length)
+    })
+
+    it('announces nothing on unsuspend for a repo its owner turned off', async () => {
+      const actor = await createActor('hosted-mod-off')
+      const did = await hosted(actor)
+      await deactivateHostedBlueskyAccount({ database, actor })
+      await moderate(actor, 'suspend')
+      const before = await accountEvents(did)
+
+      await moderate(actor, 'unsuspend')
+
+      expect(await accountEvents(did)).toHaveLength(before.length)
+    })
+
+    it('does not announce active:true on unsuspend for a profile being deleted', async () => {
+      const actor = await createActor('hosted-mod-deleting')
+      const did = await hosted(actor)
+      await moderate(actor, 'suspend')
+      await database.scheduleActorDeletion({
+        actorId: actor.id,
+        scheduledAt: new Date(Date.now() + 60_000)
+      })
+      const before = await accountEvents(did)
+
+      await moderate(actor, 'unsuspend')
+
+      expect(await accountEvents(did)).toHaveLength(before.length)
+    })
+  })
+
+  const disallowEveryone = () => {
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      [TEST_DOMAIN]: {
+        enabled: true,
+        hostname: PDS_HOSTNAME,
+        allowEmails: [],
+        allowActors: []
+      }
+    })
+  }
+
+  it('lets a profile the server no longer offers accounts to turn its account off and delete it', async () => {
+    const actor = await createActor('hosted-limited')
+    const handle = pdsHandle('hosted-limited')
+    await createHostedBlueskyAccount({ database, actor, handle })
+    disallowEveryone()
+
+    const state = await getHostedBlueskyAccountState({ database, actor })
+    expect(state.available).toBe(false)
+    expect(state.repo?.status).toBe('active')
+
+    await deactivateHostedBlueskyAccount({ database, actor })
+    await expect(
+      reactivateHostedBlueskyAccount({ database, actor })
+    ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
+    await deleteHostedBlueskyAccount({ database, actor, confirmHandle: handle })
+    expect(await database.getPdsRepo({ actorId: actor.id })).toBeNull()
+  })
+
+  it('reports the effective status on the card', async () => {
+    const actor = await createActor('hosted-effective')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-effective')
+    })
+
+    const status = async (overrides: Partial<typeof actor>) =>
+      (
+        await getHostedBlueskyAccountState({
+          database,
+          actor: { ...actor, ...overrides }
+        })
+      ).repo?.status
+
+    expect(await status({})).toBe('active')
+    expect(await status({ suspendedAt: Date.now() })).toBe('takendown')
+    expect(
+      await status({ account: { ...actor.account!, disabledAt: Date.now() } })
+    ).toBe('takendown')
+    expect(await status({ deletionStatus: 'scheduled' })).toBe('deactivated')
+    expect(
+      await status({ account: { ...actor.account!, approvedAt: null } })
+    ).toBe('deactivated')
+  })
+
+  it('does not offer <username>.<PDS host> when the username is not a valid handle', async () => {
+    const actor = await createActor('hosted_under')
+
+    const state = await getHostedBlueskyAccountState({ database, actor })
+    expect(state.available).toBe(true)
+    expect(state.handleChoices).toEqual([])
+    await expect(
+      createHostedBlueskyAccount({
+        database,
+        actor,
+        handle: pdsHandle('hosted_under')
+      })
+    ).rejects.toMatchObject({ code: 'InvalidRequest' })
+    expect(submissions).toHaveLength(0)
+  })
+
+  it('refuses a handle change while the account is off', async () => {
+    const actor = await createActor('hosted-inactive-handle')
+    const handle = pdsHandle('hosted-inactive-handle')
+    await createHostedBlueskyAccount({ database, actor, handle })
+    await deactivateHostedBlueskyAccount({ database, actor })
+    submissions = []
+
+    await expect(
+      changeHostedBlueskyHandle({ database, actor, handle })
+    ).rejects.toMatchObject({ code: 'HostedAccountInactive', statusCode: 409 })
+    expect(submissions).toHaveLength(0)
+  })
+
+  describe('available', () => {
+    it('is false for an actor who is not allowed', async () => {
+      const actor = await createActor('hosted-notallowed-state')
+      expect(
+        (await getHostedBlueskyAccountState({ database, actor })).available
+      ).toBe(false)
+    })
+
+    it('is false for a blocked actor', async () => {
+      const actor = await createActor('hosted-avail-blocked')
+      expect(
+        (
+          await getHostedBlueskyAccountState({
+            database,
+            actor: { ...actor, suspendedAt: Date.now() }
+          })
+        ).available
+      ).toBe(false)
+      expect(
+        (
+          await getHostedBlueskyAccountState({
+            database,
+            actor: {
+              ...actor,
+              account: { ...actor.account!, approvedAt: null }
+            }
+          })
+        ).available
+      ).toBe(false)
+    })
+
+    it('is false on a domain with the PDS off', async () => {
+      const actor = await createActor('hosted-avail-off')
+      process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+        [TEST_DOMAIN]: {
+          ...JSON.parse(ENABLED_PDS_ENV)[TEST_DOMAIN],
+          enabled: false
+        }
+      })
+      expect(
+        (await getHostedBlueskyAccountState({ database, actor })).available
+      ).toBe(false)
+    })
   })
 })

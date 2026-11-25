@@ -218,6 +218,8 @@ export const getPdsRepoByHandle = async (
     .selectFrom('pds_repos')
     .select(PDS_REPO_COLUMNS)
     .where(sql`lower(${sql.ref('handle')})`, '=', normalized)
+    // A tombstone keeps its handle, which a new account may take again.
+    .where('status', '!=', 'deleted')
     .executeTakeFirst()
   return row ? toRepo(row) : null
 }
@@ -1310,8 +1312,9 @@ export const deletePdsRepoData = async (
   })
 
 /**
- * Removes a repo's records, blocks, blobs and record-blob references, keeping
- * the `pds_repos` tombstone row and its `pds_events` history.
+ * Removes a repo's records, blocks, blobs, record-blob references and
+ * preferences, keeping the `pds_repos` tombstone row and its `pds_events`
+ * history.
  */
 export const deletePdsRepoContent = async (
   db: Db,
@@ -1327,6 +1330,7 @@ export const deletePdsRepoContent = async (
     await trx.deleteFrom('pds_blobs').where('did', '=', did).execute()
     await trx.deleteFrom('pds_records').where('did', '=', did).execute()
     await trx.deleteFrom('pds_blocks').where('did', '=', did).execute()
+    await trx.deleteFrom('pds_preferences').where('did', '=', did).execute()
     return { blobStorageKeys: blobs.map((blob) => blob.storageKey) }
   })
 

@@ -53,10 +53,16 @@ const Page = async ({
           }
         />
       </Section>
-      {hostedState.available ? (
+      {/* A profile the server no longer offers accounts to still sees the
+          one it has, to turn it off or delete it. */}
+      {hostedState.available || hostedState.repo ? (
         <Section
           title="Host my Bluesky account here"
-          description={`Create a Bluesky account on this server. Your posts reach Bluesky through ${hostedState.pdsHostname}.`}
+          description={
+            hostedState.available
+              ? `Create a Bluesky account on this server. Your posts reach Bluesky through ${hostedState.pdsHostname}.`
+              : 'Your Bluesky account on this server.'
+          }
         >
           <HostedBlueskyForm
             key={actor.id}

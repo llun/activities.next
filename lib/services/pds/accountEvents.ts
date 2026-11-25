@@ -2,6 +2,8 @@ import { appendPdsEvent, getPdsRepo } from '@/lib/database/domains/pds/queries'
 import type { PdsEvent, PdsRepoStatus } from '@/lib/database/domains/pds/types'
 import type { Db } from '@/lib/database/kysely'
 
+import { resolveEffectivePdsRepoStatus } from './effectiveStatus'
+
 // Appends `#account` events for a hosted repo from the database layer and the
 // actor-deletion job. Kept out of `events.ts` (which imports `@atproto/repo`)
 // so CommonJS callers can reach it: the CBOR encoder is loaded lazily with a
@@ -33,14 +35,49 @@ export const encodePdsAccountEvent = async ({
   return encode(payload as Parameters<typeof encode>[0])
 }
 
+// Reads the actor and its account as they stand inside `db` (the caller's
+// transaction), for the effective status.
+const getStatusActor = async (db: Db, actorId: string) => {
+  const row = await db
+    .selectFrom('actors')
+    .leftJoin('accounts', 'accounts.id', 'actors.accountId')
+    .select([
+      'actors.suspendedAt',
+      'actors.deletionStatus',
+      'actors.accountId',
+      'accounts.approvedAt',
+      'accounts.disabledAt',
+      'accounts.verificationCode',
+      'accounts.emailVerified'
+    ])
+    .where('actors.id', '=', actorId)
+    .executeTakeFirst()
+  if (!row) return null
+  return {
+    suspendedAt: row.suspendedAt,
+    deletionStatus: row.deletionStatus,
+    account: row.accountId
+      ? {
+          approvedAt: row.approvedAt,
+          disabledAt: row.disabledAt,
+          verificationCode: row.verificationCode,
+          emailVerified: row.emailVerified
+        }
+      : null
+  }
+}
+
 /**
  * Appends an `#account` event for the actor's hosted repo, if it has one that
  * is not already deleted. Returns the appended event, or null when there is
  * nothing to append to.
  *
- * `requireActiveRepo` skips a repo whose stored status is not `active`; the
- * moderation layer uses it when reactivating so a deactivated or taken-down
- * repo is not announced as active.
+ * `requireEffectiveActive` skips a repo whose effective status is not
+ * `active` (`resolveEffectivePdsRepoStatus`: stored status `active`, and the
+ * actor and account not suspended, disabled, deleting, unapproved or
+ * unconfirmed); the moderation layer uses it when lifting a block, so a repo
+ * still held by another block or turned off by its owner is not announced as
+ * active.
  */
 export const appendPdsAccountStatusEvent = async (
   db: Db,
@@ -48,17 +85,23 @@ export const appendPdsAccountStatusEvent = async (
     actorId,
     active,
     status,
-    requireActiveRepo = false
+    requireEffectiveActive = false
   }: {
     actorId: string
     active: boolean
     status?: PdsAccountEventStatus
-    requireActiveRepo?: boolean
+    requireEffectiveActive?: boolean
   }
 ): Promise<PdsEvent | null> => {
   const repo = await getPdsRepo(db, { actorId })
   if (!repo || repo.status === 'deleted') return null
-  if (requireActiveRepo && repo.status !== 'active') return null
+  if (
+    requireEffectiveActive &&
+    resolveEffectivePdsRepoStatus(repo, await getStatusActor(db, actorId)) !==
+      'active'
+  ) {
+    return null
+  }
   const payload = await encodePdsAccountEvent({
     did: repo.did,
     active,

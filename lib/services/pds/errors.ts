@@ -174,6 +174,17 @@ export class PdsHostedAccountNotFoundError extends PdsError {
   }
 }
 
+/** The hosted repo is turned off; its handle changes once it is back on. */
+export class PdsHostedAccountInactiveError extends PdsError {
+  constructor() {
+    super(
+      'Turn the Bluesky account on before changing its handle.',
+      'HostedAccountInactive',
+      409
+    )
+  }
+}
+
 /** A handle is not one of the choices a new account may take. */
 export class PdsHandleNotAllowedError extends PdsError {
   constructor(message: string) {
@@ -218,17 +229,6 @@ export class PdsConfirmHandleMismatchError extends PdsError {
 export class PdsHostedRateLimitedError extends PdsError {
   constructor() {
     super('Too many tries. Try again later.', 'RateLimited', 429)
-  }
-}
-
-/** The directory's last operation for the DID does not verify. */
-export class PdsPlcOperationInvalidError extends PdsError {
-  constructor() {
-    super(
-      'The PLC directory returned an operation for this account that does not verify. Try again later.',
-      'PlcOperationInvalid',
-      422
-    )
   }
 }
 

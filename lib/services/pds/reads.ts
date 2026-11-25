@@ -22,10 +22,10 @@ import {
 import { getPdsConfig } from '@/lib/config/blueskyPds'
 import type { PdsRepo, PdsRepoStatus } from '@/lib/database/domains/pds/types'
 import type { Database } from '@/lib/database/types'
-import { isAccountConfirmationPending } from '@/lib/services/guards/accountState'
 import type { Actor } from '@/lib/types/domain/actor'
 import { normalizeServedDomainChoice } from '@/lib/utils/host'
 
+import { resolveEffectivePdsRepoStatus } from './effectiveStatus'
 import {
   PdsBlocksNotFoundError,
   PdsDisabledError,
@@ -47,33 +47,6 @@ const clampPositiveInt = (
 ): number => {
   if (value === undefined || !Number.isFinite(value)) return fallback
   return Math.max(1, Math.floor(value))
-}
-
-export const resolveEffectivePdsRepoStatus = (
-  repo: Pick<PdsRepo, 'status'>,
-  actor: Pick<Actor, 'suspendedAt' | 'deletionStatus' | 'account'> | null
-): PdsRepoStatus => {
-  if (repo.status === 'deleted') {
-    return 'deleted'
-  }
-  if (
-    repo.status === 'takendown' ||
-    actor?.suspendedAt != null ||
-    actor?.account?.disabledAt != null
-  ) {
-    return 'takendown'
-  }
-  if (
-    repo.status === 'deactivated' ||
-    !actor ||
-    !actor.account ||
-    Boolean(actor.deletionStatus) ||
-    actor.account.approvedAt == null ||
-    isAccountConfirmationPending(actor.account)
-  ) {
-    return 'deactivated'
-  }
-  return 'active'
 }
 
 export const assertPdsDomainEnabled = (domain: string): string => {
@@ -134,9 +107,10 @@ const getAvailableRepo = async (
   (await getAvailableRepoWithActor(database, did, options)).repo
 
 /**
- * Resolves a DID or current `<username>.<domain>` handle to a PDS repo DID on
- * `domain`. Retired handles in `actor_handles` are never resolved: the actor's
- * current `username` and `domain` must match the requested handle.
+ * Resolves a DID or handle to a PDS repo DID on `domain`. A repo's stored
+ * handle (a hosted account's) wins; a repo without one answers to its actor's
+ * current `<username>.<domain>`. Retired handles in `actor_handles` are never
+ * resolved: the actor's current `username` and `domain` must match.
  */
 export const resolvePdsRepoDidForDomain = async (
   database: Database,
@@ -152,6 +126,10 @@ export const resolvePdsRepoDidForDomain = async (
 
   const normalized = normalizeHandle(repoIdentifier)
   const normalizedDomain = domain.toLowerCase()
+  const stored = await database.getPdsRepoByHandle({ handle: normalized })
+  if (stored && stored.domain === normalizedDomain) {
+    return stored.did
+  }
   const suffix = `.${normalizedDomain}`
   if (!normalized.endsWith(suffix)) {
     throw new PdsRepoNotFoundError(repoIdentifier)
@@ -175,7 +153,8 @@ export const resolvePdsRepoDidForDomain = async (
   }
 
   const repo = await database.getPdsRepo({ actorId: actor.id })
-  if (!repo || repo.domain !== normalizedDomain) {
+  // A repo with a stored handle answers to that handle only.
+  if (!repo || repo.domain !== normalizedDomain || repo.handle) {
     throw new PdsRepoNotFoundError(repoIdentifier)
   }
 
@@ -702,7 +681,9 @@ export const describePdsRepo = async (
   const collections = await database.listPdsCollections({ did })
 
   const candidateHandle =
-    handle ?? (actor ? `${actor.username}.${repo.domain}` : undefined)
+    handle ??
+    repo.handle ??
+    (actor ? `${actor.username}.${repo.domain}` : undefined)
   const lowercasedHandle = candidateHandle?.toLowerCase()
   const validHandle =
     lowercasedHandle && isValidHandle(lowercasedHandle)

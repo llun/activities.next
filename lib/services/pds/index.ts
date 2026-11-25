@@ -138,9 +138,9 @@ export {
   listPdsBlobCids,
   listPdsRecordValues,
   listPdsRepos,
-  resolveEffectivePdsRepoStatus,
   resolvePdsRepoDidForDomain
 } from './reads'
+export { resolveEffectivePdsRepoStatus } from './effectiveStatus'
 export {
   type ApplyPdsWriteResultItem,
   type ApplyPdsWritesInput,
