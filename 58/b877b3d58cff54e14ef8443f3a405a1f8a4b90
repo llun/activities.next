@@ -1,0 +1,75 @@
+.env.example
+  s_f193227df3df34::t_21dd5c7982ac78 274-279
+app/(timeline)/settings/networks/BlueskyAccountForm.tsx
+  s_f193227df3df34::t_2fd46474094bcf 228-230,236-243,252-256,258-269,325-389,391-392
+lib/database/domains/blueskyAccount/queries.ts
+  s_f193227df3df34::t_07dc1b15d821c0 272,280-286
+app/(timeline)/settings/networks/BlueskyAccountForm.test.tsx
+  s_f193227df3df34::t_42bbb8136a3bb9 290-342
+docs/architecture.md
+  s_f193227df3df34::t_5bf535e70a59e1 453-456,458-461,1499
+  s_f193227df3df34::t_150677617597f3 1764
+lib/database/domains/blueskyAccount/blueskyAccount.test.ts
+  s_f193227df3df34::t_a9b0c380cf412d 237-250,281
+lib/services/pds/host.ts
+  s_f193227df3df34::t_814c5c69f5d43c 247-255
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_5bf535e70a59e1 1416-1417
+lib/services/bluesky/agent.ts
+  s_f193227df3df34::t_0b670ea7adbce5 292-307,315-318
+lib/services/pds/hostedAgent.test.ts
+  s_f193227df3df34::t_e21cee693bdc38 1-126,131-198,204-260,264-338,341-342,346-353,357-425,429-482,486-487,493-547
+  s_f193227df3df34::t_3b6e89b2f6e397 339-340
+  s_f193227df3df34::t_f343b36bd26521 127-130,199-203,261-263,343-345,354-356,426-428,483-485,488-492
+lib/database/domains/blueskyAccount/types.ts
+  s_f193227df3df34::t_07dc1b15d821c0 5-7,102-104
+  s_f193227df3df34::t_814c5c69f5d43c 40-43
+lib/services/bluesky/account.ts
+  s_f193227df3df34::t_66eeddd14cc886 261,264,584
+  s_f193227df3df34::t_7eac24a2db166b 169-175,179,228,246-247,249-260,262-263,265-269,544-551,581-583,585
+  s_f193227df3df34::t_462033bcadc6d0 638
+lib/services/pds/accounts.test.ts
+  s_f193227df3df34::t_e8642ab1bdb80f 1678-1819
+  s_f193227df3df34::t_e531e7eb4ccf50 8-9,11-14,123-127
+  s_f193227df3df34::t_9164085afcf0ae 1820
+app/(timeline)/settings/networks/page.tsx
+  s_f193227df3df34::t_9a1187a720be42 32-35,37,72-75
+lib/services/pds/hostedAgent.ts
+  s_f193227df3df34::t_f343b36bd26521 34-38,191-196
+  s_f193227df3df34::t_814c5c69f5d43c 30
+  s_f193227df3df34::t_9261f4c9d29816 1-29,31-33,39-190,197-426
+lib/services/pds/accounts.ts
+  s_f193227df3df34::t_c580f61c907907 701-703
+  s_f193227df3df34::t_814c5c69f5d43c 50,280-319,323-324,335,421-424,700,704-707
+lib/services/pds/serviceAuth.ts
+  s_f193227df3df34::t_c621c67179af05 1-47
+lib/config/blueskyPds.ts
+  s_f193227df3df34::t_988672f519d999 317,357,372-421
+app/api/v1/bluesky/account/route.test.ts
+  s_f193227df3df34::t_bbf2e4ab81c9d1 124
+  s_f193227df3df34::t_e531e7eb4ccf50 9,12-15,97-123
+lib/services/pds/serviceAuth.test.ts
+  s_f193227df3df34::t_85f4a7fb124a8b 1-71
+lib/utils/blueskyAccount.ts
+  s_f193227df3df34::t_07dc1b15d821c0 10-11,14
+docs/environment-variables.md
+  s_f193227df3df34::t_462033bcadc6d0 524-525
+lib/config/blueskyPds.test.ts
+  s_f193227df3df34::t_c8414419bcc960 449-490
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "58b877b3d58cff54e14ef8443f3a405a1f8a4b90",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
