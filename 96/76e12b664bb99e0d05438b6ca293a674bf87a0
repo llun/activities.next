@@ -1,0 +1,19 @@
+app/(timeline)/settings/networks/HostedBlueskyForm.tsx
+  s_f193227df3df34::t_0351f12826c25e 860-861
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9676e12b664bb99e0d05438b6ca293a674bf87a0",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
