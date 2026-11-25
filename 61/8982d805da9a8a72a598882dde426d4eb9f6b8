@@ -1,0 +1,29 @@
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_3b0f2493e00a4a 219,223-224
+lib/database/domains/pds/types.ts
+  s_f193227df3df34::t_3b0f2493e00a4a 77-78
+lib/services/pds/accounts.ts
+  s_f193227df3df34::t_3b0f2493e00a4a 210-212,218,380,500,632-634,645-649
+lib/services/pds/retention.ts
+  s_f193227df3df34::t_bae85a67d27ec7 3,28-33,46-49
+lib/services/pds/accounts.test.ts
+  s_f193227df3df34::t_60f228fe790fb5 21,23,33-44,95-99,1198-1212,1215-1219,1223-1227,1229-1236,1327-1449
+lib/database/domains/pds/pds.test.ts
+  s_f193227df3df34::t_3a2c3d5224ecce 1836-1840
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "618982d805da9a8a72a598882dde426d4eb9f6b8",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
