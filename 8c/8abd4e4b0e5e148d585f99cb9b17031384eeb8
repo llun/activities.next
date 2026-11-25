@@ -1,0 +1,29 @@
+lib/services/pds/host.ts
+  s_f193227df3df34::t_c747ebc2937f24 102-105,115-121
+lib/services/pds/host.test.ts
+  s_f193227df3df34::t_50cd15916c02b5 453-466
+lib/services/pds/server/upgrade.test.ts
+  s_f193227df3df34::t_7bfb232df16daf 29-30,748-780
+  s_f193227df3df34::t_8f82e7cfde7e2d 781-783
+lib/services/pds/server/index.ts
+  s_f193227df3df34::t_50cd15916c02b5 137-139
+  s_f193227df3df34::t_7bfb232df16daf 21-24
+lib/services/pds/server/upgrade.ts
+  s_f193227df3df34::t_50cd15916c02b5 525-539
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c8abd4e4b0e5e148d585f99cb9b17031384eeb8",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
