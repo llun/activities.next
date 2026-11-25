@@ -1,0 +1,45 @@
+lib/database/connection.ts
+  s_f193227df3df34::t_93946d7afecf15 492-493,496-501
+lib/database/domains/pds/pds.test.ts
+  s_f193227df3df34::t_b8913f63c03e22 3-6,1045,1049-1051,1116,1129-1135,1168-1174,1178-1180,1184,1198-1200,1299-1405
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_8b9fd14d2f78d4 38,46-49,546,566-568,600,605-606
+lib/database/domains/pds/types.ts
+  s_f193227df3df34::t_e9dfcbc5f8c9ab 265
+lib/database/kysely/dialect.ts
+  s_f193227df3df34::t_8f42b5e8f42704 34-43
+lib/services/pds/constants.ts
+  s_f193227df3df34::t_f2118451fd89d7 41-47
+lib/services/pds/firehose/source.test.ts
+  s_f193227df3df34::t_5539f8b8d56204 3,8,16-24,96-113,127-128,131,134,138,169,181,193,197,218-300,335-360
+lib/services/pds/firehose/source.ts
+  s_f193227df3df34::t_55985857a228c5 13,129,132,135,137-145,155-162,187-189,192-196,198-201,204-210,217,220,237,243,247-249,253-256,259-262,267-269,271,275-277,297,299-305,346-349
+lib/services/pds/firehose/subscriber.test.ts
+  s_f193227df3df34::t_d128cc6c2ba42f 195,376-534
+lib/services/pds/firehose/subscriber.ts
+  s_f193227df3df34::t_09bafb55bbe549 148
+lib/services/pds/index.ts
+  s_f193227df3df34::t_adb28b381bd8bf 29,79
+lib/services/pds/server/index.ts
+  s_f193227df3df34::t_fcfddf3d163b1f 20,137,170,173-175
+lib/services/pds/server/upgrade.test.ts
+  s_f193227df3df34::t_51455c855383b2 3,6,417-420,432-436,451-529
+lib/services/pds/server/upgrade.ts
+  s_f193227df3df34::t_3b905d3e2a53be 29-30,40,107,140,149-154,326-329,336-379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76b1dfd0691fb419a16c0ef7993dfb7844c97ad9",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
