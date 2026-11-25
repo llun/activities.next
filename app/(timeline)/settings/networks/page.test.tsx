@@ -66,6 +66,7 @@ describe('/settings/networks', () => {
     })
     vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
       available: false,
+      pdsEnabled: false,
       pdsHostname: null,
       rotationKeyConfigured: true,
       repo: null,
@@ -111,6 +112,7 @@ describe('/settings/networks', () => {
   it('shows the hosted account card when the domain can host one', async () => {
     vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
       available: true,
+      pdsEnabled: true,
       pdsHostname: 'pds.example.com',
       rotationKeyConfigured: true,
       repo: null,
@@ -136,6 +138,7 @@ describe('/settings/networks', () => {
   it('shows the hosted account card for an existing account the server no longer offers', async () => {
     vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
       available: false,
+      pdsEnabled: true,
       pdsHostname: 'pds.example.com',
       rotationKeyConfigured: true,
       repo: {

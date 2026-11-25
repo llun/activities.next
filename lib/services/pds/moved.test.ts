@@ -3,7 +3,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import {
   getMovedToHost,
   getPlcOperationPdsEndpoint,
-  isPlcOperationPointingTo
+  isPlcOperationPointingAway
 } from './moved'
 
 const PDS_HOSTNAME = `pds.${TEST_DOMAIN}`
@@ -95,52 +95,57 @@ describe('moved', () => {
       ).toBeNull()
     })
 
-    it('returns null without a stored operation or a configured domain', () => {
+    it('returns null without a stored operation', () => {
       expect(
         getMovedToHost({ domain: TEST_DOMAIN, plcOperation: null })
       ).toBeNull()
+    })
+
+    it('treats an https endpoint as moved when the domain has no PDS config', () => {
+      delete process.env.ACTIVITIES_BLUESKY_PDS
       expect(
         getMovedToHost({
           domain: 'unconfigured.example',
           plcOperation: operation('https://bsky.social')
         })
-      ).toBeNull()
+      ).toBe('bsky.social')
     })
   })
 
-  describe('isPlcOperationPointingTo', () => {
-    it('is true when the endpoint origin matches', () => {
+  describe('isPlcOperationPointingAway', () => {
+    it('is true when the endpoint is another origin', () => {
       expect(
-        isPlcOperationPointingTo(
+        isPlcOperationPointingAway(
           operation('https://bsky.social'),
-          'https://bsky.social'
+          TEST_DOMAIN
         )
       ).toBe(true)
     })
 
-    it('compares origins, ignoring a trailing path on the target', () => {
+    it('is false while the endpoint is this server', () => {
       expect(
-        isPlcOperationPointingTo(
-          operation('https://bsky.social'),
-          'https://bsky.social/'
+        isPlcOperationPointingAway(
+          operation(`https://${PDS_HOSTNAME}`),
+          TEST_DOMAIN
         )
-      ).toBe(true)
+      ).toBe(false)
     })
 
-    it('is false for a different origin, a non-https endpoint, or no operation', () => {
+    it('is false for a non-https endpoint or no operation', () => {
       expect(
-        isPlcOperationPointingTo(
-          operation('https://other.example'),
-          'https://bsky.social'
-        )
+        isPlcOperationPointingAway(operation('http://bsky.social'), TEST_DOMAIN)
       ).toBe(false)
+      expect(isPlcOperationPointingAway(null, TEST_DOMAIN)).toBe(false)
+    })
+
+    it('is true for an https endpoint when the domain has no PDS config', () => {
+      delete process.env.ACTIVITIES_BLUESKY_PDS
       expect(
-        isPlcOperationPointingTo(
-          operation('http://bsky.social'),
-          'https://bsky.social'
+        isPlcOperationPointingAway(
+          operation('https://bsky.social'),
+          'unconfigured.example'
         )
-      ).toBe(false)
-      expect(isPlcOperationPointingTo(null, 'https://bsky.social')).toBe(false)
+      ).toBe(true)
     })
   })
 })

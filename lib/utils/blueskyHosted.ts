@@ -28,6 +28,9 @@ export interface HostedBlueskyAccountState {
   // Whether the Settings card should show at all: the domain's PDS is on, the
   // actor is allowed, and the account is confirmed, approved and not blocked.
   available: boolean
+  // Whether the actor's domain has its PDS switched on, independent of the
+  // allowlist: a move out needs it, so the card offers one only while it holds.
+  pdsEnabled: boolean
   // The PDS hostname (with port) the account lives on, or null when the
   // actor's domain has no PDS.
   pdsHostname: string | null

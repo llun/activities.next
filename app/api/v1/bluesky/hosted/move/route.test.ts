@@ -78,6 +78,7 @@ vi.mock('@/lib/services/pds/moveOut', () => ({
 
 const state: HostedBlueskyAccountState = {
   available: true,
+  pdsEnabled: true,
   pdsHostname: 'pds.social.example',
   rotationKeyConfigured: true,
   repo: {

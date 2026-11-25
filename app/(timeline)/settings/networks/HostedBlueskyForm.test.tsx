@@ -52,6 +52,7 @@ const state = (
   overrides: Partial<HostedBlueskyAccountState> = {}
 ): HostedBlueskyAccountState => ({
   available: true,
+  pdsEnabled: true,
   pdsHostname: 'pds.example.com',
   rotationKeyConfigured: true,
   repo: null,
@@ -381,6 +382,20 @@ describe('HostedBlueskyForm', () => {
       screen.queryByRole('button', { name: 'Change' })
     ).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Recovery key')).not.toBeInTheDocument()
+  })
+
+  it('does not offer Move when the domain’s PDS is off', () => {
+    show(state({ available: false, pdsEnabled: false, repo: activeRepo }))
+    expectNoteOutsideFrame(
+      'This server no longer offers Bluesky accounts to this profile. You can still turn yours off or delete it.'
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Move to another server' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Turn off' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Delete account' })
+    ).toBeInTheDocument()
   })
 
   it('does not offer Turn on when the server no longer offers accounts', () => {
@@ -838,6 +853,32 @@ describe('HostedBlueskyForm', () => {
     await waitFor(() =>
       expect(finishHostedBlueskyMoveOut).toHaveBeenCalledWith('hunter2')
     )
+  })
+
+  it('offers deleting the copy while a switched move is unfinished', () => {
+    show(
+      state({
+        repo: { ...activeRepo, status: 'deactivated' },
+        movedTo: 'bsky.social',
+        moveOut: moveOut('switched')
+      })
+    )
+    expect(
+      screen.getByText(
+        'Your Bluesky identity already points at bsky.social. If it keeps refusing to finish, you can delete the copy here and finish signing in there.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Finish the move' })
+    ).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete the copy left here' })
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Delete the copy left here?' })
+    ).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).queryByLabelText('Handle')).not.toBeInTheDocument()
   })
 
   it('cancels the move with DELETE', async () => {

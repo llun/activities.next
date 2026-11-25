@@ -659,7 +659,7 @@ describe('PDS firehose subscriber', () => {
     subscriber.stop()
   })
 
-  it('streams identity and account events for inactive repos while excluding other events', async () => {
+  it('excludes non-account events for inactive repos while still streaming their account events', async () => {
     const inactiveDid = 'did:web:suspended.alpha.example'
     await database.createAccount({
       email: `susp@${domainA}`,
@@ -684,10 +684,7 @@ describe('PDS firehose subscriber', () => {
       .execute()
 
     const activeEvt = await appendIdentityEvent(didA, 'active.alpha.example')
-    const inactiveIdentityEvt = await appendIdentityEvent(
-      inactiveDid,
-      'hidden.alpha.example'
-    )
+    await appendIdentityEvent(inactiveDid, 'hidden.alpha.example')
     const accountEvt = await database.appendPdsEvent({
       did: inactiveDid,
       type: 'account',
@@ -713,12 +710,10 @@ describe('PDS firehose subscriber', () => {
     expect(closed).toEqual([])
     expect(frames.map((f) => f.header)).toEqual([
       { op: 1, t: '#identity' },
-      { op: 1, t: '#identity' },
       { op: 1, t: '#account' }
     ])
     expect(frames.map((f) => f.body.seq)).toEqual([
       activeEvt.seq,
-      inactiveIdentityEvt.seq,
       accountEvt.seq
     ])
     subscriber.stop()

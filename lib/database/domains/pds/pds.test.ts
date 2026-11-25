@@ -1446,7 +1446,6 @@ describe('PDS database domain', () => {
       activeSync,
       activeAccount,
       grandfatheredCommit,
-      suspendedIdentity,
       suspendedAccount,
       takendownAccount,
       deactivatedAccount,
@@ -1463,9 +1462,10 @@ describe('PDS database domain', () => {
     })
     expect(unfiltered.map((e) => e.seq)).toEqual(allExpected)
 
-    // With activeReposOnly: inactive commit/sync events are excluded; identity
-    // (a move out emits one as the repo turns deactivated) and account events
-    // always pass.
+    // With activeReposOnly: inactive commit/sync events are excluded; account
+    // events always pass, and identity only for a deactivated repo (a move out
+    // emits one as the repo turns deactivated). A suspended repo's identity is
+    // not replayed.
     const filtered = await database.listPdsEvents({
       afterSeq: 0,
       domain: visDomain,
@@ -1489,7 +1489,7 @@ describe('PDS database domain', () => {
     })
   })
 
-  it('lists a deactivated repo’s identity event with activeReposOnly', async () => {
+  it('lists a deactivated repo’s identity event with activeReposOnly but not a suspended one', async () => {
     const domain = 'moved-out.example'
     const username = 'movedout'
     const did = 'did:web:moved-out.pds.example'
@@ -1521,14 +1521,46 @@ describe('PDS database domain', () => {
       payload: Buffer.from(`${did}:commit`)
     })
 
+    // A suspended repo's identity cannot change while it is off, so its old
+    // `#identity` is not replayed.
+    const suspendedUsername = 'suspendedout'
+    const suspendedDid = 'did:web:suspended-out.pds.example'
+    await database.createAccount({
+      email: `${suspendedUsername}@${domain}`,
+      username: suspendedUsername,
+      passwordHash: TEST_PASSWORD_HASH,
+      domain,
+      privateKey: `priv-${suspendedUsername}`,
+      publicKey: `pub-${suspendedUsername}`
+    })
+    const suspendedActorId = `https://${domain}/users/${suspendedUsername}`
+    await database.createPdsRepo({
+      did: suspendedDid,
+      actorId: suspendedActorId,
+      domain,
+      signingKey: `v1:key-${suspendedUsername}`,
+      signingKeyDid: `did:key:zQ3sh${suspendedUsername}`
+    })
+    await testDb.db
+      .updateTable('actors')
+      .set({ suspendedAt: new Date() })
+      .where('id', '=', suspendedActorId)
+      .execute()
+    const suspendedIdentity = await database.appendPdsEvent({
+      did: suspendedDid,
+      type: 'identity',
+      payload: Buffer.from(`${suspendedDid}:identity`)
+    })
+
     const listed = await database.listPdsEvents({
       afterSeq: 0,
-      did,
+      domain,
       activeReposOnly: true
     })
     const seqs = listed.map((event) => event.seq)
     expect(seqs).toContain(identity.seq)
     expect(seqs).not.toContain(commit.seq)
+    expect(seqs).not.toContain(suspendedIdentity.seq)
   })
 
   it('skips pg_notify and pg_advisory_xact_lock on SQLite when appending PDS events', async () => {

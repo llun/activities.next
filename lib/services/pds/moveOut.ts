@@ -61,7 +61,7 @@ import {
   revokeMoveOutTokens,
   updateMoveOutSession
 } from './moveSession'
-import { getMovedToHost, isPlcOperationPointingTo } from './moved'
+import { getMovedToHost, isPlcOperationPointingAway } from './moved'
 import {
   PLC_DIRECTORY_TIMEOUT_MS,
   type PlcSignedOperation,
@@ -209,6 +209,16 @@ const sanitizeRemoteText = (
   return cleaned.slice(0, maxLength)
 }
 
+// Whether `hostname` is one of this server's configured PDS hostnames.
+const isOwnPdsHostname = (hostname: string): boolean => {
+  const pdsConfig = getPdsConfig()
+  if (!pdsConfig) return false
+  const targetHost = hostname.toLowerCase()
+  return Object.values(pdsConfig).some(
+    (entry) => stripHostPort(entry.hostname).toLowerCase() === targetHost
+  )
+}
+
 const normalizeDestinationPdsUrl = (rawUrl: string): string => {
   const trimmed = rawUrl.trim()
   if (
@@ -237,16 +247,10 @@ const normalizeDestinationPdsUrl = (rawUrl: string): string => {
   }
 
   const pdsConfig = getPdsConfig()
-  if (pdsConfig) {
-    const targetHost = parsed.hostname.toLowerCase()
-    const isOwnPds = Object.values(pdsConfig).some(
-      (entry) => stripHostPort(entry.hostname).toLowerCase() === targetHost
+  if (pdsConfig && isOwnPdsHostname(parsed.hostname)) {
+    throw new PdsMoveOutInvalidServerUrlError(
+      'Choose a different Bluesky server than this one.'
     )
-    if (isOwnPds) {
-      throw new PdsMoveOutInvalidServerUrlError(
-        'Choose a different Bluesky server than this one.'
-      )
-    }
   }
 
   return parsed.origin
@@ -576,7 +580,6 @@ type ValidatedRecommendedCredentials = {
 
 const validateRecommendedDidCredentials = (
   raw: unknown,
-  expectedPdsUrl: string,
   expectedHandle: string
 ): ValidatedRecommendedCredentials => {
   if (!isRecord(raw)) {
@@ -585,7 +588,10 @@ const validateRecommendedDidCredentials = (
     )
   }
 
-  // 1. services.atproto_pds.endpoint must match the stored pdsUrl origin.
+  // 1. services.atproto_pds.endpoint must be an https origin on another
+  // server. An entryway (bsky.social) recommends its own backend host, not the
+  // origin the owner typed, so only this server's own PDS hostnames are
+  // refused; every later request still goes to the typed origin.
   const services = raw.services
   const pdsService = isRecord(services) ? services.atproto_pds : null
   if (
@@ -612,10 +618,10 @@ const validateRecommendedDidCredentials = (
     (endpointUrl.pathname !== '/' && endpointUrl.pathname !== '') ||
     endpointUrl.search !== '' ||
     endpointUrl.hash !== '' ||
-    endpointUrl.origin !== expectedPdsUrl
+    isOwnPdsHostname(endpointUrl.hostname)
   ) {
     throw new PdsMoveOutInvalidCredentialsError(
-      'Destination server credentials point to a different PDS origin than requested.'
+      'Destination server credentials point to an unusable PDS endpoint.'
     )
   }
 
@@ -948,7 +954,7 @@ export const sendMoveOutRepo = async ({
       if (!move) throw new PdsMoveOutNotFoundError()
       if (
         move.switchedAt !== null ||
-        isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
+        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
       ) {
         throw new PdsMoveOutSwitchedError(
           'This account has already switched to the new server.'
@@ -1128,7 +1134,7 @@ export const copyMoveOutBlobs = async ({
       if (!move) throw new PdsMoveOutNotFoundError()
       if (
         move.switchedAt !== null ||
-        isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
+        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
       ) {
         throw new PdsMoveOutSwitchedError(
           'This account has already switched to the new server.'
@@ -1186,7 +1192,7 @@ export const copyMoveOutPreferences = async ({
       if (!move) throw new PdsMoveOutNotFoundError()
       if (
         move.switchedAt !== null ||
-        isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
+        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
       ) {
         throw new PdsMoveOutSwitchedError(
           'This account has already switched to the new server.'
@@ -1256,7 +1262,7 @@ export const getMoveOutProgress = async ({
     handle: move.handle,
     stage:
       move.switchedAt !== null ||
-      isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
+      isPlcOperationPointingAway(repo.plcOperation, repo.domain)
         ? 'switched'
         : 'started',
     importedRev: move.importedRev,
@@ -1303,11 +1309,13 @@ const countMissingBlobs = async (
       params: { limit: 1000 }
     })
     const parsed = parseJsonBody(nsid, response.body)
+    // A body without a `blobs` array is not a count of zero: the copy stopped
+    // before `done`, so at least one file is still missing.
+    if (!isRecord(parsed) || !Array.isArray(parsed.blobs)) {
+      return { count: 1, unknown: true, session: response.session }
+    }
     return {
-      count:
-        isRecord(parsed) && Array.isArray(parsed.blobs)
-          ? parsed.blobs.length
-          : 0,
+      count: parsed.blobs.length,
       unknown: false,
       session: response.session
     }
@@ -1361,13 +1369,15 @@ export const finishMoveOut = async ({
       let move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
       // Captured for the switch closure: `move` is reassigned as tokens and
-      // progress change, but the destination URL and handle do not.
-      const movePdsUrl = move.pdsUrl
+      // progress change, but the destination handle does not.
       const moveHandle = move.handle
 
+      // Without this domain's PDS config "points away" can't tell this server
+      // from the destination, so only a move that recorded its switch may go on.
+      if (move.switchedAt === null) assertPdsDomainEnabled(repo.domain)
       const alreadySwitched =
         move.switchedAt !== null ||
-        isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
+        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
 
       let operation: PlcSignedOperation | null = null
       if (!alreadySwitched) {
@@ -1393,7 +1403,6 @@ export const finishMoveOut = async ({
         move = credsRes.session
         const credentials = validateRecommendedDidCredentials(
           parseJsonBody(credsNsid, credsRes.body),
-          move.pdsUrl,
           move.handle
         )
 
@@ -1423,10 +1432,13 @@ export const finishMoveOut = async ({
           })
           await submitPlcOperation(repo.did, operation)
         } else if (
-          isPlcOperationPointingTo(JSON.stringify(last), move.pdsUrl)
+          isPlcOperationPointingAway(JSON.stringify(last), repo.domain) &&
+          !last.rotationKeys.includes(serverKeyDid)
         ) {
           // A previous finish attempt already landed the PLC update before
-          // persisting it locally; adopt it and finish the local switch.
+          // persisting it locally; adopt it and finish the local switch. It
+          // must also have dropped this server's rotation key, or the switch
+          // did not happen.
           operation = last
         } else {
           throw new PdsIdentityMovedError()
@@ -1434,19 +1446,20 @@ export const finishMoveOut = async ({
       }
 
       // The local switch is idempotent: complete it whenever the row is still
-      // active or its stored operation does not yet point at the destination.
+      // active or its stored operation does not yet point away from here.
       await writeLiveRepo(database, repo.did, async (current) => {
-        const storedPointsToDestination = isPlcOperationPointingTo(
+        const storedPointsAway = isPlcOperationPointingAway(
           current.plcOperation,
-          movePdsUrl
+          repo.domain
         )
-        if (current.status !== 'active' && storedPointsToDestination) {
+        if (current.status !== 'active' && storedPointsAway) {
           return false
         }
         const operationJson = operation
           ? JSON.stringify(operation)
           : current.plcOperation
-        if (!isPlcOperationPointingTo(operationJson, movePdsUrl)) return false
+        if (!isPlcOperationPointingAway(operationJson, repo.domain))
+          return false
         await database.updatePdsRepoIdentity({
           did: repo.did,
           plcOperation: operationJson,
@@ -1577,10 +1590,13 @@ export const finishMoveOut = async ({
           }
         } catch (error) {
           if (!(error instanceof PdsMoveOutRemoteError)) throw error
-          // Unreachable or rate limited is likely transient: fail so a retry
-          // redoes the catch-up, instead of losing it to one blip.
+          // Unreachable (no answer at all) or rate limited is likely
+          // transient: fail so a retry redoes the catch-up, instead of losing
+          // it to one blip. A destination that answered with a real status is
+          // not unreachable, even if its body says so.
           if (
-            error.remoteError === UNREACHABLE_REMOTE_ERROR ||
+            (error.remoteStatus === 0 &&
+              error.remoteError === UNREACHABLE_REMOTE_ERROR) ||
             error.remoteStatus === 429
           ) {
             throw error
@@ -1655,7 +1671,7 @@ export const cancelMoveOut = async ({
       if (!move) throw new PdsMoveOutNotFoundError()
       if (
         move.switchedAt !== null ||
-        isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
+        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
       ) {
         throw new PdsMoveOutSwitchedError()
       }
@@ -1664,7 +1680,7 @@ export const cancelMoveOut = async ({
       // The stored operation can lag the directory: a switch that landed there
       // but not here must still refuse the cancel.
       const last = await getLastPlcOperation(repo.did)
-      if (isPlcOperationPointingTo(JSON.stringify(last), move.pdsUrl)) {
+      if (isPlcOperationPointingAway(JSON.stringify(last), repo.domain)) {
         throw new PdsMoveOutSwitchedError()
       }
 

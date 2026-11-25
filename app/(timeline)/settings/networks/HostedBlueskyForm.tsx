@@ -584,7 +584,9 @@ export const HostedBlueskyForm = ({
       <>
         {limited
           ? info(
-              'This server no longer offers Bluesky accounts to this profile. You can still turn yours off, move it to another server, or delete it.'
+              state.pdsEnabled
+                ? 'This server no longer offers Bluesky accounts to this profile. You can still turn yours off, move it to another server, or delete it.'
+                : 'This server no longer offers Bluesky accounts to this profile. You can still turn yours off or delete it.'
             )
           : null}
         {moved && !moving
@@ -750,7 +752,7 @@ export const HostedBlueskyForm = ({
                           : 'Turn on'}
                     </Button>
                   ) : null}
-                  {active ? (
+                  {active && state.pdsEnabled ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -852,14 +854,30 @@ export const HostedBlueskyForm = ({
                     </p>
                   </FormRow>
                   <FormRow label="Account">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={busy !== null}
-                      onClick={() => setSwitchOpen(true)}
-                    >
-                      Finish the move
-                    </Button>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={busy !== null}
+                          onClick={() => setSwitchOpen(true)}
+                        >
+                          Finish the move
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busy !== null}
+                          onClick={() => setConfirmDelete(true)}
+                        >
+                          Delete the copy left here
+                        </Button>
+                      </div>
+                      <p className="text-muted-foreground text-sm">
+                        {`Your Bluesky identity already points at ${moveHost}. If it keeps refusing to finish, you can delete the copy here and finish signing in there.`}
+                      </p>
+                    </div>
                   </FormRow>
                 </>
               )}

@@ -26,10 +26,29 @@ export const getPlcOperationPdsEndpoint = (
 }
 
 /**
+ * This server's PDS origin for `domain`, or null when the domain has no PDS
+ * config (or its hostname is not a usable URL).
+ */
+const getLocalPdsOrigin = (domain: string): string | null => {
+  const hostname = getPdsConfig()?.[domain]?.hostname
+  if (!hostname) return null
+  try {
+    return new URL(`https://${hostname}`).origin
+  } catch {
+    return null
+  }
+}
+
+/**
  * When a hosted repo's stored PLC operation points `services.atproto_pds.endpoint`
  * at an origin other than this server's configured PDS host for its domain,
  * returns the destination host (e.g. `bsky.social` or `pds.example:8443`).
- * Returns `null` when the account is still hosted here or cannot be compared.
+ * Returns `null` when the account is still hosted here or has no https
+ * endpoint.
+ *
+ * A domain with no PDS config is treated as moved for any https endpoint: the
+ * operator removed the PDS, so the copy here is inert either way. Failing
+ * closed keeps a moved copy deletable and relinkable instead of looking live.
  */
 export const getMovedToHost = (repo: {
   domain: string
@@ -37,30 +56,24 @@ export const getMovedToHost = (repo: {
 }): string | null => {
   const endpoint = getPlcOperationPdsEndpoint(repo.plcOperation)
   if (!endpoint) return null
-  const localHostname = getPdsConfig()?.[repo.domain]?.hostname
-  if (!localHostname) return null
-  let localOrigin: string
-  try {
-    localOrigin = new URL(`https://${localHostname}`).origin
-  } catch {
-    return null
-  }
+  const localOrigin = getLocalPdsOrigin(repo.domain)
+  if (!localOrigin) return endpoint.host
   return endpoint.origin !== localOrigin ? endpoint.host : null
 }
 
 /**
- * Whether a stored PLC operation's `services.atproto_pds.endpoint` already
- * points at `pdsUrl` (an https origin).
+ * Whether a stored PLC operation's `services.atproto_pds.endpoint` points away
+ * from this server for `domain`: an https endpoint that is not this server's
+ * PDS origin. A domain with no PDS config counts as away for any https
+ * endpoint, the same fail-closed rule as `getMovedToHost`.
  */
-export const isPlcOperationPointingTo = (
+export const isPlcOperationPointingAway = (
   plcOperation: string | null,
-  pdsUrl: string
+  domain: string
 ): boolean => {
   const endpoint = getPlcOperationPdsEndpoint(plcOperation)
   if (!endpoint) return false
-  try {
-    return endpoint.origin === new URL(pdsUrl).origin
-  } catch {
-    return false
-  }
+  const localOrigin = getLocalPdsOrigin(domain)
+  if (!localOrigin) return true
+  return endpoint.origin !== localOrigin
 }

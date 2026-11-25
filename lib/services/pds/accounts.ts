@@ -62,7 +62,7 @@ import {
   readMoveOutSession,
   revokeMoveOutTokens
 } from './moveSession'
-import { getMovedToHost, isPlcOperationPointingTo } from './moved'
+import { getMovedToHost, isPlcOperationPointingAway } from './moved'
 import {
   PLC_DIRECTORY_TIMEOUT_MS,
   type PlcOperationChanges,
@@ -229,7 +229,7 @@ const assertNoUnswitchedMove = async (
   if (
     move &&
     move.switchedAt === null &&
-    !isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
+    !isPlcOperationPointingAway(repo.plcOperation, repo.domain)
   ) {
     throw new PdsMoveOutPendingError()
   }
@@ -426,7 +426,7 @@ export const getHostedBlueskyAccountState = async ({
         handle: stored.handle,
         stage:
           stored.switchedAt !== null ||
-          isPlcOperationPointingTo(liveRepo.plcOperation, stored.pdsUrl)
+          isPlcOperationPointingAway(liveRepo.plcOperation, liveRepo.domain)
             ? 'switched'
             : 'started'
       }
@@ -436,6 +436,7 @@ export const getHostedBlueskyAccountState = async ({
   if (!context) {
     return {
       available: false,
+      pdsEnabled: false,
       pdsHostname: null,
       rotationKeyConfigured,
       repo: summarizeRepo(repo, actor),
@@ -448,6 +449,7 @@ export const getHostedBlueskyAccountState = async ({
 
   return {
     available: context.available,
+    pdsEnabled: context.pdsEnabled,
     pdsHostname: context.entry.hostname,
     rotationKeyConfigured,
     repo: summarizeRepo(repo, actor),

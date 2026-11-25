@@ -737,8 +737,13 @@ export const listPdsEvents = async (
           eb.or([
             eb('pds_events.type', '=', 'account'),
             // A move out turns the repo deactivated and emits `#identity` as it
-            // goes, so identity events must stream for a non-active repo too.
-            eb('pds_events.type', '=', 'identity'),
+            // goes, so identity events must stream for a deactivated repo. A
+            // suspended, disabled or pending repo's identity cannot change
+            // while it is off, so its old `#identity` is not replayed.
+            eb.and([
+              eb('pds_events.type', '=', 'identity'),
+              eb('pds_repos.status', '=', 'deactivated')
+            ]),
             eb.and([
               eb('pds_repos.status', '=', 'active'),
               eb('actors.id', 'is not', null),

@@ -79,6 +79,7 @@ vi.mock('@/lib/services/pds/accounts', () => ({
 
 const state: HostedBlueskyAccountState = {
   available: true,
+  pdsEnabled: true,
   pdsHostname: 'pds.social.example',
   rotationKeyConfigured: true,
   repo: null,
