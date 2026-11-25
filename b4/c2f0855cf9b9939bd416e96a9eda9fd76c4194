@@ -1,0 +1,101 @@
+lib/services/pds/firehose/frames.ts
+  h_580a04e334fef4 1-82
+lib/services/pds/index.ts
+  h_580a04e334fef4 29,59-109
+lib/services/pds/firehose/source.ts
+  h_580a04e334fef4 1-312
+lib/database/kysely/dialect.ts
+  h_580a04e334fef4 22-33
+lib/database/connection.ts
+  h_580a04e334fef4 17,486-497
+docs/environment-variables.md
+  h_580a04e334fef4 518-521
+lib/services/pds/constants.ts
+  h_580a04e334fef4 38-40
+lib/database/getSQLDatabase.ts
+  h_580a04e334fef4 3-4,79,82-96,109-110,117,129-141,234-240
+lib/config/blueskyPds.ts
+  h_580a04e334fef4 7-8,13-14,23-24,31-49,122-142,157-158
+lib/services/pds/server/upgrade.ts
+  s_d101950c9cfdb3::t_145cc50808a466 1-341
+lib/database/domains/pds/pds.test.ts
+  h_580a04e334fef4 3,1041-1284
+lib/services/pds/requestCrawl.ts
+  h_580a04e334fef4 1-235
+lib/services/pds/firehose/subscriber.ts
+  h_580a04e334fef4 1-217
+.env.example
+  h_580a04e334fef4 262-263
+lib/config/blueskyPds.test.ts
+  h_580a04e334fef4 83-84,92-93,206-207,285-352
+lib/services/pds/server/index.ts
+  s_f193227df3df34::t_32ce91aa004a0d 1-82,84-109,111-113,209-210
+  s_f193227df3df34::t_bc40612417592a 83,110,114-208
+lib/database/index.ts
+  h_580a04e334fef4 38-40
+lib/services/pds/firehose/limits.test.ts
+  h_580a04e334fef4 1-66
+lib/database/domains/pds/types.ts
+  h_580a04e334fef4 123-132,269-271
+lib/services/pds/requestCrawl.test.ts
+  h_580a04e334fef4 1-212
+lib/services/pds/firehose/frames.test.ts
+  h_580a04e334fef4 1-180
+lib/services/pds/firehose/source.test.ts
+  h_580a04e334fef4 1-228
+lib/services/pds/firehose/limits.ts
+  h_580a04e334fef4 1-64
+lib/database/testing/createTestDatabase.ts
+  h_580a04e334fef4 194-196
+lib/database/domains/pds/queries.ts
+  h_580a04e334fef4 9,21,30,38-43,46,542-567,572,577-583,585,587-590,594-623,1109
+lib/services/pds/host.test.ts
+  h_580a04e334fef4 122-123
+lib/services/pds/firehose/subscriber.test.ts
+  h_580a04e334fef4 1-376
+docs/mastodon-api-compatibility.md
+  s_d101950c9cfdb3::t_962097553c4227 1411-1412
+docs/setup.md
+  s_d101950c9cfdb3::t_0af1133ff49e17 318-329
+lib/services/pds/server/upgrade.test.ts
+  s_d101950c9cfdb3::t_c836b1ee9d0c2b 1-442
+package.json
+  s_d101950c9cfdb3::t_68383778851589 11,127,151,156
+scripts/build/bundlePdsServer.mjs
+  s_d101950c9cfdb3::t_5c65d37dca1c96 1-86
+scripts/maintenance/verifyDockerImages.test.ts
+  s_d101950c9cfdb3::t_d7589ee8f52bc8 3,97-113
+scripts/maintenance/verifyDockerImages.ts
+  s_d101950c9cfdb3::t_598ccb0172d426 4-6,73,77,114-395,518,523-532,536-539,724-769,793,825
+yarn.lock
+  s_d101950c9cfdb3::t_bd71d2e5907a2c 3776-3784,4073,4088,4131,4945,8268-8282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b4c2f0855cf9b9939bd416e96a9eda9fd76c4194",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  },
+  "sessions": {
+    "s_d101950c9cfdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a79d0ddb61f98afbb",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
