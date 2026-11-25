@@ -1,0 +1,29 @@
+lib/services/queue/base.ts
+  s_f193227df3df34::t_67cc241a383a80 14,16
+scripts/maintenance/runQueueWorker.test.ts
+  s_f193227df3df34::t_42815ea01c8cff 29-33,54-59
+lib/services/queue/databaseRunner.ts
+  s_f193227df3df34::t_67cc241a383a80 8,72
+lib/services/queue/staticJobHandle.ts
+  s_f193227df3df34::t_67cc241a383a80 1-11
+scripts/maintenance/runQueueWorker.ts
+  s_f193227df3df34::t_67cc241a383a80 8,38-39
+lib/jobs/index.test.ts
+  s_f193227df3df34::t_42815ea01c8cff 93-96,104-133,140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "adbad06f27f829cb431a81d6230e7c03164a6fa5",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
