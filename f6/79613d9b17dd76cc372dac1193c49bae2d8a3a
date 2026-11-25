@@ -1,0 +1,62 @@
+.env.example
+  h_580a04e334fef4 262-263
+docs/environment-variables.md
+  h_580a04e334fef4 518-521
+lib/config/blueskyPds.test.ts
+  h_580a04e334fef4 83-84,92-93,206-207,285-352
+lib/config/blueskyPds.ts
+  h_580a04e334fef4 7-8,13-14,23-24,31-49,122-142,157-158
+lib/database/connection.ts
+  h_580a04e334fef4 17,486-497
+lib/database/domains/pds/pds.test.ts
+  h_580a04e334fef4 3,1041-1284
+lib/database/domains/pds/queries.ts
+  h_580a04e334fef4 9,21,30,38-43,46,542-567,572,577-583,585,587-590,594-623,1109
+lib/database/domains/pds/types.ts
+  h_580a04e334fef4 123-132,269-271
+lib/database/getSQLDatabase.ts
+  h_580a04e334fef4 3-4,79,82-96,109-110,117,129-141,234-240
+lib/database/index.ts
+  h_580a04e334fef4 38-40
+lib/database/kysely/dialect.ts
+  h_580a04e334fef4 22-33
+lib/database/testing/createTestDatabase.ts
+  h_580a04e334fef4 194-196
+lib/services/pds/constants.ts
+  h_580a04e334fef4 38-40
+lib/services/pds/firehose/frames.test.ts
+  h_580a04e334fef4 1-180
+lib/services/pds/firehose/frames.ts
+  h_580a04e334fef4 1-82
+lib/services/pds/firehose/limits.test.ts
+  h_580a04e334fef4 1-66
+lib/services/pds/firehose/limits.ts
+  h_580a04e334fef4 1-64
+lib/services/pds/firehose/source.test.ts
+  h_580a04e334fef4 1-228
+lib/services/pds/firehose/source.ts
+  h_580a04e334fef4 1-312
+lib/services/pds/firehose/subscriber.test.ts
+  h_580a04e334fef4 1-376
+lib/services/pds/firehose/subscriber.ts
+  h_580a04e334fef4 1-217
+lib/services/pds/host.test.ts
+  h_580a04e334fef4 122-123
+lib/services/pds/index.ts
+  h_580a04e334fef4 29,59-109
+lib/services/pds/requestCrawl.test.ts
+  h_580a04e334fef4 1-212
+lib/services/pds/requestCrawl.ts
+  h_580a04e334fef4 1-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f679613d9b17dd76cc372dac1193c49bae2d8a3a",
+  "prompts": {},
+  "humans": {
+    "h_580a04e334fef4": {
+      "author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
