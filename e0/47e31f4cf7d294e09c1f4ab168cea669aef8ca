@@ -1,0 +1,27 @@
+lib/services/pds/moveOut.test.ts
+  s_f193227df3df34::t_dd7f756ca404f0 112,1479-1530
+  s_f193227df3df34::t_f487fd9a637739 133-137,411,514,617,755,986,1174,1237,1306,1466,1588,1643,1881,1957,2012,2093,2189,2272,2528,2640,2708,2813,2910
+  s_f193227df3df34::t_9b83d7f098b01e 111
+  s_f193227df3df34::t_ac154b00592ae6 1577-1585
+  s_f193227df3df34::t_c034978d52071c 1531,2320-2426
+  s_f193227df3df34::t_ebdd92245e4390 1532
+lib/services/pds/moveOut.ts
+  s_f193227df3df34::t_0d290b84cb31d9 10,1476-1483,1486,1488-1528,1530
+  s_f193227df3df34::t_bf978a3f83a05c 1529
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e047e31f4cf7d294e09c1f4ab168cea669aef8ca",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
