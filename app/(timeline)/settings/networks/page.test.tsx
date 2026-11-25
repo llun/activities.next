@@ -66,11 +66,14 @@ describe('/settings/networks', () => {
     })
     vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
       available: false,
+      pdsEnabled: false,
       pdsHostname: null,
       rotationKeyConfigured: true,
       repo: null,
       handleChoices: [],
-      customHandleAllowed: false
+      customHandleAllowed: false,
+      movedTo: null,
+      moveOut: null
     })
   })
 
@@ -109,11 +112,14 @@ describe('/settings/networks', () => {
   it('shows the hosted account card when the domain can host one', async () => {
     vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
       available: true,
+      pdsEnabled: true,
       pdsHostname: 'pds.example.com',
       rotationKeyConfigured: true,
       repo: null,
       handleChoices: [{ handle: 'alice.pds.example.com', kind: 'pds' }],
-      customHandleAllowed: false
+      customHandleAllowed: false,
+      movedTo: null,
+      moveOut: null
     })
     render(await Page())
     expect(
@@ -132,6 +138,7 @@ describe('/settings/networks', () => {
   it('shows the hosted account card for an existing account the server no longer offers', async () => {
     vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
       available: false,
+      pdsEnabled: true,
       pdsHostname: 'pds.example.com',
       rotationKeyConfigured: true,
       repo: {
@@ -141,7 +148,9 @@ describe('/settings/networks', () => {
         recoveryKeyDid: null
       },
       handleChoices: [],
-      customHandleAllowed: true
+      customHandleAllowed: true,
+      movedTo: null,
+      moveOut: null
     })
     render(await Page())
     expect(

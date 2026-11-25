@@ -31,12 +31,19 @@ export {
   PDS_EVENT_RETENTION_MS
 } from './constants'
 export {
+  PdsAccountMovedError,
   PdsBlobTooLargeError,
   PdsBlocksNotFoundError,
   PdsDisabledError,
   PdsError,
   PdsInvalidSwapError,
   PdsLockTimeoutError,
+  PdsMoveOutInProgressError,
+  PdsMoveOutInvalidCredentialsError,
+  PdsMoveOutInvalidServerUrlError,
+  PdsMoveOutNotFoundError,
+  PdsMoveOutRemoteError,
+  PdsMoveOutSwitchedError,
   PdsNotAllowedError,
   PdsRecordConflictError,
   PdsRecordNotFoundError,

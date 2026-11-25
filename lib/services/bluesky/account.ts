@@ -10,6 +10,7 @@ import { getConfig } from '@/lib/config'
 import { APP_RATE_LIMIT_KEY_PREFIX } from '@/lib/database/domains/rateLimit/types'
 import type { Database } from '@/lib/database/types'
 import { SYNC_BLUESKY_HOME_JOB_NAME } from '@/lib/jobs/names'
+import { getMovedToHost } from '@/lib/services/pds/moved'
 import { getQueue } from '@/lib/services/queue'
 import type { Actor } from '@/lib/types/domain/actor'
 import {
@@ -18,6 +19,7 @@ import {
   type BlueskyHandleCheck,
   getBlueskyDnsRecord
 } from '@/lib/utils/blueskyAccount'
+import { decrypt } from '@/lib/utils/crypto'
 import { getServedAuthority } from '@/lib/utils/host'
 import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
@@ -161,6 +163,16 @@ const resolveIdentity = async (identifier: string, noCache = false) => {
   }
 }
 
+const isLinkedSession = (raw: string | null): boolean => {
+  if (!raw) return false
+  try {
+    const parsed = JSON.parse(decrypt(raw)) as { type?: unknown }
+    return parsed.type === 'oauth' || parsed.type === 'app_password'
+  } catch {
+    return true
+  }
+}
+
 export const getBlueskyAccountState = async (
   database: Database,
   actor: Actor
@@ -225,7 +237,7 @@ export const getBlueskyAccountState = async (
           pdsUrl: account.pdsUrl,
           authType: account.authType,
           domainHandle: account.domainHandle,
-          sessionActive: hosted || Boolean(session),
+          sessionActive: hosted || isLinkedSession(session),
           lastSyncedAt: account.lastSyncedAt
             ? new Date(account.lastSyncedAt).toISOString()
             : null,
@@ -244,11 +256,19 @@ const HOSTED_ACCOUNT_EXISTS_MESSAGE =
   'Your Bluesky account is hosted on this server. Delete it there before linking another one.'
 
 // The hosted account's own `bluesky_accounts` row (authType `hosted`) counts
-// too, so a link never overwrites it.
-const hasHostedBlueskyAccount = async (database: Database, actor: Actor) =>
-  Boolean(await database.getPdsRepo({ actorId: actor.id })) ||
-  (await database.getBlueskyAccount({ actorId: actor.id }))?.authType ===
+// too, so a link never overwrites it. A repo whose PLC identity moved to
+// another PDS no longer blocks linking an outside account once its hosted row
+// is gone.
+const hasHostedBlueskyAccount = async (database: Database, actor: Actor) => {
+  const repo = await database.getPdsRepo({ actorId: actor.id })
+  if (repo && repo.status !== 'deleted' && getMovedToHost(repo) === null) {
+    return true
+  }
+  return (
+    (await database.getBlueskyAccount({ actorId: actor.id }))?.authType ===
     'hosted'
+  )
+}
 
 const HOSTED_ACCOUNT_MANAGED_MESSAGE =
   'Your Bluesky account is hosted on this server. Manage it under “Host my Bluesky account here”.'

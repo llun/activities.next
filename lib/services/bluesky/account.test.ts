@@ -20,6 +20,7 @@ import {
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import { getQueue } from '@/lib/services/queue'
 import type { Actor } from '@/lib/types/domain/actor'
+import { encrypt } from '@/lib/utils/crypto'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 vi.mock('node:dns/promises', () => ({ resolveTxt: vi.fn() }))
@@ -711,6 +712,70 @@ describe('Bluesky account service', () => {
         (await getBlueskyAccountState(database, actor('actor-a'))).account
           ?.sessionActive
       ).toBe(true)
+    })
+
+    it('reports a move-out session as not a live link', async () => {
+      vi.mocked(getConfig).mockReturnValue({
+        host: 'social.example',
+        bluesky: { oauthPrivateKeys: [] },
+        secretPhase: 'test-secret-phase'
+      } as never)
+      await linkAlice()
+      // A move in progress stores its session under the DID; it is not a login.
+      await database.setBlueskySession({
+        did: DID,
+        session: encrypt(
+          JSON.stringify({ type: 'move-out', pdsUrl: 'https://bsky.social' })
+        )
+      })
+      expect(
+        (await getBlueskyAccountState(database, actor('actor-a'))).account
+          ?.sessionActive
+      ).toBe(false)
+    })
+
+    it('allows linking an outside account once the hosted repo moved away', async () => {
+      const original = process.env.ACTIVITIES_BLUESKY_PDS
+      process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+        'social.example': { enabled: true, hostname: 'pds.social.example' }
+      })
+      try {
+        await database.createPdsRepo({
+          did: 'did:plc:moved-away',
+          actorId: 'actor-moved',
+          domain: 'social.example',
+          signingKey: 'encrypted',
+          signingKeyDid: 'did:key:z',
+          status: 'deactivated',
+          plcOperation: JSON.stringify({
+            type: 'plc_operation',
+            services: {
+              atproto_pds: {
+                type: 'AtprotoPersonalDataServer',
+                endpoint: 'https://bsky.social'
+              }
+            }
+          })
+        })
+        const authorize = vi
+          .fn()
+          .mockResolvedValue(new URL('https://auth.example.net/authorize'))
+        vi.mocked(getBlueskyOAuthClient).mockReturnValue(
+          Promise.resolve({ authorize }) as never
+        )
+        await startBlueskyOAuth(
+          database,
+          actor('actor-moved'),
+          'alice.example.com'
+        )
+        expect(authorize).toHaveBeenCalled()
+      } finally {
+        if (original === undefined) {
+          delete process.env.ACTIVITIES_BLUESKY_PDS
+        } else {
+          process.env.ACTIVITIES_BLUESKY_PDS = original
+        }
+      }
     })
 
     it('saves "Post to Bluesky by default", and refuses it without a link', async () => {

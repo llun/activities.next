@@ -315,18 +315,6 @@ docker run -p 3000:3000 \
 
 > **Important:** Mount persistent data under `/opt/activities.next/data` as above — do **not** bind-mount `/opt/activities.next` itself. That directory contains the application (the standalone `server.js`, static assets, etc.), so a host-path mount would shadow it and the container cannot start. See the [SQLite Docker guide](sqlite-setup.md#docker-deployment-with-sqlite) for preparing the mounted database file.
 
-#### Bluesky PDS Firehose Start Command
-
-The default container command (`node server.js`) runs the stock Next.js standalone server, which does not accept WebSockets. To expose the embedded Bluesky PDS firehose (`com.atproto.sync.subscribeRepos`), start the standalone build or Docker image with `node pds-server.js` on hosting that keeps long-lived WebSocket connections open:
-
-```bash
-docker run -p 3000:3000 \
-  ... \
-  ghcr.io/llun/activities.next:main node pds-server.js
-```
-
-`pds-server.js` passes every normal HTTP request to Next.js unchanged, answers any other WebSocket upgrade with `404`, and accepts WebSocket upgrades on `/xrpc/com.atproto.sync.subscribeRepos` only for enabled PDS hostnames in `ACTIVITIES_BLUESKY_PDS` (all other hosts receive `404`). At start-up it calls `com.atproto.sync.requestCrawl` on each domain's configured `relays` (defaulting to `https://bsky.network`), retrying with backoff for up to an hour; set `"relays": []` on a domain entry to disable crawl requests. See [Embedded Bluesky PDS (preview)](mastodon-api-compatibility.md#embedded-bluesky-pds-preview).
-
 #### Custom Docker Builds with Optional Workspaces
 
 Docker image builds, including the migration step, do not need a production
@@ -370,6 +358,83 @@ For database-specific Docker deployment instructions:
 
 - [SQLite Docker Deployment](sqlite-setup.md#docker-deployment-with-sqlite)
 - [PostgreSQL Docker Deployment](postgresql-setup.md#docker-deployment-with-postgresql)
+
+### Embedded Bluesky PDS
+
+Activity.next can host Bluesky accounts on a PDS embedded in the app, with one PDS hostname per served domain. It is off by default and preview-quality: accounts are always created fresh here, and moving an existing Bluesky account in is not supported (moving one out is).
+
+#### Enabling it
+
+Set `ACTIVITIES_BLUESKY_PDS` to a JSON object keyed by served domain:
+
+```bash
+ACTIVITIES_BLUESKY_PDS='{
+  "social.example": {
+    "enabled": true,
+    "hostname": "pds.social.example",
+    "allowEmails": ["alex@social.example"],
+    "allowActors": ["alex"],
+    "relays": ["https://bsky.network"]
+  }
+}'
+```
+
+- `enabled` turns the domain's PDS on (default `false`).
+- `hostname` is the PDS's own hostname; it must not collide with a served domain or another PDS hostname, and yields `did:web:<hostname>`.
+- `allowEmails` and `allowActors` decide who may create an account; empty lists allow nobody.
+- `relays` is an optional list of HTTPS relay origins to ask for a crawl at start-up (default `https://bsky.network`; `[]` disables crawl requests).
+
+Unset or blank turns the PDS off; malformed JSON or an invalid entry turns it off and logs a warning, and a hostname used twice or equal to a served domain drops only that domain. See [Environment Variables](environment-variables.md) for the full schema.
+
+#### Rotation key
+
+`ACTIVITIES_BLUESKY_PDS_ROTATION_KEY` is the instance-wide secp256k1 private key (64 hex characters) that signs the `did:plc` operations for every hosted account. Generate one and keep it backed up:
+
+```bash
+openssl rand -hex 32
+```
+
+Losing it means this server can no longer update the DIDs it hosts; the owner's recovery key is the way back. Creating a hosted account is refused while the key is unset or invalid. Never commit it or log it.
+
+#### PLC directory and AppView
+
+- `ACTIVITIES_BLUESKY_PLC_DIRECTORY_URL` is the PLC directory the PDS submits `did:plc` operations to (an https origin with no path, query, fragment or credentials; default `https://plc.directory`).
+- `ACTIVITIES_BLUESKY_APPVIEW_URL` and `ACTIVITIES_BLUESKY_APPVIEW_DID` are the AppView a hosted account's `app.bsky.*` calls go to (default `https://api.bsky.app` and `did:web:api.bsky.app#bsky_appview`). Set both together: another AppView refuses tokens addressed to Bluesky's.
+
+#### DNS
+
+Point the PDS hostname at this server, and add a wildcard record for the handles it offers:
+
+| Record | Name                   | Value       |
+| ------ | ---------------------- | ----------- |
+| A/AAAA | `pds.social.example`   | this server |
+| A/AAAA | `*.pds.social.example` | this server |
+
+A hosted account's handle is `<username>.<PDS hostname>` (for example `alex.pds.social.example`), so the wildcard record is what makes those handles resolve. An admin's profile may also claim the bare served domain as its handle, which needs no extra record.
+
+#### TLS and the proxy
+
+Serve the PDS hostname over HTTPS with a certificate that covers both the hostname and its wildcard (`pds.social.example` and `*.pds.social.example`). The app routes by the request's `Host` header, so the reverse proxy must keep the original `Host` (or set `X-Forwarded-Host` to it) rather than rewriting it to the primary domain; a rewritten host makes every PDS request look like it arrived on `ACTIVITIES_HOST`. Strip any client-supplied `X-Activity-Next-Host` and `X-Forwarded-Host` at the proxy unless the proxy sets them itself.
+
+#### Bluesky PDS Firehose Start Command
+
+The default container command (`node server.js`) runs the stock Next.js standalone server, which does not accept WebSockets. To expose the embedded Bluesky PDS firehose (`com.atproto.sync.subscribeRepos`), start the standalone build or Docker image with `node pds-server.js` on hosting that keeps long-lived WebSocket connections open:
+
+```bash
+docker run -p 3000:3000 \
+  ... \
+  ghcr.io/llun/activities.next:main node pds-server.js
+```
+
+`pds-server.js` passes every normal HTTP request to Next.js unchanged, answers any other WebSocket upgrade with `404`, and accepts WebSocket upgrades on `/xrpc/com.atproto.sync.subscribeRepos` only for enabled PDS hostnames in `ACTIVITIES_BLUESKY_PDS` (all other hosts receive `404`). At start-up it calls `com.atproto.sync.requestCrawl` on each domain's configured `relays` (defaulting to `https://bsky.network`), retrying with backoff for up to an hour; set `"relays": []` on a domain entry to disable crawl requests. See [Embedded Bluesky PDS (preview)](mastodon-api-compatibility.md#embedded-bluesky-pds-preview).
+
+#### Creating an account
+
+Settings › Other networks › "Host my Bluesky account here" creates a fresh `did:plc` account on the domain's PDS for an allowed, confirmed, approved profile that has no linked outside account. The offered handles are `<username>.<PDS hostname>` and, for an admin's profile that could claim its served domain, the bare domain. Accounts are always created fresh here; moving an existing Bluesky account in is not supported.
+
+#### Moving an account out
+
+The owner can move a hosted account to another PDS from the same card. They enter the new server's https address, the handle and email to create there, and a password for the new account (sent once to that server's `createAccount` and never stored or logged), plus an invite code if the server asks for one, and confirm with the profile's current password. The page then copies the repo, the blobs and the preferences in resumable batches, and the switch asks for the profile's current password again before chaining a PLC operation that takes the directory's last operation's rotation keys except this server's, then the new server's recommended keys, takes the new server's signing key and PDS endpoint, and drops this server's rotation key. The new server must identify itself with the `did:web` of the address the owner typed. After the switch the copy left here is switched off, its local handle is cleared, it cannot be turned back on, and it can be deleted; the moved account can be linked again under "Your Bluesky account". Cancelling before the switch removes the stored move and leaves the account here working. Starting a move is limited to 3 a day.
 
 ### Public Endpoint Protection
 

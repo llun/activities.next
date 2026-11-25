@@ -176,12 +176,10 @@ export class PdsHostedAccountNotFoundError extends PdsError {
 
 /** The hosted repo is turned off; its handle changes once it is back on. */
 export class PdsHostedAccountInactiveError extends PdsError {
-  constructor() {
-    super(
-      'Turn the Bluesky account on before changing its handle.',
-      'HostedAccountInactive',
-      409
-    )
+  constructor(
+    message = 'Turn the Bluesky account on before changing its handle.'
+  ) {
+    super(message, 'HostedAccountInactive', 409)
   }
 }
 
@@ -252,6 +250,95 @@ export class PdsIdentityMovedError extends PdsError {
     super(
       'This account’s identity no longer lists this server’s rotation key, so it can’t be changed here.',
       'IdentityMoved',
+      409
+    )
+  }
+}
+
+/** A move to another Bluesky PDS is already in progress for this account. */
+export class PdsMoveOutInProgressError extends PdsError {
+  constructor() {
+    super(
+      'A move to another Bluesky server is already in progress for this account.',
+      'MoveOutInProgress',
+      409
+    )
+  }
+}
+
+/** A move is stored for this account; finish or cancel it before other changes. */
+export class PdsMoveOutPendingError extends PdsError {
+  constructor() {
+    super('Finish or cancel the move first.', 'MoveOutPending', 409)
+  }
+}
+
+/** There is no stored move in progress for this account. */
+export class PdsMoveOutNotFoundError extends PdsError {
+  constructor() {
+    super(
+      'There is no move in progress for this account.',
+      'MoveOutNotFound',
+      409
+    )
+  }
+}
+
+/** The PLC switch has already happened; pre-switch steps and cancel are refused. */
+export class PdsMoveOutSwitchedError extends PdsError {
+  constructor(
+    message = 'This account has already switched to the new server and can no longer be cancelled.'
+  ) {
+    super(message, 'MoveOutSwitched', 409)
+  }
+}
+
+/** The repo has not been copied to the destination yet, so the switch would lose it. */
+export class PdsMoveOutNotCopiedError extends PdsError {
+  constructor() {
+    super('Copy your posts first.', 'MoveOutNotCopied', 409)
+  }
+}
+
+/** The destination PDS URL is not a valid external https origin. */
+export class PdsMoveOutInvalidServerUrlError extends PdsError {
+  constructor(
+    message = 'Enter a valid https:// server address without a path, query, or credentials.'
+  ) {
+    super(message, 'MoveOutInvalidServerUrl', 400)
+  }
+}
+
+/** The destination PDS refused a move request or could not be reached. */
+export class PdsMoveOutRemoteError extends PdsError {
+  constructor(
+    message: string,
+    readonly remoteStatus: number = 0,
+    readonly remoteError: string | null = null,
+    readonly remoteMessage: string | null = null,
+    options?: ErrorOptions
+  ) {
+    super(message, 'MoveOutRemoteError', 502, options)
+  }
+}
+
+/** The destination PDS returned invalid recommended DID credentials. */
+export class PdsMoveOutInvalidCredentialsError extends PdsError {
+  constructor(
+    message = 'The destination server returned invalid account credentials.'
+  ) {
+    super(message, 'MoveOutInvalidCredentials', 502)
+  }
+}
+
+/** The hosted repo's stored PLC operation already points to another PDS. */
+export class PdsAccountMovedError extends PdsError {
+  constructor(readonly movedTo?: string) {
+    super(
+      movedTo
+        ? `This Bluesky account has moved to ${movedTo} and can’t be turned back on here.`
+        : 'This Bluesky account has moved to another server and can’t be turned back on here.',
+      'AccountMoved',
       409
     )
   }

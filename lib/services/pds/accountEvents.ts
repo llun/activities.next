@@ -3,6 +3,7 @@ import type { PdsEvent, PdsRepoStatus } from '@/lib/database/domains/pds/types'
 import type { Db } from '@/lib/database/kysely'
 
 import { resolveEffectivePdsRepoStatus } from './effectiveStatus'
+import { getMovedToHost } from './moved'
 
 // Appends `#account` events for a hosted repo from the database layer and the
 // actor-deletion job. Kept out of `events.ts` (which imports `@atproto/repo`)
@@ -94,7 +95,9 @@ export const appendPdsAccountStatusEvent = async (
   }
 ): Promise<PdsEvent | null> => {
   const repo = await getPdsRepo(db, { actorId })
-  if (!repo || repo.status === 'deleted') return null
+  if (!repo || repo.status === 'deleted' || getMovedToHost(repo) !== null) {
+    return null
+  }
   if (
     requireEffectiveActive &&
     resolveEffectivePdsRepoStatus(repo, await getStatusActor(db, actorId)) !==

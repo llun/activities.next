@@ -282,7 +282,13 @@ export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
     // synced only while turned on, so an off or taken-down one gets no job.
     .where((eb) =>
       eb.or([
-        eb('bluesky_sessions.did', 'is not', null),
+        // A stored session belongs to a linked account. A hosted account's
+        // `bluesky_sessions` row is a move-out in progress, not a session, so
+        // it must not make a deactivated hosted account look syncable.
+        eb.and([
+          eb('bluesky_sessions.did', 'is not', null),
+          eb('bluesky_accounts.authType', '!=', 'hosted')
+        ]),
         eb.and([
           eb('bluesky_accounts.authType', '=', 'hosted'),
           eb('pds_repos.status', '=', 'active')

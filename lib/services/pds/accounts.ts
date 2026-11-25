@@ -12,6 +12,8 @@ import type { PdsRepo } from '@/lib/database/domains/pds/types'
 import type { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { getClaimableHost } from '@/lib/services/bluesky/claimableHost'
+import { readStoredBlueskySession } from '@/lib/services/bluesky/client'
+import type { StoredBlueskyMoveOutSession } from '@/lib/services/bluesky/client'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import { getLocalDomainMatcher } from '@/lib/services/domains/localDomains'
 import {
@@ -22,6 +24,7 @@ import type { Actor } from '@/lib/types/domain/actor'
 import type {
   HostedBlueskyAccountState,
   HostedBlueskyHandleChoice,
+  HostedBlueskyMoveOutSummary,
   HostedBlueskyRepoSummary
 } from '@/lib/utils/blueskyHosted'
 import { normalizeServedDomainChoice } from '@/lib/utils/host'
@@ -31,6 +34,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { deletePdsBlobFilesBestEffort } from './blobStorage'
 import { resolveEffectivePdsRepoStatus } from './effectiveStatus'
 import {
+  PdsAccountMovedError,
   PdsConfirmHandleMismatchError,
   PdsDisabledError,
   PdsHandleNotAllowedError,
@@ -41,6 +45,7 @@ import {
   PdsHostedAccountLinkedError,
   PdsHostedAccountNotFoundError,
   PdsIdentityMovedError,
+  PdsMoveOutPendingError,
   PdsNotAllowedError,
   PdsRecoveryKeyInvalidError,
   PdsRotationKeyMissingError,
@@ -50,6 +55,14 @@ import { formatPdsAccountEvent, formatPdsIdentityEvent } from './events'
 import { getHostedPdsUrl, isReservedPdsSubdomainHandle } from './host'
 import { createPdsSigningKey } from './keys'
 import { withPdsRepoLock } from './lock'
+import {
+  MOVE_LOCK_MS,
+  MOVE_LOCK_WAIT_MS,
+  deleteMoveOutSession,
+  readMoveOutSession,
+  revokeMoveOutTokens
+} from './moveSession'
+import { getMovedToHost } from './moved'
 import {
   PLC_DIRECTORY_TIMEOUT_MS,
   type PlcOperationChanges,
@@ -178,7 +191,7 @@ const getHandleChoices = async (
   return choices
 }
 
-const requireHostedRepo = async (
+export const requireHostedRepo = async (
   database: Database,
   actor: Actor
 ): Promise<PdsRepo> => {
@@ -187,10 +200,35 @@ const requireHostedRepo = async (
   return repo
 }
 
-const requireRotationKeypair = async (): Promise<Secp256k1Keypair> => {
+export const requireRotationKeypair = async (): Promise<Secp256k1Keypair> => {
   const hex = getPdsRotationKeyHex()
   if (!hex) throw new PdsRotationKeyMissingError()
   return Secp256k1Keypair.import(Buffer.from(hex, 'hex'))
+}
+
+// A stored move owns the account's identity until it finishes or is cancelled;
+// turning it off, changing its handle or recovery key, or deleting it would
+// race the switch.
+const assertNoMoveInProgress = async (
+  database: Database,
+  did: string
+): Promise<void> => {
+  if (await readMoveOutSession(database, did)) {
+    throw new PdsMoveOutPendingError()
+  }
+}
+
+// Deleting is refused only while the move has not switched: after the switch
+// (or once the stored operation points at the destination) the copy here is
+// inert, and refusing would leave it undeletable.
+const assertNoUnswitchedMove = async (
+  database: Database,
+  repo: PdsRepo
+): Promise<void> => {
+  const move = await readMoveOutSession(database, repo.did)
+  if (move && move.switchedAt === null && getMovedToHost(repo) === null) {
+    throw new PdsMoveOutPendingError()
+  }
 }
 
 /**
@@ -199,7 +237,7 @@ const requireRotationKeypair = async (): Promise<Secp256k1Keypair> => {
  * owner signed with their recovery key, would otherwise fork the chain. The
  * update copies the fetched operation's fields, so only `changes` differ.
  */
-const createChainedUpdate = async (
+export const createChainedUpdate = async (
   did: string,
   rotationKeypair: Secp256k1Keypair,
   changes: PlcOperationChanges
@@ -240,15 +278,15 @@ const isHandleTakenError = (error: unknown): boolean =>
 // Runs a repo write under the per-DID lock, re-reading the repo there: a
 // delete that landed after the caller's read leaves a tombstone, which no
 // write may touch. `write` answers whether it changed the row.
-const writeLiveRepo = (
+export const writeLiveRepo = (
   database: Database,
   did: string,
-  write: () => Promise<boolean>
+  write: (current: PdsRepo) => Promise<boolean>
 ): Promise<boolean> =>
   withPdsRepoLock(database, did, async () => {
     const current = await database.getPdsRepo({ did })
     if (!current || current.status === 'deleted') return false
-    return write()
+    return write(current)
   })
 
 const normalizeHandleInput = (handle: string): string => {
@@ -306,6 +344,10 @@ const reconcileHostedAccountRow = async (
     }
     return
   }
+  // A moved account's hosted row is removed once the move finishes, and while
+  // the switch is still finishing its `bluesky_sessions` row holds the move
+  // tokens; never recreate or drop the row here.
+  if (getMovedToHost(repo) !== null) return
   const pdsUrl = getHostedPdsUrl(repo)
   if (!repo.handle || !pdsUrl) return
   if (
@@ -323,7 +365,8 @@ const reconcileHostedAccountRow = async (
       !current ||
       current.status === 'deleted' ||
       current.actorId !== actor.id ||
-      !current.handle
+      !current.handle ||
+      getMovedToHost(current) !== null
     ) {
       return
     }
@@ -368,25 +411,47 @@ export const getHostedBlueskyAccountState = async ({
   const context = resolveHostedAccountContext(actor)
   const repo = await database.getPdsRepo({ actorId: actor.id })
   const rotationKeyConfigured = getPdsRotationKeyHex() !== null
+  const liveRepo = repo && repo.status !== 'deleted' ? repo : null
+  const movedTo = liveRepo ? getMovedToHost(liveRepo) : null
+  let moveOut: HostedBlueskyMoveOutSummary | null = null
+  if (liveRepo) {
+    const stored = await readStoredBlueskySession(database, liveRepo.did)
+    if (stored?.type === 'move-out') {
+      moveOut = {
+        pdsUrl: stored.pdsUrl,
+        handle: stored.handle,
+        stage:
+          stored.switchedAt !== null || getMovedToHost(liveRepo) !== null
+            ? 'switched'
+            : 'started'
+      }
+    }
+  }
 
   if (!context) {
     return {
       available: false,
+      pdsEnabled: false,
       pdsHostname: null,
       rotationKeyConfigured,
       repo: summarizeRepo(repo, actor),
       handleChoices: [],
-      customHandleAllowed: false
+      customHandleAllowed: false,
+      movedTo,
+      moveOut
     }
   }
 
   return {
     available: context.available,
+    pdsEnabled: context.pdsEnabled,
     pdsHostname: context.entry.hostname,
     rotationKeyConfigured,
     repo: summarizeRepo(repo, actor),
     handleChoices: await getHandleChoices(database, actor, context),
-    customHandleAllowed: Boolean(repo && repo.status !== 'deleted')
+    customHandleAllowed: Boolean(liveRepo && !movedTo),
+    movedTo,
+    moveOut
   }
 }
 
@@ -511,8 +576,13 @@ export const deactivateHostedBlueskyAccount = async ({
 }): Promise<HostedBlueskyAccountState> => {
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
+  const movedTo = getMovedToHost(repo)
+  if (movedTo) throw new PdsAccountMovedError(movedTo)
+  await assertNoMoveInProgress(database, repo.did)
 
-  await writeLiveRepo(database, repo.did, async () => {
+  await writeLiveRepo(database, repo.did, async (current) => {
+    const currentMovedTo = getMovedToHost(current)
+    if (currentMovedTo) throw new PdsAccountMovedError(currentMovedTo)
     const changed = await database.updatePdsRepoStatus({
       did: repo.did,
       status: 'deactivated'
@@ -544,11 +614,15 @@ export const reactivateHostedBlueskyAccount = async ({
   database: Database
   actor: Actor
 }): Promise<HostedBlueskyAccountState> => {
-  requireUsableHostedContext(actor)
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
+  const movedTo = getMovedToHost(repo)
+  if (movedTo) throw new PdsAccountMovedError(movedTo)
+  requireUsableHostedContext(actor)
 
-  await writeLiveRepo(database, repo.did, async () => {
+  await writeLiveRepo(database, repo.did, async (current) => {
+    const currentMovedTo = getMovedToHost(current)
+    if (currentMovedTo) throw new PdsAccountMovedError(currentMovedTo)
     const changed = await database.updatePdsRepoStatus({
       did: repo.did,
       status: 'active'
@@ -583,7 +657,10 @@ export const changeHostedBlueskyHandle = async ({
   const context = requireUsableHostedContext(actor)
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
+  const movedTo = getMovedToHost(repo)
+  if (movedTo) throw new PdsAccountMovedError(movedTo)
   if (repo.status !== 'active') throw new PdsHostedAccountInactiveError()
+  await assertNoMoveInProgress(database, repo.did)
 
   const normalizedHandle = normalizeHandleInput(handle)
   await assertHandleFree(database, normalizedHandle, repo.did)
@@ -613,7 +690,9 @@ export const changeHostedBlueskyHandle = async ({
 
   await submitPlcOperation(repo.did, operation)
 
-  await writeLiveRepo(database, repo.did, async () => {
+  await writeLiveRepo(database, repo.did, async (current) => {
+    const currentMovedTo = getMovedToHost(current)
+    if (currentMovedTo) throw new PdsAccountMovedError(currentMovedTo)
     const changed = await database
       .updatePdsRepoIdentity({
         did: repo.did,
@@ -656,6 +735,9 @@ export const setHostedBlueskyRecoveryKey = async ({
   requireUsableHostedContext(actor)
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
+  const movedTo = getMovedToHost(repo)
+  if (movedTo) throw new PdsAccountMovedError(movedTo)
+  await assertNoMoveInProgress(database, repo.did)
 
   if (recoveryKeyDid !== null) {
     try {
@@ -679,13 +761,15 @@ export const setHostedBlueskyRecoveryKey = async ({
 
   await submitPlcOperation(repo.did, operation)
 
-  await writeLiveRepo(database, repo.did, () =>
-    database.updatePdsRepoIdentity({
+  await writeLiveRepo(database, repo.did, async (current) => {
+    const currentMovedTo = getMovedToHost(current)
+    if (currentMovedTo) throw new PdsAccountMovedError(currentMovedTo)
+    return database.updatePdsRepoIdentity({
       did: repo.did,
       recoveryKeyDid,
       plcOperation: JSON.stringify(operation)
     })
-  )
+  })
 
   return getHostedBlueskyAccountState({ database, actor })
 }
@@ -708,52 +792,75 @@ export const deleteHostedBlueskyAccount = async ({
   actor: Actor
   confirmHandle: string
 }): Promise<HostedBlueskyAccountState> => {
-  const repo = await requireHostedRepo(database, actor)
-  if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
+  let deletedMove: StoredBlueskyMoveOutSession | null = null
+  await withPdsRepoLock(
+    database,
+    `actor:${actor.id}`,
+    async () => {
+      const repo = await requireHostedRepo(database, actor)
+      if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
+      await assertNoUnswitchedMove(database, repo)
 
-  if (
-    !repo.handle ||
-    confirmHandle.trim().toLowerCase() !== repo.handle.toLowerCase()
-  ) {
-    throw new PdsConfirmHandleMismatchError()
-  }
+      // A moved copy has no handle here (the switch cleared it), so there is
+      // nothing to type back; a live account still confirms with its handle.
+      if (getMovedToHost(repo) === null) {
+        if (
+          !repo.handle ||
+          confirmHandle.trim().toLowerCase() !== repo.handle.toLowerCase()
+        ) {
+          throw new PdsConfirmHandleMismatchError()
+        }
+      }
 
-  // The event goes first: if a later step fails, the repo is still live and
-  // the owner can delete it again. Once the status flips, retention finishes
-  // whatever content and blob files a failure left behind.
-  await writeLiveRepo(database, repo.did, async () => {
-    await database.appendPdsEvent({
-      did: repo.did,
-      type: 'account',
-      payload: formatPdsAccountEvent({
-        did: repo.did,
-        active: false,
-        status: 'deleted'
+      // The event goes first: if a later step fails, the repo is still live and
+      // the owner can delete it again. Once the status flips, retention finishes
+      // whatever content and blob files a failure left behind. For a moved copy,
+      // the DID now lives on another PDS, so no `#account` event is emitted.
+      await writeLiveRepo(database, repo.did, async (current) => {
+        if (getMovedToHost(current) === null) {
+          await database.appendPdsEvent({
+            did: repo.did,
+            type: 'account',
+            payload: formatPdsAccountEvent({
+              did: repo.did,
+              active: false,
+              status: 'deleted'
+            })
+          })
+        }
+        const changed = await database.updatePdsRepoStatus({
+          did: repo.did,
+          status: 'deleted'
+        })
+        if (!changed) return false
+        // The app's state for the account (its `bluesky_accounts` row, follows
+        // and interactions) goes only once the status has flipped, so a failed
+        // flip leaves a live account whole. If this delete fails, the next state
+        // read removes the hosted row that no longer has a live repo. An outside
+        // link is not this account's.
+        // The account delete removes the DID's session row too, so the move
+        // goes first: the row it returns is the one whose tokens are revoked.
+        deletedMove = await deleteMoveOutSession(database, repo.did)
+        await database.deleteBlueskyAccount({
+          actorId: actor.id,
+          hostedDid: repo.did
+        })
+        const storageKeys = await database.listPdsBlobStorageKeys({
+          did: repo.did
+        })
+        await deletePdsBlobFilesBestEffort(storageKeys, {
+          context: { did: repo.did, reason: 'hosted_account_deleted' }
+        })
+        await database.deletePdsRepoContent({ did: repo.did })
+        return true
       })
-    })
-    const changed = await database.updatePdsRepoStatus({
-      did: repo.did,
-      status: 'deleted'
-    })
-    if (!changed) return false
-    // The app's state for the account (its `bluesky_accounts` row, follows
-    // and interactions) goes only once the status has flipped, so a failed
-    // flip leaves a live account whole. If this delete fails, the next state
-    // read removes the hosted row that no longer has a live repo. An outside
-    // link is not this account's.
-    await database.deleteBlueskyAccount({
-      actorId: actor.id,
-      hostedDid: repo.did
-    })
-    const storageKeys = await database.listPdsBlobStorageKeys({
-      did: repo.did
-    })
-    await deletePdsBlobFilesBestEffort(storageKeys, {
-      context: { did: repo.did, reason: 'hosted_account_deleted' }
-    })
-    await database.deletePdsRepoContent({ did: repo.did })
-    return true
-  })
+    },
+    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
+  )
+
+  // The move's destination session goes with the copy here; best effort, since
+  // the account is deleted either way.
+  await revokeMoveOutTokens(deletedMove)
 
   return getHostedBlueskyAccountState({ database, actor })
 }

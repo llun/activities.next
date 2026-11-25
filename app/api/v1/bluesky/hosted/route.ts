@@ -1,9 +1,6 @@
-import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import type { Database } from '@/lib/database/types'
-import { comparePassword } from '@/lib/services/auth/passwordHash'
-import { checkPasswordChangeRateLimit } from '@/lib/services/auth/routeRateLimits'
 import { getServedLinkDomain } from '@/lib/services/domains/localDomains'
 import { sendMail } from '@/lib/services/email'
 import { resolveEmailIdentity } from '@/lib/services/email/sender'
@@ -18,15 +15,14 @@ import {
   reactivateHostedBlueskyAccount,
   setHostedBlueskyRecoveryKey
 } from '@/lib/services/pds/accounts'
-import { hostedBlueskyRouteResponse } from '@/lib/services/pds/routeResponse'
+import {
+  checkCurrentPassword,
+  hostedBlueskyRouteResponse
+} from '@/lib/services/pds/routeResponse'
 import type { Actor } from '@/lib/types/domain/actor'
 import type { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
-import {
-  apiCorsError,
-  apiRateLimitedResponse,
-  apiResponse
-} from '@/lib/utils/response'
+import { apiCorsError } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -45,43 +41,9 @@ const UpdateBody = z.object({
   active: z.boolean().optional()
 })
 
-const DeleteBody = z.object({ confirmHandle: z.string().min(1) })
-
-const forbidden = (req: NextRequest, error: string) =>
-  apiResponse({
-    req,
-    allowedMethods: METHODS,
-    data: { error },
-    responseStatusCode: 403
-  })
-
-// The same step-up as an email change: a hijacked session alone must not be
-// able to hand the account's identity to someone else's key. Answers the
-// refusal, or null when the password checks out.
-const checkCurrentPassword = async (
-  req: NextRequest,
-  actor: Actor,
-  currentPassword: string | undefined
-) => {
-  const account = actor.account
-  if (!account?.passwordHash) {
-    return forbidden(
-      req,
-      'Set a password before changing your recovery key. Use "Forgot password" to set one; the link is sent to your email address.'
-    )
-  }
-  const limit = await checkPasswordChangeRateLimit(account.id)
-  if (!limit.allowed) {
-    return apiRateLimitedResponse(req, limit.retryAfterSeconds, METHODS)
-  }
-  if (!currentPassword) {
-    return forbidden(req, 'Current password is required')
-  }
-  if (!(await comparePassword(currentPassword, account.passwordHash))) {
-    return forbidden(req, 'Current password is incorrect')
-  }
-  return null
-}
+// A moved copy has no handle here (the switch cleared it), so its delete sends
+// an empty confirmation; a live account still has to type its handle.
+const DeleteBody = z.object({ confirmHandle: z.string() })
 
 // Tells the owner the recovery key changed. A failure is logged and does not
 // fail the request: the PLC operation has already landed.
@@ -153,7 +115,8 @@ export const PATCH = traceApiRoute(
       const refused = await checkCurrentPassword(
         req,
         currentActor,
-        parsed.data.currentPassword
+        parsed.data.currentPassword,
+        METHODS
       )
       if (refused) return refused
     }
