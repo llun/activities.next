@@ -1,0 +1,49 @@
+lib/services/pds/moveOut.test.ts
+  s_f193227df3df34::t_49bf36149d8a58 108,125-129,848,853,1137-1226,2341-2367,2441-2445,2447-2448,2450-2451,2454,2465-2466,2473,3049-3050,3066,3079,3081-3084,3086-3087,3089-3090,3093,3132,3141,3154,3156-3159,3161-3162,3164-3165,3168,3202-3203
+  s_f193227df3df34::t_9ab5471afff83d 2368-2369,2417-2440,2446,2449,2452-2453,2455-2464,2467-2472,2474-2482,3045-3048,3051-3065,3067-3078,3080,3085,3088,3091-3092,3094-3098,3101-3111,3114-3117,3129-3131,3133-3140,3142-3153,3155,3160,3163,3166-3167,3169-3201,3204-3210
+lib/services/pds/moveOut.ts
+  s_f193227df3df34::t_7c8648f767a563 1375-1377
+  s_f193227df3df34::t_f3bf087e94c823 64,212-221,250-252,591-594,621,624,957,1137,1195,1265,1312-1316,1318,1372,1380,1435-1436,1439-1441,1449,1451,1453,1455,1461-1462,1593-1596,1598-1599,1674,1683
+app/(timeline)/settings/networks/HostedBlueskyForm.test.tsx
+  s_f193227df3df34::t_9ab88b781c6847 55,387-400,858-883
+app/(timeline)/settings/networks/HostedBlueskyForm.tsx
+  s_f193227df3df34::t_b1643067eb4c1d 587-589,755,857-880
+app/(timeline)/settings/networks/page.test.tsx
+  s_f193227df3df34::t_89634f47d9fd9f 69,115,141
+app/api/v1/bluesky/hosted/move/route.test.ts
+  s_f193227df3df34::t_be7932b4d37554 81
+app/api/v1/bluesky/hosted/route.test.ts
+  s_f193227df3df34::t_78394b2a17e728 82
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_7d63a83fd35478 1414-1415
+lib/database/domains/pds/pds.test.ts
+  s_f193227df3df34::t_14e6db8a9581cc 1465-1468,1492,1524-1554,1557,1563
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_a0a9fabe79b095 740-746
+lib/services/pds/accounts.ts
+  s_f193227df3df34::t_6285bfccf37725 65,232,429,439,452
+lib/services/pds/firehose/subscriber.test.ts
+  s_f193227df3df34::t_892b52361197db 662,687
+lib/services/pds/moved.test.ts
+  s_f193227df3df34::t_7930a7a7527ec6 6,98,102-105,111,115-116,118,120,125,127-129,131,134,136,138-142,144-146,148
+lib/services/pds/moved.ts
+  s_f193227df3df34::t_3779c6856bd3da 28-41,46-51,59-60,65-68,70,72,76-78
+lib/utils/blueskyHosted.ts
+  s_f193227df3df34::t_44107cc89419c9 31-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cad76fd2472b22989fffbf087a307207a7f8d450",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
