@@ -7,10 +7,12 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getBlueskyAccountState } from '@/lib/services/bluesky/account'
 import { getBlueskySharingState } from '@/lib/services/blueskySharing'
+import { getHostedBlueskyAccountState } from '@/lib/services/pds/accounts'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { BlueskyAccountForm } from './BlueskyAccountForm'
 import { BlueskySharingForm } from './BlueskySharingForm'
+import { HostedBlueskyForm } from './HostedBlueskyForm'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Other networks' }
@@ -27,9 +29,10 @@ const Page = async ({
   if (!actor?.account) return redirect('/auth/signin')
   const callbackResult = (await searchParams)?.bluesky
 
-  const [accountState, sharingState] = await Promise.all([
+  const [accountState, sharingState, hostedState] = await Promise.all([
     getBlueskyAccountState(database, actor),
-    getBlueskySharingState(database, actor)
+    getBlueskySharingState(database, actor),
+    getHostedBlueskyAccountState({ database, actor })
   ])
 
   return (
@@ -50,6 +53,18 @@ const Page = async ({
           }
         />
       </Section>
+      {hostedState.available ? (
+        <Section
+          title="Host my Bluesky account here"
+          description={`Create a Bluesky account on this server. Your posts reach Bluesky through ${hostedState.pdsHostname}.`}
+        >
+          <HostedBlueskyForm
+            key={actor.id}
+            initialState={hostedState}
+            linked={accountState.account !== null}
+          />
+        </Section>
+      ) : null}
       <Section
         title="Share through Bridgy Fed"
         description="Copies this profile’s public posts to a bridged Bluesky account."

@@ -53,6 +53,9 @@ export const resolveEffectivePdsRepoStatus = (
   repo: Pick<PdsRepo, 'status'>,
   actor: Pick<Actor, 'suspendedAt' | 'deletionStatus' | 'account'> | null
 ): PdsRepoStatus => {
+  if (repo.status === 'deleted') {
+    return 'deleted'
+  }
   if (
     repo.status === 'takendown' ||
     actor?.suspendedAt != null ||

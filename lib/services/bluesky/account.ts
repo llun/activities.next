@@ -223,6 +223,15 @@ export const getBlueskyAccountState = async (
  * Returns the authorization URL to send the browser to. `requestHost` is the
  * served host the request arrived on.
  */
+// One Bluesky account per profile: a hosted account (lib/services/pds) and a
+// linked outside one cannot both exist. A deleted hosted account gives up the
+// actor's row, so getPdsRepo finds only live ones.
+const HOSTED_ACCOUNT_EXISTS_MESSAGE =
+  'Your Bluesky account is hosted on this server. Delete it there before linking another one.'
+
+const hasHostedBlueskyAccount = async (database: Database, actor: Actor) =>
+  Boolean(await database.getPdsRepo({ actorId: actor.id }))
+
 export const startBlueskyOAuth = async (
   database: Database,
   actor: Actor,
@@ -231,6 +240,9 @@ export const startBlueskyOAuth = async (
 ): Promise<string> => {
   if (!(await isBlueskyAllowed(database))) {
     throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
+  if (await hasHostedBlueskyAccount(database, actor)) {
+    throw new BlueskyLinkError(HOSTED_ACCOUNT_EXISTS_MESSAGE)
   }
   // Sign-in returns to the actor's own domain, where the session cookie must
   // be; one started on another served domain could not finish.
@@ -346,6 +358,7 @@ export const completeBlueskyOAuth = async (
   params: URLSearchParams
 ): Promise<BlueskyCallbackResult> => {
   if (!(await isBlueskyAllowed(database))) return 'failed'
+  if (await hasHostedBlueskyAccount(database, actor)) return 'failed'
   // The same canonical domain startBlueskyOAuth used: the session is tied to
   // that client_id.
   const client = getBlueskyOAuthClient(
@@ -411,6 +424,9 @@ export const linkBlueskyAppPassword = async (
 ) => {
   if (!(await isBlueskyAllowed(database))) {
     throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
+  if (await hasHostedBlueskyAccount(database, actor)) {
+    throw new BlueskyLinkError(HOSTED_ACCOUNT_EXISTS_MESSAGE)
   }
   // Only the app-password shape: a main password must never be stored.
   if (!BLUESKY_APP_PASSWORD_PATTERN.test(input.password.trim())) {

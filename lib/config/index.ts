@@ -15,7 +15,9 @@ import {
   type BlueskyPdsDomainConfig,
   getBlueskyPdsConfig,
   isPdsAllowed as matchPdsAllowed,
-  getPdsDomainForHostname as matchPdsDomainForHostname
+  getPdsDomainForHostname as matchPdsDomainForHostname,
+  getPdsRotationKeyHex as readPdsRotationKeyHex,
+  getPlcDirectoryUrl as readPlcDirectoryUrl
 } from './blueskyPds'
 import { type DatabaseConfig, getDatabaseConfig } from './database'
 import {
@@ -252,6 +254,15 @@ export type { BlueskyPdsConfig, BlueskyPdsDomainConfig }
 
 export const getPdsConfig = (): BlueskyPdsConfig | null =>
   getConfig().blueskyPds ?? null
+
+// The instance-wide PLC rotation key and directory (see
+// lib/config/blueskyPds.ts). Read at runtime on every call, like the other
+// optional sections, so a bad value degrades hosted Bluesky accounts instead of
+// failing the whole config. The key is a secret and is deliberately kept out of
+// the memoized `Config` object so it cannot be logged with the rest of it.
+export const getPdsRotationKeyHex = (): string | null => readPdsRotationKeyHex()
+
+export const getPlcDirectoryUrl = (): string => readPlcDirectoryUrl()
 
 export const getPdsDomainForHostname = (
   hostname: string | null | undefined

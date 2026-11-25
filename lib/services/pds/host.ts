@@ -173,3 +173,31 @@ export const getPdsDomainForRequest = (
 export const resetPdsHostCollisionWarningsForTests = (): void => {
   warnedCollisionKeys.clear()
 }
+
+/**
+ * When the request host is `<username>.<PDS hostname>` for an enabled PDS
+ * domain, returns the username, the served domain it belongs to and the
+ * handle (the host without a port). Uses the same strict raw-host parsing as
+ * `getPdsDomainForRequest`, so a comma list or an unnormalisable Host answers
+ * null rather than a guess.
+ */
+export const getPdsSubdomainHandle = (
+  headers: HostHeaders,
+  config: BlueskyPdsConfig | null = getPdsConfig()
+): { username: string; domain: string; handle: string } | null => {
+  if (!config) return null
+  const host = getPdsRequestHost(headers)
+  if (!host) return null
+  const hostname = stripHostPort(host)
+
+  for (const entry of Object.values(config)) {
+    if (!entry.enabled) continue
+    const pdsHost = stripHostPort(entry.hostname)
+    if (hostname === pdsHost || !hostname.endsWith(`.${pdsHost}`)) continue
+    const username = hostname.slice(0, -(pdsHost.length + 1))
+    // A handle's first label is one DNS label; a deeper name is not one of ours.
+    if (!username || username.includes('.')) continue
+    return { username, domain: entry.domain, handle: hostname }
+  }
+  return null
+}

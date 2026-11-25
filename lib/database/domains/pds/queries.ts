@@ -6,9 +6,12 @@ import type {
   CommitPdsRepoWriteResult,
   CreatePdsBlobParams,
   CreatePdsRepoParams,
+  GetPdsPreferencesParams,
+  GetPdsRepoByHandleParams,
   GetPdsRepoParams,
   InitializePdsRepoParams,
   InitializePdsRepoResult,
+  ListDeletedPdsReposBeforeParams,
   ListPdsBlobsParams,
   ListPdsBlocksParams,
   ListPdsEventsParams,
@@ -19,11 +22,14 @@ import type {
   PdsEvent,
   PdsEventSeqBounds,
   PdsEventType,
+  PdsPreferences,
   PdsRecord,
   PdsRepo,
   PdsRepoStatus,
   PutPdsBlocksParams,
+  PutPdsPreferencesParams,
   UpdatePdsRepoHeadParams,
+  UpdatePdsRepoIdentityParams,
   UpsertPdsRecordParams
 } from '@/lib/database/domains/pds/types'
 import {
@@ -82,6 +88,9 @@ const PDS_REPO_COLUMNS = [
   'rootCid',
   'rev',
   'status',
+  'handle',
+  'recoveryKeyDid',
+  'plcOperation',
   'createdAt',
   'updatedAt'
 ] as const
@@ -96,6 +105,9 @@ const toRepo = (row: PdsRepoRow): PdsRepo => ({
   rootCid: row.rootCid ?? null,
   rev: row.rev ?? null,
   status: row.status as PdsRepoStatus,
+  handle: row.handle ?? null,
+  recoveryKeyDid: row.recoveryKeyDid ?? null,
+  plcOperation: row.plcOperation ?? null,
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -144,7 +156,9 @@ export const createPdsRepo = async (
     signingKeyDid,
     rootCid = null,
     rev = null,
-    status = 'active'
+    status = 'active',
+    handle = null,
+    plcOperation = null
   }: CreatePdsRepoParams
 ): Promise<PdsRepo> => {
   const now = new Date()
@@ -159,6 +173,8 @@ export const createPdsRepo = async (
       rootCid,
       rev,
       status,
+      handle,
+      plcOperation,
       createdAt: now,
       updatedAt: now
     })
@@ -192,6 +208,20 @@ export const getPdsRepoSigningKey = async (
   return row?.signingKey ?? null
 }
 
+export const getPdsRepoByHandle = async (
+  db: Db,
+  { handle }: GetPdsRepoByHandleParams
+): Promise<PdsRepo | null> => {
+  const normalized = handle.trim().toLowerCase()
+  if (!normalized) return null
+  const row = await db
+    .selectFrom('pds_repos')
+    .select(PDS_REPO_COLUMNS)
+    .where(sql`lower(${sql.ref('handle')})`, '=', normalized)
+    .executeTakeFirst()
+  return row ? toRepo(row) : null
+}
+
 export const listPdsRepos = async (
   db: Db,
   { domain, cursor, limit = 500 }: ListPdsReposParams = {}
@@ -217,6 +247,26 @@ export const listPdsRepos = async (
   }
 }
 
+/**
+ * The DIDs of tombstone rows (`status = 'deleted'`) whose `updatedAt` is older
+ * than `before`, oldest first. Retention deletes these once the event window
+ * has passed.
+ */
+export const listDeletedPdsReposBefore = async (
+  db: Db,
+  { before, limit = 500 }: ListDeletedPdsReposBeforeParams
+): Promise<string[]> => {
+  const rows = await db
+    .selectFrom('pds_repos')
+    .select('did')
+    .where('status', '=', 'deleted')
+    .where('updatedAt', '<', timestampValue(before))
+    .orderBy('updatedAt', 'asc')
+    .limit(clampLimit(limit, 500))
+    .execute()
+  return rows.map((row) => row.did)
+}
+
 export const updatePdsRepoHead = async (
   db: Db,
   { did, rootCid, rev, expectedRev }: UpdatePdsRepoHeadParams
@@ -239,10 +289,71 @@ export const updatePdsRepoStatus = async (
 ): Promise<boolean> => {
   const result = await db
     .updateTable('pds_repos')
-    .set({ status, updatedAt: new Date() })
+    .set({
+      status,
+      updatedAt: new Date(),
+      // A tombstone gives up the actor's unique slot, so the actor can host a
+      // new account before retention removes the row; the firehose still
+      // carries its `#account` events by DID.
+      ...(status === 'deleted' ? { actorId: `deleted:${did}` } : {})
+    })
     .where('did', '=', did)
     .executeTakeFirst()
   return Number(result.numUpdatedRows) > 0
+}
+
+export const updatePdsRepoIdentity = async (
+  db: Db,
+  { did, handle, recoveryKeyDid, plcOperation }: UpdatePdsRepoIdentityParams
+): Promise<boolean> => {
+  const updates: {
+    updatedAt: Date
+    handle?: string | null
+    recoveryKeyDid?: string | null
+    plcOperation?: string | null
+  } = { updatedAt: new Date() }
+  if (handle !== undefined) updates.handle = handle
+  if (recoveryKeyDid !== undefined) updates.recoveryKeyDid = recoveryKeyDid
+  if (plcOperation !== undefined) updates.plcOperation = plcOperation
+
+  const result = await db
+    .updateTable('pds_repos')
+    .set(updates)
+    .where('did', '=', did)
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows) > 0
+}
+
+export const getPdsPreferences = async (
+  db: Db,
+  { did }: GetPdsPreferencesParams
+): Promise<PdsPreferences | null> => {
+  const row = await db
+    .selectFrom('pds_preferences')
+    .select('preferences')
+    .where('did', '=', did)
+    .executeTakeFirst()
+  if (!row) return null
+  return JSON.parse(row.preferences) as PdsPreferences
+}
+
+export const putPdsPreferences = async (
+  db: Db,
+  { did, preferences }: PutPdsPreferencesParams
+): Promise<PdsPreferences> => {
+  const serialized = JSON.stringify(preferences)
+  const now = new Date()
+  await db
+    .insertInto('pds_preferences')
+    .values({ did, preferences: serialized, updatedAt: now })
+    .onConflict((oc) =>
+      oc.column('did').doUpdateSet({
+        preferences: serialized,
+        updatedAt: now
+      })
+    )
+    .execute()
+  return preferences
 }
 
 export const putPdsBlocks = async (
@@ -948,6 +1059,8 @@ export const initializePdsRepo = async (
     rootCid,
     rev,
     status = 'active',
+    handle = null,
+    plcOperation = null,
     blocks,
     events
   }: InitializePdsRepoParams
@@ -961,7 +1074,9 @@ export const initializePdsRepo = async (
       signingKeyDid,
       rootCid,
       rev,
-      status
+      status,
+      handle,
+      plcOperation
     })
 
     if (blocks.length > 0) {
@@ -1186,17 +1301,44 @@ export const deletePdsRepoData = async (
     await trx.deleteFrom('pds_events').where('did', '=', did).execute()
     await trx.deleteFrom('pds_records').where('did', '=', did).execute()
     await trx.deleteFrom('pds_blocks').where('did', '=', did).execute()
+    await trx.deleteFrom('pds_preferences').where('did', '=', did).execute()
     await trx.deleteFrom('pds_repos').where('did', '=', did).execute()
+    return { blobStorageKeys: blobs.map((blob) => blob.storageKey) }
+  })
+
+/**
+ * Removes a repo's records, blocks, blobs and record-blob references, keeping
+ * the `pds_repos` tombstone row and its `pds_events` history.
+ */
+export const deletePdsRepoContent = async (
+  db: Db,
+  { did }: { did: string }
+): Promise<{ blobStorageKeys: string[] }> =>
+  inTransaction(db, async (trx) => {
+    const blobs = await trx
+      .selectFrom('pds_blobs')
+      .select('storageKey')
+      .where('did', '=', did)
+      .execute()
+    await trx.deleteFrom('pds_record_blobs').where('did', '=', did).execute()
+    await trx.deleteFrom('pds_blobs').where('did', '=', did).execute()
+    await trx.deleteFrom('pds_records').where('did', '=', did).execute()
+    await trx.deleteFrom('pds_blocks').where('did', '=', did).execute()
     return { blobStorageKeys: blobs.map((blob) => blob.storageKey) }
   })
 
 export const pdsQueries = {
   createPdsRepo,
   getPdsRepo,
+  getPdsRepoByHandle,
   getPdsRepoSigningKey,
   listPdsRepos,
+  listDeletedPdsReposBefore,
   updatePdsRepoHead,
+  updatePdsRepoIdentity,
   updatePdsRepoStatus,
+  getPdsPreferences,
+  putPdsPreferences,
   putPdsBlocks,
   getPdsBlocks,
   getPdsBlockSizes,
@@ -1222,5 +1364,6 @@ export const pdsQueries = {
   countPdsBlobReferences,
   initializePdsRepo,
   commitPdsRepoWrite,
-  deletePdsRepoData
+  deletePdsRepoData,
+  deletePdsRepoContent
 }

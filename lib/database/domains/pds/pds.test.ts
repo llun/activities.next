@@ -939,7 +939,11 @@ describe('PDS database domain', () => {
 
     await database.deleteActorData({ actorId: doomedActorId })
 
-    expect(await database.getPdsRepo({ did: doomedDid })).toBeNull()
+    // The repo row stays as a tombstone that retention removes later; its
+    // records, blocks and blobs are gone.
+    const doomedRepo = await database.getPdsRepo({ did: doomedDid })
+    expect(doomedRepo?.status).toBe('deleted')
+    // It gives up the actor's slot, so it is found only by DID.
     expect(await database.getPdsRepo({ actorId: doomedActorId })).toBeNull()
     expect(
       await database.getPdsBlocks({
@@ -954,9 +958,15 @@ describe('PDS database domain', () => {
         rkey: '3k1'
       })
     ).toBeNull()
-    expect(
-      await database.listPdsEvents({ afterSeq: 0, did: doomedDid })
-    ).toEqual([])
+    // The commit event and the account-deleted event stay for the firehose.
+    const doomedEvents = await database.listPdsEvents({
+      afterSeq: 0,
+      did: doomedDid
+    })
+    expect(doomedEvents.map((event) => event.type)).toEqual([
+      'commit',
+      'account'
+    ])
     expect(
       await database.getPdsBlob({
         did: doomedDid,
@@ -1719,4 +1729,147 @@ describe('PDS database domain', () => {
       assertLockBeforeInsertsInTx(standaloneQueries, 1)
     }
   )
+
+  it('updates a repo identity, resolves it by handle case-insensitively, and clears fields with null', async () => {
+    const did = 'did:plc:identitytest000000000000'
+    await database.createPdsRepo({
+      did,
+      actorId: 'https://identity.example/users/alice',
+      domain: 'identity.example',
+      signingKey: 'v1:key-identity',
+      signingKeyDid: 'did:key:zQ3shIdentity'
+    })
+
+    expect(
+      await database.updatePdsRepoIdentity({
+        did,
+        handle: 'Alice.Identity.Example',
+        recoveryKeyDid: 'did:key:zQ3shRecovery',
+        plcOperation: '{"type":"plc_operation"}'
+      })
+    ).toBe(true)
+
+    expect(await database.getPdsRepo({ did })).toMatchObject({
+      handle: 'Alice.Identity.Example',
+      recoveryKeyDid: 'did:key:zQ3shRecovery',
+      plcOperation: '{"type":"plc_operation"}'
+    })
+
+    // Omitted fields are left unchanged.
+    await database.updatePdsRepoIdentity({
+      did,
+      handle: 'bob.identity.example'
+    })
+    expect(await database.getPdsRepo({ did })).toMatchObject({
+      handle: 'bob.identity.example',
+      recoveryKeyDid: 'did:key:zQ3shRecovery',
+      plcOperation: '{"type":"plc_operation"}'
+    })
+
+    // An explicit null clears a field.
+    await database.updatePdsRepoIdentity({
+      did,
+      recoveryKeyDid: null,
+      plcOperation: null
+    })
+    expect(await database.getPdsRepo({ did })).toMatchObject({
+      handle: 'bob.identity.example',
+      recoveryKeyDid: null,
+      plcOperation: null
+    })
+
+    expect(
+      await database.getPdsRepoByHandle({ handle: 'BOB.IDENTITY.EXAMPLE' })
+    ).toMatchObject({ did })
+    expect(
+      await database.getPdsRepoByHandle({ handle: '  bob.identity.example  ' })
+    ).toMatchObject({ did })
+    expect(
+      await database.getPdsRepoByHandle({ handle: 'nobody.identity.example' })
+    ).toBeNull()
+    expect(await database.getPdsRepoByHandle({ handle: '   ' })).toBeNull()
+  })
+
+  it('upserts per-DID preferences', async () => {
+    const did = 'did:plc:preferencestest0000000000'
+    expect(await database.getPdsPreferences({ did })).toBeNull()
+
+    await database.putPdsPreferences({
+      did,
+      preferences: [{ key: 'theme', value: 'dark' }]
+    })
+    expect(await database.getPdsPreferences({ did })).toEqual([
+      { key: 'theme', value: 'dark' }
+    ])
+
+    await database.putPdsPreferences({ did, preferences: ['compact'] })
+    expect(await database.getPdsPreferences({ did })).toEqual(['compact'])
+  })
+
+  it('deletes repo content but keeps the tombstone row and events, and deletePdsRepoData also removes preferences', async () => {
+    const did = 'did:plc:contenttest0000000000000'
+    await database.createPdsRepo({
+      did,
+      actorId: 'https://content.example/users/alice',
+      domain: 'content.example',
+      signingKey: 'v1:key-content',
+      signingKeyDid: 'did:key:zQ3shContent'
+    })
+    await database.createPdsBlob({
+      did,
+      cid: 'bafy-content-blob',
+      mimeType: 'image/webp',
+      size: 10,
+      storageKey: `pds-blobs/${did}/bafy-content-blob`
+    })
+    await database.commitPdsRepoWrite({
+      did,
+      rootCid: 'bafy-content-root',
+      rev: '3k00000000001',
+      expectedRev: null,
+      blocks: [{ cid: 'bafy-content-blk', bytes: Buffer.from([1, 2]) }],
+      recordWrites: [
+        {
+          action: 'create',
+          collection: 'app.bsky.feed.post',
+          rkey: '3k1',
+          cid: 'bafy-content-blk',
+          blobCids: ['bafy-content-blob']
+        }
+      ],
+      event: { type: 'commit', payload: Buffer.from('evt') }
+    })
+    await database.putPdsPreferences({ did, preferences: ['x'] })
+
+    const { blobStorageKeys } = await database.deletePdsRepoContent({ did })
+    expect(blobStorageKeys).toEqual([`pds-blobs/${did}/bafy-content-blob`])
+
+    expect(await database.getPdsRepo({ did })).not.toBeNull()
+    expect(await database.listPdsEvents({ afterSeq: 0, did })).toHaveLength(1)
+    expect(
+      await database.getPdsBlocks({ did, cids: ['bafy-content-blk'] })
+    ).toEqual([])
+    expect(
+      await database.getPdsRecord({
+        did,
+        collection: 'app.bsky.feed.post',
+        rkey: '3k1'
+      })
+    ).toBeNull()
+    expect(
+      await database.getPdsBlob({ did, cid: 'bafy-content-blob' })
+    ).toBeNull()
+    expect(
+      await database.getPdsRecordBlobs({
+        did,
+        recordUri: `at://${did}/app.bsky.feed.post/3k1`
+      })
+    ).toEqual([])
+    // Preferences survive a content delete.
+    expect(await database.getPdsPreferences({ did })).toEqual(['x'])
+
+    await database.deletePdsRepoData({ did })
+    expect(await database.getPdsRepo({ did })).toBeNull()
+    expect(await database.getPdsPreferences({ did })).toBeNull()
+  })
 })

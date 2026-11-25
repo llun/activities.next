@@ -1326,6 +1326,12 @@ CREATE SEQUENCE public.pds_events_seq_seq
 
 ALTER SEQUENCE public.pds_events_seq_seq OWNED BY public.pds_events.seq;
 
+CREATE TABLE public.pds_preferences (
+    did character varying(255) NOT NULL,
+    preferences text NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.pds_record_blobs (
     did character varying(255) NOT NULL,
     "recordUri" character varying(2048) NOT NULL,
@@ -1351,7 +1357,10 @@ CREATE TABLE public.pds_repos (
     rev character varying(32),
     status character varying(16) DEFAULT 'active'::character varying NOT NULL,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    handle character varying(253),
+    "recoveryKeyDid" character varying(255),
+    "plcOperation" text
 );
 
 CREATE TABLE public.poll_answers (
@@ -2213,6 +2222,9 @@ ALTER TABLE ONLY public.pds_blocks
 
 ALTER TABLE ONLY public.pds_events
     ADD CONSTRAINT pds_events_pkey PRIMARY KEY (seq);
+
+ALTER TABLE ONLY public.pds_preferences
+    ADD CONSTRAINT pds_preferences_pkey PRIMARY KEY (did);
 
 ALTER TABLE ONLY public.pds_record_blobs
     ADD CONSTRAINT pds_record_blobs_pkey PRIMARY KEY (did, "recordUri", "blobCid");

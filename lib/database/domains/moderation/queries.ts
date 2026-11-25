@@ -27,6 +27,7 @@ import { revokeAccountOAuthTokens } from '@/lib/database/domains/oauth/queries'
 import { deletePdsRepoData } from '@/lib/database/domains/pds/queries'
 import { deleteActorSearchDocument } from '@/lib/database/domains/search/accounts'
 import { type Db, inTransaction, isInTransaction } from '@/lib/database/kysely'
+import { appendPdsAccountStatusEvent } from '@/lib/services/pds/accountEvents'
 import { deletePdsBlobFilesBestEffort } from '@/lib/services/pds/blobStorage'
 
 export const setActorSuspended = async (
@@ -307,6 +308,30 @@ export const setReportResolution = async (
 }
 
 /**
+ * Whether the actor is still blocked after one moderation flag was cleared:
+ * a suspended actor or a disabled account. Used to decide whether clearing
+ * suspend or disable should announce the hosted repo as active again.
+ */
+const isStillModerationBlocked = async (
+  trx: Db,
+  { actorId, accountId }: { actorId: string; accountId: string | null }
+): Promise<boolean> => {
+  const actor = await trx
+    .selectFrom('actors')
+    .select('suspendedAt')
+    .where('id', '=', actorId)
+    .executeTakeFirst()
+  if (actor?.suspendedAt) return true
+  if (!accountId) return false
+  const account = await trx
+    .selectFrom('accounts')
+    .select('disabledAt')
+    .where('id', '=', accountId)
+    .executeTakeFirst()
+  return Boolean(account?.disabledAt)
+}
+
+/**
  * Applies a moderation action and everything that must land with it — the
  * actor/account state change, the session wipe for suspend/disable, the
  * `moderation_actions` audit row and the linked report's resolution — in one
@@ -340,12 +365,29 @@ export const applyModerationAction = async (
         if (accountId) {
           await deleteAllAccountSessions(trx, { accountId })
         }
+        await appendPdsAccountStatusEvent(trx, {
+          actorId: targetActorId,
+          active: false,
+          status: 'takendown'
+        })
         break
       case 'unsuspend':
         await setActorSuspended(trx, {
           actorId: targetActorId,
           suspended: false
         })
+        if (
+          !(await isStillModerationBlocked(trx, {
+            actorId: targetActorId,
+            accountId
+          }))
+        ) {
+          await appendPdsAccountStatusEvent(trx, {
+            actorId: targetActorId,
+            active: true,
+            requireActiveRepo: true
+          })
+        }
         break
       case 'silence':
         await setActorSilenced(trx, { actorId: targetActorId, silenced: true })
@@ -368,12 +410,29 @@ export const applyModerationAction = async (
       case 'disable':
         await setAccountDisabled(trx, { accountId: accountId!, disabled: true })
         await deleteAllAccountSessions(trx, { accountId: accountId! })
+        await appendPdsAccountStatusEvent(trx, {
+          actorId: targetActorId,
+          active: false,
+          status: 'takendown'
+        })
         break
       case 'enable':
         await setAccountDisabled(trx, {
           accountId: accountId!,
           disabled: false
         })
+        if (
+          !(await isStillModerationBlocked(trx, {
+            actorId: targetActorId,
+            accountId
+          }))
+        ) {
+          await appendPdsAccountStatusEvent(trx, {
+            actorId: targetActorId,
+            active: true,
+            requireActiveRepo: true
+          })
+        }
         break
       case 'approve':
         await approveAccount(trx, { accountId: accountId! })

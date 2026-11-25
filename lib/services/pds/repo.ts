@@ -62,6 +62,8 @@ export type CreatePdsRepoInput = {
   actorId: string
   domain: string
   handle?: string
+  /** The signed genesis `did:plc` operation as JSON, stored for the next update. */
+  plcOperation?: string
   /** Optional pre-generated signing keypair (e.g. for deterministic tests). */
   signingKey?: Secp256k1Keypair
 }
@@ -143,7 +145,7 @@ const assertActiveRepoForWrite = async (
  */
 export const createPdsRepo = async (
   database: Database,
-  { did, actorId, domain, handle, signingKey }: CreatePdsRepoInput
+  { did, actorId, domain, handle, plcOperation, signingKey }: CreatePdsRepoInput
 ): Promise<CreatePdsRepoResult> => {
   const normalizedDomain = assertPdsDomainEnabled(domain)
   const pdsConfig = getPdsConfig()
@@ -215,6 +217,8 @@ export const createPdsRepo = async (
     rootCid: initCommit.cid.toString(),
     rev: initCommit.rev,
     status: 'active',
+    handle: handle ?? null,
+    plcOperation: plcOperation ?? null,
     blocks,
     events: [
       { type: 'identity', payload: identityPayload, createdAt: now },

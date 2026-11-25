@@ -940,7 +940,8 @@ describe('deleteActorJob', () => {
         })
 
         expect(await store.openRead(storageKey)).toBeNull()
-        expect(await database.getPdsRepo({ did })).toBeNull()
+        // The repo row stays as a tombstone that retention removes later.
+        expect((await database.getPdsRepo({ did }))?.status).toBe('deleted')
         expect(await database.listPdsBlobStorageKeys({ did })).toEqual([])
       } finally {
         await fs.rm(tempDir, { recursive: true, force: true })
