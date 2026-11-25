@@ -1,0 +1,158 @@
+lib/jobs/index.test.ts
+  s_f193227df3df34::t_767559e60ffae2 31-41
+  s_f193227df3df34::t_64f6d9917a355d 30,42-64
+.env.example
+  s_f193227df3df34::t_9835da6b34e96a 262-265
+app/api/well-known/did.json/route.test.ts
+  s_f193227df3df34::t_b5d33ad126ebd1 1-287
+app/api/well-known/did.json/route.ts
+  s_f193227df3df34::t_62aff44f810e1c 1-65
+app/xrpc/[[...nsid]]/route.test.ts
+  s_f193227df3df34::t_973043abfa4f04 1-1776
+app/xrpc/[[...nsid]]/route.ts
+  s_f193227df3df34::t_f01d945c868e0f 1-629
+docs/environment-variables.md
+  s_f193227df3df34::t_605f798f88ff47 137-140,518-521
+docs/maintenance.md
+  s_f193227df3df34::t_4d36a4790375e2 97-98,203,293-296
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_043bde99d1f429 1403-1412
+docs/setup.md
+  s_f193227df3df34::t_d3ae16af958ec8 70,134-143
+lib/config/__mocks__/index.ts
+  s_f193227df3df34::t_6f27ddfa067488 11-13,32-50
+lib/config/blueskyPds.test.ts
+  s_f193227df3df34::t_bb5e61288e09fd 1-282
+lib/config/blueskyPds.ts
+  s_f193227df3df34::t_42576b3a243271 1-225
+lib/config/index.ts
+  s_f193227df3df34::t_b54ac5d83df78f 13-19,87,178,251-266
+lib/database/domains/actor/actorDeletionQueries.test.ts
+  s_f193227df3df34::t_05e56324a62025 1445-1446
+lib/database/domains/actor/deletion.ts
+  s_f193227df3df34::t_e41aaf9bc30d5f 5,620-629
+lib/database/domains/moderation/moderationQueries.test.ts
+  s_f193227df3df34::t_3c28bad4c67278 2,4-5,7-8,11-14,16,491-687
+lib/database/domains/moderation/queries.ts
+  s_f193227df3df34::t_8177b0559834b0 27,29-30,90-104,106-117,119-165,167-171,173,175-176,178-208,319,330-333,382,387-388,415-421
+lib/database/domains/pds/pds.test.ts
+  s_f193227df3df34::t_5e16acc7f11405 1-1040
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_23c828b82468c6 1-1061
+lib/database/domains/pds/types.ts
+  s_f193227df3df34::t_f19406b134766c 1-304
+lib/database/getSQLDatabase.ts
+  s_f193227df3df34::t_05c6da59344b0c 53,149
+lib/database/kysely/db.ts
+  s_f193227df3df34::t_5ce0882ce6efdc 1245-1297,1765-1770
+lib/database/kysely/dialect.ts
+  s_f193227df3df34::t_ff1df6c766d0e9 50-56
+lib/database/types.ts
+  s_f193227df3df34::t_2bd4357b53b51c 27,110
+lib/jobs/deleteActorJob.test.ts
+  s_f193227df3df34::t_52ec7717e34f3b 16-19,882-1025
+lib/jobs/deleteActorJob.ts
+  s_f193227df3df34::t_ec9ff12088d189 19,297-300
+lib/services/actors/actorDeletion.test.ts
+  s_f193227df3df34::t_73eb2fb5cda321 181-186,189-193,196,204,208-209,225-226,232,239-264,290,293-300,310-313,317-318,328
+lib/services/actors/actorDeletion.ts
+  s_f193227df3df34::t_e438fc6dbb7f4e 1,8,236-251
+lib/services/domains/servedDomainSnapshot.test.ts
+  s_f193227df3df34::t_af2437a4c43307 15,277-301
+lib/services/domains/servedDomainSnapshot.ts
+  s_f193227df3df34::t_564859b00511b9 54,71,96,98,213-225,229,236
+lib/services/medias/reservedPaths.test.ts
+  s_f193227df3df34::t_32c9383ddfdd59 27-51,142-145
+lib/services/medias/reservedPaths.ts
+  s_f193227df3df34::t_2ef521913ed432 6,101-103,107-108
+lib/services/pds/blobStorage.ts
+  s_f193227df3df34::t_1ac773f47a8300 1-290
+lib/services/pds/blobs.test.ts
+  s_f193227df3df34::t_97fb0c3dd95a24 1-1254
+lib/services/pds/blobs.ts
+  s_f193227df3df34::t_a785e2ab69e710 1-208
+lib/services/pds/constants.ts
+  s_f193227df3df34::t_b92d9b0fd95fe6 1-37
+lib/services/pds/errors.ts
+  s_f193227df3df34::t_99cb23421dc0a0 1-121
+lib/services/pds/events.ts
+  s_f193227df3df34::t_d7b3f6b3617350 1-220
+lib/services/pds/host.test.ts
+  s_f193227df3df34::t_92a699129e7bfe 1-386
+lib/services/pds/host.ts
+  s_f193227df3df34::t_2c5b72196e91ec 1-107
+lib/services/pds/index.ts
+  s_f193227df3df34::t_386e68ae175148 1-154
+lib/services/pds/keys.ts
+  s_f193227df3df34::t_6692ce5ed2a247 1-63
+lib/services/pds/lock.ts
+  s_f193227df3df34::t_c69ab625aeb28a 1-106
+lib/services/pds/prepare.ts
+  s_f193227df3df34::t_5911b948acb2f5 1-321
+lib/services/pds/rateLimit.test.ts
+  s_f193227df3df34::t_736700d55e12f7 1-128
+lib/services/pds/rateLimit.ts
+  s_f193227df3df34::t_6d7fa0d31ebfad 1-79
+lib/services/pds/reads.ts
+  s_f193227df3df34::t_5d083e403c2c26 1-952
+lib/services/pds/repo.test.ts
+  s_f193227df3df34::t_cb5663185b6130 1-2045
+lib/services/pds/repo.ts
+  s_f193227df3df34::t_3129075feb6f51 1-659
+lib/services/pds/retention.ts
+  s_f193227df3df34::t_2c239d509b6197 1-22
+lib/services/pds/storage.ts
+  s_f193227df3df34::t_c30950ce9de863 1-231
+lib/services/pds/xrpc.ts
+  s_f193227df3df34::t_29872d42555797 1-321
+lib/utils/secretBox.test.ts
+  s_f193227df3df34::t_a4b276a6ea83c0 1-186
+lib/utils/secretBox.ts
+  s_f193227df3df34::t_281a496c9fad1f 1-147
+migrations/20261124234607_add_bluesky_pds.ts
+  s_f193227df3df34::t_b3f9a848e37e08 1-177
+migrations/index.ts
+  s_f193227df3df34::t_ec40e68a2f82a7 34,76-77
+migrations/names.ts
+  s_f193227df3df34::t_e4ab8e76e830ca 34-35
+migrations/schema.sql
+  s_f193227df3df34::t_3386f869f5e298 1295-1356,1791-1792,2208-2228,2596-2607
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_bc7e6667a48a7d 373-384
+package.json
+  s_f193227df3df34::t_6006d742fd5636 59-63,65-66
+proxy.ts
+  s_f193227df3df34::t_3ae90c51a351a8 36-43,48,149-172,182-183,194-196,220-221,293,306-317,370-372,377,398
+scripts/backup/productionArchive.database.test.ts
+  s_f193227df3df34::t_a644f8bf116fa5 46,190-210,916-940,1118-1147
+scripts/backup/productionArchive.storage.test.ts
+  s_f193227df3df34::t_dc2f1f362feb75 322-349,446-487
+scripts/backup/productionArchive.ts
+  s_f193227df3df34::t_fc3ed17744237a 1189-1226,2178-2213,2232-2261,2288,2302-2305
+scripts/maintenance/cleanupMediaStorage.test.ts
+  s_f193227df3df34::t_afff97d2304526 1-55
+scripts/maintenance/cleanupMediaStorage.ts
+  s_f193227df3df34::t_e0948985143ccf 37-40,222-285,545-551,554,557-565,669-674
+test/next.config.test.ts
+  s_f193227df3df34::t_49797199f3ab5b 23,186-223
+test/proxy.test.ts
+  s_f193227df3df34::t_729e936f52f878 359-395,915-974,982-1024
+yarn.lock
+  s_f193227df3df34::t_ee7c5ce012e046 178-201,242-252,351-366,1733-1748,4013-4017,4019-4020,4530-4538,6648,7896-7904,7994-8000
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eaba2a82f13324725e01dd711819bdf594476e6f",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
