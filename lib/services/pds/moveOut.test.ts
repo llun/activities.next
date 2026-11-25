@@ -76,7 +76,7 @@ const DEST_DID = 'did:web:dest.pds.example'
 const ALLOWED_USERNAMES = [
   'move-url',
   'move-redirect',
-  'move-password',
+  'move-create-account',
   'move-duplicate',
   'move-ratelimit',
   'move-refresh',
@@ -362,7 +362,7 @@ describe('hosted Bluesky account move-out', () => {
   })
 
   it('sends password only to createAccount with valid service-auth JWT and never stores, logs, or echoes it', async () => {
-    const { actor, did } = await setupHostedAccount('move-password')
+    const { actor, did } = await setupHostedAccount('move-create-account')
     const repo = await database.getPdsRepo({ did })
     const secretPassword = 'UltraSecretMovePassword!99'
 
