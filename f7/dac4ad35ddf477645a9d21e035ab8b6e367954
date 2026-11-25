@@ -1,0 +1,23 @@
+lib/services/pds/blobStorage.ts
+  s_f193227df3df34::t_e6993f9d6d7776 44-46,48,83-86,268-277
+lib/services/pds/blobs.test.ts
+  s_f193227df3df34::t_fe3d7a387d6a72 71-72,156-161,180-181,192,412,425-428,432-435,439-452,454-455,462,471-608,704,712-715,896-898,900,905-916,929
+lib/services/pds/blobs.ts
+  s_f193227df3df34::t_eb3d046b8a1bf4 5,37-52,55-61,93-110,113-115,117-119,121-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f7dac4ad35ddf477645a9d21e035ab8b6e367954",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
