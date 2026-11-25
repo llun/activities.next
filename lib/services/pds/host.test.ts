@@ -450,6 +450,20 @@ describe('PDS host routing', () => {
       )
     ).toBeNull()
 
+    // Next fills a missing X-Forwarded-Host with the raw Host before route
+    // handlers run; a proxy that sets only X-Activity-Next-Host still resolves.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'internal-app:3000',
+          'x-activity-next-host': 'pds.social.example',
+          'x-forwarded-host': 'internal-app:3000'
+        }),
+        undefined,
+        servedHosts
+      )?.hostname
+    ).toBe('pds.social.example')
+
     // Comma-separated list or malformed X-Forwarded-Host -> refused.
     expect(
       getPdsDomainForRequest(

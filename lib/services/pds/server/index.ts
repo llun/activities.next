@@ -18,7 +18,10 @@ import { startPdsCrawlRequests } from '@/lib/services/pds/requestCrawl'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-import { createPdsFirehoseUpgradeHandler, rejectUpgrade } from './upgrade'
+import {
+  createPdsFirehoseUpgradeHandler,
+  handlePdsServerUpgrade
+} from './upgrade'
 
 interface RequiredServerFilesManifest {
   config?: Record<string, unknown>
@@ -131,12 +134,9 @@ const main = async (): Promise<void> => {
     server.keepAliveTimeout = keepAliveTimeout
   }
 
-  server.on('upgrade', (req, socket, head) => {
-    if (firehose.handleUpgrade(req, socket, head)) {
-      return
-    }
-    rejectUpgrade(socket, 404, 'Not Found')
-  })
+  server.on('upgrade', (req, socket, head) =>
+    handlePdsServerUpgrade(firehose, req, socket, head)
+  )
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)

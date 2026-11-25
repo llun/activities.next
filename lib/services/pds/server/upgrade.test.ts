@@ -26,7 +26,8 @@ import {
   PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS,
   type PdsFirehoseUpgradeHandler,
   type PdsFirehoseUpgradeHandlerOptions,
-  createPdsFirehoseUpgradeHandler
+  createPdsFirehoseUpgradeHandler,
+  handlePdsServerUpgrade
 } from './upgrade'
 
 const TEST_DOMAIN = 'alpha.example'
@@ -741,6 +742,42 @@ describe('PDS firehose upgrade handler', () => {
       expect(elapsedMs).toBeLessThan(PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS - 1_500)
     } finally {
       rawSocket.destroy()
+    }
+  })
+})
+
+describe('handlePdsServerUpgrade', () => {
+  it('answers 404 and closes the socket for an upgrade the firehose does not take', async () => {
+    const server = http.createServer()
+    server.on('upgrade', (req, socket, head) =>
+      handlePdsServerUpgrade(
+        { handleUpgrade: () => false },
+        req,
+        socket as Duplex,
+        head
+      )
+    )
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const { port } = server.address() as AddressInfo
+    try {
+      const status = await new Promise<number>((resolve, reject) => {
+        const req = http.request({
+          host: '127.0.0.1',
+          port,
+          path: '/',
+          headers: { Connection: 'Upgrade', Upgrade: 'websocket' }
+        })
+        req.on('response', (res) => {
+          res.resume()
+          resolve(res.statusCode ?? 0)
+        })
+        req.on('upgrade', () => reject(new Error('upgraded')))
+        req.on('error', reject)
+        req.end()
+      })
+      expect(status).toBe(404)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
     }
   })
 })

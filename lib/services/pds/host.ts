@@ -99,7 +99,10 @@ export const getPdsDomainForRequest = (
 
   // When the hostname came from X-Activity-Next-Host and X-Forwarded-Host is
   // also present, refuse unless X-Forwarded-Host normalises to the same
-  // hostname (rejecting comma-separated lists and malformed values too).
+  // hostname (rejecting comma-separated lists and malformed values too). An
+  // X-Forwarded-Host equal to the raw Host is Next's own default
+  // (`x-forwarded-host ??= host`), not a proxy's, and the raw-Host check below
+  // covers it.
   const activityNextHostValue = getHostHeaderValue(
     headers,
     ACTIVITIES_HOST
@@ -109,7 +112,13 @@ export const getPdsDomainForRequest = (
     if (forwardedHostValue) {
       if (forwardedHostValue.includes(',')) return null
       const forwardedHost = normalizeServedDomainChoice(forwardedHostValue)
-      if (!forwardedHost || forwardedHost !== hostname) {
+      const rawHostForForwarded = normalizeServedDomainChoice(
+        getHeaderValue(headers, 'host')?.trim() ?? ''
+      )
+      if (
+        !forwardedHost ||
+        (forwardedHost !== hostname && forwardedHost !== rawHostForForwarded)
+      ) {
         return null
       }
     }

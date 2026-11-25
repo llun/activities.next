@@ -522,3 +522,18 @@ export const createPdsFirehoseUpgradeHandler = ({
     close
   }
 }
+
+/**
+ * The start command's `upgrade` listener: the firehose takes its own path and
+ * every other upgrade gets 404. Next's router upgrade handler is never used,
+ * because it leaves sockets it has no route for open.
+ */
+export const handlePdsServerUpgrade = (
+  firehose: Pick<PdsFirehoseUpgradeHandler, 'handleUpgrade'>,
+  req: IncomingMessage,
+  socket: Duplex,
+  head: Buffer
+): void => {
+  if (firehose.handleUpgrade(req, socket, head)) return
+  rejectUpgrade(socket, 404, 'Not Found')
+}
