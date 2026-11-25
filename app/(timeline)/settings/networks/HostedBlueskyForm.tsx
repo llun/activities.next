@@ -857,7 +857,8 @@ export const HostedBlueskyForm = ({
           </>
         ) : null}
         {moveFormOpen && !moving && !moved && error ? (
-          <div ref={moveErrorRef}>
+          // scroll-mt clears the sticky page header the alert scrolls under.
+          <div ref={moveErrorRef} className="scroll-mt-20">
             <Alert title={error} />
           </div>
         ) : null}
