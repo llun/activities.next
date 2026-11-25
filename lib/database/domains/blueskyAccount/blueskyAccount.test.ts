@@ -234,17 +234,35 @@ describe('BlueskyAccount', () => {
     }
     const noSession = await createAdmin('sync-no-session')
     await link(noSession.actorId, 'did:plc:sync-no-session')
-    // A hosted account has no stored session and is still synced.
-    const hosted = await createAdmin('sync-hosted')
-    await database.saveBlueskyAccount({
-      actorId: hosted.actorId,
-      did: 'did:plc:sync-hosted',
-      handle: 'sync-hosted.pds.example.com',
-      pdsUrl: 'https://pds.example.com',
-      authType: 'hosted',
-      domainHandle: false,
-      crosspostByDefault: false
-    })
+    // A hosted account has no stored session: it is synced while its repo is
+    // on, and not while it is off.
+    const hostedAccount = async (
+      username: string,
+      status: 'active' | 'deactivated'
+    ) => {
+      const actor = await createAdmin(username)
+      const did = `did:plc:${username}`
+      await database.createPdsRepo({
+        did,
+        actorId: actor.actorId,
+        domain: TEST_DOMAIN,
+        signingKey: 'encrypted',
+        signingKeyDid: 'did:key:z',
+        status
+      })
+      await database.saveBlueskyAccount({
+        actorId: actor.actorId,
+        did,
+        handle: `${username}.pds.example.com`,
+        pdsUrl: 'https://pds.example.com',
+        authType: 'hosted',
+        domainHandle: false,
+        crosspostByDefault: false
+      })
+      return actor
+    }
+    const hosted = await hostedAccount('sync-hosted', 'active')
+    const hostedOff = await hostedAccount('sync-hosted-off', 'deactivated')
     expect(
       await database.getBlueskyAccount({ actorId: hosted.actorId })
     ).toMatchObject({ authType: 'hosted', crosspostByDefault: false })
@@ -281,6 +299,7 @@ describe('BlueskyAccount', () => {
     expect(actorIds).toContain(hosted.actorId)
     for (const skipped of [
       noSession,
+      hostedOff,
       suspended,
       deleting,
       disabled,

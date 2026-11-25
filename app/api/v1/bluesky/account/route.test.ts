@@ -97,7 +97,8 @@ describe('PATCH /api/v1/bluesky/account', () => {
 
 describe('DELETE /api/v1/bluesky/account', () => {
   beforeEach(() => {
-    vi.resetAllMocks()
+    database.getBlueskyAccount.mockReset()
+    database.deleteBlueskyAccount.mockReset()
   })
 
   it('refuses to unlink an account hosted on this server', async () => {

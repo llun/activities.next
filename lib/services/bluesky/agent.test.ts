@@ -6,7 +6,8 @@ import {
   BlueskySessionChangedError,
   BlueskySessionEndedError,
   BlueskyUnexpectedAnswerError,
-  getBlueskyAgent
+  getBlueskyAgent,
+  loadHostedAgent
 } from '@/lib/services/bluesky/agent'
 import {
   getBlueskyOAuthClient,
@@ -428,5 +429,36 @@ describe('getBlueskyAgent', () => {
         accessJwt: 'access-2'
       })
     })
+  })
+})
+
+describe('loadHostedAgent', () => {
+  const failing = (error: unknown) => () => Promise.reject(error)
+
+  it('explains the CommonJS resolution failures of the hosted client', async () => {
+    for (const code of [
+      'ERR_MODULE_NOT_FOUND',
+      'ERR_PACKAGE_PATH_NOT_EXPORTED',
+      'ERR_REQUIRE_ESM'
+    ]) {
+      const cause = Object.assign(new Error('cannot load'), { code })
+      await expect(loadHostedAgent(failing(cause))).rejects.toMatchObject({
+        message: expect.stringContaining('cannot be served from this process'),
+        cause
+      })
+    }
+  })
+
+  it('rethrows any other load failure unchanged', async () => {
+    const broken = new TypeError('the module threw while loading')
+    await expect(loadHostedAgent(failing(broken))).rejects.toBe(broken)
+    const coded = Object.assign(new Error('disk'), { code: 'EIO' })
+    await expect(loadHostedAgent(failing(coded))).rejects.toBe(coded)
+  })
+
+  it('answers the hosted client module', async () => {
+    expect(typeof (await loadHostedAgent()).createHostedBlueskyAgent).toBe(
+      'function'
+    )
   })
 })

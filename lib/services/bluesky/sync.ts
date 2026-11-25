@@ -15,6 +15,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { isRecord } from '@/lib/utils/typeGuards'
 
 import {
+  BlueskyHostedAccountInactiveError,
   BlueskyRequestError,
   BlueskySessionChangedError,
   BlueskySessionEndedError,
@@ -61,6 +62,8 @@ const parentUri = (post: BlueskyPostView) => {
 }
 
 const syncErrorMessage = (error: unknown) => {
+  // A hosted account's own state, fixed under "Host my Bluesky account here".
+  if (error instanceof BlueskyHostedAccountInactiveError) return error.message
   if (error instanceof BlueskySessionEndedError) {
     return 'Bluesky ended this session.'
   }

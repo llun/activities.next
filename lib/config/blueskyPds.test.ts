@@ -466,6 +466,31 @@ describe('Bluesky PDS config', () => {
     expect(logger.warn).not.toHaveBeenCalled()
   })
 
+  it('warns once when the AppView URL is overridden without its DID', async () => {
+    delete process.env.ACTIVITIES_BLUESKY_APPVIEW_DID
+    process.env.ACTIVITIES_BLUESKY_APPVIEW_URL = 'https://appview.example'
+    const { logger } = await import('@/lib/utils/logger')
+    const config = await import('./blueskyPds')
+
+    expect(config.getBlueskyAppViewDid()).toBe(
+      config.DEFAULT_BLUESKY_APPVIEW_DID
+    )
+    expect(config.getBlueskyAppViewDid()).toBe(
+      config.DEFAULT_BLUESKY_APPVIEW_DID
+    )
+    expect(logger.warn).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(logger.warn).mock.calls[0][0]).toMatchObject({
+      message: expect.stringContaining('Set both together')
+    })
+
+    process.env.ACTIVITIES_BLUESKY_APPVIEW_DID =
+      'did:web:appview.example#bsky_appview'
+    expect(config.getBlueskyAppViewDid()).toBe(
+      'did:web:appview.example#bsky_appview'
+    )
+    expect(logger.warn).toHaveBeenCalledTimes(1)
+  })
+
   it('warns once and uses the defaults for an invalid AppView URL or DID', async () => {
     const { logger } = await import('@/lib/utils/logger')
     const config = await import('./blueskyPds')

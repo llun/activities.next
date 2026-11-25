@@ -280,40 +280,68 @@ const resolveHandleDid = async (handle: string): Promise<string | null> => {
 /**
  * Keeps the hosted account's `bluesky_accounts` row (authType `hosted`), which
  * holds the app's Bluesky state for it (sync status, cross-post default), in
- * step with a live repo: writes it when missing (an account created before
- * D2.3b, or a create whose row write failed) and copies a changed handle. A
- * row for an outside account is left alone; the guards keep the two apart.
+ * step with its repo: writes it when missing (an account created before
+ * D2.3b, or a create whose row write failed), copies a changed handle, and
+ * removes a hosted row left with no live repo. A row for an outside account
+ * is left alone; the guards keep the two apart.
  */
 const reconcileHostedAccountRow = async (
   database: Database,
-  actor: Actor,
-  repo: PdsRepo | null
+  actor: Actor
 ): Promise<void> => {
-  if (!repo || repo.status === 'deleted' || !repo.handle) return
-  const pdsUrl = getHostedPdsUrl(repo)
-  if (!pdsUrl) return
+  // The row first: a row written after this read comes from a repo that is
+  // already live, so the repo read below cannot see "no repo" for it.
   const row = await database.getBlueskyAccount({ actorId: actor.id })
   if (row && row.authType !== 'hosted') return
-  if (row?.did === repo.did) {
-    if (row.handle !== repo.handle || row.pdsUrl !== pdsUrl) {
+  const repo = await database.getPdsRepo({ actorId: actor.id })
+  if (!repo || repo.status === 'deleted') {
+    // An orphan: a read that raced a delete wrote it after the delete removed
+    // the row. It would block linking and fail every sync.
+    if (row) await database.deleteBlueskyAccount({ actorId: actor.id })
+    return
+  }
+  const pdsUrl = getHostedPdsUrl(repo)
+  if (!repo.handle || !pdsUrl) return
+  if (
+    row?.did === repo.did &&
+    row.handle === repo.handle &&
+    row.pdsUrl === pdsUrl
+  ) {
+    return
+  }
+  // Written under the repo lock, after reading the repo again, so a delete
+  // (which removes the row under the same lock) cannot be undone by it.
+  await withPdsRepoLock(database, repo.did, async () => {
+    const current = await database.getPdsRepo({ did: repo.did })
+    if (
+      !current ||
+      current.status === 'deleted' ||
+      current.actorId !== actor.id ||
+      !current.handle
+    ) {
+      return
+    }
+    const latest = await database.getBlueskyAccount({ actorId: actor.id })
+    if (latest && latest.authType !== 'hosted') return
+    if (latest?.did === current.did) {
       await database.updateBlueskyAccountIdentity({
         actorId: actor.id,
-        handle: repo.handle,
+        handle: current.handle,
         pdsUrl,
         domainHandle: false
       })
+      return
     }
-    return
-  }
-  // No row, or a stale hosted row of a deleted account: replaced.
-  await database.saveBlueskyAccount({
-    actorId: actor.id,
-    did: repo.did,
-    handle: repo.handle,
-    pdsUrl,
-    authType: 'hosted',
-    domainHandle: false,
-    crosspostByDefault: false
+    // No row, or a stale hosted row of a deleted account: replaced.
+    await database.saveBlueskyAccount({
+      actorId: actor.id,
+      did: current.did,
+      handle: current.handle,
+      pdsUrl,
+      authType: 'hosted',
+      domainHandle: false,
+      crosspostByDefault: false
+    })
   })
 }
 
@@ -330,9 +358,9 @@ export const getHostedBlueskyAccountState = async ({
   database: Database
   actor: Actor
 }): Promise<HostedBlueskyAccountState> => {
+  await reconcileHostedAccountRow(database, actor)
   const context = resolveHostedAccountContext(actor)
   const repo = await database.getPdsRepo({ actorId: actor.id })
-  await reconcileHostedAccountRow(database, actor, repo)
   const rotationKeyConfigured = getPdsRotationKeyHex() !== null
 
   if (!context) {

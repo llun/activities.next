@@ -1016,5 +1016,32 @@ describe('Bluesky account service', () => {
         await database.getBlueskyAccount({ actorId: 'actor-a' })
       ).toBeNull()
     })
+
+    it('refuses to unlink, check or claim a server handle for a hosted account', async () => {
+      await database.saveBlueskyAccount({
+        actorId: 'actor-a',
+        did: DID,
+        handle: 'alice.pds.social.example',
+        pdsUrl: 'https://pds.social.example',
+        authType: 'hosted',
+        domainHandle: false
+      })
+      const hosted =
+        'Your Bluesky account is hosted on this server. Manage it under “Host my Bluesky account here”.'
+
+      await expect(unlinkBluesky(database, actor('actor-a'))).rejects.toThrow(
+        hosted
+      )
+      await expect(
+        checkBlueskyHandle(database, actor('actor-a'))
+      ).rejects.toMatchObject({ message: hosted, status: 400 })
+      await expect(
+        setBlueskyInstanceHandle(database, actor('actor-a', 'admin'), true)
+      ).rejects.toMatchObject({ message: hosted, status: 400 })
+      expect(
+        await database.getBlueskyAccount({ actorId: 'actor-a' })
+      ).toMatchObject({ authType: 'hosted', instanceHandle: null })
+      expect(resolve).not.toHaveBeenCalled()
+    })
   })
 })

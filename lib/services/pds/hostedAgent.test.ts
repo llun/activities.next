@@ -1,7 +1,9 @@
 import { Secp256k1Keypair, verifySignature } from '@atproto/crypto'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { blueskyActionFailure } from '@/lib/services/bluesky/actionErrors'
 import {
+  BlueskyHostedAccountInactiveError,
   BlueskyRequestError,
   BlueskySessionEndedError,
   getBlueskyAgent
@@ -46,7 +48,8 @@ const USERNAMES = [
   'hosted-agent-crosspost',
   'hosted-agent-like',
   'hosted-agent-follow',
-  'hosted-agent-sync'
+  'hosted-agent-sync',
+  'hosted-agent-off-copy'
 ]
 
 const json = (body: unknown, statusCode = 200) => ({
@@ -292,13 +295,72 @@ describe('hosted Bluesky client', () => {
     })
 
     // Another repo, and anything outside repo and app.bsky, are refused.
-    await expect(
-      agent.get('com.atproto.repo.getRecord', {
-        repo: 'did:plc:someoneelseaaaaaaaaaaaaa',
-        collection: 'app.bsky.feed.post',
-        rkey: 'x'
+    const other = 'did:plc:someoneelseaaaaaaaaaaaaa'
+    const record = { $type: 'app.bsky.feed.post', text: 'x', createdAt: '' }
+    for (const call of [
+      () =>
+        agent.get('com.atproto.repo.getRecord', {
+          repo: other,
+          collection: 'app.bsky.feed.post',
+          rkey: 'x'
+        }),
+      () =>
+        agent.get('com.atproto.repo.listRecords', {
+          repo: other,
+          collection: 'app.bsky.feed.post'
+        }),
+      () => agent.get('com.atproto.repo.describeRepo', { repo: other }),
+      () =>
+        agent.post('com.atproto.repo.createRecord', {
+          repo: other,
+          collection: 'app.bsky.feed.post',
+          record
+        }),
+      () =>
+        agent.post('com.atproto.repo.putRecord', {
+          repo: other,
+          collection: 'app.bsky.feed.post',
+          rkey: 'x',
+          record
+        }),
+      () =>
+        agent.post('com.atproto.repo.deleteRecord', {
+          repo: other,
+          collection: 'app.bsky.feed.post',
+          rkey: 'x'
+        }),
+      () =>
+        agent.post('com.atproto.repo.applyWrites', {
+          repo: other,
+          writes: [
+            {
+              $type: 'com.atproto.repo.applyWrites#create',
+              collection: 'app.bsky.feed.post',
+              value: record
+            }
+          ]
+        })
+    ]) {
+      await expect(call()).rejects.toMatchObject({
+        status: 400,
+        error: 'InvalidRequest',
+        message: expect.stringContaining(`Only ${did}`)
       })
-    ).rejects.toMatchObject({ status: 400, error: 'InvalidRequest' })
+    }
+    // A method name that is not an NSID never reaches the AppView.
+    for (const nsid of ['app.bsky.feed.get timeline', 'app.bsky.feed/../x']) {
+      await expect(agent.get(nsid)).rejects.toMatchObject({
+        status: 400,
+        error: 'InvalidRequest'
+      })
+      await expect(agent.post(nsid, {})).rejects.toMatchObject({
+        status: 400,
+        error: 'InvalidRequest'
+      })
+    }
+    expect(
+      await database.listPdsRecords({ did, collection: 'app.bsky.feed.post' })
+    ).toEqual({ records: [] })
     await expect(
       agent.get('com.atproto.server.getSession')
     ).rejects.toMatchObject({ status: 501, error: 'MethodNotImplemented' })
@@ -415,6 +477,45 @@ describe('hosted Bluesky client', () => {
     expect(safeRemoteFetch).not.toHaveBeenCalled()
   })
 
+  it('tells the owner to turn a hosted account back on, not to link again', async () => {
+    const { actor, did, agent } = await createHosted('hosted-agent-off-copy')
+    await database.updatePdsRepoStatus({ did, status: 'deactivated' })
+    const off =
+      'Your Bluesky account on this server is off. Turn it on under “Host my Bluesky account here”.'
+    await expect(agent.get('app.bsky.feed.getTimeline')).rejects.toThrow(off)
+
+    await syncBlueskyHome(database, actor)
+    expect(
+      (await database.getBlueskyAccount({ actorId: actor.id }))?.syncError
+    ).toBe(off)
+
+    const statusId = `${actor.id}/statuses/hosted-off-crosspost`
+    await database.createNote({
+      id: statusId,
+      url: `https://${TEST_DOMAIN}/@${actor.username}/hosted-off-crosspost`,
+      actorId: actor.id,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: 'Not while off'
+    })
+    await database.claimBlueskyCrosspost({ statusId, actorId: actor.id })
+    await crosspostStatus(database, statusId).catch(() => undefined)
+    expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+      state: 'failed',
+      error: off
+    })
+    expect(
+      blueskyActionFailure(
+        new BlueskyHostedAccountInactiveError('deactivated'),
+        { lockPrefix: 'x', busy: 'busy' }
+      )
+    ).toEqual({
+      status: 422,
+      error: off
+    })
+    expect(safeRemoteFetch).not.toHaveBeenCalled()
+  })
+
   it('ends the session while the profile is suspended', async () => {
     const { actor, did, agent } = await createHosted('hosted-agent-suspended')
     await database.applyModerationAction({
@@ -423,8 +524,8 @@ describe('hosted Bluesky client', () => {
       action: 'suspend',
       moderatorAccountId: 'moderator'
     })
-    await expect(agent.get('app.bsky.feed.getTimeline')).rejects.toBeInstanceOf(
-      BlueskySessionEndedError
+    await expect(agent.get('app.bsky.feed.getTimeline')).rejects.toThrow(
+      'Your Bluesky account on this server is suspended.'
     )
     await expect(
       agent.post('com.atproto.repo.createRecord', {

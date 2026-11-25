@@ -1,3 +1,4 @@
+import { isValidNsid } from '@atproto/syntax'
 import { z } from 'zod'
 
 import {
@@ -6,12 +7,13 @@ import {
   getPdsConfig
 } from '@/lib/config/blueskyPds'
 import type { BlueskyAccount } from '@/lib/database/domains/blueskyAccount/types'
+import type { PdsRepoStatus } from '@/lib/database/domains/pds/types'
 import type { Database } from '@/lib/database/types'
 import {
   type BlueskyAgent,
+  BlueskyHostedAccountInactiveError,
   type BlueskyQueryParams,
   BlueskyRequestError,
-  BlueskySessionEndedError,
   BlueskyUnexpectedAnswerError,
   buildPath,
   readXrpcError
@@ -122,15 +124,26 @@ const parseInput = <T>(nsid: string, schema: z.ZodType<T>, input: unknown) => {
   return parsed.data
 }
 
+const inactiveReason = (status: PdsRepoStatus) =>
+  status === 'deleted'
+    ? 'gone'
+    : status === 'takendown'
+      ? 'takendown'
+      : 'deactivated'
+
 // A local PDS failure, answered as an outside PDS would: a repo that is off,
 // gone, or on a domain whose PDS is off ends the session like a revoked one.
 const mapLocalError = (nsid: string, error: unknown): unknown => {
+  if (error instanceof PdsRepoUnavailableError) {
+    return new BlueskyHostedAccountInactiveError(
+      inactiveReason(error.repoStatus)
+    )
+  }
   if (
-    error instanceof PdsRepoUnavailableError ||
     error instanceof PdsRepoNotFoundError ||
     error instanceof PdsDisabledError
   ) {
-    return new BlueskySessionEndedError()
+    return new BlueskyHostedAccountInactiveError('gone')
   }
   if (error instanceof PdsError) {
     return new BlueskyRequestError(
@@ -146,7 +159,8 @@ const mapLocalError = (nsid: string, error: unknown): unknown => {
 /**
  * The BlueskyAgent of the hosted account `account` (authType `hosted`). Every
  * call first re-reads the repo and the actor, and throws
- * BlueskySessionEndedError unless the repo's effective status is active.
+ * BlueskyHostedAccountInactiveError (a BlueskySessionEndedError) unless the
+ * repo's effective status is active.
  */
 export const createHostedBlueskyAgent = async (
   database: Database,
@@ -159,15 +173,17 @@ export const createHostedBlueskyAgent = async (
 
   const assertActive = async () => {
     const repo = await database.getPdsRepo({ did })
-    if (!repo || repo.actorId !== actor.id) {
-      throw new BlueskySessionEndedError()
-    }
-    const current = await database.getActorFromId({ id: actor.id })
     if (
-      resolveEffectivePdsRepoStatus(repo, current) !== 'active' ||
+      !repo ||
+      repo.actorId !== actor.id ||
       !getPdsConfig()?.[repo.domain]?.enabled
     ) {
-      throw new BlueskySessionEndedError()
+      throw new BlueskyHostedAccountInactiveError('gone')
+    }
+    const current = await database.getActorFromId({ id: actor.id })
+    const status = resolveEffectivePdsRepoStatus(repo, current)
+    if (status !== 'active') {
+      throw new BlueskyHostedAccountInactiveError(inactiveReason(status))
     }
   }
 
@@ -195,9 +211,11 @@ export const createHostedBlueskyAgent = async (
           body: unknown
         }
   ): Promise<T> => {
+    // Before a token is minted: the method name goes into the URL and `lxm`.
+    if (!isValidNsid(nsid)) throw invalidRequest(nsid, 'Invalid method name')
     await assertActive()
     const encrypted = await database.getPdsRepoSigningKey({ did })
-    if (!encrypted) throw new BlueskySessionEndedError()
+    if (!encrypted) throw new BlueskyHostedAccountInactiveError('gone')
     const keypair = await loadPdsSigningKey({ did, signingKey: encrypted })
     const token = await createServiceAuthToken({
       keypair,

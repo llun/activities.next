@@ -124,7 +124,9 @@ const ALLOWED_USERNAMES = [
   'hosted-row',
   'hosted-row-backfill',
   'hosted-row-stale',
-  'hosted-row-guard'
+  'hosted-row-guard',
+  'hosted-row-orphan',
+  'hosted-row-race'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -1755,6 +1757,59 @@ describe('hosted Bluesky accounts', () => {
         authType: 'hosted',
         crosspostByDefault: false
       })
+    })
+
+    it('removes a hosted row a read wrote after the account was deleted', async () => {
+      const actor = await createActor('hosted-row-orphan')
+      const handle = pdsHandle('hosted-row-orphan')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      await deleteHostedBlueskyAccount({
+        database,
+        actor,
+        confirmHandle: handle
+      })
+      // A Settings read that saw the repo active and the row gone, racing the
+      // delete, writes the row back after the delete removed it.
+      await database.saveBlueskyAccount({
+        actorId: actor.id,
+        did: state.repo!.did,
+        handle,
+        pdsUrl: `https://${PDS_HOSTNAME}`,
+        authType: 'hosted',
+        domainHandle: false
+      })
+
+      await getHostedBlueskyAccountState({ database, actor })
+
+      expect(await database.getBlueskyAccount({ actorId: actor.id })).toBeNull()
+    })
+
+    it('writes no row once a delete lands between the read and the write', async () => {
+      const actor = await createActor('hosted-row-race')
+      const handle = pdsHandle('hosted-row-race')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      const did = state.repo!.did
+      await database.deleteBlueskyAccount({ actorId: actor.id })
+      // The delete takes the repo lock first and tombstones the repo.
+      const realLock = vi.mocked(withPdsRepoLock).getMockImplementation()!
+      vi.mocked(withPdsRepoLock).mockImplementationOnce(
+        async (db, key, fn, options) => {
+          await database.updatePdsRepoStatus({ did, status: 'deleted' })
+          return realLock(db, key, fn, options)
+        }
+      )
+
+      await getHostedBlueskyAccountState({ database, actor })
+
+      expect(await database.getBlueskyAccount({ actorId: actor.id })).toBeNull()
     })
 
     it('does not stop a new account when the old one left its hosted row', async () => {

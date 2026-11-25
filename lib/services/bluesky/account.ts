@@ -179,11 +179,11 @@ export const getBlueskyAccountState = async (
   if (actor.account?.role === 'admin' && host && !hosted) {
     // A hosted account on this server whose holder may still hold the domain
     // decides it, over any claim (the atproto-did route answers it first).
-    const hosted = await database.getPdsRepoByHandle({ handle: host })
+    const hostedRepo = await database.getPdsRepoByHandle({ handle: host })
     hostedHolds =
-      hosted !== null &&
+      hostedRepo !== null &&
       (await database.isEligibleInstanceHandleHolder({
-        actorId: hosted.actorId,
+        actorId: hostedRepo.actorId,
         host
       }))
     const holder = hostedHolds

@@ -274,14 +274,19 @@ export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
       'bluesky_sessions.did',
       'bluesky_accounts.did'
     )
+    .leftJoin('pds_repos', 'pds_repos.did', 'bluesky_accounts.did')
     .innerJoin('actors', 'actors.id', 'bluesky_accounts.actorId')
     .innerJoin('accounts', 'accounts.id', 'actors.accountId')
     .select('bluesky_accounts.actorId')
-    // A hosted account (on this server's PDS) has no stored session.
+    // A hosted account (on this server's PDS) has no stored session; it is
+    // synced only while turned on, so an off or taken-down one gets no job.
     .where((eb) =>
       eb.or([
         eb('bluesky_sessions.did', 'is not', null),
-        eb('bluesky_accounts.authType', '=', 'hosted')
+        eb.and([
+          eb('bluesky_accounts.authType', '=', 'hosted'),
+          eb('pds_repos.status', '=', 'active')
+        ])
       ])
     )
     // An actor that may not act (isActorModerationBlocked,

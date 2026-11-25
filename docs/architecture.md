@@ -451,7 +451,7 @@ real queue there.
 **Bluesky Home sync.** `instrumentation.ts` also starts `startBlueskySyncSweep`
 (`lib/services/bluesky/syncSweep.ts`), which every five minutes publishes a
 `SyncBlueskyHomeJob` for each linked Bluesky account that may sync, and for
-each account hosted on the embedded PDS, which also reads that account's
+each account hosted on the embedded PDS that is turned on, which also reads that account's
 Bluesky notifications; new public posts queue a `CrosspostBlueskyJob` (and
 deletes a `DeleteBlueskyCrosspostJob`) for a linked or hosted account (see
 [Linked Bluesky accounts](mastodon-api-compatibility.md#linked-bluesky-accounts)).

@@ -411,7 +411,16 @@ export const getBlueskyAppViewUrl = (): string => {
  */
 export const getBlueskyAppViewDid = (): string => {
   const raw = process.env.ACTIVITIES_BLUESKY_APPVIEW_DID?.trim()
-  if (!raw) return DEFAULT_BLUESKY_APPVIEW_DID
+  if (!raw) {
+    // Tokens for another AppView addressed to Bluesky's would be refused.
+    if (process.env.ACTIVITIES_BLUESKY_APPVIEW_URL?.trim()) {
+      warnAppViewOnce(
+        'ACTIVITIES_BLUESKY_APPVIEW_DID unset',
+        `ACTIVITIES_BLUESKY_APPVIEW_URL is set but ACTIVITIES_BLUESKY_APPVIEW_DID is not; service-auth tokens are addressed to ${DEFAULT_BLUESKY_APPVIEW_DID}. Set both together.`
+      )
+    }
+    return DEFAULT_BLUESKY_APPVIEW_DID
+  }
   if (raw.length <= 2048 && SERVICE_DID_PATTERN.test(raw)) return raw
   warnAppViewOnce(
     'ACTIVITIES_BLUESKY_APPVIEW_DID',

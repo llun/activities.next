@@ -21,6 +21,24 @@ export class BlueskySessionEndedError extends Error {
   }
 }
 
+/**
+ * A hosted account (on this server's PDS) that may not be used now. Its
+ * message is what Settings and the cross-post status show: the fix is in
+ * "Host my Bluesky account here", not a new link.
+ */
+export class BlueskyHostedAccountInactiveError extends BlueskySessionEndedError {
+  constructor(status: 'deactivated' | 'takendown' | 'gone') {
+    super(
+      status === 'deactivated'
+        ? 'Your Bluesky account on this server is off. Turn it on under “Host my Bluesky account here”.'
+        : status === 'takendown'
+          ? 'Your Bluesky account on this server is suspended.'
+          : 'Your Bluesky account on this server is no longer available.'
+    )
+    this.name = 'BlueskyHostedAccountInactiveError'
+  }
+}
+
 /** The stored session was replaced (relinked) while a request ran. */
 export class BlueskySessionChangedError extends Error {
   constructor() {
@@ -293,11 +311,25 @@ const createAppPasswordSend = (
 // imports CommonJS callers (scripts, the queue worker) cannot load, so it is
 // loaded on first use. Under tsx/cjs this `@/` import cannot resolve: hosted
 // accounts are served by the app process (its in-process queue runner, or a
-// QStash or Cloud Tasks queue), not by the CommonJS worker.
-const loadHostedAgent = async () => {
+// QStash or Cloud Tasks queue), not by the CommonJS worker. Only that known
+// resolution failure is reworded; any other error is the module's own.
+const COMMONJS_LOAD_ERRORS = new Set([
+  'ERR_MODULE_NOT_FOUND',
+  'ERR_PACKAGE_PATH_NOT_EXPORTED',
+  'ERR_REQUIRE_ESM'
+])
+
+export const loadHostedAgent = async (
+  load = () => import('@/lib/services/pds/hostedAgent')
+) => {
   try {
-    return await import('@/lib/services/pds/hostedAgent')
+    return await load()
   } catch (error) {
+    if (
+      !COMMONJS_LOAD_ERRORS.has((error as { code?: unknown })?.code as string)
+    ) {
+      throw error
+    }
     throw new Error(
       'Hosted Bluesky accounts cannot be served from this process; run the queue in the app process',
       { cause: error }
