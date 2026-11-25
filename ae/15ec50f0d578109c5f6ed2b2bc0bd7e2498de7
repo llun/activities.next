@@ -1,0 +1,63 @@
+app/api/well-known/did.json/route.test.ts
+  s_f193227df3df34::t_e5844e35c5b569 3-9,51-57,61,223-269
+app/api/well-known/did.json/route.ts
+  s_f193227df3df34::t_6149dc80bb4538 3,47
+app/xrpc/[[...nsid]]/route.test.ts
+  s_f193227df3df34::t_9f6aec44dca0b1 24-29,32,108,119-130,133-138,140-143,148-151,156-159,164-167,175,427-428,450-454,456,598-732,1228-1280
+app/xrpc/[[...nsid]]/route.ts
+  s_f193227df3df34::t_c43da6d54197d7 15,17,216,222-228,270-271,275,546,553,604
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_879b74ae765c77 1399
+docs/setup.md
+  s_f193227df3df34::t_77070cc19a61cb 70
+lib/database/domains/moderation/moderationQueries.test.ts
+  s_f193227df3df34::t_d3dca1df37e08e 16,591-687
+lib/database/domains/moderation/queries.ts
+  s_f193227df3df34::t_99cf94a45cda14 30,95-96,98-100
+lib/database/domains/pds/pds.test.ts
+  s_f193227df3df34::t_a3e169da686b4b 273-362
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_db66eed5f60523 238-265
+lib/services/domains/servedDomainSnapshot.test.ts
+  s_f193227df3df34::t_fbe083f87a37a2 15,277-301
+lib/services/domains/servedDomainSnapshot.ts
+  s_f193227df3df34::t_82ed315309f68e 54,71,96,98,213-225,229,236
+lib/services/pds/blobs.test.ts
+  s_f193227df3df34::t_0456b4aa507e63 66-67,457-569
+lib/services/pds/blobs.ts
+  s_f193227df3df34::t_307a75692c3a45 14,71-75,77-78,81,83-94,96-103,105-112,114,116
+lib/services/pds/host.test.ts
+  s_f193227df3df34::t_1b87777f1038d0 1,3-4,43,47-50,214-278
+lib/services/pds/host.ts
+  s_f193227df3df34::t_607db106e15415 8-11,42-44,50,58-66
+lib/services/pds/index.ts
+  s_f193227df3df34::t_4843572691c6b8 84,88,94-95
+lib/services/pds/rateLimit.ts
+  s_f193227df3df34::t_32036e85a5b498 13,16-23,28-29,32-35,40,47
+lib/services/pds/reads.ts
+  s_f193227df3df34::t_9c0165fa29cc43 26,40-49,62-69,176-180,187-188,276-280,317-325,335,701-703,711-712,733-739,743-752,755-784,786-808,813-815
+lib/services/pds/repo.test.ts
+  s_f193227df3df34::t_e4190b49fbc737 47,78-87,1519-1555,1561-1872
+lib/services/pds/repo.ts
+  s_f193227df3df34::t_0637bec8c3bc6c 18-21,172-175
+proxy.ts
+  s_f193227df3df34::t_beaa61c9bc8182 41-43,149-151,161-162,173-175,199-200,272,338,344,365
+test/proxy.test.ts
+  s_f193227df3df34::t_4888fff6280a97 930-963
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ae15ec50f0d578109c5f6ed2b2bc0bd7e2498de7",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
