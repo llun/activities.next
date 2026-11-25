@@ -5,7 +5,9 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { encodeErrorFrame, encodeEventFrame, encodeInfoFrame } from './frames'
 import type { PdsEventSource } from './source'
 
-export const PDS_FIREHOSE_PAGE_SIZE = 500
+export const PDS_FIREHOSE_PAGE_SIZE = 100
+export const PDS_FIREHOSE_PAGE_MAX_BYTES = 2 * 1024 * 1024
+export const PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES = 1024 * 1024
 export const PDS_FIREHOSE_MAX_BUFFERED_BYTES = 8 * 1024 * 1024
 
 export type PdsFirehoseDatabase = Pick<
@@ -16,6 +18,7 @@ export type PdsFirehoseDatabase = Pick<
 export interface PdsFirehoseTransport {
   send(frame: Uint8Array): void
   bufferedAmount(): number
+  waitForDrain?(): Promise<void>
   close(code?: number, reason?: string): void
 }
 
@@ -26,6 +29,8 @@ export interface PdsFirehoseSubscriberOptions {
   source: PdsEventSource
   transport: PdsFirehoseTransport
   pageSize?: number
+  pageMaxBytes?: number
+  lowWaterBufferedBytes?: number
   maxBufferedBytes?: number
 }
 
@@ -41,6 +46,8 @@ export const createPdsFirehoseSubscriber = ({
   source,
   transport,
   pageSize = PDS_FIREHOSE_PAGE_SIZE,
+  pageMaxBytes = PDS_FIREHOSE_PAGE_MAX_BYTES,
+  lowWaterBufferedBytes = PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES,
   maxBufferedBytes = PDS_FIREHOSE_MAX_BUFFERED_BYTES
 }: PdsFirehoseSubscriberOptions): PdsFirehoseSubscriber => {
   let started = false
@@ -78,6 +85,20 @@ export const createPdsFirehoseSubscriber = ({
     return true
   }
 
+  const waitForBackpressure = async (): Promise<boolean> => {
+    if (stopped) return true
+    if (checkBackpressure()) return true
+    if (
+      transport.waitForDrain &&
+      transport.bufferedAmount() > lowWaterBufferedBytes
+    ) {
+      await transport.waitForDrain()
+      if (stopped) return true
+      if (checkBackpressure()) return true
+    }
+    return stopped
+  }
+
   const pump = async (): Promise<void> => {
     if (stopped || !initialized) return
     if (pumping) {
@@ -89,22 +110,24 @@ export const createPdsFirehoseSubscriber = ({
     try {
       while (!stopped) {
         dirty = false
+        const prevLastSeq = lastSeq
         const events = await database.listPdsEvents({
           afterSeq: lastSeq,
           limit: pageSize,
-          domain
+          maxBytes: pageMaxBytes,
+          domain,
+          activeReposOnly: true
         })
         if (stopped) return
 
         for (const event of events) {
-          if (stopped) return
-          if (checkBackpressure()) return
+          if (await waitForBackpressure()) return
           transport.send(encodeEventFrame(event))
           lastSeq = event.seq
           if (checkBackpressure()) return
         }
 
-        if (events.length >= pageSize) {
+        if (events.length > 0 && lastSeq > prevLastSeq) {
           continue
         }
 
@@ -116,10 +139,12 @@ export const createPdsFirehoseSubscriber = ({
       }
     } catch (error) {
       if (!stopped) {
-        logger.error(
-          { err: toLoggableError(error), domain, lastSeq },
-          'Failed to stream PDS firehose events'
-        )
+        logger.error({
+          message: 'Failed to stream PDS firehose events',
+          err: toLoggableError(error),
+          domain,
+          lastSeq
+        })
         stop()
         transport.close(1011, 'Internal server error')
       }
@@ -148,10 +173,11 @@ export const createPdsFirehoseSubscriber = ({
       bounds = await database.getPdsEventSeqBounds()
     } catch (error) {
       if (!stopped) {
-        logger.error(
-          { err: toLoggableError(error), domain },
-          'Failed to read PDS firehose sequence bounds'
-        )
+        logger.error({
+          message: 'Failed to read PDS firehose sequence bounds',
+          err: toLoggableError(error),
+          domain
+        })
         stop()
         transport.close(1011, 'Internal server error')
       }
@@ -196,7 +222,7 @@ export const createPdsFirehoseSubscriber = ({
     }
 
     if (oldest !== null && cursor < oldest - 1) {
-      if (checkBackpressure()) return
+      if (await waitForBackpressure()) return
       transport.send(
         encodeInfoFrame(
           'OutdatedCursor',

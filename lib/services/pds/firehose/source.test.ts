@@ -1,8 +1,10 @@
 import { EventEmitter } from 'node:events'
 
+import type { DatabaseConfig } from '@/lib/config/database'
 import { createPostgresClient } from '@/lib/database/connection'
-import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { getTestDatabaseConfig } from '@/lib/database/testing/createTestDatabase'
 import { PDS_EVENTS_NOTIFY_CHANNEL } from '@/lib/services/pds/constants'
+import { logger } from '@/lib/utils/logger'
 
 import {
   PDS_FIREHOSE_PG_CONNECT_TIMEOUT_MS,
@@ -298,12 +300,82 @@ describe('PDS firehose event sources', () => {
       await vi.advanceTimersByTimeAsync(10_000)
       expect(createClient).toHaveBeenCalledTimes(1)
     })
+
+    it('sanitises logged PostgreSQL errors so err.client is omitted', async () => {
+      const client = new FakePgClient()
+      const connectFailClient = new FakePgClient()
+      const connectErr = Object.assign(new Error('auth failed'), {
+        code: '28P01',
+        client: { password: 'secret', host: 'db.internal' }
+      })
+      connectFailClient.connect.mockRejectedValueOnce(connectErr)
+
+      const createClient = vi
+        .fn<() => Promise<PgListenClient>>()
+        .mockResolvedValueOnce(client)
+        .mockResolvedValueOnce(connectFailClient)
+
+      const source = createPostgresPdsEventSource({
+        createClient,
+        initialReconnectDelayMs: 1_000
+      })
+
+      await flushMicrotasks()
+
+      const emittedErr = Object.assign(
+        new Error('terminating connection due to administrator command'),
+        {
+          code: '57P01',
+          client: { password: 'secret', host: 'db.internal' }
+        }
+      )
+      client.emitError(emittedErr)
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      await flushMicrotasks()
+
+      const errorMock = vi.mocked(logger.error)
+      expect(errorMock).toHaveBeenCalledTimes(2)
+      expect(errorMock).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          message:
+            'PostgreSQL PDS event listener errored; scheduling reconnect',
+          channel: PDS_EVENTS_NOTIFY_CHANNEL,
+          err: expect.objectContaining({
+            type: 'Error',
+            code: '57P01',
+            message: 'terminating connection due to administrator command'
+          })
+        })
+      )
+      expect(errorMock).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          message:
+            'PostgreSQL PDS event listener failed to connect; scheduling reconnect',
+          channel: PDS_EVENTS_NOTIFY_CHANNEL,
+          err: expect.objectContaining({
+            type: 'Error',
+            code: '28P01',
+            message: 'auth failed'
+          })
+        })
+      )
+      for (const [entry] of errorMock.mock.calls) {
+        expect(entry).not.toHaveProperty('err.client')
+      }
+
+      await source.close()
+    })
   })
 
   describe('createPdsEventSource', () => {
     it('picks the polling source for a SQLite database', async () => {
-      const testDb = createTestDatabase({ backend: 'sqlite' })
-      const source = createPdsEventSource(testDb.database)
+      const fakeDb = {} as Parameters<typeof createPdsEventSource>[0]
+      const source = createPdsEventSource(fakeDb, {
+        databaseConfig: getTestDatabaseConfig('sqlite')
+      })
       const listener = vi.fn()
       source.subscribe(listener)
 
@@ -311,7 +383,20 @@ describe('PDS firehose event sources', () => {
       expect(listener).toHaveBeenCalledTimes(1)
 
       await source.close()
-      await testDb.destroy()
+    })
+
+    it('throws for an unsupported database client', () => {
+      const fakeDb = {} as Parameters<typeof createPdsEventSource>[0]
+      expect(() =>
+        createPdsEventSource(fakeDb, {
+          databaseConfig: {
+            client: 'mysql2'
+          } as unknown as DatabaseConfig
+        })
+      ).toThrow(
+        'Unsupported database client "mysql2": only better-sqlite3 ' +
+          '(SQLite) and pg (PostgreSQL) are supported'
+      )
     })
 
     it('picks the PostgreSQL LISTEN source when configured for pg', async () => {

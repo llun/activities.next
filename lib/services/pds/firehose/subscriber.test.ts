@@ -3,10 +3,15 @@ import type { LexMap } from '@atproto/lex-data'
 
 import type { PdsEvent } from '@/lib/database/domains/pds/types'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { formatPdsIdentityEvent } from '@/lib/services/pds/events'
+import {
+  formatPdsAccountEvent,
+  formatPdsIdentityEvent
+} from '@/lib/services/pds/events'
+import { TEST_PASSWORD_HASH } from '@/lib/stub/const'
 
 import type { PdsEventSource } from './source'
 import {
+  PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES,
   PDS_FIREHOSE_MAX_BUFFERED_BYTES,
   type PdsFirehoseDatabase,
   type PdsFirehoseTransport,
@@ -93,6 +98,22 @@ describe('PDS firehose subscriber', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    await database.createAccount({
+      email: `alice@${domainA}`,
+      username: 'alice',
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: domainA,
+      privateKey: 'priv-alice',
+      publicKey: 'pub-alice'
+    })
+    await database.createAccount({
+      email: `bob@${domainB}`,
+      username: 'bob',
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: domainB,
+      privateKey: 'priv-bob',
+      publicKey: 'pub-bob'
+    })
     await database.createPdsRepo({
       did: didA,
       actorId: 'https://alpha.example/users/alice',
@@ -308,29 +329,108 @@ describe('PDS firehose subscriber', () => {
     expect(source2.listenerCount()).toBe(0)
   })
 
-  it('sends ConsumerTooSlow error frame and closes when bufferedAmount exceeds 8 MiB', async () => {
+  it('does not close at exactly MAX buffered bytes and sends ConsumerTooSlow at MAX + 1', async () => {
     const e1 = await appendIdentityEvent(didA, 'one.alpha')
-    await appendIdentityEvent(didA, 'two.alpha')
+    const e2 = await appendIdentityEvent(didA, 'two.alpha')
+
+    // At exactly PDS_FIREHOSE_MAX_BUFFERED_BYTES: no error frame and no close.
+    let exactBuffered = 0
+    const exactSource = new ManualEventSource()
+    const exactFrames: DecodedFrame[] = []
+    const exactClosed: Array<{ code?: number; reason?: string }> = []
+    const exactTransport: PdsFirehoseTransport = {
+      send(frame) {
+        exactFrames.push(decodeSentFrame(frame))
+        exactBuffered = PDS_FIREHOSE_MAX_BUFFERED_BYTES
+      },
+      bufferedAmount: () => exactBuffered,
+      close(code, reason) {
+        exactClosed.push({ code, reason })
+      }
+    }
+
+    const exactSubscriber = createPdsFirehoseSubscriber({
+      database,
+      domain: domainA,
+      cursor: e1.seq - 1,
+      source: exactSource,
+      transport: exactTransport
+    })
+    await exactSubscriber.start()
+    expect(exactClosed).toEqual([])
+    expect(exactFrames.map((f) => f.body.seq)).toEqual([e1.seq, e2.seq])
+    exactSubscriber.stop()
+
+    // At PDS_FIREHOSE_MAX_BUFFERED_BYTES + 1: sends ConsumerTooSlow and closes.
+    let overBuffered = 0
+    const overSource = new ManualEventSource()
+    const overFrames: DecodedFrame[] = []
+    const overClosed: Array<{ code?: number; reason?: string }> = []
+
+    const overTransport: PdsFirehoseTransport = {
+      send(frame) {
+        overFrames.push(decodeSentFrame(frame))
+        if (overFrames.length === 1) {
+          overBuffered = PDS_FIREHOSE_MAX_BUFFERED_BYTES + 1
+        }
+      },
+      bufferedAmount: () => overBuffered,
+      close(code, reason) {
+        overClosed.push({ code, reason })
+      }
+    }
+
+    const overSubscriber = createPdsFirehoseSubscriber({
+      database,
+      domain: domainA,
+      cursor: e1.seq - 1,
+      source: overSource,
+      transport: overTransport
+    })
+
+    await overSubscriber.start()
+
+    expect(overFrames).toHaveLength(2)
+    expect(overFrames[0].body.seq).toBe(e1.seq)
+    expect(overFrames[1].header).toEqual({ op: -1 })
+    expect(overFrames[1].body.error).toBe('ConsumerTooSlow')
+    expect(overClosed).toEqual([{ code: 1000, reason: 'ConsumerTooSlow' }])
+    expect(overSource.listenerCount()).toBe(0)
+  })
+
+  it('pauses sending while bufferedAmount exceeds the 1 MiB low-water mark and resumes after drain', async () => {
+    const e1 = await appendIdentityEvent(didA, 'drain-1.alpha')
+    const e2 = await appendIdentityEvent(didA, 'drain-2.alpha')
+    const e3 = await appendIdentityEvent(didA, 'drain-3.alpha')
 
     let buffered = 0
-    const source = new ManualEventSource()
+    let drainCalls = 0
+    let resolveDrain: (() => void) | null = null
     const frames: DecodedFrame[] = []
     const closed: Array<{ code?: number; reason?: string }> = []
 
     const transport: PdsFirehoseTransport = {
       send(frame) {
         frames.push(decodeSentFrame(frame))
-        // After the first event frame is queued, simulate exceeding 8 MiB.
+        // After sending e1, push bufferedAmount above the 1 MiB low-water mark
+        // (but below the 8 MiB ConsumerTooSlow hard cutoff).
         if (frames.length === 1) {
-          buffered = PDS_FIREHOSE_MAX_BUFFERED_BYTES + 1
+          buffered = PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES + 1
         }
       },
       bufferedAmount: () => buffered,
+      waitForDrain() {
+        drainCalls += 1
+        return new Promise<void>((resolve) => {
+          resolveDrain = resolve
+        })
+      },
       close(code, reason) {
         closed.push({ code, reason })
       }
     }
 
+    const source = new ManualEventSource()
     const subscriber = createPdsFirehoseSubscriber({
       database,
       domain: domainA,
@@ -339,14 +439,149 @@ describe('PDS firehose subscriber', () => {
       transport
     })
 
-    await subscriber.start()
+    const startPromise = subscriber.start()
+    await vi.waitFor(() => {
+      expect(drainCalls).toBe(1)
+    })
 
-    expect(frames).toHaveLength(2)
-    expect(frames[0].body.seq).toBe(e1.seq)
-    expect(frames[1].header).toEqual({ op: -1 })
-    expect(frames[1].body.error).toBe('ConsumerTooSlow')
-    expect(closed).toEqual([{ code: 1000, reason: 'ConsumerTooSlow' }])
-    expect(source.listenerCount()).toBe(0)
+    // e1 was sent; e2 must wait until bufferedAmount drops and waitForDrain resolves.
+    expect(frames.map((f) => f.body.seq)).toEqual([e1.seq])
+    expect(closed).toEqual([])
+
+    buffered = PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES
+    resolveDrain!()
+    await startPromise
+
+    expect(closed).toEqual([])
+    expect(frames.map((f) => f.body.seq)).toEqual([e1.seq, e2.seq, e3.seq])
+    subscriber.stop()
+  })
+
+  it('splits large payloads across multiple byte-budgeted pages with at least one row per page', async () => {
+    const bigPayload = (tag: string, padLen: number) =>
+      formatPdsIdentityEvent({
+        did: didA,
+        handle: `${tag}.${'a'.repeat(padLen)}.alpha.example`,
+        time: '2026-11-25T00:00:00.000Z'
+      })
+
+    const e1 = await database.appendPdsEvent({
+      did: didA,
+      type: 'identity',
+      payload: bigPayload('one', 600)
+    })
+    const e2 = await database.appendPdsEvent({
+      did: didA,
+      type: 'identity',
+      payload: bigPayload('two', 600)
+    })
+    // Single payload larger than pageMaxBytes (1000 bytes) must still be emitted alone.
+    const e3 = await database.appendPdsEvent({
+      did: didA,
+      type: 'identity',
+      payload: bigPayload('oversized', 1_200)
+    })
+    const e4 = await database.appendPdsEvent({
+      did: didA,
+      type: 'identity',
+      payload: bigPayload('four', 600)
+    })
+
+    const pageSizesSeen: number[] = []
+    const wrappedDb: PdsFirehoseDatabase = {
+      getPdsEventSeqBounds: () => database.getPdsEventSeqBounds(),
+      listPdsEvents: async (params) => {
+        const result = await database.listPdsEvents(params)
+        if (result.length > 0) {
+          pageSizesSeen.push(result.length)
+        }
+        return result
+      }
+    }
+
+    const source = new ManualEventSource()
+    const { transport, frames, closed } = createMockTransport()
+    const subscriber = createPdsFirehoseSubscriber({
+      database: wrappedDb,
+      domain: domainA,
+      cursor: e1.seq - 1,
+      source,
+      transport,
+      pageSize: 100,
+      pageMaxBytes: 1_000
+    })
+
+    await subscriber.start()
+    expect(closed).toEqual([])
+    // Each payload is ~700–1300 bytes vs 1000-byte budget -> 4 pages of 1 row each.
+    expect(pageSizesSeen).toEqual([1, 1, 1, 1])
+    expect(frames.map((f) => f.body.seq)).toEqual([
+      e1.seq,
+      e2.seq,
+      e3.seq,
+      e4.seq
+    ])
+    subscriber.stop()
+  })
+
+  it('excludes non-account events for inactive repos while still streaming their account events', async () => {
+    const inactiveDid = 'did:web:suspended.alpha.example'
+    await database.createAccount({
+      email: `susp@${domainA}`,
+      username: 'susp',
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: domainA,
+      privateKey: 'priv-susp',
+      publicKey: 'pub-susp'
+    })
+    const suspActorId = `https://${domainA}/users/susp`
+    await database.createPdsRepo({
+      did: inactiveDid,
+      actorId: suspActorId,
+      domain: domainA,
+      signingKey: 'v1:key-susp',
+      signingKeyDid: 'did:key:zQ3shSusp'
+    })
+    await testDb.db
+      .updateTable('actors')
+      .set({ suspendedAt: new Date() })
+      .where('id', '=', suspActorId)
+      .execute()
+
+    const activeEvt = await appendIdentityEvent(didA, 'active.alpha.example')
+    await appendIdentityEvent(inactiveDid, 'hidden.alpha.example')
+    const accountEvt = await database.appendPdsEvent({
+      did: inactiveDid,
+      type: 'account',
+      payload: formatPdsAccountEvent({
+        did: inactiveDid,
+        active: false,
+        status: 'takendown',
+        time: '2026-11-25T00:00:00.000Z'
+      })
+    })
+
+    const source = new ManualEventSource()
+    const { transport, frames, closed } = createMockTransport()
+    const subscriber = createPdsFirehoseSubscriber({
+      database,
+      domain: domainA,
+      cursor: activeEvt.seq - 1,
+      source,
+      transport
+    })
+
+    await subscriber.start()
+    expect(closed).toEqual([])
+    expect(frames.map((f) => f.header)).toEqual([
+      { op: 1, t: '#identity' },
+      { op: 1, t: '#account' }
+    ])
+    expect(frames.map((f) => f.body.seq)).toEqual([
+      activeEvt.seq,
+      accountEvt.seq
+    ])
+    subscriber.stop()
   })
 
   it('logs read errors and closes with 1011', async () => {
@@ -435,6 +670,22 @@ describe('PDS firehose subscriber', () => {
     await isolated.database.migrate()
 
     try {
+      await isolated.database.createAccount({
+        email: `alice@${domainA}`,
+        username: 'alice',
+        passwordHash: TEST_PASSWORD_HASH,
+        domain: domainA,
+        privateKey: 'priv-alice-iso',
+        publicKey: 'pub-alice-iso'
+      })
+      await isolated.database.createAccount({
+        email: `bob@${domainB}`,
+        username: 'bob',
+        passwordHash: TEST_PASSWORD_HASH,
+        domain: domainB,
+        privateKey: 'priv-bob-iso',
+        publicKey: 'pub-bob-iso'
+      })
       await isolated.database.createPdsRepo({
         did: didA,
         actorId: 'https://alpha.example/users/alice',

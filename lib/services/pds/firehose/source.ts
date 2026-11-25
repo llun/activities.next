@@ -1,7 +1,10 @@
 import { getConfig } from '@/lib/config'
 import type { DatabaseConfig } from '@/lib/config/database'
-import { createPostgresClient } from '@/lib/database/connection'
-import { getDatabaseConnectionMetadata } from '@/lib/database/getSQLDatabase'
+import {
+  createPostgresClient,
+  describeError,
+  getDatabaseBackend
+} from '@/lib/database/connection'
 import type { Database } from '@/lib/database/types'
 import { PDS_EVENTS_NOTIFY_CHANNEL } from '@/lib/services/pds/constants'
 import { logger } from '@/lib/utils/logger'
@@ -191,7 +194,7 @@ export const createPostgresPdsEventSource = ({
       if (error !== undefined) {
         logger.error({
           message: `PostgreSQL PDS event listener ${reason}; scheduling reconnect`,
-          err: toLoggableError(error),
+          err: describeError(toLoggableError(error)),
           channel
         })
       } else {
@@ -312,21 +315,12 @@ export const createPostgresPdsEventSource = ({
 }
 
 export const createPdsEventSource = (
-  database: Database,
+  _database: Database,
   options: CreatePdsEventSourceOptions = {}
 ): PdsEventSource => {
-  const metadata = getDatabaseConnectionMetadata(database)
-  let config = options.databaseConfig ?? metadata?.config
-  let backend =
-    metadata?.backend ??
-    (config ? (config.client === 'pg' ? 'pg' : 'sqlite') : undefined)
+  const config = options.databaseConfig ?? getConfig().database
 
-  if (!backend) {
-    config = getConfig().database
-    backend = config.client === 'pg' ? 'pg' : 'sqlite'
-  }
-
-  if (backend === 'pg') {
+  if (getDatabaseBackend(config) === 'pg' && config.client === 'pg') {
     if (options.createClient) {
       return createPostgresPdsEventSource({
         createClient: options.createClient,
@@ -335,16 +329,9 @@ export const createPdsEventSource = (
       })
     }
 
-    const effectiveConfig = config ?? getConfig().database
-    if (effectiveConfig.client !== 'pg') {
-      throw new Error(
-        'Cannot create PostgreSQL PDS event source without a PostgreSQL database configuration'
-      )
-    }
-
     return createPostgresPdsEventSource({
       createClient: () =>
-        createPostgresClient(effectiveConfig, {
+        createPostgresClient(config, {
           connectionTimeoutMillis: PDS_FIREHOSE_PG_CONNECT_TIMEOUT_MS
         }),
       initialReconnectDelayMs: options.initialReconnectDelayMs,

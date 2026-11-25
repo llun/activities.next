@@ -4,6 +4,10 @@ import {
   PDS_EVENTS_APPEND_LOCK_KEY,
   PDS_EVENTS_NOTIFY_CHANNEL
 } from '@/lib/services/pds/constants'
+import {
+  PDS_FIREHOSE_PAGE_MAX_BYTES,
+  PDS_FIREHOSE_PAGE_SIZE
+} from '@/lib/services/pds/firehose/subscriber'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 
 describe('PDS database domain', () => {
@@ -1042,7 +1046,7 @@ describe('PDS database domain', () => {
     ).toHaveLength(MAX_PDS_COLLECTIONS_LIMIT)
   })
 
-  it('filters listPdsEvents by domain, supports 500-event pages, and computes global seq bounds', async () => {
+  it('filters listPdsEvents by domain, enforces page count and maxBytes limits, and computes global seq bounds', async () => {
     const domainA = 'firehose-a.example'
     const domainB = 'firehose-b.example'
 
@@ -1120,7 +1124,7 @@ describe('PDS database domain', () => {
 
     const domainAEvents = await database.listPdsEvents({
       afterSeq: 0,
-      limit: 500,
+      limit: PDS_FIREHOSE_PAGE_SIZE,
       domain: domainA
     })
     expect(domainAEvents.map((e) => e.seq)).toEqual([a1.seq, a2.seq, a3.seq])
@@ -1128,19 +1132,20 @@ describe('PDS database domain', () => {
 
     const domainBEvents = await database.listPdsEvents({
       afterSeq: 0,
-      limit: 500,
+      limit: PDS_FIREHOSE_PAGE_SIZE,
       domain: domainB
     })
     expect(domainBEvents.map((e) => e.seq)).toEqual([b1.seq, b2.seq])
 
     const domainAAfterFirst = await database.listPdsEvents({
       afterSeq: a1.seq,
-      limit: 500,
+      limit: PDS_FIREHOSE_PAGE_SIZE,
       domain: domainA
     })
     expect(domainAAfterFirst.map((e) => e.seq)).toEqual([a2.seq, a3.seq])
 
-    // Verify 500-event page size is honored (not clamped to 100).
+    // Pin the real page limit: append more rows than PDS_FIREHOSE_PAGE_SIZE (100)
+    // and confirm page 1 is capped at exactly PDS_FIREHOSE_PAGE_SIZE rows.
     const pageDomain = 'firehose-page.example'
     const pageDid = 'did:web:page.firehose.example'
     await database.createPdsRepo({
@@ -1150,7 +1155,8 @@ describe('PDS database domain', () => {
       signingKey: 'v1:key-page',
       signingKeyDid: 'did:key:zQ3shPage'
     })
-    for (let i = 0; i < 120; i += 1) {
+    const totalPageEvents = PDS_FIREHOSE_PAGE_SIZE + 25
+    for (let i = 0; i < totalPageEvents; i += 1) {
       await database.appendPdsEvent({
         did: pageDid,
         type: 'commit',
@@ -1158,17 +1164,92 @@ describe('PDS database domain', () => {
         createdAt: recentTime
       })
     }
-    const page = await database.listPdsEvents({
+    const page1 = await database.listPdsEvents({
       afterSeq: 0,
-      limit: 500,
+      limit: PDS_FIREHOSE_PAGE_SIZE,
+      maxBytes: PDS_FIREHOSE_PAGE_MAX_BYTES,
       domain: pageDomain
     })
-    expect(page).toHaveLength(120)
+    expect(page1).toHaveLength(PDS_FIREHOSE_PAGE_SIZE)
 
-    const lastPageSeq = page[page.length - 1].seq
+    const page2 = await database.listPdsEvents({
+      afterSeq: page1[page1.length - 1].seq,
+      limit: PDS_FIREHOSE_PAGE_SIZE,
+      maxBytes: PDS_FIREHOSE_PAGE_MAX_BYTES,
+      domain: pageDomain
+    })
+    expect(page2).toHaveLength(25)
+
+    // Verify maxBytes caps a page using SQL byte length and always returns at least one row.
+    const byteDomain = 'firehose-bytes.example'
+    const byteDid = 'did:web:bytes.firehose.example'
+    await database.createPdsRepo({
+      did: byteDid,
+      actorId: 'https://firehose-bytes.example/users/bytes',
+      domain: byteDomain,
+      signingKey: 'v1:key-bytes',
+      signingKeyDid: 'did:key:zQ3shBytes'
+    })
+    const big1 = await database.appendPdsEvent({
+      did: byteDid,
+      type: 'commit',
+      payload: Buffer.alloc(600, 1),
+      createdAt: recentTime
+    })
+    const big2 = await database.appendPdsEvent({
+      did: byteDid,
+      type: 'commit',
+      payload: Buffer.alloc(600, 2),
+      createdAt: recentTime
+    })
+    const oversized = await database.appendPdsEvent({
+      did: byteDid,
+      type: 'commit',
+      payload: Buffer.alloc(2_000, 3),
+      createdAt: recentTime
+    })
+    const tail = await database.appendPdsEvent({
+      did: byteDid,
+      type: 'commit',
+      payload: Buffer.alloc(100, 4),
+      createdAt: recentTime
+    })
+
+    let bytePage1: Awaited<ReturnType<typeof database.listPdsEvents>> = []
+    const byteQueries = await testDb.captureQueries(async () => {
+      bytePage1 = await database.listPdsEvents({
+        afterSeq: 0,
+        limit: PDS_FIREHOSE_PAGE_SIZE,
+        maxBytes: 1_300,
+        domain: byteDomain
+      })
+    })
+    expect(bytePage1.map((e) => e.seq)).toEqual([big1.seq, big2.seq])
+    const expectedLenFn = testDb.backend === 'pg' ? 'octet_length(' : 'length('
+    expect(
+      byteQueries.some((q) => q.sql.toLowerCase().includes(expectedLenFn))
+    ).toBe(true)
+
+    // Oversized single row (> maxBytes) is still returned alone so progress never stalls.
+    const bytePage2 = await database.listPdsEvents({
+      afterSeq: big2.seq,
+      limit: PDS_FIREHOSE_PAGE_SIZE,
+      maxBytes: 1_300,
+      domain: byteDomain
+    })
+    expect(bytePage2.map((e) => e.seq)).toEqual([oversized.seq])
+
+    const bytePage3 = await database.listPdsEvents({
+      afterSeq: oversized.seq,
+      limit: PDS_FIREHOSE_PAGE_SIZE,
+      maxBytes: 1_300,
+      domain: byteDomain
+    })
+    expect(bytePage3.map((e) => e.seq)).toEqual([tail.seq])
+
     expect(await database.getPdsEventSeqBounds()).toEqual({
       oldest: a1.seq,
-      newest: lastPageSeq
+      newest: tail.seq
     })
 
     // Pruning the oldest event (a1) advances the global oldest bound to b1.
@@ -1177,7 +1258,221 @@ describe('PDS database domain', () => {
     })
     expect(await database.getPdsEventSeqBounds()).toEqual({
       oldest: b1.seq,
-      newest: lastPageSeq
+      newest: tail.seq
+    })
+  })
+
+  it('filters listPdsEvents to effectively active repos when activeReposOnly is true while always keeping account events', async () => {
+    const visDomain = 'vis-filter.example'
+    await testDb.db.deleteFrom('pds_events').execute()
+
+    const seedActorRepo = async (
+      username: string,
+      did: string,
+      repoStatus: 'active' | 'deactivated' | 'takendown' = 'active'
+    ) => {
+      const accountId = await database.createAccount({
+        email: `${username}@${visDomain}`,
+        username,
+        passwordHash: TEST_PASSWORD_HASH,
+        domain: visDomain,
+        privateKey: `priv-${username}`,
+        publicKey: `pub-${username}`
+      })
+      const actorId = `https://${visDomain}/users/${username}`
+      await database.createPdsRepo({
+        did,
+        actorId,
+        domain: visDomain,
+        signingKey: `v1:key-${username}`,
+        signingKeyDid: `did:key:zQ3sh${username}`,
+        status: repoStatus
+      })
+      return { accountId, actorId, did }
+    }
+
+    const active = await seedActorRepo(
+      'visactive',
+      'did:web:active.vis.example'
+    )
+    const grandfathered = await seedActorRepo(
+      'visgrand',
+      'did:web:grandfathered.vis.example'
+    )
+    await testDb.db
+      .updateTable('accounts')
+      .set({ verificationCode: 'legacy-code', emailVerified: true })
+      .where('id', '=', grandfathered.accountId)
+      .execute()
+
+    const suspended = await seedActorRepo(
+      'vissusp',
+      'did:web:suspended.vis.example'
+    )
+    await testDb.db
+      .updateTable('actors')
+      .set({ suspendedAt: new Date() })
+      .where('id', '=', suspended.actorId)
+      .execute()
+
+    const takendown = await seedActorRepo(
+      'vistaken',
+      'did:web:takendown.vis.example',
+      'takendown'
+    )
+
+    const deactivated = await seedActorRepo(
+      'visdeact',
+      'did:web:deactivated.vis.example',
+      'deactivated'
+    )
+
+    const disabled = await seedActorRepo(
+      'visdisab',
+      'did:web:disabled.vis.example'
+    )
+    await testDb.db
+      .updateTable('accounts')
+      .set({ disabledAt: new Date() })
+      .where('id', '=', disabled.accountId)
+      .execute()
+
+    const unapproved = await seedActorRepo(
+      'visunapp',
+      'did:web:unapproved.vis.example'
+    )
+    await testDb.db
+      .updateTable('accounts')
+      .set({ approvedAt: null })
+      .where('id', '=', unapproved.accountId)
+      .execute()
+
+    const unconfirmed = await seedActorRepo(
+      'visunconf',
+      'did:web:unconfirmed.vis.example'
+    )
+    await testDb.db
+      .updateTable('accounts')
+      .set({ verificationCode: 'pending-code', emailVerified: false })
+      .where('id', '=', unconfirmed.accountId)
+      .execute()
+
+    const deleting = await seedActorRepo(
+      'visdel',
+      'did:web:deleting.vis.example'
+    )
+    await testDb.db
+      .updateTable('actors')
+      .set({ deletionStatus: 'scheduled', deletionScheduledAt: new Date() })
+      .where('id', '=', deleting.actorId)
+      .execute()
+
+    const append = (
+      did: string,
+      type: 'commit' | 'identity' | 'sync' | 'account'
+    ) =>
+      database.appendPdsEvent({
+        did,
+        type,
+        payload: Buffer.from(`${did}:${type}`)
+      })
+
+    const activeCommit = await append(active.did, 'commit')
+    const activeIdentity = await append(active.did, 'identity')
+    const activeSync = await append(active.did, 'sync')
+    const activeAccount = await append(active.did, 'account')
+    const grandfatheredCommit = await append(grandfathered.did, 'commit')
+
+    const suspendedCommit = await append(suspended.did, 'commit')
+    const suspendedIdentity = await append(suspended.did, 'identity')
+    const suspendedSync = await append(suspended.did, 'sync')
+    const suspendedAccount = await append(suspended.did, 'account')
+
+    const takendownCommit = await append(takendown.did, 'commit')
+    const takendownAccount = await append(takendown.did, 'account')
+
+    const deactivatedCommit = await append(deactivated.did, 'commit')
+    const deactivatedAccount = await append(deactivated.did, 'account')
+
+    const disabledCommit = await append(disabled.did, 'commit')
+    const disabledAccount = await append(disabled.did, 'account')
+
+    const unapprovedCommit = await append(unapproved.did, 'commit')
+    const unapprovedAccount = await append(unapproved.did, 'account')
+
+    const unconfirmedCommit = await append(unconfirmed.did, 'commit')
+    const unconfirmedAccount = await append(unconfirmed.did, 'account')
+
+    const deletingCommit = await append(deleting.did, 'commit')
+    const deletingAccount = await append(deleting.did, 'account')
+
+    const allExpected = [
+      activeCommit,
+      activeIdentity,
+      activeSync,
+      activeAccount,
+      grandfatheredCommit,
+      suspendedCommit,
+      suspendedIdentity,
+      suspendedSync,
+      suspendedAccount,
+      takendownCommit,
+      takendownAccount,
+      deactivatedCommit,
+      deactivatedAccount,
+      disabledCommit,
+      disabledAccount,
+      unapprovedCommit,
+      unapprovedAccount,
+      unconfirmedCommit,
+      unconfirmedAccount,
+      deletingCommit,
+      deletingAccount
+    ].map((e) => e.seq)
+
+    const filteredExpected = [
+      activeCommit,
+      activeIdentity,
+      activeSync,
+      activeAccount,
+      grandfatheredCommit,
+      suspendedAccount,
+      takendownAccount,
+      deactivatedAccount,
+      disabledAccount,
+      unapprovedAccount,
+      unconfirmedAccount,
+      deletingAccount
+    ].map((e) => e.seq)
+
+    // Without activeReposOnly: every event is returned.
+    const unfiltered = await database.listPdsEvents({
+      afterSeq: 0,
+      domain: visDomain
+    })
+    expect(unfiltered.map((e) => e.seq)).toEqual(allExpected)
+
+    // With activeReposOnly: inactive commit/identity/sync events are excluded; account events always pass.
+    const filtered = await database.listPdsEvents({
+      afterSeq: 0,
+      domain: visDomain,
+      activeReposOnly: true
+    })
+    expect(filtered.map((e) => e.seq)).toEqual(filteredExpected)
+
+    // With activeReposOnly + maxBytes: same filtering applies.
+    const filteredWithMaxBytes = await database.listPdsEvents({
+      afterSeq: 0,
+      domain: visDomain,
+      activeReposOnly: true,
+      maxBytes: 1024 * 1024
+    })
+    expect(filteredWithMaxBytes.map((e) => e.seq)).toEqual(filteredExpected)
+
+    // Global sequence bounds remain unfiltered.
+    expect(await database.getPdsEventSeqBounds()).toEqual({
+      oldest: activeCommit.seq,
+      newest: deletingAccount.seq
     })
   })
 
@@ -1221,6 +1516,60 @@ describe('PDS database domain', () => {
         return events
       }
 
+      const assertNotifyOrderInTx = (
+        queries: Array<{
+          sql: string
+          bindings: unknown[]
+          connection: string
+        }>,
+        expectedEventCount: number
+      ) => {
+        const beginIndex = queries.findIndex((q) =>
+          q.sql.toLowerCase().startsWith('begin')
+        )
+        const commitIndex = queries.findIndex((q) =>
+          q.sql.toLowerCase().startsWith('commit')
+        )
+        expect(beginIndex).toBeGreaterThanOrEqual(0)
+        expect(commitIndex).toBeGreaterThan(beginIndex)
+
+        const txConnection = queries[beginIndex].connection
+        expect(queries[commitIndex].connection).toBe(txConnection)
+
+        const lockIndices = queries.flatMap((q, idx) =>
+          q.sql.toLowerCase().includes('pg_advisory_xact_lock') ? [idx] : []
+        )
+        const insertIndices = queries.flatMap((q, idx) =>
+          q.sql.toLowerCase().includes('insert into "pds_events"') ? [idx] : []
+        )
+        const notifyIndices = queries.flatMap((q, idx) =>
+          q.sql.toLowerCase().includes('pg_notify') ? [idx] : []
+        )
+
+        expect(lockIndices).toHaveLength(expectedEventCount)
+        expect(insertIndices).toHaveLength(expectedEventCount)
+        expect(notifyIndices).toHaveLength(expectedEventCount)
+
+        for (let i = 0; i < expectedEventCount; i += 1) {
+          const lockIndex = lockIndices[i]
+          const insertIndex = insertIndices[i]
+          const notifyIndex = notifyIndices[i]
+          expect(lockIndex).toBeGreaterThan(beginIndex)
+          expect(lockIndex).toBeLessThan(insertIndex)
+          expect(insertIndex).toBeLessThan(notifyIndex)
+          expect(notifyIndex).toBeLessThan(commitIndex)
+          expect(queries[lockIndex].connection).toBe(txConnection)
+          expect(queries[insertIndex].connection).toBe(txConnection)
+          expect(queries[notifyIndex].connection).toBe(txConnection)
+          expect(queries[lockIndex].bindings[0]).toBe(
+            PDS_EVENTS_APPEND_LOCK_KEY
+          )
+          expect(queries[notifyIndex].bindings[0]).toBe(
+            PDS_EVENTS_NOTIFY_CHANNEL
+          )
+        }
+      }
+
       const initQueries = await captureWithConnection(async () => {
         await database.initializePdsRepo({
           did,
@@ -1237,24 +1586,7 @@ describe('PDS database domain', () => {
           ]
         })
       })
-
-      const initNotifies = initQueries.filter((q) =>
-        q.sql.toLowerCase().includes('pg_notify')
-      )
-      expect(initNotifies).toHaveLength(2)
-      expect(initNotifies[0].bindings[0]).toBe(PDS_EVENTS_NOTIFY_CHANNEL)
-      const initBegin = initQueries.find((q) =>
-        q.sql.toLowerCase().startsWith('begin')
-      )
-      const initCommit = initQueries.find((q) =>
-        q.sql.toLowerCase().startsWith('commit')
-      )
-      expect(initBegin).toBeDefined()
-      expect(initCommit).toBeDefined()
-      for (const notify of initNotifies) {
-        expect(notify.connection).toBe(initBegin?.connection)
-        expect(notify.connection).toBe(initCommit?.connection)
-      }
+      assertNotifyOrderInTx(initQueries, 2)
 
       const commitQueries = await captureWithConnection(async () => {
         await database.commitPdsRepoWrite({
@@ -1267,15 +1599,7 @@ describe('PDS database domain', () => {
           event: { type: 'commit', payload: Buffer.from('cm2') }
         })
       })
-      const commitNotifies = commitQueries.filter((q) =>
-        q.sql.toLowerCase().includes('pg_notify')
-      )
-      expect(commitNotifies).toHaveLength(1)
-      expect(commitNotifies[0].bindings[0]).toBe(PDS_EVENTS_NOTIFY_CHANNEL)
-      const commitBegin = commitQueries.find((q) =>
-        q.sql.toLowerCase().startsWith('begin')
-      )
-      expect(commitNotifies[0].connection).toBe(commitBegin?.connection)
+      assertNotifyOrderInTx(commitQueries, 1)
 
       const standaloneQueries = await captureWithConnection(async () => {
         const ev = await database.appendPdsEvent({
@@ -1285,15 +1609,7 @@ describe('PDS database domain', () => {
         })
         expect(ev.seq).toBeGreaterThan(0)
       })
-      const standaloneNotifies = standaloneQueries.filter((q) =>
-        q.sql.toLowerCase().includes('pg_notify')
-      )
-      expect(standaloneNotifies).toHaveLength(1)
-      expect(standaloneNotifies[0].bindings[0]).toBe(PDS_EVENTS_NOTIFY_CHANNEL)
-      const standaloneBegin = standaloneQueries.find((q) =>
-        q.sql.toLowerCase().startsWith('begin')
-      )
-      expect(standaloneNotifies[0].connection).toBe(standaloneBegin?.connection)
+      assertNotifyOrderInTx(standaloneQueries, 1)
     }
   )
 

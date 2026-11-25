@@ -119,8 +119,10 @@ export type AppendPdsEventParams = {
 export type ListPdsEventsParams = {
   afterSeq?: number
   limit?: number
+  maxBytes?: number
   did?: string
   domain?: string
+  activeReposOnly?: boolean
 }
 
 export type PdsEventSeqBounds = {

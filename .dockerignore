@@ -15,11 +15,13 @@ coverage
 .idea
 uploads
 # The scripts stay out of the image, except the migration CLI the build stage
-# runs (`yarn migrate`) and the loader it runs through.
+# runs (`yarn migrate`), the loader it runs through, and the PDS server bundler
+# run by `yarn build`.
 scripts
 !scripts/run.cjs
 !scripts/database/migrate.ts
 !scripts/fitness/describeConnection.ts
+!scripts/build/bundlePdsServer.mjs
 wallaby.js
 .github
 .git

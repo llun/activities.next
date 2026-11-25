@@ -13,10 +13,12 @@ import {
   createPdsEventSource
 } from '@/lib/services/pds/firehose/source'
 import {
+  PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES,
   type PdsFirehoseTransport,
   createPdsFirehoseSubscriber
 } from '@/lib/services/pds/firehose/subscriber'
 import { getPdsDomainForRequest } from '@/lib/services/pds/host'
+import { checkPdsSyncRateLimit } from '@/lib/services/pds/rateLimit'
 import { getTrustedClientRateLimitKey } from '@/lib/utils/getTrustedClientIp'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -28,6 +30,8 @@ export const PDS_FIREHOSE_MAX_MISSED_PONGS = 2
 export const PDS_FIREHOSE_MAX_PAYLOAD_BYTES = 4 * 1024
 export const PDS_FIREHOSE_CLOSE_GRACE_MS = 2_000
 export const PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS = 4_000
+export const PDS_FIREHOSE_DRAIN_POLL_MS = 50
+export const PDS_FIREHOSE_CONSUMER_TOO_SLOW_TERMINATE_MS = 1_000
 
 const NON_NEGATIVE_INTEGER_PATTERN = /^\d+$/
 
@@ -38,7 +42,10 @@ export interface PdsFirehoseUpgradeHandlerOptions {
   pingIntervalMs?: number
   maxMissedPongs?: number
   closeGraceMs?: number
+  consumerTooSlowTerminateMs?: number
   pageSize?: number
+  pageMaxBytes?: number
+  lowWaterBufferedBytes?: number
   maxBufferedBytes?: number
   resolvePdsDomain?: (headers: Headers) => BlueskyPdsDomainConfig | null
   getClientRateLimitKey?: (headers: Headers) => string | undefined
@@ -108,7 +115,8 @@ export const rejectUpgrade = (
   socket: Duplex,
   statusCode: number,
   reasonPhrase: string,
-  body = `${reasonPhrase}\n`
+  body = `${reasonPhrase}\n`,
+  extraHeaders: string[] = []
 ): void => {
   if (socket.destroyed) return
   const response = [
@@ -117,6 +125,7 @@ export const rejectUpgrade = (
     `Content-Length: ${Buffer.byteLength(body)}`,
     'Connection: close',
     'Cache-Control: no-store',
+    ...extraHeaders,
     '',
     body
   ].join('\r\n')
@@ -138,7 +147,10 @@ export const createPdsFirehoseUpgradeHandler = ({
   pingIntervalMs = PDS_FIREHOSE_PING_INTERVAL_MS,
   maxMissedPongs = PDS_FIREHOSE_MAX_MISSED_PONGS,
   closeGraceMs = PDS_FIREHOSE_CLOSE_GRACE_MS,
+  consumerTooSlowTerminateMs = PDS_FIREHOSE_CONSUMER_TOO_SLOW_TERMINATE_MS,
   pageSize,
+  pageMaxBytes,
+  lowWaterBufferedBytes,
   maxBufferedBytes,
   resolvePdsDomain = (headers) => getPdsDomainForRequest(headers),
   getClientRateLimitKey = defaultGetClientRateLimitKey
@@ -147,6 +159,7 @@ export const createPdsFirehoseUpgradeHandler = ({
     noServer: true,
     maxPayload: PDS_FIREHOSE_MAX_PAYLOAD_BYTES,
     perMessageDeflate: false,
+    handleProtocols: () => false,
     // ws 8.x supports closeTimeout at runtime as a backstop if a peer stalls
     // the close handshake, even though @types/ws does not declare it yet.
     closeTimeout: PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS
@@ -208,113 +221,227 @@ export const createPdsFirehoseUpgradeHandler = ({
       return true
     }
 
-    // Ensure the limiter slot is always released even if ws rejects the
-    // WebSocket handshake (e.g. missing Sec-WebSocket-Key) without calling cb.
+    // Ensure the limiter slot is always released even if the client disconnects
+    // during the async rate-limit check or if ws rejects the handshake.
     socket.once('close', releaseSlot)
-
-    try {
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        if (closed) {
-          releaseSlot()
-          ws.close(1001, 'Server shutting down')
-          return
-        }
-
-        let source: PdsEventSource
-        try {
-          source = getOrCreateEventSource(database)
-        } catch (error) {
-          logger.error(
-            { err: toLoggableError(error), domain: pdsDomain.domain },
-            'Failed to initialize PDS firehose event source'
-          )
-          releaseSlot()
-          ws.close(1011, 'Internal server error')
-          return
-        }
-
-        activeSockets.add(ws)
-
-        // The firehose is strictly server-to-client; ignore any client frames.
-        ws.on('message', () => {})
-
-        let pendingPings = 0
-        ws.on('pong', () => {
-          pendingPings = 0
-        })
-
-        const pingTimer = setInterval(() => {
-          if (ws.readyState !== WebSocket.OPEN) return
-          if (pendingPings >= maxMissedPongs) {
-            ws.terminate()
-            return
-          }
-          pendingPings += 1
-          try {
-            ws.ping()
-          } catch {
-            ws.terminate()
-          }
-        }, pingIntervalMs)
-        pingTimer.unref?.()
-
-        const transport: PdsFirehoseTransport = {
-          send(frame) {
-            if (ws.readyState !== WebSocket.OPEN) return
-            ws.send(frame, { binary: true })
-          },
-          bufferedAmount() {
-            return ws.bufferedAmount
-          },
-          close(code, reason) {
-            if (
-              ws.readyState === WebSocket.OPEN ||
-              ws.readyState === WebSocket.CONNECTING
-            ) {
-              ws.close(code, reason)
-            }
-          }
-        }
-
-        const subscriber = createPdsFirehoseSubscriber({
-          database,
-          domain: pdsDomain.domain,
-          cursor: parsedCursor.cursor,
-          source,
-          transport,
-          pageSize,
-          maxBufferedBytes
-        })
-
-        let cleanedUp = false
-        const cleanup = (): void => {
-          if (cleanedUp) return
-          cleanedUp = true
-          clearInterval(pingTimer)
-          subscriber.stop()
-          activeSockets.delete(ws)
-          releaseSlot()
-        }
-
-        ws.once('close', cleanup)
-        ws.once('error', (error) => {
-          logger.warn(
-            { err: toLoggableError(error), domain: pdsDomain.domain },
-            'PDS firehose WebSocket error'
-          )
-          cleanup()
-        })
-
-        void subscriber.start()
-      })
-    } catch (error) {
-      logger.error(
-        { err: toLoggableError(error), domain: pdsDomain.domain },
-        'Failed to upgrade PDS firehose WebSocket connection'
-      )
+    const onPendingSocketError = (): void => {
       releaseSlot()
       socket.destroy()
     }
+    socket.once('error', onPendingSocketError)
+
+    void (async () => {
+      try {
+        const rateLimit = await checkPdsSyncRateLimit(
+          database,
+          { headers } as Request,
+          'sync'
+        )
+        if (!rateLimit.allowed) {
+          socket.off('error', onPendingSocketError)
+          releaseSlot()
+          rejectUpgrade(
+            socket,
+            429,
+            'Too Many Requests',
+            'Too Many Requests\n',
+            rateLimit.retryAfterSeconds > 0
+              ? [`Retry-After: ${rateLimit.retryAfterSeconds}`]
+              : []
+          )
+          return
+        }
+      } catch (error) {
+        logger.error({
+          message: 'Failed to check PDS firehose upgrade rate limit',
+          err: toLoggableError(error),
+          domain: pdsDomain.domain
+        })
+        socket.off('error', onPendingSocketError)
+        releaseSlot()
+        rejectUpgrade(socket, 503, 'Service Unavailable')
+        return
+      }
+
+      socket.off('error', onPendingSocketError)
+
+      if (socket.destroyed || !socket.writable) {
+        releaseSlot()
+        return
+      }
+
+      if (closed) {
+        releaseSlot()
+        rejectUpgrade(socket, 503, 'Service Unavailable')
+        return
+      }
+
+      try {
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          if (closed) {
+            releaseSlot()
+            ws.close(1001, 'Server shutting down')
+            return
+          }
+
+          let source: PdsEventSource
+          try {
+            source = getOrCreateEventSource(database)
+          } catch (error) {
+            logger.error({
+              message: 'Failed to initialize PDS firehose event source',
+              err: toLoggableError(error),
+              domain: pdsDomain.domain
+            })
+            releaseSlot()
+            ws.close(1011, 'Internal server error')
+            return
+          }
+
+          activeSockets.add(ws)
+
+          // The firehose is strictly server-to-client; ignore any client frames.
+          ws.on('message', () => {})
+
+          let pendingPings = 0
+          ws.on('pong', () => {
+            pendingPings = 0
+          })
+
+          const pingTimer = setInterval(() => {
+            if (ws.readyState !== WebSocket.OPEN) return
+            if (pendingPings >= maxMissedPongs) {
+              ws.terminate()
+              return
+            }
+            pendingPings += 1
+            try {
+              ws.ping()
+            } catch {
+              ws.terminate()
+            }
+          }, pingIntervalMs)
+          pingTimer.unref?.()
+
+          const effectiveLowWaterBytes =
+            lowWaterBufferedBytes ?? PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES
+          let slowCloseTimer: ReturnType<typeof setTimeout> | null = null
+
+          const transport: PdsFirehoseTransport = {
+            send(frame) {
+              if (ws.readyState !== WebSocket.OPEN) return
+              ws.send(frame, { binary: true })
+            },
+            bufferedAmount() {
+              return ws.bufferedAmount
+            },
+            waitForDrain() {
+              if (
+                ws.readyState !== WebSocket.OPEN ||
+                ws.bufferedAmount <= effectiveLowWaterBytes
+              ) {
+                return Promise.resolve()
+              }
+              return new Promise<void>((resolve) => {
+                let done = false
+                const rawSocket = (ws as WebSocket & { _socket?: Duplex })
+                  ._socket
+                const finish = (): void => {
+                  if (done) return
+                  done = true
+                  clearInterval(pollTimer)
+                  ws.off('close', finish)
+                  ws.off('error', finish)
+                  rawSocket?.off('drain', check)
+                  resolve()
+                }
+                const check = (): void => {
+                  if (
+                    ws.readyState !== WebSocket.OPEN ||
+                    ws.bufferedAmount <= effectiveLowWaterBytes
+                  ) {
+                    finish()
+                  }
+                }
+                const pollTimer = setInterval(check, PDS_FIREHOSE_DRAIN_POLL_MS)
+                pollTimer.unref?.()
+                ws.once('close', finish)
+                ws.once('error', finish)
+                rawSocket?.on('drain', check)
+                check()
+              })
+            },
+            close(code, reason) {
+              if (
+                ws.readyState === WebSocket.OPEN ||
+                ws.readyState === WebSocket.CONNECTING
+              ) {
+                ws.close(code, reason)
+              }
+              if (
+                reason === 'ConsumerTooSlow' &&
+                ws.readyState !== WebSocket.CLOSED &&
+                slowCloseTimer === null
+              ) {
+                slowCloseTimer = setTimeout(() => {
+                  slowCloseTimer = null
+                  if (ws.readyState !== WebSocket.CLOSED) {
+                    ws.terminate()
+                  }
+                }, consumerTooSlowTerminateMs)
+                slowCloseTimer.unref?.()
+              }
+            }
+          }
+
+          const subscriber = createPdsFirehoseSubscriber({
+            database,
+            domain: pdsDomain.domain,
+            cursor: parsedCursor.cursor,
+            source,
+            transport,
+            pageSize,
+            pageMaxBytes,
+            lowWaterBufferedBytes: effectiveLowWaterBytes,
+            maxBufferedBytes
+          })
+
+          let cleanedUp = false
+          const cleanup = (): void => {
+            if (cleanedUp) return
+            cleanedUp = true
+            clearInterval(pingTimer)
+            if (slowCloseTimer !== null) {
+              clearTimeout(slowCloseTimer)
+              slowCloseTimer = null
+            }
+            subscriber.stop()
+            activeSockets.delete(ws)
+            releaseSlot()
+          }
+
+          ws.once('close', cleanup)
+          ws.once('error', (error) => {
+            logger.warn({
+              message: 'PDS firehose WebSocket error',
+              err: toLoggableError(error),
+              domain: pdsDomain.domain
+            })
+            cleanup()
+          })
+
+          void subscriber.start()
+        })
+      } catch (error) {
+        logger.error({
+          message: 'Failed to upgrade PDS firehose WebSocket connection',
+          err: toLoggableError(error),
+          domain: pdsDomain.domain
+        })
+        releaseSlot()
+        socket.destroy()
+      }
+    })()
 
     return true
   }

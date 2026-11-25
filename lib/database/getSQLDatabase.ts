@@ -1,7 +1,5 @@
 import type { Kysely } from 'kysely'
 
-import type { DatabaseConfig } from '@/lib/config/database'
-import type { DatabaseBackend } from '@/lib/database/connection'
 import { accountQueries } from '@/lib/database/domains/account/queries'
 import { accountArchiveQueries } from '@/lib/database/domains/accountArchive/queries'
 import { accountExportQueries } from '@/lib/database/domains/accountExport/queries'
@@ -76,23 +74,7 @@ import { translationCacheQueries } from '@/lib/database/domains/translationCache
 import { trendsQueries } from '@/lib/database/domains/trends/queries'
 import { wahooImportQueries } from '@/lib/database/domains/wahooImport/queries'
 import { type DB, bindDb } from '@/lib/database/kysely'
-import { getDialectName } from '@/lib/database/kysely/dialect'
 import type { Database } from '@/lib/database/types'
-
-export type DatabaseConnectionMetadata = {
-  backend?: DatabaseBackend
-  config?: DatabaseConfig
-}
-
-const databaseConnectionMetadata = new WeakMap<
-  Database,
-  DatabaseConnectionMetadata
->()
-
-export const getDatabaseConnectionMetadata = (
-  database: Database
-): DatabaseConnectionMetadata | undefined =>
-  databaseConnectionMetadata.get(database)
 
 export type SQLDatabaseOptions = {
   /**
@@ -106,15 +88,13 @@ export type SQLDatabaseOptions = {
    * nothing had connected yet, which Kysely's alone does not.
    */
   destroy?: () => Promise<void>
-  backend?: DatabaseBackend
-  config?: DatabaseConfig
 }
 
 // The facade: every domain's queries bound to the root Kysely instance `db`.
 // `destroy()` closes the connection behind it.
 export const getSQLDatabase = (
   db: Kysely<DB>,
-  { migrate, destroy, backend, config }: SQLDatabaseOptions = {}
+  { migrate, destroy }: SQLDatabaseOptions = {}
 ): Database => {
   const kysely = () => db
   const statusDatabase = bindDb(kysely, statusQueries)
@@ -126,19 +106,7 @@ export const getSQLDatabase = (
   const getStatusesByIds = (statusIds: string[], currentActorId?: string) =>
     statusDatabase.getStatusesByIds({ statusIds, currentActorId })
 
-  const inferredBackend: DatabaseBackend | undefined =
-    backend ??
-    (config
-      ? config.client === 'pg'
-        ? 'pg'
-        : 'sqlite'
-      : typeof (db as { getExecutor?: unknown })?.getExecutor === 'function'
-        ? getDialectName(db) === 'sqlite'
-          ? 'sqlite'
-          : 'pg'
-        : undefined)
-
-  const database: Database = {
+  return {
     async migrate() {
       if (!migrate) {
         throw new Error(
@@ -231,11 +199,4 @@ export const getSQLDatabase = (
     ...bindDb(kysely, createConversationQueries(statusDatabase)),
     ...bindDb(kysely, createTimelineQueries(getStatusesByIds))
   }
-
-  databaseConnectionMetadata.set(database, {
-    ...(inferredBackend ? { backend: inferredBackend } : {}),
-    ...(config ? { config } : {})
-  })
-
-  return database
 }

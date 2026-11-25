@@ -1,4 +1,4 @@
-import { type Selectable, sql } from 'kysely'
+import { type SelectQueryBuilder, type Selectable, sql } from 'kysely'
 
 import type {
   AppendPdsEventParams,
@@ -26,7 +26,12 @@ import type {
   UpdatePdsRepoHeadParams,
   UpsertPdsRecordParams
 } from '@/lib/database/domains/pds/types'
-import { type Db, inTransaction, isInTransaction } from '@/lib/database/kysely'
+import {
+  type DB,
+  type Db,
+  inTransaction,
+  isInTransaction
+} from '@/lib/database/kysely'
 import type {
   PdsBlobs,
   PdsBlocks,
@@ -574,25 +579,125 @@ export const appendPdsEvent = async (
 
 export const listPdsEvents = async (
   db: Db,
-  { afterSeq = 0, limit = 100, did, domain }: ListPdsEventsParams = {}
+  {
+    afterSeq = 0,
+    limit = 100,
+    maxBytes,
+    did,
+    domain,
+    activeReposOnly = false
+  }: ListPdsEventsParams = {}
 ): Promise<PdsEvent[]> => {
   const pageSize = clampLimit(limit, 100)
-  let query = db
-    .selectFrom('pds_events')
-    .selectAll('pds_events')
-    .where('pds_events.seq', '>', afterSeq)
-  if (domain !== undefined) {
-    query = query
-      .innerJoin('pds_repos', 'pds_repos.did', 'pds_events.did')
-      .where('pds_repos.domain', '=', domain)
+  const boundedMaxBytes =
+    maxBytes !== undefined && Number.isFinite(maxBytes) && maxBytes > 0
+      ? Math.floor(maxBytes)
+      : undefined
+
+  const executeFiltered = <O>(
+    base: SelectQueryBuilder<DB, 'pds_events', O>
+  ): Promise<O[]> => {
+    let query = base.where('pds_events.seq', '>', afterSeq)
+    if (did !== undefined) {
+      query = query.where('pds_events.did', '=', did)
+    }
+
+    if (activeReposOnly) {
+      const withRepo =
+        domain !== undefined
+          ? query
+              .innerJoin('pds_repos', 'pds_repos.did', 'pds_events.did')
+              .where('pds_repos.domain', '=', domain)
+          : query.leftJoin('pds_repos', 'pds_repos.did', 'pds_events.did')
+
+      return withRepo
+        .leftJoin('actors', 'actors.id', 'pds_repos.actorId')
+        .leftJoin('accounts', 'accounts.id', 'actors.accountId')
+        .where((eb) =>
+          eb.or([
+            eb('pds_events.type', '=', 'account'),
+            eb.and([
+              eb('pds_repos.status', '=', 'active'),
+              eb('actors.id', 'is not', null),
+              eb('actors.suspendedAt', 'is', null),
+              eb.or([
+                eb('actors.deletionStatus', 'is', null),
+                eb('actors.deletionStatus', '=', '')
+              ]),
+              eb('accounts.id', 'is not', null),
+              eb('accounts.disabledAt', 'is', null),
+              eb('accounts.approvedAt', 'is not', null),
+              eb.or([
+                eb('accounts.verificationCode', 'is', null),
+                eb('accounts.verificationCode', '=', ''),
+                eb('accounts.emailVerified', '=', true)
+              ])
+            ])
+          ])
+        )
+        .orderBy('pds_events.seq', 'asc')
+        .limit(pageSize)
+        .execute()
+    }
+
+    if (domain !== undefined) {
+      return query
+        .innerJoin('pds_repos', 'pds_repos.did', 'pds_events.did')
+        .where('pds_repos.domain', '=', domain)
+        .orderBy('pds_events.seq', 'asc')
+        .limit(pageSize)
+        .execute()
+    }
+
+    return query.orderBy('pds_events.seq', 'asc').limit(pageSize).execute()
   }
-  if (did !== undefined) {
-    query = query.where('pds_events.did', '=', did)
+
+  if (boundedMaxBytes !== undefined) {
+    const metaRows = await executeFiltered(
+      db
+        .selectFrom('pds_events')
+        .select([
+          'pds_events.seq',
+          byteLength(db, 'pds_events.payload').as('byteLength')
+        ])
+    )
+
+    if (metaRows.length === 0) {
+      return []
+    }
+
+    const selectedSeqs: number[] = []
+    let accumulatedBytes = 0
+    for (const row of metaRows) {
+      const rowBytes = Number(row.byteLength)
+      if (
+        selectedSeqs.length > 0 &&
+        accumulatedBytes + rowBytes > boundedMaxBytes
+      ) {
+        break
+      }
+      selectedSeqs.push(Number(row.seq))
+      accumulatedBytes += rowBytes
+    }
+
+    const events: PdsEvent[] = []
+    for (const chunk of chunkArray(selectedSeqs, getWhereInBatchSize(db))) {
+      const rows = await db
+        .selectFrom('pds_events')
+        .selectAll()
+        .where('seq', 'in', chunk)
+        .orderBy('seq', 'asc')
+        .execute()
+      for (const row of rows) {
+        events.push(toEvent(row))
+      }
+    }
+    return events
   }
-  const rows = await query
-    .orderBy('pds_events.seq', 'asc')
-    .limit(pageSize)
-    .execute()
+
+  const rows = await executeFiltered(
+    db.selectFrom('pds_events').selectAll('pds_events')
+  )
   return rows.map(toEvent)
 }
 

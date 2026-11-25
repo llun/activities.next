@@ -35,9 +35,7 @@ const getDatabaseInstance = memoize((): DatabaseInstance | null => {
     connection,
     database: getSQLDatabase(connection.db, {
       migrate: () => migrateDatabase(connection.db, config.database),
-      destroy: connection.destroy,
-      backend: connection.backend,
-      config: config.database
+      destroy: connection.destroy
     })
   }
 })

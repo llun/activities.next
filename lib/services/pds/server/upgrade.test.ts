@@ -15,9 +15,15 @@ import { formatPdsIdentityEvent } from '@/lib/services/pds/events'
 import { createPdsFirehoseConnectionLimiter } from '@/lib/services/pds/firehose/limits'
 import type { PdsEventSource } from '@/lib/services/pds/firehose/source'
 import { resetPdsHostCollisionWarningsForTests } from '@/lib/services/pds/host'
+import {
+  PDS_SYNC_RATE_LIMIT,
+  checkPdsSyncRateLimit
+} from '@/lib/services/pds/rateLimit'
+import { TEST_PASSWORD_HASH } from '@/lib/stub/const'
 
 import {
   PDS_FIREHOSE_SUBSCRIBE_PATH,
+  PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS,
   type PdsFirehoseUpgradeHandler,
   type PdsFirehoseUpgradeHandlerOptions,
   createPdsFirehoseUpgradeHandler
@@ -166,6 +172,14 @@ describe('PDS firehose upgrade handler', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    await database.createAccount({
+      email: `alice@${TEST_DOMAIN}`,
+      username: 'alice',
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: 'priv-upgrade-alice',
+      publicKey: 'pub-upgrade-alice'
+    })
     await database.createPdsRepo({
       did: TEST_DID,
       actorId: `https://${TEST_DOMAIN}/users/alice`,
@@ -204,6 +218,7 @@ describe('PDS firehose upgrade handler', () => {
     setServedDomainsForTests([])
     resetPdsHostCollisionWarningsForTests()
     await testDb.db.deleteFrom('pds_events').execute()
+    await testDb.db.deleteFrom('rateLimit').execute()
   })
 
   afterEach(async () => {
@@ -309,9 +324,12 @@ describe('PDS firehose upgrade handler', () => {
     expect(limiter.getActiveCount()).toBe(2)
 
     await closeWebSocket(ws1)
-    await vi.waitFor(() => {
-      expect(limiter.getActiveCount()).toBe(1)
-    })
+    await vi.waitFor(
+      () => {
+        expect(limiter.getActiveCount()).toBe(1)
+      },
+      { timeout: 5_000 }
+    )
 
     // First client IP can reconnect after closing.
     const ws3 = await connectWebSocket(
@@ -321,9 +339,123 @@ describe('PDS firehose upgrade handler', () => {
 
     await closeWebSocket(ws2)
     await closeWebSocket(ws3)
-    await vi.waitFor(() => {
-      expect(limiter.getActiveCount()).toBe(0)
+    await vi.waitFor(
+      () => {
+        expect(limiter.getActiveCount()).toBe(0)
+      },
+      { timeout: 5_000 }
+    )
+  })
+
+  it('returns 429 and releases the limiter slot when the sync rate limit refuses an upgrade', async () => {
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADERS = 'true'
+    process.env.ACTIVITIES_TRUST_PROXY_IP_HEADER = 'x-real-ip'
+
+    const limiter = createPdsFirehoseConnectionLimiter({
+      maxPerProcess: 10,
+      maxPerClient: 5
     })
+    const port = await startServer({
+      eventSource: new ManualEventSource(),
+      limiter
+    })
+
+    const clientIp = '203.0.113.77'
+    const syntheticReq = {
+      headers: new Headers({ 'x-real-ip': clientIp })
+    } as Request
+    for (let i = 0; i < PDS_SYNC_RATE_LIMIT; i += 1) {
+      const res = await checkPdsSyncRateLimit(database, syntheticReq, 'sync')
+      expect(res.allowed).toBe(true)
+    }
+
+    const status = await connectExpectRejection(
+      `ws://127.0.0.1:${port}${PDS_FIREHOSE_SUBSCRIBE_PATH}`,
+      { Host: TEST_PDS_HOST, 'X-Real-Ip': clientIp }
+    )
+    expect(status).toBe(429)
+    expect(limiter.getActiveCount()).toBe(0)
+  })
+
+  it('returns 503 and releases the limiter slot when the database is unavailable', async () => {
+    const limiter = createPdsFirehoseConnectionLimiter({
+      maxPerProcess: 10,
+      maxPerClient: 5
+    })
+    const port = await startServer({
+      getDatabase: () => null,
+      eventSource: new ManualEventSource(),
+      limiter
+    })
+
+    const status = await connectExpectRejection(
+      `ws://127.0.0.1:${port}${PDS_FIREHOSE_SUBSCRIBE_PATH}`,
+      { Host: TEST_PDS_HOST }
+    )
+    expect(status).toBe(503)
+    expect(limiter.getActiveCount()).toBe(0)
+
+    await handler!.close()
+    handler = null
+    await new Promise<void>((resolve) => server!.close(() => resolve()))
+    server = null
+
+    const failingDb = {
+      ...database,
+      consumeRateLimit: async () => {
+        throw new Error('database unavailable')
+      }
+    }
+    const failingPort = await startServer({
+      getDatabase: () => failingDb,
+      eventSource: new ManualEventSource(),
+      limiter
+    })
+    const failingStatus = await connectExpectRejection(
+      `ws://127.0.0.1:${failingPort}${PDS_FIREHOSE_SUBSCRIBE_PATH}`,
+      { Host: TEST_PDS_HOST }
+    )
+    expect(failingStatus).toBe(503)
+    expect(limiter.getActiveCount()).toBe(0)
+  })
+
+  it('does not echo client-offered Sec-WebSocket-Protocol headers', async () => {
+    const port = await startServer({ eventSource: new ManualEventSource() })
+
+    const { responseHeaders, socket } = await new Promise<{
+      responseHeaders: http.IncomingHttpHeaders
+      socket: Duplex
+    }>((resolve, reject) => {
+      const req = http.request({
+        host: '127.0.0.1',
+        port,
+        path: PDS_FIREHOSE_SUBSCRIBE_PATH,
+        headers: {
+          Host: TEST_PDS_HOST,
+          Connection: 'Upgrade',
+          Upgrade: 'websocket',
+          'Sec-WebSocket-Key': crypto.randomBytes(16).toString('base64'),
+          'Sec-WebSocket-Version': '13',
+          'Sec-WebSocket-Protocol': 'custom-proto, second-proto'
+        }
+      })
+      req.once('upgrade', (res, upgradedSocket) => {
+        upgradedSocket.resume()
+        resolve({ responseHeaders: res.headers, socket: upgradedSocket })
+      })
+      req.once('response', (res) => {
+        res.resume()
+        reject(new Error(`Expected upgrade, got HTTP ${res.statusCode}`))
+      })
+      req.once('error', reject)
+      req.end()
+    })
+
+    try {
+      expect(responseHeaders['sec-websocket-protocol']).toBeUndefined()
+    } finally {
+      socket.destroy()
+    }
   })
 
   it('streams DAG-CBOR event frames appended after connect and ignores client messages', async () => {
@@ -492,9 +624,12 @@ describe('PDS firehose upgrade handler', () => {
     })
 
     try {
-      await vi.waitFor(() => {
-        expect(limiter.getActiveCount()).toBe(1)
-      })
+      await vi.waitFor(
+        () => {
+          expect(limiter.getActiveCount()).toBe(1)
+        },
+        { timeout: 5_000 }
+      )
 
       const activeHandler = handler!
       handler = null
@@ -520,9 +655,90 @@ describe('PDS firehose upgrade handler', () => {
       }
 
       await socketClosed
-      await vi.waitFor(() => {
-        expect(limiter.getActiveCount()).toBe(0)
+      await vi.waitFor(
+        () => {
+          expect(limiter.getActiveCount()).toBe(0)
+        },
+        { timeout: 5_000 }
+      )
+    } finally {
+      rawSocket.destroy()
+    }
+  })
+
+  it('terminates a ConsumerTooSlow socket within ~1 s even if the client never completes the close handshake', async () => {
+    const limiter = createPdsFirehoseConnectionLimiter({
+      maxPerProcess: 4,
+      maxPerClient: 4
+    })
+    const source = new ManualEventSource()
+    // Seed large events so writing to a paused socket immediately pushes
+    // ws.bufferedAmount past the 1-byte test threshold and triggers ConsumerTooSlow.
+    const bigHandle = `${'a'.repeat(512 * 1024)}.${TEST_DOMAIN}`
+    const first = await database.appendPdsEvent({
+      did: TEST_DID,
+      type: 'identity',
+      payload: formatPdsIdentityEvent({
+        did: TEST_DID,
+        handle: bigHandle,
+        time: '2026-11-25T00:00:00.000Z'
       })
+    })
+    await database.appendPdsEvent({
+      did: TEST_DID,
+      type: 'identity',
+      payload: formatPdsIdentityEvent({
+        did: TEST_DID,
+        handle: bigHandle,
+        time: '2026-11-25T00:00:00.000Z'
+      })
+    })
+
+    const port = await startServer({
+      eventSource: source,
+      limiter,
+      maxBufferedBytes: 1
+    })
+
+    const startedAt = Date.now()
+    const rawSocket = await new Promise<Duplex>((resolve, reject) => {
+      const req = http.request({
+        host: '127.0.0.1',
+        port,
+        path: `${PDS_FIREHOSE_SUBSCRIBE_PATH}?cursor=${first.seq - 1}`,
+        headers: {
+          Host: TEST_PDS_HOST,
+          Connection: 'Upgrade',
+          Upgrade: 'websocket',
+          'Sec-WebSocket-Key': crypto.randomBytes(16).toString('base64'),
+          'Sec-WebSocket-Version': '13'
+        }
+      })
+      req.once('upgrade', (_res, socket) => {
+        // Never reply to WebSocket close frames and pause reading so the
+        // server's outbound buffer fills and triggers ConsumerTooSlow.
+        socket.pause()
+        resolve(socket)
+      })
+      req.once('response', (res) => {
+        res.resume()
+        reject(new Error(`Expected upgrade, got HTTP ${res.statusCode}`))
+      })
+      req.once('error', reject)
+      req.end()
+    })
+
+    try {
+      await vi.waitFor(
+        () => {
+          expect(limiter.getActiveCount()).toBe(0)
+        },
+        { timeout: PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS - 1_500 }
+      )
+      const elapsedMs = Date.now() - startedAt
+      // Must terminate via the ~1 s ConsumerTooSlow timer rather than waiting
+      // for the 4 s generic WebSocket closeTimeout.
+      expect(elapsedMs).toBeLessThan(PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS - 1_500)
     } finally {
       rawSocket.destroy()
     }

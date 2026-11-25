@@ -320,6 +320,187 @@ describe('PDS host routing', () => {
     ).toBe('pds.social.example')
   })
 
+  it('fails closed when raw Host is present but cannot be normalised', () => {
+    const servedHosts = {
+      host: 'social.example',
+      trustedHosts: [],
+      servedDomains: []
+    }
+
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'evil@pds.social.example',
+          'x-forwarded-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'bad host',
+          'x-forwarded-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'pds.social.example/path',
+          'x-activity-next-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+  })
+
+  it('refuses when raw Host is a different configured PDS hostname', () => {
+    const servedHosts = {
+      host: 'social.example',
+      trustedHosts: [],
+      servedDomains: []
+    }
+
+    // Raw Host names another enabled PDS hostname (different case/trailing dot).
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'PDS.Port.Example.:8443',
+          'x-forwarded-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Reverse direction: raw Host is pds.social.example with default port,
+    // X-Forwarded-Host tries to route to pds.port.example:8443.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'PDS.Social.Example.:443',
+          'x-forwarded-host': 'pds.port.example:8443'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Raw Host names a disabled configured PDS hostname.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'PDS.Disabled.Example.:443',
+          'x-forwarded-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Same mismatch when resolved via X-Activity-Next-Host.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'pds.port.example:8443',
+          'x-activity-next-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+  })
+
+  it('requires X-Forwarded-Host to match when resolved from X-Activity-Next-Host', () => {
+    const servedHosts = {
+      host: 'social.example',
+      trustedHosts: [],
+      servedDomains: []
+    }
+
+    // Mismatched X-Forwarded-Host -> refused even with internal raw Host.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'internal-app:3000',
+          'x-activity-next-host': 'pds.social.example',
+          'x-forwarded-host': 'social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'internal-app:3000',
+          'x-activity-next-host': 'pds.social.example',
+          'x-forwarded-host': 'other.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Comma-separated list or malformed X-Forwarded-Host -> refused.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'internal-app:3000',
+          'x-activity-next-host': 'pds.social.example',
+          'x-forwarded-host': 'pds.social.example, evil.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'internal-app:3000',
+          'x-activity-next-host': 'pds.social.example',
+          'x-forwarded-host': 'pds.social.example/path'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Matching X-Forwarded-Host (modulo case/trailing dot/default port) -> allowed.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'internal-app:3000',
+          'x-activity-next-host': 'pds.social.example',
+          'x-forwarded-host': 'PDS.Social.Example.:443'
+        }),
+        undefined,
+        servedHosts
+      )?.hostname
+    ).toBe('pds.social.example')
+
+    // Absent X-Forwarded-Host with internal raw Host -> allowed.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'internal-app:3000',
+          'x-activity-next-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )?.hostname
+    ).toBe('pds.social.example')
+  })
+
   it('fails closed (returns null) when the served-domain snapshot is unloaded, stale, or errored', async () => {
     vi.useFakeTimers()
     const errorSpy = vi

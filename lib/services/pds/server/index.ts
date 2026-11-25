@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import http from 'node:http'
+import { isIPv6 } from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -22,6 +23,9 @@ import { createPdsFirehoseUpgradeHandler, rejectUpgrade } from './upgrade'
 interface RequiredServerFilesManifest {
   config?: Record<string, unknown>
 }
+
+const formatHostname = (hostname: string): string =>
+  isIPv6(hostname) ? `[${hostname}]` : hostname
 
 const parseKeepAliveTimeout = (
   value: string | undefined
@@ -53,13 +57,10 @@ const loadStandaloneNextConfig = (
 const main = async (): Promise<void> => {
   const serverDir = path.dirname(fileURLToPath(import.meta.url))
 
-  const env = process.env as Record<string, string | undefined>
-  if (!env.NODE_ENV) {
-    env.NODE_ENV = 'production'
-  }
+  ;(process.env as Record<string, string | undefined>).NODE_ENV = 'production'
   process.chdir(serverDir)
 
-  const port = parseInt(process.env.PORT ?? '', 10) || 3000
+  let port = parseInt(process.env.PORT ?? '', 10) || 3000
   const hostname = process.env.HOSTNAME || '0.0.0.0'
   const keepAliveTimeout = parseKeepAliveTimeout(process.env.KEEP_ALIVE_TIMEOUT)
 
@@ -68,9 +69,10 @@ const main = async (): Promise<void> => {
 
   const { default: next } = await import('next')
 
-  // Capture Next's lazy custom-server upgrade listener on a dedicated emitter
-  // instead of our real http.Server, so Next does not close upgraded firehose
-  // sockets that also match the App Router `/xrpc/[[...nsid]]` catch-all.
+  // Pass a throwaway EventEmitter as `httpServer` so Next attaches its lazy
+  // custom-server upgrade listener there instead of our real http.Server.
+  // pds-server.js runs with `dev: false` and no WebSocket rewrites, so Next's
+  // router upgrade handler would leave unmatched sockets open.
   const nextUpgradeTarget = new EventEmitter() as unknown as http.Server
 
   const app = next({
@@ -84,6 +86,9 @@ const main = async (): Promise<void> => {
 
   await app.prepare()
 
+  // The PDS server opens its own database pool through `getDatabase()` beside
+  // Next's bundled one, because `pds-server.js` and Next's server bundle do
+  // not share module instances.
   let ownDatabase: Database | null = null
   const getFirehoseDatabase = (): Database | null => {
     if (!ownDatabase) {
@@ -122,16 +127,12 @@ const main = async (): Promise<void> => {
     })
   })
 
-  if (keepAliveTimeout !== undefined) {
+  if (keepAliveTimeout) {
     server.keepAliveTimeout = keepAliveTimeout
   }
 
   server.on('upgrade', (req, socket, head) => {
     if (firehose.handleUpgrade(req, socket, head)) {
-      return
-    }
-    if (nextUpgradeTarget.listenerCount('upgrade') > 0) {
-      nextUpgradeTarget.emit('upgrade', req, socket, head)
       return
     }
     rejectUpgrade(socket, 404, 'Not Found')
@@ -141,6 +142,21 @@ const main = async (): Promise<void> => {
     server.once('error', reject)
     server.listen(port, hostname, () => {
       server.off('error', reject)
+      const addr = server.address()
+      const actualHostname = formatHostname(
+        typeof addr === 'object'
+          ? addr?.address || hostname || 'localhost'
+          : addr
+      )
+      const formattedHostname =
+        !hostname || actualHostname === '0.0.0.0'
+          ? 'localhost'
+          : actualHostname === '[::]'
+            ? '[::1]'
+            : formatHostname(hostname)
+      port = typeof addr === 'object' ? addr?.port || port : port
+      process.env.PORT = `${port}`
+      process.env.__NEXT_PRIVATE_ORIGIN = `http://${formattedHostname}:${port}`
       resolve()
     })
   })

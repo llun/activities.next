@@ -10,7 +10,8 @@ import {
   POOL_IDLE_TIMEOUT_MS,
   type QueryEndEvent,
   type QueryEvent,
-  createDatabaseConnection
+  createDatabaseConnection,
+  getDatabaseBackend
 } from '@/lib/database/connection'
 import {
   createTestDatabase,
@@ -38,6 +39,22 @@ describe('createDatabaseConnection', () => {
 
   afterAll(async () => {
     await testDb.destroy()
+  })
+
+  it('maps database config clients to backends and rejects unsupported clients', () => {
+    expect(getDatabaseBackend(getTestDatabaseConfig('sqlite'))).toBe('sqlite')
+    expect(
+      getDatabaseBackend({
+        client: 'pg',
+        connection: { host: '127.0.0.1' }
+      })
+    ).toBe('pg')
+    expect(() =>
+      getDatabaseBackend({ client: 'mysql2' } as unknown as DatabaseConfig)
+    ).toThrow(
+      'Unsupported database client "mysql2": only better-sqlite3 ' +
+        '(SQLite) and pg (PostgreSQL) are supported'
+    )
   })
 
   it('opens the backend the configuration names', () => {
