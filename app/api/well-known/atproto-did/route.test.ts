@@ -11,14 +11,12 @@ vi.mock('@/lib/services/guards/headerHost', () => ({ headerHost: vi.fn() }))
 vi.mock('@/lib/services/pds/host', () => ({ getPdsSubdomainHandle: vi.fn() }))
 
 const getBlueskyAccountByInstanceHandle = vi.fn()
-const getActorFromUsername = vi.fn()
 const getActorFromId = vi.fn()
-const getPdsRepo = vi.fn()
+const getPdsRepoByHandle = vi.fn()
 const database = {
   getBlueskyAccountByInstanceHandle,
-  getActorFromUsername,
   getActorFromId,
-  getPdsRepo
+  getPdsRepoByHandle
 }
 
 // An actor whose hosted repo is effectively active: approved, not suspended,
@@ -37,6 +35,13 @@ const subdomainHandle = {
   handle: 'alice.pds.social.example'
 }
 
+const hostedRepo = (
+  handle: string,
+  status: 'active' | 'deactivated' = 'active'
+) => ({ did: 'did:plc:hostedalice', actorId: 'actor-a', status, handle })
+
+const linkedClaim = { did: 'did:plc:linkedoutside', actorId: 'actor-a' }
+
 const call = () =>
   GET(new NextRequest('https://social.example/.well-known/atproto-did'), {
     params: Promise.resolve({})
@@ -47,75 +52,66 @@ describe('GET /.well-known/atproto-did', () => {
     vi.resetAllMocks()
     vi.mocked(getDatabase).mockReturnValue(database as never)
     vi.mocked(getPdsSubdomainHandle).mockReturnValue(null)
+    vi.mocked(headerHost).mockReturnValue('social.example')
+    getPdsRepoByHandle.mockResolvedValue(null)
+    getBlueskyAccountByInstanceHandle.mockResolvedValue(null)
+    getActorFromId.mockResolvedValue(activeActor)
   })
 
-  it('answers the DID for the served host the request is for', async () => {
+  it('answers the claimed DID for the served host the request is for', async () => {
     // headerHost resolves the served host (or the primary one behind a proxy
     // that rewrites Host); the claim is looked up in its canonical form.
     vi.mocked(headerHost).mockReturnValue('Social.Example:443')
-    getBlueskyAccountByInstanceHandle.mockResolvedValue({
-      did: 'did:plc:abc123',
-      actorId: 'actor-a'
-    })
-    getPdsRepo.mockResolvedValue(null)
+    getBlueskyAccountByInstanceHandle.mockResolvedValue(linkedClaim)
     const response = await call()
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe(
       'text/plain; charset=utf-8'
     )
     expect(response.headers.get('Cache-Control')).toBe('no-store')
-    expect(await response.text()).toBe('did:plc:abc123')
+    expect(await response.text()).toBe('did:plc:linkedoutside')
+    expect(getPdsRepoByHandle).toHaveBeenCalledWith({
+      handle: 'social.example'
+    })
     expect(getBlueskyAccountByInstanceHandle).toHaveBeenCalledWith({
       host: 'social.example'
     })
   })
 
-  it('answers 404 for a host nobody claimed', async () => {
+  it('answers 404 for a host nobody claimed or holds', async () => {
     vi.mocked(headerHost).mockReturnValue('other.example')
-    getBlueskyAccountByInstanceHandle.mockResolvedValue(null)
     const response = await call()
     expect(response.status).toBe(404)
     expect(await response.text()).toBe('Not Found')
   })
 
   it('answers the hosted repo DID for a <username>.<PDS host> handle', async () => {
-    vi.mocked(getPdsSubdomainHandle).mockReturnValue({
-      username: 'alice',
-      domain: 'social.example',
-      handle: 'alice.pds.social.example'
-    })
-    getActorFromUsername.mockResolvedValue(activeActor)
-    getPdsRepo.mockResolvedValue({
-      did: 'did:plc:hostedalice',
-      status: 'active',
-      handle: 'alice.pds.social.example'
-    })
+    vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
+    getPdsRepoByHandle.mockResolvedValue(hostedRepo(subdomainHandle.handle))
 
     const response = await call()
 
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('did:plc:hostedalice')
-    expect(getActorFromUsername).toHaveBeenCalledWith({
-      username: 'alice',
-      domain: 'social.example'
+    expect(getPdsRepoByHandle).toHaveBeenCalledWith({
+      handle: 'alice.pds.social.example'
     })
-    // The instance-handle lookup is not reached for a PDS subdomain.
+    expect(getActorFromId).toHaveBeenCalledWith({ id: 'actor-a' })
     expect(getBlueskyAccountByInstanceHandle).not.toHaveBeenCalled()
   })
 
-  it('does not answer a PDS subdomain whose repo handle differs', async () => {
-    vi.mocked(getPdsSubdomainHandle).mockReturnValue({
-      username: 'alice',
-      domain: 'social.example',
-      handle: 'alice.pds.social.example'
-    })
-    getActorFromUsername.mockResolvedValue(activeActor)
-    getPdsRepo.mockResolvedValue({
-      did: 'did:plc:hostedalice',
-      status: 'active',
-      handle: 'alice.example.com'
-    })
-    getBlueskyAccountByInstanceHandle.mockResolvedValue(null)
+  it('answers the hosted repo DID for a served domain a hosted account holds', async () => {
+    getPdsRepoByHandle.mockResolvedValue(hostedRepo('social.example'))
+    getBlueskyAccountByInstanceHandle.mockResolvedValue(linkedClaim)
+
+    const response = await call()
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('did:plc:hostedalice')
+  })
+
+  it('does not answer a PDS subdomain no live repo holds', async () => {
+    vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
 
     const response = await call()
 
@@ -123,95 +119,47 @@ describe('GET /.well-known/atproto-did', () => {
   })
 
   it('does not answer a PDS subdomain whose repo is not active', async () => {
-    vi.mocked(getPdsSubdomainHandle).mockReturnValue({
-      username: 'alice',
-      domain: 'social.example',
-      handle: 'alice.pds.social.example'
-    })
-    getActorFromUsername.mockResolvedValue(activeActor)
-    getPdsRepo.mockResolvedValue({
-      did: 'did:plc:hostedalice',
-      status: 'deactivated',
-      handle: 'alice.pds.social.example'
-    })
-    getBlueskyAccountByInstanceHandle.mockResolvedValue(null)
+    vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
+    getPdsRepoByHandle.mockResolvedValue(
+      hostedRepo(subdomainHandle.handle, 'deactivated')
+    )
 
     const response = await call()
 
     expect(response.status).toBe(404)
-  })
-
-  it('prefers the hosted repo DID over the linked DID for a claimed handle', async () => {
-    vi.mocked(headerHost).mockReturnValue('social.example')
-    getBlueskyAccountByInstanceHandle.mockResolvedValue({
-      did: 'did:plc:linkedoutside',
-      actorId: 'actor-a'
-    })
-    getPdsRepo.mockResolvedValue({
-      did: 'did:plc:hostedalice',
-      status: 'active',
-      handle: 'social.example'
-    })
-    getActorFromId.mockResolvedValue(activeActor)
-
-    const response = await call()
-
-    expect(response.status).toBe(200)
-    expect(await response.text()).toBe('did:plc:hostedalice')
-    expect(getActorFromId).toHaveBeenCalledWith({ id: 'actor-a' })
   })
 
   it('answers 404 for a suspended actor’s hosted <username>.<PDS host> handle', async () => {
     vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
-    getActorFromUsername.mockResolvedValue(suspendedActor)
     // The stored status lags moderation; the effective status is takendown.
-    getPdsRepo.mockResolvedValue({
-      did: 'did:plc:hostedalice',
-      status: 'active',
-      handle: 'alice.pds.social.example'
-    })
-    getBlueskyAccountByInstanceHandle.mockResolvedValue(null)
+    getPdsRepoByHandle.mockResolvedValue(hostedRepo(subdomainHandle.handle))
+    getActorFromId.mockResolvedValue(suspendedActor)
 
     const response = await call()
 
     expect(response.status).toBe(404)
   })
 
-  it('does not answer a suspended actor’s hosted DID for a claimed handle', async () => {
-    vi.mocked(headerHost).mockReturnValue('social.example')
-    getBlueskyAccountByInstanceHandle.mockResolvedValue({
-      did: 'did:plc:linkedoutside',
-      actorId: 'actor-a'
-    })
-    getPdsRepo.mockResolvedValue({
-      did: 'did:plc:hostedalice',
-      status: 'active',
-      handle: 'social.example'
-    })
+  it('does not answer a suspended actor’s hosted DID for a claimed host', async () => {
+    getPdsRepoByHandle.mockResolvedValue(hostedRepo('social.example'))
     getActorFromId.mockResolvedValue(suspendedActor)
+    getBlueskyAccountByInstanceHandle.mockResolvedValue(linkedClaim)
 
     const response = await call()
 
-    expect(await response.text()).not.toBe('did:plc:hostedalice')
+    expect(await response.text()).toBe('did:plc:linkedoutside')
   })
 
-  it('answers the linked DID for a claimed handle whose hosted repo is turned off', async () => {
-    vi.mocked(headerHost).mockReturnValue('social.example')
-    getBlueskyAccountByInstanceHandle.mockResolvedValue({
-      did: 'did:plc:linkedoutside',
-      actorId: 'actor-a'
-    })
-    getPdsRepo.mockResolvedValue({
-      did: 'did:plc:hostedalice',
-      status: 'deactivated',
-      handle: 'social.example'
-    })
-    getActorFromId.mockResolvedValue(activeActor)
+  it('answers the linked DID for a claimed host whose hosted repo is turned off', async () => {
+    getPdsRepoByHandle.mockResolvedValue(
+      hostedRepo('social.example', 'deactivated')
+    )
+    getBlueskyAccountByInstanceHandle.mockResolvedValue(linkedClaim)
 
     const response = await call()
 
     // The claim belongs to the linked account; an inactive hosted repo never
-    // takes the handle over.
+    // takes the host over.
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('did:plc:linkedoutside')
   })

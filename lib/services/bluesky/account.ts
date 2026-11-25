@@ -23,6 +23,7 @@ import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
+import { getClaimableHost } from './claimableHost'
 import {
   BLUESKY_OAUTH_SCOPE,
   getBlueskyOAuthClient,
@@ -87,18 +88,6 @@ const normalizeIdentifier = (input: string) => {
   if (isAtprotoDid(value)) return value
   if (isHandle(value)) return value
   throw new BlueskyLinkError('Enter a Bluesky handle, like alice.bsky.social.')
-}
-
-// The served domain the actor lives on: the host it may answer
-// /.well-known/atproto-did for. A handle carries no port, so a host with one
-// cannot be claimed.
-const getClaimableHost = (actor: Actor) => {
-  const host = getServedAuthority(actor.domain)
-  // The holder check matches lower(actors.domain); a row spelled any other
-  // way (a default port, a trailing dot) could claim but never be served.
-  return !host || host.includes(':') || host !== actor.domain.toLowerCase()
-    ? null
-    : host
 }
 
 // A handle needs its own DNS record unless it sits under a domain the PDS
@@ -184,9 +173,19 @@ export const getBlueskyAccountState = async (
   let instanceHandle: BlueskyAccountState['instanceHandle'] = null
   if (actor.account?.role === 'admin' && host) {
     const holder = await database.getBlueskyAccountByInstanceHandle({ host })
+    // A hosted account on this server may hold the bare domain instead.
+    const hosted = holder
+      ? null
+      : await database.getPdsRepoByHandle({ handle: host })
     instanceHandle = {
       host,
-      status: !holder ? 'free' : holder.actorId === actor.id ? 'yours' : 'taken'
+      status: holder
+        ? holder.actorId === actor.id
+          ? 'yours'
+          : 'taken'
+        : hosted
+          ? 'taken'
+          : 'free'
     }
   }
   // A claim this actor can no longer hold (not an admin now, or moved to

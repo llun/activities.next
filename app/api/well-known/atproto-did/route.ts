@@ -29,50 +29,31 @@ const notFound = () =>
 
 // GET /.well-known/atproto-did — atproto handle verification over HTTPS.
 //
-// A `<username>.<PDS hostname>` host answers the DID of that username's active
-// hosted repo when its handle is exactly that host (never when that host is a
-// served domain or another PDS hostname). A served domain answers only when an
-// admin's actor on it claimed it in Settings › Other networks, so that actor
-// can use the domain as a Bluesky handle; when that actor also has an active
-// hosted repo, the repo's DID wins (the two cannot both exist). "Active" is
-// the effective status: a suspended, disabled, unapproved or deleting actor's
-// repo is not answered.
+// A `<username>.<PDS hostname>` host (never one that is a served domain or
+// another PDS hostname) or a served domain answers the DID of the live hosted
+// repo whose handle is that host, while the repo's effective status is active
+// (a suspended, disabled, unapproved or deleting actor's repo is not
+// answered). Otherwise a served domain answers when an admin's actor on it
+// claimed it for a linked account in Settings › Other networks.
 export const GET = traceApiRoute('atprotoDid', async (req: NextRequest) => {
   const database = getDatabase()
   if (!database) return notFound()
 
-  const subdomain = getPdsSubdomainHandle(req.headers)
-  if (subdomain) {
-    const actor = await database.getActorFromUsername({
-      username: subdomain.username,
-      domain: subdomain.domain
-    })
-    if (actor) {
-      const repo = await database.getPdsRepo({ actorId: actor.id })
-      if (
-        repo &&
-        repo.handle === subdomain.handle &&
-        resolveEffectivePdsRepoStatus(repo, actor) === 'active'
-      ) {
-        return didResponse(repo.did)
-      }
-    }
-  }
-
-  const account = await database.getBlueskyAccountByInstanceHandle({
-    // The served host, or the primary one for an untrusted Host (a proxy's
-    // internal name): the DID is public, and a verifier always asks with the
-    // real name.
-    host: getServedAuthority(headerHost(req.headers)) ?? ''
-  })
-  if (!account) return notFound()
-
-  const repo = await database.getPdsRepo({ actorId: account.actorId })
+  // The served host, or the primary one for an untrusted Host (a proxy's
+  // internal name): the DID is public, and a verifier always asks with the
+  // real name.
+  const servedHost = getServedAuthority(headerHost(req.headers)) ?? ''
+  const handle = getPdsSubdomainHandle(req.headers)?.handle ?? servedHost
+  const repo = handle ? await database.getPdsRepoByHandle({ handle }) : null
   if (repo) {
-    const actor = await database.getActorFromId({ id: account.actorId })
+    const actor = await database.getActorFromId({ id: repo.actorId })
     if (resolveEffectivePdsRepoStatus(repo, actor) === 'active') {
       return didResponse(repo.did)
     }
   }
-  return didResponse(account.did)
+
+  const account = await database.getBlueskyAccountByInstanceHandle({
+    host: servedHost
+  })
+  return account ? didResponse(account.did) : notFound()
 })

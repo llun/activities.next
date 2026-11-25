@@ -201,7 +201,7 @@ export const HostedBlueskyForm = ({
       }
       if (state.handleChoices.length === 0) {
         return info(
-          'Your username can’t be used as a Bluesky handle. Ask an admin to claim this server’s name for you.'
+          'Your username can’t be used as a Bluesky handle, so this server can’t offer you one yet.'
         )
       }
       return (

@@ -11,6 +11,7 @@ import {
 import type { PdsRepo } from '@/lib/database/domains/pds/types'
 import type { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
+import { getClaimableHost } from '@/lib/services/bluesky/claimableHost'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import { getLocalDomainMatcher } from '@/lib/services/domains/localDomains'
 import {
@@ -149,11 +150,20 @@ const getHandleChoices = async (
   { entry, config }: Pick<HostedAccountContext, 'entry' | 'config'>
 ): Promise<HostedBlueskyHandleChoice[]> => {
   const choices: HostedBlueskyHandleChoice[] = []
-  // The served domain this profile claimed in Settings › Other networks, when
-  // it has a linked account row carrying one.
-  const linked = await database.getBlueskyAccount({ actorId: actor.id })
-  if (linked?.instanceHandle) {
-    choices.push({ handle: linked.instanceHandle, kind: 'instance' })
+  // The bare served domain, for an actor who may hold it by the same rule as
+  // a linked account's claim (an active admin's actor on that domain) while
+  // no other admin's claim and no other live hosted account holds it. A served
+  // domain is the point here, so the subdomain reservation does not apply.
+  const host = getClaimableHost(actor)
+  if (
+    host &&
+    isValidHandle(host) &&
+    (await database.canHoldInstanceHandle({ actorId: actor.id, host }))
+  ) {
+    const holder = await database.getPdsRepoByHandle({ handle: host })
+    if (!holder || holder.actorId === actor.id) {
+      choices.push({ handle: host, kind: 'instance' })
+    }
   }
   // `<username>.<PDS host>`, unless the username makes it an invalid handle
   // (an `_` or `~`) or another host owns that name.
@@ -479,7 +489,7 @@ export const reactivateHostedBlueskyAccount = async ({
 /**
  * Changes the handle: a server-signed PLC update (alsoKnownAs) chained on the
  * directory's last operation, then `#identity`. A custom domain handle must resolve to
- * this DID first; the PDS handle and a claimed instance handle are answered by
+ * this DID first; the PDS handle and the bare served domain are answered by
  * this server and skip the check.
  */
 export const changeHostedBlueskyHandle = async ({

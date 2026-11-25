@@ -325,7 +325,7 @@ describe('HostedBlueskyForm', () => {
   it('explains when no handle can be offered instead of offering Create', () => {
     show(state({ handleChoices: [] }))
     expectNoteOutsideFrame(
-      'Your username can’t be used as a Bluesky handle. Ask an admin to claim this server’s name for you.'
+      'Your username can’t be used as a Bluesky handle, so this server can’t offer you one yet.'
     )
     expect(
       screen.queryByRole('button', { name: 'Create Bluesky account' })

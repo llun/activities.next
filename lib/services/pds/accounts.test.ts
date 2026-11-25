@@ -1,6 +1,10 @@
 import { Secp256k1Keypair } from '@atproto/crypto'
+import { NextRequest } from 'next/server'
 
+import { GET as getAtprotoDid } from '@/app/api/well-known/atproto-did/route'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
+import { setBlueskyInstanceHandle } from '@/lib/services/bluesky/account'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import {
   resetServedDomainsForTests,
@@ -30,6 +34,14 @@ import {
 import { pruneDeletedPdsRepos } from './retention'
 
 vi.mock('@/lib/utils/safeRemoteFetch', () => ({ safeRemoteFetch: vi.fn() }))
+// The atproto-did route reads this file's test database.
+const routeDatabase = vi.hoisted(() => ({
+  current: null as Database | null
+}))
+vi.mock('@/lib/database', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getDatabase: () => routeDatabase.current
+}))
 // Pass-throughs the tests watch: lock entries and blob file deletes.
 vi.mock('@/lib/services/pds/lock', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./lock')>()
@@ -96,7 +108,11 @@ const ALLOWED_USERNAMES = [
   'hosted-taken-crossdomain',
   'hosted-gate-blocked',
   'hosted-delete-order',
-  'hosted-delete-partial'
+  'hosted-delete-partial',
+  'hosted-admin-a',
+  'hosted-admin-b',
+  'hosted-admin-c',
+  'hosted-plain'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -1445,6 +1461,141 @@ describe('hosted Bluesky accounts', () => {
     )
     expect(deletePdsBlobFilesBestEffort).toHaveBeenCalledWith([storageKey], {
       context: { did: repo!.did, reason: 'expired_pds_tombstone' }
+    })
+  })
+
+  describe('the bare served domain as a handle', () => {
+    const makeAdmin = async (username: string) => {
+      const actor = await createActor(username)
+      await testDb.db
+        .updateTable('accounts')
+        .set({ role: 'admin' })
+        .where('id', '=', actor.account!.id)
+        .execute()
+      return (await database.getActorFromUsername({
+        username,
+        domain: TEST_DOMAIN
+      }))!
+    }
+    const link = (actorId: string, did: string) =>
+      database.saveBlueskyAccount({
+        actorId,
+        did,
+        handle: `${did.slice(8)}.bsky.social`,
+        pdsUrl: 'https://bsky.social',
+        authType: 'app_password',
+        domainHandle: false
+      })
+    const choices = async (actor: Awaited<ReturnType<typeof makeAdmin>>) =>
+      (await getHostedBlueskyAccountState({ database, actor })).handleChoices
+    const atprotoDid = () =>
+      getAtprotoDid(
+        new NextRequest(`https://${TEST_DOMAIN}/.well-known/atproto-did`),
+        { params: Promise.resolve({}) }
+      )
+
+    let adminA: Awaited<ReturnType<typeof makeAdmin>>
+    let adminB: Awaited<ReturnType<typeof makeAdmin>>
+    let adminC: Awaited<ReturnType<typeof makeAdmin>>
+
+    beforeAll(async () => {
+      routeDatabase.current = database
+      adminA = await makeAdmin('hosted-admin-a')
+      adminB = await makeAdmin('hosted-admin-b')
+      adminC = await makeAdmin('hosted-admin-c')
+    })
+
+    afterAll(() => {
+      routeDatabase.current = null
+    })
+
+    it('is not offered to a profile that is not an admin’s', async () => {
+      const actor = await createActor('hosted-plain')
+      expect(
+        (await choices(actor)).some((choice) => choice.kind === 'instance')
+      ).toBe(false)
+    })
+
+    it('is not offered while another admin’s linked account claims it', async () => {
+      await link(adminB.id, 'did:plc:bareclaimadminb')
+      expect(
+        await database.setBlueskyInstanceHandle({
+          actorId: adminB.id,
+          host: TEST_DOMAIN
+        })
+      ).toBe(true)
+
+      expect(await choices(adminA)).toEqual([
+        { handle: pdsHandle('hosted-admin-a'), kind: 'pds' }
+      ])
+
+      await database.setBlueskyInstanceHandle({
+        actorId: adminB.id,
+        host: null
+      })
+    })
+
+    it('is offered to an admin, taken by a create and a change, and answered by atproto-did', async () => {
+      expect(await choices(adminA)).toEqual([
+        { handle: TEST_DOMAIN, kind: 'instance' },
+        { handle: pdsHandle('hosted-admin-a'), kind: 'pds' }
+      ])
+
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor: adminA,
+        handle: TEST_DOMAIN
+      })
+      expect(state.repo?.handle).toBe(TEST_DOMAIN)
+      const did = state.repo!.did
+
+      let response = await atprotoDid()
+      expect(response.status).toBe(200)
+      expect(await response.text()).toBe(did)
+
+      // Its own repo keeps it on offer, so a change away and back is allowed.
+      await changeHostedBlueskyHandle({
+        database,
+        actor: adminA,
+        handle: pdsHandle('hosted-admin-a')
+      })
+      expect((await atprotoDid()).status).toBe(404)
+      await changeHostedBlueskyHandle({
+        database,
+        actor: adminA,
+        handle: TEST_DOMAIN
+      })
+      expect(createBlueskyIdentityResolver).not.toHaveBeenCalled()
+      response = await atprotoDid()
+      expect(await response.text()).toBe(did)
+    })
+
+    it('is not offered to another admin while a live hosted account holds it', async () => {
+      expect(await choices(adminC)).toEqual([
+        { handle: pdsHandle('hosted-admin-c'), kind: 'pds' }
+      ])
+    })
+
+    it('refuses a linked account’s claim on a host a hosted account holds', async () => {
+      await link(adminC.id, 'did:plc:bareclaimadminc')
+      await expect(
+        setBlueskyInstanceHandle(database, adminC, true)
+      ).rejects.toMatchObject({ status: 409 })
+      expect(
+        (await database.getBlueskyAccount({ actorId: adminC.id }))
+          ?.instanceHandle
+      ).toBeNull()
+    })
+
+    it('answers 404 for a suspended admin’s bare-domain handle', async () => {
+      await database.applyModerationAction({
+        targetActorId: adminA.id,
+        accountId: adminA.account!.id,
+        action: 'suspend',
+        moderatorAccountId: 'moderator'
+      })
+
+      expect((await atprotoDid()).status).toBe(404)
     })
   })
 })

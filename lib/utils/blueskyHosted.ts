@@ -6,7 +6,8 @@ export type HostedBlueskyRepoStatus =
 
 export interface HostedBlueskyHandleChoice {
   handle: string
-  // instance: the served domain this profile claimed; pds: <username>.<PDS host>.
+  // instance: the bare served domain, offered to an admin's profile that may
+  // hold it; pds: <username>.<PDS host>.
   kind: 'instance' | 'pds'
 }
 

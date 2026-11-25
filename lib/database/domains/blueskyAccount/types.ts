@@ -51,6 +51,14 @@ export interface BlueskyAccountDatabase {
    * link's session, follows and interactions when it was another DID). Returns
    * `did_taken` without writing when another actor already holds the DID.
    */
+  /**
+   * Whether the actor may hold `host` as a handle: an active admin's actor on
+   * that domain, with no other such actor's claim on it.
+   */
+  canHoldInstanceHandle(params: {
+    actorId: string
+    host: string
+  }): Promise<boolean>
   saveBlueskyAccount(
     params: SaveBlueskyAccountParams
   ): Promise<'saved' | 'did_taken'>
@@ -69,8 +77,9 @@ export interface BlueskyAccountDatabase {
     crosspostByDefault: boolean
   }): Promise<void>
   /**
-   * `false` when another active admin's actor already answers for `host`; a
-   * claim whose holder lost that is freed first.
+   * `false` when another active admin's actor already answers for `host`, or a
+   * live hosted Bluesky account holds it as its handle; a claim whose holder
+   * lost that is freed first.
    */
   setBlueskyInstanceHandle(params: {
     actorId: string
