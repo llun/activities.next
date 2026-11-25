@@ -672,27 +672,23 @@ describe('PDS firehose upgrade handler', () => {
       maxPerClient: 4
     })
     const source = new ManualEventSource()
-    // Seed large events so writing to a paused socket immediately pushes
-    // ws.bufferedAmount past the 1-byte test threshold and triggers ConsumerTooSlow.
+    // Seed far more than any kernel socket buffer holds (Linux loopback can
+    // absorb several MB), so writes to the paused socket back up into
+    // ws.bufferedAmount and trigger ConsumerTooSlow on every platform.
     const bigHandle = `${'a'.repeat(512 * 1024)}.${TEST_DOMAIN}`
-    const first = await database.appendPdsEvent({
-      did: TEST_DID,
-      type: 'identity',
-      payload: formatPdsIdentityEvent({
+    let first: { seq: number } | undefined
+    for (let index = 0; index < 64; index++) {
+      const appended = await database.appendPdsEvent({
         did: TEST_DID,
-        handle: bigHandle,
-        time: '2026-11-25T00:00:00.000Z'
+        type: 'identity',
+        payload: formatPdsIdentityEvent({
+          did: TEST_DID,
+          handle: bigHandle,
+          time: '2026-11-25T00:00:00.000Z'
+        })
       })
-    })
-    await database.appendPdsEvent({
-      did: TEST_DID,
-      type: 'identity',
-      payload: formatPdsIdentityEvent({
-        did: TEST_DID,
-        handle: bigHandle,
-        time: '2026-11-25T00:00:00.000Z'
-      })
-    })
+      first ??= appended
+    }
 
     const port = await startServer({
       eventSource: source,
@@ -708,7 +704,7 @@ describe('PDS firehose upgrade handler', () => {
       const req = http.request({
         host: '127.0.0.1',
         port,
-        path: `${PDS_FIREHOSE_SUBSCRIBE_PATH}?cursor=${first.seq - 1}`,
+        path: `${PDS_FIREHOSE_SUBSCRIBE_PATH}?cursor=${first!.seq - 1}`,
         headers: {
           Host: TEST_PDS_HOST,
           Connection: 'Upgrade',
