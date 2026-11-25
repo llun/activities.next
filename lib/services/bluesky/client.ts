@@ -1,12 +1,9 @@
-import { createIdentityResolver } from '@atproto-labs/identity-resolver'
-import {
-  AtprotoHandleResolverNode,
-  JoseKey,
+import type {
   NodeOAuthClient,
-  type NodeSavedSession,
-  type NodeSavedSessionStore,
-  type NodeSavedStateStore,
-  type RuntimeLock
+  NodeSavedSession,
+  NodeSavedSessionStore,
+  NodeSavedStateStore,
+  RuntimeLock
 } from '@atproto/oauth-client-node'
 import crypto from 'node:crypto'
 
@@ -39,12 +36,6 @@ export const getBlueskyOAuthUrls = (domain: string) => {
     redirectUri: `${base}/api/v1/bluesky/callback`
   }
 }
-
-export const createBlueskyIdentityResolver = () =>
-  createIdentityResolver({
-    fetch: blueskyFetch,
-    handleResolver: new AtprotoHandleResolverNode({ fetch: blueskyFetch })
-  })
 
 // What `bluesky_sessions` holds for a DID, encrypted with the server secret.
 // The tag keeps an app-password session from ever being read as an OAuth one.
@@ -147,6 +138,17 @@ const buildClient = async (
   config: Config & { bluesky: NonNullable<Config['bluesky']> },
   domain: string
 ) => {
+  // Loaded on first use: `@atproto/*` is ESM-only (multiformats), and the job
+  // registry and actor deletion reach this module from CommonJS scripts. Only
+  // bare package specifiers: under tsx/cjs `import()` stays native, so a
+  // relative or `@/` path would not resolve there.
+  const [
+    { AtprotoHandleResolverNode, JoseKey, NodeOAuthClient },
+    { createIdentityResolver }
+  ] = await Promise.all([
+    import('@atproto/oauth-client-node'),
+    import('@atproto-labs/identity-resolver')
+  ])
   const keyset = await Promise.all(
     config.bluesky.oauthPrivateKeys.map((jwk) => JoseKey.fromJWK(jwk))
   )
@@ -168,7 +170,11 @@ const buildClient = async (
     },
     keyset,
     fetch: blueskyFetch,
-    identityResolver: createBlueskyIdentityResolver(),
+    // The same resolver as `createBlueskyIdentityResolver` (identityResolver.ts).
+    identityResolver: createIdentityResolver({
+      fetch: blueskyFetch,
+      handleResolver: new AtprotoHandleResolverNode({ fetch: blueskyFetch })
+    }),
     stateStore: createStateStore(database),
     sessionStore: createSessionStore(database),
     requestLock: createBlueskyLock(database)

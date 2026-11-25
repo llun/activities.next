@@ -28,15 +28,17 @@ describe('JOBS registry', () => {
     }).not.toThrow()
   })
 
-  // The deletion job, database layer, media service and maintenance/backup
-  // scripts are loaded from CommonJS (`scripts/run.cjs`). An `@atproto/*` or
-  // `multiformats` import in their graph fails there with
-  // ERR_PACKAGE_PATH_NOT_EXPORTED, so the PDS modules they reach
-  // (`blobStorage.ts`, `retention.ts` and what those import) stay CJS-safe.
-  it('loads the deletion job, database, PDS storage helpers and scripts in CommonJS without ESM-only imports', () => {
+  // Scripts run as CommonJS (`scripts/run.cjs`, tsx/cjs), and the job
+  // registry, actor deletion, database layer and media service sit in their
+  // graphs. A static `@atproto/*` or `multiformats` import there fails with
+  // ERR_PACKAGE_PATH_NOT_EXPORTED, so the PDS modules they reach stay CJS-safe
+  // and the Bluesky client loads `@atproto/*` on first use.
+  it('loads the job registry, deletion, database, PDS storage helpers and scripts in CommonJS without ESM-only imports', () => {
     for (const entry of [
       './lib/jobs/deleteActorJob.ts',
       './lib/database/index.ts',
+      './lib/jobs/index.ts',
+      './lib/services/actors/actorDeletion.ts',
       './lib/services/pds/blobStorage.ts',
       './lib/services/pds/retention.ts',
       './lib/services/medias/index.ts',
@@ -61,5 +63,30 @@ describe('JOBS registry', () => {
         )
       }
     }
+  })
+
+  // `import()` stays native under tsx/cjs, so a relative or `@/` specifier in a
+  // lazy load fails when the Bluesky OAuth client is first built from a script.
+  it('builds the Bluesky OAuth client in CommonJS', () => {
+    const script = `
+      const crypto = require('node:crypto')
+      const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' })
+      process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = JSON.stringify({ ...privateKey.export({ format: 'jwk' }), kid: 'test', alg: 'ES256' })
+      process.env.ACTIVITIES_HOST = 'social.example'
+      process.env.ACTIVITIES_SECRET_PHASE = 'x'.repeat(40)
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'better-sqlite3'
+      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
+      const { getBlueskyOAuthClient } = require('./lib/services/bluesky/client.ts')
+      getBlueskyOAuthClient({}, 'social.example').then(
+        (client) => { process.stdout.write(typeof client.authorize); process.exit(0) },
+        (error) => { process.stderr.write(String(error && error.stack)); process.exit(1) }
+      )
+    `
+    const output = execFileSync(
+      process.execPath,
+      ['-r', 'tsx/cjs', '-e', script],
+      { cwd: process.cwd(), encoding: 'utf-8', stdio: 'pipe' }
+    )
+    expect(output).toBe('function')
   })
 })

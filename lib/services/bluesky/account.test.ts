@@ -14,10 +14,10 @@ import {
   updateBlueskyCrosspostDefault
 } from '@/lib/services/bluesky/account'
 import {
-  createBlueskyIdentityResolver,
   getBlueskyOAuthClient,
   writeStoredBlueskySession
 } from '@/lib/services/bluesky/client'
+import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import { getQueue } from '@/lib/services/queue'
 import type { Actor } from '@/lib/types/domain/actor'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
@@ -28,9 +28,11 @@ vi.mock('@/lib/utils/safeRemoteFetch', () => ({ safeRemoteFetch: vi.fn() }))
 vi.mock('@/lib/services/queue', () => ({ getQueue: vi.fn() }))
 vi.mock('@/lib/services/bluesky/client', () => ({
   BLUESKY_OAUTH_SCOPE: 'atproto transition:generic',
-  createBlueskyIdentityResolver: vi.fn(),
   getBlueskyOAuthClient: vi.fn(),
   writeStoredBlueskySession: vi.fn()
+}))
+vi.mock('@/lib/services/bluesky/identityResolver', () => ({
+  createBlueskyIdentityResolver: vi.fn()
 }))
 
 const DID = 'did:plc:abc123'
