@@ -1,0 +1,22 @@
+lib/services/pds/moveOut.test.ts
+  s_f193227df3df34::t_bdf8e6c128b94c 116,3515-3555,3571
+  s_f193227df3df34::t_c8a5272288ecde 3556-3570,3572-3573
+lib/services/pds/accounts.ts
+  s_f193227df3df34::t_3077f78dc009d1 65,229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e98960453cd346ea8c8010d7e91473ce6c6bf19b",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
