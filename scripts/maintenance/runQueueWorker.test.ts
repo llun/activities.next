@@ -1,6 +1,7 @@
 import { getDatabase, getKysely } from '@/lib/database'
 import { startServedDomainRefresher } from '@/lib/services/domains/servedDomainSnapshot'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
+import { createStaticJobHandle } from '@/lib/services/queue/staticJobHandle'
 import { startSemanticSearch } from '@/lib/services/search/semantic/startup'
 
 vi.mock('@next/env', () => ({ loadEnvConfig: vi.fn() }))
@@ -53,6 +54,7 @@ describe('runQueueWorker', () => {
       expect(startSemanticSearch).toHaveBeenCalledWith(getKysely)
       // Under tsx/cjs the runner's lazy job-registry import cannot resolve, so
       // the worker hands it the statically imported registry.
+      expect(createStaticJobHandle).toHaveBeenCalledWith('database')
       expect(startDatabaseQueueRunner).toHaveBeenCalledWith(
         database,
         expect.objectContaining({ handleJob: staticJobHandle })
