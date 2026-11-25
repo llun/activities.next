@@ -9,6 +9,7 @@ export const PDS_FIREHOSE_PAGE_SIZE = 100
 export const PDS_FIREHOSE_PAGE_MAX_BYTES = 2 * 1024 * 1024
 export const PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES = 1024 * 1024
 export const PDS_FIREHOSE_MAX_BUFFERED_BYTES = 8 * 1024 * 1024
+export const PDS_FIREHOSE_DRAIN_TIMEOUT_MS = 60_000
 
 export type PdsFirehoseDatabase = Pick<
   Database,
@@ -32,6 +33,7 @@ export interface PdsFirehoseSubscriberOptions {
   pageMaxBytes?: number
   lowWaterBufferedBytes?: number
   maxBufferedBytes?: number
+  drainTimeoutMs?: number
 }
 
 export interface PdsFirehoseSubscriber {
@@ -48,7 +50,8 @@ export const createPdsFirehoseSubscriber = ({
   pageSize = PDS_FIREHOSE_PAGE_SIZE,
   pageMaxBytes = PDS_FIREHOSE_PAGE_MAX_BYTES,
   lowWaterBufferedBytes = PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES,
-  maxBufferedBytes = PDS_FIREHOSE_MAX_BUFFERED_BYTES
+  maxBufferedBytes = PDS_FIREHOSE_MAX_BUFFERED_BYTES,
+  drainTimeoutMs = PDS_FIREHOSE_DRAIN_TIMEOUT_MS
 }: PdsFirehoseSubscriberOptions): PdsFirehoseSubscriber => {
   let started = false
   let stopped = false
@@ -57,19 +60,20 @@ export const createPdsFirehoseSubscriber = ({
   let dirty = false
   let lastSeq = 0
   let unsubscribe: (() => void) | null = null
+  let cancelDrainWait: (() => void) | null = null
 
   const stop = (): void => {
     if (stopped) return
     stopped = true
+    const cancelDrain = cancelDrainWait
+    cancelDrainWait = null
+    cancelDrain?.()
     const unsub = unsubscribe
     unsubscribe = null
     unsub?.()
   }
 
-  const checkBackpressure = (): boolean => {
-    if (transport.bufferedAmount() <= maxBufferedBytes) {
-      return false
-    }
+  const closeConsumerTooSlow = (): void => {
     stop()
     try {
       transport.send(
@@ -82,8 +86,52 @@ export const createPdsFirehoseSubscriber = ({
       // Ignore send errors when the transport is already closing.
     }
     transport.close(1000, 'ConsumerTooSlow')
+  }
+
+  const checkBackpressure = (): boolean => {
+    if (transport.bufferedAmount() <= maxBufferedBytes) {
+      return false
+    }
+    closeConsumerTooSlow()
     return true
   }
+
+  const waitForDrainWithTimeout = (
+    drainPromise: Promise<void>
+  ): Promise<boolean> =>
+    new Promise<boolean>((resolve, reject) => {
+      let settled = false
+      const cleanup = (): void => {
+        clearTimeout(timer)
+        if (cancelDrainWait === cancel) {
+          cancelDrainWait = null
+        }
+      }
+      const finish = (timedOut: boolean): void => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(timedOut)
+      }
+      const cancel = (): void => {
+        finish(false)
+      }
+      const timer = setTimeout(() => {
+        finish(true)
+      }, drainTimeoutMs)
+      timer.unref?.()
+      cancelDrainWait = cancel
+
+      drainPromise.then(
+        () => finish(false),
+        (error: unknown) => {
+          if (settled) return
+          settled = true
+          cleanup()
+          reject(error)
+        }
+      )
+    })
 
   const waitForBackpressure = async (): Promise<boolean> => {
     if (stopped) return true
@@ -92,9 +140,13 @@ export const createPdsFirehoseSubscriber = ({
       transport.waitForDrain &&
       transport.bufferedAmount() > lowWaterBufferedBytes
     ) {
-      await transport.waitForDrain()
+      const timedOut = await waitForDrainWithTimeout(transport.waitForDrain())
       if (stopped) return true
       if (checkBackpressure()) return true
+      if (timedOut && transport.bufferedAmount() > lowWaterBufferedBytes) {
+        closeConsumerTooSlow()
+        return true
+      }
     }
     return stopped
   }
@@ -111,6 +163,10 @@ export const createPdsFirehoseSubscriber = ({
       while (!stopped) {
         dirty = false
         const prevLastSeq = lastSeq
+        const { newest: newestReadBefore } =
+          await database.getPdsEventSeqBounds()
+        if (stopped) return
+
         const events = await database.listPdsEvents({
           afterSeq: lastSeq,
           limit: pageSize,
@@ -120,11 +176,22 @@ export const createPdsFirehoseSubscriber = ({
         })
         if (stopped) return
 
-        for (const event of events) {
-          if (await waitForBackpressure()) return
-          transport.send(encodeEventFrame(event))
-          lastSeq = event.seq
-          if (checkBackpressure()) return
+        if (events.length === 0) {
+          // Safe to advance past skipped events (other domains or inactive
+          // repos) up to the newest seq observed before the query: the
+          // PostgreSQL advisory lock in `appendPdsEvent` makes commit order
+          // equal seq order, and SQLite has a single writer, so no event with
+          // seq <= newestReadBefore can become visible after this read.
+          if (newestReadBefore !== null) {
+            lastSeq = Math.max(lastSeq, newestReadBefore)
+          }
+        } else {
+          for (const event of events) {
+            if (await waitForBackpressure()) return
+            transport.send(encodeEventFrame(event))
+            lastSeq = event.seq
+            if (checkBackpressure()) return
+          }
         }
 
         if (events.length > 0 && lastSeq > prevLastSeq) {

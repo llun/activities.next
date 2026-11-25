@@ -30,6 +30,14 @@ interface RequiredServerFilesManifest {
 const formatHostname = (hostname: string): string =>
   isIPv6(hostname) ? `[${hostname}]` : hostname
 
+const getRequestPathname = (rawUrl: string | undefined): string | undefined => {
+  try {
+    return new URL(rawUrl ?? '/', 'http://localhost').pathname
+  } catch {
+    return undefined
+  }
+}
+
 const parseKeepAliveTimeout = (
   value: string | undefined
 ): number | undefined => {
@@ -121,7 +129,7 @@ const main = async (): Promise<void> => {
       logger.error({
         message: 'Unhandled error in Next request handler',
         err: toLoggableError(error),
-        url: req.url
+        pathname: getRequestPathname(req.url)
       })
       if (!res.headersSent) {
         res.statusCode = 500

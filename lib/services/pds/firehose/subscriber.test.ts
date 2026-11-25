@@ -11,6 +11,7 @@ import { TEST_PASSWORD_HASH } from '@/lib/stub/const'
 
 import type { PdsEventSource } from './source'
 import {
+  PDS_FIREHOSE_DRAIN_TIMEOUT_MS,
   PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES,
   PDS_FIREHOSE_MAX_BUFFERED_BYTES,
   type PdsFirehoseDatabase,
@@ -454,6 +455,140 @@ describe('PDS firehose subscriber', () => {
 
     expect(closed).toEqual([])
     expect(frames.map((f) => f.body.seq)).toEqual([e1.seq, e2.seq, e3.seq])
+    subscriber.stop()
+  })
+
+  it('closes with ConsumerTooSlow when waitForDrain times out while bufferedAmount remains above the low-water mark', async () => {
+    expect(PDS_FIREHOSE_DRAIN_TIMEOUT_MS).toBe(60_000)
+
+    const e1 = await appendIdentityEvent(didA, 'stall-1.alpha')
+    const e2 = await appendIdentityEvent(didA, 'stall-2.alpha')
+
+    vi.useFakeTimers()
+    try {
+      let buffered = 0
+      let drainCalls = 0
+      const frames: DecodedFrame[] = []
+      const closed: Array<{ code?: number; reason?: string }> = []
+
+      const transport: PdsFirehoseTransport = {
+        send(frame) {
+          frames.push(decodeSentFrame(frame))
+          if (frames.length === 1) {
+            buffered = PDS_FIREHOSE_LOW_WATER_BUFFERED_BYTES + 1
+          }
+        },
+        bufferedAmount: () => buffered,
+        waitForDrain() {
+          drainCalls += 1
+          return new Promise<void>(() => {
+            // Intentionally never resolves to simulate a stalled consumer.
+          })
+        },
+        close(code, reason) {
+          closed.push({ code, reason })
+        }
+      }
+
+      const source = new ManualEventSource()
+      const subscriber = createPdsFirehoseSubscriber({
+        database,
+        domain: domainA,
+        cursor: e1.seq - 1,
+        source,
+        transport,
+        drainTimeoutMs: 500
+      })
+
+      const startPromise = subscriber.start()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(drainCalls).toBe(1)
+      expect(frames.map((f) => f.body.seq)).toEqual([e1.seq])
+      expect(closed).toEqual([])
+
+      // Still waiting just before the drain timeout expires.
+      await vi.advanceTimersByTimeAsync(499)
+      expect(closed).toEqual([])
+      expect(frames).toHaveLength(1)
+
+      // Once the drain timeout elapses while still above low-water, close as ConsumerTooSlow.
+      await vi.advanceTimersByTimeAsync(1)
+
+      expect(frames).toHaveLength(2)
+      expect(frames[0].body.seq).toBe(e1.seq)
+      expect(frames[1].header).toEqual({ op: -1 })
+      expect(frames[1].body.error).toBe('ConsumerTooSlow')
+      expect(closed).toEqual([{ code: 1000, reason: 'ConsumerTooSlow' }])
+      expect(source.listenerCount()).toBe(0)
+      expect(e2.seq).toBeGreaterThan(e1.seq)
+      await startPromise
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('advances lastSeq on empty pages so a quiet domain does not rescan other-domain events on every wake-up', async () => {
+    const initialA = await appendIdentityEvent(didA, 'init-a.alpha.example')
+
+    const afterSeqsSeen: Array<number | undefined> = []
+    const wrappedDb: PdsFirehoseDatabase = {
+      getPdsEventSeqBounds: () => database.getPdsEventSeqBounds(),
+      listPdsEvents: async (params) => {
+        afterSeqsSeen.push(params?.afterSeq)
+        return database.listPdsEvents(params)
+      }
+    }
+
+    const source = new ManualEventSource()
+    const { transport, frames, closed } = createMockTransport()
+    const subscriber = createPdsFirehoseSubscriber({
+      database: wrappedDb,
+      domain: domainB,
+      cursor: undefined,
+      source,
+      transport
+    })
+
+    await subscriber.start()
+    expect(frames).toHaveLength(0)
+
+    // Domain A emits events while domain B stays quiet.
+    await appendIdentityEvent(didA, 'a-1.alpha.example')
+    const latestA = await appendIdentityEvent(didA, 'a-2.alpha.example')
+    source.emit()
+    await flush()
+
+    expect(frames).toHaveLength(0)
+    expect(afterSeqsSeen).toEqual([initialA.seq])
+
+    // Another domain A event triggers a wake-up; the next page query must start
+    // after latestA.seq rather than re-scanning from initialA.seq.
+    const newerA = await appendIdentityEvent(didA, 'a-3.alpha.example')
+    source.emit()
+    await flush()
+
+    expect(frames).toHaveLength(0)
+    expect(afterSeqsSeen).toEqual([initialA.seq, latestA.seq])
+
+    // A subsequent domain B event is still delivered cleanly.
+    const liveB = await appendIdentityEvent(didB, 'b-1.beta.example')
+    source.emit()
+    await flush()
+
+    expect(closed).toEqual([])
+    expect(afterSeqsSeen.slice(0, 3)).toEqual([
+      initialA.seq,
+      latestA.seq,
+      newerA.seq
+    ])
+    expect(frames).toHaveLength(1)
+    expect(frames[0].header).toEqual({ op: 1, t: '#identity' })
+    expect(frames[0].body).toMatchObject({
+      seq: liveB.seq,
+      did: didB,
+      handle: 'b-1.beta.example'
+    })
+
     subscriber.stop()
   })
 

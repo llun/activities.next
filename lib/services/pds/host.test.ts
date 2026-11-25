@@ -418,6 +418,133 @@ describe('PDS host routing', () => {
     ).toBeNull()
   })
 
+  it('refuses port-varied raw Host naming a served domain or another configured PDS hostname, while allowing exact host:port matches', () => {
+    const servedHosts = {
+      host: 'app.example',
+      trustedHosts: ['alias.example:8080', '[::1]:3000'],
+      servedDomains: []
+    }
+
+    // Bypass 1: raw Host names another PDS hostname with an arbitrary port
+    // alongside X-Activity-Next-Host.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'pds.social.example:1',
+          'x-activity-next-host': 'pds.port.example:8443'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Also when the configured PDS hostname itself carries a port (:8443) and
+    // raw Host uses a different port or omits the port.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'pds.port.example:1',
+          'x-activity-next-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'pds.port.example',
+          'x-forwarded-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Bypass 2: raw Host names a served domain with a non-default port
+    // alongside X-Forwarded-Host.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'app.example:1',
+          'x-forwarded-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'app.example:8080',
+          'x-forwarded-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Served domain configured with a port and bracketed IPv6 literal.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'alias.example:1',
+          'x-forwarded-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: '[::1]:9999',
+          'x-forwarded-host': 'pds.social.example'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Raw Host on the same PDS hostname with a mismatched port is refused.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'pds.port.example:9999',
+          'x-forwarded-host': 'pds.port.example:8443'
+        }),
+        undefined,
+        servedHosts
+      )
+    ).toBeNull()
+
+    // Raw Host equal to the resolved PDS hostname including its port -> allowed.
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'pds.port.example:8443',
+          'x-forwarded-host': 'pds.port.example:8443'
+        }),
+        undefined,
+        servedHosts
+      )?.hostname
+    ).toBe('pds.port.example:8443')
+
+    expect(
+      getPdsDomainForRequest(
+        new Headers({
+          host: 'pds.port.example:8443',
+          'x-activity-next-host': 'pds.port.example:8443'
+        }),
+        undefined,
+        servedHosts
+      )?.hostname
+    ).toBe('pds.port.example:8443')
+  })
+
   it('requires X-Forwarded-Host to match when resolved from X-Activity-Next-Host', () => {
     const servedHosts = {
       host: 'social.example',

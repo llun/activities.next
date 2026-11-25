@@ -15,6 +15,8 @@ import {
   HOST_HEADER_NAMES,
   type HostHeaders,
   getHostHeaderValue,
+  getServedAuthority,
+  getServedDomainRules,
   normalizeServedDomainChoice
 } from '@/lib/utils/host'
 import { logger } from '@/lib/utils/logger'
@@ -22,13 +24,35 @@ import { logger } from '@/lib/utils/logger'
 const MAX_WARNED_COLLISION_KEYS = 256
 const warnedCollisionKeys = new Set<string>()
 
+const stripHostPort = (authority: string): string => {
+  if (authority.startsWith('[')) {
+    const match = authority.match(/^(\[[^\]]+\])(?::\d+)?$/)
+    return match ? match[1] : authority
+  }
+  return authority.replace(/:\d+$/, '')
+}
+
 const isConfiguredPdsHostname = (
   hostname: string,
   config: BlueskyPdsConfig
-): boolean =>
-  Object.values(config).some(
-    (entry) => normalizeServedDomainChoice(entry.hostname) === hostname
-  )
+): boolean => {
+  const targetHost = stripHostPort(hostname)
+  return Object.values(config).some((entry) => {
+    const normalized = normalizeServedDomainChoice(entry.hostname)
+    return normalized !== null && stripHostPort(normalized) === targetHost
+  })
+}
+
+const isServedDomainHostname = (
+  hostname: string,
+  servedHostConfig: ReturnType<typeof getServedHostConfig>
+): boolean => {
+  const targetHost = stripHostPort(hostname)
+  return getServedDomainRules(servedHostConfig).some((rule) => {
+    const authority = getServedAuthority(rule)
+    return authority !== null && stripHostPort(authority) === targetHost
+  })
+}
 
 /**
  * Extracts the raw request host using the same header precedence and
@@ -136,7 +160,8 @@ export const getPdsDomainForRequest = (
     if (!rawHost) return null
     if (
       rawHost !== hostname &&
-      (isServedDomain(rawHost) || isConfiguredPdsHostname(rawHost, config))
+      (isServedDomainHostname(rawHost, effectiveServedHostConfig) ||
+        isConfiguredPdsHostname(rawHost, config))
     ) {
       return null
     }

@@ -23,7 +23,6 @@ import { TEST_PASSWORD_HASH } from '@/lib/stub/const'
 
 import {
   PDS_FIREHOSE_SUBSCRIBE_PATH,
-  PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS,
   type PdsFirehoseUpgradeHandler,
   type PdsFirehoseUpgradeHandlerOptions,
   createPdsFirehoseUpgradeHandler,
@@ -667,7 +666,7 @@ describe('PDS firehose upgrade handler', () => {
     }
   })
 
-  it('terminates a ConsumerTooSlow socket within ~1 s even if the client never completes the close handshake', async () => {
+  it('terminates a ConsumerTooSlow socket after its own short timer even if the client never completes the close handshake', async () => {
     const limiter = createPdsFirehoseConnectionLimiter({
       maxPerProcess: 4,
       maxPerClient: 4
@@ -698,10 +697,13 @@ describe('PDS firehose upgrade handler', () => {
     const port = await startServer({
       eventSource: source,
       limiter,
-      maxBufferedBytes: 1
+      maxBufferedBytes: 1,
+      // A short terminate timer and a ws close backstop far past the wait
+      // below: only the ConsumerTooSlow timer can release the slot in time.
+      consumerTooSlowTerminateMs: 50,
+      wsCloseTimeoutMs: 120_000
     })
 
-    const startedAt = Date.now()
     const rawSocket = await new Promise<Duplex>((resolve, reject) => {
       const req = http.request({
         host: '127.0.0.1',
@@ -734,12 +736,8 @@ describe('PDS firehose upgrade handler', () => {
         () => {
           expect(limiter.getActiveCount()).toBe(0)
         },
-        { timeout: PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS - 1_500 }
+        { timeout: 20_000 }
       )
-      const elapsedMs = Date.now() - startedAt
-      // Must terminate via the ~1 s ConsumerTooSlow timer rather than waiting
-      // for the 4 s generic WebSocket closeTimeout.
-      expect(elapsedMs).toBeLessThan(PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS - 1_500)
     } finally {
       rawSocket.destroy()
     }

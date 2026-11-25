@@ -43,6 +43,7 @@ export interface PdsFirehoseUpgradeHandlerOptions {
   maxMissedPongs?: number
   closeGraceMs?: number
   consumerTooSlowTerminateMs?: number
+  wsCloseTimeoutMs?: number
   pageSize?: number
   pageMaxBytes?: number
   lowWaterBufferedBytes?: number
@@ -148,6 +149,7 @@ export const createPdsFirehoseUpgradeHandler = ({
   maxMissedPongs = PDS_FIREHOSE_MAX_MISSED_PONGS,
   closeGraceMs = PDS_FIREHOSE_CLOSE_GRACE_MS,
   consumerTooSlowTerminateMs = PDS_FIREHOSE_CONSUMER_TOO_SLOW_TERMINATE_MS,
+  wsCloseTimeoutMs = PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS,
   pageSize,
   pageMaxBytes,
   lowWaterBufferedBytes,
@@ -162,7 +164,7 @@ export const createPdsFirehoseUpgradeHandler = ({
     handleProtocols: () => false,
     // ws 8.x supports closeTimeout at runtime as a backstop if a peer stalls
     // the close handshake, even though @types/ws does not declare it yet.
-    closeTimeout: PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS
+    closeTimeout: wsCloseTimeoutMs
   } as ConstructorParameters<typeof WebSocketServer>[0] & {
     closeTimeout: number
   })
