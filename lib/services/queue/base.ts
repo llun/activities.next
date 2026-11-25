@@ -11,9 +11,9 @@ export type JobRegistryLoader = () => Promise<Record<string, JobHandle>>
 
 // Loaded on first job so a route that only publishes never loads every job.
 // Under tsx/cjs (scripts) this `import()` stays native and cannot resolve the
-// `@/` alias, so a runner that scripts start passes its own loader instead.
+// `@/` alias; scripts pass `loadStaticJobRegistry` (staticJobHandle.ts).
 const loadJobRegistry: JobRegistryLoader = async () =>
-  (await import('@/lib/jobs')).JOBS as Record<string, JobHandle>
+  (await import('@/lib/jobs')).JOBS
 
 export const defaultJobHandle =
   (queueName: string, loadJobs: JobRegistryLoader = loadJobRegistry) =>

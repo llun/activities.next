@@ -5,6 +5,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase, getKysely } from '@/lib/database'
 import { startServedDomainRefresher } from '@/lib/services/domains/servedDomainSnapshot'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
+import { createStaticJobHandle } from '@/lib/services/queue/staticJobHandle'
 import { startSemanticSearch } from '@/lib/services/search/semantic/startup'
 
 import { createQueueWorkerShutdown } from './runQueueWorkerLifecycle'
@@ -34,7 +35,8 @@ async function runQueueWorker() {
   // actor updates), so the semantic search hook must listen here as well.
   void startSemanticSearch(getKysely)
   const runner = startDatabaseQueueRunner(database, {
-    pollIntervalMs
+    pollIntervalMs,
+    handleJob: createStaticJobHandle('database')
   })
 
   const shutdownQueueWorker = createQueueWorkerShutdown({

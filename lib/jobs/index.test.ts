@@ -90,9 +90,10 @@ describe('JOBS registry', () => {
     expect(output).toBe('function')
   })
 
-  // The queue worker script runs the database runner under tsx/cjs, where a
-  // native `import('@/lib/jobs')` cannot resolve the `@/` alias.
-  it('dispatches a job through the database runner in CommonJS', () => {
+  // The queue worker script runs under tsx/cjs, where a native
+  // `import('@/lib/jobs')` cannot resolve the `@/` alias, so it dispatches
+  // through the statically imported registry in staticJobHandle.ts.
+  it('dispatches jobs through the static job handle in CommonJS', () => {
     const script = `
       process.env.ACTIVITIES_HOST = 'social.example'
       process.env.ACTIVITIES_SECRET_PHASE = 'x'.repeat(40)
@@ -100,18 +101,42 @@ describe('JOBS registry', () => {
       process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
       const { logger } = require('./lib/utils/logger.ts')
       const errors = []
-      logger.error = (...args) => { errors.push(args) }
-      const { databaseJobHandle } = require('./lib/services/queue/databaseRunner.ts')
-      databaseJobHandle({ id: 'probe', name: 'no-such-job', data: {} }).then(
-        () => { process.stdout.write(JSON.stringify(errors.map((args) => args[args.length - 1]))); process.exit(0) },
-        (error) => { process.stderr.write(String(error && error.stack)); process.exit(1) }
-      )
+      logger.error = (...args) => { errors.push(args[args.length - 1]) }
+      const { CREATE_NOTE_JOB_NAME } = require('./lib/jobs/names.ts')
+      const { createStaticJobHandle, loadStaticJobRegistry } = require('./lib/services/queue/staticJobHandle.ts')
+      ;(async () => {
+        const registry = await loadStaticJobRegistry()
+        await createStaticJobHandle('database')({ id: 'probe', name: 'no-such-job', data: {} })
+        process.stdout.write(JSON.stringify({
+          hasCreateNote: typeof registry[CREATE_NOTE_JOB_NAME] === 'function',
+          errors
+        }))
+        process.exit(0)
+      })().catch((error) => { process.stderr.write(String(error && error.stack)); process.exit(1) })
     `
     const output = execFileSync(
       process.execPath,
       ['-r', 'tsx/cjs', '-e', script],
       { cwd: process.cwd(), encoding: 'utf-8', stdio: 'pipe' }
     )
-    expect(JSON.parse(output)).toEqual(['Unknown job name'])
+    expect(JSON.parse(output)).toEqual({
+      hasCreateNote: true,
+      errors: ['Unknown job name']
+    })
+  })
+
+  // The app's queue modules keep loading the registry on first job.
+  it('keeps the job registry out of the queue modules the app imports', () => {
+    const script = `
+      require('./lib/services/queue/index.ts')
+      require('./lib/services/queue/databaseRunner.ts')
+      process.stdout.write(String(Object.keys(require.cache).some((key) => key.endsWith('/lib/jobs/index.ts'))))
+    `
+    const output = execFileSync(
+      process.execPath,
+      ['-r', 'tsx/cjs', '-e', script],
+      { cwd: process.cwd(), encoding: 'utf-8', stdio: 'pipe' }
+    )
+    expect(output).toBe('false')
   })
 })
