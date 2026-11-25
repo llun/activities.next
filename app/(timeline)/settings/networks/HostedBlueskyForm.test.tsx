@@ -662,42 +662,20 @@ describe('HostedBlueskyForm', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('keeps copying when a batch only ran out of its time budget', async () => {
-    vi.mocked(copyHostedBlueskyMoveOutBlobs)
-      .mockResolvedValueOnce({
-        copied: 1,
-        failed: [],
-        cursor: 'same',
-        done: false
-      })
-      // Called with 'same', it ran out of time and hands 'same' back: that is
-      // progress (it copied), not a stuck destination.
-      .mockResolvedValueOnce({
-        copied: 1,
-        failed: [],
-        cursor: 'same',
-        done: false
-      })
-      .mockResolvedValueOnce({
-        copied: 1,
-        failed: [],
-        cursor: null,
-        done: true
-      })
+  it('stops when the first page has no cursor and does not end', async () => {
+    vi.mocked(copyHostedBlueskyMoveOutBlobs).mockResolvedValue({
+      copied: 0,
+      failed: [{ cid: 'bafystuck', reason: 'Upload timed out.' }],
+      cursor: null,
+      done: false
+    })
     show(state({ repo: activeRepo, moveOut: moveOut() }))
     expect(
-      await screen.findByText('Images and videos: 3 copied')
-    ).toBeInTheDocument()
-    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(3)
-    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ cursor: 'same' })
-    )
-    expect(
-      screen.queryByText(
+      await screen.findByText(
         'The destination server stopped making progress. Try again.'
       )
-    ).not.toBeInTheDocument()
+    ).toBeInTheDocument()
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(1)
   })
 
   it('stops when the destination stops making progress', async () => {

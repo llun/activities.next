@@ -47,7 +47,6 @@ import { formatPdsAccountEvent, formatPdsIdentityEvent } from './events'
 import { loadPdsSigningKey } from './keys'
 import { withPdsRepoLock } from './lock'
 import {
-  BLOB_BATCH_BUDGET_MS,
   DEFAULT_BLOB_BATCH_LIMIT,
   MAX_BLOB_BATCH_LIMIT,
   MOVE_LOCK_MS,
@@ -83,21 +82,24 @@ import { XRPC_CAR_CONTENT_TYPE } from './xrpc'
 // password is sent only to `com.atproto.server.createAccount` and never
 // stored, logged, or echoed in errors.
 
-// The post-switch copy loop stops after this and counts the rest as missing.
-const FINISH_BLOB_BUDGET_MS = 5 * 60_000
+// Finish stops starting new blob pages after this, so the request that just
+// made the irreversible switch reaches activateAccount well within the usual
+// request limits; what is left is reported as missing.
+const FINISH_BLOB_BUDGET_MS = 60_000
 
 // Covers the finish sequence's network calls: the PLC read and submit; the
-// recommended credentials; the repo re-send; the post-switch blob budget plus
-// the list and upload in flight when it runs out; the remaining-blob count,
-// preferences, activate and revoke.
+// recommended credentials; the repo re-send; the blob budget plus the page in
+// flight when it runs out; the remaining-blob count, preferences, activate and
+// revoke; and one token refresh.
 const FINISH_LOCK_MS =
-  2 * PLC_DIRECTORY_TIMEOUT_MS +
+  // Two PLC calls, each up to twice its timeout.
+  4 * PLC_DIRECTORY_TIMEOUT_MS +
   REMOTE_JSON_WORST_MS +
   REMOTE_UPLOAD_WORST_MS +
   FINISH_BLOB_BUDGET_MS +
   REMOTE_JSON_WORST_MS +
-  REMOTE_UPLOAD_WORST_MS +
-  4 * REMOTE_JSON_WORST_MS +
+  DEFAULT_BLOB_BATCH_LIMIT * REMOTE_UPLOAD_WORST_MS +
+  5 * REMOTE_JSON_WORST_MS +
   30_000
 const REMOTE_MAX_BODY_BYTES = 2 * 1024 * 1024
 const MAX_BLOB_PAGES = 100
@@ -1024,26 +1026,12 @@ const copyBlobBatch = async (
   let copied = 0
   const failed: CopyMoveOutBlobFailure[] = []
 
-  // The budget covers the uploads, not the list: a slow list must not end a
-  // batch before it copied anything.
-  const deadline = Date.now() + BLOB_BATCH_BUDGET_MS
   for (const entry of parsed.blobs.slice(0, limit)) {
     const cid =
       isRecord(entry) && typeof entry.cid === 'string' ? entry.cid : null
     if (!cid || seenCids.has(cid)) continue
     seenCids.add(cid)
     const reportedCid = cid.slice(0, MAX_CID_LENGTH)
-
-    if (copied + failed.length > 0 && Date.now() > deadline) {
-      // Out of time: the next call re-lists from the cursor the caller passed.
-      return {
-        copied,
-        failed,
-        cursor: cursor ?? null,
-        done: false,
-        session: move
-      }
-    }
 
     try {
       const blob = await readPdsBlob(
@@ -1286,7 +1274,8 @@ const countMissingBlobs = async (
       session,
       nsid,
       method: 'GET',
-      params: { limit: MAX_BLOB_BATCH_LIMIT }
+      // The protocol's largest page: counting reads no blob bytes.
+      params: { limit: 1000 }
     })
     const parsed = parseJsonBody(nsid, response.body)
     return {
@@ -1491,34 +1480,40 @@ export const finishMoveOut = async ({
         }
         // Finish does not trust the page to have run every copy step: it copies
         // whatever the destination still lacks, then the preferences.
-        {
-          const copyDeadline = Date.now() + FINISH_BLOB_BUDGET_MS
-          let cursor: string | undefined
-          for (let page = 0; page < MAX_BLOB_PAGES; page += 1) {
-            if (Date.now() > copyDeadline) {
-              // Out of time: activate anyway and report what is still missing.
-              const remaining = await countMissingBlobs(
-                database,
-                repo.did,
-                move
-              )
-              move = remaining.session
-              // The re-list includes earlier failures, so it replaces the sum.
-              missingBlobs = Math.max(missingBlobs, remaining.count)
-              break
-            }
-            const batch = await copyBlobBatch(database, repo.did, move, {
-              cursor,
-              limit: DEFAULT_BLOB_BATCH_LIMIT,
-              store,
-              // The switch deactivated the repo here; its blobs still copy.
-              allowUnavailable: true
-            })
-            move = batch.session
-            missingBlobs += batch.failed.length
-            if (batch.done) break
-            cursor = batch.cursor ?? undefined
+        const copyDeadline = Date.now() + FINISH_BLOB_BUDGET_MS
+        const failedCids = new Set<string>()
+        let cursor: string | undefined
+        let copyDone = false
+        for (
+          let page = 0;
+          page < MAX_BLOB_PAGES && Date.now() <= copyDeadline;
+          page += 1
+        ) {
+          // A suspension or disable that lands mid-copy stops it.
+          const pageActor = await database.getActorFromId({ id: actor.id })
+          if (!pageActor || isActorModerationBlocked(pageActor)) break
+          const batch = await copyBlobBatch(database, repo.did, move, {
+            cursor,
+            limit: DEFAULT_BLOB_BATCH_LIMIT,
+            store,
+            // The switch deactivated the repo here; its blobs still copy.
+            allowUnavailable: true
+          })
+          move = batch.session
+          for (const failure of batch.failed) failedCids.add(failure.cid)
+          if (batch.done) {
+            copyDone = true
+            break
           }
+          cursor = batch.cursor ?? undefined
+        }
+        if (copyDone) {
+          missingBlobs = failedCids.size
+        } else {
+          // Stopped early: everything still missing, failures included.
+          const remaining = await countMissingBlobs(database, repo.did, move)
+          move = remaining.session
+          missingBlobs = Math.max(failedCids.size, remaining.count)
         }
         const preferencesRes = await requestWithMoveAuth({
           database,

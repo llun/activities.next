@@ -114,6 +114,7 @@ const ALLOWED_USERNAMES = [
   'move-delete-switched',
   'move-cancel-no-key',
   'move-blob-budget',
+  'move-finish-budget',
   'move-stale-actor',
   'move-not-copied',
   'move-cancel-rotated'
@@ -2424,6 +2425,106 @@ describe('hosted Bluesky account move-out', () => {
     })
   })
 
+  it('stops copying at its budget, activates, and reports what is still missing', async () => {
+    const { actor, did } = await setupHostedAccount('move-finish-budget')
+    const store = createMemoryBlobStore()
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+
+    const blob = await uploadPdsBlob(
+      database,
+      { did, bytes: Buffer.from('slow-image'), mimeType: 'image/png' },
+      { store }
+    )
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'post',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [{ alt: 'one', image: blob.blob }]
+        }
+      }
+    })
+    const currentRepo = await database.getPdsRepo({ did })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'budget.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: currentRepo!.rev,
+      switchedAt: null
+    })
+
+    let now = Date.now()
+    let activateCalls = 0
+    let uploads = 0
+    destHandler = (options) => {
+      if (
+        options.url.endsWith(
+          '/com.atproto.identity.getRecommendedDidCredentials'
+        )
+      ) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            services: {
+              atproto_pds: {
+                type: 'AtprotoPersonalDataServer',
+                endpoint: DEST_PDS
+              }
+            },
+            verificationMethods: { atproto: destSigningKey.did() },
+            alsoKnownAs: ['at://budget.dest.pds.example'],
+            rotationKeys: [destRotKey.did()]
+          })
+        )
+      }
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        // The count after the budget asks for the protocol's largest page.
+        if (options.url.includes('limit=1000')) {
+          return okResponse(
+            options.url,
+            JSON.stringify({
+              blobs: ['a', 'b', 'c', 'd'].map((cid) => ({ cid }))
+            })
+          )
+        }
+        return okResponse(
+          options.url,
+          JSON.stringify({ cursor: `c${now}`, blobs: [{ cid: blob.cid }] })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
+        // Each upload spends more than the whole finish budget.
+        uploads += 1
+        now += 61_000
+        return okResponse(
+          options.url,
+          JSON.stringify({ blob: { $type: 'blob' } })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+        activateCalls += 1
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, defaultDestBody(options.url))
+    }
+
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const finished = await finishMoveOut({ database, actor, store })
+    nowSpy.mockRestore()
+
+    expect(uploads).toBe(1)
+    expect(activateCalls).toBe(1)
+    expect(finished.missingBlobs).toBe(4)
+  })
+
   it('copies a blob added after the blobs step when finishing', async () => {
     const { actor, did } = await setupHostedAccount('move-post-switch-blobs')
     const store = createMemoryBlobStore()
@@ -2749,7 +2850,7 @@ describe('hosted Bluesky account move-out', () => {
     expect((await database.getPdsRepo({ did }))?.status).toBe('active')
   })
 
-  it('stops a blob batch at its wall-clock budget and hands the cursor back', async () => {
+  it('passes over a blob that fails and hands on the next cursor', async () => {
     const { actor, did } = await setupHostedAccount('move-blob-budget')
     const store = createMemoryBlobStore()
     const blobs: Awaited<ReturnType<typeof uploadPdsBlob>>[] = []
@@ -2789,7 +2890,6 @@ describe('hosted Bluesky account move-out', () => {
       switchedAt: null
     })
 
-    let now = Date.now()
     let uploads = 0
     destHandler = (options) => {
       if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
@@ -2803,8 +2903,14 @@ describe('hosted Bluesky account move-out', () => {
       }
       if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
         uploads += 1
-        // The first upload spends the whole batch budget.
-        now += 61_000
+        // The first upload fails; the batch goes on with the others.
+        if (uploads === 1) {
+          return okResponse(
+            options.url,
+            JSON.stringify({ error: 'InternalServerError' }),
+            500
+          )
+        }
         return okResponse(
           options.url,
           JSON.stringify({ blob: { $type: 'blob' } })
@@ -2813,12 +2919,13 @@ describe('hosted Bluesky account move-out', () => {
       return okResponse(options.url, defaultDestBody(options.url))
     }
 
-    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
     const batch = await copyMoveOutBlobs({ database, actor, store })
-    nowSpy.mockRestore()
 
-    expect(batch).toMatchObject({ copied: 1, cursor: null, done: false })
-    expect(uploads).toBe(1)
+    // The failed blob is reported and the cursor moves on past it, so the
+    // next page never retries it.
+    expect(batch).toMatchObject({ copied: 2, cursor: 'next', done: false })
+    expect(batch.failed).toHaveLength(1)
+    expect(uploads).toBe(3)
   })
 
   it('refuses a move step when the actor was suspended after it was loaded', async () => {

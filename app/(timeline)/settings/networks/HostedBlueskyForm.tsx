@@ -294,14 +294,9 @@ export const HostedBlueskyForm = ({
           cursorRef.current = result.cursor ?? undefined
           done = result.done
           updateCopy({ copied: copyRef.current.copied + result.copied })
-          // A server that keeps answering the same page must not loop forever.
-          // A batch that copied something and handed the same cursor back only
-          // ran out of its time budget, so the next call re-lists and goes on.
-          if (
-            !done &&
-            result.cursor === previousCursor &&
-            result.copied === 0
-          ) {
+          // A server that keeps answering the same page must not loop forever;
+          // a first page with no cursor and no end counts as the same page.
+          if (!done && (result.cursor ?? undefined) === previousCursor) {
             throw new Error(
               'The destination server stopped making progress. Try again.'
             )
