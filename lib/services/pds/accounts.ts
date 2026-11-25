@@ -62,7 +62,7 @@ import {
   readMoveOutSession,
   revokeMoveOutTokens
 } from './moveSession'
-import { getMovedToHost, isPlcOperationPointingAway } from './moved'
+import { getMovedToHost } from './moved'
 import {
   PLC_DIRECTORY_TIMEOUT_MS,
   type PlcOperationChanges,
@@ -226,7 +226,7 @@ const assertNoUnswitchedMove = async (
   repo: PdsRepo
 ): Promise<void> => {
   const move = await readMoveOutSession(database, repo.did)
-  if (move && move.switchedAt === null && !getMovedToHost(repo) !== null) {
+  if (move && move.switchedAt === null && getMovedToHost(repo) === null) {
     throw new PdsMoveOutPendingError()
   }
 }

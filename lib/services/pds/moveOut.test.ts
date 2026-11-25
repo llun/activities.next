@@ -113,6 +113,7 @@ const ALLOWED_USERNAMES = [
   'move-retry-takendown',
   'move-post-switch-missing',
   'move-delete-switched',
+  'move-delete-unrecorded',
   'move-cancel-no-key',
   'move-blob-budget',
   'move-finish-budget',
@@ -3492,6 +3493,65 @@ describe('hosted Bluesky account move-out', () => {
       refreshJwt: 'switched-refresh',
       importedRev: null,
       switchedAt: Date.now()
+    })
+
+    const revoked: string[] = []
+    destHandler = (options) => {
+      const headers = options.headers as Record<string, string>
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        revoked.push(headers.Authorization)
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, defaultDestBody(options.url))
+    }
+
+    await deleteHostedBlueskyAccount({
+      database,
+      actor,
+      confirmHandle: handle
+    })
+
+    expect(await database.getPdsRepo({ actorId: actor.id })).toBeNull()
+    expect(await database.getBlueskySession({ did })).toBeNull()
+    expect(revoked).toEqual(['Bearer switched-refresh'])
+  })
+
+  it('deletes a copy whose operation already points away though the move never recorded its switch', async () => {
+    const { actor, did, handle } = await setupHostedAccount(
+      'move-delete-unrecorded'
+    )
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+
+    // A crash after the switch: the repo is deactivated and points at the
+    // destination, but the move session is still stored.
+    await database.updatePdsRepoIdentity({
+      did,
+      plcOperation: JSON.stringify({
+        type: 'plc_operation',
+        rotationKeys: [destRotKey.did()],
+        verificationMethods: { atproto: destSigningKey.did() },
+        alsoKnownAs: ['at://moved.dest.pds.example'],
+        services: {
+          atproto_pds: {
+            type: 'AtprotoPersonalDataServer',
+            endpoint: DEST_PDS
+          }
+        },
+        prev: 'bafyprev',
+        sig: 'sig'
+      })
+    })
+    await database.updatePdsRepoStatus({ did, status: 'deactivated' })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'moved.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'switched-refresh',
+      importedRev: null,
+      switchedAt: null
     })
 
     const revoked: string[] = []
