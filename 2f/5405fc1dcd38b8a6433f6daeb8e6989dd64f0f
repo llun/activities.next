@@ -1,0 +1,55 @@
+app/xrpc/[[...nsid]]/route.test.ts
+  s_d101950c9cfdb3::t_d4076be18576ed 12,44,1461-1483,1679-1681,1704-1743
+app/xrpc/[[...nsid]]/route.ts
+  s_d101950c9cfdb3::t_c9175bf4197e66 545-547
+docs/mastodon-api-compatibility.md
+  s_d101950c9cfdb3::t_3d58beac85f02a 1399
+docs/setup.md
+  s_d101950c9cfdb3::t_9334ce0283ad5f 70
+lib/database/domains/pds/pds.test.ts
+  s_d101950c9cfdb3::t_2c42dd4e07b970 1,958-1001
+lib/database/domains/pds/queries.ts
+  s_d101950c9cfdb3::t_bdb4edb7946f4d 512-513,516,518,525
+lib/database/domains/pds/types.ts
+  s_d101950c9cfdb3::t_7e6b840e9fb5e3 255
+lib/services/pds/blobStorage.ts
+  s_d101950c9cfdb3::t_174112cde6f76d 32,42-43,264-274
+lib/services/pds/blobs.test.ts
+  s_d101950c9cfdb3::t_5ab54e20c39d93 20-21,33,37,71-73,576-675
+lib/services/pds/blobs.ts
+  s_d101950c9cfdb3::t_b2e803aca77c13 8,72-81,83-84,87,89-100,102-109,111-118,120,122-124
+lib/services/pds/host.test.ts
+  s_d101950c9cfdb3::t_70f7c8d93b78d1 226-321
+lib/services/pds/host.ts
+  s_d101950c9cfdb3::t_01958d38c52f98 12,47,49-50,71-72,89-101
+lib/services/pds/index.ts
+  s_d101950c9cfdb3::t_06a774dd0ffa0e 3-4,86,88-89
+lib/services/pds/rateLimit.test.ts
+  s_d101950c9cfdb3::t_d50761d28dcbde 1-128
+lib/services/pds/rateLimit.ts
+  s_d101950c9cfdb3::t_21f2ca0c3aad1d 14-16,27-32,37,40,43-45,53-58
+lib/services/pds/reads.ts
+  s_d101950c9cfdb3::t_8201f5d4cf12d3 396-397,403,407-410,412,418-427,429-470,473-484,486-487,497,640-645
+lib/services/pds/repo.test.ts
+  s_d101950c9cfdb3::t_92a049fd83c9ef 37,88-89,1875-1937
+proxy.ts
+  s_d101950c9cfdb3::t_8b6b213a9f1b0e 152-172,306-317
+test/proxy.test.ts
+  s_d101950c9cfdb3::t_2b6ad4f9ce21a8 915-974
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f5405fc1dcd38b8a6433f6daeb8e6989dd64f0f",
+  "prompts": {},
+  "sessions": {
+    "s_d101950c9cfdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a79d0ddb61f98afbb",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
