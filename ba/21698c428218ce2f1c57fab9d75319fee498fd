@@ -1,0 +1,39 @@
+lib/services/pds/server/upgrade.ts
+  s_f193227df3df34::t_66d07bb2d07c60 46,152,167
+lib/services/pds/server/upgrade.test.ts
+  s_f193227df3df34::t_66d07bb2d07c60 669,700-704,739
+lib/services/pds/firehose/subscriber.test.ts
+  s_4fb28ab57323fe::t_d9f13fb24bb503 14,461-594
+lib/services/pds/firehose/subscriber.ts
+  s_4fb28ab57323fe::t_b2dd55bd044ef0 12,36,53-54,63,68-70,76,89-95,99-135,143,146-149,166-169,179-194
+lib/services/pds/host.test.ts
+  s_4fb28ab57323fe::t_4fff82787cfa8b 421-547
+lib/services/pds/host.ts
+  s_4fb28ab57323fe::t_7fc4ceca7683cd 18-19,27-34,38-55,163-164
+lib/services/pds/server/index.ts
+  s_4fb28ab57323fe::t_3dcf05633d563b 33-40,132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba21698c428218ce2f1c57fab9d75319fee498fd",
+  "prompts": {},
+  "sessions": {
+    "s_4fb28ab57323fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "143ac5cb-61e1-4174-a644-dcb4b80dc66b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
