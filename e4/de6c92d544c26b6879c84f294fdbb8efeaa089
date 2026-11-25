@@ -1,0 +1,57 @@
+app/api/well-known/did.json/route.test.ts
+  s_f193227df3df34::t_7577568f53fa27 1-154
+app/api/well-known/did.json/route.ts
+  s_f193227df3df34::t_a93eddaa1452cb 1-58
+app/xrpc/[nsid]/route.test.ts
+  s_f193227df3df34::t_f9cf530614c578 1-1130
+app/xrpc/[nsid]/route.ts
+  s_f193227df3df34::t_cee5fb2edd3919 1-581
+docs/maintenance.md
+  s_f193227df3df34::t_8d881768271958 97-98,203,293-296
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_375ea343faff0f 1397-1400
+lib/services/pds/blobs.test.ts
+  s_f193227df3df34::t_9428c83239261b 21,184-206
+lib/services/pds/blobs.ts
+  s_f193227df3df34::t_3aab0e455a2045 34,284-288,292,295-296
+lib/services/pds/constants.ts
+  s_f193227df3df34::t_f0b76f259bdd65 4-20
+lib/services/pds/host.test.ts
+  s_f193227df3df34::t_6ca26c68a667f2 1-117
+lib/services/pds/host.ts
+  s_f193227df3df34::t_803bf3d9d44370 1-43
+lib/services/pds/index.ts
+  s_f193227df3df34::t_92f3ce906b0c94 52,77,105-120
+lib/services/pds/reads.ts
+  s_f193227df3df34::t_43543aee3e9568 33-36,39,48-57,86,88-93,95-98,112-117,126,128-133,135,156-161,171,177,187-190,204,212-216,218-221,237,239-242,296,301,306,373-381,390,418-419,426,433,477,484,488
+lib/services/pds/xrpc.ts
+  s_f193227df3df34::t_713ef513ccbac8 1-254
+proxy.ts
+  s_f193227df3df34::t_878b091b2f6f34 36-40,45,260,325-327,332,353
+scripts/backup/productionArchive.storage.test.ts
+  s_f193227df3df34::t_3ef80bf21c1f88 322-349,446-487
+scripts/backup/productionArchive.ts
+  s_f193227df3df34::t_449959054452f9 1189-1226
+scripts/maintenance/cleanupMediaStorage.test.ts
+  s_f193227df3df34::t_333d6f1ba33a37 1-55
+scripts/maintenance/cleanupMediaStorage.ts
+  s_f193227df3df34::t_42e61a4afd6fba 37-40,222-285,545-551,554,557-565,669-674
+test/proxy.test.ts
+  s_f193227df3df34::t_1f792c467410db 359-386,913-926
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e4de6c92d544c26b6879c84f294fdbb8efeaa089",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
