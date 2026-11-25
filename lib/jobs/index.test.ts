@@ -28,11 +28,11 @@ describe('JOBS registry', () => {
     }).not.toThrow()
   })
 
-  // The job registry, actor deletion, database layer, media service and
-  // maintenance/backup scripts are loaded from CommonJS (`scripts/run.cjs`).
-  // A static `@atproto/*` or `multiformats` import in their graph fails there
-  // with ERR_PACKAGE_PATH_NOT_EXPORTED, so the PDS modules they reach stay
-  // CJS-safe and the Bluesky client loads `@atproto/*` on first use.
+  // Scripts run as CommonJS (`scripts/run.cjs`, tsx/cjs), and the job
+  // registry, actor deletion, database layer and media service sit in their
+  // graphs. A static `@atproto/*` or `multiformats` import there fails with
+  // ERR_PACKAGE_PATH_NOT_EXPORTED, so the PDS modules they reach stay CJS-safe
+  // and the Bluesky client loads `@atproto/*` on first use.
   it('loads the job registry, deletion, database, PDS storage helpers and scripts in CommonJS without ESM-only imports', () => {
     for (const entry of [
       './lib/jobs/deleteActorJob.ts',
