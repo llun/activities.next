@@ -647,7 +647,11 @@ export const HostedBlueskyForm = ({
                 >
                   Delete the copy left here
                 </Button>
-              ) : moving ? null : (
+              ) : moving ? (
+                <span className="text-sm text-muted-foreground">
+                  Moving to {moveHost}
+                </span>
+              ) : (
                 <>
                   {active || !limited ? (
                     <Button
@@ -871,6 +875,10 @@ export const HostedBlueskyForm = ({
             </form>
           </Frame>
         ) : null}
+        {/* Shown by the form's own button, not scrolled away at the top. */}
+        {moveFormOpen && !moving && !moved && error ? (
+          <Alert title={error} />
+        ) : null}
       </>
     )
   })()
@@ -878,7 +886,9 @@ export const HostedBlueskyForm = ({
   return (
     <div className="space-y-4">
       {status && !error ? <Alert tone="success" title={status} /> : null}
-      {error ? <Alert title={error} /> : null}
+      {error && !(moveFormOpen && !moving && !moved) ? (
+        <Alert title={error} />
+      ) : null}
       {card}
       <Dialog
         open={recoveryChange !== null}
@@ -1021,10 +1031,15 @@ export const HostedBlueskyForm = ({
           className="motion-reduce:animate-none"
         >
           <DialogHeader>
-            <DialogTitle>Delete this Bluesky account?</DialogTitle>
+            <DialogTitle>
+              {moved
+                ? 'Delete the copy left here?'
+                : 'Delete this Bluesky account?'}
+            </DialogTitle>
             <DialogDescription>
-              This removes the account’s posts and its handle from this server.
-              Type the handle to confirm.
+              {moved
+                ? `This removes the old copy of the posts from this server. The account on ${state.movedTo} is not affected. Type ${state.repo?.handle ?? 'the old handle'} to confirm.`
+                : 'This removes the account’s posts and its handle from this server. Type the handle to confirm.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1059,7 +1074,11 @@ export const HostedBlueskyForm = ({
               disabled={busy !== null}
               onClick={() => void submitDelete()}
             >
-              {busy === 'delete' ? 'Deleting…' : 'Delete account'}
+              {busy === 'delete'
+                ? 'Deleting…'
+                : moved
+                  ? 'Delete the copy'
+                  : 'Delete account'}
             </Button>
           </DialogFooter>
         </DialogContent>

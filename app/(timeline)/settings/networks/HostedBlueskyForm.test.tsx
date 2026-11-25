@@ -453,6 +453,34 @@ describe('HostedBlueskyForm', () => {
     stage
   })
 
+  it('shows a failed start next to the move form', async () => {
+    vi.mocked(startHostedBlueskyMoveOut).mockRejectedValue(
+      new Error('Could not reach the destination server.')
+    )
+    show(state({ repo: activeRepo }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Move to another server' })
+    )
+    for (const [label, value] of [
+      ['New server', 'https://bsky.social'],
+      ['Handle there', 'alex.bsky.social'],
+      ['Email', 'alex@example.com'],
+      ['Password there', 'hunter2'],
+      ['Your password here', 'local-secret']
+    ]) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } })
+    }
+    const start = screen.getByRole('button', { name: 'Start the move' })
+    fireEvent.click(start)
+    const alert = await screen.findByText(
+      'Could not reach the destination server.'
+    )
+    // After the form's button in the page, where the owner is looking.
+    expect(
+      start.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
   it('posts the start body and never renders the new password', async () => {
     vi.mocked(startHostedBlueskyMoveOut).mockResolvedValue({
       moveOut: moveOut(),
@@ -647,8 +675,14 @@ describe('HostedBlueskyForm', () => {
       screen.queryByRole('button', { name: 'Change' })
     ).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Recovery key')).not.toBeInTheDocument()
-    expect(
+    fireEvent.click(
       screen.getByRole('button', { name: 'Delete the copy left here' })
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Delete the copy left here?' })
     ).toBeInTheDocument()
+    expect(
+      screen.getByText(/The account on bsky\.social is not affected/)
+    ).toHaveTextContent(`Type ${activeRepo.handle} to confirm.`)
   })
 })
