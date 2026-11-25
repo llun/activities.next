@@ -1,0 +1,19 @@
+lib/services/pds/server/upgrade.test.ts
+  s_f193227df3df34::t_dd3277fe777b98 675-677,679-681,683-688,690-691,707
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ec86f7829f96e95015f7bc3eacbf40dd459095ed",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
