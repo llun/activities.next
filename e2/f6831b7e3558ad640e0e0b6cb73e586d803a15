@@ -1,0 +1,28 @@
+lib/services/pds/accounts.ts
+  s_f193227df3df34::t_9724abf14cfcc7 229,424
+lib/services/pds/moved.ts
+  s_f193227df3df34::t_1556831816947d 49-51,55,61,66-70
+lib/services/pds/moveOut.ts
+  s_f193227df3df34::t_9724abf14cfcc7 34,957,1134,1189,1257,1373,1665
+  s_f193227df3df34::t_1556831816947d 217-218,1369-1371
+lib/services/pds/moved.test.ts
+  s_f193227df3df34::t_4d0be43b3ca07d 75,85,95,103-107,111,116,120-127
+lib/services/pds/moveOut.test.ts
+  s_f193227df3df34::t_9bc7c580988388 860-871
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2f6831b7e3558ad640e0e0b6cb73e586d803a15",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
