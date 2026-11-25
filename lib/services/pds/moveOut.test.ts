@@ -117,6 +117,7 @@ const ALLOWED_USERNAMES = [
   'move-finish-budget',
   'move-finish-stuck',
   'move-finish-list-fails',
+  'move-finish-list-429',
   'move-stale-actor',
   'move-not-copied',
   'move-cancel-rotated'
@@ -2700,21 +2701,6 @@ describe('hosted Bluesky account move-out', () => {
           500
         )
       }
-      if (options.url.includes('/never-used')) {
-        // The count after the budget asks for the protocol's largest page.
-        if (options.url.includes('limit=1000')) {
-          return okResponse(
-            options.url,
-            JSON.stringify({
-              blobs: ['a', 'b', 'c', 'd'].map((cid) => ({ cid }))
-            })
-          )
-        }
-        return okResponse(
-          options.url,
-          JSON.stringify({ cursor: `c${now}`, blobs: [{ cid: blob.cid }] })
-        )
-      }
       if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
         // Each upload spends more than the whole finish budget.
         uploads += 1
@@ -2738,6 +2724,93 @@ describe('hosted Bluesky account move-out', () => {
     expect(uploads).toBe(0)
     expect(activateCalls).toBe(1)
     expect(finished.copyIncomplete).toBe(true)
+  })
+
+  it('fails the finish for a retry when the destination is rate limiting the catch-up', async () => {
+    const { actor, did } = await setupHostedAccount('move-finish-list-429')
+    const store = createMemoryBlobStore()
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+
+    const blob = await uploadPdsBlob(
+      database,
+      { did, bytes: Buffer.from('slow-image'), mimeType: 'image/png' },
+      { store }
+    )
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'post',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [{ alt: 'one', image: blob.blob }]
+        }
+      }
+    })
+    const currentRepo = await database.getPdsRepo({ did })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'budget.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: currentRepo!.rev,
+      switchedAt: null
+    })
+
+    let now = Date.now()
+    let activateCalls = 0
+    let uploads = 0
+    destHandler = (options) => {
+      if (
+        options.url.endsWith(
+          '/com.atproto.identity.getRecommendedDidCredentials'
+        )
+      ) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            services: {
+              atproto_pds: {
+                type: 'AtprotoPersonalDataServer',
+                endpoint: DEST_PDS
+              }
+            },
+            verificationMethods: { atproto: destSigningKey.did() },
+            alsoKnownAs: ['at://budget.dest.pds.example'],
+            rotationKeys: [destRotKey.did()]
+          })
+        )
+      }
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        return okResponse(
+          options.url,
+          JSON.stringify({ error: 'RateLimitExceeded' }),
+          429
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
+        // Each upload spends more than the whole finish budget.
+        uploads += 1
+        now += 61_000
+        return okResponse(
+          options.url,
+          JSON.stringify({ blob: { $type: 'blob' } })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+        activateCalls += 1
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, defaultDestBody(options.url))
+    }
+
+    await expect(finishMoveOut({ database, actor, store })).rejects.toThrow()
+    expect(activateCalls).toBe(0)
   })
 
   it('copies a blob added after the blobs step when finishing', async () => {

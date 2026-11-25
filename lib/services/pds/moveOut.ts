@@ -1026,18 +1026,6 @@ const copyBlobBatch = async (
   let copied = 0
   const failed: CopyMoveOutBlobFailure[] = []
 
-  // A destination that ignores `limit` gets its extra entries reported as not
-  // copied: its cursor already points past them.
-  for (const entry of parsed.blobs.slice(limit)) {
-    const cid =
-      isRecord(entry) && typeof entry.cid === 'string' ? entry.cid : null
-    if (cid) {
-      failed.push({
-        cid: cid.slice(0, MAX_CID_LENGTH),
-        reason: 'Not copied: the server listed more than it was asked for.'
-      })
-    }
-  }
   for (const entry of parsed.blobs.slice(0, limit)) {
     const cid =
       isRecord(entry) && typeof entry.cid === 'string' ? entry.cid : null
@@ -1089,6 +1077,19 @@ const copyBlobBatch = async (
     }
   }
 
+  // A destination that ignores `limit` gets its extra entries reported as not
+  // copied: its cursor already points past them.
+  for (const entry of parsed.blobs.slice(limit, limit + 1000)) {
+    const cid =
+      isRecord(entry) && typeof entry.cid === 'string' ? entry.cid : null
+    if (cid && !seenCids.has(cid)) {
+      seenCids.add(cid)
+      failed.push({
+        cid: cid.slice(0, MAX_CID_LENGTH),
+        reason: 'Not copied: the server listed more than it was asked for.'
+      })
+    }
+  }
   return { copied, failed, cursor: nextCursor, done, session: move }
 }
 
@@ -1485,7 +1486,11 @@ export const finishMoveOut = async ({
         const fresh = await database.getActorFromId({ id: actor.id })
         return Boolean(fresh) && !isActorModerationBlocked(fresh!)
       }
-      if (latestRepo.status === 'deactivated' && (await isCopyAllowed())) {
+      const copyAllowed =
+        latestRepo.status === 'deactivated' && (await isCopyAllowed())
+      // Nothing more is sent for a copy moderation stopped: say so.
+      if (!copyAllowed) copyIncomplete = true
+      if (copyAllowed) {
         // The repo re-send stays fatal: a retry sends it again, and activating
         // without it would lose the posts written during the move.
         if (latestRepo.rev !== move.importedRev) {
@@ -1512,6 +1517,7 @@ export const finishMoveOut = async ({
             // A suspension or disable that lands mid-copy stops it.
             if (!(await isCopyAllowed())) {
               moderated = true
+              copyIncomplete = true
               break
             }
             const batch = await copyBlobBatch(database, repo.did, move, {
@@ -1557,6 +1563,11 @@ export const finishMoveOut = async ({
           }
         } catch (error) {
           if (!(error instanceof PdsMoveOutRemoteError)) throw error
+          // Unreachable or rate limited is likely transient: fail so a retry
+          // redoes the catch-up, instead of losing it to one blip.
+          if (error.remoteStatus === 0 || error.remoteStatus === 429) {
+            throw error
+          }
           // Reported to the owner in the result; the session row may have a
           // fresher token than `move`, so re-read it for the activate.
           logger.warn({

@@ -696,20 +696,32 @@ describe('HostedBlueskyForm', () => {
     ).toBeInTheDocument()
   })
 
-  it('stops when the first page has no cursor and does not end', async () => {
+  it('does not count failures twice when a pass starts again from no cursor', async () => {
     vi.mocked(copyHostedBlueskyMoveOutBlobs).mockResolvedValue({
       copied: 0,
-      failed: [{ cid: 'bafystuck', reason: 'Upload timed out.' }],
+      failed: [
+        { cid: 'bafy1', reason: 'Upload failed.' },
+        { cid: 'bafy2', reason: 'Upload failed.' }
+      ],
       cursor: null,
-      done: false
+      done: true
     })
+    vi.mocked(copyHostedBlueskyMoveOutPreferences)
+      .mockRejectedValueOnce(
+        new Error('Could not reach the destination server.')
+      )
+      .mockResolvedValueOnce({ count: 0 })
     show(state({ repo: activeRepo, moveOut: moveOut() }))
+    await screen.findByText('Could not reach the destination server.')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Try again' })[0])
+    await waitFor(() =>
+      expect(copyHostedBlueskyMoveOutPreferences).toHaveBeenCalledTimes(2)
+    )
     expect(
       await screen.findByText(
-        'The destination server stopped making progress. Try again.'
+        "2 images or videos couldn't be copied to bsky.social."
       )
     ).toBeInTheDocument()
-    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(1)
   })
 
   it('stops when the destination stops making progress', async () => {

@@ -274,6 +274,9 @@ export const HostedBlueskyForm = ({
         await loadProgress()
       }
       if (!copyRef.current.blobs) {
+        // A pass from no cursor lists every missing blob again, so failures
+        // from an earlier pass would be counted twice.
+        if (!cursorRef.current) updateCopy({ failed: 0 })
         let done = false
         let pages = 0
         while (!done) {
@@ -292,9 +295,9 @@ export const HostedBlueskyForm = ({
           cursorRef.current = result.cursor ?? undefined
           done = result.done
           updateCopy({ copied: copyRef.current.copied + result.copied })
-          // A server that keeps answering the same page must not loop forever;
-          // a first page with no cursor and no end counts as the same page.
-          if (!done && (result.cursor ?? undefined) === previousCursor) {
+          // A cursor that did not move is a stuck destination, not the end
+          // (the server reports it as done so it never loops).
+          if (result.cursor !== null && result.cursor === previousCursor) {
             throw new Error(
               'The destination server stopped making progress. Try again.'
             )
@@ -379,11 +382,17 @@ export const HostedBlueskyForm = ({
       applyState(result.state)
       closeSwitch()
       setStatus(
-        result.missingBlobs > 0
-          ? `Moved to ${result.movedTo}. ${result.missingBlobs} ${result.missingBlobs === 1 ? 'image or video' : 'images or videos'} couldn't be copied.`
-          : result.copyIncomplete
-            ? `Moved to ${result.movedTo}. Some images, videos or settings may not have been copied.`
-            : `Moved to ${result.movedTo}.`
+        [
+          `Moved to ${result.movedTo}.`,
+          result.missingBlobs > 0
+            ? `${result.copyIncomplete ? 'At least ' : ''}${result.missingBlobs} ${result.missingBlobs === 1 ? 'image or video' : 'images or videos'} couldn't be copied.`
+            : null,
+          result.copyIncomplete
+            ? 'Some images, videos or settings may not have been copied.'
+            : null
+        ]
+          .filter(Boolean)
+          .join(' ')
       )
     } catch (error) {
       setSwitchError(errorMessage(error))
@@ -442,7 +451,10 @@ export const HostedBlueskyForm = ({
   // The switch is offered once the repo and settings are copied and the media
   // is either copied or known to be missing (the dialog warns about those).
   const copyComplete =
-    copy.repo && copy.preferences && (copy.blobs || copy.failed > 0)
+    !copy.running &&
+    copy.repo &&
+    copy.preferences &&
+    (copy.blobs || copy.failed > 0)
 
   const copyChecklist = (
     <ul className="space-y-1.5 text-sm">
