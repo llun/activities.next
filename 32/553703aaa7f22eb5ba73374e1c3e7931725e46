@@ -1,0 +1,59 @@
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_2209e685cf12f5 10-11,594-649,652-653,667,727-765,823
+lib/database/domains/pds/types.ts
+  s_f193227df3df34::t_8c882a71043343 164,178-201,270-272
+lib/services/actors/actorDeletion.test.ts
+  s_f193227df3df34::t_2c5b99c9ba80aa 193,197-198,214-215,221,265-268,272-273,283
+lib/services/actors/actorDeletion.ts
+  s_f193227df3df34::t_eea41b196762da 7,235-248
+lib/services/medias/reservedPaths.test.ts
+  s_f193227df3df34::t_d54e5e8c049ac0 27-51,142-145
+lib/services/medias/reservedPaths.ts
+  s_f193227df3df34::t_8d91e318e495d9 6,101-103,107-108
+lib/services/pds/blobs.test.ts
+  s_f193227df3df34::t_712e9fd4e933bc 1-274
+lib/services/pds/blobs.ts
+  s_f193227df3df34::t_815684d40ef355 1-314
+lib/services/pds/constants.ts
+  s_f193227df3df34::t_7697e1d01b827a 1-17
+lib/services/pds/errors.ts
+  s_f193227df3df34::t_68efd0c675025a 1-111
+lib/services/pds/events.ts
+  s_f193227df3df34::t_8ee1461e8c6d9c 1-250
+lib/services/pds/index.ts
+  s_f193227df3df34::t_a73e6d849c3e9d 1-102
+lib/services/pds/keys.ts
+  s_f193227df3df34::t_91639055f13f37 1-51
+lib/services/pds/lock.ts
+  s_f193227df3df34::t_cd5968c91207fd 1-95
+lib/services/pds/prepare.ts
+  s_f193227df3df34::t_d11ffa1b521958 1-321
+lib/services/pds/reads.ts
+  s_f193227df3df34::t_c48a68db4fe2e1 1-427
+lib/services/pds/repo.test.ts
+  s_f193227df3df34::t_f16d53c7f36d80 1-904
+lib/services/pds/repo.ts
+  s_f193227df3df34::t_97999217917262 1-613
+lib/services/pds/storage.ts
+  s_f193227df3df34::t_b7a94256177920 1-189
+package.json
+  s_f193227df3df34::t_0199771c5b69c3 59,61-63,66
+yarn.lock
+  s_f193227df3df34::t_950ae0d5cf460e 4013,4015-4017,4020
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32553703aaa7f22eb5ba73374e1c3e7931725e46",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
