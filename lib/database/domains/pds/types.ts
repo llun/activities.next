@@ -120,6 +120,16 @@ export type ListPdsEventsParams = {
   afterSeq?: number
   limit?: number
   did?: string
+  domain?: string
+}
+
+export type GetPdsEventSeqBoundsParams = {
+  domain: string
+}
+
+export type PdsEventSeqBounds = {
+  oldest: number | null
+  newest: number | null
 }
 
 export type CreatePdsBlobParams = {
@@ -256,6 +266,9 @@ export interface PdsDatabase {
 
   appendPdsEvent(params: AppendPdsEventParams): Promise<PdsEvent>
   listPdsEvents(params?: ListPdsEventsParams): Promise<PdsEvent[]>
+  getPdsEventSeqBounds(
+    params: GetPdsEventSeqBoundsParams
+  ): Promise<PdsEventSeqBounds>
   deletePdsEventsBefore(params: { before: Date | number }): Promise<number>
 
   createPdsBlob(params: CreatePdsBlobParams): Promise<PdsBlob>

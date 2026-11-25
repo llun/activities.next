@@ -191,7 +191,9 @@ const build = ({
         }
         await loadSchemaDump(connection)
       },
-      destroy: connection.destroy
+      destroy: connection.destroy,
+      backend: connection.backend,
+      config
     }),
     db: connection.db,
     prepare: wrappedPrepare,

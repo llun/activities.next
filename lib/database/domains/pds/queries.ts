@@ -6,6 +6,7 @@ import type {
   CommitPdsRepoWriteResult,
   CreatePdsBlobParams,
   CreatePdsRepoParams,
+  GetPdsEventSeqBoundsParams,
   GetPdsRepoParams,
   InitializePdsRepoParams,
   InitializePdsRepoResult,
@@ -17,6 +18,7 @@ import type {
   PdsBlob,
   PdsBlock,
   PdsEvent,
+  PdsEventSeqBounds,
   PdsEventType,
   PdsRecord,
   PdsRepo,
@@ -25,7 +27,7 @@ import type {
   UpdatePdsRepoHeadParams,
   UpsertPdsRecordParams
 } from '@/lib/database/domains/pds/types'
-import { type Db, inTransaction } from '@/lib/database/kysely'
+import { type Db, inTransaction, isInTransaction } from '@/lib/database/kysely'
 import type {
   PdsBlobs,
   PdsBlocks,
@@ -33,9 +35,15 @@ import type {
   PdsRecords,
   PdsRepos
 } from '@/lib/database/kysely/db'
-import { byteLength, timestampValue } from '@/lib/database/kysely/dialect'
+import {
+  byteLength,
+  getDialectName,
+  notifyPostgresChannel,
+  timestampValue
+} from '@/lib/database/kysely/dialect'
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
+import { PDS_EVENTS_NOTIFY_CHANNEL } from '@/lib/services/pds/constants'
 
 const MAX_LIST_LIMIT = 1000
 // 5 columns per pds_blocks row -> 100 rows = 500 parameters (< SQLite 999 limit).
@@ -531,33 +539,86 @@ export const appendPdsEvent = async (
   db: Db,
   { did, type, payload, createdAt }: AppendPdsEventParams
 ): Promise<PdsEvent> => {
-  const row = await db
-    .insertInto('pds_events')
-    .values({
-      did,
-      type,
-      payload: toBuffer(payload),
-      createdAt: toDate(createdAt)
-    })
-    .returningAll()
-    .executeTakeFirstOrThrow()
-  return toEvent(row)
+  const insertAndNotify = async (executor: Db): Promise<PdsEvent> => {
+    const row = await executor
+      .insertInto('pds_events')
+      .values({
+        did,
+        type,
+        payload: toBuffer(payload),
+        createdAt: toDate(createdAt)
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow()
+    const event = toEvent(row)
+    await notifyPostgresChannel(
+      executor,
+      PDS_EVENTS_NOTIFY_CHANNEL,
+      String(event.seq)
+    )
+    return event
+  }
+
+  // On PostgreSQL, wrap standalone calls in a transaction so INSERT and
+  // pg_notify always execute on the same connection and deliver only on commit.
+  if (getDialectName(db) === 'postgres' && !isInTransaction(db)) {
+    return inTransaction(db, insertAndNotify)
+  }
+  return insertAndNotify(db)
 }
 
 export const listPdsEvents = async (
   db: Db,
-  { afterSeq = 0, limit = 100, did }: ListPdsEventsParams = {}
+  { afterSeq = 0, limit = 100, did, domain }: ListPdsEventsParams = {}
 ): Promise<PdsEvent[]> => {
   const pageSize = clampLimit(limit, 100)
   let query = db
     .selectFrom('pds_events')
-    .selectAll()
-    .where('seq', '>', afterSeq)
-  if (did !== undefined) {
-    query = query.where('did', '=', did)
+    .selectAll('pds_events')
+    .where('pds_events.seq', '>', afterSeq)
+  if (domain !== undefined) {
+    query = query
+      .innerJoin('pds_repos', 'pds_repos.did', 'pds_events.did')
+      .where('pds_repos.domain', '=', domain)
   }
-  const rows = await query.orderBy('seq', 'asc').limit(pageSize).execute()
+  if (did !== undefined) {
+    query = query.where('pds_events.did', '=', did)
+  }
+  const rows = await query
+    .orderBy('pds_events.seq', 'asc')
+    .limit(pageSize)
+    .execute()
   return rows.map(toEvent)
+}
+
+export const getPdsEventSeqBounds = async (
+  db: Db,
+  { domain }: GetPdsEventSeqBoundsParams
+): Promise<PdsEventSeqBounds> => {
+  const row = await db
+    .selectFrom('pds_events')
+    .innerJoin('pds_repos', 'pds_repos.did', 'pds_events.did')
+    .select([
+      sql<number | string | null>`min(${sql.ref('pds_events.seq')})`.as(
+        'oldest'
+      ),
+      sql<number | string | null>`max(${sql.ref('pds_events.seq')})`.as(
+        'newest'
+      )
+    ])
+    .where('pds_repos.domain', '=', domain)
+    .executeTakeFirst()
+
+  return {
+    oldest:
+      row?.oldest === null || row?.oldest === undefined
+        ? null
+        : Number(row.oldest),
+    newest:
+      row?.newest === null || row?.newest === undefined
+        ? null
+        : Number(row.newest)
+  }
 }
 
 export const deletePdsEventsBefore = async (
@@ -1045,6 +1106,7 @@ export const pdsQueries = {
   listPdsCollections,
   appendPdsEvent,
   listPdsEvents,
+  getPdsEventSeqBounds,
   deletePdsEventsBefore,
   createPdsBlob,
   getPdsBlob,

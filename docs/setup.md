@@ -315,6 +315,18 @@ docker run -p 3000:3000 \
 
 > **Important:** Mount persistent data under `/opt/activities.next/data` as above — do **not** bind-mount `/opt/activities.next` itself. That directory contains the application (the standalone `server.js`, static assets, etc.), so a host-path mount would shadow it and the container cannot start. See the [SQLite Docker guide](sqlite-setup.md#docker-deployment-with-sqlite) for preparing the mounted database file.
 
+#### Bluesky PDS Firehose Start Command
+
+The default container command (`node server.js`) runs the stock Next.js standalone server, which does not accept WebSockets. To expose the embedded Bluesky PDS firehose (`com.atproto.sync.subscribeRepos`), start the standalone build or Docker image with `node pds-server.js` on hosting that keeps long-lived WebSocket connections open:
+
+```bash
+docker run -p 3000:3000 \
+  ... \
+  ghcr.io/llun/activities.next:main node pds-server.js
+```
+
+`pds-server.js` forwards every normal HTTP request and non-firehose upgrade to Next.js unchanged, and accepts WebSocket upgrades on `/xrpc/com.atproto.sync.subscribeRepos` only for enabled PDS hostnames in `ACTIVITIES_BLUESKY_PDS` (all other hosts receive `404`). At start-up it calls `com.atproto.sync.requestCrawl` on each domain's configured `relays` (defaulting to `https://bsky.network`), retrying with backoff for up to an hour; set `"relays": []` on a domain entry to disable crawl requests. See [Embedded Bluesky PDS (preview)](mastodon-api-compatibility.md#embedded-bluesky-pds-preview).
+
 #### Custom Docker Builds with Optional Workspaces
 
 Docker image builds, including the migration step, do not need a production

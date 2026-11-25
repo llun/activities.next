@@ -35,3 +35,6 @@ export const MAX_PDS_BLOB_SIZE_BYTES = 50 * 1024 * 1024
 
 /** Retention window for sequenced PDS events in `pds_events` (7 days). */
 export const PDS_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+
+/** PostgreSQL LISTEN/NOTIFY channel signalled when a `pds_events` row is inserted. */
+export const PDS_EVENTS_NOTIFY_CHANNEL = 'pds_events'

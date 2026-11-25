@@ -14,7 +14,7 @@ import {
   SqliteDialect,
   type TransactionSettings
 } from 'kysely'
-import type { Pool, PoolConfig } from 'pg'
+import type { Client, Pool, PoolConfig } from 'pg'
 
 import {
   DEFAULT_POSTGRES_POOL,
@@ -481,6 +481,18 @@ const getPostgresClientConfig = (config: PostgresDatabaseConfig) => {
       ? { connectionString: config.connection }
       : config.connection
   return { application_name: APPLICATION_NAME, ...connection } as PoolConfig
+}
+
+/**
+ * Opens a standalone node-postgres `Client` (outside the Kysely pool) using
+ * the same dynamic `pg` loader and connection settings as the app's pool.
+ * Callers own `client.connect()` and `client.end()`.
+ */
+export const createPostgresClient = async (
+  config: PostgresDatabaseConfig
+): Promise<Client> => {
+  const pgModule = await loadPg()
+  return new pgModule.Client(getPostgresClientConfig(config))
 }
 
 const createPool = (

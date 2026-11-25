@@ -4,11 +4,14 @@ import { normalizeServedDomainChoice } from '@/lib/utils/host'
 import { logger } from '@/lib/utils/logger'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
+export const DEFAULT_BLUESKY_PDS_RELAYS = ['https://bsky.network'] as const
+
 const RawBlueskyPdsDomainConfig = z.object({
   enabled: z.boolean().default(false),
   hostname: z.string().min(1),
   allowEmails: z.string().array().default([]),
-  allowActors: z.string().array().default([])
+  allowActors: z.string().array().default([]),
+  relays: z.string().array().optional()
 })
 
 export const BlueskyPdsDomainConfig = z.object({
@@ -17,12 +20,32 @@ export const BlueskyPdsDomainConfig = z.object({
   hostname: z.string(),
   did: z.string(),
   allowEmails: z.string().array(),
-  allowActors: z.string().array()
+  allowActors: z.string().array(),
+  relays: z.string().array()
 })
 export type BlueskyPdsDomainConfig = z.infer<typeof BlueskyPdsDomainConfig>
 
 export const BlueskyPdsConfig = z.record(z.string(), BlueskyPdsDomainConfig)
 export type BlueskyPdsConfig = z.infer<typeof BlueskyPdsConfig>
+
+export const normalizePdsRelayUrl = (value: string): string | null => {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (trimmed.includes('@') || trimmed.includes('?') || trimmed.includes('#')) {
+    return null
+  }
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'https:') return null
+  if (parsed.username !== '' || parsed.password !== '') return null
+  if (parsed.pathname !== '/' && parsed.pathname !== '') return null
+  if (parsed.search !== '' || parsed.hash !== '') return null
+  return parsed.origin
+}
 
 const normalizeActorHandle = (value: string): string =>
   value.trim().replace(/^@/, '').toLowerCase()
@@ -96,6 +119,27 @@ const parseBlueskyPdsConfig = (
       return null
     }
 
+    const rawRelays = entryResult.data.relays
+    let relays: string[]
+    if (rawRelays === undefined) {
+      relays = [...DEFAULT_BLUESKY_PDS_RELAYS]
+    } else {
+      const normalizedRelays: string[] = []
+      for (const rawRelay of rawRelays) {
+        const normalizedRelay = normalizePdsRelayUrl(rawRelay)
+        if (!normalizedRelay) {
+          logger.warn({
+            domain,
+            message:
+              'ACTIVITIES_BLUESKY_PDS has an invalid relay URL; Bluesky PDS will be disabled'
+          })
+          return null
+        }
+        normalizedRelays.push(normalizedRelay)
+      }
+      relays = Array.from(new Set(normalizedRelays))
+    }
+
     normalizedEntries.set(domain, {
       domain,
       enabled: entryResult.data.enabled,
@@ -110,7 +154,8 @@ const parseBlueskyPdsConfig = (
         new Set(
           entryResult.data.allowActors.map(normalizeActorHandle).filter(Boolean)
         )
-      )
+      ),
+      relays
     })
   }
 

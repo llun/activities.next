@@ -1,5 +1,6 @@
 import { MAX_PDS_COLLECTIONS_LIMIT } from '@/lib/database/domains/pds/queries'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { PDS_EVENTS_NOTIFY_CHANNEL } from '@/lib/services/pds/constants'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 
 describe('PDS database domain', () => {
@@ -1037,4 +1038,248 @@ describe('PDS database domain', () => {
       })
     ).toHaveLength(MAX_PDS_COLLECTIONS_LIMIT)
   })
+
+  it('filters listPdsEvents by domain, supports 500-event pages, and computes per-domain seq bounds', async () => {
+    const domainA = 'firehose-a.example'
+    const domainB = 'firehose-b.example'
+    const emptyDomain = 'firehose-empty.example'
+
+    expect(
+      await database.getPdsEventSeqBounds({ domain: emptyDomain })
+    ).toEqual({
+      oldest: null,
+      newest: null
+    })
+
+    const didA1 = 'did:web:a1.firehose.example'
+    const didA2 = 'did:web:a2.firehose.example'
+    const didB1 = 'did:web:b1.firehose.example'
+
+    await database.createPdsRepo({
+      did: didA1,
+      actorId: 'https://firehose-a.example/users/a1',
+      domain: domainA,
+      signingKey: 'v1:key-a1',
+      signingKeyDid: 'did:key:zQ3shA1'
+    })
+    await database.createPdsRepo({
+      did: didA2,
+      actorId: 'https://firehose-a.example/users/a2',
+      domain: domainA,
+      signingKey: 'v1:key-a2',
+      signingKeyDid: 'did:key:zQ3shA2'
+    })
+    await database.createPdsRepo({
+      did: didB1,
+      actorId: 'https://firehose-b.example/users/b1',
+      domain: domainB,
+      signingKey: 'v1:key-b1',
+      signingKeyDid: 'did:key:zQ3shB1'
+    })
+
+    const oldTime = Date.UTC(2020, 0, 1, 0, 0, 0)
+    const recentTime = Date.UTC(2026, 10, 20, 0, 0, 0)
+
+    const a1 = await database.appendPdsEvent({
+      did: didA1,
+      type: 'identity',
+      payload: Buffer.from('a1'),
+      createdAt: oldTime
+    })
+    const b1 = await database.appendPdsEvent({
+      did: didB1,
+      type: 'commit',
+      payload: Buffer.from('b1'),
+      createdAt: recentTime
+    })
+    const a2 = await database.appendPdsEvent({
+      did: didA2,
+      type: 'commit',
+      payload: Buffer.from('a2'),
+      createdAt: recentTime
+    })
+    const b2 = await database.appendPdsEvent({
+      did: didB1,
+      type: 'account',
+      payload: Buffer.from('b2'),
+      createdAt: recentTime
+    })
+    const a3 = await database.appendPdsEvent({
+      did: didA1,
+      type: 'account',
+      payload: Buffer.from('a3'),
+      createdAt: recentTime
+    })
+
+    expect(await database.getPdsEventSeqBounds({ domain: domainA })).toEqual({
+      oldest: a1.seq,
+      newest: a3.seq
+    })
+    expect(await database.getPdsEventSeqBounds({ domain: domainB })).toEqual({
+      oldest: b1.seq,
+      newest: b2.seq
+    })
+
+    const domainAEvents = await database.listPdsEvents({
+      afterSeq: 0,
+      limit: 500,
+      domain: domainA
+    })
+    expect(domainAEvents.map((e) => e.seq)).toEqual([a1.seq, a2.seq, a3.seq])
+    expect(domainAEvents.map((e) => e.did)).toEqual([didA1, didA2, didA1])
+
+    const domainAAfterFirst = await database.listPdsEvents({
+      afterSeq: a1.seq,
+      limit: 500,
+      domain: domainA
+    })
+    expect(domainAAfterFirst.map((e) => e.seq)).toEqual([a2.seq, a3.seq])
+
+    // Verify 500-event page size is honored (not clamped to 100).
+    const pageDomain = 'firehose-page.example'
+    const pageDid = 'did:web:page.firehose.example'
+    await database.createPdsRepo({
+      did: pageDid,
+      actorId: 'https://firehose-page.example/users/page',
+      domain: pageDomain,
+      signingKey: 'v1:key-page',
+      signingKeyDid: 'did:key:zQ3shPage'
+    })
+    for (let i = 0; i < 120; i += 1) {
+      await database.appendPdsEvent({
+        did: pageDid,
+        type: 'commit',
+        payload: Buffer.from(`p-${i}`),
+        createdAt: recentTime
+      })
+    }
+    const page = await database.listPdsEvents({
+      afterSeq: 0,
+      limit: 500,
+      domain: pageDomain
+    })
+    expect(page).toHaveLength(120)
+
+    // Pruning the oldest event on domainA advances its oldest bound.
+    await database.deletePdsEventsBefore({
+      before: Date.UTC(2021, 0, 1, 0, 0, 0)
+    })
+    expect(await database.getPdsEventSeqBounds({ domain: domainA })).toEqual({
+      oldest: a2.seq,
+      newest: a3.seq
+    })
+  })
+
+  it('skips pg_notify on SQLite when appending PDS events', async () => {
+    if (testDb.backend === 'pg') return
+
+    const did = 'did:web:sqlite-notify.pds.example'
+    const queries = await testDb.captureQueries(async () => {
+      await database.appendPdsEvent({
+        did,
+        type: 'commit',
+        payload: Buffer.from('sqlite-evt')
+      })
+    })
+    expect(queries.some((q) => q.sql.toLowerCase().includes('pg_notify'))).toBe(
+      false
+    )
+  })
+
+  it.runIf(testDb.backend === 'pg')(
+    'emits pg_notify in the same transaction on PostgreSQL for initializePdsRepo, commitPdsRepoWrite, and appendPdsEvent',
+    async () => {
+      const did = 'did:web:pg-notify.pds.example'
+      const captureWithConnection = async (work: () => Promise<unknown>) => {
+        const events: Array<{
+          sql: string
+          bindings: unknown[]
+          connection: string
+        }> = []
+        const unsub = testDb.onQuery((event) => {
+          events.push(event)
+        })
+        try {
+          await work()
+        } finally {
+          unsub()
+        }
+        return events
+      }
+
+      const initQueries = await captureWithConnection(async () => {
+        await database.initializePdsRepo({
+          did,
+          actorId: 'https://pg-notify.example/users/alice',
+          domain: 'pg-notify.example',
+          signingKey: 'v1:key-pg',
+          signingKeyDid: 'did:key:zQ3shPgNotify',
+          rootCid: 'bafy-init-root',
+          rev: '3k00000000001',
+          blocks: [],
+          events: [
+            { type: 'identity', payload: Buffer.from('id') },
+            { type: 'commit', payload: Buffer.from('cm') }
+          ]
+        })
+      })
+
+      const initNotifies = initQueries.filter((q) =>
+        q.sql.toLowerCase().includes('pg_notify')
+      )
+      expect(initNotifies).toHaveLength(2)
+      expect(initNotifies[0].bindings[0]).toBe(PDS_EVENTS_NOTIFY_CHANNEL)
+      const initBegin = initQueries.find((q) =>
+        q.sql.toLowerCase().startsWith('begin')
+      )
+      const initCommit = initQueries.find((q) =>
+        q.sql.toLowerCase().startsWith('commit')
+      )
+      expect(initBegin).toBeDefined()
+      expect(initCommit).toBeDefined()
+      for (const notify of initNotifies) {
+        expect(notify.connection).toBe(initBegin?.connection)
+        expect(notify.connection).toBe(initCommit?.connection)
+      }
+
+      const commitQueries = await captureWithConnection(async () => {
+        await database.commitPdsRepoWrite({
+          did,
+          rootCid: 'bafy-next-root',
+          rev: '3k00000000002',
+          expectedRev: '3k00000000001',
+          blocks: [],
+          recordWrites: [],
+          event: { type: 'commit', payload: Buffer.from('cm2') }
+        })
+      })
+      const commitNotifies = commitQueries.filter((q) =>
+        q.sql.toLowerCase().includes('pg_notify')
+      )
+      expect(commitNotifies).toHaveLength(1)
+      expect(commitNotifies[0].bindings[0]).toBe(PDS_EVENTS_NOTIFY_CHANNEL)
+      const commitBegin = commitQueries.find((q) =>
+        q.sql.toLowerCase().startsWith('begin')
+      )
+      expect(commitNotifies[0].connection).toBe(commitBegin?.connection)
+
+      const standaloneQueries = await captureWithConnection(async () => {
+        const ev = await database.appendPdsEvent({
+          did,
+          type: 'account',
+          payload: Buffer.from('acct')
+        })
+        expect(ev.seq).toBeGreaterThan(0)
+      })
+      const standaloneNotifies = standaloneQueries.filter((q) =>
+        q.sql.toLowerCase().includes('pg_notify')
+      )
+      expect(standaloneNotifies).toHaveLength(1)
+      expect(standaloneNotifies[0].bindings[0]).toBe(PDS_EVENTS_NOTIFY_CHANNEL)
+      const standaloneBegin = standaloneQueries.find((q) =>
+        q.sql.toLowerCase().startsWith('begin')
+      )
+      expect(standaloneNotifies[0].connection).toBe(standaloneBegin?.connection)
+    }
+  )
 })

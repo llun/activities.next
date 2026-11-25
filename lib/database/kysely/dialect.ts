@@ -19,6 +19,18 @@ export type DialectName = 'sqlite' | 'postgres'
 export const getDialectName = (db: Db): DialectName =>
   db.getExecutor().adapter instanceof SqliteAdapter ? 'sqlite' : 'postgres'
 
+// Sends a PostgreSQL NOTIFY in the current transaction/connection; no-op on
+// SQLite. PostgreSQL delivers notifications only when the enclosing
+// transaction commits.
+export const notifyPostgresChannel = async (
+  db: Db,
+  channel: string,
+  payload: string
+): Promise<void> => {
+  if (getDialectName(db) !== 'postgres') return
+  await sql`select pg_notify(${channel}, ${payload})`.execute(db)
+}
+
 type Lockable<QB, Of> = { forUpdate(of?: Of): QB }
 
 // Row lock for a SELECT inside a transaction. SQLite has no row locks (a
