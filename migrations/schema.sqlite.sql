@@ -370,3 +370,15 @@ CREATE TABLE IF NOT EXISTS "bluesky_interactions" ("actorId" varchar(255) not nu
 CREATE INDEX "bluesky_interactions_status_idx" on "bluesky_interactions" ("statusId");
 CREATE TABLE IF NOT EXISTS "bluesky_crossposts" ("statusId" varchar(255) primary key, "actorId" varchar(255) not null, "uri" varchar(512) unique, "cid" varchar(255), "state" varchar(16) not null, "attemptId" varchar(64), "error" text, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
 CREATE INDEX "bluesky_crossposts_actor_idx" on "bluesky_crossposts" ("actorId");
+CREATE TABLE IF NOT EXISTS "pds_repos" ("did" varchar(255) primary key, "actorId" varchar(255) not null unique, "domain" varchar(255) not null, "signingKey" text not null, "signingKeyDid" varchar(255) not null, "rootCid" varchar(255), "rev" varchar(32), "status" varchar(16) default 'active' not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
+CREATE INDEX "pds_repos_domain_idx" on "pds_repos" ("domain");
+CREATE TABLE IF NOT EXISTS "pds_blocks" ("did" varchar(255) not null, "cid" varchar(255) not null, "bytes" blob not null, "repoRev" varchar(32) not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, constraint "pds_blocks_pkey" primary key ("did", "cid"));
+CREATE INDEX "pds_blocks_did_repo_rev_idx" on "pds_blocks" ("did", "repoRev");
+CREATE TABLE IF NOT EXISTS "pds_records" ("did" varchar(255) not null, "collection" varchar(255) not null, "rkey" varchar(512) not null, "cid" varchar(255) not null, "repoRev" varchar(32) not null, "indexedAt" datetime default CURRENT_TIMESTAMP not null, constraint "pds_records_pkey" primary key ("did", "collection", "rkey"));
+CREATE INDEX "pds_records_did_repo_rev_idx" on "pds_records" ("did", "repoRev");
+CREATE TABLE IF NOT EXISTS "pds_events" ("seq" integer primary key autoincrement, "did" varchar(255) not null, "type" varchar(16) not null, "payload" blob not null, "createdAt" datetime default CURRENT_TIMESTAMP not null);
+CREATE INDEX "pds_events_created_at_idx" on "pds_events" ("createdAt");
+CREATE INDEX "pds_events_did_seq_idx" on "pds_events" ("did", "seq");
+CREATE TABLE IF NOT EXISTS "pds_blobs" ("did" varchar(255) not null, "cid" varchar(255) not null, "mimeType" varchar(255) not null, "size" bigint not null, "storageKey" varchar(512) not null, "createdAt" datetime default CURRENT_TIMESTAMP not null, constraint "pds_blobs_pkey" primary key ("did", "cid"));
+CREATE TABLE IF NOT EXISTS "pds_record_blobs" ("did" varchar(255) not null, "recordUri" varchar(2048) not null, "blobCid" varchar(255) not null, constraint "pds_record_blobs_pkey" primary key ("did", "recordUri", "blobCid"));
+CREATE INDEX "pds_record_blobs_did_blob_cid_idx" on "pds_record_blobs" ("did", "blobCid");

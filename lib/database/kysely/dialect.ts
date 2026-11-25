@@ -47,6 +47,13 @@ export const forShare = <QB extends ShareLockable<QB>>(
   query: QB
 ): QB => (getDialectName(db) === 'sqlite' ? query : query.forShare())
 
+// Byte length of a BLOB/BYTEA column: `length()` on SQLite, `octet_length()`
+// on PostgreSQL.
+export const byteLength = (db: Db, column: string) =>
+  getDialectName(db) === 'sqlite'
+    ? sql<number>`length(${sql.ref(column)})`
+    : sql<number>`octet_length(${sql.ref(column)})`
+
 // Compare timestamp columns only through timestampValue(). A bare number does
 // not type-check, but a value read back from a timestamp column is also EpochMs
 // and still type-checks, so pass it through timestampValue() too. Timestamp

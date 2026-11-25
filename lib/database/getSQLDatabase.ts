@@ -50,6 +50,7 @@ import { moderationQueries } from '@/lib/database/domains/moderation/queries'
 import { muteQueries } from '@/lib/database/domains/mute/queries'
 import { notificationQueries } from '@/lib/database/domains/notification/queries'
 import { oauthQueries } from '@/lib/database/domains/oauth/queries'
+import { pdsQueries } from '@/lib/database/domains/pds/queries'
 import { pushSubscriptionQueries } from '@/lib/database/domains/pushSubscription/queries'
 import { queueJobQueries } from '@/lib/database/domains/queueJob/queries'
 import { rateLimitQueries } from '@/lib/database/domains/rateLimit/queries'
@@ -145,6 +146,7 @@ export const getSQLDatabase = (
     ...bindDb(kysely, importLockQueries),
     ...bindDb(kysely, blueskyAccountQueries),
     ...bindDb(kysely, blueskyQueries),
+    ...bindDb(kysely, pdsQueries),
     ...bindDb(kysely, linkPreviewQueries),
     ...bindDb(kysely, instanceActivityQueries),
     ...bindDb(kysely, instanceRuleQueries),

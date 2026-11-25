@@ -1442,6 +1442,8 @@ describe('statements', () => {
       'delete bluesky_follows by targetActorId',
       'delete bluesky_interactions by actorId',
       'delete bluesky_crossposts by actorId',
+      // PDS rows are purged only when the actor owns a PDS repo.
+      'select pds_repos by actorId',
       'delete idempotency_keys by actorId',
       'select poll_answers by actorId',
       'select poll_choices by statusId',

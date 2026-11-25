@@ -27,4 +27,39 @@ describe('JOBS registry', () => {
       )
     }).not.toThrow()
   })
+
+  // The deletion job, database layer, media service and maintenance/backup
+  // scripts are loaded from CommonJS (`scripts/run.cjs`). An `@atproto/*` or
+  // `multiformats` import in their graph fails there with
+  // ERR_PACKAGE_PATH_NOT_EXPORTED, so the PDS modules they reach
+  // (`blobStorage.ts`, `retention.ts` and what those import) stay CJS-safe.
+  it('loads the deletion job, database, PDS storage helpers and scripts in CommonJS without ESM-only imports', () => {
+    for (const entry of [
+      './lib/jobs/deleteActorJob.ts',
+      './lib/database/index.ts',
+      './lib/services/pds/blobStorage.ts',
+      './lib/services/pds/retention.ts',
+      './lib/services/medias/index.ts',
+      './scripts/maintenance/cleanupMediaStorage.ts',
+      './scripts/backup/productionArchive.ts'
+    ]) {
+      try {
+        execFileSync(
+          process.execPath,
+          ['-r', 'tsx/cjs', '-e', `require(${JSON.stringify(entry)})`],
+          {
+            cwd: process.cwd(),
+            encoding: 'utf-8',
+            stdio: 'pipe'
+          }
+        )
+      } catch (error) {
+        const stderr = (error as { stderr?: string }).stderr
+        throw new Error(
+          `require(${JSON.stringify(entry)}) failed in a fresh CommonJS process:\n${stderr ?? String(error)}`,
+          { cause: error }
+        )
+      }
+    }
+  })
 })

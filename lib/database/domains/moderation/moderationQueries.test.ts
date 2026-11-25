@@ -1,9 +1,19 @@
 import crypto from 'crypto'
+import fs from 'fs/promises'
 import { type Updateable, sql } from 'kysely'
+import os from 'os'
+import path from 'path'
 
+import * as configModule from '@/lib/config'
+import { MediaStorageType } from '@/lib/config/mediaStorage'
 import type { Accounts, Actors } from '@/lib/database/kysely/db'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  FilePdsBlobObjectStore,
+  getPdsBlobStorageKey
+} from '@/lib/services/pds/blobStorage'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
+import { logger } from '@/lib/utils/logger'
 
 // Every `where` in the moderation queries, each pinned with a neighbouring row
 // the query must not touch, and rejectPendingAccount rolling back as a whole
@@ -476,6 +486,203 @@ describe('rejectPendingAccount', () => {
     expect(await database.rejectPendingAccount({ accountId: 'missing' })).toBe(
       false
     )
+  })
+
+  it('removes pds_* rows and PDS blob files for a rejected pending account without touching other actors', async () => {
+    const tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'moderation-reject-pds-')
+    )
+    const store = new FilePdsBlobObjectStore({
+      type: MediaStorageType.LocalFile,
+      path: tempDir
+    })
+    const realConfig = configModule.getConfig()
+    const mockedGetConfig = vi.mocked(configModule.getConfig)
+    const previousImpl = mockedGetConfig.getMockImplementation()
+    mockedGetConfig.mockReturnValue({
+      ...realConfig,
+      mediaStorage: {
+        type: MediaStorageType.LocalFile,
+        path: tempDir
+      }
+    })
+    try {
+      const target = await newAccount('reject-pds-target')
+      const survivor = await newAccount('reject-pds-survivor')
+      await patchAccount(target.accountId, { approvedAt: null })
+
+      const targetDid = `did:web:${target.username}.pds.test`
+      const survivorDid = `did:web:${survivor.username}.pds.test`
+
+      const targetKey = getPdsBlobStorageKey(targetDid, 'bafkreireject1')
+      const survivorKey = getPdsBlobStorageKey(survivorDid, 'bafkreisurvive1')
+      await store.put(targetKey, Buffer.from('rejected-blob'))
+      await store.put(survivorKey, Buffer.from('survivor-blob'))
+
+      for (const [actorId, did, cid, storageKey] of [
+        [target.actorId, targetDid, 'bafkreireject1', targetKey],
+        [survivor.actorId, survivorDid, 'bafkreisurvive1', survivorKey]
+      ] as const) {
+        await database.createPdsRepo({
+          did,
+          actorId,
+          domain: DOMAIN,
+          signingKey: `v1:key-${did}`,
+          signingKeyDid: `did:key:zQ3sh-${did}`
+        })
+        await database.createPdsBlob({
+          did,
+          cid,
+          mimeType: 'image/png',
+          size: 13,
+          storageKey
+        })
+        await database.commitPdsRepoWrite({
+          did,
+          rootCid: `bafy-root-${did}`,
+          rev: '3k00000000001',
+          expectedRev: null,
+          blocks: [{ cid: `bafy-blk-${did}`, bytes: Buffer.from([1, 2, 3]) }],
+          recordWrites: [
+            {
+              action: 'create',
+              collection: 'app.bsky.feed.post',
+              rkey: '3k1',
+              cid: `bafy-blk-${did}`,
+              blobCids: [cid]
+            }
+          ],
+          event: {
+            type: 'commit',
+            payload: Buffer.from(`evt-${did}`)
+          }
+        })
+      }
+
+      expect(
+        await database.rejectPendingAccount({ accountId: target.accountId })
+      ).toBe(true)
+
+      expect(await database.getPdsRepo({ did: targetDid })).toBeNull()
+      expect(await database.listPdsBlobStorageKeys({ did: targetDid })).toEqual(
+        []
+      )
+      expect(
+        await database.listPdsEvents({ afterSeq: 0, did: targetDid })
+      ).toEqual([])
+      expect(await store.openRead(targetKey)).toBeNull()
+
+      // Survivor's PDS rows and blob file stay untouched.
+      expect(await database.getPdsRepo({ did: survivorDid })).not.toBeNull()
+      expect(
+        await database.listPdsBlobStorageKeys({ did: survivorDid })
+      ).toEqual([survivorKey])
+      expect(await store.openRead(survivorKey)).not.toBeNull()
+    } finally {
+      if (previousImpl) {
+        mockedGetConfig.mockImplementation(previousImpl)
+      } else {
+        mockedGetConfig.mockReturnValue(realConfig)
+      }
+      await fs.rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it('continues deleting remaining PDS blob files when one file delete fails during rejectPendingAccount', async () => {
+    const tempDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'moderation-reject-pds-best-effort-')
+    )
+    const store = new FilePdsBlobObjectStore({
+      type: MediaStorageType.LocalFile,
+      path: tempDir
+    })
+    const realConfig = configModule.getConfig()
+    const mockedGetConfig = vi.mocked(configModule.getConfig)
+    const previousImpl = mockedGetConfig.getMockImplementation()
+    mockedGetConfig.mockReturnValue({
+      ...realConfig,
+      mediaStorage: {
+        type: MediaStorageType.LocalFile,
+        path: tempDir
+      }
+    })
+    const realDelete = FilePdsBlobObjectStore.prototype.delete
+    const loggerErrorSpy = vi
+      .spyOn(logger, 'error')
+      .mockImplementation(() => undefined)
+    const deleteSpy = vi.spyOn(FilePdsBlobObjectStore.prototype, 'delete')
+    try {
+      const target = await newAccount('reject-pds-partial')
+      await patchAccount(target.accountId, { approvedAt: null })
+
+      const targetDid = `did:web:${target.username}.pds.test`
+      const failingKey = getPdsBlobStorageKey(targetDid, 'bafkreifail1')
+      const succeedingKey = getPdsBlobStorageKey(targetDid, 'bafkreiok2')
+      await store.put(failingKey, Buffer.from('blob-1'))
+      await store.put(succeedingKey, Buffer.from('blob-2'))
+
+      await database.createPdsRepo({
+        did: targetDid,
+        actorId: target.actorId,
+        domain: DOMAIN,
+        signingKey: `v1:key-${targetDid}`,
+        signingKeyDid: `did:key:zQ3sh-${targetDid}`
+      })
+      await database.createPdsBlob({
+        did: targetDid,
+        cid: 'bafkreifail1',
+        mimeType: 'image/png',
+        size: 6,
+        storageKey: failingKey
+      })
+      await database.createPdsBlob({
+        did: targetDid,
+        cid: 'bafkreiok2',
+        mimeType: 'image/png',
+        size: 6,
+        storageKey: succeedingKey
+      })
+
+      let failedOnce = false
+      deleteSpy.mockImplementation(async function (
+        this: FilePdsBlobObjectStore,
+        key: string
+      ) {
+        if (!failedOnce) {
+          failedOnce = true
+          throw new Error(`simulated unlink failure for ${key}`)
+        }
+        return realDelete.call(this, key)
+      })
+
+      expect(
+        await database.rejectPendingAccount({ accountId: target.accountId })
+      ).toBe(true)
+
+      expect(deleteSpy).toHaveBeenCalledTimes(2)
+      const [firstKey, secondKey] = deleteSpy.mock.calls.map((call) => call[0])
+      expect([firstKey, secondKey].sort()).toEqual(
+        [failingKey, succeedingKey].sort()
+      )
+      // The second blob file was still deleted despite the first delete failing.
+      expect(await store.openRead(secondKey)).toBeNull()
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          storageKey: firstKey,
+          accountId: target.accountId,
+          err: expect.any(Error)
+        })
+      )
+    } finally {
+      deleteSpy.mockRestore()
+      loggerErrorSpy.mockRestore()
+      if (previousImpl) {
+        mockedGetConfig.mockImplementation(previousImpl)
+      } else {
+        mockedGetConfig.mockReturnValue(realConfig)
+      }
+      await fs.rm(tempDir, { recursive: true, force: true })
+    }
   })
 
   // A never-approved account never federated, so its handle rows go with the

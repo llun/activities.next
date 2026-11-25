@@ -24,8 +24,10 @@ import type {
   SetReportResolutionParams
 } from '@/lib/database/domains/moderation/types'
 import { revokeAccountOAuthTokens } from '@/lib/database/domains/oauth/queries'
+import { deletePdsRepoData } from '@/lib/database/domains/pds/queries'
 import { deleteActorSearchDocument } from '@/lib/database/domains/search/accounts'
-import { type Db, inTransaction } from '@/lib/database/kysely'
+import { type Db, inTransaction, isInTransaction } from '@/lib/database/kysely'
+import { deletePdsBlobFilesBestEffort } from '@/lib/services/pds/blobStorage'
 
 export const setActorSuspended = async (
   db: Db,
@@ -85,91 +87,125 @@ export const approveAccount = async (
     .execute()
 }
 
-export const rejectPendingAccount = (
-  db: Db,
-  { accountId }: RejectPendingAccountParams
-): Promise<boolean> =>
-  inTransaction(db, async (trx) => {
-    const account = await trx
-      .selectFrom('accounts')
-      .select('approvedAt')
-      .where('id', '=', accountId)
-      .limit(1)
-      .executeTakeFirst()
-    // Reject is only valid for a never-approved (registration-pending)
-    // account; an already approved one is left untouched.
-    if (!account || account.approvedAt != null) return false
-
-    const actors = await trx
-      .selectFrom('actors')
-      .select('id')
-      .$narrowType<{ id: string }>()
-      .where('accountId', '=', accountId)
-      .execute()
-    for (const { id } of actors) {
-      await deleteActorSearchDocument(trx, { id })
+const cleanupRejectedPdsBlobFiles = async (
+  storageKeys: string[],
+  accountId: string
+): Promise<void> => {
+  if (storageKeys.length === 0) return
+  await deletePdsBlobFilesBestEffort(storageKeys, {
+    context: {
+      accountId,
+      reason: 'rejected_pending_account'
     }
-    // `oauthAccessToken.sessionId` and `oauthRefreshToken.sessionId` are
-    // foreign keys into `sessions.id` with no ON DELETE action, so a bare
-    // delete throws on PostgreSQL (23503) for a session that minted OAuth
-    // tokens. The helper detaches the tokens first, in this transaction.
-    await deleteSessionsWithTokenDetach(trx, (eb) =>
-      eb('accountId', '=', accountId)
-    )
-    // The account's OAuth grants reference `accounts.id` through `userId` with
-    // no ON DELETE action either, so they must go before the account row or
-    // PostgreSQL refuses that delete too. A never-approved sign-up has none in
-    // practice, but the rejection must not depend on that.
-    //
-    // This runs BEFORE the actors are deleted: the helper's `referenceId` arm
-    // is a subquery over `actors` for this account, so deleting the actors
-    // first would leave a grant whose `userId` is null but whose actor is gone
-    // behind.
-    await revokeAccountOAuthTokens(trx, { accountId })
-    // An OAuth client the account registered references `accounts.id` through
-    // `userId` with no ON DELETE action. Detach it rather than delete it: the
-    // client is an app registration other grants may still name.
-    await trx
-      .updateTable('oauthClient')
-      .set({ userId: null })
-      .where('userId', '=', accountId)
-      .execute()
-    // A never-approved account never federated, so its handles carry no
-    // history a remote server could still point at: the rows go with the
-    // actors and the usernames become free again. (Unlike deleteActorData,
-    // which RETIRES an approved actor's rows so a federated id path is never
-    // reissued.)
-    if (actors.length > 0) {
-      await trx
-        .deleteFrom('actor_handles')
-        .where(
-          'actorId',
-          'in',
-          actors.map((actor) => actor.id)
-        )
-        .execute()
-      await trx
-        .deleteFrom('actors')
-        .where(
-          'id',
-          'in',
-          actors.map((actor) => actor.id)
-        )
-        .execute()
-    }
-    await trx
-      .deleteFrom('account_providers')
-      .where('accountId', '=', accountId)
-      .execute()
-    // Export rows reference the account; the files they point at expire with
-    // the account's other storage (an unapproved account has none).
-    await trx
-      .deleteFrom('account_archives')
-      .where('accountId', '=', accountId)
-      .execute()
-    await trx.deleteFrom('accounts').where('id', '=', accountId).execute()
-    return true
   })
+}
+
+const rejectPendingAccountInTransaction = async (
+  trx: Db,
+  { accountId }: RejectPendingAccountParams
+): Promise<{ rejected: boolean; pdsBlobStorageKeys: string[] }> => {
+  const account = await trx
+    .selectFrom('accounts')
+    .select('approvedAt')
+    .where('id', '=', accountId)
+    .limit(1)
+    .executeTakeFirst()
+  // Reject is only valid for a never-approved (registration-pending)
+  // account; an already approved one is left untouched.
+  if (!account || account.approvedAt != null) {
+    return { rejected: false, pdsBlobStorageKeys: [] }
+  }
+
+  const actors = await trx
+    .selectFrom('actors')
+    .select('id')
+    .$narrowType<{ id: string }>()
+    .where('accountId', '=', accountId)
+    .execute()
+  for (const { id } of actors) {
+    await deleteActorSearchDocument(trx, { id })
+  }
+  // `oauthAccessToken.sessionId` and `oauthRefreshToken.sessionId` are
+  // foreign keys into `sessions.id` with no ON DELETE action, so a bare
+  // delete throws on PostgreSQL (23503) for a session that minted OAuth
+  // tokens. The helper detaches the tokens first, in this transaction.
+  await deleteSessionsWithTokenDetach(trx, (eb) =>
+    eb('accountId', '=', accountId)
+  )
+  // The account's OAuth grants reference `accounts.id` through `userId` with
+  // no ON DELETE action either, so they must go before the account row or
+  // PostgreSQL refuses that delete too. A never-approved sign-up has none in
+  // practice, but the rejection must not depend on that.
+  //
+  // This runs BEFORE the actors are deleted: the helper's `referenceId` arm
+  // is a subquery over `actors` for this account, so deleting the actors
+  // first would leave a grant whose `userId` is null but whose actor is gone
+  // behind.
+  await revokeAccountOAuthTokens(trx, { accountId })
+  // An OAuth client the account registered references `accounts.id` through
+  // `userId` with no ON DELETE action. Detach it rather than delete it: the
+  // client is an app registration other grants may still name.
+  await trx
+    .updateTable('oauthClient')
+    .set({ userId: null })
+    .where('userId', '=', accountId)
+    .execute()
+
+  const pdsBlobStorageKeys: string[] = []
+  // A never-approved account never federated, so its handles carry no
+  // history a remote server could still point at: the rows go with the
+  // actors and the usernames become free again. (Unlike deleteActorData,
+  // which RETIRES an approved actor's rows so a federated id path is never
+  // reissued.)
+  if (actors.length > 0) {
+    const actorIds = actors.map((actor) => actor.id)
+    const pdsRepos = await trx
+      .selectFrom('pds_repos')
+      .select('did')
+      .where('actorId', 'in', actorIds)
+      .execute()
+    for (const pdsRepo of pdsRepos) {
+      const { blobStorageKeys } = await deletePdsRepoData(trx, {
+        did: pdsRepo.did
+      })
+      pdsBlobStorageKeys.push(...blobStorageKeys)
+    }
+
+    await trx
+      .deleteFrom('actor_handles')
+      .where('actorId', 'in', actorIds)
+      .execute()
+    await trx.deleteFrom('actors').where('id', 'in', actorIds).execute()
+  }
+  await trx
+    .deleteFrom('account_providers')
+    .where('accountId', '=', accountId)
+    .execute()
+  // Export rows reference the account; the files they point at expire with
+  // the account's other storage (an unapproved account has none).
+  await trx
+    .deleteFrom('account_archives')
+    .where('accountId', '=', accountId)
+    .execute()
+  await trx.deleteFrom('accounts').where('id', '=', accountId).execute()
+  return { rejected: true, pdsBlobStorageKeys }
+}
+
+export const rejectPendingAccount = async (
+  db: Db,
+  params: RejectPendingAccountParams
+): Promise<boolean> => {
+  const result = await inTransaction(db, (trx) =>
+    rejectPendingAccountInTransaction(trx, params)
+  )
+  if (!isInTransaction(db) && result.rejected) {
+    await cleanupRejectedPdsBlobFiles(
+      result.pdsBlobStorageKeys,
+      params.accountId
+    )
+  }
+  return result.rejected
+}
 
 export const getModerationStatesForActors = async (
   db: Db,
@@ -280,7 +316,7 @@ export const setReportResolution = async (
  * The caller runs side effects that cannot be transactional (deleting an
  * account's export files) after this resolves.
  */
-export const applyModerationAction = (
+export const applyModerationAction = async (
   db: Db,
   {
     targetActorId,
@@ -291,8 +327,10 @@ export const applyModerationAction = (
     reportId = null,
     text = ''
   }: ApplyModerationActionParams
-): Promise<ApplyModerationActionOutcome> =>
-  inTransaction(db, async (trx) => {
+): Promise<ApplyModerationActionOutcome> => {
+  let pdsBlobStorageKeys: string[] = []
+
+  const outcome = await inTransaction(db, async (trx) => {
     switch (action) {
       case 'suspend':
         await setActorSuspended(trx, {
@@ -341,12 +379,13 @@ export const applyModerationAction = (
         await approveAccount(trx, { accountId: accountId! })
         break
       case 'reject': {
-        const rejected = await rejectPendingAccount(trx, {
+        const result = await rejectPendingAccountInTransaction(trx, {
           accountId: accountId!
         })
         // An already-approved account is left untouched, and no audit row or
         // report resolution is written for an action that did not apply.
-        if (!rejected) return { applied: false }
+        if (!result.rejected) return { applied: false }
+        pdsBlobStorageKeys = result.pdsBlobStorageKeys
         break
       }
       case 'none':
@@ -372,6 +411,13 @@ export const applyModerationAction = (
 
     return { applied: true }
   })
+
+  if (!isInTransaction(db) && outcome.applied && accountId) {
+    await cleanupRejectedPdsBlobFiles(pdsBlobStorageKeys, accountId)
+  }
+
+  return outcome
+}
 
 // The facade getSQLDatabase binds with bindDb().
 export const moderationQueries = {

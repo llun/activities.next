@@ -33,11 +33,19 @@ import {
 // keep the proxy's 404/405 instead of falling through to the [actor] page; the
 // GET-only /api/v1/files/* downloads are always matched so a multipart
 // Content-Type cannot strip their CSP.
+// Single-segment `/xrpc/<nsid>` (ATProto XRPC endpoints) skips the proxy
+// unconditionally: XRPC procedures such as `uploadBlob` send raw binary bodies
+// up to 50 MB (not multipart), responses are never HTML documents, and
+// `getBlob` sets its own sandboxed CSP that the proxy must not overwrite. Bare
+// `/xrpc` and multi-segment `/xrpc/a/b` stay matched so they keep the proxy's
+// guards and security headers (and `app/xrpc/[[...nsid]]` catches bare `/xrpc`
+// and multi-segment paths so `/xrpc` and `/xrpc/*` never fall through to page
+// routes).
 // The header value is matched case-sensitively as an anchored regex, hence the
 // spelled-out character classes.
 export const config = {
   matcher: [
-    '/((?!(?:_next/static|_next/image)(?:/|$)|api/.|_share-target$|favicon\\.ico$|activities/_next(?:/|$)).*)',
+    '/((?!(?:_next/static|_next/image)(?:/|$)|api/.|xrpc/[^/]+$|_share-target$|favicon\\.ico$|activities/_next(?:/|$)).*)',
     {
       source: '/api/:path+',
       missing: [
@@ -138,6 +146,30 @@ const getContentSecurityPolicyHeaderForPath = (
     ? getEmbedContentSecurityPolicyHeader(nonce)
     : getContentSecurityPolicyHeader(nonce)
 
+const isXrpcPath = (pathname: string): boolean =>
+  pathname === '/xrpc' || pathname.startsWith('/xrpc/')
+
+// Matches percent-encoded, differently cased, duplicate-slashed, or trailing-dot
+// spellings of `/xrpc` (e.g. `/%78rpc`, `/xrpc%2f...`, `/XRPC`, `/xrpc.`) that
+// are not in the canonical `/xrpc` or `/xrpc/...` form so the proxy answers 404
+// directly (plain, no HTML, no nonce) before routing can normalize them.
+const isNonCanonicalXrpcPath = (pathname: string): boolean => {
+  if (isXrpcPath(pathname)) return false
+  let decoded = pathname
+  try {
+    decoded = decodeURIComponent(pathname)
+  } catch {
+    // Keep the raw form so invalid percent-escapes on e.g. `/XRPC/%ZZ` are
+    // still lowercased and slash-collapsed below.
+  }
+  const normalized = decoded.toLowerCase().replace(/\/{2,}/g, '/')
+  return (
+    normalized === '/xrpc' ||
+    normalized === '/xrpc.' ||
+    normalized.startsWith('/xrpc/')
+  )
+}
+
 // The request headers every forwarded branch carries: the client-sent
 // `x-activities-local-handle-*` pair is deleted on EVERY request the proxy
 // runs on, so a value the client set itself never reaches the [actor] layout
@@ -147,6 +179,8 @@ const getContentSecurityPolicyHeaderForPath = (
 //
 // A document request also carries the nonce and the CSP it belongs to, so Next
 // tags its own scripts and the app can read the same value from `x-nonce`.
+// On `/xrpc` and `/xrpc/*`, `next-action` is also stripped so a bare `POST
+// /xrpc` with that header never reaches Next.js Server Action dispatch.
 const forwardedRequestHeaders = (
   request: NextRequest,
   nonce: string | null
@@ -157,6 +191,9 @@ const forwardedRequestHeaders = (
   // A client must never choose the nonce Next stamps on scripts.
   headers.delete(NONCE_REQUEST_HEADER)
   headers.delete(CSP_HEADER_NAME)
+  if (isXrpcPath(request.nextUrl.pathname)) {
+    headers.delete('next-action')
+  }
   if (nonce) {
     headers.set(NONCE_REQUEST_HEADER, nonce)
     headers.set(
@@ -180,7 +217,8 @@ const forwardedRequestInit = (request: NextRequest, nonce: string | null) =>
   request.headers.has(LOCAL_HANDLE_REDIRECT_PATH_HEADER) ||
   request.headers.has(LOCAL_HANDLE_REDIRECT_SEARCH_HEADER) ||
   request.headers.has(NONCE_REQUEST_HEADER) ||
-  request.headers.has(CSP_HEADER_NAME)
+  request.headers.has(CSP_HEADER_NAME) ||
+  (isXrpcPath(request.nextUrl.pathname) && request.headers.has('next-action'))
     ? { request: { headers: forwardedRequestHeaders(request, nonce) } }
     : undefined
 
@@ -252,6 +290,7 @@ const OAUTH_API_PATHS = new Set([
 
 const isDocumentRequest = (pathname: string): boolean =>
   !pathname.startsWith('/api/') &&
+  !isXrpcPath(pathname) &&
   !OAUTH_API_PATHS.has(pathname) &&
   !isRewrittenApiRoute(pathname) &&
   pathname !== '/sw.js'
@@ -264,6 +303,18 @@ const SHARE_TARGET_PATH = '/_share-target'
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+
+  // Reject non-canonical XRPC path spellings (percent-encoded, mixed-case,
+  // duplicate leading slashes, trailing dot) directly with a plain 404 and no
+  // nonce before any document handling or Next.js route matching.
+  if (isNonCanonicalXrpcPath(pathname)) {
+    return withSecurityHeaders(
+      new NextResponse(null, { status: 404 }),
+      request,
+      null
+    )
+  }
+
   // One fresh nonce per document request. Next reads it from the request's CSP
   // header and tags its own scripts with it; the app reads the same value from
   // `x-nonce`. Non-document responses carry no nonce.
@@ -316,13 +367,14 @@ export async function proxy(request: NextRequest) {
   // ACTION_HEADER), and content type (multipart/form-data or urlencoded). If a request
   // resembles an action or targets an action route but cannot be resolved, Next.js can
   // reject or fail the request.
-  // In activities.next, POST requests are only valid on API route handlers (/api/*), OAuth
-  // route handlers (/oauth/*), admin Server Actions (/admin, /admin/*, or with Next-Action header),
-  // and rewritten API routes (/inbox, /users/*).
+  // In activities.next, POST requests are only valid on API route handlers (/api/*), XRPC
+  // route handlers (/xrpc, /xrpc/*), OAuth route handlers (/oauth/*), admin Server Actions
+  // (/admin, /admin/*, or with Next-Action header), and rewritten API routes (/inbox, /users/*).
   // All other page POSTs are rejected cleanly here.
   if (
     request.method === 'POST' &&
     !pathname.startsWith('/api/') &&
+    !isXrpcPath(pathname) &&
     !pathname.startsWith('/oauth/') &&
     pathname !== '/admin' &&
     !pathname.startsWith('/admin/') &&
@@ -343,6 +395,7 @@ export async function proxy(request: NextRequest) {
       request.method === 'DELETE' ||
       request.method === 'PATCH') &&
     !pathname.startsWith('/api/') &&
+    !isXrpcPath(pathname) &&
     !pathname.startsWith('/oauth/') &&
     !isRewrittenApiRoute(pathname)
   ) {

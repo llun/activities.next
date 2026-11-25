@@ -1186,6 +1186,44 @@ export const getReferencedStoragePaths = async (
     })
   }
 
+  // Raw PDS blobs are durable user data: a record's blob ref points at bytes
+  // whose only other copy is `pds_blobs.storageKey`. They have no `medias` row,
+  // so a referenced backup would silently drop them. Unlike `archives/` and
+  // `imports/` — transient staging the export and import jobs create and
+  // expire — these are backed up, not skipped.
+  if (await tableExists(database, 'pds_blobs')) {
+    let lastDid: string | null = null
+    let lastCid: string | null = null
+    for (;;) {
+      const filter: RawBuilder<unknown> =
+        lastDid !== null && lastCid !== null
+          ? sql`where (${sql.id('did')}, ${sql.id('cid')}) > (${lastDid}, ${lastCid})`
+          : sql``
+      const { rows } = await sql<{
+        did: string
+        cid: string
+        storageKey?: unknown
+      }>`
+        select ${sql.id('did')}, ${sql.id('cid')}, ${sql.id('storageKey')}
+        from ${sql.id('pds_blobs')} ${filter}
+        order by ${sql.id('did')} asc, ${sql.id('cid')} asc limit ${DATABASE_PAGE_SIZE}
+      `.execute(database.db)
+      if (rows.length === 0) break
+
+      for (const row of rows) {
+        if (typeof row.storageKey === 'string') {
+          mediaFilePaths.push(row.storageKey)
+        }
+      }
+
+      const last = rows[rows.length - 1]
+      if (!last) break
+      lastDid = last.did
+      lastCid = last.cid
+      if (rows.length < DATABASE_PAGE_SIZE) break
+    }
+  }
+
   return {
     fitnessFilePaths: uniqueSortedPaths(fitnessFilePaths),
     mediaFilePaths: uniqueSortedPaths(mediaFilePaths)
@@ -2137,6 +2175,42 @@ export const stringifyJsonColumnValues = (
   return normalized
 }
 
+const isSerializedBuffer = (
+  value: unknown
+): value is { type: 'Buffer'; data: number[] } => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+  const candidate = value as Record<string, unknown>
+  if (candidate.type !== 'Buffer' || !Array.isArray(candidate.data)) {
+    return false
+  }
+  return candidate.data.every(
+    (byte) =>
+      typeof byte === 'number' &&
+      Number.isInteger(byte) &&
+      byte >= 0 &&
+      byte <= 255
+  )
+}
+
+export const reviveBinaryColumnValues = (
+  row: Record<string, unknown>,
+  binaryColumns: Set<string>
+) => {
+  if (binaryColumns.size === 0) return row
+
+  const normalized = { ...row }
+  for (const column of binaryColumns) {
+    if (!(column in normalized) || normalized[column] === null) continue
+    const value = normalized[column]
+    if (isSerializedBuffer(value)) {
+      normalized[column] = Buffer.from(value.data)
+    }
+  }
+  return normalized
+}
+
 const getJsonColumnNames = async (
   database: ArchiveDatabase,
   tableName: string
@@ -2153,6 +2227,36 @@ const getJsonColumnNames = async (
   `.execute(database.db)
 
   return new Set(rows.map((row) => row.name))
+}
+
+const getBinaryColumnNames = async (
+  database: ArchiveDatabase,
+  tableName: string
+) => {
+  const client = getClientName(database)
+  if (client === 'pg') {
+    const { rows } = await sql<{ name: string }>`
+      select column_name as name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = ${tableName}
+        and data_type = 'bytea'
+    `.execute(database.db)
+    return new Set(rows.map((row) => row.name))
+  }
+
+  if (client === 'better-sqlite3') {
+    const { rows } = await sql<{ name: string; type: string }>`
+      select name, type from pragma_table_info(${tableName})
+    `.execute(database.db)
+    return new Set(
+      rows
+        .filter((row) => row.type.toLowerCase().includes('blob'))
+        .map((row) => row.name)
+    )
+  }
+
+  return new Set<string>()
 }
 
 // Each batch is one transaction of inserts of up to `chunkSize` rows. A row
@@ -2181,6 +2285,7 @@ const restoreTableFromJsonLines = async (
   tableFilePath: string
 ) => {
   const jsonColumns = await getJsonColumnNames(database, tableName)
+  const binaryColumns = await getBinaryColumnNames(database, tableName)
   let batch: Record<string, unknown>[] = []
   let batchSize = INSERT_BATCH_SIZE
   let rowCount = 0
@@ -2194,7 +2299,10 @@ const restoreTableFromJsonLines = async (
   }
 
   for await (const row of readJsonLines(tableFilePath)) {
-    const normalizedRow = stringifyJsonColumnValues(row, jsonColumns)
+    const normalizedRow = reviveBinaryColumnValues(
+      stringifyJsonColumnValues(row, jsonColumns),
+      binaryColumns
+    )
     const rowBatchSize = getRestoreInsertBatchSize(database, normalizedRow)
     if (batch.length > 0 && batch.length >= rowBatchSize) {
       await flushBatch()

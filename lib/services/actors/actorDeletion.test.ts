@@ -178,11 +178,22 @@ describe('sweepScheduledActorDeletions', () => {
 })
 
 describe('startActorDeletionSweep', () => {
-  afterEach(() => {
-    vi.useRealTimers()
+  const originalPdsEnv = process.env.ACTIVITIES_BLUESKY_PDS
+
+  beforeEach(() => {
+    delete process.env.ACTIVITIES_BLUESKY_PDS
   })
 
-  it('sweeps on a timer and stops when asked', async () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    if (originalPdsEnv === undefined) {
+      delete process.env.ACTIVITIES_BLUESKY_PDS
+    } else {
+      process.env.ACTIVITIES_BLUESKY_PDS = originalPdsEnv
+    }
+  })
+
+  it('sweeps on a timer and skips PDS event pruning when PDS is unconfigured', async () => {
     vi.useFakeTimers()
     const { published } = makeQueue(true)
     const getActorsScheduledForDeletion = vi
@@ -190,10 +201,12 @@ describe('startActorDeletionSweep', () => {
       .mockResolvedValue([{ id: 'https://llun.test/users/timed' }])
     const deleteExpiredIdempotencyKeys = vi.fn().mockResolvedValue(0)
     const deleteExpiredRemoteSignatureSchemes = vi.fn().mockResolvedValue(0)
+    const deletePdsEventsBefore = vi.fn().mockResolvedValue(0)
     const database = {
       getActorsScheduledForDeletion,
       deleteExpiredIdempotencyKeys,
-      deleteExpiredRemoteSignatureSchemes
+      deleteExpiredRemoteSignatureSchemes,
+      deletePdsEventsBefore
     } as unknown as Parameters<typeof startActorDeletionSweep>[0]
 
     const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
@@ -209,15 +222,44 @@ describe('startActorDeletionSweep', () => {
     expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledWith({
       limit: 500
     })
+    // PDS is unconfigured, so pds_events is never queried.
+    expect(deletePdsEventsBefore).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(1000)
     expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
     expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
     expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledTimes(2)
+    expect(deletePdsEventsBefore).not.toHaveBeenCalled()
 
     sweep.stop()
     await vi.advanceTimersByTimeAsync(5000)
     expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
+  })
+
+  it('prunes expired PDS events when any PDS domain is configured (even disabled)', async () => {
+    vi.useFakeTimers()
+    makeQueue(true)
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      'llun.test': {
+        enabled: false,
+        hostname: 'pds.llun.test',
+        allowEmails: [],
+        allowActors: []
+      }
+    })
+    const deletePdsEventsBefore = vi.fn().mockResolvedValue(2)
+    const database = {
+      getActorsScheduledForDeletion: vi.fn().mockResolvedValue([]),
+      deleteExpiredIdempotencyKeys: vi.fn().mockResolvedValue(0),
+      deleteExpiredRemoteSignatureSchemes: vi.fn().mockResolvedValue(0),
+      deletePdsEventsBefore
+    } as unknown as Parameters<typeof startActorDeletionSweep>[0]
+
+    const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(deletePdsEventsBefore).toHaveBeenCalledTimes(1)
+    expect(deletePdsEventsBefore.mock.calls[0][0].before).toBeInstanceOf(Date)
+    sweep.stop()
   })
 
   it('survives a failing sweep and tries again on the next tick', async () => {
@@ -245,9 +287,17 @@ describe('startActorDeletionSweep', () => {
     sweep.stop()
   })
 
-  it('keeps sweeping after the idempotency-key purge fails', async () => {
+  it('keeps sweeping after the idempotency-key and PDS event purges fail', async () => {
     vi.useFakeTimers()
     makeQueue(true)
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      'llun.test': {
+        enabled: true,
+        hostname: 'pds.llun.test',
+        allowEmails: [],
+        allowActors: []
+      }
+    })
     const getActorsScheduledForDeletion = vi.fn().mockResolvedValue([])
     const deleteExpiredIdempotencyKeys = vi
       .fn()
@@ -257,10 +307,15 @@ describe('startActorDeletionSweep', () => {
       .fn()
       .mockRejectedValueOnce(new Error('database down'))
       .mockResolvedValue(0)
+    const deletePdsEventsBefore = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('pds events down'))
+      .mockResolvedValue(3)
     const database = {
       getActorsScheduledForDeletion,
       deleteExpiredIdempotencyKeys,
-      deleteExpiredRemoteSignatureSchemes
+      deleteExpiredRemoteSignatureSchemes,
+      deletePdsEventsBefore
     } as unknown as Parameters<typeof startActorDeletionSweep>[0]
 
     const sweep = startActorDeletionSweep(database, { intervalMs: 1000 })
@@ -270,6 +325,7 @@ describe('startActorDeletionSweep', () => {
     expect(getActorsScheduledForDeletion).toHaveBeenCalledTimes(2)
     expect(deleteExpiredIdempotencyKeys).toHaveBeenCalledTimes(2)
     expect(deleteExpiredRemoteSignatureSchemes).toHaveBeenCalledTimes(2)
+    expect(deletePdsEventsBefore).toHaveBeenCalledTimes(2)
     sweep.stop()
   })
 

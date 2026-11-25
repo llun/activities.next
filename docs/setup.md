@@ -67,7 +67,7 @@ One server can serve profiles on several domains (`social.example`, `run.example
 
 1. **DNS**: point the domain (an `A`/`AAAA` record or a `CNAME`) at the same public address as `ACTIVITIES_HOST`.
 2. **TLS**: issue a certificate for the domain on whatever terminates HTTPS (your proxy, load balancer or hosting platform).
-3. **Proxy**: route the domain to this server and keep the original `Host` header (or set `X-Forwarded-Host` to it). A proxy that rewrites the host to the primary domain makes every request look like it arrived on `ACTIVITIES_HOST`.
+3. **Proxy**: route the domain to this server and keep the original `Host` header (or set `X-Forwarded-Host` to it). A proxy that rewrites the host to the primary domain makes every request look like it arrived on `ACTIVITIES_HOST`. Strip any client-supplied `X-Activity-Next-Host` header at the reverse proxy unless the proxy itself sets it, and overwrite or strip client-supplied `X-Forwarded-Host` — the application reads `X-Activity-Next-Host` and `X-Forwarded-Host` ahead of `Host`, so forwarding an untrusted value lets callers spoof the request host (including routing to an embedded Bluesky PDS hostname).
 4. **Add it in the app**: open **Admin › Served domains › Add domain** and enter the domain. The server asks `https://<domain>/.well-known/activities-domain-check` for a proof only it can sign, and shows which of DNS, TLS and the Host header still needs work. The domain is saved as **Off**; **Turn on** runs the check again and only turns it on when it passes.
 5. **Sign-ups**: on the domain's page, open sign-ups (with an optional list of allowed email addresses) and choose whether people who already have an account can add a profile there. A new domain starts with sign-ups closed.
 6. **Identity and policies** (optional): on the same page, give the domain its own name, description and contact email, and its own terms of service and privacy policy (Markdown). Each field says **Same as server** until you set it, and then falls back to **Admin › Server settings**. They apply only while the domain is on (an `ACTIVITIES_TRUSTED_HOSTS` domain: always); other server instances pick a change up within 15 seconds. The primary domain always uses the server's own, set on Admin › Server settings.
@@ -131,13 +131,16 @@ ACTIVITIES_MEDIA_STORAGE_BUCKET=my-bucket
 ACTIVITIES_MEDIA_STORAGE_REGION=us-east-1
 # Optional: public CDN/custom domain used to serve media files.
 # Account archives live in the same bucket under archives/ (exports) and
-# imports/ (staged uploads). The hostname must not serve either prefix (or the
-# bucket root) publicly. Exports are protected by a secret key segment plus the
-# owner-checked download endpoint, not by the bucket. With this variable set,
-# exports are streamed through the app instead of redirecting to a signed
-# bucket URL. A streamed download lasts as long as the transfer, so on a host
-# with a short request duration limit (serverless) a large export may be cut
-# off; a client can resume it with a `Range: bytes=n-` request.
+# imports/ (staged uploads), and embedded Bluesky PDS blobs live under
+# pds-blobs/. The hostname must not serve any of these prefixes (or the bucket
+# root) publicly. Exports are protected by a secret key segment plus the
+# owner-checked download endpoint, not by the bucket; PDS blobs are served only
+# through com.atproto.sync.getBlob with repo-status checks and sandbox headers.
+# With this variable set, exports are streamed through the app instead of
+# redirecting to a signed bucket URL. A streamed download lasts as long as the
+# transfer, so on a host with a short request duration limit (serverless) a
+# large export may be cut off; a client can resume it with a `Range: bytes=n-`
+# request.
 ACTIVITIES_MEDIA_STORAGE_HOSTNAME=media.example.com
 # Optional: S3-compatible API endpoint for uploads/storage operations
 ACTIVITIES_MEDIA_STORAGE_ENDPOINT=https://s3.example.com

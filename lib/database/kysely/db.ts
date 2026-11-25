@@ -1242,6 +1242,59 @@ export interface Passkey {
   userId: string
 }
 
+export interface PdsBlobs {
+  cid: string
+  createdAt: WithDefault<Timestamp>
+  did: string
+  mimeType: string
+  size: number
+  storageKey: string
+}
+
+export interface PdsBlocks {
+  bytes: Buffer
+  cid: string
+  createdAt: WithDefault<Timestamp>
+  did: string
+  repoRev: string
+}
+
+export interface PdsEvents {
+  createdAt: WithDefault<Timestamp>
+  did: string
+  payload: Buffer
+  seq: WithDefault<number>
+  type: string
+}
+
+export interface PdsRecordBlobs {
+  blobCid: string
+  did: string
+  recordUri: string
+}
+
+export interface PdsRecords {
+  cid: string
+  collection: string
+  did: string
+  indexedAt: WithDefault<Timestamp>
+  repoRev: string
+  rkey: string
+}
+
+export interface PdsRepos {
+  actorId: string
+  createdAt: WithDefault<Timestamp>
+  did: string
+  domain: string
+  rev: Nullable<string>
+  rootCid: Nullable<string>
+  signingKey: string
+  signingKeyDid: string
+  status: WithDefault<string>
+  updatedAt: WithDefault<Timestamp>
+}
+
 export interface PollAnswers {
   actorId: string
   answerId: WithDefault<number>
@@ -1709,6 +1762,12 @@ export interface DB {
   oauthRefreshToken: OauthRefreshToken
   oauthResource: OauthResource
   passkey: Passkey
+  pds_blobs: PdsBlobs
+  pds_blocks: PdsBlocks
+  pds_events: PdsEvents
+  pds_record_blobs: PdsRecordBlobs
+  pds_records: PdsRecords
+  pds_repos: PdsRepos
   poll_answers: PollAnswers
   poll_choices: PollChoices
   poll_voters: PollVoters

@@ -51,6 +51,7 @@ type SnapshotState = {
   snapshot: Snapshot
   // When the last load finished, whether it succeeded or not.
   lastAttemptAt: number
+  lastLoadFailed: boolean
   registeredDatabase: Database | null
   inflight: Promise<void> | null
   refreshTimer: ReturnType<typeof setInterval> | null
@@ -67,6 +68,7 @@ const globalState = globalThis as typeof globalThis & {
 const state: SnapshotState = (globalState[STATE_KEY] ??= {
   snapshot: EMPTY_SNAPSHOT,
   lastAttemptAt: 0,
+  lastLoadFailed: false,
   registeredDatabase: null,
   inflight: null,
   refreshTimer: null
@@ -91,7 +93,9 @@ const loadSnapshot = async (database: Database): Promise<void> => {
       domains: toTrustedDomains(rows.map((row) => row.domain)),
       loadedAt: Date.now()
     }
+    state.lastLoadFailed = false
   } catch (error) {
+    state.lastLoadFailed = true
     logger.error({
       message: 'Failed to load the active served domains',
       err: toLoggableError(error)
@@ -206,15 +210,30 @@ export const getServedHostConfig = (
   return value
 }
 
+/**
+ * True when the served-domain snapshot has completed at least one successful
+ * load, its most recent load attempt succeeded, and the loaded snapshot is
+ * within `SERVED_DOMAIN_MAX_STALE_MS`.
+ *
+ * Callers that guard against colliding with active served domains (such as
+ * Bluesky PDS host routing) must fail closed when this returns `false`.
+ */
+export const isServedDomainSnapshotFresh = (): boolean =>
+  state.snapshot.loadedAt > 0 &&
+  !state.lastLoadFailed &&
+  Date.now() - state.snapshot.loadedAt <= SERVED_DOMAIN_MAX_STALE_MS
+
 /** Test helper: sets the snapshot as if it had just been loaded. */
 export const setServedDomainsForTests = (domains: readonly string[]) => {
   state.snapshot = { domains: toTrustedDomains(domains), loadedAt: Date.now() }
+  state.lastLoadFailed = false
 }
 
 /** Test helper: forgets the snapshot, the database and the timer. */
 export const resetServedDomainsForTests = () => {
   state.snapshot = EMPTY_SNAPSHOT
   state.lastAttemptAt = 0
+  state.lastLoadFailed = false
   state.registeredDatabase = null
   state.inflight = null
   if (state.refreshTimer) clearInterval(state.refreshTimer)

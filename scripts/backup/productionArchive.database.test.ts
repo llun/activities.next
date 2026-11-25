@@ -43,6 +43,7 @@ import {
   openArchiveDatabase,
   readJsonLines,
   restoreDatabase,
+  reviveBinaryColumnValues,
   sortTablesForRestore,
   stringifyJsonColumnValues,
   truncateTables
@@ -183,6 +184,27 @@ describe('production archive scripts', () => {
         scopes: '["read","write"]',
         textValue: '"plain"'
       })
+    })
+  })
+
+  describe('reviveBinaryColumnValues', () => {
+    it('revives serialized Buffer objects only on binary columns and leaves non-binary columns untouched', () => {
+      const revived = reviveBinaryColumnValues(
+        {
+          bytes: { type: 'Buffer', data: [0, 1, 127, 128, 255] },
+          empty: { type: 'Buffer', data: [] },
+          nullable: null,
+          jsonField: { type: 'Buffer', data: [1, 2, 3] }
+        },
+        new Set(['bytes', 'empty', 'nullable'])
+      )
+
+      expect(Buffer.isBuffer(revived.bytes)).toBe(true)
+      expect((revived.bytes as Buffer).equals(Buffer.from([0, 1, 127, 128, 255]))).toBe(true)
+      expect(Buffer.isBuffer(revived.empty)).toBe(true)
+      expect((revived.empty as Buffer).equals(Buffer.alloc(0))).toBe(true)
+      expect(revived.nullable).toBeNull()
+      expect(revived.jsonField).toEqual({ type: 'Buffer', data: [1, 2, 3] })
     })
   })
 
@@ -891,6 +913,31 @@ describe('production archive scripts', () => {
              'https://llun.test/e.png', ${false}, ${true},
              ${new Date(SQLITE_STORED_TIME)}, ${new Date(SQLITE_STORED_TIME)})
         `.execute(database.db)
+
+        // Binary (bytea/blob) columns carrying every byte value 0x00..0xFF and an empty Buffer.
+        const fullByteRange = Buffer.from(
+          Array.from({ length: 256 }, (_, index) => index)
+        )
+        const emptyBytes = Buffer.alloc(0)
+        await sql`
+          insert into pds_repos
+            (did, "actorId", domain, "signingKey", "signingKeyDid", "rootCid", rev, status)
+          values
+            ('did:web:roundtrip.pds.test', ${actors[0].id}, 'llun.test',
+             'v1:encrypted-key', 'did:key:zQ3shRoundTrip', 'bafy-rt-root',
+             '3k00000000001', 'active')
+        `.execute(database.db)
+        await sql`
+          insert into pds_blocks (did, cid, bytes, "repoRev")
+          values
+            ('did:web:roundtrip.pds.test', 'bafy-rt-full-bytes', ${fullByteRange}, '3k00000000001'),
+            ('did:web:roundtrip.pds.test', 'bafy-rt-empty-bytes', ${emptyBytes}, '3k00000000001')
+        `.execute(database.db)
+        await sql`
+          insert into pds_events (did, type, payload)
+          values
+            ('did:web:roundtrip.pds.test', 'commit', ${fullByteRange})
+        `.execute(database.db)
       } finally {
         await destroy()
       }
@@ -1068,6 +1115,36 @@ describe('production archive scripts', () => {
         expect(restored).toEqual(source)
         expect(source.actors.length).toBeGreaterThan(0)
         expect(source.statuses.length).toBeGreaterThan(0)
+
+        // Explicitly verify binary (bytea/blob) columns revived as exact raw bytes.
+        const checkTarget = openArchiveDatabase(targetConfig)
+        try {
+          const expectedFull = Buffer.from(
+            Array.from({ length: 256 }, (_, index) => index)
+          )
+          const { rows: blocks } = await sql<{ cid: string; bytes: Buffer }>`
+            select cid, bytes from pds_blocks
+            where did = 'did:web:roundtrip.pds.test'
+            order by cid asc
+          `.execute(checkTarget.database.db)
+          expect(blocks).toHaveLength(2)
+          expect(Buffer.isBuffer(blocks[0].bytes)).toBe(true)
+          expect(blocks[0].cid).toBe('bafy-rt-empty-bytes')
+          expect(blocks[0].bytes.equals(Buffer.alloc(0))).toBe(true)
+          expect(Buffer.isBuffer(blocks[1].bytes)).toBe(true)
+          expect(blocks[1].cid).toBe('bafy-rt-full-bytes')
+          expect(blocks[1].bytes.equals(expectedFull)).toBe(true)
+
+          const { rows: events } = await sql<{ payload: Buffer }>`
+            select payload from pds_events
+            where did = 'did:web:roundtrip.pds.test'
+          `.execute(checkTarget.database.db)
+          expect(events).toHaveLength(1)
+          expect(Buffer.isBuffer(events[0].payload)).toBe(true)
+          expect(events[0].payload.equals(expectedFull)).toBe(true)
+        } finally {
+          await checkTarget.destroy()
+        }
         expect(source.search_documents.length).toBeGreaterThan(0)
 
         // A search on the restored database finds the restored documents.
