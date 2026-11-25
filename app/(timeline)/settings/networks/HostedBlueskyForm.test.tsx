@@ -365,12 +365,15 @@ describe('HostedBlueskyForm', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('offers only Turn off and Delete when the server no longer offers accounts', () => {
+  it('offers Turn off, Move and Delete when the server no longer offers accounts', () => {
     show(state({ available: false, repo: activeRepo }))
     expectNoteOutsideFrame(
-      'This server no longer offers Bluesky accounts to this profile. You can still turn yours off or delete it.'
+      'This server no longer offers Bluesky accounts to this profile. You can still turn yours off, move it to another server, or delete it.'
     )
     expect(screen.getByRole('button', { name: 'Turn off' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Move to another server' })
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Delete account' })
     ).toBeInTheDocument()
@@ -453,7 +456,9 @@ describe('HostedBlueskyForm', () => {
     stage
   })
 
-  it('shows a failed start next to the move form', async () => {
+  it('shows a failed start above the move form and scrolls it into view', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
     vi.mocked(startHostedBlueskyMoveOut).mockRejectedValue(
       new Error('Could not reach the destination server.')
     )
@@ -475,10 +480,12 @@ describe('HostedBlueskyForm', () => {
     const alert = await screen.findByText(
       'Could not reach the destination server.'
     )
-    // After the form's button in the page, where the owner is looking.
+    // Above the form's own button, where the owner is looking.
     expect(
-      start.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING
+      alert.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
   })
 
   it('posts the start body and never renders the new password', async () => {
@@ -544,10 +551,23 @@ describe('HostedBlueskyForm', () => {
       expect(copyHostedBlueskyMoveOutPreferences).toHaveBeenCalled()
     )
     expect(sendHostedBlueskyMoveOutRepo).toHaveBeenCalledTimes(1)
-    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(1, {})
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(1, {
+      limit: 100
+    })
     expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(2, {
+      limit: 100,
       cursor: 'c1'
     })
+    // The steps run in order: repo, then every blob page, then preferences.
+    const repoOrder = vi.mocked(sendHostedBlueskyMoveOutRepo).mock
+      .invocationCallOrder[0]
+    const blobOrders = vi.mocked(copyHostedBlueskyMoveOutBlobs).mock
+      .invocationCallOrder
+    const preferencesOrder = vi.mocked(copyHostedBlueskyMoveOutPreferences).mock
+      .invocationCallOrder[0]
+    expect(repoOrder).toBeLessThan(blobOrders[0])
+    expect(blobOrders[0]).toBeLessThan(blobOrders[1])
+    expect(blobOrders[1]).toBeLessThan(preferencesOrder)
     expect(
       await screen.findByText('Images and videos: 3 copied')
     ).toBeInTheDocument()
@@ -578,6 +598,98 @@ describe('HostedBlueskyForm', () => {
     )
     expect(sendHostedBlueskyMoveOutRepo).toHaveBeenCalledTimes(1)
     expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(2)
+  })
+
+  it('warns about blobs that could not be copied and still offers the switch', async () => {
+    vi.mocked(copyHostedBlueskyMoveOutBlobs).mockResolvedValueOnce({
+      copied: 1,
+      failed: [{ cid: 'bafy1', reason: 'Blob not found on this server.' }],
+      cursor: null,
+      done: true
+    })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    expect(
+      await screen.findByText(
+        "1 images or videos couldn't be copied to bsky.social."
+      )
+    ).toBeInTheDocument()
+    // The step is not ticked, but the settings still copy.
+    expect(
+      screen.queryByText('Images and videos: 2 copied')
+    ).not.toBeInTheDocument()
+    expect(copyHostedBlueskyMoveOutPreferences).toHaveBeenCalled()
+    // The switch stays available and its dialog warns about the missing files.
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Switch to bsky.social' })
+    )
+    const dialog = screen.getByRole('dialog')
+    expect(
+      within(dialog).getByText(
+        /1 images or videos will be missing on bsky\.social\./
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('retries the failed blobs from no cursor', async () => {
+    vi.mocked(copyHostedBlueskyMoveOutBlobs)
+      .mockResolvedValueOnce({
+        copied: 0,
+        failed: [{ cid: 'bafy1', reason: 'Blob not found on this server.' }],
+        cursor: null,
+        done: true
+      })
+      .mockResolvedValueOnce({
+        copied: 1,
+        failed: [],
+        cursor: null,
+        done: true
+      })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    fireEvent.click(retry)
+    await waitFor(() =>
+      expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(2)
+    )
+    // The retry starts the blob step over, without the old cursor.
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(2, {
+      limit: 100
+    })
+    expect(
+      await screen.findByText('Images and videos: 1 copied')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/couldn't be copied to bsky\.social/)
+    ).not.toBeInTheDocument()
+  })
+
+  it('stops when the destination stops making progress', async () => {
+    vi.mocked(copyHostedBlueskyMoveOutBlobs).mockResolvedValue({
+      copied: 0,
+      failed: [],
+      cursor: 'same',
+      done: false
+    })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    expect(
+      await screen.findByText(
+        'The destination server stopped making progress. Try again.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('stops after too many blob pages', async () => {
+    let page = 0
+    vi.mocked(copyHostedBlueskyMoveOutBlobs).mockImplementation(async () => {
+      page += 1
+      return { copied: 0, failed: [], cursor: `c${page}`, done: false }
+    })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    expect(
+      await screen.findByText(
+        'Copying images and videos took too many steps. Try again.'
+      )
+    ).toBeInTheDocument()
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(100)
   })
 
   it('switches only after the current password', async () => {
@@ -681,8 +793,12 @@ describe('HostedBlueskyForm', () => {
     expect(
       screen.getByRole('heading', { name: 'Delete the copy left here?' })
     ).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
     expect(
-      screen.getByText(/The account on bsky\.social is not affected/)
-    ).toHaveTextContent(`Type ${activeRepo.handle} to confirm.`)
+      within(dialog).getByText(/The account on bsky\.social is not affected/)
+    ).toBeInTheDocument()
+    // The switch cleared the handle here, so there is nothing to type back.
+    expect(within(dialog).queryByLabelText('Handle')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText(/to confirm/)).not.toBeInTheDocument()
   })
 })

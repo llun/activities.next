@@ -13,6 +13,7 @@ import {
   startBlueskyOAuth,
   unlinkBluesky
 } from '@/lib/services/bluesky/account'
+import { writeStoredBlueskySession } from '@/lib/services/bluesky/client'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import {
   resetServedDomainsForTests,
@@ -31,6 +32,7 @@ import {
   setHostedBlueskyRecoveryKey
 } from './accounts'
 import { deletePdsBlobFilesBestEffort } from './blobStorage'
+import { PdsAccountMovedError, PdsMoveOutPendingError } from './errors'
 import { decodePdsEvent } from './events'
 import { withPdsRepoLock } from './lock'
 import {
@@ -129,7 +131,9 @@ const ALLOWED_USERNAMES = [
   'hosted-row-flipfail',
   'hosted-row-race',
   'hosted-row-relinked',
-  'hosted-row-recreated'
+  'hosted-row-recreated',
+  'hosted-moved-guard',
+  'hosted-move-pending'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -1995,6 +1999,87 @@ describe('hosted Bluesky accounts', () => {
       expect(
         await database.getBlueskyAccount({ actorId: actor.id })
       ).toMatchObject({ did: state.repo!.did, authType: 'hosted' })
+    })
+  })
+
+  describe('move guards', () => {
+    const movedOperation = JSON.stringify({
+      type: 'plc_operation',
+      services: {
+        atproto_pds: {
+          type: 'AtprotoPersonalDataServer',
+          endpoint: 'https://dest.pds.example'
+        }
+      }
+    })
+
+    it('refuses deactivate, handle change and recovery key changes on a moved repo', async () => {
+      const actor = await createActor('hosted-moved-guard')
+      const handle = pdsHandle('hosted-moved-guard')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      await database.updatePdsRepoIdentity({
+        did: state.repo!.did,
+        plcOperation: movedOperation
+      })
+
+      await expect(
+        deactivateHostedBlueskyAccount({ database, actor })
+      ).rejects.toBeInstanceOf(PdsAccountMovedError)
+      await expect(
+        changeHostedBlueskyHandle({ database, actor, handle })
+      ).rejects.toBeInstanceOf(PdsAccountMovedError)
+      await expect(
+        setHostedBlueskyRecoveryKey({
+          database,
+          actor,
+          recoveryKeyDid: null
+        })
+      ).rejects.toBeInstanceOf(PdsAccountMovedError)
+    })
+
+    it('refuses deactivate, handle change, recovery key and delete while a move is stored', async () => {
+      const actor = await createActor('hosted-move-pending')
+      const handle = pdsHandle('hosted-move-pending')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      await writeStoredBlueskySession(database, state.repo!.did, {
+        type: 'move-out',
+        pdsUrl: 'https://dest.pds.example',
+        destDid: 'did:web:dest.pds.example',
+        handle: 'alice.dest.pds.example',
+        accessJwt: 'a',
+        refreshJwt: 'r',
+        importedRev: null,
+        switchedAt: null
+      })
+
+      await expect(
+        deactivateHostedBlueskyAccount({ database, actor })
+      ).rejects.toBeInstanceOf(PdsMoveOutPendingError)
+      await expect(
+        changeHostedBlueskyHandle({
+          database,
+          actor,
+          handle: `${handle}-x`
+        })
+      ).rejects.toBeInstanceOf(PdsMoveOutPendingError)
+      await expect(
+        setHostedBlueskyRecoveryKey({
+          database,
+          actor,
+          recoveryKeyDid: null
+        })
+      ).rejects.toBeInstanceOf(PdsMoveOutPendingError)
+      await expect(
+        deleteHostedBlueskyAccount({ database, actor, confirmHandle: handle })
+      ).rejects.toBeInstanceOf(PdsMoveOutPendingError)
     })
   })
 })

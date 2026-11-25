@@ -736,6 +736,9 @@ export const listPdsEvents = async (
         .where((eb) =>
           eb.or([
             eb('pds_events.type', '=', 'account'),
+            // A move out turns the repo deactivated and emits `#identity` as it
+            // goes, so identity events must stream for a non-active repo too.
+            eb('pds_events.type', '=', 'identity'),
             eb.and([
               eb('pds_repos.status', '=', 'active'),
               eb('actors.id', 'is not', null),

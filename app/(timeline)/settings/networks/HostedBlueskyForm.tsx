@@ -60,6 +60,9 @@ interface CopyState {
   preferences: boolean
   copied: number
   expected: number | null
+  // Blobs the destination refused or this server could not read. They stay
+  // missing unless the owner retries, so the switch warns about them.
+  failed: number
   running: boolean
   error: string
   failedStep: CopyStep | null
@@ -71,10 +74,16 @@ const initialCopy: CopyState = {
   preferences: false,
   copied: 0,
   expected: null,
+  failed: 0,
   running: false,
   error: '',
   failedStep: null
 }
+
+// The route caps a blob page at 100; 100 pages is 10,000 blobs, past which the
+// copy stops with an error rather than looping.
+const BLOB_PAGE_LIMIT = 100
+const MAX_BLOB_PAGES = 100
 
 const copyStepLabel: Record<CopyStep, string> = {
   repo: 'posts and follows',
@@ -123,6 +132,7 @@ export const HostedBlueskyForm = ({
   const copyRef = useRef<CopyState>(initialCopy)
   const cursorRef = useRef<string | undefined>(undefined)
   const autoStartedRef = useRef(false)
+  const moveErrorRef = useRef<HTMLDivElement>(null)
   const [switchOpen, setSwitchOpen] = useState(false)
   const [switchPassword, setSwitchPassword] = useState('')
   const [switchError, setSwitchError] = useState('')
@@ -215,7 +225,12 @@ export const HostedBlueskyForm = ({
     setBusy('delete')
     setDeleteError('')
     try {
-      applyState(await deleteHostedBlueskyAccount(confirmHandle))
+      // A moved copy has no handle here, so there is nothing to type back.
+      applyState(
+        await deleteHostedBlueskyAccount(
+          state.movedTo !== null ? '' : confirmHandle
+        )
+      )
       closeDelete()
       setEditingHandle(false)
       setRecoveryKey('')
@@ -261,15 +276,38 @@ export const HostedBlueskyForm = ({
       }
       if (!copyRef.current.blobs) {
         let done = false
+        let pages = 0
+        let failed = 0
         while (!done) {
-          const result = await copyHostedBlueskyMoveOutBlobs(
-            cursorRef.current ? { cursor: cursorRef.current } : {}
-          )
+          if (pages >= MAX_BLOB_PAGES) {
+            throw new Error(
+              'Copying images and videos took too many steps. Try again.'
+            )
+          }
+          const previousCursor = cursorRef.current
+          const result = await copyHostedBlueskyMoveOutBlobs({
+            limit: BLOB_PAGE_LIMIT,
+            ...(cursorRef.current ? { cursor: cursorRef.current } : {})
+          })
+          pages += 1
+          failed += result.failed.length
           cursorRef.current = result.cursor ?? undefined
           done = result.done
           updateCopy({ copied: copyRef.current.copied + result.copied })
+          // A server that keeps answering the same page must not loop forever.
+          if (!done && result.cursor === previousCursor) {
+            throw new Error(
+              'The destination server stopped making progress. Try again.'
+            )
+          }
         }
-        updateCopy({ blobs: true })
+        // A batch that failed leaves blobs missing, so the step is not ticked;
+        // the switch stays available and warns about what will be missing.
+        if (failed > 0) {
+          updateCopy({ failed })
+        } else {
+          updateCopy({ blobs: true })
+        }
       }
       if (!copyRef.current.preferences) {
         await copyHostedBlueskyMoveOutPreferences()
@@ -284,6 +322,14 @@ export const HostedBlueskyForm = ({
           : 'preferences'
       updateCopy({ running: false, error: errorMessage(error), failedStep })
     }
+  }
+
+  // Restarts the blob step from no cursor, so a retry re-lists every missing
+  // blob rather than resuming a cursor the destination may have dropped.
+  const retryBlobs = () => {
+    cursorRef.current = undefined
+    updateCopy({ failed: 0 })
+    void runCopy()
   }
 
   const moveStage = state.moveOut?.stage ?? null
@@ -340,6 +386,14 @@ export const HostedBlueskyForm = ({
       setStatus(`Moved to ${result.movedTo}.`)
     } catch (error) {
       setSwitchError(errorMessage(error))
+      // A failed finish may have switched the identity before failing, so read
+      // the state back rather than leaving the panel on the old stage.
+      try {
+        const { state: next } = await getHostedBlueskyMoveOut()
+        applyState(next)
+      } catch {
+        // The reload is best effort; the error above already says what failed.
+      }
     } finally {
       setBusy(null)
     }
@@ -361,6 +415,14 @@ export const HostedBlueskyForm = ({
   const moving = state.moveOut !== null
   const moveHost = state.moveOut ? hostOf(state.moveOut.pdsUrl) : null
 
+  // The start-move error sits above the form; bring it into view when it lands
+  // so the owner sees why the button did nothing.
+  useEffect(() => {
+    if (moveFormOpen && !moving && !moved && error) {
+      moveErrorRef.current?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [error, moveFormOpen, moving, moved])
+
   const info = (title: string) => <Alert tone="info" title={title} />
 
   const deleteButton = (
@@ -376,7 +438,10 @@ export const HostedBlueskyForm = ({
     </Button>
   )
 
-  const copyComplete = copy.repo && copy.blobs && copy.preferences
+  // The switch is offered once the repo and settings are copied and the media
+  // is either copied or known to be missing (the dialog warns about those).
+  const copyComplete =
+    copy.repo && copy.preferences && (copy.blobs || copy.failed > 0)
 
   const copyChecklist = (
     <ul className="space-y-1.5 text-sm">
@@ -504,10 +569,10 @@ export const HostedBlueskyForm = ({
       <>
         {limited
           ? info(
-              'This server no longer offers Bluesky accounts to this profile. You can still turn yours off or delete it.'
+              'This server no longer offers Bluesky accounts to this profile. You can still turn yours off, move it to another server, or delete it.'
             )
           : null}
-        {moved
+        {moved && !moving
           ? info(
               `This account now lives on ${state.movedTo}. Link it again under “Your Bluesky account” to keep posting from here.`
             )
@@ -637,7 +702,7 @@ export const HostedBlueskyForm = ({
           ) : null}
           <FormRow label="Account">
             <div className="flex flex-wrap items-center gap-2">
-              {moved ? (
+              {moved && !moving ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -670,7 +735,7 @@ export const HostedBlueskyForm = ({
                           : 'Turn on'}
                     </Button>
                   ) : null}
-                  {active && !limited ? (
+                  {active ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -707,6 +772,25 @@ export const HostedBlueskyForm = ({
                 {copy.failedStep
                   ? `Stopped while copying ${copyStepLabel[copy.failedStep]}.`
                   : null}
+              </Alert>
+            ) : null}
+            {copy.failed > 0 ? (
+              <Alert
+                tone="warning"
+                title={`${copy.failed} images or videos couldn't be copied to ${moveHost}.`}
+                action={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={copy.running}
+                    onClick={retryBlobs}
+                  >
+                    Try again
+                  </Button>
+                }
+              >
+                You can still switch; those files will be missing on {moveHost}.
               </Alert>
             ) : null}
             <Frame form>
@@ -766,6 +850,11 @@ export const HostedBlueskyForm = ({
               )}
             </Frame>
           </>
+        ) : null}
+        {moveFormOpen && !moving && !moved && error ? (
+          <div ref={moveErrorRef}>
+            <Alert title={error} />
+          </div>
         ) : null}
         {moveFormOpen && !moving && !moved ? (
           <Frame form>
@@ -875,10 +964,6 @@ export const HostedBlueskyForm = ({
             </form>
           </Frame>
         ) : null}
-        {/* Shown by the form's own button, not scrolled away at the top. */}
-        {moveFormOpen && !moving && !moved && error ? (
-          <Alert title={error} />
-        ) : null}
       </>
     )
   })()
@@ -973,6 +1058,9 @@ export const HostedBlueskyForm = ({
             <DialogDescription>
               After this, only {moveHost} can change your Bluesky identity. Your
               recovery key stays. Enter your current password to confirm.
+              {copy.failed > 0
+                ? ` ${copy.failed} images or videos will be missing on ${moveHost}.`
+                : null}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -1038,25 +1126,27 @@ export const HostedBlueskyForm = ({
             </DialogTitle>
             <DialogDescription>
               {moved
-                ? `This removes the old copy of the posts from this server. The account on ${state.movedTo} is not affected. Type ${state.repo?.handle ?? 'the old handle'} to confirm.`
+                ? `This removes the old copy of the posts from this server. The account on ${state.movedTo} is not affected.`
                 : 'This removes the account’s posts and its handle from this server. Type the handle to confirm.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <FormRow
-              stacked
-              className="p-0"
-              label="Handle"
-              htmlFor="hosted-bluesky-confirm-handle"
-            >
-              <Input
-                id="hosted-bluesky-confirm-handle"
-                autoCapitalize="none"
-                spellCheck={false}
-                value={confirmHandle}
-                onChange={(event) => setConfirmHandle(event.target.value)}
-              />
-            </FormRow>
+            {moved ? null : (
+              <FormRow
+                stacked
+                className="p-0"
+                label="Handle"
+                htmlFor="hosted-bluesky-confirm-handle"
+              >
+                <Input
+                  id="hosted-bluesky-confirm-handle"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={confirmHandle}
+                  onChange={(event) => setConfirmHandle(event.target.value)}
+                />
+              </FormRow>
+            )}
             {deleteError ? <Alert title={deleteError} /> : null}
           </div>
           <DialogFooter separated>

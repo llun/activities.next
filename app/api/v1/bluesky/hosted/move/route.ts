@@ -12,6 +12,7 @@ import {
   startMoveOut
 } from '@/lib/services/pds/moveOut'
 import {
+  MOVE_ERROR_STATUSES,
   checkCurrentPassword,
   hostedBlueskyRouteResponse
 } from '@/lib/services/pds/routeResponse'
@@ -59,17 +60,22 @@ const NO_PASSWORD_MOVE_MESSAGE =
 export const GET = traceApiRoute(
   'getHostedBlueskyMoveOut',
   AuthenticatedGuard(async (req, { currentActor, database }) =>
-    hostedBlueskyRouteResponse(req, METHODS, async () => {
-      const progress = await getMoveOutProgress({
-        database,
-        actor: currentActor
-      })
-      const state = await getHostedBlueskyAccountState({
-        database,
-        actor: currentActor
-      })
-      return { progress, state }
-    })
+    hostedBlueskyRouteResponse(
+      req,
+      METHODS,
+      async () => {
+        const progress = await getMoveOutProgress({
+          database,
+          actor: currentActor
+        })
+        const state = await getHostedBlueskyAccountState({
+          database,
+          actor: currentActor
+        })
+        return { progress, state }
+      },
+      { errorStatuses: MOVE_ERROR_STATUSES }
+    )
   )
 )
 
@@ -91,53 +97,62 @@ export const POST = traceApiRoute(
     }
 
     const input = parsed.data
-    return hostedBlueskyRouteResponse(req, METHODS, () => {
-      switch (input.step) {
-        case 'start':
-          return startMoveOut({
-            database,
-            actor: currentActor,
-            pdsUrl: input.pdsUrl,
-            handle: input.handle,
-            email: input.email,
-            password: input.password,
-            inviteCode: input.inviteCode
-          })
-        case 'repo':
-          return sendMoveOutRepo({
-            database,
-            actor: currentActor
-          })
-        case 'blobs':
-          return copyMoveOutBlobs({
-            database,
-            actor: currentActor,
-            cursor: input.cursor,
-            limit: input.limit
-          })
-        case 'preferences':
-          return copyMoveOutPreferences({
-            database,
-            actor: currentActor
-          })
-        case 'finish':
-          return finishMoveOut({
-            database,
-            actor: currentActor
-          })
-      }
-    })
+    return hostedBlueskyRouteResponse(
+      req,
+      METHODS,
+      () => {
+        switch (input.step) {
+          case 'start':
+            return startMoveOut({
+              database,
+              actor: currentActor,
+              pdsUrl: input.pdsUrl,
+              handle: input.handle,
+              email: input.email,
+              password: input.password,
+              inviteCode: input.inviteCode
+            })
+          case 'repo':
+            return sendMoveOutRepo({
+              database,
+              actor: currentActor
+            })
+          case 'blobs':
+            return copyMoveOutBlobs({
+              database,
+              actor: currentActor,
+              cursor: input.cursor,
+              limit: input.limit
+            })
+          case 'preferences':
+            return copyMoveOutPreferences({
+              database,
+              actor: currentActor
+            })
+          case 'finish':
+            return finishMoveOut({
+              database,
+              actor: currentActor
+            })
+        }
+      },
+      { errorStatuses: MOVE_ERROR_STATUSES }
+    )
   })
 )
 
 export const DELETE = traceApiRoute(
   'cancelHostedBlueskyMoveOut',
   AuthenticatedGuard(async (req, { currentActor, database }) =>
-    hostedBlueskyRouteResponse(req, METHODS, () =>
-      cancelMoveOut({
-        database,
-        actor: currentActor
-      })
+    hostedBlueskyRouteResponse(
+      req,
+      METHODS,
+      () =>
+        cancelMoveOut({
+          database,
+          actor: currentActor
+        }),
+      { errorStatuses: MOVE_ERROR_STATUSES }
     )
   )
 )

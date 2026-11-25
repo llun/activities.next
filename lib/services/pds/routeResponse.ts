@@ -16,14 +16,18 @@ import { PdsError } from './errors'
 import { PlcDirectoryError } from './plc'
 
 // The statuses a hosted-account action may answer with. A PdsError carries its
-// own; anything else (e.g. a 404) is reported as 422 so the card shows the
-// message rather than a generic failure.
-const HOSTED_ERROR_STATUSES = new Set<number>([400, 403, 409, 422, 429, 502])
+// own; anything else (a 400 validation, a 404) is reported as 422 so the card
+// shows the message rather than a generic failure.
+const HOSTED_ERROR_STATUSES = new Set<number>([403, 409, 422, 429])
 
-const hostedErrorStatus = (error: PdsError): StatusCode =>
-  HOSTED_ERROR_STATUSES.has(error.statusCode)
-    ? (error.statusCode as StatusCode)
-    : 422
+// The move route keeps a 400 (a bad destination URL) and a 502 (the
+// destination server refused or could not be reached) as they are.
+export const MOVE_ERROR_STATUSES = new Set<number>([
+  400, 403, 409, 422, 429, 502
+])
+
+const errorStatus = (error: PdsError, statuses: Set<number>): StatusCode =>
+  statuses.has(error.statusCode) ? (error.statusCode as StatusCode) : 422
 
 const forbidden = (
   req: NextRequest,
@@ -73,7 +77,10 @@ export const checkCurrentPassword = async (
 export const hostedBlueskyRouteResponse = async (
   req: NextRequest,
   allowedMethods: HttpMethod[],
-  action: () => Promise<unknown>
+  action: () => Promise<unknown>,
+  {
+    errorStatuses = HOSTED_ERROR_STATUSES
+  }: { errorStatuses?: Set<number> } = {}
 ) => {
   try {
     return apiResponse({ req, allowedMethods, data: await action() })
@@ -97,7 +104,7 @@ export const hostedBlueskyRouteResponse = async (
         req,
         allowedMethods,
         data: { error: error.message },
-        responseStatusCode: hostedErrorStatus(error)
+        responseStatusCode: errorStatus(error, errorStatuses)
       })
     }
     logger.error({

@@ -16,7 +16,8 @@ import {
   PdsHostedAccountExistsError,
   PdsHostedRateLimitedError,
   PdsNotAllowedError,
-  PdsRotationKeyMissingError
+  PdsRotationKeyMissingError,
+  PdsValidationError
 } from '@/lib/services/pds/errors'
 import { PlcDirectoryError } from '@/lib/services/pds/plc'
 import type { HostedBlueskyAccountState } from '@/lib/utils/blueskyHosted'
@@ -348,6 +349,19 @@ describe('/api/v1/bluesky/hosted', () => {
     })
     expect(missingKey.status).toBe(422)
     expect(await missingKey.json()).toMatchObject({ error: expect.any(String) })
+  })
+
+  it('answers an invalid handle as 422, as on origin/main', async () => {
+    vi.mocked(createHostedBlueskyAccount).mockRejectedValue(
+      new PdsValidationError('Enter a valid handle, like alice.example.com.')
+    )
+
+    const response = await call('POST', { handle: 'not a handle' })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({
+      error: 'Enter a valid handle, like alice.example.com.'
+    })
   })
 
   it('answers 502 when the PLC directory fails', async () => {

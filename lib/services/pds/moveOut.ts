@@ -2,24 +2,22 @@ import { parseDidKey } from '@atproto/crypto'
 import { isValidDid, isValidHandle, normalizeHandle } from '@atproto/syntax'
 import type { Readable } from 'node:stream'
 
-import { getPdsConfig } from '@/lib/config/blueskyPds'
+import { getPdsConfig, toWebDid } from '@/lib/config/blueskyPds'
 import type { Database } from '@/lib/database/types'
 import { readXrpcError } from '@/lib/services/bluesky/agent'
-import {
-  type StoredBlueskyMoveOutSession,
-  deleteStoredBlueskySession,
-  readStoredBlueskySession,
-  writeStoredBlueskySession
-} from '@/lib/services/bluesky/client'
+import type { StoredBlueskyMoveOutSession } from '@/lib/services/bluesky/client'
+import { writeStoredBlueskySession } from '@/lib/services/bluesky/client'
 import type { Actor } from '@/lib/types/domain/actor'
 import type {
   HostedBlueskyAccountState,
   HostedBlueskyMoveOutSummary
 } from '@/lib/utils/blueskyHosted'
+import { logger } from '@/lib/utils/logger'
 import {
   SafeRemoteFetchError,
   safeRemoteFetch
 } from '@/lib/utils/safeRemoteFetch'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import {
   getHostedBlueskyAccountState,
@@ -46,6 +44,17 @@ import {
 import { formatPdsAccountEvent, formatPdsIdentityEvent } from './events'
 import { loadPdsSigningKey } from './keys'
 import { withPdsRepoLock } from './lock'
+import {
+  DEFAULT_BLOB_BATCH_LIMIT,
+  MAX_BLOB_BATCH_LIMIT,
+  MOVE_LOCK_MS,
+  MOVE_REFRESH_LOCK_MS,
+  REMOTE_JSON_TIMEOUT_MS,
+  REMOTE_UPLOAD_TIMEOUT_MS,
+  deleteMoveOutSession,
+  readMoveOutSession,
+  updateMoveOutSession
+} from './moveSession'
 import { getMovedToHost, isPlcOperationPointingTo } from './moved'
 import {
   PLC_DIRECTORY_TIMEOUT_MS,
@@ -56,7 +65,7 @@ import {
   submitPlcOperation
 } from './plc'
 import { consumeHostedBlueskyRateLimit } from './rateLimit'
-import { getPdsRepoCar } from './reads'
+import { assertPdsDomainEnabled, getPdsRepoCar } from './reads'
 import { createServiceAuthToken } from './serviceAuth'
 import { XRPC_CAR_CONTENT_TYPE } from './xrpc'
 
@@ -67,17 +76,22 @@ import { XRPC_CAR_CONTENT_TYPE } from './xrpc'
 // password is sent only to `com.atproto.server.createAccount` and never
 // stored, logged, or echoed in errors.
 
-const REMOTE_JSON_TIMEOUT_MS = 30_000
-const REMOTE_UPLOAD_TIMEOUT_MS = 60_000
-const REMOTE_MAX_BODY_BYTES = 2 * 1024 * 1024
-const MOVE_LOCK_MS = REMOTE_UPLOAD_TIMEOUT_MS + 30_000
+// Covers the finish sequence's network calls: the PLC read and submit, the
+// recommended credentials, the repo re-send, one blob page and the activate.
 const FINISH_LOCK_MS =
-  PLC_DIRECTORY_TIMEOUT_MS + REMOTE_UPLOAD_TIMEOUT_MS + 30_000
-const DEFAULT_BLOB_BATCH_LIMIT = 20
-const MAX_BLOB_BATCH_LIMIT = 100
+  PLC_DIRECTORY_TIMEOUT_MS +
+  REMOTE_JSON_TIMEOUT_MS +
+  REMOTE_UPLOAD_TIMEOUT_MS +
+  REMOTE_JSON_TIMEOUT_MS +
+  REMOTE_UPLOAD_TIMEOUT_MS +
+  REMOTE_JSON_TIMEOUT_MS +
+  30_000
+const REMOTE_MAX_BODY_BYTES = 2 * 1024 * 1024
+const MAX_BLOB_PAGES = 100
 const MAX_PLC_ROTATION_KEYS = 5
 const MAX_REMOTE_ERROR_CODE_LENGTH = 80
 const MAX_REMOTE_ERROR_MESSAGE_LENGTH = 200
+const MAX_CID_LENGTH = 200
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -225,30 +239,6 @@ const toMoveSummary = (
   stage: session.switchedAt !== null ? 'switched' : 'started'
 })
 
-const readMoveOutSession = async (
-  database: Database,
-  did: string
-): Promise<StoredBlueskyMoveOutSession | null> => {
-  const stored = await readStoredBlueskySession(database, did)
-  return stored?.type === 'move-out' ? stored : null
-}
-
-const updateMoveOutSession = async (
-  database: Database,
-  did: string,
-  patch: Partial<Omit<StoredBlueskyMoveOutSession, 'type'>>
-): Promise<StoredBlueskyMoveOutSession> => {
-  const current = await readMoveOutSession(database, did)
-  if (!current) throw new PdsMoveOutNotFoundError()
-  const next: StoredBlueskyMoveOutSession = {
-    ...current,
-    ...patch,
-    type: 'move-out'
-  }
-  await writeStoredBlueskySession(database, did, next)
-  return next
-}
-
 const buildRemoteError = (
   nsid: string,
   statusCode: number,
@@ -386,45 +376,55 @@ const refreshMoveOutTokens = async (
   did: string,
   staleAccessJwt: string
 ): Promise<StoredBlueskyMoveOutSession> =>
-  withPdsRepoLock(database, `move-refresh:${did}`, async () => {
-    const current = await readMoveOutSession(database, did)
-    if (!current) throw new PdsMoveOutNotFoundError()
-    if (current.accessJwt !== staleAccessJwt) return current
+  withPdsRepoLock(
+    database,
+    `move-refresh:${did}`,
+    async () => {
+      const current = await readMoveOutSession(database, did)
+      if (!current) throw new PdsMoveOutNotFoundError()
+      if (current.accessJwt !== staleAccessJwt) return current
 
-    const nsid = 'com.atproto.server.refreshSession'
-    const response = await fetchDestination({
-      origin: current.pdsUrl,
-      nsid,
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${current.refreshJwt}`
+      const nsid = 'com.atproto.server.refreshSession'
+      const response = await fetchDestination({
+        origin: current.pdsUrl,
+        nsid,
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${current.refreshJwt}`
+        }
+      })
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw buildRemoteError(nsid, response.statusCode, response.body)
       }
-    })
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw buildRemoteError(nsid, response.statusCode, response.body)
-    }
-    const parsed = parseJsonBody(nsid, response.body)
-    if (
-      !isRecord(parsed) ||
-      typeof parsed.accessJwt !== 'string' ||
-      !parsed.accessJwt ||
-      typeof parsed.refreshJwt !== 'string' ||
-      !parsed.refreshJwt ||
-      (parsed.did !== undefined && parsed.did !== did)
-    ) {
-      throw new PdsMoveOutRemoteError(
-        'Destination server returned invalid tokens when refreshing the move session.'
-      )
-    }
-    const next: StoredBlueskyMoveOutSession = {
-      ...current,
-      accessJwt: parsed.accessJwt,
-      refreshJwt: parsed.refreshJwt
-    }
-    await writeStoredBlueskySession(database, did, next)
-    return next
-  })
+      const parsed = parseJsonBody(nsid, response.body)
+      if (
+        !isRecord(parsed) ||
+        typeof parsed.accessJwt !== 'string' ||
+        !parsed.accessJwt ||
+        typeof parsed.refreshJwt !== 'string' ||
+        !parsed.refreshJwt ||
+        (parsed.did !== undefined && parsed.did !== did)
+      ) {
+        throw new PdsMoveOutRemoteError(
+          'Destination server returned invalid tokens when refreshing the move session.'
+        )
+      }
+      // Write only if the row is still the move-out session this refresh used:
+      // a cancel that landed meanwhile must not be undone.
+      const latest = await readMoveOutSession(database, did)
+      if (!latest) throw new PdsMoveOutNotFoundError()
+      if (latest.refreshJwt !== current.refreshJwt) return latest
+      const next: StoredBlueskyMoveOutSession = {
+        ...latest,
+        accessJwt: parsed.accessJwt,
+        refreshJwt: parsed.refreshJwt
+      }
+      await writeStoredBlueskySession(database, did, next)
+      return next
+    },
+    { ttlMs: MOVE_REFRESH_LOCK_MS, waitMs: MOVE_REFRESH_LOCK_MS }
+  )
 
 const requestWithMoveAuth = async ({
   database,
@@ -506,7 +506,12 @@ const exportRepoCarSnapshot = async (
     if (!current || current.status === 'deleted') {
       throw new PdsHostedAccountNotFoundError()
     }
-    const carBytes = await getPdsRepoCar(database, { did })
+    // A deactivated repo still exports: the switch deactivates it here before
+    // the final re-send.
+    const carBytes = await getPdsRepoCar(database, {
+      did,
+      allowUnavailable: true
+    })
     return { rev: current.rev, carBytes }
   })
 
@@ -520,7 +525,7 @@ const uploadRepoCar = async (
   session: StoredBlueskyMoveOutSession
 }> => {
   const { rev, carBytes } = await exportRepoCarSnapshot(database, did)
-  const { session: latestSession } = await requestWithMoveAuth({
+  await requestWithMoveAuth({
     database,
     did,
     session,
@@ -531,8 +536,6 @@ const uploadRepoCar = async (
     timeoutMs: REMOTE_UPLOAD_TIMEOUT_MS
   })
   const persisted = await updateMoveOutSession(database, did, {
-    accessJwt: latestSession.accessJwt,
-    refreshJwt: latestSession.refreshJwt,
     importedRev: rev
   })
   return { importedRev: rev, bytes: carBytes.byteLength, session: persisted }
@@ -654,12 +657,18 @@ const validateRecommendedDidCredentials = (
   }
 }
 
+/**
+ * The next rotation keys: the directory's last operation's keys except this
+ * server's, in their order, then the destination's recommended keys, deduped
+ * and capped. The owner's recovery key is whatever the directory already
+ * lists first, so it stays first without being read from `pds_repos`.
+ */
 const buildNextRotationKeys = ({
-  recoveryKeyDid,
+  lastRotationKeys,
   recommendedRotationKeys,
   serverRotationKeyDid
 }: {
-  recoveryKeyDid: string | null
+  lastRotationKeys: string[]
   recommendedRotationKeys: string[]
   serverRotationKeyDid: string
 }): string[] => {
@@ -670,12 +679,8 @@ const buildNextRotationKeys = ({
     seen.add(key)
     result.push(key)
   }
-  if (recoveryKeyDid) {
-    add(recoveryKeyDid)
-  }
-  for (const key of recommendedRotationKeys) {
-    add(key)
-  }
+  for (const key of lastRotationKeys) add(key)
+  for (const key of recommendedRotationKeys) add(key)
   if (result.length === 0) {
     throw new PdsMoveOutInvalidCredentialsError(
       'Destination server credentials did not provide a usable rotation key.'
@@ -733,6 +738,7 @@ export const startMoveOut = async ({
     async () => {
       const repo = await requireHostedRepo(database, actor)
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
+      assertPdsDomainEnabled(repo.domain)
       const movedTo = getMovedToHost(repo)
       if (movedTo) throw new PdsAccountMovedError(movedTo)
       if (resolveEffectivePdsRepoStatus(repo, actor) !== 'active') {
@@ -778,6 +784,15 @@ export const startMoveOut = async ({
       ) {
         throw new PdsMoveOutInvalidServerUrlError(
           'Choose a different Bluesky server than this one.'
+        )
+      }
+      // The service-auth token is addressed to the DID the destination claims.
+      // A hostile host could claim another PDS's DID and replay the token
+      // there, so the DID must be the one its own hostname answers as.
+      const destinationHost = new URL(normalizedPdsUrl).host
+      if (destDid !== toWebDid(destinationHost)) {
+        throw new PdsMoveOutRemoteError(
+          `That server didn't identify itself as ${destinationHost}.`
         )
       }
 
@@ -837,17 +852,22 @@ export const startMoveOut = async ({
           'Destination server returned an invalid account creation response.'
         )
       }
-
-      const createdHandle =
-        typeof created.handle === 'string' && isValidHandle(created.handle)
-          ? normalizeHandle(created.handle)
-          : normalizedHandle
+      // The account must answer the handle the owner typed; a different one
+      // would leave the move pointing at a handle they did not choose.
+      if (
+        typeof created.handle === 'string' &&
+        normalizeHandle(created.handle) !== normalizedHandle
+      ) {
+        throw new PdsMoveOutRemoteError(
+          'The destination server created the account with a different handle.'
+        )
+      }
 
       const session: StoredBlueskyMoveOutSession = {
         type: 'move-out',
         pdsUrl: normalizedPdsUrl,
         destDid,
-        handle: createdHandle,
+        handle: normalizedHandle,
         accessJwt: created.accessJwt,
         refreshJwt: created.refreshJwt,
         importedRev: null,
@@ -897,6 +917,8 @@ export const sendMoveOutRepo = async ({
           'Turn the Bluesky account on before copying its repository.'
         )
       }
+      assertPdsDomainEnabled(repo.domain)
+      await requireRotationKeypair()
       const { importedRev, bytes } = await uploadRepoCar(
         database,
         repo.did,
@@ -906,6 +928,108 @@ export const sendMoveOutRepo = async ({
     },
     { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_MS }
   )
+
+type BlobBatchResult = CopyMoveOutBlobsResult & {
+  session: StoredBlueskyMoveOutSession
+}
+
+/**
+ * Copies one page of missing blobs. Individual blob failures are returned in
+ * `failed` without stopping the page. The caller holds the repo lock.
+ */
+const copyBlobBatch = async (
+  database: Database,
+  did: string,
+  session: StoredBlueskyMoveOutSession,
+  {
+    cursor,
+    limit,
+    store
+  }: { cursor?: string; limit: number; store?: PdsBlobObjectStore }
+): Promise<BlobBatchResult> => {
+  const listNsid = 'com.atproto.repo.listMissingBlobs'
+  const listRes = await requestWithMoveAuth({
+    database,
+    did,
+    session,
+    nsid: listNsid,
+    method: 'GET',
+    params: {
+      limit,
+      ...(cursor ? { cursor } : {})
+    }
+  })
+  let move = listRes.session
+
+  const parsed = parseJsonBody(listNsid, listRes.body)
+  if (!isRecord(parsed) || !Array.isArray(parsed.blobs)) {
+    throw new PdsMoveOutRemoteError(
+      'Destination server returned an invalid missing-blobs list.'
+    )
+  }
+
+  const nextCursor =
+    typeof parsed.cursor === 'string' && parsed.cursor.length > 0
+      ? parsed.cursor
+      : null
+  // An empty page or a cursor that did not move ends the copy: a server that
+  // keeps answering the same page must not loop forever.
+  const done =
+    parsed.blobs.length === 0 || nextCursor === null || nextCursor === cursor
+
+  const seenCids = new Set<string>()
+  let copied = 0
+  const failed: CopyMoveOutBlobFailure[] = []
+
+  for (const entry of parsed.blobs.slice(0, limit)) {
+    const cid =
+      isRecord(entry) && typeof entry.cid === 'string' ? entry.cid : null
+    if (!cid || seenCids.has(cid)) continue
+    seenCids.add(cid)
+    const reportedCid = cid.slice(0, MAX_CID_LENGTH)
+
+    try {
+      const blob = await readPdsBlob(database, { did, cid }, { store })
+      if (!blob) {
+        failed.push({
+          cid: reportedCid,
+          reason: 'Blob not found on this server.'
+        })
+        continue
+      }
+      const bytes = await readStreamToBuffer(blob.stream)
+      const uploadRes = await requestWithMoveAuth({
+        database,
+        did,
+        session: move,
+        nsid: 'com.atproto.repo.uploadBlob',
+        method: 'POST',
+        contentType: blob.mimeType,
+        bodyBytes: bytes,
+        timeoutMs: REMOTE_UPLOAD_TIMEOUT_MS
+      })
+      move = uploadRes.session
+      copied += 1
+    } catch (error) {
+      if (error instanceof PdsMoveOutRemoteError) {
+        failed.push({ cid: reportedCid, reason: error.message })
+      } else {
+        logger.error({
+          message: 'Could not read a blob to copy to the destination server',
+          did,
+          cid: reportedCid,
+          err: toLoggableError(error)
+        })
+        failed.push({
+          cid: reportedCid,
+          reason: "Couldn't read this file on this server."
+        })
+      }
+    }
+  }
+
+  return { copied, failed, cursor: nextCursor, done, session: move }
+}
 
 /**
  * Copies one batch of missing blobs from this PDS to the destination PDS.
@@ -930,7 +1054,7 @@ export const copyMoveOutBlobs = async ({
     async () => {
       const repo = await requireHostedRepo(database, actor)
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
-      let move = await readMoveOutSession(database, repo.did)
+      const move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
       if (
         move.switchedAt !== null ||
@@ -945,6 +1069,8 @@ export const copyMoveOutBlobs = async ({
           'Turn the Bluesky account on before copying media.'
         )
       }
+      assertPdsDomainEnabled(repo.domain)
+      await requireRotationKeypair()
 
       const effectiveLimit = Math.min(
         MAX_BLOB_BATCH_LIMIT,
@@ -954,82 +1080,16 @@ export const copyMoveOutBlobs = async ({
         )
       )
 
-      const listNsid = 'com.atproto.repo.listMissingBlobs'
-      const listRes = await requestWithMoveAuth({
-        database,
-        did: repo.did,
-        session: move,
-        nsid: listNsid,
-        method: 'GET',
-        params: {
-          limit: effectiveLimit,
-          ...(cursor ? { cursor } : {})
-        }
+      const batch = await copyBlobBatch(database, repo.did, move, {
+        cursor,
+        limit: effectiveLimit,
+        store
       })
-      move = listRes.session
-
-      const parsed = parseJsonBody(listNsid, listRes.body)
-      if (!isRecord(parsed) || !Array.isArray(parsed.blobs)) {
-        throw new PdsMoveOutRemoteError(
-          'Destination server returned an invalid missing-blobs list.'
-        )
-      }
-
-      const nextCursor =
-        typeof parsed.cursor === 'string' && parsed.cursor.length > 0
-          ? parsed.cursor
-          : null
-
-      const seenCids = new Set<string>()
-      let copied = 0
-      const failed: CopyMoveOutBlobFailure[] = []
-
-      for (const entry of parsed.blobs) {
-        const cid =
-          isRecord(entry) && typeof entry.cid === 'string' ? entry.cid : null
-        if (!cid || seenCids.has(cid)) continue
-        seenCids.add(cid)
-
-        try {
-          const blob = await readPdsBlob(
-            database,
-            { did: repo.did, cid },
-            { store }
-          )
-          if (!blob) {
-            failed.push({ cid, reason: 'Blob not found on this server.' })
-            continue
-          }
-          const bytes = await readStreamToBuffer(blob.stream)
-          const uploadRes = await requestWithMoveAuth({
-            database,
-            did: repo.did,
-            session: move,
-            nsid: 'com.atproto.repo.uploadBlob',
-            method: 'POST',
-            contentType: blob.mimeType,
-            bodyBytes: bytes,
-            timeoutMs: REMOTE_UPLOAD_TIMEOUT_MS
-          })
-          move = uploadRes.session
-          copied += 1
-        } catch (error) {
-          const reason =
-            error instanceof PdsMoveOutRemoteError
-              ? error.message
-              : (sanitizeRemoteText(
-                  error instanceof Error ? error.message : String(error),
-                  MAX_REMOTE_ERROR_MESSAGE_LENGTH
-                ) ?? 'Blob upload failed.')
-          failed.push({ cid, reason })
-        }
-      }
-
       return {
-        copied,
-        failed,
-        cursor: nextCursor,
-        done: nextCursor === null
+        copied: batch.copied,
+        failed: batch.failed,
+        cursor: batch.cursor,
+        done: batch.done
       }
     },
     { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_MS }
@@ -1066,6 +1126,8 @@ export const copyMoveOutPreferences = async ({
           'Turn the Bluesky account on before copying preferences.'
         )
       }
+      assertPdsDomainEnabled(repo.domain)
+      await requireRotationKeypair()
 
       const preferences =
         (await database.getPdsPreferences({ did: repo.did })) ?? []
@@ -1121,7 +1183,11 @@ export const getMoveOutProgress = async ({
   return {
     pdsUrl: move.pdsUrl,
     handle: move.handle,
-    stage: move.switchedAt !== null ? 'switched' : 'started',
+    stage:
+      move.switchedAt !== null ||
+      isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
+        ? 'switched'
+        : 'started',
     importedRev: move.importedRev,
     localRev: repo.rev,
     switchedAt: move.switchedAt,
@@ -1140,21 +1206,53 @@ export const getMoveOutProgress = async ({
   }
 }
 
+// Best effort: the move is done either way, so a failure only leaves the
+// destination session alive until it expires.
+const revokeMoveOutTokens = async (
+  session: StoredBlueskyMoveOutSession
+): Promise<void> => {
+  try {
+    const response = await fetchDestination({
+      origin: session.pdsUrl,
+      nsid: 'com.atproto.server.deleteSession',
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${session.refreshJwt}`
+      }
+    })
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      logger.warn({
+        message: 'Destination server refused to revoke the move session',
+        pdsUrl: session.pdsUrl,
+        statusCode: response.statusCode
+      })
+    }
+  } catch (error) {
+    logger.warn({
+      message: 'Could not revoke the move session on the destination server',
+      pdsUrl: session.pdsUrl,
+      err: toLoggableError(error)
+    })
+  }
+}
+
 /**
  * Finishes moving the hosted Bluesky account out:
- * 1. If the local repo rev changed since `importedRev`, re-sends the CAR.
- * 2. Fetches and validates `com.atproto.identity.getRecommendedDidCredentials`.
- * 3. Chains a PLC update keeping `repo.recoveryKeyDid` first, adding the
- *    destination's rotation keys, and dropping this server's rotation key.
- * 4. Stores the PLC op locally, sets status to `deactivated`, and emits
- *    `#identity` and `#account` (`active: false`, `status: 'deactivated'`).
- * 5. Marks `switchedAt` in the stored move, calls `activateAccount` on the
- *    destination PDS, removes the hosted `bluesky_accounts` row, and deletes
- *    the stored move session.
+ * 1. Fetches and validates `com.atproto.identity.getRecommendedDidCredentials`.
+ * 2. Chains a PLC update taking the directory's last operation's rotation keys
+ *    except this server's, then the destination's, and the destination's
+ *    signing key, PDS endpoint and handle.
+ * 3. Runs the local switch (idempotently): stores the operation, clears the
+ *    local handle, sets status to `deactivated`, and emits `#identity` and
+ *    `#account` (`active: false`, `status: 'deactivated'`).
+ * 4. Re-sends the repo if its rev changed, then copies its missing blobs.
+ * 5. Calls `activateAccount` on the destination PDS, removes the hosted
+ *    `bluesky_accounts` row, deletes the stored move session, and revokes the
+ *    destination session.
  *
- * Retryable: if `switchedAt` is already set or the stored `plcOperation`
- * already points at the destination PDS, skips straight to `activateAccount`
- * and cleanup.
+ * Retryable: a retry after a crash mid-switch completes the local switch and
+ * the rest without repeating the PLC submit.
  *
  * Callers (the API route) must verify the account's current password first.
  */
@@ -1173,30 +1271,25 @@ export const finishMoveOut = async ({
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       let move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
+      // Captured for the switch closure: `move` is reassigned as tokens and
+      // progress change, but the destination URL and handle do not.
+      const movePdsUrl = move.pdsUrl
+      const moveHandle = move.handle
 
       const alreadySwitched =
         move.switchedAt !== null ||
         isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
 
+      let operation: PlcSignedOperation | null = null
       if (!alreadySwitched) {
         if (resolveEffectivePdsRepoStatus(repo, actor) !== 'active') {
           throw new PdsHostedAccountInactiveError(
             'Turn the Bluesky account on before finishing the move.'
           )
         }
-
+        assertPdsDomainEnabled(repo.domain)
         const rotationKeypair = await requireRotationKeypair()
         const serverKeyDid = rotationKeypair.did()
-
-        // Re-send the repo if anything was written since the last import.
-        const latestRepo = await database.getPdsRepo({ did: repo.did })
-        if (!latestRepo || latestRepo.status === 'deleted') {
-          throw new PdsHostedAccountNotFoundError()
-        }
-        if (latestRepo.rev !== move.importedRev) {
-          const uploaded = await uploadRepoCar(database, repo.did, move)
-          move = uploaded.session
-        }
 
         const credsNsid = 'com.atproto.identity.getRecommendedDidCredentials'
         const credsRes = await requestWithMoveAuth({
@@ -1213,14 +1306,13 @@ export const finishMoveOut = async ({
           move.handle
         )
 
+        const last = await getLastPlcOperation(repo.did)
         const nextRotationKeys = buildNextRotationKeys({
-          recoveryKeyDid: latestRepo.recoveryKeyDid,
+          lastRotationKeys: last.rotationKeys,
           recommendedRotationKeys: credentials.rotationKeys,
           serverRotationKeyDid: serverKeyDid
         })
 
-        const last = await getLastPlcOperation(repo.did)
-        let operation: PlcSignedOperation
         if (last.rotationKeys.includes(serverKeyDid)) {
           operation = await createUpdateOperation({
             previous: last,
@@ -1248,45 +1340,80 @@ export const finishMoveOut = async ({
         } else {
           throw new PdsIdentityMovedError()
         }
+      }
 
-        await writeLiveRepo(database, repo.did, async () => {
-          await database.updatePdsRepoIdentity({
+      // The local switch is idempotent: complete it whenever the row is still
+      // active or its stored operation does not yet point at the destination.
+      await writeLiveRepo(database, repo.did, async (current) => {
+        const storedPointsToDestination = isPlcOperationPointingTo(
+          current.plcOperation,
+          movePdsUrl
+        )
+        if (current.status !== 'active' && storedPointsToDestination) {
+          return false
+        }
+        const operationJson = operation
+          ? JSON.stringify(operation)
+          : current.plcOperation
+        if (!isPlcOperationPointingTo(operationJson, movePdsUrl)) return false
+        await database.updatePdsRepoIdentity({
+          did: repo.did,
+          plcOperation: operationJson,
+          // The handle now belongs to the destination; clearing it frees a
+          // bare-domain handle for a relinked account.
+          handle: null
+        })
+        await database.updatePdsRepoStatus({
+          did: repo.did,
+          status: 'deactivated'
+        })
+        await database.appendPdsEvent({
+          did: repo.did,
+          type: 'identity',
+          payload: formatPdsIdentityEvent({
             did: repo.did,
-            plcOperation: JSON.stringify(operation)
+            handle: moveHandle
           })
-          await database.updatePdsRepoStatus({
+        })
+        await database.appendPdsEvent({
+          did: repo.did,
+          type: 'account',
+          payload: formatPdsAccountEvent({
             did: repo.did,
+            active: false,
             status: 'deactivated'
           })
-          await database.appendPdsEvent({
-            did: repo.did,
-            type: 'identity',
-            payload: formatPdsIdentityEvent({
-              did: repo.did,
-              handle: credentials.handle
-            })
-          })
-          await database.appendPdsEvent({
-            did: repo.did,
-            type: 'account',
-            payload: formatPdsAccountEvent({
-              did: repo.did,
-              active: false,
-              status: 'deactivated'
-            })
-          })
-          return true
         })
+        return true
+      })
 
-        move = await updateMoveOutSession(database, repo.did, {
-          accessJwt: move.accessJwt,
-          refreshJwt: move.refreshJwt,
-          switchedAt: Date.now()
-        })
-      } else if (move.switchedAt === null) {
+      if (move.switchedAt === null) {
         move = await updateMoveOutSession(database, repo.did, {
           switchedAt: Date.now()
         })
+      }
+
+      // The repo is deactivated now, so nothing more can be written here: send
+      // whatever changed since the last import, then its new blobs, before the
+      // destination account is turned on.
+      const latestRepo = await database.getPdsRepo({ did: repo.did })
+      if (!latestRepo || latestRepo.status === 'deleted') {
+        throw new PdsHostedAccountNotFoundError()
+      }
+      if (latestRepo.rev !== move.importedRev) {
+        const uploaded = await uploadRepoCar(database, repo.did, move)
+        move = uploaded.session
+        let cursor: string | undefined
+        for (let page = 0; page < MAX_BLOB_PAGES; page += 1) {
+          const batch = await copyBlobBatch(database, repo.did, move, {
+            cursor,
+            limit: DEFAULT_BLOB_BATCH_LIMIT
+          })
+          move = batch.session
+          if (batch.done) break
+          cursor = batch.cursor ?? undefined
+          if (!cursor) break
+        }
       }
 
       const activateRes = await requestWithMoveAuth({
@@ -1302,7 +1429,8 @@ export const finishMoveOut = async ({
         actorId: actor.id,
         hostedDid: repo.did
       })
-      await deleteStoredBlueskySession(database, repo.did, 'move-out')
+      await deleteMoveOutSession(database, repo.did)
+      await revokeMoveOutTokens(move)
 
       return {
         movedTo: new URL(move.pdsUrl).host,
@@ -1343,12 +1471,22 @@ export const cancelMoveOut = async ({
       ) {
         throw new PdsMoveOutSwitchedError()
       }
+      assertPdsDomainEnabled(repo.domain)
+      await requireRotationKeypair()
+      // The stored operation can lag the directory: a switch that landed there
+      // but not here must still refuse the cancel.
+      const last = await getLastPlcOperation(repo.did)
+      if (isPlcOperationPointingTo(JSON.stringify(last), move.pdsUrl)) {
+        throw new PdsMoveOutSwitchedError()
+      }
 
-      await deleteStoredBlueskySession(database, repo.did, 'move-out')
-      return { pdsUrl: move.pdsUrl, handle: move.handle }
+      await deleteMoveOutSession(database, repo.did)
+      return { pdsUrl: move.pdsUrl, handle: move.handle, session: move }
     },
     { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_MS }
   )
+
+  await revokeMoveOutTokens(cancelled.session)
 
   return {
     cancelled: true,

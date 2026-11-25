@@ -1446,6 +1446,7 @@ describe('PDS database domain', () => {
       activeSync,
       activeAccount,
       grandfatheredCommit,
+      suspendedIdentity,
       suspendedAccount,
       takendownAccount,
       deactivatedAccount,
@@ -1462,7 +1463,9 @@ describe('PDS database domain', () => {
     })
     expect(unfiltered.map((e) => e.seq)).toEqual(allExpected)
 
-    // With activeReposOnly: inactive commit/identity/sync events are excluded; account events always pass.
+    // With activeReposOnly: inactive commit/sync events are excluded; identity
+    // (a move out emits one as the repo turns deactivated) and account events
+    // always pass.
     const filtered = await database.listPdsEvents({
       afterSeq: 0,
       domain: visDomain,
@@ -1484,6 +1487,48 @@ describe('PDS database domain', () => {
       oldest: activeCommit.seq,
       newest: deletingAccount.seq
     })
+  })
+
+  it('lists a deactivated repo’s identity event with activeReposOnly', async () => {
+    const domain = 'moved-out.example'
+    const username = 'movedout'
+    const did = 'did:web:moved-out.pds.example'
+    await database.createAccount({
+      email: `${username}@${domain}`,
+      username,
+      passwordHash: TEST_PASSWORD_HASH,
+      domain,
+      privateKey: `priv-${username}`,
+      publicKey: `pub-${username}`
+    })
+    await database.createPdsRepo({
+      did,
+      actorId: `https://${domain}/users/${username}`,
+      domain,
+      signingKey: `v1:key-${username}`,
+      signingKeyDid: `did:key:zQ3sh${username}`,
+      status: 'deactivated'
+    })
+
+    const identity = await database.appendPdsEvent({
+      did,
+      type: 'identity',
+      payload: Buffer.from(`${did}:identity`)
+    })
+    const commit = await database.appendPdsEvent({
+      did,
+      type: 'commit',
+      payload: Buffer.from(`${did}:commit`)
+    })
+
+    const listed = await database.listPdsEvents({
+      afterSeq: 0,
+      did,
+      activeReposOnly: true
+    })
+    const seqs = listed.map((event) => event.seq)
+    expect(seqs).toContain(identity.seq)
+    expect(seqs).not.toContain(commit.seq)
   })
 
   it('skips pg_notify and pg_advisory_xact_lock on SQLite when appending PDS events', async () => {

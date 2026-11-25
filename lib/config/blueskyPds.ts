@@ -50,7 +50,11 @@ export const normalizePdsRelayUrl = (value: string): string | null => {
 const normalizeActorHandle = (value: string): string =>
   value.trim().replace(/^@/, '').toLowerCase()
 
-const toWebDid = (hostname: string): string =>
+/**
+ * The `did:web` a PDS hostname answers as: `did:web:<hostname>`, with a port's
+ * colon percent-encoded (`pds.example:8443` → `did:web:pds.example%3A8443`).
+ */
+export const toWebDid = (hostname: string): string =>
   `did:web:${hostname.replace(/:/g, '%3A')}`
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>

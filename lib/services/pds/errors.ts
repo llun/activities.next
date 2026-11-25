@@ -266,6 +266,13 @@ export class PdsMoveOutInProgressError extends PdsError {
   }
 }
 
+/** A move is stored for this account; finish or cancel it before other changes. */
+export class PdsMoveOutPendingError extends PdsError {
+  constructor() {
+    super('Finish or cancel the move first.', 'MoveOutPending', 409)
+  }
+}
+
 /** There is no stored move in progress for this account. */
 export class PdsMoveOutNotFoundError extends PdsError {
   constructor() {

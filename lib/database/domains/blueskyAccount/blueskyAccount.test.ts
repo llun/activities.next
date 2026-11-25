@@ -309,6 +309,34 @@ describe('BlueskyAccount', () => {
     }
   })
 
+  it('does not sync a hosted account whose stored session is a move out', async () => {
+    const actor = await createAdmin('sync-move-out')
+    const did = 'did:plc:sync-move-out'
+    await database.createPdsRepo({
+      did,
+      actorId: actor.actorId,
+      domain: TEST_DOMAIN,
+      signingKey: 'encrypted',
+      signingKeyDid: 'did:key:z',
+      status: 'deactivated'
+    })
+    await database.saveBlueskyAccount({
+      actorId: actor.actorId,
+      did,
+      handle: 'sync-move-out.pds.example.com',
+      pdsUrl: 'https://pds.example.com',
+      authType: 'hosted',
+      domainHandle: false,
+      crosspostByDefault: false
+    })
+    // A move in progress stores its session under the DID; it is not a login.
+    await database.setBlueskySession({ did, session: 'encrypted-move-out' })
+
+    expect(await database.listBlueskyAccountsToSync()).not.toContain(
+      actor.actorId
+    )
+  })
+
   it('lets one active admin actor at a time answer for a host', async () => {
     const five = await createAdmin('bsky-five')
     const six = await createAdmin('bsky-six')

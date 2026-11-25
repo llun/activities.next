@@ -41,7 +41,9 @@ const UpdateBody = z.object({
   active: z.boolean().optional()
 })
 
-const DeleteBody = z.object({ confirmHandle: z.string().min(1) })
+// A moved copy has no handle here (the switch cleared it), so its delete sends
+// an empty confirmation; a live account still has to type its handle.
+const DeleteBody = z.object({ confirmHandle: z.string() })
 
 // Tells the owner the recovery key changed. A failure is logged and does not
 // fail the request: the PLC operation has already landed.

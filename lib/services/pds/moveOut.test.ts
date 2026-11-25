@@ -18,6 +18,7 @@ import {
 
 import {
   createHostedBlueskyAccount,
+  deactivateHostedBlueskyAccount,
   deleteHostedBlueskyAccount,
   getHostedBlueskyAccountState,
   reactivateHostedBlueskyAccount,
@@ -27,13 +28,16 @@ import type { PdsBlobObjectStore } from './blobStorage'
 import { uploadPdsBlob } from './blobs'
 import {
   PdsAccountMovedError,
+  PdsDisabledError,
+  PdsHostedAccountInactiveError,
   PdsHostedRateLimitedError,
   PdsMoveOutInProgressError,
   PdsMoveOutInvalidCredentialsError,
   PdsMoveOutInvalidServerUrlError,
   PdsMoveOutNotFoundError,
   PdsMoveOutRemoteError,
-  PdsMoveOutSwitchedError
+  PdsMoveOutSwitchedError,
+  PdsValidationError
 } from './errors'
 import { decodePdsEvent } from './events'
 import {
@@ -88,7 +92,21 @@ const ALLOWED_USERNAMES = [
   'move-isolation',
   'move-blob-remote-fail',
   'move-retry-plc-only',
-  'move-delete-keeps-link'
+  'move-delete-keeps-link',
+  'move-dest-did',
+  'move-blob-bounds',
+  'move-retry-active',
+  'move-refresh-cancel',
+  'move-rotation-dir',
+  'move-cancel-switched',
+  'move-handle-mismatch',
+  'move-blob-read-error',
+  'move-inactive',
+  'move-invalid-email',
+  'move-create-did',
+  'move-domain-gate',
+  'move-not-allowlisted',
+  'move-stage-plc'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -773,6 +791,14 @@ describe('hosted Bluesky account move-out', () => {
         { $type: 'app.bsky.actor.defs#adultContentPref', enabled: false }
       ]
     })
+
+    // importRepo, listMissingBlobs, uploadBlob and putPreferences all went to
+    // the stored destination origin.
+    for (const call of fetchCalls) {
+      const origin = new URL(call.url).origin
+      if (origin === PLC_DIRECTORY) continue
+      expect(origin).toBe(DEST_PDS)
+    }
   })
 
   it('refuses invalid recommended DID credentials without submitting a PLC op', async () => {
@@ -883,6 +909,7 @@ describe('hosted Bluesky account move-out', () => {
 
     let importRepoCount = 0
     let activateCount = 0
+    let deleteSessionCalls = 0
 
     destHandler = (options) => {
       if (options.url.endsWith('/com.atproto.server.describeServer')) {
@@ -902,6 +929,9 @@ describe('hosted Bluesky account move-out', () => {
       if (options.url.endsWith('/com.atproto.repo.importRepo')) {
         importRepoCount += 1
         return okResponse(options.url, '')
+      }
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        return okResponse(options.url, JSON.stringify({ blobs: [] }))
       }
       if (
         options.url.endsWith(
@@ -932,6 +962,10 @@ describe('hosted Bluesky account move-out', () => {
       }
       if (options.url.endsWith('/com.atproto.server.activateAccount')) {
         activateCount += 1
+        return okResponse(options.url, '')
+      }
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        deleteSessionCalls += 1
         return okResponse(options.url, '')
       }
       return okResponse(options.url, '{}')
@@ -1025,6 +1059,20 @@ describe('hosted Bluesky account move-out', () => {
     // Hosted bluesky_accounts row and stored move session are gone.
     expect(await database.getBlueskyAccount({ actorId: actor.id })).toBeNull()
     expect(await database.getBlueskySession({ did })).toBeNull()
+
+    // The switch cleared the local handle so a bare-domain handle is free.
+    expect((await database.getPdsRepo({ did }))?.handle).toBeNull()
+    expect(await database.getPdsRepoByHandle({ handle })).toBeNull()
+
+    // The destination session was revoked after the move completed.
+    expect(deleteSessionCalls).toBe(1)
+
+    // Every authenticated request went to the stored destination origin.
+    for (const call of fetchCalls) {
+      const origin = new URL(call.url).origin
+      if (origin === PLC_DIRECTORY) continue
+      expect(origin).toBe(DEST_PDS)
+    }
 
     // State reports movedTo and does NOT recreate hosted bluesky_accounts row.
     expect(finished.movedTo).toBe(DEST_HOST)
@@ -1234,6 +1282,15 @@ describe('hosted Bluesky account move-out', () => {
     const plcCountBefore = plcOpsByDid.get(did)!.length
     const eventsBefore = (await database.listPdsEvents({ did })).length
 
+    let deleteSessionCalls = 0
+    destHandler = (options) => {
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        deleteSessionCalls += 1
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, '{}')
+    }
+
     const cancelled = await cancelMoveOut({ database, actor })
     expect(cancelled).toMatchObject({
       cancelled: true,
@@ -1246,6 +1303,7 @@ describe('hosted Bluesky account move-out', () => {
     expect(await database.getBlueskySession({ did })).toBeNull()
     expect(plcOpsByDid.get(did)!.length).toBe(plcCountBefore)
     expect((await database.listPdsEvents({ did })).length).toBe(eventsBefore)
+    expect(deleteSessionCalls).toBe(1)
     expect((await database.getPdsRepo({ did }))?.status).toBe('active')
     expect(
       await database.getBlueskyAccount({ actorId: actor.id })
@@ -1427,6 +1485,7 @@ describe('hosted Bluesky account move-out', () => {
       })
     })
     await database.updatePdsRepoStatus({ did, status: 'deactivated' })
+    const currentRepo = await database.getPdsRepo({ did })
     await writeStoredBlueskySession(database, did, {
       type: 'move-out',
       pdsUrl: DEST_PDS,
@@ -1434,7 +1493,7 @@ describe('hosted Bluesky account move-out', () => {
       handle: 'plc-only.dest.pds.example',
       accessJwt: 'access-plc-only',
       refreshJwt: 'refresh-plc-only',
-      importedRev: null,
+      importedRev: currentRepo!.rev,
       switchedAt: null
     })
 
@@ -1444,6 +1503,10 @@ describe('hosted Bluesky account move-out', () => {
     destHandler = (options) => {
       if (options.url.endsWith('/com.atproto.server.activateAccount')) {
         activateCalls += 1
+        return okResponse(options.url, '')
+      }
+      // Revoking the destination session is part of cleanup, not a copy step.
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
         return okResponse(options.url, '')
       }
       otherCalls += 1
@@ -1540,6 +1603,642 @@ describe('hosted Bluesky account move-out', () => {
       type: 'app_password',
       accessJwt: 'linked-access',
       refreshJwt: 'linked-refresh'
+    })
+  })
+
+  it('refuses a destination that claims a DID for another host before signing a token', async () => {
+    const { actor } = await setupHostedAccount('move-dest-did')
+    destHandler = (options) =>
+      okResponse(
+        options.url,
+        JSON.stringify({ did: 'did:web:other.pds.example' })
+      )
+
+    await expect(
+      startMoveOut({
+        database,
+        actor,
+        pdsUrl: DEST_PDS,
+        handle: 'alice.dest.pds.example',
+        email: 'alice@example.com',
+        password: 'new-account-password'
+      })
+    ).rejects.toMatchObject({
+      code: 'MoveOutRemoteError',
+      message: "That server didn't identify itself as dest.pds.example."
+    })
+
+    // Only describeServer ran: no service-auth token was signed or sent.
+    expect(
+      fetchCalls
+        .filter((call) => new URL(call.url).origin !== PLC_DIRECTORY)
+        .map((call) => new URL(call.url).pathname)
+    ).toEqual(['/xrpc/com.atproto.server.describeServer'])
+  })
+
+  it('refuses a createAccount response for a different DID', async () => {
+    const { actor, did } = await setupHostedAccount('move-create-did')
+    destHandler = (options) => {
+      if (options.url.endsWith('/com.atproto.server.describeServer')) {
+        return okResponse(options.url, JSON.stringify({ did: DEST_DID }))
+      }
+      return okResponse(
+        options.url,
+        JSON.stringify({
+          did: 'did:plc:someoneelse0000000000000000',
+          handle: 'alice.dest.pds.example',
+          accessJwt: 'a',
+          refreshJwt: 'r'
+        })
+      )
+    }
+
+    await expect(
+      startMoveOut({
+        database,
+        actor,
+        pdsUrl: DEST_PDS,
+        handle: 'alice.dest.pds.example',
+        email: 'alice@example.com',
+        password: 'new-account-password'
+      })
+    ).rejects.toBeInstanceOf(PdsMoveOutRemoteError)
+    expect(await database.getBlueskySession({ did })).toBeNull()
+  })
+
+  it('refuses a createAccount response with a different handle', async () => {
+    const { actor, did } = await setupHostedAccount('move-handle-mismatch')
+    destHandler = (options) => {
+      if (options.url.endsWith('/com.atproto.server.describeServer')) {
+        return okResponse(options.url, JSON.stringify({ did: DEST_DID }))
+      }
+      return okResponse(
+        options.url,
+        JSON.stringify({
+          did,
+          handle: 'someone-else.dest.pds.example',
+          accessJwt: 'a',
+          refreshJwt: 'r'
+        })
+      )
+    }
+
+    await expect(
+      startMoveOut({
+        database,
+        actor,
+        pdsUrl: DEST_PDS,
+        handle: 'alice.dest.pds.example',
+        email: 'alice@example.com',
+        password: 'new-account-password'
+      })
+    ).rejects.toMatchObject({
+      code: 'MoveOutRemoteError',
+      message: expect.stringContaining('different handle')
+    })
+    expect(await database.getBlueskySession({ did })).toBeNull()
+  })
+
+  it('refuses to start a move for an inactive account or an invalid email without fetching', async () => {
+    const { actor } = await setupHostedAccount('move-inactive')
+    await deactivateHostedBlueskyAccount({ database, actor })
+    fetchCalls.length = 0
+
+    await expect(
+      startMoveOut({
+        database,
+        actor,
+        pdsUrl: DEST_PDS,
+        handle: 'alice.dest.pds.example',
+        email: 'alice@example.com',
+        password: 'new-account-password'
+      })
+    ).rejects.toBeInstanceOf(PdsHostedAccountInactiveError)
+    expect(fetchCalls).toHaveLength(0)
+
+    const { actor: emailActor } = await setupHostedAccount('move-invalid-email')
+    fetchCalls.length = 0
+
+    await expect(
+      startMoveOut({
+        database,
+        actor: emailActor,
+        pdsUrl: DEST_PDS,
+        handle: 'alice.dest.pds.example',
+        email: 'not-an-email',
+        password: 'new-account-password'
+      })
+    ).rejects.toBeInstanceOf(PdsValidationError)
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  it('processes at most limit blobs per batch and ends on an empty page or a stuck cursor', async () => {
+    const { actor, did } = await setupHostedAccount('move-blob-bounds')
+    const store = createMemoryBlobStore()
+    const blobs: Awaited<ReturnType<typeof uploadPdsBlob>>[] = []
+    for (const name of ['one', 'two', 'three']) {
+      blobs.push(
+        await uploadPdsBlob(
+          database,
+          { did, bytes: Buffer.from(`blob-${name}`), mimeType: 'image/png' },
+          { store }
+        )
+      )
+    }
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'three blobs',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: blobs.map((blob, index) => ({
+            alt: `image-${index}`,
+            image: blob.blob
+          }))
+        }
+      }
+    })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'alice.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+
+    let uploads = 0
+    destHandler = (options) => {
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        const cursor = new URL(options.url).searchParams.get('cursor')
+        if (cursor === 'empty') {
+          return okResponse(options.url, JSON.stringify({ blobs: [] }))
+        }
+        if (cursor === 'stuck') {
+          return okResponse(
+            options.url,
+            JSON.stringify({
+              cursor: 'stuck',
+              blobs: [{ cid: blobs[0].cid }]
+            })
+          )
+        }
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            cursor: 'next',
+            blobs: blobs.map((blob) => ({ cid: blob.cid }))
+          })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
+        uploads += 1
+        return okResponse(
+          options.url,
+          JSON.stringify({ blob: { $type: 'blob' } })
+        )
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    const first = await copyMoveOutBlobs({ database, actor, limit: 2, store })
+    expect(first).toMatchObject({
+      copied: 2,
+      failed: [],
+      cursor: 'next',
+      done: false
+    })
+    expect(uploads).toBe(2)
+
+    const empty = await copyMoveOutBlobs({
+      database,
+      actor,
+      cursor: 'empty',
+      limit: 2,
+      store
+    })
+    expect(empty).toMatchObject({ copied: 0, cursor: null, done: true })
+
+    const stuck = await copyMoveOutBlobs({
+      database,
+      actor,
+      cursor: 'stuck',
+      limit: 2,
+      store
+    })
+    expect(stuck.done).toBe(true)
+    expect(stuck.cursor).toBe('stuck')
+  })
+
+  it('completes the local switch when the stored operation already points at the destination but the repo is still active', async () => {
+    const { actor, did } = await setupHostedAccount('move-retry-active')
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+    const currentRepo = await database.getPdsRepo({ did })
+
+    // Simulate a crash after storing the switched operation, before the switch.
+    await database.updatePdsRepoIdentity({
+      did,
+      plcOperation: JSON.stringify({
+        type: 'plc_operation',
+        rotationKeys: [destRotKey.did()],
+        verificationMethods: { atproto: destSigningKey.did() },
+        alsoKnownAs: ['at://retry-active.dest.pds.example'],
+        services: {
+          atproto_pds: {
+            type: 'AtprotoPersonalDataServer',
+            endpoint: DEST_PDS
+          }
+        },
+        prev: 'bafyprev',
+        sig: 'sig'
+      })
+    })
+    expect((await database.getPdsRepo({ did }))?.status).toBe('active')
+
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'retry-active.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: currentRepo!.rev,
+      switchedAt: null
+    })
+
+    destHandler = (options) => {
+      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+        return okResponse(options.url, '')
+      }
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    await finishMoveOut({ database, actor })
+
+    const repo = await database.getPdsRepo({ did })
+    expect(repo?.status).toBe('deactivated')
+    expect(repo?.handle).toBeNull()
+    const tail = (await database.listPdsEvents({ did }))
+      .map(decodePdsEvent)
+      .slice(-2)
+    expect(tail[0]).toMatchObject({ type: 'identity', did })
+    expect(tail[1]).toMatchObject({
+      type: 'account',
+      did,
+      active: false,
+      status: 'deactivated'
+    })
+  })
+
+  it('does not resurrect a cancelled move when a token refresh finishes afterwards', async () => {
+    const { actor, did } = await setupHostedAccount('move-refresh-cancel')
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'alice.dest.pds.example',
+      accessJwt: 'expired-access',
+      refreshJwt: 'refresh-before-cancel',
+      importedRev: null,
+      switchedAt: null
+    })
+
+    destHandler = async (options) => {
+      const headers = options.headers as Record<string, string>
+      if (options.url.endsWith('/com.atproto.server.checkAccountStatus')) {
+        return okResponse(
+          options.url,
+          JSON.stringify({ error: 'ExpiredToken', message: 'Expired' }),
+          401
+        )
+      }
+      if (options.url.endsWith('/com.atproto.server.refreshSession')) {
+        expect(headers.Authorization).toBe('Bearer refresh-before-cancel')
+        // A cancel lands while the refresh is in flight.
+        await database.deleteBlueskySession({ did })
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            did,
+            accessJwt: 'fresh-access',
+            refreshJwt: 'fresh-refresh'
+          })
+        )
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    await expect(
+      getMoveOutProgress({ database, actor })
+    ).rejects.toBeInstanceOf(PdsMoveOutNotFoundError)
+    expect(await database.getBlueskySession({ did })).toBeNull()
+  })
+
+  it('builds the next rotation keys from the directory operation, not the stored recovery key', async () => {
+    const { actor, did } = await setupHostedAccount('move-rotation-dir')
+    const recoveryKey = await Secp256k1Keypair.create()
+    const directoryKey = await Secp256k1Keypair.create()
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+    const serverKey = await serverRotationKeypair()
+
+    await setHostedBlueskyRecoveryKey({
+      database,
+      actor,
+      recoveryKeyDid: recoveryKey.did()
+    })
+
+    // The directory's last operation lists a different key first, not the
+    // recovery key stored on the repo row.
+    plcOpsByDid.set(did, [
+      {
+        type: 'plc_operation',
+        rotationKeys: [directoryKey.did(), serverKey.did()],
+        verificationMethods: { atproto: destSigningKey.did() },
+        alsoKnownAs: ['at://rotation.dest.pds.example'],
+        services: {
+          atproto_pds: {
+            type: 'AtprotoPersonalDataServer',
+            endpoint: `https://${PDS_HOSTNAME}`
+          }
+        },
+        prev: 'bafyprev',
+        sig: 'sig'
+      }
+    ])
+
+    const currentRepo = await database.getPdsRepo({ did })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'rotation.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: currentRepo!.rev,
+      switchedAt: null
+    })
+
+    destHandler = (options) => {
+      if (
+        options.url.endsWith(
+          '/com.atproto.identity.getRecommendedDidCredentials'
+        )
+      ) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            services: {
+              atproto_pds: {
+                type: 'AtprotoPersonalDataServer',
+                endpoint: DEST_PDS
+              }
+            },
+            verificationMethods: { atproto: destSigningKey.did() },
+            alsoKnownAs: ['at://rotation.dest.pds.example'],
+            rotationKeys: [destRotKey.did()]
+          })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+        return okResponse(options.url, '')
+      }
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    await finishMoveOut({ database, actor })
+
+    const switchOp = plcOpsByDid.get(did)!.at(-1)!
+    expect(switchOp.rotationKeys).toEqual([
+      directoryKey.did(),
+      destRotKey.did()
+    ])
+    expect(switchOp.rotationKeys).not.toContain(recoveryKey.did())
+    expect(switchOp.rotationKeys).not.toContain(serverKey.did())
+  })
+
+  it('refuses to cancel when the directory already points at the destination', async () => {
+    const { actor, did } = await setupHostedAccount('move-cancel-switched')
+    const serverKey = await serverRotationKeypair()
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'cancel.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+    plcOpsByDid.set(did, [
+      {
+        type: 'plc_operation',
+        rotationKeys: [serverKey.did()],
+        verificationMethods: { atproto: 'did:key:zExample' },
+        alsoKnownAs: ['at://cancel.dest.pds.example'],
+        services: {
+          atproto_pds: {
+            type: 'AtprotoPersonalDataServer',
+            endpoint: DEST_PDS
+          }
+        },
+        prev: 'bafyprev',
+        sig: 'sig'
+      }
+    ])
+
+    await expect(cancelMoveOut({ database, actor })).rejects.toBeInstanceOf(
+      PdsMoveOutSwitchedError
+    )
+    expect(await database.getBlueskySession({ did })).not.toBeNull()
+  })
+
+  it('reports a local blob read failure without leaking the error and logs it', async () => {
+    const { actor, did } = await setupHostedAccount('move-blob-read-error')
+    const store = createMemoryBlobStore()
+    const blob = await uploadPdsBlob(
+      database,
+      { did, bytes: Buffer.from('read-error-bytes'), mimeType: 'image/png' },
+      { store }
+    )
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'one blob',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [{ alt: 'one', image: blob.blob }]
+        }
+      }
+    })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'alice.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+
+    const errorSpy = vi.spyOn(logger, 'error')
+    const throwingStore: PdsBlobObjectStore = {
+      ...store,
+      openRead: async () => {
+        throw new Error('disk exploded')
+      }
+    }
+    destHandler = (options) => {
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        return okResponse(
+          options.url,
+          JSON.stringify({ blobs: [{ cid: blob.cid }] })
+        )
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    const batch = await copyMoveOutBlobs({
+      database,
+      actor,
+      store: throwingStore
+    })
+    expect(batch.failed).toEqual([
+      { cid: blob.cid, reason: "Couldn't read this file on this server." }
+    ])
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ did, cid: blob.cid })
+    )
+  })
+
+  it('requires the domain PDS to be enabled for every move step', async () => {
+    const { actor, did } = await setupHostedAccount('move-domain-gate')
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'alice.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      [TEST_DOMAIN]: {
+        enabled: false,
+        hostname: PDS_HOSTNAME,
+        allowEmails: [],
+        allowActors: []
+      }
+    })
+
+    await expect(sendMoveOutRepo({ database, actor })).rejects.toBeInstanceOf(
+      PdsDisabledError
+    )
+    await expect(
+      copyMoveOutPreferences({ database, actor })
+    ).rejects.toBeInstanceOf(PdsDisabledError)
+  })
+
+  it('reports the switched stage once the stored operation points at the destination', async () => {
+    const { actor, did } = await setupHostedAccount('move-stage-plc')
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+    await database.updatePdsRepoIdentity({
+      did,
+      plcOperation: JSON.stringify({
+        type: 'plc_operation',
+        rotationKeys: [destRotKey.did()],
+        verificationMethods: { atproto: destSigningKey.did() },
+        alsoKnownAs: ['at://stage.dest.pds.example'],
+        services: {
+          atproto_pds: {
+            type: 'AtprotoPersonalDataServer',
+            endpoint: DEST_PDS
+          }
+        },
+        prev: 'bafyprev',
+        sig: 'sig'
+      })
+    })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'stage.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+    destHandler = (options) => {
+      if (options.url.endsWith('/com.atproto.server.checkAccountStatus')) {
+        return okResponse(
+          options.url,
+          JSON.stringify({ activated: false, validDid: false })
+        )
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    const state = await getHostedBlueskyAccountState({ database, actor })
+    expect(state.moveOut).toMatchObject({ stage: 'switched' })
+    const progress = await getMoveOutProgress({ database, actor })
+    expect(progress?.stage).toBe('switched')
+  })
+
+  it('lets a profile that is no longer allowlisted start a move', async () => {
+    const { actor, did } = await setupHostedAccount('move-not-allowlisted')
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      [TEST_DOMAIN]: {
+        enabled: true,
+        hostname: PDS_HOSTNAME,
+        allowEmails: [],
+        allowActors: []
+      }
+    })
+    destHandler = (options) => {
+      if (options.url.endsWith('/com.atproto.server.describeServer')) {
+        return okResponse(options.url, JSON.stringify({ did: DEST_DID }))
+      }
+      return okResponse(
+        options.url,
+        JSON.stringify({
+          did,
+          handle: 'alice.dest.pds.example',
+          accessJwt: 'a',
+          refreshJwt: 'r'
+        })
+      )
+    }
+
+    const started = await startMoveOut({
+      database,
+      actor,
+      pdsUrl: DEST_PDS,
+      handle: 'alice.dest.pds.example',
+      email: 'alice@example.com',
+      password: 'new-account-password'
+    })
+    expect(started.moveOut).toMatchObject({
+      pdsUrl: DEST_PDS,
+      stage: 'started'
     })
   })
 })
