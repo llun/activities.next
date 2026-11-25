@@ -1,0 +1,55 @@
+app/(timeline)/settings/networks/HostedBlueskyForm.test.tsx
+  s_4fb28ab57323fe::t_2c6e6a3b843238 49-50
+app/(timeline)/settings/networks/page.test.tsx
+  s_4fb28ab57323fe::t_2e6a6ad4b0e980 73-75,118-120,148-150
+app/api/v1/bluesky/hosted/move/route.test.ts
+  s_4fb28ab57323fe::t_fe0938ebfee078 1-328
+app/api/v1/bluesky/hosted/move/route.ts
+  s_4fb28ab57323fe::t_966fd78ec747d7 1-140
+app/api/v1/bluesky/hosted/route.test.ts
+  s_4fb28ab57323fe::t_e8f674297f7878 85-87
+app/api/v1/bluesky/hosted/route.ts
+  s_4fb28ab57323fe::t_46f8576f017d4a 18-21,25,116-117
+lib/services/bluesky/account.ts
+  s_4fb28ab57323fe::t_b501d9e831002d 13,22,166-175,240,259-268,270-271
+lib/services/bluesky/agent.ts
+  s_4fb28ab57323fe::t_b25996f3005baa 357-359
+lib/services/bluesky/client.ts
+  s_4fb28ab57323fe::t_3a88dd14ba97c3 41-53,57
+lib/services/pds/accountEvents.ts
+  s_4fb28ab57323fe::t_ea806213a9094f 6,98-100
+lib/services/pds/accounts.ts
+  s_4fb28ab57323fe::t_4db2ef2bb1d814 15-18,29,39,59,188,197,209,250,253,258,316-319,337-338,383-395,404-406,416-418,578-580,582-584,619-620,694-695,760-764,766-771,773,788
+lib/services/pds/errors.ts
+  s_4fb28ab57323fe::t_7bd3c959477799 179-182,257-331
+lib/services/pds/index.ts
+  s_4fb28ab57323fe::t_4f9f5fd4799ca5 34,41-46
+lib/services/pds/moveOut.test.ts
+  s_4fb28ab57323fe::t_741af6926468ac 1-1545
+lib/services/pds/moveOut.ts
+  s_4fb28ab57323fe::t_17a464090de88f 1-1362
+lib/services/pds/moved.ts
+  s_4fb28ab57323fe::t_ead18de807daea 1-66
+lib/services/pds/rateLimit.ts
+  s_4fb28ab57323fe::t_e2487995aa9a79 90-91
+lib/services/pds/routeResponse.ts
+  s_4fb28ab57323fe::t_797853b8f0a831 3-5,8-12,19-21,28-69
+lib/utils/blueskyHosted.ts
+  s_4fb28ab57323fe::t_0b501e38c98881 21-26,42-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "168a6b72606612b6bfba8f0625c77af33922b996",
+  "prompts": {},
+  "sessions": {
+    "s_4fb28ab57323fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "143ac5cb-61e1-4174-a644-dcb4b80dc66b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
