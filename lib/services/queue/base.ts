@@ -7,8 +7,17 @@ import { withSpan } from '@/lib/utils/trace'
 
 import { JobMessage } from './type'
 
+export type JobRegistryLoader = () => Promise<Record<string, JobHandle>>
+
+// Loaded on first job so a route that only publishes never loads every job.
+// Under tsx/cjs (scripts) this `import()` stays native and cannot resolve the
+// `@/` alias, so a runner that scripts start passes its own loader instead.
+const loadJobRegistry: JobRegistryLoader = async () =>
+  (await import('@/lib/jobs')).JOBS as Record<string, JobHandle>
+
 export const defaultJobHandle =
-  (queueName: string) => async (message: JobMessage) => {
+  (queueName: string, loadJobs: JobRegistryLoader = loadJobRegistry) =>
+  async (message: JobMessage) => {
     return withSpan(
       'queue',
       'handle',
@@ -33,12 +42,10 @@ export const defaultJobHandle =
           return
         }
 
-        const { JOBS } = await import('@/lib/jobs')
+        const JOBS = await loadJobs()
         const jobName = String(message.name)
         const hasJob = Object.prototype.hasOwnProperty.call(JOBS, jobName)
-        const job = hasJob
-          ? (JOBS as Record<string, JobHandle>)[jobName]
-          : undefined
+        const job = hasJob ? JOBS[jobName] : undefined
         if (!hasJob || typeof job !== 'function') {
           logger.error({ message }, 'Unknown job name')
           span.setStatus({

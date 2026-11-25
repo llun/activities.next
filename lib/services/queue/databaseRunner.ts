@@ -1,13 +1,24 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 
 import { Database } from '@/lib/database/types'
+import { JOBS } from '@/lib/jobs'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 
-import { defaultJobHandle } from './base'
+import { type JobRegistryLoader, defaultJobHandle } from './base'
 import { BackoffOptions, calculatePolynomialBackoffSeconds } from './retry'
 import { JobMessage } from './type'
+
+// The queue worker script (scripts/maintenance/runQueueWorker.ts) runs this
+// runner under tsx/cjs, where base.ts's lazy `import('@/lib/jobs')` cannot
+// resolve, so the runner hands over the registry it imports statically.
+const loadStaticJobRegistry: JobRegistryLoader = async () => JOBS
+
+export const databaseJobHandle = defaultJobHandle(
+  'database',
+  loadStaticJobRegistry
+)
 
 export interface ProcessDueQueueJobsOptions {
   limit?: number
@@ -69,7 +80,7 @@ export const processDueQueueJobs = async (
   const {
     limit = 50,
     now = new Date(),
-    handleJob = defaultJobHandle('database'),
+    handleJob = databaseJobHandle,
     backoffOptions,
     stalledTimeoutMs = 15 * 60 * 1000
   } = options

@@ -89,4 +89,29 @@ describe('JOBS registry', () => {
     )
     expect(output).toBe('function')
   })
+
+  // The queue worker script runs the database runner under tsx/cjs, where a
+  // native `import('@/lib/jobs')` cannot resolve the `@/` alias.
+  it('dispatches a job through the database runner in CommonJS', () => {
+    const script = `
+      process.env.ACTIVITIES_HOST = 'social.example'
+      process.env.ACTIVITIES_SECRET_PHASE = 'x'.repeat(40)
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'better-sqlite3'
+      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
+      const { logger } = require('./lib/utils/logger.ts')
+      const errors = []
+      logger.error = (...args) => { errors.push(args) }
+      const { databaseJobHandle } = require('./lib/services/queue/databaseRunner.ts')
+      databaseJobHandle({ id: 'probe', name: 'no-such-job', data: {} }).then(
+        () => { process.stdout.write(JSON.stringify(errors.map((args) => args[args.length - 1]))); process.exit(0) },
+        (error) => { process.stderr.write(String(error && error.stack)); process.exit(1) }
+      )
+    `
+    const output = execFileSync(
+      process.execPath,
+      ['-r', 'tsx/cjs', '-e', script],
+      { cwd: process.cwd(), encoding: 'utf-8', stdio: 'pipe' }
+    )
+    expect(JSON.parse(output)).toEqual(['Unknown job name'])
+  })
 })
