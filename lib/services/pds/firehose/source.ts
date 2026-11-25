@@ -10,6 +10,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 export const PDS_FIREHOSE_POLL_INTERVAL_MS = 1_000
 export const PDS_FIREHOSE_PG_INITIAL_RECONNECT_MS = 1_000
 export const PDS_FIREHOSE_PG_MAX_RECONNECT_MS = 30_000
+export const PDS_FIREHOSE_PG_CONNECT_TIMEOUT_MS = 10_000
 
 const PG_CHANNEL_PATTERN = /^[a-z_][a-z0-9_]*$/i
 
@@ -125,13 +126,23 @@ export const createPostgresPdsEventSource = ({
   }
 
   const listeners = new Set<() => void>()
+  const endPromises = new WeakMap<PgListenClient, Promise<void>>()
   let closed = false
   let activeClient: PgListenClient | null = null
+  let connectingClient: PgListenClient | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let inFlightConnect: Promise<void> | null = null
+  let connecting = false
   let attempt = 0
-  let hasConnectedOnce = false
-  let hadFailure = false
+
+  const endClientOnce = (client: PgListenClient): Promise<void> => {
+    let promise = endPromises.get(client)
+    if (!promise) {
+      promise = safeEndClient(client)
+      endPromises.set(client, promise)
+    }
+    return promise
+  }
 
   const clearReconnectTimer = (): void => {
     if (reconnectTimer !== null) {
@@ -141,7 +152,14 @@ export const createPostgresPdsEventSource = ({
   }
 
   const scheduleReconnect = (): void => {
-    if (closed || reconnectTimer !== null) return
+    if (
+      closed ||
+      reconnectTimer !== null ||
+      connecting ||
+      activeClient !== null
+    ) {
+      return
+    }
     const delayMs = Math.min(
       initialReconnectDelayMs * 2 ** attempt,
       maxReconnectDelayMs
@@ -163,34 +181,43 @@ export const createPostgresPdsEventSource = ({
     const handleDisconnect = (reason: string, error?: unknown): void => {
       if (disconnected) return
       disconnected = true
-      hadFailure = true
       if (client && activeClient === client) {
         activeClient = null
       }
+      if (client && connectingClient === client) {
+        connectingClient = null
+      }
       if (closed) return
       if (error !== undefined) {
-        logger.error(
-          { err: toLoggableError(error), channel },
-          `PostgreSQL PDS event listener ${reason}; scheduling reconnect`
-        )
+        logger.error({
+          message: `PostgreSQL PDS event listener ${reason}; scheduling reconnect`,
+          err: toLoggableError(error),
+          channel
+        })
       } else {
-        logger.warn(
-          { channel },
-          `PostgreSQL PDS event listener ${reason}; scheduling reconnect`
-        )
+        logger.warn({
+          message: `PostgreSQL PDS event listener ${reason}; scheduling reconnect`,
+          channel
+        })
       }
       if (client) {
-        void safeEndClient(client)
+        void endClientOnce(client)
       }
-      scheduleReconnect()
+      // If a connect attempt is still in flight, startConnect()'s finally
+      // schedules the reconnect once it settles so the timer can never fire
+      // into an in-flight connect and silently wedge.
+      if (!connecting) {
+        scheduleReconnect()
+      }
     }
 
     try {
       client = await createClient()
       if (closed) {
-        await safeEndClient(client)
+        await endClientOnce(client)
         return
       }
+      connectingClient = client
 
       client.on('notification', (msg) => {
         if (closed || disconnected) return
@@ -207,35 +234,46 @@ export const createPostgresPdsEventSource = ({
 
       await client.connect()
       if (closed || disconnected) {
-        await safeEndClient(client)
+        await endClientOnce(client)
         return
       }
 
       await client.query(`LISTEN ${channel}`)
       if (closed || disconnected) {
-        await safeEndClient(client)
+        await endClientOnce(client)
         return
       }
 
+      if (connectingClient === client) {
+        connectingClient = null
+      }
       activeClient = client
-      const shouldReplayWakeUp = hasConnectedOnce || hadFailure
-      hasConnectedOnce = true
-      hadFailure = false
       attempt = 0
 
-      if (shouldReplayWakeUp) {
-        notifyAll(listeners)
-      }
+      // Always wake listeners once LISTEN is active (including on first
+      // connect) so a subscriber that read bounds before LISTEN completed
+      // catches up on any event committed in the startup window.
+      notifyAll(listeners)
     } catch (error) {
       handleDisconnect('failed to connect', error)
+    } finally {
+      if (client !== null && connectingClient === client) {
+        connectingClient = null
+      }
     }
   }
 
   const startConnect = (): void => {
-    if (closed || inFlightConnect !== null) return
+    if (closed || connecting || activeClient !== null) return
+    clearReconnectTimer()
+    connecting = true
     const promise = connectOnce().finally(() => {
+      connecting = false
       if (inFlightConnect === promise) {
         inFlightConnect = null
+      }
+      if (!closed && activeClient === null) {
+        scheduleReconnect()
       }
     })
     inFlightConnect = promise
@@ -256,10 +294,15 @@ export const createPostgresPdsEventSource = ({
       closed = true
       listeners.clear()
       clearReconnectTimer()
-      const client = activeClient
+      const active = activeClient
       activeClient = null
-      if (client) {
-        await safeEndClient(client)
+      const pending = connectingClient
+      connectingClient = null
+      if (active) {
+        await endClientOnce(active)
+      }
+      if (pending && pending !== active) {
+        await endClientOnce(pending)
       }
       if (inFlightConnect) {
         await inFlightConnect
@@ -300,7 +343,10 @@ export const createPdsEventSource = (
     }
 
     return createPostgresPdsEventSource({
-      createClient: () => createPostgresClient(effectiveConfig),
+      createClient: () =>
+        createPostgresClient(effectiveConfig, {
+          connectionTimeoutMillis: PDS_FIREHOSE_PG_CONNECT_TIMEOUT_MS
+        }),
       initialReconnectDelayMs: options.initialReconnectDelayMs,
       maxReconnectDelayMs: options.maxReconnectDelayMs
     })

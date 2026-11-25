@@ -145,7 +145,7 @@ export const createPdsFirehoseSubscriber = ({
 
     let bounds: { oldest: number | null; newest: number | null }
     try {
-      bounds = await database.getPdsEventSeqBounds({ domain })
+      bounds = await database.getPdsEventSeqBounds()
     } catch (error) {
       if (!stopped) {
         logger.error(

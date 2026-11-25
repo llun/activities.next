@@ -489,10 +489,16 @@ const getPostgresClientConfig = (config: PostgresDatabaseConfig) => {
  * Callers own `client.connect()` and `client.end()`.
  */
 export const createPostgresClient = async (
-  config: PostgresDatabaseConfig
+  config: PostgresDatabaseConfig,
+  options?: { connectionTimeoutMillis?: number }
 ): Promise<Client> => {
   const pgModule = await loadPg()
-  return new pgModule.Client(getPostgresClientConfig(config))
+  return new pgModule.Client({
+    ...getPostgresClientConfig(config),
+    ...(options?.connectionTimeoutMillis !== undefined
+      ? { connectionTimeoutMillis: options.connectionTimeoutMillis }
+      : {})
+  })
 }
 
 const createPool = (

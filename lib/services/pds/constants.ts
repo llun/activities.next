@@ -38,3 +38,10 @@ export const PDS_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
 /** PostgreSQL LISTEN/NOTIFY channel signalled when a `pds_events` row is inserted. */
 export const PDS_EVENTS_NOTIFY_CHANNEL = 'pds_events'
+
+/**
+ * PostgreSQL transaction-scoped advisory lock key acquired before inserting
+ * into `pds_events` so concurrent transactions commit in strict `seq` order
+ * (ASCII `'pdsevent'` as a positive 64-bit signed integer).
+ */
+export const PDS_EVENTS_APPEND_LOCK_KEY = 0x7064736576656e74n

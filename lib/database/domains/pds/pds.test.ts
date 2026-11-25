@@ -1,6 +1,9 @@
 import { MAX_PDS_COLLECTIONS_LIMIT } from '@/lib/database/domains/pds/queries'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { PDS_EVENTS_NOTIFY_CHANNEL } from '@/lib/services/pds/constants'
+import {
+  PDS_EVENTS_APPEND_LOCK_KEY,
+  PDS_EVENTS_NOTIFY_CHANNEL
+} from '@/lib/services/pds/constants'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 
 describe('PDS database domain', () => {
@@ -1039,14 +1042,13 @@ describe('PDS database domain', () => {
     ).toHaveLength(MAX_PDS_COLLECTIONS_LIMIT)
   })
 
-  it('filters listPdsEvents by domain, supports 500-event pages, and computes per-domain seq bounds', async () => {
+  it('filters listPdsEvents by domain, supports 500-event pages, and computes global seq bounds', async () => {
     const domainA = 'firehose-a.example'
     const domainB = 'firehose-b.example'
-    const emptyDomain = 'firehose-empty.example'
 
-    expect(
-      await database.getPdsEventSeqBounds({ domain: emptyDomain })
-    ).toEqual({
+    await testDb.db.deleteFrom('pds_events').execute()
+
+    expect(await database.getPdsEventSeqBounds()).toEqual({
       oldest: null,
       newest: null
     })
@@ -1111,13 +1113,9 @@ describe('PDS database domain', () => {
       createdAt: recentTime
     })
 
-    expect(await database.getPdsEventSeqBounds({ domain: domainA })).toEqual({
+    expect(await database.getPdsEventSeqBounds()).toEqual({
       oldest: a1.seq,
       newest: a3.seq
-    })
-    expect(await database.getPdsEventSeqBounds({ domain: domainB })).toEqual({
-      oldest: b1.seq,
-      newest: b2.seq
     })
 
     const domainAEvents = await database.listPdsEvents({
@@ -1127,6 +1125,13 @@ describe('PDS database domain', () => {
     })
     expect(domainAEvents.map((e) => e.seq)).toEqual([a1.seq, a2.seq, a3.seq])
     expect(domainAEvents.map((e) => e.did)).toEqual([didA1, didA2, didA1])
+
+    const domainBEvents = await database.listPdsEvents({
+      afterSeq: 0,
+      limit: 500,
+      domain: domainB
+    })
+    expect(domainBEvents.map((e) => e.seq)).toEqual([b1.seq, b2.seq])
 
     const domainAAfterFirst = await database.listPdsEvents({
       afterSeq: a1.seq,
@@ -1160,17 +1165,23 @@ describe('PDS database domain', () => {
     })
     expect(page).toHaveLength(120)
 
-    // Pruning the oldest event on domainA advances its oldest bound.
+    const lastPageSeq = page[page.length - 1].seq
+    expect(await database.getPdsEventSeqBounds()).toEqual({
+      oldest: a1.seq,
+      newest: lastPageSeq
+    })
+
+    // Pruning the oldest event (a1) advances the global oldest bound to b1.
     await database.deletePdsEventsBefore({
       before: Date.UTC(2021, 0, 1, 0, 0, 0)
     })
-    expect(await database.getPdsEventSeqBounds({ domain: domainA })).toEqual({
-      oldest: a2.seq,
-      newest: a3.seq
+    expect(await database.getPdsEventSeqBounds()).toEqual({
+      oldest: b1.seq,
+      newest: lastPageSeq
     })
   })
 
-  it('skips pg_notify on SQLite when appending PDS events', async () => {
+  it('skips pg_notify and pg_advisory_xact_lock on SQLite when appending PDS events', async () => {
     if (testDb.backend === 'pg') return
 
     const did = 'did:web:sqlite-notify.pds.example'
@@ -1184,6 +1195,9 @@ describe('PDS database domain', () => {
     expect(queries.some((q) => q.sql.toLowerCase().includes('pg_notify'))).toBe(
       false
     )
+    expect(
+      queries.some((q) => q.sql.toLowerCase().includes('pg_advisory_xact_lock'))
+    ).toBe(false)
   })
 
   it.runIf(testDb.backend === 'pg')(
@@ -1280,6 +1294,113 @@ describe('PDS database domain', () => {
         q.sql.toLowerCase().startsWith('begin')
       )
       expect(standaloneNotifies[0].connection).toBe(standaloneBegin?.connection)
+    }
+  )
+
+  it.runIf(testDb.backend === 'pg')(
+    'acquires pg_advisory_xact_lock before inserting pds_events in the same transaction on PostgreSQL for initializePdsRepo, commitPdsRepoWrite, and appendPdsEvent',
+    async () => {
+      const did = 'did:web:pg-lock.pds.example'
+      const captureWithConnection = async (work: () => Promise<unknown>) => {
+        const events: Array<{
+          sql: string
+          bindings: unknown[]
+          connection: string
+        }> = []
+        const unsub = testDb.onQuery((event) => {
+          events.push(event)
+        })
+        try {
+          await work()
+        } finally {
+          unsub()
+        }
+        return events
+      }
+
+      const assertLockBeforeInsertsInTx = (
+        queries: Array<{
+          sql: string
+          bindings: unknown[]
+          connection: string
+        }>,
+        expectedEventCount: number
+      ) => {
+        const beginIndex = queries.findIndex((q) =>
+          q.sql.toLowerCase().startsWith('begin')
+        )
+        const commitIndex = queries.findIndex((q) =>
+          q.sql.toLowerCase().startsWith('commit')
+        )
+        expect(beginIndex).toBeGreaterThanOrEqual(0)
+        expect(commitIndex).toBeGreaterThan(beginIndex)
+
+        const txConnection = queries[beginIndex].connection
+        expect(queries[commitIndex].connection).toBe(txConnection)
+
+        const lockIndices = queries.flatMap((q, idx) =>
+          q.sql.toLowerCase().includes('pg_advisory_xact_lock') ? [idx] : []
+        )
+        const insertIndices = queries.flatMap((q, idx) =>
+          q.sql.toLowerCase().includes('insert into "pds_events"') ? [idx] : []
+        )
+
+        expect(lockIndices).toHaveLength(expectedEventCount)
+        expect(insertIndices).toHaveLength(expectedEventCount)
+
+        for (let i = 0; i < expectedEventCount; i += 1) {
+          const lockIndex = lockIndices[i]
+          const insertIndex = insertIndices[i]
+          expect(lockIndex).toBeGreaterThan(beginIndex)
+          expect(lockIndex).toBeLessThan(insertIndex)
+          expect(insertIndex).toBeLessThan(commitIndex)
+          expect(queries[lockIndex].connection).toBe(txConnection)
+          expect(queries[insertIndex].connection).toBe(txConnection)
+          expect(queries[lockIndex].bindings[0]).toBe(
+            PDS_EVENTS_APPEND_LOCK_KEY
+          )
+        }
+      }
+
+      const initQueries = await captureWithConnection(async () => {
+        await database.initializePdsRepo({
+          did,
+          actorId: 'https://pg-lock.example/users/alice',
+          domain: 'pg-lock.example',
+          signingKey: 'v1:key-pg-lock',
+          signingKeyDid: 'did:key:zQ3shPgLock',
+          rootCid: 'bafy-lock-init-root',
+          rev: '3k00000000001',
+          blocks: [],
+          events: [
+            { type: 'identity', payload: Buffer.from('id') },
+            { type: 'commit', payload: Buffer.from('cm') }
+          ]
+        })
+      })
+      assertLockBeforeInsertsInTx(initQueries, 2)
+
+      const commitQueries = await captureWithConnection(async () => {
+        await database.commitPdsRepoWrite({
+          did,
+          rootCid: 'bafy-lock-next-root',
+          rev: '3k00000000002',
+          expectedRev: '3k00000000001',
+          blocks: [],
+          recordWrites: [],
+          event: { type: 'commit', payload: Buffer.from('cm2') }
+        })
+      })
+      assertLockBeforeInsertsInTx(commitQueries, 1)
+
+      const standaloneQueries = await captureWithConnection(async () => {
+        await database.appendPdsEvent({
+          did,
+          type: 'account',
+          payload: Buffer.from('acct')
+        })
+      })
+      assertLockBeforeInsertsInTx(standaloneQueries, 1)
     }
   )
 })

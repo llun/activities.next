@@ -1,7 +1,9 @@
 import { decodeAll as cborDecodeAll } from '@atproto/lex-cbor'
 import type { LexMap } from '@atproto/lex-data'
+import crypto from 'node:crypto'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import type { Duplex } from 'node:stream'
 import { WebSocket } from 'ws'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
@@ -412,8 +414,10 @@ describe('PDS firehose upgrade handler', () => {
     // Omit eventSource to exercise lazy createPdsEventSource(database).
     const port = await startServer()
 
-    const ws = await connectWebSocket(
-      `ws://127.0.0.1:${port}${PDS_FIREHOSE_SUBSCRIBE_PATH}?cursor=0`,
+    // Attach the message listener before the socket opens so an immediate
+    // backfill frame emitted in the same tick as `open` cannot be missed.
+    const ws = new WebSocket(
+      `ws://127.0.0.1:${port}${PDS_FIREHOSE_SUBSCRIBE_PATH}?cursor=${existing.seq - 1}`,
       { headers: { Host: TEST_PDS_HOST } }
     )
 
@@ -424,6 +428,11 @@ describe('PDS firehose upgrade handler', () => {
         } catch (err) {
           reject(err)
         }
+      })
+      ws.once('error', reject)
+      ws.once('unexpected-response', (_req, res) => {
+        res.resume()
+        reject(new Error(`Expected WebSocket open, got HTTP ${res.statusCode}`))
       })
       ws.once('close', () =>
         reject(new Error('WebSocket closed before backfill frame arrived'))
@@ -438,5 +447,84 @@ describe('PDS firehose upgrade handler', () => {
     })
 
     await closeWebSocket(ws)
+  })
+
+  it('terminates a client that stalls the close handshake after the grace period so close() does not hang', async () => {
+    const limiter = createPdsFirehoseConnectionLimiter({
+      maxPerProcess: 4,
+      maxPerClient: 4
+    })
+    const port = await startServer({
+      eventSource: new ManualEventSource(),
+      limiter,
+      closeGraceMs: 50
+    })
+
+    // Open a raw upgraded socket that accepts the 101 Switching Protocols
+    // handshake but never replies to server WebSocket close frames.
+    const rawSocket = await new Promise<Duplex>((resolve, reject) => {
+      const req = http.request({
+        host: '127.0.0.1',
+        port,
+        path: PDS_FIREHOSE_SUBSCRIBE_PATH,
+        headers: {
+          Host: TEST_PDS_HOST,
+          Connection: 'Upgrade',
+          Upgrade: 'websocket',
+          'Sec-WebSocket-Key': crypto.randomBytes(16).toString('base64'),
+          'Sec-WebSocket-Version': '13'
+        }
+      })
+      req.once('upgrade', (_res, socket) => {
+        socket.resume()
+        resolve(socket)
+      })
+      req.once('response', (res) => {
+        res.resume()
+        reject(new Error(`Expected upgrade, got HTTP ${res.statusCode}`))
+      })
+      req.once('error', reject)
+      req.end()
+    })
+
+    const socketClosed = new Promise<void>((resolve) => {
+      rawSocket.once('close', () => resolve())
+    })
+
+    try {
+      await vi.waitFor(() => {
+        expect(limiter.getActiveCount()).toBe(1)
+      })
+
+      const activeHandler = handler!
+      handler = null
+
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      try {
+        await Promise.race([
+          activeHandler.close(),
+          new Promise<never>((_resolve, reject) => {
+            timeoutId = setTimeout(() => {
+              reject(
+                new Error(
+                  'firehose.close() hung waiting on stalled close handshake'
+                )
+              )
+            }, 1_000)
+          })
+        ])
+      } finally {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId)
+        }
+      }
+
+      await socketClosed
+      await vi.waitFor(() => {
+        expect(limiter.getActiveCount()).toBe(0)
+      })
+    } finally {
+      rawSocket.destroy()
+    }
   })
 })

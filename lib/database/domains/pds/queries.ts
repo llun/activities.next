@@ -6,7 +6,6 @@ import type {
   CommitPdsRepoWriteResult,
   CreatePdsBlobParams,
   CreatePdsRepoParams,
-  GetPdsEventSeqBoundsParams,
   GetPdsRepoParams,
   InitializePdsRepoParams,
   InitializePdsRepoResult,
@@ -36,6 +35,7 @@ import type {
   PdsRepos
 } from '@/lib/database/kysely/db'
 import {
+  acquirePostgresAdvisoryXactLock,
   byteLength,
   getDialectName,
   notifyPostgresChannel,
@@ -43,7 +43,10 @@ import {
 } from '@/lib/database/kysely/dialect'
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
-import { PDS_EVENTS_NOTIFY_CHANNEL } from '@/lib/services/pds/constants'
+import {
+  PDS_EVENTS_APPEND_LOCK_KEY,
+  PDS_EVENTS_NOTIFY_CHANNEL
+} from '@/lib/services/pds/constants'
 
 const MAX_LIST_LIMIT = 1000
 // 5 columns per pds_blocks row -> 100 rows = 500 parameters (< SQLite 999 limit).
@@ -540,6 +543,7 @@ export const appendPdsEvent = async (
   { did, type, payload, createdAt }: AppendPdsEventParams
 ): Promise<PdsEvent> => {
   const insertAndNotify = async (executor: Db): Promise<PdsEvent> => {
+    await acquirePostgresAdvisoryXactLock(executor, PDS_EVENTS_APPEND_LOCK_KEY)
     const row = await executor
       .insertInto('pds_events')
       .values({
@@ -559,8 +563,9 @@ export const appendPdsEvent = async (
     return event
   }
 
-  // On PostgreSQL, wrap standalone calls in a transaction so INSERT and
-  // pg_notify always execute on the same connection and deliver only on commit.
+  // On PostgreSQL, wrap standalone calls in a transaction so the advisory
+  // lock, INSERT, and pg_notify always execute on the same connection and
+  // commit atomically in sequence order.
   if (getDialectName(db) === 'postgres' && !isInTransaction(db)) {
     return inTransaction(db, insertAndNotify)
   }
@@ -592,21 +597,14 @@ export const listPdsEvents = async (
 }
 
 export const getPdsEventSeqBounds = async (
-  db: Db,
-  { domain }: GetPdsEventSeqBoundsParams
+  db: Db
 ): Promise<PdsEventSeqBounds> => {
   const row = await db
     .selectFrom('pds_events')
-    .innerJoin('pds_repos', 'pds_repos.did', 'pds_events.did')
     .select([
-      sql<number | string | null>`min(${sql.ref('pds_events.seq')})`.as(
-        'oldest'
-      ),
-      sql<number | string | null>`max(${sql.ref('pds_events.seq')})`.as(
-        'newest'
-      )
+      sql<number | string | null>`min(${sql.ref('seq')})`.as('oldest'),
+      sql<number | string | null>`max(${sql.ref('seq')})`.as('newest')
     ])
-    .where('pds_repos.domain', '=', domain)
     .executeTakeFirst()
 
   return {

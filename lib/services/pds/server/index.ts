@@ -17,7 +17,7 @@ import { startPdsCrawlRequests } from '@/lib/services/pds/requestCrawl'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-import { createPdsFirehoseUpgradeHandler } from './upgrade'
+import { createPdsFirehoseUpgradeHandler, rejectUpgrade } from './upgrade'
 
 interface RequiredServerFilesManifest {
   config?: Record<string, unknown>
@@ -104,7 +104,6 @@ const main = async (): Promise<void> => {
   }
 
   const handle = app.getRequestHandler()
-  const upgradeNext = app.getUpgradeHandler()
   const firehose = createPdsFirehoseUpgradeHandler({
     getDatabase: getFirehoseDatabase
   })
@@ -135,14 +134,7 @@ const main = async (): Promise<void> => {
       nextUpgradeTarget.emit('upgrade', req, socket, head)
       return
     }
-    void upgradeNext(req, socket, head).catch((error: unknown) => {
-      logger.error({
-        message: 'Unhandled error in Next upgrade handler',
-        err: toLoggableError(error),
-        url: req.url
-      })
-      socket.destroy()
-    })
+    rejectUpgrade(socket, 404, 'Not Found')
   })
 
   await new Promise<void>((resolve, reject) => {
@@ -175,10 +167,12 @@ const main = async (): Promise<void> => {
 
     void (async () => {
       try {
-        await firehose.close()
-        await new Promise<void>((resolve) => {
+        const serverClosed = new Promise<void>((resolve) => {
           server.close(() => resolve())
         })
+        await firehose.close()
+        server.closeIdleConnections()
+        await serverClosed
         await app.close()
         if (ownDatabase) {
           await ownDatabase.destroy()

@@ -31,6 +31,16 @@ export const notifyPostgresChannel = async (
   await sql`select pg_notify(${channel}, ${payload})`.execute(db)
 }
 
+// Acquires a PostgreSQL transaction-scoped advisory lock; no-op on SQLite.
+// Released automatically when the enclosing transaction commits or rolls back.
+export const acquirePostgresAdvisoryXactLock = async (
+  db: Db,
+  lockKey: bigint
+): Promise<void> => {
+  if (getDialectName(db) !== 'postgres') return
+  await sql`select pg_advisory_xact_lock(${lockKey}::bigint)`.execute(db)
+}
+
 type Lockable<QB, Of> = { forUpdate(of?: Of): QB }
 
 // Row lock for a SELECT inside a transaction. SQLite has no row locks (a

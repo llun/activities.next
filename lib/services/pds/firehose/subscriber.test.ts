@@ -192,7 +192,7 @@ describe('PDS firehose subscriber', () => {
     let liveEvent: PdsEvent | null = null
 
     const wrappedDb: PdsFirehoseDatabase = {
-      getPdsEventSeqBounds: (params) => database.getPdsEventSeqBounds(params),
+      getPdsEventSeqBounds: () => database.getPdsEventSeqBounds(),
       listPdsEvents: async (params) => {
         listCalls += 1
         inFlightReads += 1
@@ -372,5 +372,164 @@ describe('PDS firehose subscriber', () => {
     expect(logger.error).toHaveBeenCalled()
     expect(closed).toEqual([{ code: 1011, reason: 'Internal server error' }])
     expect(source.listenerCount()).toBe(0)
+  })
+
+  it('pumps an event committed while the initial bounds read is in flight', async () => {
+    const initial = await appendIdentityEvent(didA, 'before-connect.alpha')
+
+    let resolveBounds!: (bounds: {
+      oldest: number | null
+      newest: number | null
+    }) => void
+    const boundsDeferred = new Promise<{
+      oldest: number | null
+      newest: number | null
+    }>((resolve) => {
+      resolveBounds = resolve
+    })
+
+    const wrappedDb: PdsFirehoseDatabase = {
+      getPdsEventSeqBounds: () => boundsDeferred,
+      listPdsEvents: (params) => database.listPdsEvents(params)
+    }
+
+    const source = new ManualEventSource()
+    const { transport, frames, closed } = createMockTransport()
+    const subscriber = createPdsFirehoseSubscriber({
+      database: wrappedDb,
+      domain: domainA,
+      cursor: undefined,
+      source,
+      transport
+    })
+
+    const startPromise = subscriber.start()
+    // Subscriber must already be subscribed while bounds read is in flight.
+    expect(source.listenerCount()).toBe(1)
+
+    // An event commits and wakes the source before the bounds read resolves.
+    const inWindowEvent = await appendIdentityEvent(didA, 'during-bounds.alpha')
+    source.emit()
+
+    // Bounds read returns the snapshot from before inWindowEvent committed.
+    resolveBounds({ oldest: initial.seq, newest: initial.seq })
+    await startPromise
+    await flush()
+
+    expect(closed).toHaveLength(0)
+    expect(frames).toHaveLength(1)
+    expect(frames[0].header).toEqual({ op: 1, t: '#identity' })
+    expect(frames[0].body).toMatchObject({
+      seq: inWindowEvent.seq,
+      did: didA,
+      handle: 'during-bounds.alpha'
+    })
+
+    subscriber.stop()
+  })
+
+  it('uses global seq bounds across domains so cursor=0 gets no OutdatedCursor and another domain seq gets no FutureCursor', async () => {
+    // Use an isolated database so seq literally starts at 1 with nothing pruned.
+    const isolated = createTestDatabase({ backend: 'sqlite' })
+    await isolated.prepare()
+    await isolated.database.migrate()
+
+    try {
+      await isolated.database.createPdsRepo({
+        did: didA,
+        actorId: 'https://alpha.example/users/alice',
+        domain: domainA,
+        signingKey: 'v1:key-a',
+        signingKeyDid: 'did:key:zQ3shAlphaIso'
+      })
+      await isolated.database.createPdsRepo({
+        did: didB,
+        actorId: 'https://beta.example/users/bob',
+        domain: domainB,
+        signingKey: 'v1:key-b',
+        signingKeyDid: 'did:key:zQ3shBetaIso'
+      })
+
+      const append = (did: string, handle: string) =>
+        isolated.database.appendPdsEvent({
+          did,
+          type: 'identity',
+          payload: formatPdsIdentityEvent({
+            did,
+            handle,
+            time: '2026-11-25T00:00:00.000Z'
+          })
+        })
+
+      // Domain A has seq 1-3; Domain B has no events yet.
+      const a1 = await append(didA, 'a1.alpha.example')
+      const a2 = await append(didA, 'a2.alpha.example')
+      const a3 = await append(didA, 'a3.alpha.example')
+      expect([a1.seq, a2.seq, a3.seq]).toEqual([1, 2, 3])
+
+      // A domain B subscriber at cursor=3 (domain A's seq) gets no FutureCursor
+      // even before domain B has any events of its own.
+      const sourceBeforeB = new ManualEventSource()
+      const tBeforeB = createMockTransport()
+      const subBeforeB = createPdsFirehoseSubscriber({
+        database: isolated.database,
+        domain: domainB,
+        cursor: 3,
+        source: sourceBeforeB,
+        transport: tBeforeB.transport
+      })
+      await subBeforeB.start()
+      expect(tBeforeB.closed).toHaveLength(0)
+      expect(tBeforeB.frames).toHaveLength(0)
+      subBeforeB.stop()
+
+      // Domain B now gets seq 4-6; nothing has been pruned.
+      const b1 = await append(didB, 'b1.beta.example')
+      const b2 = await append(didB, 'b2.beta.example')
+      const b3 = await append(didB, 'b3.beta.example')
+      expect([b1.seq, b2.seq, b3.seq]).toEqual([4, 5, 6])
+
+      // A domain B subscriber with cursor=0 gets NO OutdatedCursor and receives 4-6.
+      const sourceZero = new ManualEventSource()
+      const tZero = createMockTransport()
+      const subZero = createPdsFirehoseSubscriber({
+        database: isolated.database,
+        domain: domainB,
+        cursor: 0,
+        source: sourceZero,
+        transport: tZero.transport
+      })
+      await subZero.start()
+      expect(tZero.closed).toHaveLength(0)
+      expect(tZero.frames.map((f) => f.header)).toEqual([
+        { op: 1, t: '#identity' },
+        { op: 1, t: '#identity' },
+        { op: 1, t: '#identity' }
+      ])
+      expect(tZero.frames.map((f) => f.body.seq)).toEqual([4, 5, 6])
+      subZero.stop()
+
+      // A domain B subscriber with cursor=3 (A's seq) gets NO FutureCursor and receives 4-6.
+      const sourceThree = new ManualEventSource()
+      const tThree = createMockTransport()
+      const subThree = createPdsFirehoseSubscriber({
+        database: isolated.database,
+        domain: domainB,
+        cursor: 3,
+        source: sourceThree,
+        transport: tThree.transport
+      })
+      await subThree.start()
+      expect(tThree.closed).toHaveLength(0)
+      expect(tThree.frames.map((f) => f.header)).toEqual([
+        { op: 1, t: '#identity' },
+        { op: 1, t: '#identity' },
+        { op: 1, t: '#identity' }
+      ])
+      expect(tThree.frames.map((f) => f.body.seq)).toEqual([4, 5, 6])
+      subThree.stop()
+    } finally {
+      await isolated.destroy()
+    }
   })
 })

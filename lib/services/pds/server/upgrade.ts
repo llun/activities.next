@@ -26,6 +26,8 @@ export const PDS_FIREHOSE_SUBSCRIBE_PATH =
 export const PDS_FIREHOSE_PING_INTERVAL_MS = 30_000
 export const PDS_FIREHOSE_MAX_MISSED_PONGS = 2
 export const PDS_FIREHOSE_MAX_PAYLOAD_BYTES = 4 * 1024
+export const PDS_FIREHOSE_CLOSE_GRACE_MS = 2_000
+export const PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS = 4_000
 
 const NON_NEGATIVE_INTEGER_PATTERN = /^\d+$/
 
@@ -35,6 +37,7 @@ export interface PdsFirehoseUpgradeHandlerOptions {
   limiter?: PdsFirehoseConnectionLimiter
   pingIntervalMs?: number
   maxMissedPongs?: number
+  closeGraceMs?: number
   pageSize?: number
   maxBufferedBytes?: number
   resolvePdsDomain?: (headers: Headers) => BlueskyPdsDomainConfig | null
@@ -101,7 +104,7 @@ const parseCursor = (searchParams: URLSearchParams): ParsedCursor => {
   return { ok: true, cursor: parsed }
 }
 
-const rejectUpgrade = (
+export const rejectUpgrade = (
   socket: Duplex,
   statusCode: number,
   reasonPhrase: string,
@@ -134,6 +137,7 @@ export const createPdsFirehoseUpgradeHandler = ({
   limiter = createPdsFirehoseConnectionLimiter(),
   pingIntervalMs = PDS_FIREHOSE_PING_INTERVAL_MS,
   maxMissedPongs = PDS_FIREHOSE_MAX_MISSED_PONGS,
+  closeGraceMs = PDS_FIREHOSE_CLOSE_GRACE_MS,
   pageSize,
   maxBufferedBytes,
   resolvePdsDomain = (headers) => getPdsDomainForRequest(headers),
@@ -142,7 +146,12 @@ export const createPdsFirehoseUpgradeHandler = ({
   const wss = new WebSocketServer({
     noServer: true,
     maxPayload: PDS_FIREHOSE_MAX_PAYLOAD_BYTES,
-    perMessageDeflate: false
+    perMessageDeflate: false,
+    // ws 8.x supports closeTimeout at runtime as a backstop if a peer stalls
+    // the close handshake, even though @types/ws does not declare it yet.
+    closeTimeout: PDS_FIREHOSE_WS_CLOSE_TIMEOUT_MS
+  } as ConstructorParameters<typeof WebSocketServer>[0] & {
+    closeTimeout: number
   })
   const activeSockets = new Set<WebSocket>()
   let ownedEventSource: PdsEventSource | null = null
@@ -314,11 +323,58 @@ export const createPdsFirehoseUpgradeHandler = ({
     if (closed) return
     closed = true
 
-    for (const ws of [...activeSockets]) {
+    const socketsToClose = Array.from(
+      new Set<WebSocket>([...activeSockets, ...wss.clients])
+    )
+    for (const ws of socketsToClose) {
       try {
         ws.close(1001, 'Server shutting down')
       } catch {
         ws.terminate()
+      }
+    }
+
+    if (socketsToClose.length > 0) {
+      let graceTimer: ReturnType<typeof setTimeout> | null = null
+      const listeners: Array<{ ws: WebSocket; listener: () => void }> = []
+      try {
+        const allClosed = new Promise<void>((resolve) => {
+          const checkDone = (): void => {
+            if (
+              socketsToClose.every((ws) => ws.readyState === WebSocket.CLOSED)
+            ) {
+              resolve()
+            }
+          }
+          for (const ws of socketsToClose) {
+            if (ws.readyState !== WebSocket.CLOSED) {
+              ws.once('close', checkDone)
+              listeners.push({ ws, listener: checkDone })
+            }
+          }
+          checkDone()
+        })
+        const graceElapsed = new Promise<void>((resolve) => {
+          graceTimer = setTimeout(() => {
+            graceTimer = null
+            for (const ws of socketsToClose) {
+              if (ws.readyState !== WebSocket.CLOSED) {
+                ws.terminate()
+              }
+            }
+            resolve()
+          }, closeGraceMs)
+          graceTimer.unref?.()
+        })
+        await Promise.race([allClosed, graceElapsed])
+      } finally {
+        if (graceTimer !== null) {
+          clearTimeout(graceTimer)
+          graceTimer = null
+        }
+        for (const { ws, listener } of listeners) {
+          ws.off('close', listener)
+        }
       }
     }
     activeSockets.clear()
