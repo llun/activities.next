@@ -192,7 +192,19 @@ export const StatusNote = StatusBase.extend({
   // account was moved at the time (a fitness import's backing status).
   // Stored in the content JSON blob, not a column. Optional so existing
   // status literals and statuses that predate the marker remain valid.
-  createdWhileMoved: z.boolean().optional()
+  createdWhileMoved: z.boolean().optional(),
+  // The owner's cross-post of this status to their linked Bluesky account.
+  // Hydrated only for the status's own author (never for other viewers), so
+  // the web app can show its state. Optional/nullable so existing status
+  // literals stay valid; null when the owner has no cross-post row.
+  blueskyCrosspost: z
+    .object({
+      state: z.enum(['pending', 'posted', 'failed']),
+      url: z.string().nullable(),
+      error: z.string().nullable()
+    })
+    .nullable()
+    .optional()
 })
 export type StatusNote = z.infer<typeof StatusNote>
 

@@ -483,7 +483,7 @@ describe('StatusDatabase deletion', () => {
 
           await expect(
             sqlDatabase.deleteStatus({ statusId: firstStatusId })
-          ).resolves.toBeUndefined()
+          ).resolves.toEqual({ deleted: true, blueskyCrossposts: [] })
           await expect(
             sqlDatabase.getStatus({ statusId: firstStatusId })
           ).resolves.toBeNull()

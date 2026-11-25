@@ -69,6 +69,68 @@ describe('getMastodonStatus', () => {
     expect(mastodonStatus?.pinned).toBe(true)
   })
 
+  it("shows the Bluesky cross-post state to the post's owner only", async () => {
+    const statusId = `${ACTOR1_ID}/statuses/mastodon-crossposted-${Date.now()}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'Cross-posted',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.claimBlueskyCrosspost({ statusId, actorId: ACTOR1_ID })
+    const attemptId = await database.beginBlueskyCrosspostAttempt({ statusId })
+    const did = `did:plc:${'a'.repeat(24)}`
+    await database.markBlueskyCrosspostPosted({
+      statusId,
+      attemptId: attemptId!,
+      uri: `at://${did}/app.bsky.feed.post/3kcopy`,
+      cid: `bafyrei${'c'.repeat(52)}`
+    })
+    const expected = {
+      state: 'posted',
+      url: `https://bsky.app/profile/${did}/post/3kcopy`,
+      error: null
+    }
+
+    const asOwner = (await database.getStatus({
+      statusId,
+      currentActorId: ACTOR1_ID
+    })) as Status
+    expect(asOwner).toMatchObject({ blueskyCrosspost: expected })
+    await expect(
+      getMastodonStatus(database, asOwner, ACTOR1_ID)
+    ).resolves.toMatchObject({ bluesky_crosspost: expected })
+    // A page of statuses (the batched hydration) reads the same.
+    const page = await database.getActorStatuses({
+      actorId: ACTOR1_ID,
+      currentActorId: ACTOR1_ID
+    })
+    expect(page.find((status) => status.id === statusId)).toMatchObject({
+      blueskyCrosspost: expected
+    })
+
+    for (const viewer of [ACTOR2_ID, undefined]) {
+      const asOther = (await database.getStatus({
+        statusId,
+        currentActorId: viewer
+      })) as Status
+      expect(asOther).not.toHaveProperty('blueskyCrosspost')
+      const serialized = await getMastodonStatus(database, asOther, viewer)
+      expect(serialized).not.toHaveProperty('bluesky_crosspost')
+    }
+
+    // An own post with no copy says null.
+    const plain = (await database.getStatus({
+      statusId: `${ACTOR1_ID}/statuses/post-1`,
+      currentActorId: ACTOR1_ID
+    })) as Status
+    await expect(
+      getMastodonStatus(database, plain, ACTOR1_ID)
+    ).resolves.toMatchObject({ bluesky_crosspost: null })
+  })
+
   it('marks an edited status with edited_at', async () => {
     const statusId = `${ACTOR1_ID}/statuses/mastodon-edited-note`
     await database.createNote({

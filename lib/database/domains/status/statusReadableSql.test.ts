@@ -368,6 +368,84 @@ describe('StatusDatabase readable status SQL', () => {
         await testDb.destroy()
       }
     })
+
+    it('keeps a Bluesky reply out of the public replies, but shows it to a signed-in viewer', async () => {
+      // A Bluesky reply under a local post is stored as a public-addressed row
+      // with network='bluesky' (storeBlueskyPostView maps a cross-post parent
+      // to the local status). Signed-out reads must not count or return it,
+      // and it must not crowd a real public reply out of a limited page.
+      const testDb = createTestDatabase({ backend: 'sqlite' })
+      const { db, database: sqlDatabase } = testDb
+
+      try {
+        await sqlDatabase.migrate()
+        await seedDatabase(sqlDatabase)
+
+        const parentId = `${primaryActorId}/statuses/bluesky-reply-parent`
+        await sqlDatabase.createNote({
+          id: parentId,
+          url: parentId,
+          actorId: primaryActorId,
+          text: 'Parent of a Bluesky reply',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+
+        const localReplyId = `${replyAuthorId}/statuses/local-reply`
+        await sqlDatabase.createNote({
+          id: localReplyId,
+          url: localReplyId,
+          actorId: replyAuthorId,
+          text: 'A real public reply',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          reply: parentId
+        })
+
+        const blueskyReplyId = `${replyAuthorId}/statuses/bluesky-reply`
+        await sqlDatabase.createNote({
+          id: blueskyReplyId,
+          url: blueskyReplyId,
+          actorId: replyAuthorId,
+          text: 'A Bluesky reply',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          reply: parentId
+        })
+        await db
+          .updateTable('statuses')
+          // Later than the local reply, so a page of one would return it first
+          // if the public predicate let it through.
+          .set({ network: 'bluesky', createdAt: new Date(Date.now() + 1000) })
+          .where('id', '=', blueskyReplyId)
+          .execute()
+
+        await expect(
+          sqlDatabase.getStatusRepliesCount({
+            statusId: parentId,
+            publicOnly: true
+          })
+        ).resolves.toBe(1)
+        await expect(
+          sqlDatabase.getStatusReplies({
+            statusId: parentId,
+            publicOnly: true,
+            limit: 1
+          })
+        ).resolves.toEqual([expect.objectContaining({ id: localReplyId })])
+
+        // A signed-in read (not publicOnly) still includes the Bluesky reply.
+        const signedIn = await sqlDatabase.getStatusReplies({
+          statusId: parentId,
+          visibleToActorId: replyAuthorId
+        })
+        expect(signedIn.map((status) => status.id)).toEqual(
+          expect.arrayContaining([localReplyId, blueskyReplyId])
+        )
+      } finally {
+        await testDb.destroy()
+      }
+    })
   })
 
   describe('publiclyReadableStatus SQL', () => {

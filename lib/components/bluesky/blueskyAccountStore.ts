@@ -6,7 +6,7 @@ import { getBlueskyAccount } from '@/lib/client/blueskyAccount'
 import type { BlueskyLinkedAccount } from '@/lib/utils/blueskyAccount'
 
 // The viewer's linked Bluesky account (did + handle), fetched once per page
-// load when a Bluesky reply composer or Bluesky post menu needs it, and shared
+// load when a composer or Bluesky post menu needs it, and shared
 // across every composer and menu on the page. Keyed by actorId so a profile
 // switch never leaks the previous actor's linked Bluesky identity.
 
@@ -76,6 +76,17 @@ export const setLinkedBlueskyAccount = (
 ) => {
   latestLoad += 1
   emit({ actorId, account, status: 'loaded' })
+}
+
+/**
+ * Applies a settings change to the loaded account, so open composers follow
+ * it (Settings › Other networks edits the signed-in actor, the store's own).
+ */
+export const updateLinkedBlueskyAccount = (
+  changes: Partial<BlueskyLinkedAccount>
+) => {
+  if (!state.account) return
+  emit({ ...state, account: { ...state.account, ...changes } })
 }
 
 /** The actor's linked Bluesky account, or null until loaded or for another actor. */

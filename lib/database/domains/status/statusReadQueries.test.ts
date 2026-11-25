@@ -3321,6 +3321,7 @@ describe('hydration context', () => {
       quoteEdges: new Map([[seed.noteId, expect.any(Object)]]),
       linkPreviews: new Map([[seed.noteId, expect.any(Object)]]),
       reactionRollups: new Map([[seed.noteId, expect.any(Array)]]),
+      blueskyCrossposts: new Map(),
       likedStatusIds: new Set([seed.noteId]),
       bookmarkFolderIds: new Map([[seed.noteId, null]]),
       announcedStatusIds: new Map([
@@ -3330,5 +3331,208 @@ describe('hydration context', () => {
     await expect(
       buildStatusHydrationContext(db, [boost])
     ).resolves.not.toHaveProperty('likedStatusIds')
+  })
+
+  it('reads cross-post rows only for the viewer’s own statuses, and none without a viewer', async () => {
+    const prefix = nextPrefix()
+    const author = await seedActor(actorIn(prefix, 'author'))
+    const viewer = await seedActor(actorIn(prefix, 'viewer'))
+    const ownId = await seedStatus({
+      id: `${viewer}/statuses/own`,
+      actorId: viewer
+    })
+    const otherId = await seedStatus({
+      id: `${author}/statuses/other`,
+      actorId: author
+    })
+    const did = `did:plc:${'a'.repeat(24)}`
+    const crosspost = (statusId: string, actorId: string, rkey: string) =>
+      db
+        .insertInto('bluesky_crossposts')
+        .values({
+          statusId,
+          actorId,
+          uri: `at://${did}/app.bsky.feed.post/${rkey}`,
+          cid: `bafyrei${'c'.repeat(52)}`,
+          state: 'posted',
+          createdAt: new Date(BASE),
+          updatedAt: new Date(BASE)
+        })
+        .execute()
+    await crosspost(ownId, viewer, '3kown')
+    await crosspost(otherId, author, '3kother')
+    const rows = (await db
+      .selectFrom('statuses')
+      .selectAll()
+      .where('id', 'in', [ownId, otherId])
+      .execute()) as StatusRow[]
+
+    const context = await buildStatusHydrationContext(db, rows, viewer)
+    // The other actor's row is never read, so it cannot leak into the page.
+    expect([...(context.blueskyCrossposts?.keys() ?? [])]).toEqual([ownId])
+
+    const anonymous = await buildStatusHydrationContext(db, rows)
+    expect(anonymous.blueskyCrossposts).toEqual(new Map())
+
+    // Without a context, a non-owner's row never queries the table at all.
+    const otherRow = rows.find((row) => row.id === otherId) as StatusRow
+    const { statements } = await capture(() =>
+      hydrateStatusRow(db, otherRow, viewer)
+    )
+    expect(
+      statements.some((statement) =>
+        statement.sql.includes('bluesky_crossposts')
+      )
+    ).toBe(false)
+  })
+
+  it('shows the owner’s cross-post on their own post through their boost of it', async () => {
+    const prefix = nextPrefix()
+    const viewer = await seedActor(actorIn(prefix, 'viewer'))
+    const ownId = await seedStatus({
+      id: `${viewer}/statuses/own`,
+      actorId: viewer
+    })
+    const did = `did:plc:${'a'.repeat(24)}`
+    await db
+      .insertInto('bluesky_crossposts')
+      .values({
+        statusId: ownId,
+        actorId: viewer,
+        uri: `at://${did}/app.bsky.feed.post/3kboostown`,
+        cid: `bafyrei${'c'.repeat(52)}`,
+        state: 'posted',
+        createdAt: new Date(BASE),
+        updatedAt: new Date(BASE)
+      })
+      .execute()
+    const boostId = `${viewer}/statuses/boost-own`
+    await seedStatus({
+      id: boostId,
+      actorId: viewer,
+      type: StatusType.enum.Announce,
+      originalStatusId: ownId
+    })
+    const boost = (await db
+      .selectFrom('statuses')
+      .selectAll()
+      .where('id', '=', boostId)
+      .executeTakeFirstOrThrow()) as StatusRow
+
+    const context = await buildStatusHydrationContext(db, [boost], viewer)
+    expect(context.blueskyCrossposts?.get(ownId)).toMatchObject({
+      state: 'posted'
+    })
+
+    const hydrated = (await hydrateStatusRow(
+      db,
+      boost,
+      viewer,
+      false,
+      context
+    )) as StatusAnnounce
+    expect(hydrated.originalStatus).toMatchObject({
+      blueskyCrosspost: {
+        state: 'posted',
+        url: `https://bsky.app/profile/${did}/post/3kboostown`,
+        error: null
+      }
+    })
+  })
+
+  it('maps posting to pending, and reports stale pending or posting cross-posts as failed', async () => {
+    const prefix = nextPrefix()
+    const viewer = await seedActor(actorIn(prefix, 'viewer'))
+    const stalePendingId = await seedStatus({
+      id: `${viewer}/statuses/stale-crosspost`,
+      actorId: viewer
+    })
+    const freshPendingId = await seedStatus({
+      id: `${viewer}/statuses/fresh-crosspost`,
+      actorId: viewer
+    })
+    const freshPostingId = await seedStatus({
+      id: `${viewer}/statuses/fresh-posting-crosspost`,
+      actorId: viewer
+    })
+    const stalePostingId = await seedStatus({
+      id: `${viewer}/statuses/stale-posting-crosspost`,
+      actorId: viewer
+    })
+    const crosspost = (
+      statusId: string,
+      state: 'pending' | 'posting',
+      updatedAt: number
+    ) =>
+      db
+        .insertInto('bluesky_crossposts')
+        .values({
+          statusId,
+          actorId: viewer,
+          state,
+          createdAt: new Date(BASE),
+          updatedAt: new Date(updatedAt)
+        })
+        .execute()
+    // Older than STALE_CROSSPOST_MS: its job was dead-lettered or worker crashed.
+    await crosspost(stalePendingId, 'pending', Date.now() - 31 * MINUTE)
+    await crosspost(freshPendingId, 'pending', Date.now() - MINUTE)
+    await crosspost(freshPostingId, 'posting', Date.now() - MINUTE)
+    await crosspost(stalePostingId, 'posting', Date.now() - 31 * MINUTE)
+    const rows = (await db
+      .selectFrom('statuses')
+      .selectAll()
+      .where('id', 'in', [
+        stalePendingId,
+        freshPendingId,
+        freshPostingId,
+        stalePostingId
+      ])
+      .execute()) as StatusRow[]
+    const rowOf = (id: string) => rows.find((row) => row.id === id) as StatusRow
+
+    const stalePending = (await hydrateStatusRow(
+      db,
+      rowOf(stalePendingId),
+      viewer
+    )) as StatusNote
+    expect(stalePending.blueskyCrosspost).toEqual({
+      state: 'failed',
+      url: null,
+      error: 'Bluesky did not answer. Try again.'
+    })
+
+    const freshPending = (await hydrateStatusRow(
+      db,
+      rowOf(freshPendingId),
+      viewer
+    )) as StatusNote
+    expect(freshPending.blueskyCrosspost).toEqual({
+      state: 'pending',
+      url: null,
+      error: null
+    })
+
+    const freshPosting = (await hydrateStatusRow(
+      db,
+      rowOf(freshPostingId),
+      viewer
+    )) as StatusNote
+    expect(freshPosting.blueskyCrosspost).toEqual({
+      state: 'pending',
+      url: null,
+      error: null
+    })
+
+    const stalePosting = (await hydrateStatusRow(
+      db,
+      rowOf(stalePostingId),
+      viewer
+    )) as StatusNote
+    expect(stalePosting.blueskyCrosspost).toEqual({
+      state: 'failed',
+      url: null,
+      error: 'Bluesky did not answer. Try again.'
+    })
   })
 })

@@ -271,6 +271,7 @@ export interface BlueskyAccounts {
   actorId: string
   authType: string
   createdAt: WithDefault<Timestamp>
+  crosspostByDefault: WithDefault<boolean>
   did: string
   domainHandle: WithDefault<boolean>
   handle: string
@@ -280,6 +281,18 @@ export interface BlueskyAccounts {
   pdsUrl: string
   syncError: Nullable<string>
   updatedAt: WithDefault<Timestamp>
+}
+
+export interface BlueskyCrossposts {
+  actorId: string
+  attemptId: Nullable<string>
+  cid: Nullable<string>
+  createdAt: WithDefault<Timestamp>
+  error: Nullable<string>
+  state: string
+  statusId: string
+  updatedAt: WithDefault<Timestamp>
+  uri: Nullable<string>
 }
 
 export interface BlueskyFollows {
@@ -1623,6 +1636,7 @@ export interface DB {
   auth_codes: AuthCodes
   blocks: Blocks
   bluesky_accounts: BlueskyAccounts
+  bluesky_crossposts: BlueskyCrossposts
   bluesky_follows: BlueskyFollows
   bluesky_interactions: BlueskyInteractions
   bluesky_oauth_states: BlueskyOauthStates

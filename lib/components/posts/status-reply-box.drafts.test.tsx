@@ -15,6 +15,7 @@ import {
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
 
 import { createNote, uploadAttachment } from '@/lib/client'
+import { getBlueskyAccount } from '@/lib/client/blueskyAccount'
 import { resetConnectionForTesting } from '@/lib/client/connection'
 import {
   listDrafts,
@@ -24,6 +25,10 @@ import {
   setDraftsIndexedDBFactory
 } from '@/lib/client/drafts'
 import { ApiRequestError } from '@/lib/client/http'
+import {
+  resetBlueskyAccountStore,
+  setLinkedBlueskyAccount
+} from '@/lib/components/bluesky/blueskyAccountStore'
 import {
   DraftsProvider,
   useDrafts
@@ -35,6 +40,7 @@ import { findInRealTime } from '@/lib/testing/findInRealTime'
 import { findSendAlert, sendAlerts } from '@/lib/testing/sendAlerts'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { StatusReplyBox } from './status-reply-box'
@@ -42,6 +48,10 @@ import { StatusReplyBox } from './status-reply-box'
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
   uploadAttachment: vi.fn()
+}))
+
+vi.mock('@/lib/client/blueskyAccount', () => ({
+  getBlueskyAccount: vi.fn().mockResolvedValue(null)
 }))
 
 vi.mock('@/lib/utils/resizeImage')
@@ -977,5 +987,52 @@ describe('StatusReplyBox on-device drafts', () => {
     await settleReal(300)
     expect(screen.queryByText('Saved to Drafts')).toBeNull()
     expect(screen.queryByText('Couldn’t save to Drafts')).toBeNull()
+  })
+
+  it('saves blueskyCrosspost on a self-reply draft only after the switch is flipped', async () => {
+    vi.mocked(getBlueskyAccount).mockResolvedValue(null)
+    setLinkedBlueskyAccount(profile.id, {
+      did: 'did:plc:viewer1234567890abcdef',
+      handle: 'viewer.bsky.social',
+      pdsUrl: 'https://bsky.social',
+      authType: 'oauth',
+      domainHandle: false,
+      sessionActive: true,
+      lastSyncedAt: null,
+      syncError: null,
+      crosspostByDefault: true
+    })
+    try {
+      const ownPublicReplyTarget: StatusNote = {
+        ...replyStatus,
+        to: [ACTIVITY_STREAM_PUBLIC]
+      }
+      render(
+        <DraftsProvider accountId={ACCOUNT_ID} actorId={profile.id}>
+          <EpochReady />
+          <StatusReplyBox
+            profile={profile}
+            replyStatus={ownPublicReplyTarget}
+            isMediaUploadEnabled
+            onCancel={vi.fn()}
+            onPostCreated={vi.fn()}
+          />
+        </DraftsProvider>
+      )
+      await screen.findByTestId('drafts-ready')
+
+      type('Self-reply draft')
+      await waitForSaved()
+      expect((await stored())[0]?.blueskyCrosspost).toBeUndefined()
+
+      fireEvent.click(
+        screen.getByRole('switch', { name: 'Also post to Bluesky' })
+      )
+      await waitFor(async () =>
+        expect((await stored())[0]?.blueskyCrosspost).toBe(false)
+      )
+    } finally {
+      resetBlueskyAccountStore()
+    }
   })
 })

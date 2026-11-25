@@ -1432,7 +1432,7 @@ describe('deleteStatus', () => {
 const STATEMENTS: StatementNames = [
   [/^(begin|commit|rollback)$/, () => ''],
   [
-    /^select "id", "actorId", "type", "reply", "content", "originalStatusId" from "statuses"/,
+    /^select "id", "actorId", "type", "reply", "content", "originalStatusId", "createdAt" from "statuses"/,
     (b) => `read statuses ${b.join(',')}`
   ],
   [
@@ -1549,6 +1549,7 @@ describe('statements', () => {
     'delete recipients',
     'delete likes',
     'delete bluesky_interactions',
+    'delete bluesky_crossposts',
     'delete status_reactions',
     'delete tags',
     'read deleted attachment media',
@@ -1616,7 +1617,7 @@ describe('statements', () => {
         }
       })
     )
-    expect(result).toBe(true)
+    expect(result).toEqual({ deleted: true, blueskyCrossposts: [] })
     // The reply is the replier's: it is walked but kept.
     const steps = statements.map(step)
     expect(steps).toEqual([
@@ -1717,7 +1718,7 @@ describe('deleteStatusWithQueueJob', () => {
         actorId: t.author,
         queueJob: job()
       })
-    ).resolves.toBe(true)
+    ).resolves.toEqual({ deleted: true, blueskyCrossposts: [] })
     const jobRow = {
       id: `${prefix}-job`,
       name: 'sendDeleteNote',
@@ -1764,7 +1765,7 @@ describe('deleteStatusWithQueueJob', () => {
     ]) {
       await expect(
         deleteStatusWithQueueJob(db(), { ...params, queueJob: job() })
-      ).resolves.toBe(false)
+      ).resolves.toEqual({ deleted: false, blueskyCrossposts: [] })
     }
     expect(await dumpDatabase(testDb)).toEqual(before)
     expect(refresh).not.toHaveBeenCalled()
@@ -1814,9 +1815,10 @@ describe('hashtag refresh', () => {
       failure
     )
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
-    await expect(
-      deleteStatus(db(), { statusId: t.reply2 })
-    ).resolves.toBeUndefined()
+    await expect(deleteStatus(db(), { statusId: t.reply2 })).resolves.toEqual({
+      deleted: true,
+      blueskyCrossposts: []
+    })
     expect(warn).toHaveBeenCalledWith(
       { err: failure, hashtags: ['#Cats'], statusId: t.reply2 },
       'Failed to refresh hashtag search documents after status deletion'
@@ -1859,7 +1861,7 @@ describe('undefined and null keys', () => {
     const before = await dumpDatabase(testDb)
     await expect(
       deleteStatus(db(), { statusId: undefined as unknown as string })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ deleted: false, blueskyCrossposts: [] })
     await expect(
       deleteStatusWithQueueJob(db(), {
         statusId: undefined as unknown as string,
@@ -1870,7 +1872,7 @@ describe('undefined and null keys', () => {
           payload: {} as never
         }
       })
-    ).resolves.toBe(false)
+    ).resolves.toEqual({ deleted: false, blueskyCrossposts: [] })
     await expect(
       deleteStatusEditHistory(db(), {
         statusId: undefined as unknown as string
@@ -2077,6 +2079,112 @@ describe.runIf(testDb.backend === 'pg')('PostgreSQL locks', () => {
       .execute()
     expect(remaining).toEqual([
       { actorId: viewer1, statusId: survivor, kind: 'like' }
+    ])
+  })
+
+  it('deletes the bluesky_crossposts row of the deleted status only and returns it', async () => {
+    const author = await seedActor('crosspost-author', { local: true })
+    const doomed = await seedStatus({
+      id: statusIn(author, 'crosspost-doomed'),
+      actorId: author,
+      createdAt: BASE + 1_000
+    })
+    const survivor = await seedStatus({
+      id: statusIn(author, 'crosspost-survivor'),
+      actorId: author,
+      createdAt: BASE + 2_000
+    })
+    const uri =
+      'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3kdoomed'
+    await db()
+      .insertInto('bluesky_crossposts')
+      .values([
+        {
+          statusId: doomed,
+          actorId: author,
+          state: 'posted',
+          uri,
+          cid: 'bafydoomed'
+        },
+        { statusId: survivor, actorId: author, state: 'pending' }
+      ])
+      .execute()
+    refreshSpy()
+
+    const result = await deleteStatus(db(), { statusId: doomed })
+
+    expect(result.deleted).toBe(true)
+    expect(result.blueskyCrossposts).toEqual([
+      expect.objectContaining({
+        statusId: doomed,
+        actorId: author,
+        state: 'posted',
+        uri,
+        cid: 'bafydoomed',
+        error: null
+      })
+    ])
+
+    const remaining = await db()
+      .selectFrom('bluesky_crossposts')
+      .select('statusId')
+      .where('statusId', 'in', [doomed, survivor])
+      .execute()
+    expect(remaining).toEqual([{ statusId: survivor }])
+  })
+
+  it('keeps the bluesky_crossposts row when deleteStatus rolls back after deleting it', async () => {
+    const author = await seedActor('crosspost-rollback', { local: true })
+    const doomed = await seedStatus({
+      id: statusIn(author, 'crosspost-rollback-status'),
+      actorId: author,
+      createdAt: BASE + 1_000
+    })
+    const uri =
+      'at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.bsky.feed.post/3krollback'
+    await db()
+      .insertInto('bluesky_crossposts')
+      .values({
+        statusId: doomed,
+        actorId: author,
+        state: 'posted',
+        uri,
+        cid: 'bafyrollback'
+      })
+      .execute()
+    refreshSpy()
+
+    // Fail on the status row delete, which runs after bluesky_crossposts DELETE … RETURNING.
+    const drop = await failWrite(
+      testDb,
+      'statuses',
+      'delete',
+      `old.id = ${quote(doomed)}`
+    )
+    try {
+      await expect(deleteStatus(db(), { statusId: doomed })).rejects.toThrow(
+        /^forced failure$/
+      )
+    } finally {
+      await drop()
+    }
+
+    const surviving = await db()
+      .selectFrom('bluesky_crossposts')
+      .select(['statusId', 'state', 'uri'])
+      .where('statusId', '=', doomed)
+      .executeTakeFirst()
+    expect(surviving).toEqual({
+      statusId: doomed,
+      state: 'posted',
+      uri
+    })
+
+    // A retry now deletes the status and returns the intact cross-post row.
+    const retryResult = await deleteStatus(db(), { statusId: doomed })
+    expect(retryResult.deleted).toBe(true)
+    expect(retryResult.blueskyCrossposts).toEqual([
+      expect.objectContaining({ statusId: doomed, state: 'posted', uri })
     ])
   })
 })

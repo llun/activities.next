@@ -26,6 +26,7 @@ export interface ScheduledStatusInput {
   in_reply_to_id?: string
   media_ids: string[]
   scheduled_at?: string
+  bluesky_crosspost?: boolean
   poll?: {
     options: string[]
     expires_in: number
@@ -70,7 +71,12 @@ export const buildScheduledParams = (
     application_id: applicationId,
     scheduled_at: note.scheduled_at ?? null,
     idempotency: idempotencyKey,
-    with_rate_limit: false
+    with_rate_limit: false,
+    // Only when the client sent it, so the params of every other scheduled
+    // status keep the shape they had before the Bluesky option existed.
+    ...(note.bluesky_crosspost !== undefined
+      ? { bluesky_crosspost: note.bluesky_crosspost }
+      : {})
   }
 }
 

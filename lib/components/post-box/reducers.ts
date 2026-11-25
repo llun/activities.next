@@ -28,6 +28,9 @@ export interface StatusExtension {
     uploading: boolean
     uploadedId?: string
   }
+  // "Also post to Bluesky" as the author set it for this post; unset follows
+  // the linked account's default.
+  blueskyCrosspost?: boolean
 }
 
 export const resetExtension = () => ({ type: 'resetExtension' as const })
@@ -132,6 +135,12 @@ export const setQuoteApprovalPolicy = (
 })
 type ActionSetQuoteApprovalPolicy = ReturnType<typeof setQuoteApprovalPolicy>
 
+export const setBlueskyCrosspost = (blueskyCrosspost: boolean) => ({
+  type: 'setBlueskyCrosspost' as const,
+  blueskyCrosspost
+})
+type ActionSetBlueskyCrosspost = ReturnType<typeof setBlueskyCrosspost>
+
 export const setFitnessFile = (file: File) => ({
   type: 'setFitnessFile' as const,
   file
@@ -171,6 +180,7 @@ type Actions =
   | ActionRemoveAttachment
   | ActionSetVisibility
   | ActionSetQuoteApprovalPolicy
+  | ActionSetBlueskyCrosspost
   | ActionSetFitnessFile
   | ActionSetFitnessFileUploading
   | ActionSetFitnessFileUploaded
@@ -385,6 +395,9 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
         ...state,
         quoteApprovalPolicy: action.quoteApprovalPolicy
       }
+    }
+    case 'setBlueskyCrosspost': {
+      return { ...state, blueskyCrosspost: action.blueskyCrosspost }
     }
     case 'setFitnessFile': {
       return {

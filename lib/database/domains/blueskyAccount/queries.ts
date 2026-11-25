@@ -24,6 +24,7 @@ const toAccount = (row: Selectable<BlueskyAccounts>): BlueskyAccount => ({
   notificationsSeenAt: row.notificationsSeenAt
     ? getCompatibleTime(row.notificationsSeenAt)
     : null,
+  crosspostByDefault: Boolean(row.crosspostByDefault),
   createdAt: getCompatibleTime(row.createdAt),
   updatedAt: getCompatibleTime(row.updatedAt)
 })
@@ -171,6 +172,20 @@ export const updateBlueskyNotificationsSeenAt = async (
     .set({
       notificationsSeenAt: seenAt === null ? null : new Date(seenAt)
     })
+    .where('actorId', '=', actorId)
+    .execute()
+}
+
+export const updateBlueskyCrosspostDefault = async (
+  db: Db,
+  {
+    actorId,
+    crosspostByDefault
+  }: { actorId: string; crosspostByDefault: boolean }
+): Promise<void> => {
+  await db
+    .updateTable('bluesky_accounts')
+    .set({ crosspostByDefault, updatedAt: new Date() })
     .where('actorId', '=', actorId)
     .execute()
 }
@@ -348,6 +363,7 @@ export const blueskyAccountQueries = {
   saveBlueskyAccount,
   updateBlueskyAccountIdentity,
   updateBlueskyNotificationsSeenAt,
+  updateBlueskyCrosspostDefault,
   setBlueskyInstanceHandle,
   listBlueskyAccountsToSync,
   deleteBlueskyAccount,

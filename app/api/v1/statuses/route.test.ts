@@ -1971,6 +1971,262 @@ describe('POST /api/v1/statuses', () => {
     })
   })
 
+  it('counts the Bluesky cross-post choice in the Idempotency-Key content', async () => {
+    const post = (body: Record<string, unknown>) =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test',
+            'Idempotency-Key': 'idem-key-bluesky-crosspost'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+    const first = await post({ status: 'Cross-post choice' })
+    expect(first.status).toBe(200)
+    const changed = await post({
+      status: 'Cross-post choice',
+      bluesky_crosspost: false
+    })
+    expect(changed.status).toBe(422)
+  })
+
+  it('keeps the Idempotency-Key hash of a body without the Bluesky field, and replays it', async () => {
+    const idempotencyKey = 'idem-key-bluesky-absent'
+    const makeRequest = () =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({ status: 'No Bluesky choice' }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test',
+            'Idempotency-Key': idempotencyKey
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    const first = await makeRequest()
+    expect(first.status).toBe(200)
+    const firstStatus = await first.json()
+
+    // The hash the route computed before the Bluesky option existed: the same
+    // body, with no bluesky_crosspost key at all. An in-flight key from before
+    // the upgrade therefore still matches its retry.
+    const row = await db
+      .selectFrom('idempotency_keys')
+      .select('contentHash')
+      .where('actorId', '=', ACTOR1_ID)
+      .where('key', '=', idempotencyKey)
+      .executeTakeFirstOrThrow()
+    expect(row.contentHash).toBe(
+      getHashFromString(
+        JSON.stringify({
+          status: 'No Bluesky choice',
+          in_reply_to_id: null,
+          quoted_status_id: null,
+          quote_approval_policy: null,
+          spoiler_text: null,
+          media_ids: [],
+          fitness_file_id: null,
+          visibility: null,
+          language: null,
+          sensitive: false,
+          scheduled_at: null,
+          created_at: null,
+          poll: null
+        })
+      )
+    )
+
+    // A replay of the same key and body is answered with the kept status.
+    const replay = await makeRequest()
+    expect(replay.status).toBe(200)
+    expect((await replay.json()).id).toBe(firstStatus.id)
+  })
+
+  it('passes the Bluesky cross-post choice to the new post', async () => {
+    await database.saveBlueskyAccount({
+      actorId: ACTOR1_ID,
+      did: `did:plc:${'x'.repeat(24)}`,
+      handle: 'crosspost.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
+    const post = async (body: Record<string, unknown>) => {
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+      const { uri } = await response.json()
+      return database.getBlueskyCrosspost({ statusId: uri })
+    }
+
+    try {
+      await expect(
+        post({ status: 'Stays here', bluesky_crosspost: false })
+      ).resolves.toBeNull()
+      await expect(
+        post({
+          status: 'Poll stays here',
+          poll: { options: ['A', 'B'], expires_in: 3600 },
+          bluesky_crosspost: false
+        })
+      ).resolves.toBeNull()
+      await expect(
+        post({ status: 'Goes to Bluesky', bluesky_crosspost: 'true' })
+      ).resolves.toMatchObject({ state: 'pending' })
+    } finally {
+      await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+    }
+  })
+
+  it("answers the owner's cross-post state on the created status", async () => {
+    await database.saveBlueskyAccount({
+      actorId: ACTOR1_ID,
+      did: `did:plc:${'y'.repeat(24)}`,
+      handle: 'created.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
+    try {
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({
+            status: 'Cross-posted on create',
+            bluesky_crosspost: true
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      // The create claimed the cross-post before answering, so the owner sees
+      // its state instead of null.
+      await expect(response.json()).resolves.toMatchObject({
+        bluesky_crosspost: { state: 'pending', url: null, error: null }
+      })
+    } finally {
+      await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+    }
+  })
+
+  it('enqueues and returns the Bluesky cross-post when an idempotent POST recovers a failed publish', async () => {
+    await database.saveBlueskyAccount({
+      actorId: ACTOR1_ID,
+      did: `did:plc:${'z'.repeat(24)}`,
+      handle: 'recover.bsky.social',
+      pdsUrl: 'https://pds.example.net/',
+      authType: 'app_password',
+      domainHandle: false
+    })
+    const idempotencyKey = 'idem-key-bluesky-recover'
+    const makeRequest = (bluesky_crosspost: boolean, key = idempotencyKey) =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({
+            status: 'Recovered via route',
+            bluesky_crosspost
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test',
+            'Idempotency-Key': key
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    try {
+      // Queue is unavailable throughout the first request, then recovers for
+      // the retry.
+      vi.mocked(getQueue().publish).mockRejectedValue(new Error('Queue down'))
+      const first = await makeRequest(true)
+      expect(first.status).toBe(503)
+
+      vi.mocked(getQueue().publish).mockResolvedValue(undefined)
+      const retry = await makeRequest(true)
+      expect(retry.status).toBe(200)
+      const data = await retry.json()
+      expect(data).toMatchObject({
+        bluesky_crosspost: { state: 'pending', url: null, error: null }
+      })
+      expect(
+        await database.getBlueskyCrosspost({ statusId: data.uri })
+      ).toMatchObject({ state: 'pending' })
+
+      // Opt-out request recovered via the route must not claim a cross-post.
+      vi.mocked(getQueue().publish).mockRejectedValue(new Error('Queue down'))
+      const firstOff = await makeRequest(false, 'idem-key-bluesky-recover-off')
+      expect(firstOff.status).toBe(503)
+
+      vi.mocked(getQueue().publish).mockResolvedValue(undefined)
+      const retryOff = await makeRequest(false, 'idem-key-bluesky-recover-off')
+      expect(retryOff.status).toBe(200)
+      const dataOff = await retryOff.json()
+      expect(dataOff.bluesky_crosspost).toBeNull()
+      expect(
+        await database.getBlueskyCrosspost({ statusId: dataOff.uri })
+      ).toBeNull()
+    } finally {
+      vi.mocked(getQueue().publish).mockResolvedValue(undefined)
+      await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+    }
+  })
+
+  it("answers the owner's cross-post state on an edited status", async () => {
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/crosspost-edit-response`,
+      url: `${ACTOR1_ID}/statuses/crosspost-edit-response`,
+      actorId: ACTOR1_ID,
+      text: 'Before edit',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    await database.claimBlueskyCrosspost({
+      statusId: status.id,
+      actorId: ACTOR1_ID
+    })
+
+    const clientId = urlToId(status.id)
+    const response = await updateStatus(
+      new NextRequest(`https://llun.test/api/v1/statuses/${clientId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'After edit' }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({ id: clientId }) }
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      bluesky_crosspost: { state: 'pending', url: null, error: null }
+    })
+  })
+
   it('replays a kept Idempotency-Key before the content limits, so a retry after the limit was lowered gets the kept status', async () => {
     const idempotencyKey = 'idem-key-limit-lowered'
     const makeRequest = (status: string) =>

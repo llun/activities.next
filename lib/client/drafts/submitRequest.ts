@@ -14,7 +14,11 @@ import type { DraftAttachment, DraftRecord } from './types'
 
 // PR 2 drafts already hold fingerprints in these exact shapes: keep every key
 // and its order (insertion order is the serialization order). The golden
-// strings in submitRequest.test.ts pin them.
+// strings in submitRequest.test.ts pin them. `blueskyCrosspost` is appended
+// only when set, so a fingerprint without it keeps its old shape.
+
+const withBlueskyCrosspost = (blueskyCrosspost?: boolean) =>
+  blueskyCrosspost === undefined ? {} : { blueskyCrosspost }
 
 export const postBoxNoteFingerprint = (f: {
   message: string
@@ -25,6 +29,7 @@ export const postBoxNoteFingerprint = (f: {
   fitnessFileId?: string | null
   visibility: MastodonVisibility
   quoteApprovalPolicy: QuoteApprovalPolicy
+  blueskyCrosspost?: boolean
 }): string =>
   JSON.stringify({
     type: 'note',
@@ -35,7 +40,8 @@ export const postBoxNoteFingerprint = (f: {
     attachmentIds: f.attachmentIds,
     fitnessFileId: f.fitnessFileId ?? null,
     visibility: f.visibility,
-    quoteApprovalPolicy: f.quoteApprovalPolicy
+    quoteApprovalPolicy: f.quoteApprovalPolicy,
+    ...withBlueskyCrosspost(f.blueskyCrosspost)
   })
 
 export const postBoxPollFingerprint = (f: {
@@ -46,6 +52,7 @@ export const postBoxPollFingerprint = (f: {
   pollType: 'oneOf' | 'anyOf'
   replyStatusId?: string | null
   visibility: MastodonVisibility
+  blueskyCrosspost?: boolean
 }): string =>
   JSON.stringify({
     type: 'poll',
@@ -55,7 +62,8 @@ export const postBoxPollFingerprint = (f: {
     durationInSeconds: f.durationInSeconds,
     pollType: f.pollType,
     replyStatusId: f.replyStatusId ?? null,
-    visibility: f.visibility
+    visibility: f.visibility,
+    ...withBlueskyCrosspost(f.blueskyCrosspost)
   })
 
 export const replyBoxFingerprint = (f: {
@@ -65,6 +73,7 @@ export const replyBoxFingerprint = (f: {
   visibility: MastodonVisibility
   language?: string | null
   attachmentIds: string[]
+  blueskyCrosspost?: boolean
 }): string =>
   JSON.stringify({
     message: f.message,
@@ -72,7 +81,8 @@ export const replyBoxFingerprint = (f: {
     inReplyToId: f.inReplyToId,
     visibility: f.visibility,
     language: f.language ?? null,
-    attachmentIds: f.attachmentIds
+    attachmentIds: f.attachmentIds,
+    ...withBlueskyCrosspost(f.blueskyCrosspost)
   })
 
 /** The uploaded (`mediaId`) branch of a draft attachment as a PostBox attachment. */
@@ -119,7 +129,8 @@ export const buildSubmitRequest = (draft: DraftRecord): SubmitRequest => {
         durationInSeconds,
         pollType,
         replyStatus: draft.replyTo,
-        visibility: draft.visibility
+        visibility: draft.visibility,
+        blueskyCrosspost: draft.blueskyCrosspost
       },
       fingerprint: postBoxPollFingerprint({
         message: draft.text,
@@ -128,7 +139,8 @@ export const buildSubmitRequest = (draft: DraftRecord): SubmitRequest => {
         durationInSeconds,
         pollType,
         replyStatusId,
-        visibility: draft.visibility
+        visibility: draft.visibility,
+        blueskyCrosspost: draft.blueskyCrosspost
       })
     }
   }
@@ -155,7 +167,8 @@ export const buildSubmitRequest = (draft: DraftRecord): SubmitRequest => {
         inReplyToId: draft.replyTo.id,
         visibility: draft.visibility,
         language: draft.language,
-        attachments
+        attachments,
+        blueskyCrosspost: draft.blueskyCrosspost
       },
       fingerprint: replyBoxFingerprint({
         message: draft.text,
@@ -163,7 +176,8 @@ export const buildSubmitRequest = (draft: DraftRecord): SubmitRequest => {
         inReplyToId: draft.replyTo.id,
         visibility: draft.visibility,
         language: draft.language,
-        attachmentIds
+        attachmentIds,
+        blueskyCrosspost: draft.blueskyCrosspost
       })
     }
   }
@@ -184,7 +198,8 @@ export const buildSubmitRequest = (draft: DraftRecord): SubmitRequest => {
       attachments,
       fitnessFileId,
       visibility: draft.visibility,
-      quoteApprovalPolicy: draft.quoteApprovalPolicy
+      quoteApprovalPolicy: draft.quoteApprovalPolicy,
+      blueskyCrosspost: draft.blueskyCrosspost
     },
     fingerprint: postBoxNoteFingerprint({
       message: draft.text,
@@ -194,7 +209,8 @@ export const buildSubmitRequest = (draft: DraftRecord): SubmitRequest => {
       attachmentIds,
       fitnessFileId,
       visibility: draft.visibility,
-      quoteApprovalPolicy: draft.quoteApprovalPolicy
+      quoteApprovalPolicy: draft.quoteApprovalPolicy,
+      blueskyCrosspost: draft.blueskyCrosspost
     })
   }
 }

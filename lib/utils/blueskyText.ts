@@ -16,6 +16,9 @@ export const BLUESKY_REPLY_QUEUE_DISABLED_REASON =
 export const BLUESKY_REPLY_ATTACHMENTS_BLOCKED_MESSAGE =
   'Images in Bluesky replies are not supported yet. Remove them to post.'
 
+export const BLUESKY_CROSSPOST_CUT_MESSAGE =
+  "Longer than Bluesky's 300 characters: the Bluesky copy is cut at a sentence end, with a link to this post."
+
 const graphemeSegmenter = new Intl.Segmenter(undefined, {
   granularity: 'grapheme'
 })
@@ -77,4 +80,28 @@ export const getBlueskyReplyLengthState = (
     withinLimits: !overBlueskyLimit && !overInstanceLimit,
     errorMessage
   }
+}
+
+/**
+ * Whether a cross-post of this text would be cut. Counts the raw text: the
+ * server strips Markdown markers first, so this can warn early (and the
+ * warning never blocks posting).
+ *
+ * The server also appends a link to the original post for a poll
+ * (`Vote here: <url>`), a quote of a fediverse post, a content warning and
+ * dropped media. Pass the link the composer knows as `appendedLink` so those
+ * cases warn too. When a content warning is on and non-empty, pass the warning
+ * text and the post's link instead of the body, since the server sends only
+ * the warning plus the link (and still cuts it if that exceeds the limit);
+ * dropped media is not predicted here.
+ */
+export const isOverBlueskyLimit = (
+  text: string,
+  appendedLink?: string | null
+): boolean => {
+  const full = appendedLink ? `${text}\n\n${appendedLink}` : text
+  return (
+    countBlueskyUtf8Bytes(full) > BLUESKY_MAX_UTF8_BYTES ||
+    countBlueskyGraphemes(full) > BLUESKY_MAX_GRAPHEMES
+  )
 }

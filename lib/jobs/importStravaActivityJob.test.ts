@@ -5,6 +5,7 @@ import {
   PROCESS_FITNESS_FILE_JOB_NAME,
   SEND_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
+import { enqueueBlueskyCrosspostForStatus } from '@/lib/services/bluesky/crosspost'
 import { Visibility } from '@/lib/types/mastodon/visibility'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -55,6 +56,10 @@ vi.mock('@/lib/services/strava/activity', async () => {
     getValidStravaAccessToken: vi.fn()
   }
 })
+
+vi.mock('@/lib/services/bluesky/crosspost', () => ({
+  enqueueBlueskyCrosspostForStatus: vi.fn()
+}))
 
 vi.mock('@/lib/services/queue', async () => ({
   getQueue: vi.fn().mockReturnValue({
@@ -686,6 +691,11 @@ describe('importStravaActivityJob', () => {
         id: getHashFromString('actor-1:strava-note:125')
       })
     )
+    // Its Bluesky copy answers to the same opt-in.
+    expect(enqueueBlueskyCrosspostForStatus).toHaveBeenCalledWith(database, {
+      actorId: 'actor-1',
+      statusId: expect.any(String)
+    })
   })
 
   it('does not federate a fallback note for a caller that did not opt in', async () => {
@@ -716,6 +726,7 @@ describe('importStravaActivityJob', () => {
     expect(mockGetQueue().publish).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: SEND_NOTE_JOB_NAME })
     )
+    expect(enqueueBlueskyCrosspostForStatus).not.toHaveBeenCalled()
   })
 
   it('uses queued visibility for fallback notes when streams have no GPS data', async () => {
@@ -821,6 +832,9 @@ describe('importStravaActivityJob', () => {
         }
       })
     )
+    // The note already existed, so this redelivery must not post it to
+    // Bluesky again.
+    expect(enqueueBlueskyCrosspostForStatus).not.toHaveBeenCalled()
   })
 
   it('dedupes fallback note photo attachments and skips unsafe photo URLs', async () => {

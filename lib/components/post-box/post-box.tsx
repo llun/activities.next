@@ -80,6 +80,7 @@ import {
   Status,
   StatusNote,
   StatusType,
+  getOriginalStatus,
   isBlueskyStatus
 } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
@@ -104,6 +105,11 @@ import {
   OfflineSubmitCaption,
   getQueueDisabledReason
 } from './OfflineSubmitButtons'
+import {
+  BLUESKY_CROSSPOST_PUBLIC_ONLY_REASON,
+  BlueskyCrosspostCutNotice,
+  isBlueskyCrosspostCut
+} from './bluesky-crosspost'
 import {
   ComposerAttachmentTiles,
   getAttachmentLabel
@@ -138,6 +144,7 @@ import {
   removePollChoice,
   resetExtension,
   setAttachments,
+  setBlueskyCrosspost,
   setContentWarning,
   setContentWarningVisibility,
   setFitnessFile,
@@ -258,8 +265,9 @@ export const PostBox: FC<Props> = ({
     maxMediaAttachments,
     maxMediaFileSize
   } = useInstanceLimits()
+  const replyTarget = replyStatus ? getOriginalStatus(replyStatus) : null
   const isBlueskyReply = Boolean(
-    replyStatus && !editStatus && isBlueskyStatus(replyStatus)
+    replyTarget && !editStatus && isBlueskyStatus(replyTarget)
   )
   const isWithinPostLengthLimit = useCallback(
     (value: string) =>
@@ -282,14 +290,39 @@ export const PostBox: FC<Props> = ({
         : hasNewPostContent(value, extension, maxStatusCharacters),
     [isBlueskyReply, maxStatusCharacters]
   )
+  // A new post, or a reply to one's own post, may also go to Bluesky, but a
+  // reply only when the server would continue the thread: the parent must have
+  // a cross-post row that is posted or still on its way. A parent with no row
+  // (null) or a failed one is not cross-posted, so the switch would promise
+  // nothing. `undefined` means this caller did not hydrate the parent's row;
+  // keep offering it. Hydration reports an active 'posting' attempt as
+  // 'pending'.
+  const parentCrosspost = replyTarget?.blueskyCrosspost
+  const parentCrosspostContinues =
+    parentCrosspost === undefined ||
+    parentCrosspost?.state === 'posted' ||
+    parentCrosspost?.state === 'pending'
+  const canCrosspost =
+    !editStatus &&
+    !isBlueskyReply &&
+    (!replyTarget ||
+      (replyTarget.actorId === profile.id && parentCrosspostContinues))
+  const needsBlueskyAccount = isBlueskyReply || canCrosspost
   const linkedBlueskyAccount = useLinkedBlueskyAccount(
-    isBlueskyReply ? profile.id : undefined
+    needsBlueskyAccount ? profile.id : undefined
   )
   useEffect(() => {
-    if (isBlueskyReply && profile.id) {
+    if (needsBlueskyAccount && profile.id) {
       void loadLinkedBlueskyAccount(profile.id)
     }
-  }, [isBlueskyReply, profile.id])
+  }, [needsBlueskyAccount, profile.id])
+  const crosspostAccount = canCrosspost ? linkedBlueskyAccount : null
+  // What the switch shows: the account's default until the user toggles it.
+  // What `bluesky_crosspost` SENDS is the explicit toggle alone
+  // (`postExtension.blueskyCrosspost`), so the server applies the default and
+  // the Idempotency-Key fingerprint never depends on the account having
+  // loaded. The draft stores the same explicit value, so a queued send
+  // fingerprints like the composer.
   const [allowPost, setAllowPost] = useState<boolean>(false)
   const [isPosting, setIsPosting] = useState<boolean>(false)
   const [showPreview, setShowPreview] = useState<boolean>(false)
@@ -485,6 +518,9 @@ export const PostBox: FC<Props> = ({
       contentWarningVisible: extension.contentWarningVisible,
       visibility: extension.visibility,
       quoteApprovalPolicy: extension.quoteApprovalPolicy,
+      // The explicit toggle, not the resolved default: the fingerprint must
+      // not change when the linked account finishes loading.
+      blueskyCrosspost: extension.blueskyCrosspost,
       poll,
       attachments,
       fitnessFile
@@ -1326,6 +1362,9 @@ export const PostBox: FC<Props> = ({
       if (postExtension.poll.showing) {
         const poll = postExtension.poll
         const choices = poll.choices.map((item) => item.text)
+        // The explicit toggle: the server applies the account default, and the
+        // fingerprint stays the same whether or not the account has loaded.
+        const blueskyCrosspost = postExtension.blueskyCrosspost
         const pollFingerprint = postBoxPollFingerprint({
           message,
           contentWarning,
@@ -1333,7 +1372,8 @@ export const PostBox: FC<Props> = ({
           durationInSeconds: poll.durationInSeconds,
           pollType: poll.pollType,
           replyStatusId: replyStatus?.id,
-          visibility: postExtension.visibility
+          visibility: postExtension.visibility,
+          blueskyCrosspost
         })
         if (submitIdempotencyRef.current?.fingerprint !== pollFingerprint) {
           submitIdempotencyRef.current = {
@@ -1350,6 +1390,7 @@ export const PostBox: FC<Props> = ({
           pollType: poll.pollType,
           replyStatus,
           visibility: postExtension.visibility,
+          blueskyCrosspost,
           idempotencyKey: submitIdempotencyRef.current.key
         })
 
@@ -1504,6 +1545,9 @@ export const PostBox: FC<Props> = ({
 
       createAttempt = attachments
       createFitnessFileId = fitnessFileId
+      // The explicit toggle: the server applies the account default, and the
+      // fingerprint stays the same whether or not the account has loaded.
+      const blueskyCrosspost = postExtension.blueskyCrosspost
       const noteFingerprint = postBoxNoteFingerprint({
         message,
         contentWarning,
@@ -1512,7 +1556,8 @@ export const PostBox: FC<Props> = ({
         attachmentIds: attachments.map((attachment) => attachment.id),
         fitnessFileId,
         visibility: postExtension.visibility,
-        quoteApprovalPolicy: postExtension.quoteApprovalPolicy
+        quoteApprovalPolicy: postExtension.quoteApprovalPolicy,
+        blueskyCrosspost
       })
       if (submitIdempotencyRef.current?.fingerprint !== noteFingerprint) {
         submitIdempotencyRef.current = {
@@ -1531,6 +1576,7 @@ export const PostBox: FC<Props> = ({
         fitnessFileId: isBlueskyReply ? undefined : fitnessFileId,
         visibility: isBlueskyReply ? 'public' : postExtension.visibility,
         quoteApprovalPolicy: postExtension.quoteApprovalPolicy,
+        blueskyCrosspost,
         idempotencyKey: submitIdempotencyRef.current.key
       })
 
@@ -2056,6 +2102,7 @@ export const PostBox: FC<Props> = ({
         contentWarningVisible: seed.contentWarningVisible,
         visibility: seed.visibility,
         quoteApprovalPolicy: seed.quoteApprovalPolicy,
+        blueskyCrosspost: seed.blueskyCrosspost,
         fitnessFile,
         poll: seed.poll
           ? {
@@ -2342,6 +2389,22 @@ export const PostBox: FC<Props> = ({
     blueskyLengthError === BLUESKY_TOO_LONG_MESSAGE
   const isInstanceLimitError =
     Boolean(blueskyLengthError) && !isBlueskyLimitWarning
+  const blueskyCrosspostOn = Boolean(
+    crosspostAccount
+      ? (postExtension.blueskyCrosspost ?? crosspostAccount.crosspostByDefault)
+      : undefined
+  )
+  const blueskyCrosspostApplies = postExtension.visibility === 'public'
+  const blueskyCrosspostCut = isBlueskyCrosspostCut({
+    enabled: blueskyCrosspostOn,
+    visibility: postExtension.visibility,
+    text,
+    contentWarningVisible: postExtension.contentWarningVisible,
+    contentWarning: postExtension.contentWarning,
+    profile,
+    isPoll: postExtension.poll.showing,
+    quotedStatus
+  })
 
   const form = (
     <>
@@ -2523,6 +2586,18 @@ export const PostBox: FC<Props> = ({
               onToggleContentWarning={onToggleContentWarning}
               previewShowing={showPreview}
               onTogglePreview={() => setShowPreview((value) => !value)}
+              blueskyCrosspost={
+                crosspostAccount
+                  ? {
+                      checked: blueskyCrosspostOn,
+                      disabledReason: blueskyCrosspostApplies
+                        ? undefined
+                        : BLUESKY_CROSSPOST_PUBLIC_ONLY_REASON,
+                      onToggle: () =>
+                        dispatch(setBlueskyCrosspost(!blueskyCrosspostOn))
+                    }
+                  : undefined
+              }
             />
             {!replyStatus && !editStatus ? (
               <FitnessFileInput
@@ -2552,6 +2627,12 @@ export const PostBox: FC<Props> = ({
                 )}
               >
                 {blueskyLengthError}
+              </span>
+            ) : null}
+            <BlueskyCrosspostCutNotice show={blueskyCrosspostCut} />
+            {editStatus?.blueskyCrosspost?.state === 'posted' ? (
+              <span className="text-xs text-muted-foreground">
+                Edits are not sent to Bluesky.
               </span>
             ) : null}
             <span

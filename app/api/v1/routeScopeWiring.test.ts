@@ -254,6 +254,11 @@ const EXPECTED: Array<{
     scopes: ['write', 'write:bookmarks']
   },
   {
+    module: '@/app/api/v1/statuses/[id]/bluesky_crosspost/retry/route',
+    scopes: ['write', 'write:statuses']
+  },
+
+  {
     module: '@/app/api/v1/statuses/[id]/mute/route',
     scopes: ['write', 'write:mutes']
   },

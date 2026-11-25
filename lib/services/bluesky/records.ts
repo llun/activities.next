@@ -37,6 +37,14 @@ export const parseAtUri = (
   return { did: match[1], collection: match[2], rkey: match[3] }
 }
 
+// The public bsky.app URL of a post record uri, or null when it is not one.
+export const blueskyPostWebUrl = (uri: string): string | null => {
+  const at = parseAtUri(uri)
+  return at && at.collection === 'app.bsky.feed.post'
+    ? `https://${BLUESKY_DOMAIN}/profile/${at.did}/post/${at.rkey}`
+    : null
+}
+
 export const optionalString = (value: unknown) =>
   typeof value === 'string' ? value : undefined
 
@@ -198,6 +206,17 @@ export const blueskyImagesFromEmbed = (
 
 const POST_COLLECTION = 'app.bsky.feed.post'
 const INVALID_HANDLE = 'handle.invalid'
+
+// A post record this server wrote for a status: the same record type and the
+// status's own createdAt. A deterministic rkey can collide with a foreign
+// record, so a delete of one is only safe once this holds.
+export const isOwnBlueskyPostRecord = (
+  value: unknown,
+  expectedCreatedAt: string
+): boolean =>
+  isRecord(value) &&
+  value.$type === POST_COLLECTION &&
+  value.createdAt === expectedCreatedAt
 
 const externalLinkHtml = (
   embed: Record<string, unknown>,
@@ -396,14 +415,23 @@ export const storeBlueskyPostView = async (
   post: BlueskyPostView
 ): Promise<string | null> => {
   const { record } = post
-  const parent =
+  const parentUri =
     isRecord(record.reply) && isRecord(record.reply.parent)
-      ? parseAtUri(optionalString(record.reply.parent.uri) ?? '')
-      : null
+      ? (optionalString(record.reply.parent.uri) ?? '')
+      : ''
+  const parent = parentUri ? parseAtUri(parentUri) : null
+  const isPostParent = parent?.collection === POST_COLLECTION
+  // A reply to the Bluesky copy of a local post shows under the local post,
+  // unless the post itself is a local cross-post (its local original already
+  // replies to the local parent).
+  const crosspostParent = isPostParent
+    ? (await database.getBlueskyCrosspostByUri({ uri: post.uri }))
+      ? null
+      : await database.getBlueskyCrosspostByUri({ uri: parentUri })
+    : null
   const replyToStatusId =
-    parent && parent.collection === POST_COLLECTION
-      ? blueskyPostId(parent.did, parent.rkey)
-      : null
+    crosspostParent?.statusId ??
+    (parent && isPostParent ? blueskyPostId(parent.did, parent.rkey) : null)
   const postUrl = blueskyPostId(post.at.did, post.at.rkey)
   if (
     postUrl.length > MAX_COLUMN_LENGTH ||

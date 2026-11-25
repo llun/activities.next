@@ -50,6 +50,9 @@ interface CreatePollFromUserInputParams {
   // minted from this time so id order keeps matching createdAt order.
   createdAt?: number
   idempotency?: { key: string; contentHash: string }
+  // Whether to cross-post to the author's linked Bluesky account. Omitted
+  // means the account's crosspostByDefault.
+  blueskyCrosspost?: boolean
 }
 export const createPollFromUserInput = async ({
   text,
@@ -66,14 +69,16 @@ export const createPollFromUserInput = async ({
   language: requestedLanguage = null,
   application,
   createdAt,
-  idempotency
+  idempotency,
+  blueskyCrosspost
 }: CreatePollFromUserInputParams) =>
   withSpan('actions', 'createPollFromUser', { replyStatusId }, async () => {
     if (idempotency) {
       const existing = await resolveExistingIdempotentStatus({
         database,
         actorId: currentActor.id,
-        idempotency
+        idempotency,
+        blueskyCrosspost
       })
       if (existing) return existing
     }
@@ -210,7 +215,8 @@ export const createPollFromUserInput = async ({
         database,
         actorId: currentActor.id,
         key: idempotency.key,
-        statusId: createdPoll.id
+        statusId: createdPoll.id,
+        blueskyCrosspost
       })
       // The winner's create failed and was discarded; the client retries.
       if (!existing) {
@@ -272,12 +278,14 @@ export const createPollFromUserInput = async ({
           error
         })
       }
-      // Queue Create(Question) and its expiration update through the same
-      // idempotent publication flow as Notes.
+      // Queue Create(Question), its expiration update, and any Bluesky
+      // cross-post through the same idempotent publication flow as Notes.
       await publishCreatedStatus({
         database,
+        actor: currentActor,
         actorId: currentActor.id,
         status: poll,
+        blueskyCrosspost,
         idempotency
       })
     } finally {

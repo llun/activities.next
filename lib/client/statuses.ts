@@ -406,6 +406,9 @@ const toCreatedNoteResult = (
     ...(resolvedQuotePolicy
       ? { quoteApprovalPolicy: resolvedQuotePolicy }
       : {}),
+    ...(mastodonStatus.bluesky_crosspost !== undefined
+      ? { blueskyCrosspost: mastodonStatus.bluesky_crosspost }
+      : {}),
     createdAt,
     updatedAt
   }
@@ -427,6 +430,8 @@ export interface CreateNoteParams {
   fitnessFileId?: string
   visibility?: MastodonVisibility
   language?: string | null
+  /** Also post to the linked Bluesky account; omit when none is linked. */
+  blueskyCrosspost?: boolean
   idempotencyKey?: string
   /** Sent as `Activities-Expected-Actor`: the server refuses a different signed-in actor. */
   expectedActorId?: string
@@ -444,6 +449,7 @@ export const createNote = async ({
   fitnessFileId,
   visibility,
   language,
+  blueskyCrosspost,
   idempotencyKey,
   expectedActorId,
   signal
@@ -479,7 +485,10 @@ export const createNote = async ({
       ...(mediaIds.length > 0 ? { media_ids: mediaIds } : {}),
       ...(fitnessFileId ? { fitness_file_id: fitnessFileId } : {}),
       ...(visibility ? { visibility } : {}),
-      ...(language ? { language } : {})
+      ...(language ? { language } : {}),
+      ...(blueskyCrosspost !== undefined
+        ? { bluesky_crosspost: blueskyCrosspost }
+        : {})
     })
   })
   if (response.status !== 200) {
@@ -630,6 +639,8 @@ export interface CreatePollParams {
   inReplyToId?: string
   visibility?: MastodonVisibility
   language?: string | null
+  /** Also post to the linked Bluesky account; omit when none is linked. */
+  blueskyCrosspost?: boolean
   idempotencyKey?: string
   /** Sent as `Activities-Expected-Actor`: the server refuses a different signed-in actor. */
   expectedActorId?: string
@@ -646,6 +657,7 @@ export const createPoll = async ({
   inReplyToId,
   visibility,
   language,
+  blueskyCrosspost,
   idempotencyKey,
   expectedActorId,
   signal
@@ -677,6 +689,9 @@ export const createPoll = async ({
       ...(resolvedReplyId ? { in_reply_to_id: resolvedReplyId } : {}),
       ...(visibility ? { visibility } : {}),
       ...(language ? { language } : {}),
+      ...(blueskyCrosspost !== undefined
+        ? { bluesky_crosspost: blueskyCrosspost }
+        : {}),
       poll: {
         options: choices,
         expires_in: durationInSeconds,
@@ -1315,6 +1330,26 @@ export const retryFitnessProcessing = async (
   }
 
   return response.json()
+}
+
+/**
+ * Sends a failed Bluesky cross-post again. Answers the cross-post's new state
+ * (pending) from the returned status; throws ApiRequestError on `{ error }`.
+ */
+export const retryBlueskyCrosspost = async (
+  statusId: string
+): Promise<NonNullable<StatusNote['blueskyCrosspost']>> => {
+  const response = await fetch(
+    `/api/v1/statuses/${toIdPathSegment(statusId)}/bluesky_crosspost/retry`,
+    { method: 'POST' }
+  )
+  if (!response.ok) {
+    await throwApiError(response, 'Unable to retry posting to Bluesky.')
+  }
+  const json = (await response.json().catch(() => null)) as {
+    bluesky_crosspost?: StatusNote['blueskyCrosspost']
+  } | null
+  return json?.bluesky_crosspost ?? { state: 'pending', url: null, error: null }
 }
 
 export interface GetBookmarksParams {

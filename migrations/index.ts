@@ -30,6 +30,7 @@ import * as addAccountsEmailChangeCodeIndex from './20261121174116_add_accounts_
 import * as addBlueskyAccounts from './20261123212228_add_bluesky_accounts'
 import * as addBlueskyNetwork from './20261124004542_add_bluesky_network'
 import * as addBlueskyInteractions from './20261124060051_add_bluesky_interactions'
+import * as addBlueskyCrossposts from './20261124103009_add_bluesky_crossposts'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -70,5 +71,6 @@ export const migrations: MigrationRegistry = {
     addAccountsEmailChangeCodeIndex,
   '20261123212228_add_bluesky_accounts': addBlueskyAccounts,
   '20261124004542_add_bluesky_network': addBlueskyNetwork,
-  '20261124060051_add_bluesky_interactions': addBlueskyInteractions
+  '20261124060051_add_bluesky_interactions': addBlueskyInteractions,
+  '20261124103009_add_bluesky_crossposts': addBlueskyCrossposts
 } satisfies Record<MigrationName, MigrationModule>

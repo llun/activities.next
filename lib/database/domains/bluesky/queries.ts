@@ -6,6 +6,8 @@ import {
 } from '@/lib/database/domains/actor/counters'
 import { createActor, updateActor } from '@/lib/database/domains/actor/writes'
 import type {
+  BlueskyCrosspost,
+  BlueskyCrosspostState,
   BlueskyFollow,
   BlueskyInteraction,
   BlueskyInteractionKind,
@@ -14,16 +16,20 @@ import type {
   UpsertBlueskyPostParams
 } from '@/lib/database/domains/bluesky/types'
 import { createAttachment } from '@/lib/database/domains/media/writes'
+import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
+import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 import { indexActorSearchDocument } from '@/lib/database/domains/search/accounts'
 import type { StatusHydration } from '@/lib/database/domains/status/types'
 import { createNoteWithResult } from '@/lib/database/domains/status/writes'
 import { type Db, inTransaction, isInTransaction } from '@/lib/database/kysely'
 import { setCounterValue } from '@/lib/database/kysely/counter'
 import type {
+  BlueskyCrossposts,
   BlueskyInteractions,
   BlueskyRecords
 } from '@/lib/database/kysely/db'
-import { forUpdate } from '@/lib/database/kysely/dialect'
+import { forUpdate, timestampValue } from '@/lib/database/kysely/dialect'
+import { selectInChunks } from '@/lib/database/kysely/inList'
 import { CounterKey } from '@/lib/database/utils/counter'
 import { getCompatibleJSON } from '@/lib/database/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
@@ -35,6 +41,13 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { BLUESKY_DOMAIN, BLUESKY_PROFILE_PREFIX } from '@/lib/utils/blueskyId'
 
 const BLUESKY_NETWORK = 'bluesky'
+
+// A 'pending' or 'posting' cross-post row older than this has no job left to
+// finish it: either the queue dead-lettered the job after its retries or the
+// worker crashed mid-attempt. The owner's Retry treats such a row as stuck,
+// and hydration reports it as failed so the post menu offers that Retry.
+export const STALE_CROSSPOST_MS = 30 * 60 * 1000
+export const STALE_CROSSPOST_ERROR = 'Bluesky did not answer. Try again.'
 
 // Frees `handle` from any other Bluesky actor row (the handle moved to another
 // DID), the way updateRemoteActorHandle displaces a stale remote row, so the
@@ -568,6 +581,302 @@ export const updateBlueskyAccountSync = async (
     .execute()
 }
 
+export const toBlueskyCrosspost = (
+  row: Selectable<BlueskyCrossposts>
+): BlueskyCrosspost => ({
+  statusId: row.statusId,
+  actorId: row.actorId,
+  uri: row.uri ?? null,
+  cid: row.cid ?? null,
+  state: row.state as BlueskyCrosspostState,
+  error: row.error ?? null,
+  createdAt: getCompatibleTime(row.createdAt),
+  updatedAt: getCompatibleTime(row.updatedAt)
+})
+
+export const getBlueskyCrosspost = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<BlueskyCrosspost | null> => {
+  const row = await db
+    .selectFrom('bluesky_crossposts')
+    .selectAll()
+    .where('statusId', '=', statusId)
+    .executeTakeFirst()
+  return row ? toBlueskyCrosspost(row) : null
+}
+
+export const getBlueskyCrosspostByUri = async (
+  db: Db,
+  { uri }: { uri: string }
+): Promise<BlueskyCrosspost | null> => {
+  const row = await db
+    .selectFrom('bluesky_crossposts')
+    .selectAll()
+    .where('uri', '=', uri)
+    .executeTakeFirst()
+  return row ? toBlueskyCrosspost(row) : null
+}
+
+// The cross-post rows of a page of statuses, keyed by statusId. Batched so the
+// status hydration does not run one lookup per status. `actorId` narrows the
+// read to the rows of that actor's own statuses: a cross-post row's actorId is
+// the status's author, and only the author ever sees the row.
+export const getBlueskyCrosspostsByStatusIds = async (
+  db: Db,
+  { statusIds, actorId }: { statusIds: string[]; actorId?: string }
+): Promise<Map<string, BlueskyCrosspost>> => {
+  const crossposts = new Map<string, BlueskyCrosspost>()
+  if (statusIds.length === 0) return crossposts
+  const rows = await selectInChunks(db, statusIds, (chunk) => {
+    const query = db
+      .selectFrom('bluesky_crossposts')
+      .selectAll()
+      .where('statusId', 'in', chunk)
+    return (actorId ? query.where('actorId', '=', actorId) : query).execute()
+  })
+  for (const row of rows) {
+    crossposts.set(row.statusId, toBlueskyCrosspost(row))
+  }
+  return crossposts
+}
+
+export const claimBlueskyCrosspost = async (
+  db: Db,
+  { statusId, actorId }: { statusId: string; actorId: string }
+): Promise<boolean> => {
+  const result = await db
+    .insertInto('bluesky_crossposts')
+    .values({ statusId, actorId, state: 'pending', updatedAt: new Date() })
+    .onConflict((oc) => oc.column('statusId').doNothing())
+    .executeTakeFirst()
+  return Number(result.numInsertedOrUpdatedRows ?? 0) > 0
+}
+
+export const beginBlueskyCrosspostAttempt = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<string | null> => {
+  const now = new Date()
+  const attemptId = crypto.randomUUID()
+  const result = await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'posting', attemptId, updatedAt: now })
+    .where('statusId', '=', statusId)
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'pending'),
+        eb.and([
+          eb('state', '=', 'posting'),
+          eb(
+            'updatedAt',
+            '<',
+            timestampValue(now.getTime() - STALE_CROSSPOST_MS)
+          )
+        ])
+      ])
+    )
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0 ? attemptId : null
+}
+
+export const releaseBlueskyCrosspostAttempt = async (
+  db: Db,
+  { statusId, attemptId }: { statusId: string; attemptId: string }
+): Promise<boolean> => {
+  const result = await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'pending', attemptId: null, updatedAt: new Date() })
+    .where('statusId', '=', statusId)
+    .where('state', '=', 'posting')
+    .where('attemptId', '=', attemptId)
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
+}
+
+export const markBlueskyCrosspostPosted = async (
+  db: Db,
+  {
+    statusId,
+    attemptId,
+    uri,
+    cid
+  }: { statusId: string; attemptId: string; uri: string; cid: string }
+): Promise<boolean> => {
+  const result = await db
+    .updateTable('bluesky_crossposts')
+    .set({
+      uri,
+      cid,
+      state: 'posted',
+      attemptId: null,
+      error: null,
+      updatedAt: new Date()
+    })
+    .where('statusId', '=', statusId)
+    .where('state', '=', 'posting')
+    .where('attemptId', '=', attemptId)
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
+}
+
+export const markBlueskyCrosspostFailed = async (
+  db: Db,
+  {
+    statusId,
+    attemptId,
+    error
+  }: { statusId: string; attemptId: string; error: string }
+): Promise<boolean> => {
+  const result = await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'failed', attemptId: null, error, updatedAt: new Date() })
+    .where('statusId', '=', statusId)
+    .where('state', '=', 'posting')
+    .where('attemptId', '=', attemptId)
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
+}
+
+export const markBlueskyCrosspostFailedIfAttemptable = async (
+  db: Db,
+  { statusId, error }: { statusId: string; error: string }
+): Promise<boolean> => {
+  const now = new Date()
+  const result = await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'failed', attemptId: null, error, updatedAt: now })
+    .where('statusId', '=', statusId)
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'pending'),
+        eb.and([
+          eb('state', '=', 'posting'),
+          eb(
+            'updatedAt',
+            '<',
+            timestampValue(now.getTime() - STALE_CROSSPOST_MS)
+          )
+        ])
+      ])
+    )
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
+}
+
+// Moves a failed cross-post, or a pending/posting one whose job never finished
+// (older than STALE_CROSSPOST_MS), back to pending. Returns whether a row was
+// reset.
+export const resetBlueskyCrosspostForRetry = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<boolean> => {
+  const now = new Date()
+  const result = await db
+    .updateTable('bluesky_crossposts')
+    .set({ state: 'pending', attemptId: null, error: null, updatedAt: now })
+    .where('statusId', '=', statusId)
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'failed'),
+        eb.and([
+          eb('state', 'in', ['pending', 'posting']),
+          eb(
+            'updatedAt',
+            '<',
+            timestampValue(now.getTime() - STALE_CROSSPOST_MS)
+          )
+        ])
+      ])
+    )
+    .executeTakeFirst()
+  return Number(result.numUpdatedRows ?? 0) > 0
+}
+
+export const deleteBlueskyCrosspost = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<BlueskyCrosspost | null> => {
+  const deleted = await db
+    .deleteFrom('bluesky_crossposts')
+    .where('statusId', '=', statusId)
+    .returningAll()
+    .executeTakeFirst()
+  return deleted ? toBlueskyCrosspost(deleted) : null
+}
+
+export const deleteBlueskyCrosspostWithQueueJob = async (
+  db: Db,
+  {
+    statusId,
+    buildQueueJob
+  }: {
+    statusId: string
+    buildQueueJob: (crosspost: BlueskyCrosspost) => CreateQueueJobParams | null
+  }
+): Promise<BlueskyCrosspost | null> =>
+  inTransaction(db, async (trx) => {
+    const deleted = await deleteBlueskyCrosspost(trx, { statusId })
+    if (!deleted) return null
+    const queueJob = buildQueueJob(deleted)
+    if (queueJob) {
+      await createQueueJob(trx, queueJob)
+    }
+    return deleted
+  })
+
+export const deleteBlueskyCrosspostUnlessPosted = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<{ crosspost: BlueskyCrosspost; deleted: boolean } | null> =>
+  inTransaction(db, async (trx) => {
+    const row = await forUpdate(
+      trx,
+      trx
+        .selectFrom('bluesky_crossposts')
+        .selectAll()
+        .where('statusId', '=', statusId)
+    ).executeTakeFirst()
+    if (!row) return null
+    const crosspost = toBlueskyCrosspost(row)
+    if (
+      crosspost.state === 'failed' ||
+      (crosspost.state === 'posted' && Boolean(crosspost.uri))
+    ) {
+      return { crosspost, deleted: false }
+    }
+    await trx
+      .deleteFrom('bluesky_crossposts')
+      .where('statusId', '=', statusId)
+      .execute()
+    return { crosspost, deleted: true }
+  })
+
+export const deleteBlueskyCrosspostIfAttemptable = async (
+  db: Db,
+  { statusId }: { statusId: string }
+): Promise<boolean> => {
+  const now = new Date()
+  const result = await db
+    .deleteFrom('bluesky_crossposts')
+    .where('statusId', '=', statusId)
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'pending'),
+        eb.and([
+          eb('state', '=', 'posting'),
+          eb(
+            'updatedAt',
+            '<',
+            timestampValue(now.getTime() - STALE_CROSSPOST_MS)
+          )
+        ])
+      ])
+    )
+    .executeTakeFirst()
+  return Number(result.numDeletedRows ?? 0) > 0
+}
+
 export const blueskyQueries = {
   upsertBlueskyActor,
   upsertBlueskyPost,
@@ -583,5 +892,19 @@ export const blueskyQueries = {
   createBlueskyInteraction,
   deleteBlueskyInteraction,
   setBlueskyPostCounts,
-  updateBlueskyAccountSync
+  updateBlueskyAccountSync,
+  getBlueskyCrosspost,
+  getBlueskyCrosspostByUri,
+  getBlueskyCrosspostsByStatusIds,
+  claimBlueskyCrosspost,
+  beginBlueskyCrosspostAttempt,
+  releaseBlueskyCrosspostAttempt,
+  markBlueskyCrosspostPosted,
+  markBlueskyCrosspostFailed,
+  markBlueskyCrosspostFailedIfAttemptable,
+  resetBlueskyCrosspostForRetry,
+  deleteBlueskyCrosspost,
+  deleteBlueskyCrosspostWithQueueJob,
+  deleteBlueskyCrosspostUnlessPosted,
+  deleteBlueskyCrosspostIfAttemptable
 }

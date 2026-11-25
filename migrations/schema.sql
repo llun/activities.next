@@ -254,7 +254,20 @@ CREATE TABLE public.bluesky_accounts (
     "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "lastSyncedAt" timestamp with time zone,
     "syncError" text,
-    "notificationsSeenAt" timestamp with time zone
+    "notificationsSeenAt" timestamp with time zone,
+    "crosspostByDefault" boolean DEFAULT true NOT NULL
+);
+
+CREATE TABLE public.bluesky_crossposts (
+    "statusId" character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    uri character varying(512),
+    cid character varying(255),
+    state character varying(16) NOT NULL,
+    "attemptId" character varying(64),
+    error text,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 CREATE TABLE public.bluesky_follows (
@@ -1807,6 +1820,12 @@ ALTER TABLE ONLY public.bluesky_accounts
 ALTER TABLE ONLY public.bluesky_accounts
     ADD CONSTRAINT bluesky_accounts_pkey PRIMARY KEY ("actorId");
 
+ALTER TABLE ONLY public.bluesky_crossposts
+    ADD CONSTRAINT bluesky_crossposts_pkey PRIMARY KEY ("statusId");
+
+ALTER TABLE ONLY public.bluesky_crossposts
+    ADD CONSTRAINT bluesky_crossposts_uri_key UNIQUE (uri);
+
 ALTER TABLE ONLY public.bluesky_follows
     ADD CONSTRAINT bluesky_follows_pkey PRIMARY KEY ("actorId", "targetActorId");
 
@@ -2300,6 +2319,8 @@ CREATE INDEX "attachments_mediaId_idx" ON public.attachments USING btree ("media
 CREATE INDEX blocks_actor_created ON public.blocks USING btree ("actorId", "createdAt");
 
 CREATE INDEX blocks_target ON public.blocks USING btree ("targetActorId");
+
+CREATE INDEX bluesky_crossposts_actor_idx ON public.bluesky_crossposts USING btree ("actorId");
 
 CREATE INDEX bluesky_follows_target_idx ON public.bluesky_follows USING btree ("targetActorId");
 

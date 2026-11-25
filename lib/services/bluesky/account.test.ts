@@ -10,7 +10,8 @@ import {
   linkBlueskyAppPassword,
   setBlueskyInstanceHandle,
   startBlueskyOAuth,
-  unlinkBluesky
+  unlinkBluesky,
+  updateBlueskyCrosspostDefault
 } from '@/lib/services/bluesky/account'
 import {
   createBlueskyIdentityResolver,
@@ -679,6 +680,23 @@ describe('Bluesky account service', () => {
         (await getBlueskyAccountState(database, actor('actor-a'))).account
           ?.sessionActive
       ).toBe(true)
+    })
+
+    it('saves "Post to Bluesky by default", and refuses it without a link', async () => {
+      await expect(
+        updateBlueskyCrosspostDefault(database, actor('actor-a'), false)
+      ).rejects.toMatchObject({ status: 422 })
+
+      await linkAlice()
+      expect(
+        (await getBlueskyAccountState(database, actor('actor-a'))).account
+          ?.crosspostByDefault
+      ).toBe(true)
+      await updateBlueskyCrosspostDefault(database, actor('actor-a'), false)
+      expect(
+        (await getBlueskyAccountState(database, actor('actor-a'))).account
+          ?.crosspostByDefault
+      ).toBe(false)
     })
 
     it('checks the handle and the DNS record, and stores the current identity', async () => {

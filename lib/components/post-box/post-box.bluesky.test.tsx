@@ -148,7 +148,8 @@ describe('PostBox replying to a Bluesky post', () => {
         domainHandle: false,
         sessionActive: true,
         lastSyncedAt: null,
-        syncError: null
+        syncError: null,
+        crosspostByDefault: true
       },
       instanceHandle: null
     })
@@ -190,7 +191,8 @@ describe('PostBox replying to a Bluesky post', () => {
       domainHandle: false,
       sessionActive: true,
       lastSyncedAt: null,
-      syncError: null
+      syncError: null,
+      crosspostByDefault: true
     })
 
     await renderPostBox()

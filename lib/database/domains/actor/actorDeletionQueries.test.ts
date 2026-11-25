@@ -1180,6 +1180,70 @@ describe('deleteActorData', () => {
     expect(before.statuses.some((row) => row.id === post)).toBe(true)
   })
 
+  it('leaves the reply counters of Bluesky posts and Bluesky replies alone', async () => {
+    const local = await seedActor('local', { local: true })
+    const other = await seedActor('other', { local: true })
+    const blueskyActorId = `https://bsky.app/profile/did:plc:${'a'.repeat(24)}`
+    await db()
+      .insertInto('actors')
+      .values({
+        id: blueskyActorId,
+        username: 'bluesky',
+        domain: 'bsky.app',
+        accountId: null,
+        privateKey: null,
+        publicKey: 'public-key',
+        settings: JSON.stringify({}),
+        createdAt: at,
+        updatedAt: at
+      })
+      .execute()
+    const blueskyPostId = `${blueskyActorId}/app.bsky.feed.post/3kparent`
+    await seedStatus({ id: blueskyPostId, actorId: blueskyActorId })
+    const localPost = await seedStatus({
+      id: statusIn(local.id, 'post'),
+      actorId: local.id
+    })
+    // A Bluesky reply under a local post: never counted (./status/writes.ts).
+    await seedStatus({
+      id: `${blueskyActorId}/app.bsky.feed.post/3kreply`,
+      actorId: blueskyActorId,
+      reply: localPost
+    })
+    // A local reply under a Bluesky post: the count is Bluesky's.
+    await seedStatus({
+      id: statusIn(other.id, 'reply'),
+      actorId: other.id,
+      reply: blueskyPostId
+    })
+    await setCounter(CounterKey.totalReply(localPost), 10)
+    await setCounter(CounterKey.totalReply(blueskyPostId), 10)
+    refreshSpy()
+
+    const counterValue = async (id: string) => {
+      const row = await db()
+        .selectFrom('counters')
+        .select('value')
+        .where('id', '=', id)
+        .executeTakeFirst()
+      return row ? Number(row.value) : null
+    }
+
+    // The local reply under the Bluesky post goes first, while that post (and
+    // its counter) still exists.
+    await deleteActorData(db(), { actorId: other.id })
+    await expect(
+      counterValue(CounterKey.totalReply(blueskyPostId))
+    ).resolves.toBe(10)
+
+    // Then the Bluesky actor, whose reply under the local post must not take
+    // one off that post's counter.
+    await deleteActorData(db(), { actorId: blueskyActorId })
+    await expect(counterValue(CounterKey.totalReply(localPost))).resolves.toBe(
+      10
+    )
+  })
+
   it('changes nothing for an actor that does not exist', async () => {
     await seedWorld()
     const refresh = refreshSpy()
@@ -1377,6 +1441,7 @@ describe('statements', () => {
       'delete bluesky_follows by actorId',
       'delete bluesky_follows by targetActorId',
       'delete bluesky_interactions by actorId',
+      'delete bluesky_crossposts by actorId',
       'delete idempotency_keys by actorId',
       'select poll_answers by actorId',
       'select poll_choices by statusId',

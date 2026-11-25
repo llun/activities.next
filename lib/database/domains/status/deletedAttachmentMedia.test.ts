@@ -193,12 +193,14 @@ describe('deleted_attachment_media domain lifecycle', () => {
       })
       .execute()
 
-    await expect(
-      testDb.database.deleteStatus({ statusId })
-    ).resolves.toBeUndefined()
-    await expect(
-      testDb.database.deleteStatus({ statusId })
-    ).resolves.toBeUndefined()
+    await expect(testDb.database.deleteStatus({ statusId })).resolves.toEqual({
+      deleted: true,
+      blueskyCrossposts: []
+    })
+    await expect(testDb.database.deleteStatus({ statusId })).resolves.toEqual({
+      deleted: false,
+      blueskyCrossposts: []
+    })
 
     const mappings = await testDb.database.getDeletedAttachmentMediaIds({
       actorId: primaryActorId,

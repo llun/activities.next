@@ -1,3 +1,4 @@
+import { toBlueskyCrosspost } from '@/lib/database/domains/bluesky/queries'
 import { DELETED_ATTACHMENT_MEDIA_TTL_MS } from '@/lib/database/domains/media/types'
 import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
 import { searchQueries } from '@/lib/database/domains/search/queries'
@@ -7,7 +8,9 @@ import { selectHashtagTagsByStatusIds } from '@/lib/database/domains/status/hash
 import { getAnnounceOriginalStatusId } from '@/lib/database/domains/status/rows'
 import type {
   DeleteStatusParams,
+  DeleteStatusResult,
   DeleteStatusWithQueueJobParams,
+  DeletedBlueskyCrosspost,
   DiscardUnpublishedStatusParams,
   GetStatusEditHistoryParams
 } from '@/lib/database/domains/status/types'
@@ -16,6 +19,7 @@ import {
   decreaseCounterValue,
   deleteCounterValues
 } from '@/lib/database/kysely/counter'
+import type { EpochMs } from '@/lib/database/kysely/db'
 import {
   forUpdate,
   jsonText,
@@ -29,6 +33,7 @@ import {
 } from '@/lib/database/kysely/inList'
 import { PUBLIC_ACTIVITY_RECIPIENTS } from '@/lib/database/kysely/visibility/potentiallyReadable'
 import { CounterKey } from '@/lib/database/utils/counter'
+import { getCompatibleTime } from '@/lib/database/utils/getCompatibleTime'
 import { StatusType } from '@/lib/types/domain/status'
 import { normalizeActorId } from '@/lib/utils/activitypub'
 import { isBlueskyId } from '@/lib/utils/blueskyId'
@@ -51,6 +56,7 @@ type StatusDeletionRow = {
   reply: string | null
   content: unknown
   originalStatusId: string | null
+  createdAt: EpochMs | null
 }
 
 const statusReplyDeletionDepthError = (statusId: string) =>
@@ -115,7 +121,15 @@ const selectStatusDeletionRowsByIds = (trx: Db, statusIds: string[]) =>
   selectInChunks(trx, statusIds, (chunk) =>
     trx
       .selectFrom('statuses')
-      .select(['id', 'actorId', 'type', 'reply', 'content', 'originalStatusId'])
+      .select([
+        'id',
+        'actorId',
+        'type',
+        'reply',
+        'content',
+        'originalStatusId',
+        'createdAt'
+      ])
       .where('id', 'in', chunk)
       .$narrowType<StatusDeletionRow>()
       .execute()
@@ -241,8 +255,13 @@ const applyStatusDeletionCounterAdjustments = async ({
 
     if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
       const parentStatusId = parentStatusIdByReplyReference.get(status.reply)
-      // A Bluesky post's reply count is Bluesky's (set from the AppView).
-      if (parentStatusId && !isBlueskyId(parentStatusId)) {
+      // A Bluesky post's reply count is Bluesky's (set from the AppView), and
+      // a Bluesky reply under a local post was never counted (./writes.ts).
+      if (
+        parentStatusId &&
+        !isBlueskyId(parentStatusId) &&
+        !isBlueskyId(status.actorId)
+      ) {
         addCounterAdjustment(adjustments, CounterKey.totalReply(parentStatusId))
       }
     }
@@ -508,8 +527,9 @@ const refreshAffectedHashtags = async (
 }
 
 // The deletion transaction's body: every statement runs on `trx`. Returns
-// false, having written nothing, when there is nothing to delete (no such
-// status, or one of another actor's when `actorId` is given).
+// `{ deleted: false, blueskyCrossposts: [] }`, having written nothing, when
+// there is nothing to delete (no such status, or one of another actor's when
+// `actorId` is given).
 const executeStatusDeletion = async ({
   actorId,
   affectedHashtags,
@@ -523,13 +543,15 @@ const executeStatusDeletion = async ({
   hashtagsCounted?: boolean
   statusId: string
   trx: Db
-}): Promise<boolean> => {
+}): Promise<DeleteStatusResult> => {
   const statusesToDelete = await collectStatusDeletionRows({
     actorId,
     statusId,
     trx
   })
-  if (statusesToDelete.length === 0) return false
+  if (statusesToDelete.length === 0) {
+    return { deleted: false, blueskyCrossposts: [] }
+  }
 
   const currentTime = new Date()
   const statusIdsToDelete = statusesToDelete.map((status) => status.id)
@@ -570,6 +592,32 @@ const executeStatusDeletion = async ({
       .where('statusId', 'in', chunk)
       .execute()
   )
+  // The cross-post row follows its status inside this transaction so a rollback
+  // never orphans the remote Bluesky copy. Returning the deleted rows (with
+  // each status's own createdAt) lets the delete action queue remote Bluesky
+  // deletions from what was actually removed, including deterministic URIs for
+  // unrecorded rows.
+  const createdAtByStatusId = new Map<string, number>()
+  for (const status of statusesToDelete) {
+    if (status.createdAt !== null) {
+      createdAtByStatusId.set(status.id, getCompatibleTime(status.createdAt))
+    }
+  }
+  const deletedBlueskyCrossposts: DeletedBlueskyCrosspost[] = []
+  await deleteByStatusIds(async (chunk) => {
+    const deletedRows = await trx
+      .deleteFrom('bluesky_crossposts')
+      .where('statusId', 'in', chunk)
+      .returningAll()
+      .execute()
+    for (const row of deletedRows) {
+      const statusCreatedAt = createdAtByStatusId.get(row.statusId)
+      deletedBlueskyCrossposts.push({
+        ...toBlueskyCrosspost(row),
+        ...(statusCreatedAt !== undefined ? { statusCreatedAt } : null)
+      })
+    }
+  })
   // Emoji reactions follow the status, like favourites do. A remote status
   // that is deleted and later re-fetched under the same id would otherwise
   // come back wearing its old reaction chips.
@@ -778,7 +826,7 @@ const executeStatusDeletion = async ({
       CounterKey.totalReply(statusId)
     ])
   )
-  return true
+  return { deleted: true, blueskyCrossposts: deletedBlueskyCrossposts }
 }
 
 // Deletes the status and its reply tree (with `actorId`, only the statuses
@@ -787,9 +835,9 @@ const executeStatusDeletion = async ({
 export const deleteStatus = async (
   db: Db,
   { actorId, statusId }: DeleteStatusParams
-): Promise<void> => {
+): Promise<DeleteStatusResult> => {
   const collectedHashtags: string[] = []
-  await inTransaction(db, (trx) =>
+  const result = await inTransaction(db, (trx) =>
     executeStatusDeletion({
       actorId,
       affectedHashtags: collectedHashtags,
@@ -798,6 +846,7 @@ export const deleteStatus = async (
     })
   )
   await refreshAffectedHashtags(db, { collectedHashtags, statusId })
+  return result
 }
 
 // deleteStatus of a status whose create failed before it was federated, and,
@@ -840,31 +889,43 @@ export const discardUnpublishedStatus = async (
 }
 
 // deleteStatus with `actorId` plus a queue job, inserted in the same
-// transaction only when something was deleted. Returns whether it was.
+// transaction only when something was deleted. Optional follow-up jobs built
+// from the deletion result (e.g. removing deleted Bluesky cross-posts) are
+// inserted in that same transaction.
 export const deleteStatusWithQueueJob = async (
   db: Db,
-  { actorId, statusId, queueJob }: DeleteStatusWithQueueJobParams
-): Promise<boolean> => {
+  {
+    actorId,
+    statusId,
+    queueJob,
+    buildAdditionalQueueJobs
+  }: DeleteStatusWithQueueJobParams
+): Promise<DeleteStatusResult> => {
   const collectedHashtags: string[] = []
-  const deleted = await inTransaction(db, async (trx) => {
-    const isDeleted = await executeStatusDeletion({
+  const result = await inTransaction(db, async (trx) => {
+    const deletion = await executeStatusDeletion({
       actorId,
       affectedHashtags: collectedHashtags,
       statusId,
       trx
     })
-    if (!isDeleted) {
-      return false
+    if (!deletion.deleted) {
+      return deletion
     }
 
     await createQueueJob(trx, queueJob)
-    return true
+    if (buildAdditionalQueueJobs) {
+      for (const additionalJob of buildAdditionalQueueJobs(deletion)) {
+        await createQueueJob(trx, additionalJob)
+      }
+    }
+    return deletion
   })
 
-  if (!deleted) {
-    return false
+  if (!result.deleted) {
+    return result
   }
 
   await refreshAffectedHashtags(db, { collectedHashtags, statusId })
-  return true
+  return result
 }

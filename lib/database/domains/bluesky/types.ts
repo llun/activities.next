@@ -2,6 +2,7 @@
 // `network = 'bluesky'` (lib/services/bluesky/records.ts builds their ids),
 // the at:// record behind each post, and the follows an actor made on
 // Bluesky.
+import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 
 export type UpsertBlueskyActorParams = {
   did: string
@@ -61,6 +62,20 @@ export type BlueskyInteraction = {
   kind: BlueskyInteractionKind
   uri: string
   createdAt: number
+}
+
+export type BlueskyCrosspostState = 'pending' | 'posting' | 'posted' | 'failed'
+
+export type BlueskyCrosspost = {
+  statusId: string
+  actorId: string
+  // The Bluesky record, once it exists.
+  uri: string | null
+  cid: string | null
+  state: BlueskyCrosspostState
+  error: string | null
+  createdAt: number
+  updatedAt: number
 }
 
 export interface BlueskyDatabase {
@@ -146,4 +161,109 @@ export interface BlueskyDatabase {
     lastSyncedAt?: number | null
     syncError?: string | null
   }): Promise<void>
+
+  getBlueskyCrosspost(params: {
+    statusId: string
+  }): Promise<BlueskyCrosspost | null>
+  getBlueskyCrosspostByUri(params: {
+    uri: string
+  }): Promise<BlueskyCrosspost | null>
+  /** The cross-post rows of a page of statuses, keyed by statusId. */
+  getBlueskyCrosspostsByStatusIds(params: {
+    statusIds: string[]
+  }): Promise<Map<string, BlueskyCrosspost>>
+  /**
+   * Inserts a 'pending' row for the status, or leaves the existing one alone.
+   * Returns whether this call created it, so only one caller posts the status.
+   */
+  claimBlueskyCrosspost(params: {
+    statusId: string
+    actorId: string
+  }): Promise<boolean>
+  /**
+   * Atomically claims an exclusive posting attempt for a 'pending' row (or a
+   * stale 'posting' row older than STALE_CROSSPOST_MS) and returns the new
+   * attempt token, or null when another attempt owns it or it is already
+   * done/failed.
+   */
+  beginBlueskyCrosspostAttempt(params: {
+    statusId: string
+  }): Promise<string | null>
+  /**
+   * Moves the attempt owner's 'posting' row back to 'pending' with a fresh
+   * updatedAt and clears attemptId so the next retry can begin. No-op when
+   * another attempt owns it or the row is no longer 'posting'.
+   */
+  releaseBlueskyCrosspostAttempt(params: {
+    statusId: string
+    attemptId: string
+  }): Promise<boolean>
+  /**
+   * Records the posted record for the attempt owner's 'posting' row and clears
+   * attemptId. Returns whether a row was updated: false when the post was
+   * deleted or another attempt took over while the record was being created.
+   */
+  markBlueskyCrosspostPosted(params: {
+    statusId: string
+    attemptId: string
+    uri: string
+    cid: string
+  }): Promise<boolean>
+  /**
+   * Marks the attempt owner's 'posting' row failed and clears attemptId.
+   * No-op when another attempt took over or the row is no longer 'posting'.
+   */
+  markBlueskyCrosspostFailed(params: {
+    statusId: string
+    attemptId: string
+    error: string
+  }): Promise<boolean>
+  /**
+   * Marks a 'pending' row or a stale 'posting' row (older than
+   * STALE_CROSSPOST_MS) failed without touching a fresh 'posting' or 'posted'
+   * row (for failures before an attempt has been claimed).
+   */
+  markBlueskyCrosspostFailedIfAttemptable(params: {
+    statusId: string
+    error: string
+  }): Promise<boolean>
+  /**
+   * Moves a failed cross-post, or a stale pending/posting one (older than
+   * STALE_CROSSPOST_MS), back to 'pending'; false otherwise.
+   */
+  resetBlueskyCrosspostForRetry(params: { statusId: string }): Promise<boolean>
+  /**
+   * Deletes the cross-post row and returns what was deleted, or null if absent.
+   */
+  deleteBlueskyCrosspost(params: {
+    statusId: string
+  }): Promise<BlueskyCrosspost | null>
+  /**
+   * Deletes the cross-post row and, when `buildQueueJob` returns a job for the
+   * deleted row, inserts that queue job in the same transaction. Returns the
+   * deleted row, or null if absent.
+   */
+  deleteBlueskyCrosspostWithQueueJob(params: {
+    statusId: string
+    buildQueueJob: (crosspost: BlueskyCrosspost) => CreateQueueJobParams | null
+  }): Promise<BlueskyCrosspost | null>
+  /**
+   * Locks the cross-post row in a transaction (`SELECT ... FOR UPDATE` on
+   * PostgreSQL), then deletes an in-flight row (pending, posting, or posted
+   * without a uri) and returns `{ crosspost, deleted: true }`, or leaves a
+   * failed row or a posted row with a uri intact and returns
+   * `{ crosspost, deleted: false }` so a non-database queue can publish the
+   * delete job before removing the row. Returns null when no row exists.
+   */
+  deleteBlueskyCrosspostUnlessPosted(params: {
+    statusId: string
+  }): Promise<{ crosspost: BlueskyCrosspost; deleted: boolean } | null>
+  /**
+   * Deletes a row only while it is 'pending' or a stale 'posting' row (older
+   * than STALE_CROSSPOST_MS), never a fresh 'posting' or 'posted' row whose
+   * remote copies are owned by an active attempt or delete/visibility handlers.
+   */
+  deleteBlueskyCrosspostIfAttemptable(params: {
+    statusId: string
+  }): Promise<boolean>
 }

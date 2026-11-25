@@ -770,6 +770,39 @@ describe('safeRemoteFetch', () => {
     ])
   })
 
+  it('drops a bytes body on a 303 redirect', async () => {
+    const seenRequests: Array<{
+      bodyBytes?: Uint8Array
+      method: string
+    }> = []
+    const safeRemoteFetch = createSafeRemoteFetch({
+      resolveHost: async () => [SAFE_ADDRESS],
+      transport: async ({ bodyBytes, method, url }) => {
+        seenRequests.push({ bodyBytes, method })
+        if (url.pathname === '/from') {
+          return {
+            statusCode: 303,
+            headers: { location: 'https://safe.example/to' },
+            body: streamFrom([])
+          }
+        }
+
+        return okResponse()
+      }
+    })
+
+    await safeRemoteFetch({
+      bodyBytes: new Uint8Array([0xff, 0x00, 0xfe]),
+      method: 'POST',
+      url: 'https://safe.example/from'
+    })
+
+    expect(seenRequests).toEqual([
+      { bodyBytes: new Uint8Array([0xff, 0x00, 0xfe]), method: 'POST' },
+      { bodyBytes: undefined, method: 'GET' }
+    ])
+  })
+
   it('rebuilds dynamic headers without body headers after 303 redirects', async () => {
     const headerBuilderRequests: Array<{
       body?: string

@@ -6,7 +6,7 @@ import type {
 
 const send = async <T>(
   path: string,
-  method: 'POST' | 'DELETE',
+  method: 'POST' | 'PATCH' | 'DELETE',
   fallback: string,
   body?: unknown
 ): Promise<T> => {
@@ -66,3 +66,12 @@ export const setBlueskyInstanceHandle = (
   send('/instance-handle', 'POST', 'Unable to update the server handle.', {
     enabled
   })
+
+// The caller applies the value itself, so the answer's shape does not matter.
+export const setBlueskyCrosspostByDefault = async (
+  crosspostByDefault: boolean
+): Promise<void> => {
+  await send('', 'PATCH', 'Unable to update the Bluesky setting.', {
+    crosspostByDefault
+  })
+}

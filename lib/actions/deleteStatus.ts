@@ -1,6 +1,12 @@
 import { getConfig } from '@/lib/config'
+import type { DeletedBlueskyCrosspost } from '@/lib/database/domains/status/types'
 import { Database } from '@/lib/database/types'
-import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import {
+  DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+  SEND_DELETE_NOTE_JOB_NAME
+} from '@/lib/jobs/names'
+import { BLUESKY_CROSSPOST_COLLISION_MESSAGE } from '@/lib/services/bluesky/crosspost'
+import { deterministicTid } from '@/lib/services/bluesky/tid'
 import { getQueue } from '@/lib/services/queue'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { CreateQueueJobParams } from '@/lib/types/database/operations'
@@ -48,9 +54,58 @@ export const deleteStatusFromUserInput = async ({
 
     const queueJobId = getHashFromString(`${statusId}#delete`)
 
+    // Decide from the cross-post row(s) taken inside the status-deletion
+    // transaction:
+    // - posted with uri: queue DELETE_BLUESKY_CROSSPOST_JOB_NAME for that uri
+    // - failed with BLUESKY_CROSSPOST_COLLISION_MESSAGE: a foreign record sits
+    //   at the deterministic TID, so skip
+    // - pending / posting / failed: a prior attempt may have written the record
+    //   at the deterministic TID without recording it, so queue
+    //   DELETE_BLUESKY_CROSSPOST_JOB_NAME for that deterministic uri with
+    //   expectedCreatedAt when a Bluesky account is linked (the delete job
+    //   verifies via getRecord and tolerates RecordNotFound); if no account is
+    //   linked, skip
+    // - absent: nothing reached Bluesky
+    const buildBlueskyCrosspostDeleteJobMessage = (
+      crosspost: DeletedBlueskyCrosspost,
+      linkedDid: string | null
+    ) => {
+      let uri: string | null = null
+      let expectedCreatedAt: string | undefined
+      if (crosspost.state === 'posted' && crosspost.uri) {
+        uri = crosspost.uri
+      } else if (
+        linkedDid &&
+        crosspost.error !== BLUESKY_CROSSPOST_COLLISION_MESSAGE
+      ) {
+        const statusCreatedAt =
+          crosspost.statusCreatedAt ??
+          (crosspost.statusId === originalStatus.id
+            ? originalStatus.createdAt
+            : null)
+        if (statusCreatedAt !== null) {
+          uri = `at://${linkedDid}/app.bsky.feed.post/${deterministicTid(statusCreatedAt, crosspost.statusId)}`
+          expectedCreatedAt = new Date(statusCreatedAt).toISOString()
+        }
+      }
+      if (!uri) return null
+      return {
+        id: getHashFromString(`${crosspost.statusId}#bluesky-crosspost-delete`),
+        name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+        data: {
+          actorId: currentActor.id,
+          uri,
+          ...(expectedCreatedAt !== undefined ? { expectedCreatedAt } : null)
+        }
+      }
+    }
+
     if (isDatabaseQueue) {
       const maxRetries =
         config.queue?.type === 'database' ? (config.queue.maxRetries ?? 16) : 16
+      const linkedDid =
+        (await database.getBlueskyAccount({ actorId: currentActor.id }))?.did ??
+        null
 
       const queueJob: CreateQueueJobParams = {
         id: queueJobId,
@@ -74,7 +129,26 @@ export const deleteStatusFromUserInput = async ({
       await database.deleteStatusWithQueueJob({
         actorId: currentActor.id,
         statusId,
-        queueJob
+        queueJob,
+        buildAdditionalQueueJobs: ({ blueskyCrossposts }) =>
+          blueskyCrossposts.flatMap((crosspost) => {
+            const message = buildBlueskyCrosspostDeleteJobMessage(
+              crosspost,
+              linkedDid
+            )
+            if (!message) return []
+            return [
+              {
+                id: message.id,
+                name: message.name,
+                payload: message,
+                attempts: 0,
+                maxRetries,
+                nextRunAt: new Date(),
+                status: 'pending'
+              }
+            ]
+          })
       })
       return
     }
@@ -85,7 +159,11 @@ export const deleteStatusFromUserInput = async ({
     // — and since resolving those inboxes also ran first, an error collecting
     // them abandoned the delete entirely. (The sends themselves never rejected:
     // postActivityToInbox swallows delivery failures.)
-    await database.deleteStatus({ statusId, actorId: currentActor.id })
+    const { deleted, blueskyCrossposts } = await database.deleteStatus({
+      statusId,
+      actorId: currentActor.id
+    })
+    if (!deleted) return
 
     try {
       await queue.publish({
@@ -112,5 +190,45 @@ export const deleteStatusFromUserInput = async ({
         { statusId, actorId: currentActor.id, err: toLoggableError(error) },
         'Failed to queue status delete federation'
       )
+    }
+
+    let linkedDid: string | null = null
+    if (
+      blueskyCrossposts.some(
+        (crosspost) =>
+          (crosspost.state !== 'posted' || !crosspost.uri) &&
+          crosspost.error !== BLUESKY_CROSSPOST_COLLISION_MESSAGE
+      )
+    ) {
+      try {
+        linkedDid =
+          (await database.getBlueskyAccount({ actorId: currentActor.id }))
+            ?.did ?? null
+      } catch (error) {
+        logger.error(
+          { statusId, actorId: currentActor.id, err: toLoggableError(error) },
+          'Failed to look up Bluesky account for cross-post delete'
+        )
+      }
+    }
+
+    for (const crosspost of blueskyCrossposts) {
+      const message = buildBlueskyCrosspostDeleteJobMessage(
+        crosspost,
+        linkedDid
+      )
+      if (!message) continue
+      try {
+        await queue.publish(message)
+      } catch (error) {
+        logger.error(
+          {
+            statusId: crosspost.statusId,
+            actorId: currentActor.id,
+            err: toLoggableError(error)
+          },
+          'Failed to queue Bluesky cross-post delete'
+        )
+      }
     }
   })

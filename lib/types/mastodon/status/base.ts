@@ -217,6 +217,19 @@ export const BaseStatus = z.object({
     .optional()
     .describe(
       "If the current token has an authorized user: the id of the user's bookmark folder holding this status"
+    ),
+  // Activities.next Bluesky cross-post state. Present only when the viewer is
+  // the status's own author; null when they have no cross-post row.
+  bluesky_crosspost: z
+    .object({
+      state: z.enum(['pending', 'posted', 'failed']),
+      url: z.string().nullable(),
+      error: z.string().nullable()
+    })
+    .nullable()
+    .optional()
+    .describe(
+      "If the current token authored this status: its cross-post to the author's linked Bluesky account"
     )
 })
 export type BaseStatus = z.infer<typeof BaseStatus>

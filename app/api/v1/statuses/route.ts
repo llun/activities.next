@@ -134,6 +134,9 @@ const NoteSchema = z
     language: z.string().trim().min(1).optional(),
     sensitive: Booleanish.optional().default(false),
     scheduled_at: z.string().optional(),
+    // Activities.next extension: cross-post this public post to the author's
+    // linked Bluesky account. Omitted means the account's crosspostByDefault.
+    bluesky_crosspost: Booleanish.optional(),
     // Activities.next extension: backdate an immediate status. Validated
     // (format, not in the future) by parseBackdatedCreatedAt below.
     created_at: z.string().optional(),
@@ -164,6 +167,10 @@ const computeStatusIdempotencyHash = (note: ParsedNote): string =>
       sensitive: note.sensitive,
       scheduled_at: note.scheduled_at?.trim() || null,
       created_at: note.created_at?.trim() || null,
+      // Only when sent, so the hash of every other request is unchanged.
+      ...(note.bluesky_crosspost !== undefined
+        ? { bluesky_crosspost: note.bluesky_crosspost }
+        : {}),
       poll: note.poll
         ? {
             options: note.poll.options,
@@ -322,7 +329,8 @@ export const POST = traceApiRoute(
           const existingStatus = await resolveExistingIdempotentStatus({
             database,
             actorId: currentActor.id,
-            idempotency
+            idempotency,
+            blueskyCrosspost: note.bluesky_crosspost
           })
           if (existingStatus) {
             statusSaved = true
@@ -739,6 +747,7 @@ export const POST = traceApiRoute(
             application,
             createdAt,
             idempotency,
+            blueskyCrosspost: note.bluesky_crosspost,
             database
           })
         } else {
@@ -801,6 +810,7 @@ export const POST = traceApiRoute(
             application,
             createdAt,
             idempotency,
+            blueskyCrosspost: note.bluesky_crosspost,
             database
           })
         }
@@ -813,9 +823,18 @@ export const POST = traceApiRoute(
           })
         statusSaved = true
 
+        // Re-read with the viewer: the created status was hydrated without one,
+        // so the owner's cross-post state (claimed by the create before this
+        // response) would otherwise serialize as null.
+        const ownerStatus =
+          (await database.getStatus({
+            statusId: status.id,
+            withReplies: false,
+            currentActorId: currentActor.id
+          })) ?? status
         const mastodonStatus = await getMastodonStatus(
           database,
-          status,
+          ownerStatus,
           currentActor.id
         )
         if (!mastodonStatus) {

@@ -1,6 +1,7 @@
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import * as blueskyNetworkMigration from '@/migrations/20261124004542_add_bluesky_network'
 import * as blueskyInteractionsMigration from '@/migrations/20261124060051_add_bluesky_interactions'
+import * as blueskyCrosspostsMigration from '@/migrations/20261124103009_add_bluesky_crossposts'
 
 describe('add_bluesky_network migration', () => {
   const { database, db, prepare, destroy } = createTestDatabase()
@@ -110,5 +111,66 @@ describe('add_bluesky_interactions migration', () => {
     const account = await database.getBlueskyAccount({ actorId })
     expect(account?.notificationsSeenAt).not.toBeNull()
     expect(typeof account?.notificationsSeenAt).toBe('number')
+  })
+})
+
+describe('add_bluesky_crossposts migration', () => {
+  const { database, db, prepare, destroy } = createTestDatabase()
+
+  beforeAll(async () => {
+    await prepare()
+    await database.migrate()
+  })
+
+  afterAll(async () => {
+    await destroy()
+  })
+
+  it('rolls down and back up cleanly', async () => {
+    await blueskyCrosspostsMigration.down(db)
+    const afterDown = await db.introspection.getTables()
+    expect(afterDown.some((table) => table.name === 'bluesky_crossposts')).toBe(
+      false
+    )
+    expect(
+      afterDown
+        .find((table) => table.name === 'bluesky_accounts')
+        ?.columns.some((column) => column.name === 'crosspostByDefault')
+    ).toBe(false)
+
+    await blueskyCrosspostsMigration.up(db)
+    // Calling up() again is idempotent.
+    await blueskyCrosspostsMigration.up(db)
+    const afterUp = await db.introspection.getTables()
+    expect(afterUp.some((table) => table.name === 'bluesky_crossposts')).toBe(
+      true
+    )
+    expect(
+      afterUp
+        .find((table) => table.name === 'bluesky_accounts')
+        ?.columns.some((column) => column.name === 'crosspostByDefault')
+    ).toBe(true)
+  })
+
+  it('defaults cross-posting on for accounts that existed before up()', async () => {
+    await blueskyCrosspostsMigration.down(db)
+
+    const actorId = 'https://example.test/users/pre-crosspost'
+    await db
+      .insertInto('bluesky_accounts')
+      .values({
+        actorId,
+        did: 'did:plc:precrosspostaccount1234',
+        handle: 'precrosspost.bsky.social',
+        pdsUrl: 'https://bsky.social',
+        authType: 'oauth',
+        domainHandle: false
+      })
+      .execute()
+
+    await blueskyCrosspostsMigration.up(db)
+
+    const account = await database.getBlueskyAccount({ actorId })
+    expect(account?.crosspostByDefault).toBe(true)
   })
 })
