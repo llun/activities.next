@@ -1,0 +1,24 @@
+lib/services/pds/moveOut.ts
+  s_f193227df3df34::t_5fc443af5d5d35 371,378-381,1020,1022-1024,1288-1293,1311,1321,1561,1582-1585
+app/(timeline)/settings/networks/HostedBlueskyForm.tsx
+  s_f193227df3df34::t_5fc443af5d5d35 301-302
+lib/services/pds/moveOut.test.ts
+  s_f193227df3df34::t_bd3a8b17947723 120,2717-2792,2797-2798,2800-2801
+  s_f193227df3df34::t_f94981785e8302 2793-2796,2799,2802-2804
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f452c503d1e482d76c37948915e52d3457889d56",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
