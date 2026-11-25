@@ -1,0 +1,27 @@
+lib/services/pds/blobStorage.ts
+  s_f193227df3df34::t_23d51ca82738fe 270-273
+lib/services/pds/blobs.test.ts
+  s_f193227df3df34::t_4f73e63c762c91 74-75
+  s_f193227df3df34::t_feb7ca5b10894d 678-703
+  s_f193227df3df34::t_475d36d0075a7d 25
+lib/services/pds/rateLimit.ts
+  s_f193227df3df34::t_5c6eda5e796060 10,15-20,37-38,59-65
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_311bc4f922fdda 1399
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba60810bc454f4e53f8626d6a5ad3230855c166f",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
