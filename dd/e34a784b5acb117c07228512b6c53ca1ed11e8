@@ -1,0 +1,25 @@
+app/(timeline)/settings/networks/HostedBlueskyForm.tsx
+  s_f193227df3df34::t_ee606daec761ab 878-881,889-891
+  s_f193227df3df34::t_1c9e1e2ff33e86 650,652
+  s_f193227df3df34::t_0463fb482dc18e 1034-1038,1040-1042,1077-1081
+  s_f193227df3df34::t_60069e7689ca55 651,653-654
+app/(timeline)/settings/networks/HostedBlueskyForm.test.tsx
+  s_f193227df3df34::t_6df8545ff59438 678,680-682,684-686
+  s_f193227df3df34::t_c7289bde9023df 456-483
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dde34a784b5acb117c07228512b6c53ca1ed11e8",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
