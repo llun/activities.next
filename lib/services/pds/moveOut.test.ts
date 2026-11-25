@@ -121,6 +121,7 @@ const ALLOWED_USERNAMES = [
   'move-blob-budget',
   'move-finish-budget',
   'move-finish-stuck',
+  'move-finish-stuck-full',
   'move-finish-list-fails',
   'move-finish-list-bad',
   'move-finish-list-429',
@@ -2820,104 +2821,115 @@ describe('hosted Bluesky account move-out', () => {
     expect(finished.missingBlobs).toBe(4)
   })
 
-  it('counts what is still missing when the destination cursor gets stuck', async () => {
-    const { actor, did } = await setupHostedAccount('move-finish-stuck')
-    const store = createMemoryBlobStore()
-    const destSigningKey = await Secp256k1Keypair.create()
-    const destRotKey = await Secp256k1Keypair.create()
+  it.each([
+    { username: 'move-finish-stuck', left: 4, copyIncomplete: false },
+    // A full count page may have more behind it: the count is a lower bound.
+    { username: 'move-finish-stuck-full', left: 1000, copyIncomplete: true }
+  ])(
+    'counts what is still missing when the destination cursor gets stuck ($left left)',
+    async ({ username, left, copyIncomplete }) => {
+      const { actor, did } = await setupHostedAccount(username)
+      const store = createMemoryBlobStore()
+      const destSigningKey = await Secp256k1Keypair.create()
+      const destRotKey = await Secp256k1Keypair.create()
 
-    const blob = await uploadPdsBlob(
-      database,
-      { did, bytes: Buffer.from('slow-image'), mimeType: 'image/png' },
-      { store }
-    )
-    await createPdsRecord(database, {
-      did,
-      collection: 'app.bsky.feed.post',
-      record: {
-        $type: 'app.bsky.feed.post',
-        text: 'post',
-        createdAt: new Date().toISOString(),
-        embed: {
-          $type: 'app.bsky.embed.images',
-          images: [{ alt: 'one', image: blob.blob }]
+      const blob = await uploadPdsBlob(
+        database,
+        { did, bytes: Buffer.from('slow-image'), mimeType: 'image/png' },
+        { store }
+      )
+      await createPdsRecord(database, {
+        did,
+        collection: 'app.bsky.feed.post',
+        record: {
+          $type: 'app.bsky.feed.post',
+          text: 'post',
+          createdAt: new Date().toISOString(),
+          embed: {
+            $type: 'app.bsky.embed.images',
+            images: [{ alt: 'one', image: blob.blob }]
+          }
         }
-      }
-    })
-    const currentRepo = await database.getPdsRepo({ did })
-    await writeStoredBlueskySession(database, did, {
-      type: 'move-out',
-      pdsUrl: DEST_PDS,
-      destDid: DEST_DID,
-      handle: 'budget.dest.pds.example',
-      accessJwt: 'a',
-      refreshJwt: 'r',
-      importedRev: currentRepo!.rev,
-      switchedAt: null
-    })
+      })
+      const currentRepo = await database.getPdsRepo({ did })
+      await writeStoredBlueskySession(database, did, {
+        type: 'move-out',
+        pdsUrl: DEST_PDS,
+        destDid: DEST_DID,
+        handle: 'budget.dest.pds.example',
+        accessJwt: 'a',
+        refreshJwt: 'r',
+        importedRev: currentRepo!.rev,
+        switchedAt: null
+      })
 
-    let now = Date.now()
-    let activateCalls = 0
-    let uploads = 0
-    destHandler = (options) => {
-      if (
-        options.url.endsWith(
-          '/com.atproto.identity.getRecommendedDidCredentials'
-        )
-      ) {
-        return okResponse(
-          options.url,
-          JSON.stringify({
-            services: {
-              atproto_pds: {
-                type: 'AtprotoPersonalDataServer',
-                endpoint: DEST_PDS
-              }
-            },
-            verificationMethods: { atproto: destSigningKey.did() },
-            alsoKnownAs: ['at://budget.dest.pds.example'],
-            rotationKeys: [destRotKey.did()]
-          })
-        )
-      }
-      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
-        // The count after the budget asks for the protocol's largest page.
-        if (options.url.includes('limit=1000')) {
+      let now = Date.now()
+      let activateCalls = 0
+      let uploads = 0
+      destHandler = (options) => {
+        if (
+          options.url.endsWith(
+            '/com.atproto.identity.getRecommendedDidCredentials'
+          )
+        ) {
           return okResponse(
             options.url,
             JSON.stringify({
-              blobs: ['a', 'b', 'c', 'd'].map((cid) => ({ cid }))
+              services: {
+                atproto_pds: {
+                  type: 'AtprotoPersonalDataServer',
+                  endpoint: DEST_PDS
+                }
+              },
+              verificationMethods: { atproto: destSigningKey.did() },
+              alsoKnownAs: ['at://budget.dest.pds.example'],
+              rotationKeys: [destRotKey.did()]
             })
           )
         }
-        return okResponse(
-          options.url,
-          JSON.stringify({ cursor: 'stuck', blobs: [{ cid: blob.cid }] })
-        )
+        if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+          // The count after the budget asks for the protocol's largest page.
+          if (options.url.includes('limit=1000')) {
+            return okResponse(
+              options.url,
+              JSON.stringify({
+                cursor: `cid-${left - 1}`,
+                blobs: Array.from({ length: left }, (_, i) => ({
+                  cid: `cid-${i}`
+                }))
+              })
+            )
+          }
+          return okResponse(
+            options.url,
+            JSON.stringify({ cursor: 'stuck', blobs: [{ cid: blob.cid }] })
+          )
+        }
+        if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
+          uploads += 1
+          return okResponse(
+            options.url,
+            JSON.stringify({ blob: { $type: 'blob' } })
+          )
+        }
+        if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+          activateCalls += 1
+          return okResponse(options.url, '')
+        }
+        return okResponse(options.url, defaultDestBody(options.url))
       }
-      if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
-        uploads += 1
-        return okResponse(
-          options.url,
-          JSON.stringify({ blob: { $type: 'blob' } })
-        )
-      }
-      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
-        activateCalls += 1
-        return okResponse(options.url, '')
-      }
-      return okResponse(options.url, defaultDestBody(options.url))
+
+      const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+      const finished = await finishMoveOut({ database, actor, store })
+      nowSpy.mockRestore()
+
+      // The second page answers the same cursor: stuck, so the rest is counted.
+      expect(uploads).toBe(2)
+      expect(activateCalls).toBe(1)
+      expect(finished.missingBlobs).toBe(left)
+      expect(finished.copyIncomplete).toBe(copyIncomplete)
     }
-
-    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
-    const finished = await finishMoveOut({ database, actor, store })
-    nowSpy.mockRestore()
-
-    // The second page answers the same cursor: stuck, so the rest is counted.
-    expect(uploads).toBe(2)
-    expect(activateCalls).toBe(1)
-    expect(finished.missingBlobs).toBe(4)
-  })
+  )
 
   it('activates even when the destination refuses the catch-up list', async () => {
     const { actor, did } = await setupHostedAccount('move-finish-list-fails')

@@ -1279,6 +1279,9 @@ export const getMoveOutProgress = async ({
   }
 }
 
+// The protocol's largest page: counting reads no blob bytes.
+const COUNT_MISSING_BLOBS_LIMIT = 1000
+
 /**
  * One last list, capped at a page, so a finish that ran out of its blob budget
  * can still tell the owner how many files are missing.
@@ -1289,7 +1292,7 @@ const countMissingBlobs = async (
   session: StoredBlueskyMoveOutSession
 ): Promise<{
   count: number
-  /** The count request failed, so `count` is only a lower bound. */
+  /** The count request failed or filled a page, so `count` is only a lower bound. */
   unknown: boolean
   session: StoredBlueskyMoveOutSession
 }> => {
@@ -1301,8 +1304,7 @@ const countMissingBlobs = async (
       session,
       nsid,
       method: 'GET',
-      // The protocol's largest page: counting reads no blob bytes.
-      params: { limit: 1000 }
+      params: { limit: COUNT_MISSING_BLOBS_LIMIT }
     })
     const parsed = parseJsonBody(nsid, response.body)
     // A body without a `blobs` array is not a count of zero: the copy stopped
@@ -1312,7 +1314,8 @@ const countMissingBlobs = async (
     }
     return {
       count: parsed.blobs.length,
-      unknown: false,
+      // A full page may have more behind it.
+      unknown: parsed.blobs.length >= COUNT_MISSING_BLOBS_LIMIT,
       session: response.session
     }
   } catch (error) {
