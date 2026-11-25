@@ -62,7 +62,11 @@ import {
   revokeMoveOutTokens,
   updateMoveOutSession
 } from './moveSession'
-import { getMovedToHost, isPlcOperationPointingAway } from './moved'
+import {
+  getMovedToHost,
+  getPlcOperationPdsEndpoint,
+  isPlcOperationPointingAway
+} from './moved'
 import {
   PLC_DIRECTORY_TIMEOUT_MS,
   type PlcSignedOperation,
@@ -1670,9 +1674,13 @@ export const cancelMoveOut = async ({
       // The stored operation can lag the directory: a switch that landed there
       // but not here must still refuse the cancel.
       const last = await getLastPlcOperation(repo.did)
-      if (isPlcOperationPointingAway(JSON.stringify(last), repo.domain)) {
-        throw new PdsMoveOutSwitchedError()
-      }
+      // Without the domain's config this server's origin is unknown; the copy
+      // is known live, so compare the directory with the stored operation.
+      const pointsAway = getPdsConfig()?.[repo.domain]
+        ? isPlcOperationPointingAway(JSON.stringify(last), repo.domain)
+        : getPlcOperationPdsEndpoint(JSON.stringify(last))?.origin !==
+          getPlcOperationPdsEndpoint(repo.plcOperation)?.origin
+      if (pointsAway) throw new PdsMoveOutSwitchedError()
 
       // Revoke the row that was actually deleted: a refresh may have rotated
       // its tokens since this call read the move.

@@ -66,8 +66,8 @@ export const getMovedToHost = (repo: {
  * Whether a PLC operation (from the directory, or just signed) points
  * `services.atproto_pds.endpoint` away from this server for `domain`: an https
  * endpoint that is not this server's PDS origin. For a repo's stored operation
- * use `getMovedToHost`. A domain with no PDS config counts as away; callers
- * reach this only with the config present (move steps require it).
+ * use `getMovedToHost`. A domain with no PDS config counts as away, so callers
+ * without the config (cancel) compare endpoints themselves.
  */
 export const isPlcOperationPointingAway = (
   plcOperation: string | null,
