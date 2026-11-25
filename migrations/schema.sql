@@ -1292,6 +1292,68 @@ CREATE TABLE public.passkey (
     "rpID" character varying(255)
 );
 
+CREATE TABLE public.pds_blobs (
+    did character varying(255) NOT NULL,
+    cid character varying(255) NOT NULL,
+    "mimeType" character varying(255) NOT NULL,
+    size bigint NOT NULL,
+    "storageKey" character varying(512) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.pds_blocks (
+    did character varying(255) NOT NULL,
+    cid character varying(255) NOT NULL,
+    bytes bytea NOT NULL,
+    "repoRev" character varying(32) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.pds_events (
+    seq bigint NOT NULL,
+    did character varying(255) NOT NULL,
+    type character varying(16) NOT NULL,
+    payload bytea NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE SEQUENCE public.pds_events_seq_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE public.pds_events_seq_seq OWNED BY public.pds_events.seq;
+
+CREATE TABLE public.pds_record_blobs (
+    did character varying(255) NOT NULL,
+    "recordUri" character varying(2048) NOT NULL,
+    "blobCid" character varying(255) NOT NULL
+);
+
+CREATE TABLE public.pds_records (
+    did character varying(255) NOT NULL,
+    collection character varying(255) NOT NULL COLLATE pg_catalog."C",
+    rkey character varying(512) NOT NULL COLLATE pg_catalog."C",
+    cid character varying(255) NOT NULL,
+    "repoRev" character varying(32) NOT NULL,
+    "indexedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE public.pds_repos (
+    did character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    domain character varying(255) NOT NULL,
+    "signingKey" text NOT NULL,
+    "signingKeyDid" character varying(255) NOT NULL,
+    "rootCid" character varying(255),
+    rev character varying(32),
+    status character varying(16) DEFAULT 'active'::character varying NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE public.poll_answers (
     "answerId" integer NOT NULL,
     choice integer NOT NULL,
@@ -1726,6 +1788,8 @@ ALTER TABLE ONLY public.endorsements ALTER COLUMN id SET DEFAULT nextval('public
 
 ALTER TABLE ONLY public.medias ALTER COLUMN id SET DEFAULT nextval('public.medias_id_seq'::regclass);
 
+ALTER TABLE ONLY public.pds_events ALTER COLUMN seq SET DEFAULT nextval('public.pds_events_seq_seq'::regclass);
+
 ALTER TABLE ONLY public.poll_answers ALTER COLUMN "answerId" SET DEFAULT nextval('public."poll_answers_answerId_seq"'::regclass);
 
 ALTER TABLE ONLY public.poll_choices ALTER COLUMN "choiceId" SET DEFAULT nextval('public."poll_choices_choiceId_seq"'::regclass);
@@ -2141,6 +2205,27 @@ ALTER TABLE ONLY public.passkey
 ALTER TABLE ONLY public.passkey
     ADD CONSTRAINT passkey_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.pds_blobs
+    ADD CONSTRAINT pds_blobs_pkey PRIMARY KEY (did, cid);
+
+ALTER TABLE ONLY public.pds_blocks
+    ADD CONSTRAINT pds_blocks_pkey PRIMARY KEY (did, cid);
+
+ALTER TABLE ONLY public.pds_events
+    ADD CONSTRAINT pds_events_pkey PRIMARY KEY (seq);
+
+ALTER TABLE ONLY public.pds_record_blobs
+    ADD CONSTRAINT pds_record_blobs_pkey PRIMARY KEY (did, "recordUri", "blobCid");
+
+ALTER TABLE ONLY public.pds_records
+    ADD CONSTRAINT pds_records_pkey PRIMARY KEY (did, collection, rkey);
+
+ALTER TABLE ONLY public.pds_repos
+    ADD CONSTRAINT "pds_repos_actorId_key" UNIQUE ("actorId");
+
+ALTER TABLE ONLY public.pds_repos
+    ADD CONSTRAINT pds_repos_pkey PRIMARY KEY (did);
+
 ALTER TABLE ONLY public.poll_answers
     ADD CONSTRAINT poll_answers_pkey PRIMARY KEY ("answerId");
 
@@ -2507,6 +2592,18 @@ CREATE INDEX passkey_userid_index ON public.passkey USING btree ("userId");
 CREATE INDEX passkey_userid_rpid_index ON public.passkey USING btree ("userId", "rpID");
 
 CREATE INDEX "passwordResetCodeIndex" ON public.accounts USING btree ("passwordResetCode");
+
+CREATE INDEX pds_blocks_did_repo_rev_idx ON public.pds_blocks USING btree (did, "repoRev");
+
+CREATE INDEX pds_events_created_at_idx ON public.pds_events USING btree ("createdAt");
+
+CREATE INDEX pds_events_did_seq_idx ON public.pds_events USING btree (did, seq);
+
+CREATE INDEX pds_record_blobs_did_blob_cid_idx ON public.pds_record_blobs USING btree (did, "blobCid");
+
+CREATE INDEX pds_records_did_repo_rev_idx ON public.pds_records USING btree (did, "repoRev");
+
+CREATE INDEX pds_repos_domain_idx ON public.pds_repos USING btree (domain);
 
 CREATE INDEX poll_answers_statusid_actorid_index ON public.poll_answers USING btree ("statusId", "actorId");
 

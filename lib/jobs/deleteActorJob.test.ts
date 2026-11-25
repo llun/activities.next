@@ -13,6 +13,10 @@ import {
 } from '@/lib/jobs/deleteActorJob'
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
 import { FederationPolicyUnavailableError } from '@/lib/services/federation/policyUnavailable'
+import {
+  FilePdsBlobObjectStore,
+  getPdsBlobStorageKey
+} from '@/lib/services/pds/blobStorage'
 import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
@@ -873,6 +877,150 @@ describe('deleteActorJob', () => {
       const status = await database.getActorDeletionStatus({ id: actorId })
       expect(status?.status).toBe('scheduled')
       expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
+    })
+  })
+
+  describe('PDS blob cleanup', () => {
+    it('deletes PDS blob files and pds_* rows when deleting an actor', async () => {
+      const tempDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'delete-actor-pds-blobs-')
+      )
+      try {
+        vi.mocked(getConfig).mockReturnValue({
+          host: 'test.social',
+          secretPhase: 'test-secret-phase-for-pds-blobs-cleanup',
+          email: { serviceFromAddress: 'noreply@test.social' },
+          mediaStorage: {
+            type: MediaStorageType.LocalFile,
+            path: tempDir
+          }
+        } as ReturnType<typeof getConfig>)
+
+        const suffix = Date.now().toString()
+        const username = `pds-del-ok-${suffix}`
+        const actorId = `https://test.social/users/${username}`
+        await database.createAccount({
+          email: `${username}@test.social`,
+          username,
+          domain: 'test.social',
+          passwordHash: 'hash',
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        const did = `did:web:${username}.pds.test`
+        await database.createPdsRepo({
+          did,
+          actorId,
+          domain: 'test.social',
+          signingKey: 'v1:encrypted',
+          signingKeyDid: 'did:key:zQ3shDelOk'
+        })
+        const storageKey = getPdsBlobStorageKey(did, 'bafkreidelok1234', {
+          secretPhase: 'test-secret-phase-for-pds-blobs-cleanup'
+        })
+        const store = new FilePdsBlobObjectStore({
+          type: MediaStorageType.LocalFile,
+          path: tempDir
+        })
+        await store.put(storageKey, Buffer.from('pds-blob-bytes'))
+        await database.createPdsBlob({
+          did,
+          cid: 'bafkreidelok1234',
+          mimeType: 'image/png',
+          size: 14,
+          storageKey
+        })
+
+        await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+        await deleteActorJob(database, {
+          id: `delete-pds-ok-${suffix}`,
+          name: DELETE_ACTOR_JOB_NAME,
+          data: { actorId }
+        })
+
+        expect(await store.openRead(storageKey)).toBeNull()
+        expect(await database.getPdsRepo({ did })).toBeNull()
+        expect(await database.listPdsBlobStorageKeys({ did })).toEqual([])
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    it('keeps actor scheduled and pds_* rows intact when PDS blob file deletion fails so the job retries', async () => {
+      const tempDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'delete-actor-pds-retry-')
+      )
+      try {
+        vi.mocked(getConfig).mockReturnValue({
+          host: 'test.social',
+          secretPhase: 'test-secret-phase-for-pds-blobs-retry',
+          email: { serviceFromAddress: 'noreply@test.social' },
+          mediaStorage: {
+            type: MediaStorageType.LocalFile,
+            path: tempDir
+          }
+        } as ReturnType<typeof getConfig>)
+
+        const suffix = Date.now().toString()
+        const username = `pds-del-retry-${suffix}`
+        const actorId = `https://test.social/users/${username}`
+        await database.createAccount({
+          email: `${username}@test.social`,
+          username,
+          domain: 'test.social',
+          passwordHash: 'hash',
+          privateKey: `privateKey-${suffix}`,
+          publicKey: `publicKey-${suffix}`
+        })
+
+        const did = `did:web:${username}.pds.test`
+        await database.createPdsRepo({
+          did,
+          actorId,
+          domain: 'test.social',
+          signingKey: 'v1:encrypted',
+          signingKeyDid: 'did:key:zQ3shDelRetry'
+        })
+        const storageKey = getPdsBlobStorageKey(did, 'bafkreidelretry123', {
+          secretPhase: 'test-secret-phase-for-pds-blobs-retry'
+        })
+        await database.createPdsBlob({
+          did,
+          cid: 'bafkreidelretry123',
+          mimeType: 'image/png',
+          size: 10,
+          storageKey
+        })
+        await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+
+        const deleteSpy = vi
+          .spyOn(FilePdsBlobObjectStore.prototype, 'delete')
+          .mockRejectedValueOnce(new Error('storage offline'))
+        try {
+          await expect(
+            deleteActorJob(database, {
+              id: `delete-pds-retry-${suffix}`,
+              name: DELETE_ACTOR_JOB_NAME,
+              data: { actorId }
+            })
+          ).rejects.toThrow('storage offline')
+        } finally {
+          deleteSpy.mockRestore()
+        }
+
+        // Actor must remain `scheduled` (not `deleting`) and PDS rows must remain for retry.
+        const deletionStatus = await database.getActorDeletionStatus({
+          id: actorId
+        })
+        expect(deletionStatus?.status).toBe('scheduled')
+        expect(await database.getPdsRepo({ did })).not.toBeNull()
+        expect(await database.listPdsBlobStorageKeys({ did })).toEqual([
+          storageKey
+        ])
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true })
+      }
     })
   })
 })

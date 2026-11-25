@@ -3,6 +3,7 @@ import {
   ARCHIVE_STORAGE_PREFIX,
   IMPORT_STORAGE_PREFIX
 } from '@/lib/services/accountArchive/constants'
+import { PDS_BLOB_STORAGE_PREFIX } from '@/lib/services/pds/constants'
 
 // How many times a path may be percent-decoded while canonicalising. Next has
 // already decoded the catch-all segments once, so a client that double-encodes
@@ -97,12 +98,14 @@ const getCanonicalMediaPath = (userPath: string): string => {
  */
 export const isReservedFitnessMediaPath = (userPath: string): boolean => {
   const canonicalPath = getCanonicalMediaPath(userPath)
-  // Account exports live under `archives/` of the same storage. They are served
-  // only by the owner-only download endpoint, never by this route.
+  // Account exports live under `archives/`, archive imports under `imports/`,
+  // and embedded PDS blobs under `pds-blobs/` of the same storage. None may be
+  // served or redirected to by the public media route.
   return [
     ...getMediaReservedFitnessPathPrefixes(),
     ARCHIVE_STORAGE_PREFIX,
-    IMPORT_STORAGE_PREFIX
+    IMPORT_STORAGE_PREFIX,
+    PDS_BLOB_STORAGE_PREFIX
   ].some(
     (prefix) =>
       canonicalPath === prefix || canonicalPath.startsWith(`${prefix}/`)

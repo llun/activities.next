@@ -16,6 +16,7 @@ import { resolveEmailIdentity } from '@/lib/services/email/sender'
 import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
 import { rethrowIfFederationPolicyUnavailable } from '@/lib/services/federation/policyUnavailable'
 import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
+import { purgeActorPdsBlobs } from '@/lib/services/pds/blobStorage'
 import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { Actor } from '@/lib/types/domain/actor'
@@ -292,6 +293,10 @@ export const deleteActorJob = createJobHandle(
       // they go the same way as the exports above, before the actor is marked
       // `deleting`, so a failure here is retried from `scheduled`.
       await purgeActorAccountImports({ database, actorId })
+
+      // Delete raw PDS blob files before the actor is marked `deleting` so any
+      // storage error retries while `pds_blobs` rows still identify the keys.
+      await purgeActorPdsBlobs({ database, actorId })
 
       // Mark actor as deleting
       try {

@@ -319,6 +319,34 @@ describe('production archive scripts', () => {
       })
       expect(referenced[0]).toMatchObject({ files: ['medias/a.jpg'] })
     })
+
+    it('backs up raw PDS blobs instead of skipping them', () => {
+      const mediaStorage = {
+        type: MediaStorageType.LocalFile,
+        path: '/tmp/activitynext/uploads'
+      } as const
+
+      // Referenced scope keeps the blob keys the database points at.
+      const referenced = buildStoragePlan({
+        fitnessFilePaths: [],
+        mediaFilePaths: ['medias/a.jpg', 'pds-blobs/hash/bafkreione'],
+        scope: 'referenced',
+        mediaStorage
+      })
+      expect(referenced[0]).toMatchObject({
+        files: ['medias/a.jpg', 'pds-blobs/hash/bafkreione']
+      })
+
+      // All scope copies them too: pds-blobs is durable data, not transient
+      // staging like archives/ and imports/.
+      const all = buildStoragePlan({
+        fitnessFilePaths: [],
+        mediaFilePaths: [],
+        scope: 'all',
+        mediaStorage
+      })
+      expect(all[0]).toMatchObject({ excludePrefixes: ['archives', 'imports'] })
+    })
   })
 
   describe('getReferencedStoragePaths', () => {
@@ -410,6 +438,48 @@ describe('production archive scripts', () => {
           'medias/live.webp',
           'medias/superseded.webp',
           'medias/uploaded.jpg'
+        ])
+      } finally {
+        await destroy()
+      }
+    })
+
+    it('collects raw PDS blob storage keys so a referenced backup keeps them', async () => {
+      const { database, tableDb, destroy } = openSqliteArchiveDatabase()
+
+      try {
+        await sql`
+          create table pds_blobs (
+            did varchar(255) not null,
+            cid varchar(255) not null,
+            "storageKey" varchar(512) not null,
+            primary key (did, cid)
+          )
+        `.execute(database.db)
+        await insertRows(tableDb, 'pds_blobs', [
+          {
+            did: 'did:web:blob-a.pds.test',
+            cid: 'bafkreione',
+            storageKey: 'pds-blobs/hash-a/bafkreione'
+          },
+          {
+            did: 'did:web:blob-a.pds.test',
+            cid: 'bafkreitwo',
+            storageKey: 'pds-blobs/hash-a/bafkreitwo'
+          },
+          {
+            did: 'did:web:blob-b.pds.test',
+            cid: 'bafkreithree',
+            storageKey: 'pds-blobs/hash-b/bafkreithree'
+          }
+        ])
+
+        const paths = await getReferencedStoragePaths(database)
+
+        expect(paths.mediaFilePaths).toEqual([
+          'pds-blobs/hash-a/bafkreione',
+          'pds-blobs/hash-a/bafkreitwo',
+          'pds-blobs/hash-b/bafkreithree'
         ])
       } finally {
         await destroy()

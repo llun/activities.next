@@ -20,6 +20,7 @@ describe('next config runtime isolation', () => {
       process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS,
     ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS:
       process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS,
+    ACTIVITIES_BLUESKY_PDS: process.env.ACTIVITIES_BLUESKY_PDS,
     ACTIVITIES_EMAIL: process.env.ACTIVITIES_EMAIL,
     ACTIVITIES_EMAIL_TYPE: process.env.ACTIVITIES_EMAIL_TYPE,
     ACTIVITIES_GALLERY_GBIF_ENDPOINT:
@@ -179,6 +180,44 @@ describe('next config runtime isolation', () => {
       })
       expect(serialized).not.toContain('build-key-kid')
       expect(serialized).not.toContain('secret-d')
+    }
+  )
+
+  it.each([
+    [
+      'set',
+      JSON.stringify({
+        'build-domain.example.com': {
+          enabled: true,
+          hostname: 'pds.build-domain.example.com',
+          allowEmails: ['alice@example.com'],
+          allowActors: ['alice@build-domain.example.com']
+        }
+      })
+    ],
+    ['invalid', 'not-json'],
+    ['missing', undefined]
+  ])(
+    'does not consume the Bluesky PDS config when it is %s',
+    async (_, value) => {
+      if (value === undefined) {
+        delete process.env.ACTIVITIES_BLUESKY_PDS
+      } else {
+        process.env.ACTIVITIES_BLUESKY_PDS = value
+      }
+
+      const { default: loadedNextConfig } = await loadNextConfig()
+      const serialized = JSON.stringify({
+        ...loadedNextConfig,
+        headers: await loadedNextConfig.headers?.(),
+        rewrites: await loadedNextConfig.rewrites?.(),
+        redirects: await loadedNextConfig.redirects?.()
+      })
+
+      expect(loadedNextConfig.env).toEqual({
+        NEXT_PUBLIC_BUILD_VERSION: packageJson.version
+      })
+      expect(serialized).not.toContain('pds.build-domain.example.com')
     }
   )
 

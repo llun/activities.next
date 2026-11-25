@@ -34,6 +34,10 @@ import {
 } from '@/lib/services/accountArchive/constants'
 import { getEffectiveFitnessStorageConfig } from '@/lib/services/fitness-files'
 import { resolveStorageFilePath } from '@/lib/services/medias/storagePath'
+import {
+  PDS_BLOB_STORAGE_PREFIX,
+  isPdsBlobStoragePath
+} from '@/lib/services/pds/constants'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 
 import { getMediaEditReferencedPaths } from './mediaEditReferences'
@@ -213,6 +217,70 @@ const getSharedFitnessPrefix = (mediaStorage: MediaStorageConfig) => {
 
   const prefix = fitnessStorage.prefix || 'fitness/'
   return prefix.endsWith('/') ? prefix : `${prefix}/`
+}
+
+export interface ManagedStorageSkipCounts {
+  archives: number
+  fitness: number
+  imports: number
+  pdsBlobs: number
+}
+
+/**
+ * Removes the storage namespaces this script does not manage from a listing.
+ *
+ * Each of them holds files that are referenced by a table other than `medias`
+ * (or by nothing this script can see), so leaving them in would report every
+ * one as orphaned and `--yes` would delete them:
+ *
+ *   - the shared fitness prefix, whose references are relative to the fitness
+ *     root rather than this script's;
+ *   - `archives/` and `imports/`, the account export and import staging the
+ *     jobs create and expire;
+ *   - `pds-blobs/`, the embedded PDS's raw blob bytes, referenced by
+ *     `pds_blobs.storageKey` and never by a `medias` row.
+ */
+export const excludeManagedStorageFiles = (
+  storageFiles: string[],
+  fitnessPrefix: string | null
+): { files: string[]; skipped: ManagedStorageSkipCounts } => {
+  let files = storageFiles
+  const skipped: ManagedStorageSkipCounts = {
+    archives: 0,
+    fitness: 0,
+    imports: 0,
+    pdsBlobs: 0
+  }
+
+  if (fitnessPrefix) {
+    // Match the prefix the same way the filesystem matches names. The prefix
+    // carries the CONFIGURED spelling while the listing carries the on-disk
+    // one, so `ACTIVITIES_FITNESS_STORAGE_PATH=…/Fitness` against a directory
+    // created as `fitness` would skip nothing on a case-insensitive
+    // filesystem — and every stored activity file would be offered for
+    // deletion, which is the whole reason this skip exists.
+    const matchesFitnessPrefix = isCaseInsensitiveFilesystem()
+      ? (file: string) =>
+          file.toLowerCase().startsWith(fitnessPrefix.toLowerCase())
+      : (file: string) => file.startsWith(fitnessPrefix)
+    const before = files.length
+    files = files.filter((file) => !matchesFitnessPrefix(file))
+    skipped.fitness = before - files.length
+  }
+
+  const beforeArchives = files.length
+  files = files.filter((file) => !isArchiveStoragePath(file))
+  skipped.archives = beforeArchives - files.length
+
+  const beforeImports = files.length
+  files = files.filter((file) => !isImportStoragePath(file))
+  skipped.imports = beforeImports - files.length
+
+  const beforePdsBlobs = files.length
+  files = files.filter((file) => !isPdsBlobStoragePath(file))
+  skipped.pdsBlobs = beforePdsBlobs - files.length
+
+  return { files, skipped }
 }
 
 async function listLocalFiles(basePath: string): Promise<string[]> {
@@ -474,46 +542,27 @@ async function cleanupMediaStorage() {
   console.log(`   Found ${storageFiles.length} files in storage`)
 
   // Fitness files may live inside media storage but are not this script's to
-  // manage, and their references are relative to a different root.
+  // manage, and their references are relative to a different root. Account
+  // exports (archives/) and import uploads (imports/) are created and expired
+  // by their jobs and referenced by account_archives/account_imports, not by
+  // any media row. Raw PDS blobs (pds-blobs/) are referenced by
+  // pds_blobs.storageKey, not by any media row either.
+  const managed = excludeManagedStorageFiles(storageFiles, fitnessPrefix)
+  storageFiles = managed.files
   if (fitnessPrefix) {
-    const before = storageFiles.length
-    // Match the prefix the same way the filesystem matches names. The prefix
-    // carries the CONFIGURED spelling while the listing carries the on-disk
-    // one, so `ACTIVITIES_FITNESS_STORAGE_PATH=…/Fitness` against a directory
-    // created as `fitness` would skip nothing on a case-insensitive
-    // filesystem — and every stored activity file would be offered for
-    // deletion, which is the whole reason this skip exists.
-    const matchesFitnessPrefix = isCaseInsensitiveFilesystem()
-      ? (file: string) =>
-          file.toLowerCase().startsWith(fitnessPrefix.toLowerCase())
-      : (file: string) => file.startsWith(fitnessPrefix)
-    storageFiles = storageFiles.filter((file) => !matchesFitnessPrefix(file))
-    const skipped = before - storageFiles.length
     console.log(
-      `   Skipped ${skipped} file(s) under the shared fitness prefix '${fitnessPrefix}' (managed as fitness storage, not media)`
+      `   Skipped ${managed.skipped.fitness} file(s) under the shared fitness prefix '${fitnessPrefix}' (managed as fitness storage, not media)`
     )
   }
-
-  // Account exports (archives/) are created and expired by the export job and
-  // are referenced by account_archives, not by any media row.
-  {
-    const before = storageFiles.length
-    storageFiles = storageFiles.filter((file) => !isArchiveStoragePath(file))
-    console.log(
-      `   Skipped ${before - storageFiles.length} file(s) under '${ARCHIVE_STORAGE_PREFIX}/' (account exports, managed by the export job)`
-    )
-  }
-
-  // Import uploads (imports/) are created and expired by the import job and
-  // are referenced by account_imports, not by any media row.
-  {
-    const before = storageFiles.length
-    storageFiles = storageFiles.filter((file) => !isImportStoragePath(file))
-    const skipped = before - storageFiles.length
-    console.log(
-      `   Skipped ${skipped} file(s) under '${IMPORT_STORAGE_PREFIX}/' (archive imports, managed by the import job)`
-    )
-  }
+  console.log(
+    `   Skipped ${managed.skipped.archives} file(s) under '${ARCHIVE_STORAGE_PREFIX}/' (account exports, managed by the export job)`
+  )
+  console.log(
+    `   Skipped ${managed.skipped.imports} file(s) under '${IMPORT_STORAGE_PREFIX}/' (archive imports, managed by the import job)`
+  )
+  console.log(
+    `   Skipped ${managed.skipped.pdsBlobs} file(s) under '${PDS_BLOB_STORAGE_PREFIX}/' (embedded PDS blobs, referenced by pds_blobs)`
+  )
 
   // Step 3: Find orphaned files
   console.log('\n🔍 Step 3: Identifying orphaned files...')
@@ -617,7 +666,9 @@ async function cleanupMediaStorage() {
   process.exit(errorCount > 0 ? 1 : 0)
 }
 
-cleanupMediaStorage().catch((error) => {
-  console.error('\n❌ Error during cleanup:', error)
-  process.exit(1)
-})
+if (process.argv[1]?.endsWith('cleanupMediaStorage.ts')) {
+  cleanupMediaStorage().catch((error) => {
+    console.error('\n❌ Error during cleanup:', error)
+    process.exit(1)
+  })
+}

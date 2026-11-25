@@ -25,6 +25,31 @@ describe('isReservedFitnessMediaPath', () => {
       userPath: 'imports/0d5b7c1e/upload.zip'
     },
     {
+      description: 'a PDS blob object',
+      userPath:
+        'pds-blobs/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/bafkreihwjmg356mpvzmgb43uswdzi5pipoayq475czhimd5bobjz44g2he'
+    },
+    {
+      description: 'the bare PDS blob prefix',
+      userPath: 'pds-blobs'
+    },
+    {
+      description: 'an uppercase PDS blob prefix',
+      userPath: 'PDS-BLOBS/abc/bafkrei123'
+    },
+    {
+      description: 'a PDS blob behind an encoded dot segment',
+      userPath: 'medias/%2e%2e/pds-blobs/abc/bafkrei123'
+    },
+    {
+      description: 'a PDS blob behind a backslash traversal',
+      userPath: 'medias\\..\\pds-blobs/abc/bafkrei123'
+    },
+    {
+      description: 'a percent-encoded PDS blob prefix',
+      userPath: '%70ds-blobs/abc/bafkrei123'
+    },
+    {
       description: 'an account export file behind an encoded dot segment',
       userPath: 'medias/%2e%2e/archives/0d5b7c1e/archive.zip'
     },
@@ -113,6 +138,10 @@ describe('isReservedFitnessMediaPath', () => {
     {
       description: 'a key that merely starts with archives',
       userPath: 'archivesx/a1b2c3d4e5f60718.webp'
+    },
+    {
+      description: 'a key that merely starts with pds-blobs',
+      userPath: 'pds-blobsx/a1b2c3d4e5f60718.webp'
     },
     {
       description: 'the prefix below the top level',

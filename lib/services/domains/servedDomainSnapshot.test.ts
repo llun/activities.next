@@ -12,6 +12,7 @@ import {
   ensureServedDomainsFresh,
   getActiveServedDomainNames,
   getServedHostConfig,
+  isServedDomainSnapshotFresh,
   refreshServedDomains,
   refreshServedDomainsAfterWrite,
   resetServedDomainsForTests,
@@ -272,5 +273,30 @@ describe('servedDomainSnapshot', () => {
     await first.refreshServedDomains()
     expect(second.getActiveServedDomainNames()).toEqual(['run.example'])
     first.resetServedDomainsForTests()
+  })
+
+  it('reports freshness false when unloaded, stale, or after a failed refresh, and true once loaded', async () => {
+    vi.useFakeTimers()
+    expect(isServedDomainSnapshotFresh()).toBe(false)
+
+    const getActiveServedDomains = vi
+      .fn()
+      .mockResolvedValueOnce([{ domain: 'run.example' }])
+      .mockRejectedValueOnce(new Error('db down'))
+      .mockResolvedValueOnce([{ domain: 'run.example' }])
+    const database = { getActiveServedDomains } as unknown as Database
+
+    await refreshServedDomains(database)
+    expect(isServedDomainSnapshotFresh()).toBe(true)
+
+    vi.advanceTimersByTime(SERVED_DOMAIN_MAX_STALE_MS + 1)
+    expect(isServedDomainSnapshotFresh()).toBe(false)
+
+    // Failed refresh keeps freshness false until a later refresh succeeds.
+    await refreshServedDomains(database)
+    expect(isServedDomainSnapshotFresh()).toBe(false)
+
+    await refreshServedDomains(database)
+    expect(isServedDomainSnapshotFresh()).toBe(true)
   })
 })

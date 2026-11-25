@@ -10,6 +10,13 @@ import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 import { AltTextConfig, getAltTextConfig } from './altText'
 import { AuthConfig, getAuthConfig } from './auth'
 import { BlueskyConfig, getBlueskyConfig } from './bluesky'
+import {
+  BlueskyPdsConfig,
+  type BlueskyPdsDomainConfig,
+  getBlueskyPdsConfig,
+  isPdsAllowed as matchPdsAllowed,
+  getPdsDomainForHostname as matchPdsDomainForHostname
+} from './blueskyPds'
 import { type DatabaseConfig, getDatabaseConfig } from './database'
 import {
   EmailConfig,
@@ -77,6 +84,7 @@ const Config = z.object({
   searchEmbeddings: SearchEmbeddingsConfig.optional(),
   altText: AltTextConfig.optional(),
   bluesky: BlueskyConfig.optional(),
+  blueskyPds: BlueskyPdsConfig.optional(),
   // Always present, defaults applied; see lib/config/gallery.ts.
   gallery: GalleryLookupConfig
 })
@@ -167,6 +175,7 @@ const getConfigFromEnvironment = () => {
       ...getSearchEmbeddingsConfig(),
       ...altTextConfig,
       ...getBlueskyConfig(),
+      ...getBlueskyPdsConfig(),
       ...getGalleryConfig(altTextConfig?.altText)
     })
   } catch (error) {
@@ -238,6 +247,22 @@ export const getPhotoEditorConfig = (): PhotoEditorConfig =>
       logger.warn({ message })
     }
   })
+
+export type { BlueskyPdsConfig, BlueskyPdsDomainConfig }
+
+export const getPdsConfig = (): BlueskyPdsConfig | null =>
+  getConfig().blueskyPds ?? null
+
+export const getPdsDomainForHostname = (
+  hostname: string | null | undefined
+): BlueskyPdsDomainConfig | null =>
+  matchPdsDomainForHostname(hostname, getPdsConfig())
+
+export const isPdsAllowed = (params: {
+  email?: string | null
+  actorUsernameAtDomain?: string | null
+  domain: string
+}): boolean => matchPdsAllowed({ ...params, config: getPdsConfig() })
 
 export type { WebVitalsConfig } from './webVitals'
 

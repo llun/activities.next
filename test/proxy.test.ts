@@ -356,6 +356,43 @@ describe('proxy', () => {
       // strings. So favicon\.ico$ correctly excludes /favicon.ico?v=1.192.17
       expect(matches('/favicon.ico')).toBe(false)
     })
+
+    // XRPC procedures such as uploadBlob send raw binary bodies up to 50 MB
+    // (not multipart), and getBlob sets its own sandboxed CSP. Excluding
+    // `/xrpc/*` ensures Next never buffers/truncates large POST bodies at the
+    // 10 MB proxyClientMaxBodySize cap and never overwrites getBlob's CSP.
+    it.each([
+      '/xrpc/com.atproto.server.describeServer',
+      '/xrpc/com.atproto.repo.createRecord',
+      '/xrpc/com.atproto.repo.uploadBlob',
+      '/xrpc/com.atproto.sync.getBlob'
+    ])('skips the proxy for %s regardless of Content-Type', (pathname) => {
+      expect(matches(pathname)).toBe(false)
+      expect(matches(pathname, { 'content-type': 'application/json' })).toBe(
+        false
+      )
+      expect(
+        matches(pathname, { 'content-type': 'application/octet-stream' })
+      ).toBe(false)
+      expect(matches(pathname, { 'content-type': 'image/png' })).toBe(false)
+    })
+
+    it('keeps bare /xrpc, multi-segment /xrpc/*/*, trailing slash, and sibling prefixes behind the proxy', () => {
+      expect(matches('/xrpc')).toBe(true)
+      expect(matches('/xrpc', { 'content-type': 'application/json' })).toBe(
+        true
+      )
+      expect(matches('/xrpc/')).toBe(true)
+      expect(matches('/xrpc/a/b')).toBe(true)
+      expect(matches('/xrpc/com.atproto.server.describeServer/extra')).toBe(
+        true
+      )
+      expect(matches('/xrpc/com.atproto.server.describeServer/')).toBe(true)
+      expect(matches('/xrpc/a/b', { 'content-type': 'application/json' })).toBe(
+        true
+      )
+      expect(matches('/xrpc-other')).toBe(true)
+    })
   })
 
   it('preserves the registered trailing slash on Wahoo webhook POSTs', async () => {
@@ -875,12 +912,115 @@ describe('proxy', () => {
     }
   })
 
+  it.each([
+    '/%78rpc',
+    '/%78rpc/com.atproto.server.describeServer',
+    '/xrpc%2fcom.atproto.server.describeServer',
+    '/XRPC',
+    '/XRPC/x',
+    '/xrpc.',
+    '//xrpc',
+    '/XRPC/%ZZ'
+  ])(
+    'answers 404 directly (plain, no HTML, no nonce) for non-canonical XRPC path %s',
+    async (nonCanonicalPath) => {
+      for (const method of ['GET', 'HEAD', 'POST'] as const) {
+        const request = new NextRequest(
+          `https://llun.social${nonCanonicalPath}`,
+          {
+            method,
+            headers: method === 'POST' ? { 'next-action': 'action-id-123' } : {}
+          }
+        )
+
+        const response = await proxy(request)
+
+        expect(response?.status).toBe(404)
+        expect(response?.body).toBeNull()
+        expect(response?.headers.get('x-middleware-rewrite')).toBeNull()
+        expect(response?.headers.get('x-middleware-request-x-nonce')).toBeNull()
+        expect(
+          response?.headers.get('Content-Security-Policy') ?? ''
+        ).not.toContain("'nonce-")
+      }
+    }
+  )
+
+  it('leaves normal pages like /xrpcfoo and /@user unaffected by the non-canonical XRPC check', async () => {
+    const xrpcFooRes = await proxy(
+      new NextRequest('https://public.example.com/xrpcfoo', {
+        method: 'GET',
+        headers: { host: 'public.example.com' }
+      })
+    )
+    expect(xrpcFooRes?.status).toBe(200)
+    expect(xrpcFooRes?.headers.get('x-middleware-request-x-nonce')).toBeTruthy()
+    expect(xrpcFooRes?.headers.get('Content-Security-Policy')).toContain(
+      "'nonce-"
+    )
+
+    const userRes = await proxy(
+      new NextRequest('https://public.example.com/@user', {
+        method: 'GET',
+        headers: { host: 'public.example.com' }
+      })
+    )
+    expect(userRes?.status).toBe(200)
+    expect(userRes?.headers.get('x-middleware-rewrite')).toBe(
+      'https://public.example.com/@user@public.example.com'
+    )
+    expect(userRes?.headers.get('x-middleware-request-x-nonce')).toBeTruthy()
+  })
+
   it('allows POST requests to API routes, OAuth endpoints, admin, and Server Actions', async () => {
     const apiRequest = new NextRequest('https://llun.social/api/v1/statuses', {
       method: 'POST'
     })
     const apiResponse = await proxy(apiRequest)
     expect(apiResponse?.status).toBe(200)
+
+    const xrpcRequest = new NextRequest(
+      'https://pds.llun.social/xrpc/com.atproto.repo.createRecord',
+      { method: 'POST' }
+    )
+    const xrpcResponse = await proxy(xrpcRequest)
+    expect(xrpcResponse?.status).toBe(200)
+    expect(xrpcResponse?.headers.get('x-middleware-request-x-nonce')).toBeNull()
+
+    for (const xrpcPath of ['/xrpc', '/xrpc/']) {
+      for (const method of ['GET', 'POST', 'OPTIONS'] as const) {
+        const res = await proxy(
+          new NextRequest(`https://llun.social${xrpcPath}`, { method })
+        )
+        expect(res?.status).toBe(200)
+        expect(res?.headers.get('x-middleware-request-x-nonce')).toBeNull()
+        expect(res?.headers.get('Content-Security-Policy') ?? '').not.toContain(
+          "'nonce-"
+        )
+      }
+
+      // POST /xrpc with a Next-Action header must strip next-action so it can
+      // never reach Next.js Server Action dispatch.
+      const xrpcActionRes = await proxy(
+        new NextRequest(`https://llun.social${xrpcPath}`, {
+          method: 'POST',
+          headers: { 'next-action': 'action-id-123' }
+        })
+      )
+      expect(xrpcActionRes?.status).toBe(200)
+      expect(
+        xrpcActionRes?.headers.get('x-middleware-request-x-nonce')
+      ).toBeNull()
+      expect(
+        xrpcActionRes?.headers.get('x-middleware-request-next-action')
+      ).toBeNull()
+      const overridden = (
+        xrpcActionRes?.headers.get('x-middleware-override-headers') ?? ''
+      )
+        .split(',')
+        .map((key) => key.trim())
+      expect(overridden).not.toContain('next-action')
+    }
 
     const oauthRequest = new NextRequest('https://llun.social/oauth/token', {
       method: 'POST'

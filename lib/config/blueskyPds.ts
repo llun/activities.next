@@ -1,0 +1,225 @@
+import { z } from 'zod'
+
+import { normalizeServedDomainChoice } from '@/lib/utils/host'
+import { logger } from '@/lib/utils/logger'
+import { normalizeEmail } from '@/lib/utils/normalizeEmail'
+
+const RawBlueskyPdsDomainConfig = z.object({
+  enabled: z.boolean().default(false),
+  hostname: z.string().min(1),
+  allowEmails: z.string().array().default([]),
+  allowActors: z.string().array().default([])
+})
+
+export const BlueskyPdsDomainConfig = z.object({
+  domain: z.string(),
+  enabled: z.boolean(),
+  hostname: z.string(),
+  did: z.string(),
+  allowEmails: z.string().array(),
+  allowActors: z.string().array()
+})
+export type BlueskyPdsDomainConfig = z.infer<typeof BlueskyPdsDomainConfig>
+
+export const BlueskyPdsConfig = z.record(z.string(), BlueskyPdsDomainConfig)
+export type BlueskyPdsConfig = z.infer<typeof BlueskyPdsConfig>
+
+const normalizeActorHandle = (value: string): string =>
+  value.trim().replace(/^@/, '').toLowerCase()
+
+const toWebDid = (hostname: string): string =>
+  `did:web:${hostname.replace(/:/g, '%3A')}`
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const parseBlueskyPdsConfig = (
+  raw: string | undefined
+): BlueskyPdsConfig | null => {
+  if (!raw) return null
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    logger.warn({
+      message:
+        'ACTIVITIES_BLUESKY_PDS must be a JSON object keyed by served domain; Bluesky PDS will be disabled'
+    })
+    return null
+  }
+
+  if (!isPlainObject(parsed)) {
+    logger.warn({
+      message:
+        'ACTIVITIES_BLUESKY_PDS must be a JSON object keyed by served domain; Bluesky PDS will be disabled'
+    })
+    return null
+  }
+
+  const normalizedEntries = new Map<string, BlueskyPdsDomainConfig>()
+  for (const [rawDomain, rawEntry] of Object.entries(parsed)) {
+    const domain = normalizeServedDomainChoice(rawDomain)
+    if (!domain) {
+      logger.warn({
+        message:
+          'ACTIVITIES_BLUESKY_PDS contains an invalid served domain key; Bluesky PDS will be disabled'
+      })
+      return null
+    }
+    if (normalizedEntries.has(domain)) {
+      logger.warn({
+        domain,
+        message:
+          'ACTIVITIES_BLUESKY_PDS contains duplicate served domain keys; Bluesky PDS will be disabled'
+      })
+      return null
+    }
+
+    const entryResult = RawBlueskyPdsDomainConfig.safeParse(rawEntry)
+    if (!entryResult.success) {
+      logger.warn({
+        domain,
+        message:
+          'ACTIVITIES_BLUESKY_PDS has an invalid domain entry; Bluesky PDS will be disabled'
+      })
+      return null
+    }
+
+    const hostname = normalizeServedDomainChoice(entryResult.data.hostname)
+    if (!hostname) {
+      logger.warn({
+        domain,
+        message:
+          'ACTIVITIES_BLUESKY_PDS has an invalid PDS hostname; Bluesky PDS will be disabled'
+      })
+      return null
+    }
+
+    normalizedEntries.set(domain, {
+      domain,
+      enabled: entryResult.data.enabled,
+      hostname,
+      did: toWebDid(hostname),
+      allowEmails: Array.from(
+        new Set(
+          entryResult.data.allowEmails.map(normalizeEmail).filter(Boolean)
+        )
+      ),
+      allowActors: Array.from(
+        new Set(
+          entryResult.data.allowActors.map(normalizeActorHandle).filter(Boolean)
+        )
+      )
+    })
+  }
+
+  const domainKeys = new Set(normalizedEntries.keys())
+  const hostnameCounts = new Map<string, number>()
+  for (const entry of normalizedEntries.values()) {
+    hostnameCounts.set(
+      entry.hostname,
+      (hostnameCounts.get(entry.hostname) ?? 0) + 1
+    )
+  }
+
+  const result: BlueskyPdsConfig = {}
+  for (const [domain, entry] of normalizedEntries.entries()) {
+    if (domainKeys.has(entry.hostname)) {
+      logger.warn({
+        domain,
+        hostname: entry.hostname,
+        message:
+          'ACTIVITIES_BLUESKY_PDS hostname cannot match a served domain key; dropping domain'
+      })
+      continue
+    }
+    if ((hostnameCounts.get(entry.hostname) ?? 0) > 1) {
+      logger.warn({
+        domain,
+        hostname: entry.hostname,
+        message:
+          'ACTIVITIES_BLUESKY_PDS hostname is duplicated across domains; dropping domain'
+      })
+      continue
+    }
+    result[domain] = entry
+  }
+
+  if (Object.keys(result).length === 0) return null
+  return result
+}
+
+let cachedRaw: string | undefined
+let hasCachedValue = false
+let cachedConfig: BlueskyPdsConfig | null = null
+
+export const getPdsConfig = (): BlueskyPdsConfig | null => {
+  const raw = process.env.ACTIVITIES_BLUESKY_PDS?.trim()
+  if (hasCachedValue && raw === cachedRaw) {
+    return cachedConfig
+  }
+  const parsed = parseBlueskyPdsConfig(raw)
+  cachedRaw = raw
+  hasCachedValue = true
+  cachedConfig = parsed
+  return parsed
+}
+
+export const getBlueskyPdsConfig = (): {
+  blueskyPds: BlueskyPdsConfig
+} | null => {
+  const blueskyPds = getPdsConfig()
+  return blueskyPds ? { blueskyPds } : null
+}
+
+export const getPdsDomainForHostname = (
+  hostname: string | null | undefined,
+  config: BlueskyPdsConfig | null = getPdsConfig()
+): BlueskyPdsDomainConfig | null => {
+  if (!config || !hostname) return null
+  const normalizedHostname = normalizeServedDomainChoice(hostname)
+  if (!normalizedHostname) return null
+
+  for (const entry of Object.values(config)) {
+    if (entry.enabled && entry.hostname === normalizedHostname) {
+      return entry
+    }
+  }
+  return null
+}
+
+export const isPdsAllowed = ({
+  email,
+  actorUsernameAtDomain,
+  domain,
+  config = getPdsConfig()
+}: {
+  email?: string | null
+  actorUsernameAtDomain?: string | null
+  domain: string
+  config?: BlueskyPdsConfig | null
+}): boolean => {
+  if (!config) return false
+  const normalizedDomain = normalizeServedDomainChoice(domain)
+  if (!normalizedDomain) return false
+
+  const entry = config[normalizedDomain]
+  if (!entry || !entry.enabled) return false
+
+  if (email) {
+    const normalizedEmail = normalizeEmail(email)
+    if (normalizedEmail && entry.allowEmails.includes(normalizedEmail)) {
+      return true
+    }
+  }
+
+  if (actorUsernameAtDomain) {
+    const normalizedActor = normalizeActorHandle(actorUsernameAtDomain)
+    if (normalizedActor && entry.allowActors.includes(normalizedActor)) {
+      return true
+    }
+  }
+
+  return false
+}

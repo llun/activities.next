@@ -8,6 +8,9 @@ const webVitals = await vi.importActual<
 const photoEditor = await vi.importActual<
   typeof import('@/lib/config/photoEditor')
 >('@/lib/config/photoEditor')
+const blueskyPds = await vi.importActual<
+  typeof import('@/lib/config/blueskyPds')
+>('@/lib/config/blueskyPds')
 
 export const getConfig = vi.fn().mockReturnValue({
   host: TEST_DOMAIN,
@@ -26,3 +29,22 @@ export const getPhotoEditorConfig = vi.fn(() =>
 )
 
 export const getWebVitalsConfig = vi.fn(() => webVitals.getWebVitalsConfig())
+
+export const getPdsConfig = vi.fn(
+  () =>
+    (getConfig() as { blueskyPds?: typeof blueskyPds.BlueskyPdsConfig._output })
+      .blueskyPds ?? null
+)
+
+export const getPdsDomainForHostname = vi.fn(
+  (hostname: string | null | undefined) =>
+    blueskyPds.getPdsDomainForHostname(hostname, getPdsConfig())
+)
+
+export const isPdsAllowed = vi.fn(
+  (params: {
+    email?: string | null
+    actorUsernameAtDomain?: string | null
+    domain: string
+  }) => blueskyPds.isPdsAllowed({ ...params, config: getPdsConfig() })
+)

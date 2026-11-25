@@ -2,6 +2,7 @@ import { sql } from 'kysely'
 
 import { deleteAccountImportsForActor } from '@/lib/database/domains/accountImport/queries'
 import type { DeleteActorDataParams } from '@/lib/database/domains/actor/types'
+import { deletePdsRepoData } from '@/lib/database/domains/pds/queries'
 import { searchQueries } from '@/lib/database/domains/search/queries'
 import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
 import { deleteStatusSearchDocumentsByStatusIds } from '@/lib/database/domains/search/statuses'
@@ -615,6 +616,16 @@ export const deleteActorData = async (
       .deleteFrom('bluesky_crossposts')
       .where('actorId', '=', actorId)
       .execute()
+
+    // Delete this actor's embedded PDS repository and all of its rows
+    const pdsRepo = await trx
+      .selectFrom('pds_repos')
+      .select('did')
+      .where('actorId', '=', actorId)
+      .executeTakeFirst()
+    if (pdsRepo) {
+      await deletePdsRepoData(trx, { did: pdsRepo.did })
+    }
 
     // Delete this actor's idempotency keys (they hold a hash of each post body)
     await trx

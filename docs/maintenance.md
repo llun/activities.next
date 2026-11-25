@@ -94,6 +94,8 @@ The script:
 
 Stored paths are already relative to the storage root, so they are compared as-is; only an absolute path recorded by an older deployment is rebased onto the configured storage path. Always run `--dry-run` first and check that the list looks like genuine leftovers: if it names every file you have, stop — that is a symptom of a path mismatch, not of a storage full of orphans.
 
+The script skips the storage namespaces it does not manage instead of treating them as orphans: the shared fitness prefix, `archives/` (account exports), `imports/` (archive imports) and `pds-blobs/` (the embedded PDS's raw blob bytes). Each is referenced by its own table (`fitness_files`, `account_archives`, `account_imports`, `pds_blobs`) rather than by a `medias` row, so every file in them would otherwise be reported as unreferenced and `--yes` would delete it.
+
 ### Usage
 
 ```bash
@@ -198,7 +200,7 @@ Activity.next provides scripts to create a full, standalone archive of a product
 
 ### Downloading a Production Archive
 
-The `downloadProductionArchive.ts` script connects to your production database, exports all table data (chunked in pages), and packages referenced media/fitness files into a gzip-compressed tar archive (`.tar.gz`). The referenced files include every `media_edit_files.path` (the original and the earlier renders a photo edit keeps, so a restored photo can still be reverted), and the table itself is exported with the rest:
+The `downloadProductionArchive.ts` script connects to your production database, exports all table data (chunked in pages), and packages referenced media/fitness files into a gzip-compressed tar archive (`.tar.gz`). The referenced files include every `media_edit_files.path` (the original and the earlier renders a photo edit keeps, so a restored photo can still be reverted) and every `pds_blobs.storageKey` (the embedded PDS's raw blob bytes, which no `medias` row references), and the tables themselves are exported with the rest:
 
 ```bash
 # Download production archive with referenced media/fitness files (default)
@@ -288,8 +290,10 @@ read-only against the database and storage.
 > export's files early by removing `archives/<id>/` from the storage; the row
 > then expires on its own. `imports/` is the reserved prefix for owner-uploaded
 > account archives (`imports/<id>/<storageToken>/upload.zip`). It is never
-> served by the media route. The media cleanup script and production backup
-> both skip the `archives/` and `imports/` prefixes. A periodic import sweep
+> served by the media route. The media cleanup script skips the `archives/`,
+> `imports/` and `pds-blobs/` prefixes; the production backup skips the first
+> two (transient staging) but includes `pds-blobs/`, because those bytes are
+> durable user data a record's blob ref points at. A periodic import sweep
 > checks running rows: it requeues imports with expired leases and at least an
 > hour without progress, fails an unavailable or deleted owner with
 > `actor_unavailable`, and fails an otherwise available import stuck for 24
