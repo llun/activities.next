@@ -1,15 +1,14 @@
 import { NextRequest } from 'next/server'
 
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { isServedDomainSnapshotFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { getPdsSubdomainHandle } from '@/lib/services/pds/host'
 
 import { GET } from './route'
 
 vi.mock('@/lib/database', () => ({ getDatabase: vi.fn() }))
 vi.mock('@/lib/services/guards/headerHost', () => ({ headerHost: vi.fn() }))
-vi.mock('@/lib/services/pds/host', () => ({ getPdsSubdomainHandle: vi.fn() }))
 vi.mock(
   '@/lib/services/domains/servedDomainSnapshot',
   async (importOriginal) => ({
@@ -39,11 +38,16 @@ const activeActor = {
 }
 const suspendedActor = { ...activeActor, suspendedAt: 2 }
 
-const subdomainHandle = {
-  username: 'alice',
-  domain: 'social.example',
-  handle: 'alice.pds.social.example'
-}
+// The real host parsing reads this PDS configuration.
+const PDS_ENV = JSON.stringify({
+  'social.example': {
+    enabled: true,
+    hostname: 'pds.social.example',
+    allowEmails: [],
+    allowActors: []
+  }
+})
+const subdomainHandle = { handle: 'alice.pds.social.example' }
 
 const hostedRepo = (
   handle: string,
@@ -52,16 +56,35 @@ const hostedRepo = (
 
 const linkedClaim = { did: 'did:plc:linkedoutside', actorId: 'actor-a' }
 
+// The Host the request arrives with; headerHost (mocked) says which served
+// host it maps to.
+let requestHost = 'social.example'
 const call = () =>
-  GET(new NextRequest('https://social.example/.well-known/atproto-did'), {
-    params: Promise.resolve({})
-  })
+  GET(
+    new NextRequest(`https://${requestHost}/.well-known/atproto-did`, {
+      headers: { host: requestHost }
+    }),
+    { params: Promise.resolve({}) }
+  )
 
 describe('GET /.well-known/atproto-did', () => {
+  const originalPdsEnv = process.env.ACTIVITIES_BLUESKY_PDS
+
+  afterAll(() => {
+    if (originalPdsEnv === undefined) {
+      delete process.env.ACTIVITIES_BLUESKY_PDS
+    } else {
+      process.env.ACTIVITIES_BLUESKY_PDS = originalPdsEnv
+    }
+  })
+
   beforeEach(() => {
     vi.resetAllMocks()
+    process.env.ACTIVITIES_BLUESKY_PDS = PDS_ENV
+    requestHost = 'social.example'
     vi.mocked(getDatabase).mockReturnValue(database as never)
-    vi.mocked(getPdsSubdomainHandle).mockReturnValue(null)
+    // The served-domain rules the subdomain parsing checks against.
+    vi.mocked(getConfig).mockReturnValue({ host: 'social.example' } as never)
     vi.mocked(headerHost).mockReturnValue('social.example')
     getPdsRepoByHandle.mockResolvedValue(null)
     getBlueskyAccountByInstanceHandle.mockResolvedValue(null)
@@ -98,7 +121,7 @@ describe('GET /.well-known/atproto-did', () => {
   })
 
   it('answers the hosted repo DID for a <username>.<PDS host> handle', async () => {
-    vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
+    requestHost = subdomainHandle.handle
     getPdsRepoByHandle.mockResolvedValue(hostedRepo(subdomainHandle.handle))
 
     const response = await call()
@@ -123,7 +146,7 @@ describe('GET /.well-known/atproto-did', () => {
   })
 
   it('does not answer a PDS subdomain no live repo holds', async () => {
-    vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
+    requestHost = subdomainHandle.handle
 
     const response = await call()
 
@@ -131,7 +154,7 @@ describe('GET /.well-known/atproto-did', () => {
   })
 
   it('does not answer a PDS subdomain whose repo is not active', async () => {
-    vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
+    requestHost = subdomainHandle.handle
     getPdsRepoByHandle.mockResolvedValue(
       hostedRepo(subdomainHandle.handle, 'deactivated')
     )
@@ -142,7 +165,7 @@ describe('GET /.well-known/atproto-did', () => {
   })
 
   it('answers 404 for a suspended actor’s hosted <username>.<PDS host> handle', async () => {
-    vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
+    requestHost = subdomainHandle.handle
     // The stored status lags moderation; the effective status is takendown.
     getPdsRepoByHandle.mockResolvedValue(hostedRepo(subdomainHandle.handle))
     getActorFromId.mockResolvedValue(suspendedActor)
@@ -195,8 +218,10 @@ describe('GET /.well-known/atproto-did', () => {
     expect(await (await call()).text()).toBe('did:plc:linkedoutside')
   })
 
-  it('answers no hosted DID for a served domain while the served-domain snapshot is stale', async () => {
+  it('answers no hosted DID for an untrusted Host while the served-domain snapshot is not fresh', async () => {
     vi.mocked(isServedDomainSnapshotFresh).mockReturnValue(false)
+    // An untrusted Host falls back to the primary host.
+    requestHost = 'evil.example'
     getPdsRepoByHandle.mockResolvedValue(hostedRepo('social.example'))
 
     expect((await call()).status).toBe(404)
@@ -208,12 +233,36 @@ describe('GET /.well-known/atproto-did', () => {
   })
 
   it('answers 404, not a claim, for a PDS subdomain whose repo is turned off', async () => {
-    vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
+    requestHost = subdomainHandle.handle
     getPdsRepoByHandle.mockResolvedValue(
       hostedRepo(subdomainHandle.handle, 'deactivated')
     )
     getBlueskyAccountByInstanceHandle.mockResolvedValue(linkedClaim)
 
     expect((await call()).status).toBe(404)
+  })
+
+  it('still answers the served host’s eligible hosted holder after a failed snapshot load', async () => {
+    // Not fresh after a failed load, but the request's own host is the one
+    // served, so no fallback is involved.
+    vi.mocked(isServedDomainSnapshotFresh).mockReturnValue(false)
+    getPdsRepoByHandle.mockResolvedValue(hostedRepo('social.example'))
+    getBlueskyAccountByInstanceHandle.mockResolvedValue(linkedClaim)
+
+    const response = await call()
+
+    expect(await response.text()).toBe('did:plc:hostedalice')
+  })
+
+  it('answers 404, never the primary host’s claim, for a PDS subdomain while the snapshot is not fresh', async () => {
+    vi.mocked(isServedDomainSnapshotFresh).mockReturnValue(false)
+    requestHost = 'alice.pds.social.example:443'
+    getBlueskyAccountByInstanceHandle.mockResolvedValue(linkedClaim)
+
+    const response = await call()
+
+    expect(response.status).toBe(404)
+    expect(getPdsRepoByHandle).not.toHaveBeenCalled()
+    expect(getBlueskyAccountByInstanceHandle).not.toHaveBeenCalled()
   })
 })

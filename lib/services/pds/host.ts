@@ -186,6 +186,25 @@ export const isReservedPdsSubdomainHandle = (
 ): boolean => isServedDomain(handle) || isConfiguredPdsHostname(handle, config)
 
 /**
+ * Whether the request host (port stripped) is below any configured PDS
+ * hostname, enabled or not. Such a host is only ever a hosted account's
+ * handle, so atproto-did never answers it with anything else, even while
+ * `getPdsSubdomainHandle` fails closed.
+ */
+export const isPdsSubdomainHost = (
+  headers: HostHeaders,
+  config: BlueskyPdsConfig | null = getPdsConfig()
+): boolean => {
+  if (!config) return false
+  const host = getPdsRequestHost(headers)
+  if (!host) return false
+  const hostname = stripHostPort(host)
+  return Object.values(config).some((entry) =>
+    hostname.endsWith(`.${stripHostPort(entry.hostname)}`)
+  )
+}
+
+/**
  * When the request host is `<username>.<PDS hostname>` for an enabled PDS
  * domain, returns the username, the served domain it belongs to and the
  * handle (the host without a port). Uses the same strict raw-host parsing as

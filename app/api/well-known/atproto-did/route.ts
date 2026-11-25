@@ -5,7 +5,11 @@ import type { PdsRepo } from '@/lib/database/domains/pds/types'
 import { isServedDomainSnapshotFresh } from '@/lib/services/domains/servedDomainSnapshot'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { resolveEffectivePdsRepoStatus } from '@/lib/services/pds/effectiveStatus'
-import { getPdsSubdomainHandle } from '@/lib/services/pds/host'
+import {
+  getPdsRequestHost,
+  getPdsSubdomainHandle,
+  isPdsSubdomainHost
+} from '@/lib/services/pds/host'
 import { getServedAuthority } from '@/lib/utils/host'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -33,15 +37,18 @@ const notFound = () =>
 //
 // A `<username>.<PDS hostname>` host (never one that is a served domain or
 // another PDS hostname) answers the DID of the live hosted repo whose handle
-// is that host, while its effective status is active, and 404 otherwise.
+// is that host, while its effective status is active, and 404 otherwise. Any
+// other host below a configured PDS hostname answers 404, including while the
+// served-domain snapshot is not fresh and the subdomain is not parsed.
 //
 // A served domain is decided by the live hosted repo holding it as its handle
 // when that repo's actor may still hold the domain (an active admin's actor on
 // it, the rule a linked account's claim follows): its DID while it is
 // effectively active, 404 otherwise. A holder that lost eligibility is passed
-// over, and so is every hosted repo until the served-domain snapshot is fresh.
-// Then the linked account that claimed the domain in Settings › Other
-// networks answers, if any.
+// over. While the snapshot is not fresh, so is every hosted repo for a request
+// whose own host is not the one served (an untrusted Host falls back to the
+// primary host). Then the linked account that claimed the domain in
+// Settings › Other networks answers, if any.
 export const GET = traceApiRoute('atprotoDid', async (req: NextRequest) => {
   const database = getDatabase()
   if (!database) return notFound()
@@ -61,12 +68,14 @@ export const GET = traceApiRoute('atprotoDid', async (req: NextRequest) => {
     })
     return repo ? answerHosted(repo) : notFound()
   }
+  if (isPdsSubdomainHost(req.headers)) return notFound()
 
   // The served host, or the primary one for an untrusted Host (a proxy's
   // internal name): the DID is public, and a verifier always asks with the
   // real name.
   const servedHost = getServedAuthority(headerHost(req.headers)) ?? ''
-  if (servedHost && isServedDomainSnapshotFresh()) {
+  const ownHost = getServedAuthority(getPdsRequestHost(req.headers))
+  if (servedHost && (isServedDomainSnapshotFresh() || servedHost === ownHost)) {
     const repo = await database.getPdsRepoByHandle({ handle: servedHost })
     if (
       repo &&

@@ -1600,8 +1600,14 @@ describe('hosted Bluesky accounts', () => {
 
     it('stops answering for a hosted holder who is no longer an admin, and lets a current admin claim the host', async () => {
       await setRole(adminA.account!.id, 'user')
+      const claimStatus = async (username: string) =>
+        (await getBlueskyAccountState(database, await reload(username)))
+          .instanceHandle?.status
 
       expect((await atprotoDid()).status).toBe(404)
+      // An ineligible hosted holder decides nothing: the name is free.
+      expect(await claimStatus('hosted-admin-b')).toBe('free')
+      expect(await claimStatus('hosted-admin-c')).toBe('free')
       // The stale holder's row still holds the handle, so the hosted choice
       // stays off for others; the linked claim is open.
       expect(await choices(adminB)).toEqual([
@@ -1611,6 +1617,8 @@ describe('hosted Bluesky accounts', () => {
 
       const response = await atprotoDid()
       expect(await response.text()).toBe('did:plc:bareclaimadminc')
+      expect(await claimStatus('hosted-admin-c')).toBe('yours')
+      expect(await claimStatus('hosted-admin-b')).toBe('taken')
     })
 
     it('lets a reinstated hosted holder decide over a coexisting linked claim', async () => {
@@ -1622,12 +1630,17 @@ describe('hosted Bluesky accounts', () => {
         database,
         await reload('hosted-admin-c')
       )
-      // Not `yours`: the claim no longer answers, so it shows as not in use
-      // and can be let go.
+      // Not `yours`: the hosted account answers instead, and the claim can
+      // be let go.
       expect(claim.instanceHandle).toMatchObject({
         host: TEST_DOMAIN,
-        status: 'inactive'
+        status: 'hosted'
       })
+      // Another admin sees the name taken.
+      expect(
+        (await getBlueskyAccountState(database, await reload('hosted-admin-b')))
+          .instanceHandle
+      ).toMatchObject({ host: TEST_DOMAIN, status: 'taken' })
 
       // Turned off, it still decides the host: 404, not the claim.
       await deactivateHostedBlueskyAccount({

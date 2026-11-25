@@ -29,7 +29,9 @@ export interface BlueskyAccountState {
     host: string
     // inactive: this profile's own claim, which counts for nothing now (it
     // is no longer an admin, or lives on another domain); it can be let go.
-    status: 'yours' | 'free' | 'taken' | 'inactive'
+    // hosted: this profile's own claim, which a Bluesky account hosted on this
+    // server overrides; it can be let go.
+    status: 'yours' | 'free' | 'taken' | 'inactive' | 'hosted'
   } | null
 }
 

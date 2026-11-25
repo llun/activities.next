@@ -265,6 +265,28 @@ describe('BlueskyAccountForm', () => {
     )
   })
 
+  it('explains a claim a hosted account overrides and lets it go', async () => {
+    vi.mocked(setBlueskyInstanceHandle).mockResolvedValue(linkedState())
+    show(
+      linkedState(
+        {},
+        { instanceHandle: { host: 'social.example', status: 'hosted' } }
+      )
+    )
+    expect(
+      screen.getByText(
+        'A Bluesky account hosted on this server answers for this name.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/only an admin’s profile on that domain/)
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Let it go' }))
+    await waitFor(() =>
+      expect(setBlueskyInstanceHandle).toHaveBeenCalledWith(false)
+    )
+  })
+
   it('shows the already-linked error from the callback', () => {
     show(unlinkedState, 'did_taken')
     expect(
