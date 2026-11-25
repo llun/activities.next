@@ -172,20 +172,27 @@ export const getBlueskyAccountState = async (
   const host = getClaimableHost(actor)
   let instanceHandle: BlueskyAccountState['instanceHandle'] = null
   if (actor.account?.role === 'admin' && host) {
-    const holder = await database.getBlueskyAccountByInstanceHandle({ host })
-    // A hosted account on this server may hold the bare domain instead.
-    const hosted = holder
+    // A hosted account on this server whose holder may still hold the domain
+    // decides it, over any claim (the atproto-did route answers it first).
+    const hosted = await database.getPdsRepoByHandle({ handle: host })
+    const hostedHolds =
+      hosted !== null &&
+      (await database.isEligibleInstanceHandleHolder({
+        actorId: hosted.actorId,
+        host
+      }))
+    const holder = hostedHolds
       ? null
-      : await database.getPdsRepoByHandle({ handle: host })
+      : await database.getBlueskyAccountByInstanceHandle({ host })
     instanceHandle = {
       host,
-      status: holder
-        ? holder.actorId === actor.id
-          ? 'yours'
-          : 'taken'
-        : hosted
-          ? 'taken'
-          : 'free'
+      status: hostedHolds
+        ? 'taken'
+        : !holder
+          ? 'free'
+          : holder.actorId === actor.id
+            ? 'yours'
+            : 'taken'
     }
   }
   // A claim this actor can no longer hold (not an admin now, or moved to

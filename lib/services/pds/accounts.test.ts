@@ -4,7 +4,10 @@ import { NextRequest } from 'next/server'
 import { GET as getAtprotoDid } from '@/app/api/well-known/atproto-did/route'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
-import { setBlueskyInstanceHandle } from '@/lib/services/bluesky/account'
+import {
+  getBlueskyAccountState,
+  setBlueskyInstanceHandle
+} from '@/lib/services/bluesky/account'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import {
   resetServedDomainsForTests,
@@ -1465,17 +1468,22 @@ describe('hosted Bluesky accounts', () => {
   })
 
   describe('the bare served domain as a handle', () => {
-    const makeAdmin = async (username: string) => {
-      const actor = await createActor(username)
+    const setRole = async (accountId: string, role: 'admin' | 'user') => {
       await testDb.db
         .updateTable('accounts')
-        .set({ role: 'admin' })
-        .where('id', '=', actor.account!.id)
+        .set({ role })
+        .where('id', '=', accountId)
         .execute()
-      return (await database.getActorFromUsername({
+    }
+    const reload = async (username: string) =>
+      (await database.getActorFromUsername({
         username,
         domain: TEST_DOMAIN
       }))!
+    const makeAdmin = async (username: string) => {
+      const actor = await createActor(username)
+      await setRole(actor.account!.id, 'admin')
+      return reload(username)
     }
     const link = (actorId: string, did: string) =>
       database.saveBlueskyAccount({
@@ -1500,6 +1508,8 @@ describe('hosted Bluesky accounts', () => {
 
     beforeAll(async () => {
       routeDatabase.current = database
+      // The route answers a hosted account only from a fresh snapshot.
+      setServedDomainsForTests([])
       adminA = await makeAdmin('hosted-admin-a')
       adminB = await makeAdmin('hosted-admin-b')
       adminC = await makeAdmin('hosted-admin-c')
@@ -1507,6 +1517,7 @@ describe('hosted Bluesky accounts', () => {
 
     afterAll(() => {
       routeDatabase.current = null
+      resetServedDomainsForTests()
     })
 
     it('is not offered to a profile that is not an admin’s', async () => {
@@ -1587,7 +1598,47 @@ describe('hosted Bluesky accounts', () => {
       ).toBeNull()
     })
 
-    it('answers 404 for a suspended admin’s bare-domain handle', async () => {
+    it('stops answering for a hosted holder who is no longer an admin, and lets a current admin claim the host', async () => {
+      await setRole(adminA.account!.id, 'user')
+
+      expect((await atprotoDid()).status).toBe(404)
+      // The stale holder's row still holds the handle, so the hosted choice
+      // stays off for others; the linked claim is open.
+      expect(await choices(adminB)).toEqual([
+        { handle: pdsHandle('hosted-admin-b'), kind: 'pds' }
+      ])
+      await setBlueskyInstanceHandle(database, adminC, true)
+
+      const response = await atprotoDid()
+      expect(await response.text()).toBe('did:plc:bareclaimadminc')
+    })
+
+    it('lets a reinstated hosted holder decide over a coexisting linked claim', async () => {
+      await setRole(adminA.account!.id, 'admin')
+      const repo = await database.getPdsRepo({ actorId: adminA.id })
+
+      expect(await (await atprotoDid()).text()).toBe(repo!.did)
+      const claim = await getBlueskyAccountState(
+        database,
+        await reload('hosted-admin-c')
+      )
+      // Not `yours`: the claim no longer answers, so it shows as not in use
+      // and can be let go.
+      expect(claim.instanceHandle).toMatchObject({
+        host: TEST_DOMAIN,
+        status: 'inactive'
+      })
+
+      // Turned off, it still decides the host: 404, not the claim.
+      await deactivateHostedBlueskyAccount({
+        database,
+        actor: await reload('hosted-admin-a')
+      })
+      expect((await atprotoDid()).status).toBe(404)
+    })
+
+    it('never answers a suspended admin’s hosted DID for the bare domain', async () => {
+      const repo = await database.getPdsRepo({ actorId: adminA.id })
       await database.applyModerationAction({
         targetActorId: adminA.id,
         accountId: adminA.account!.id,
@@ -1595,7 +1646,11 @@ describe('hosted Bluesky accounts', () => {
         moderatorAccountId: 'moderator'
       })
 
-      expect((await atprotoDid()).status).toBe(404)
+      // A suspended holder may not hold the domain, so the current admin's
+      // linked claim answers instead.
+      const response = await atprotoDid()
+      expect(await response.text()).not.toBe(repo!.did)
+      expect(await (await atprotoDid()).text()).toBe('did:plc:bareclaimadminc')
     })
   })
 })
