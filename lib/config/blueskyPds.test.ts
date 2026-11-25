@@ -350,4 +350,100 @@ describe('Bluesky PDS config', () => {
       expect(logger.warn).toHaveBeenCalled()
     }
   })
+
+  it('returns null for an unset or blank rotation key without warning', async () => {
+    const { logger } = await import('@/lib/utils/logger')
+    const { getPdsRotationKeyHex } = await import('./blueskyPds')
+
+    expect(getPdsRotationKeyHex()).toBeNull()
+
+    vi.resetModules()
+    vi.clearAllMocks()
+    process.env.ACTIVITIES_BLUESKY_PDS_ROTATION_KEY = '   '
+    const mod2 = await import('./blueskyPds')
+    expect(mod2.getPdsRotationKeyHex()).toBeNull()
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('returns a valid rotation key lowercased without warning', async () => {
+    process.env.ACTIVITIES_BLUESKY_PDS_ROTATION_KEY =
+      ' 0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF '
+
+    const { logger } = await import('@/lib/utils/logger')
+    const { getPdsRotationKeyHex } = await import('./blueskyPds')
+
+    expect(getPdsRotationKeyHex()).toBe(
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+    )
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('warns once and returns null for an invalid rotation key without logging the value', async () => {
+    const invalidValues = [
+      'secret-rotation-key-value-that-must-not-leak',
+      'a'.repeat(63),
+      'a'.repeat(65),
+      'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz'
+    ]
+
+    for (const value of invalidValues) {
+      vi.resetModules()
+      vi.clearAllMocks()
+      process.env.ACTIVITIES_BLUESKY_PDS_ROTATION_KEY = value
+
+      const { logger } = await import('@/lib/utils/logger')
+      const { getPdsRotationKeyHex } = await import('./blueskyPds')
+
+      expect(getPdsRotationKeyHex()).toBeNull()
+      // A second call with the same value does not warn again.
+      expect(getPdsRotationKeyHex()).toBeNull()
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+
+      const logged = JSON.stringify(vi.mocked(logger.warn).mock.calls)
+      expect(logged).not.toContain(value)
+    }
+  })
+
+  it('defaults the PLC directory URL and normalizes a valid https origin', async () => {
+    const { logger } = await import('@/lib/utils/logger')
+    const { DEFAULT_PLC_DIRECTORY_URL, getPlcDirectoryUrl } =
+      await import('./blueskyPds')
+
+    expect(getPlcDirectoryUrl()).toBe(DEFAULT_PLC_DIRECTORY_URL)
+    expect(DEFAULT_PLC_DIRECTORY_URL).toBe('https://plc.directory')
+
+    vi.resetModules()
+    vi.clearAllMocks()
+    process.env.ACTIVITIES_BLUESKY_PLC_DIRECTORY_URL =
+      '  https://PLC.Example.COM:443/  '
+    const mod2 = await import('./blueskyPds')
+    expect(mod2.getPlcDirectoryUrl()).toBe('https://plc.example.com')
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('warns and falls back to the default for an invalid PLC directory URL', async () => {
+    const invalidValues = [
+      'http://plc.directory',
+      'https://plc.directory/path',
+      'https://plc.directory?foo=1',
+      'https://plc.directory/#frag',
+      'https://user:pass@plc.directory',
+      'https://user@plc.directory',
+      'plc.directory',
+      'not a url'
+    ]
+
+    for (const value of invalidValues) {
+      vi.resetModules()
+      vi.clearAllMocks()
+      process.env.ACTIVITIES_BLUESKY_PLC_DIRECTORY_URL = value
+
+      const { logger } = await import('@/lib/utils/logger')
+      const { DEFAULT_PLC_DIRECTORY_URL, getPlcDirectoryUrl } =
+        await import('./blueskyPds')
+
+      expect(getPlcDirectoryUrl()).toBe(DEFAULT_PLC_DIRECTORY_URL)
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+    }
+  })
 })

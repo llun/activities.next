@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react'
 
 import { getBlueskyAccountState } from '@/lib/services/bluesky/account'
 import { getBlueskySharingState } from '@/lib/services/blueskySharing'
+import { getHostedBlueskyAccountState } from '@/lib/services/pds/accounts'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import Page from './page'
@@ -21,13 +22,19 @@ vi.mock('@/lib/services/bluesky/account', () => ({
 vi.mock('@/lib/services/blueskySharing', () => ({
   getBlueskySharingState: vi.fn()
 }))
+vi.mock('@/lib/services/pds/accounts', () => ({
+  getHostedBlueskyAccountState: vi.fn()
+}))
 vi.mock('@/lib/client', () => ({
   updateBlueskySharing: vi.fn(),
   checkBlueskyHandle: vi.fn(),
+  createHostedBlueskyAccount: vi.fn(),
+  deleteHostedBlueskyAccount: vi.fn(),
   linkBlueskyAppPassword: vi.fn(),
   setBlueskyInstanceHandle: vi.fn(),
   startBlueskySignIn: vi.fn(),
-  unlinkBlueskyAccount: vi.fn()
+  unlinkBlueskyAccount: vi.fn(),
+  updateHostedBlueskyAccount: vi.fn()
 }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -57,6 +64,14 @@ describe('/settings/networks', () => {
       requirements: [],
       federationAllowed: true
     })
+    vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
+      available: false,
+      pdsHostname: null,
+      rotationKeyConfigured: true,
+      repo: null,
+      handleChoices: [],
+      customHandleAllowed: false
+    })
   })
 
   it('renders the current profile’s stored state in one shared form box', async () => {
@@ -78,6 +93,64 @@ describe('/settings/networks', () => {
   it('shows the callback notice from the search params', async () => {
     render(await Page({ searchParams: Promise.resolve({ bluesky: 'linked' }) }))
     expect(screen.getByText('Bluesky account linked.')).toBeInTheDocument()
+  })
+
+  it('hides the hosted account card when the domain cannot host one', async () => {
+    render(await Page())
+    expect(
+      screen.queryByRole('heading', { name: 'Host my Bluesky account here' })
+    ).not.toBeInTheDocument()
+    expect(getHostedBlueskyAccountState).toHaveBeenCalledWith({
+      database,
+      actor
+    })
+  })
+
+  it('shows the hosted account card when the domain can host one', async () => {
+    vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
+      available: true,
+      pdsHostname: 'pds.example.com',
+      rotationKeyConfigured: true,
+      repo: null,
+      handleChoices: [{ handle: 'alice.pds.example.com', kind: 'pds' }],
+      customHandleAllowed: false
+    })
+    render(await Page())
+    expect(
+      screen.getByRole('heading', { name: 'Host my Bluesky account here' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Create a Bluesky account on this server. Your posts reach Bluesky through pds.example.com.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Create Bluesky account' })
+    ).toBeInTheDocument()
+  })
+
+  it('shows the hosted account card for an existing account the server no longer offers', async () => {
+    vi.mocked(getHostedBlueskyAccountState).mockResolvedValue({
+      available: false,
+      pdsHostname: 'pds.example.com',
+      rotationKeyConfigured: true,
+      repo: {
+        did: 'did:plc:abc123',
+        handle: 'alice.pds.example.com',
+        status: 'active',
+        recoveryKeyDid: null
+      },
+      handleChoices: [],
+      customHandleAllowed: true
+    })
+    render(await Page())
+    expect(
+      screen.getByRole('heading', { name: 'Host my Bluesky account here' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Your Bluesky account on this server.')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Turn off' })).toBeInTheDocument()
   })
 
   it('redirects unauthenticated visitors', async () => {

@@ -397,6 +397,12 @@ export const BlueskyAccountForm = ({
                       admin’s profile on that domain can hold it.
                     </span>
                   ) : null}
+                  {instance.status === 'hosted' ? (
+                    <span className="text-muted-foreground">
+                      A Bluesky account hosted on this server answers for this
+                      name.
+                    </span>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"

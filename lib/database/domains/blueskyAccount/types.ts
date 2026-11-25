@@ -54,6 +54,22 @@ export interface BlueskyAccountDatabase {
   saveBlueskyAccount(
     params: SaveBlueskyAccountParams
   ): Promise<'saved' | 'did_taken'>
+  /**
+   * Whether the actor may hold `host` as a handle now: an active admin's actor
+   * on that domain, neither disabled nor suspended.
+   */
+  isEligibleInstanceHandleHolder(params: {
+    actorId: string
+    host: string
+  }): Promise<boolean>
+  /**
+   * Whether the actor may take `host` as a handle: an eligible holder, with no
+   * other eligible holder's claim on it.
+   */
+  canHoldInstanceHandle(params: {
+    actorId: string
+    host: string
+  }): Promise<boolean>
   updateBlueskyAccountIdentity(params: {
     actorId: string
     handle: string
@@ -69,7 +85,8 @@ export interface BlueskyAccountDatabase {
     crosspostByDefault: boolean
   }): Promise<void>
   /**
-   * `false` when another active admin's actor already answers for `host`; a
+   * `false` when another active admin's actor already answers for `host`, or a
+   * live hosted Bluesky account of an eligible holder holds it as its handle; a
    * claim whose holder lost that is freed first.
    */
   setBlueskyInstanceHandle(params: {

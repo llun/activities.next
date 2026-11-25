@@ -258,8 +258,8 @@ export const deletePdsBlobFilesBestEffort = async (
  * `pds_*` rows. It runs while the actor is still `scheduled`, like the archive
  * and import purges, so a storage error propagates and the job retries with
  * the rows intact. A cancel that lands after a partial purge keeps rows whose
- * files are gone; no repo can be created before D2.3, which owns turning a
- * repo off, deleting it and this edge.
+ * files are gone; a hosted repo holds blobs only from D2.3b (blob uploads),
+ * which owns this edge.
  */
 export const purgeActorPdsBlobs = async ({
   database,

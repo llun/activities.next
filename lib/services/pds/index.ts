@@ -59,6 +59,27 @@ export {
 } from './events'
 export { pruneExpiredPdsEvents } from './retention'
 export {
+  type CreateGenesisOperationParams,
+  type PlcClientOptions,
+  type PlcData,
+  type PlcOperationChanges,
+  type PlcService,
+  type PlcSignedOperation,
+  type PlcUnsignedOperation,
+  PLC_DIRECTORY_MAX_BODY_BYTES,
+  PLC_DIRECTORY_TIMEOUT_MS,
+  PlcDirectoryError,
+  cidForOperation,
+  createGenesisOperation,
+  createUpdateOperation,
+  didForGenesisOperation,
+  getLastPlcOperation,
+  getPlcData,
+  signPlcOperation,
+  submitPlcOperation,
+  verifyPlcOperationSignature
+} from './plc'
+export {
   getPdsDomainForRequest,
   getPdsRequestHost,
   resetPdsHostCollisionWarningsForTests
@@ -117,9 +138,9 @@ export {
   listPdsBlobCids,
   listPdsRecordValues,
   listPdsRepos,
-  resolveEffectivePdsRepoStatus,
   resolvePdsRepoDidForDomain
 } from './reads'
+export { resolveEffectivePdsRepoStatus } from './effectiveStatus'
 export {
   type ApplyPdsWriteResultItem,
   type ApplyPdsWritesInput,

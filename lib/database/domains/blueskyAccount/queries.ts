@@ -67,6 +67,39 @@ const eligibleClaimHolderIds = (db: Db, host: string) =>
     .where('accounts.disabledAt', 'is', null)
     .where('actors.suspendedAt', 'is', null)
 
+// Whether `actorId` is an eligible holder of `host` now (above). A hosted
+// Bluesky account on the bare domain answers for it only while this holds,
+// the same rule as a linked account's claim.
+export const isEligibleInstanceHandleHolder = async (
+  db: Db,
+  { actorId, host }: { actorId: string; host: string }
+): Promise<boolean> =>
+  Boolean(
+    await eligibleClaimHolderIds(db, host.toLowerCase())
+      .where('actors.id', '=', actorId)
+      .executeTakeFirst()
+  )
+
+// Whether `actorId` may take `host` as its handle now: it is an eligible
+// holder, and no other eligible holder's linked account claims it.
+export const canHoldInstanceHandle = async (
+  db: Db,
+  { actorId, host }: { actorId: string; host: string }
+): Promise<boolean> => {
+  const normalized = host.toLowerCase()
+  if (!(await isEligibleInstanceHandleHolder(db, { actorId, host }))) {
+    return false
+  }
+  const other = await db
+    .selectFrom('bluesky_accounts')
+    .select('actorId')
+    .where('instanceHandle', '=', normalized)
+    .where('actorId', '!=', actorId)
+    .where('actorId', 'in', eligibleClaimHolderIds(db, normalized))
+    .executeTakeFirst()
+  return !other
+}
+
 export const getBlueskyAccountByInstanceHandle = async (
   db: Db,
   { host }: { host: string }
@@ -196,8 +229,18 @@ export const setBlueskyInstanceHandle = async (
 ): Promise<boolean> => {
   const instanceHandle = host?.toLowerCase() ?? null
   try {
-    await inTransaction(db, async (trx) => {
+    return await inTransaction(db, async (trx) => {
       if (instanceHandle) {
+        // A hosted account on this server already answers for the host,
+        // unless its holder is no longer eligible: then the claim may take it.
+        const hosted = await trx
+          .selectFrom('pds_repos')
+          .select('did')
+          .where('handle', '=', instanceHandle)
+          .where('status', '!=', 'deleted')
+          .where('actorId', 'in', eligibleClaimHolderIds(trx, instanceHandle))
+          .executeTakeFirst()
+        if (hosted) return false
         // Free a claim its holder can no longer make.
         await trx
           .updateTable('bluesky_accounts')
@@ -215,8 +258,8 @@ export const setBlueskyInstanceHandle = async (
         .set({ instanceHandle, updatedAt: new Date() })
         .where('actorId', '=', actorId)
         .execute()
+      return true
     })
-    return true
   } catch (error) {
     if (isUniqueConstraintError(error)) return false
     throw error
@@ -360,6 +403,8 @@ export const blueskyAccountQueries = {
   getBlueskyAccount,
   getBlueskyAccountByDid,
   getBlueskyAccountByInstanceHandle,
+  isEligibleInstanceHandleHolder,
+  canHoldInstanceHandle,
   saveBlueskyAccount,
   updateBlueskyAccountIdentity,
   updateBlueskyNotificationsSeenAt,

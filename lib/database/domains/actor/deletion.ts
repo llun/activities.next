@@ -2,7 +2,10 @@ import { sql } from 'kysely'
 
 import { deleteAccountImportsForActor } from '@/lib/database/domains/accountImport/queries'
 import type { DeleteActorDataParams } from '@/lib/database/domains/actor/types'
-import { deletePdsRepoData } from '@/lib/database/domains/pds/queries'
+import {
+  deletePdsRepoContent,
+  updatePdsRepoStatus
+} from '@/lib/database/domains/pds/queries'
 import { searchQueries } from '@/lib/database/domains/search/queries'
 import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
 import { deleteStatusSearchDocumentsByStatusIds } from '@/lib/database/domains/search/statuses'
@@ -17,6 +20,7 @@ import {
 import { chunkArray, getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { CounterKey, parseCounterValue } from '@/lib/database/utils/counter'
 import { parseStatusContent } from '@/lib/database/utils/parseStatusContent'
+import { appendPdsAccountStatusEvent } from '@/lib/services/pds/accountEvents'
 import { isBlueskyId } from '@/lib/utils/blueskyId'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -617,14 +621,22 @@ export const deleteActorData = async (
       .where('actorId', '=', actorId)
       .execute()
 
-    // Delete this actor's embedded PDS repository and all of its rows
+    // Keep the hosted repo as a tombstone: announce the account as deleted,
+    // mark it deleted, then remove its records, blocks and blobs. Retention
+    // removes the row and its events after the event window.
     const pdsRepo = await trx
       .selectFrom('pds_repos')
       .select('did')
       .where('actorId', '=', actorId)
       .executeTakeFirst()
     if (pdsRepo) {
-      await deletePdsRepoData(trx, { did: pdsRepo.did })
+      await appendPdsAccountStatusEvent(trx, {
+        actorId,
+        active: false,
+        status: 'deleted'
+      })
+      await updatePdsRepoStatus(trx, { did: pdsRepo.did, status: 'deleted' })
+      await deletePdsRepoContent(trx, { did: pdsRepo.did })
     }
 
     // Delete this actor's idempotency keys (they hold a hash of each post body)

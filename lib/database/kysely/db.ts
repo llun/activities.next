@@ -1267,6 +1267,12 @@ export interface PdsEvents {
   type: string
 }
 
+export interface PdsPreferences {
+  did: string
+  preferences: string
+  updatedAt: WithDefault<Timestamp>
+}
+
 export interface PdsRecordBlobs {
   blobCid: string
   did: string
@@ -1287,6 +1293,9 @@ export interface PdsRepos {
   createdAt: WithDefault<Timestamp>
   did: string
   domain: string
+  handle: Nullable<string>
+  plcOperation: Nullable<string>
+  recoveryKeyDid: Nullable<string>
   rev: Nullable<string>
   rootCid: Nullable<string>
   signingKey: string
@@ -1765,6 +1774,7 @@ export interface DB {
   pds_blobs: PdsBlobs
   pds_blocks: PdsBlocks
   pds_events: PdsEvents
+  pds_preferences: PdsPreferences
   pds_record_blobs: PdsRecordBlobs
   pds_records: PdsRecords
   pds_repos: PdsRepos

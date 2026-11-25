@@ -160,6 +160,35 @@ describe('Bluesky account service', () => {
       }
     })
 
+    it('refuses linking while the profile has a hosted Bluesky account', async () => {
+      const getPdsRepo = vi
+        .spyOn(database, 'getPdsRepo')
+        .mockResolvedValue({ did: 'did:plc:hosted' } as Awaited<
+          ReturnType<typeof database.getPdsRepo>
+        >)
+      try {
+        await expect(
+          linkBlueskyAppPassword(database, actor('actor-a'), {
+            identifier: 'alice.example.com',
+            password: 'abcd-efgh-ijkl-mnop'
+          })
+        ).rejects.toMatchObject({
+          message:
+            'Your Bluesky account is hosted on this server. Delete it there before linking another one.'
+        })
+        await expect(
+          startBlueskyOAuth(database, actor('actor-a'), 'alice.example.com')
+        ).rejects.toMatchObject({
+          message:
+            'Your Bluesky account is hosted on this server. Delete it there before linking another one.'
+        })
+        expect(resolve).not.toHaveBeenCalled()
+        expect(safeRemoteFetch).not.toHaveBeenCalled()
+      } finally {
+        getPdsRepo.mockRestore()
+      }
+    })
+
     it('refuses anything but the app-password shape before any request', async () => {
       await expect(
         linkBlueskyAppPassword(database, actor('actor-a'), {

@@ -23,6 +23,7 @@ import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
+import { getClaimableHost } from './claimableHost'
 import {
   BLUESKY_OAUTH_SCOPE,
   getBlueskyOAuthClient,
@@ -87,18 +88,6 @@ const normalizeIdentifier = (input: string) => {
   if (isAtprotoDid(value)) return value
   if (isHandle(value)) return value
   throw new BlueskyLinkError('Enter a Bluesky handle, like alice.bsky.social.')
-}
-
-// The served domain the actor lives on: the host it may answer
-// /.well-known/atproto-did for. A handle carries no port, so a host with one
-// cannot be claimed.
-const getClaimableHost = (actor: Actor) => {
-  const host = getServedAuthority(actor.domain)
-  // The holder check matches lower(actors.domain); a row spelled any other
-  // way (a default port, a trailing dot) could claim but never be served.
-  return !host || host.includes(':') || host !== actor.domain.toLowerCase()
-    ? null
-    : host
 }
 
 // A handle needs its own DNS record unless it sits under a domain the PDS
@@ -182,21 +171,46 @@ export const getBlueskyAccountState = async (
     : null
   const host = getClaimableHost(actor)
   let instanceHandle: BlueskyAccountState['instanceHandle'] = null
+  let hostedHolds = false
   if (actor.account?.role === 'admin' && host) {
-    const holder = await database.getBlueskyAccountByInstanceHandle({ host })
+    // A hosted account on this server whose holder may still hold the domain
+    // decides it, over any claim (the atproto-did route answers it first).
+    const hosted = await database.getPdsRepoByHandle({ handle: host })
+    hostedHolds =
+      hosted !== null &&
+      (await database.isEligibleInstanceHandleHolder({
+        actorId: hosted.actorId,
+        host
+      }))
+    const holder = hostedHolds
+      ? null
+      : await database.getBlueskyAccountByInstanceHandle({ host })
     instanceHandle = {
       host,
-      status: !holder ? 'free' : holder.actorId === actor.id ? 'yours' : 'taken'
+      status: hostedHolds
+        ? 'taken'
+        : !holder
+          ? 'free'
+          : holder.actorId === actor.id
+            ? 'yours'
+            : 'taken'
     }
   }
   // A claim this actor can no longer hold (not an admin now, or moved to
-  // another domain) answers nothing; still show it so it can be let go.
+  // another domain) answers nothing, nor does one a hosted account
+  // overrides; still show it so it can be let go.
   if (
     account?.instanceHandle &&
     (instanceHandle?.host !== account.instanceHandle ||
       instanceHandle.status !== 'yours')
   ) {
-    instanceHandle = { host: account.instanceHandle, status: 'inactive' }
+    instanceHandle = {
+      host: account.instanceHandle,
+      status:
+        hostedHolds && instanceHandle?.host === account.instanceHandle
+          ? 'hosted'
+          : 'inactive'
+    }
   }
   return {
     oauthAvailable: Boolean(getConfig().bluesky),
@@ -219,6 +233,15 @@ export const getBlueskyAccountState = async (
   }
 }
 
+// One Bluesky account per profile: a hosted account (lib/services/pds) and a
+// linked outside one cannot both exist. A deleted hosted account gives up the
+// actor's row, so getPdsRepo finds only live ones.
+const HOSTED_ACCOUNT_EXISTS_MESSAGE =
+  'Your Bluesky account is hosted on this server. Delete it there before linking another one.'
+
+const hasHostedBlueskyAccount = async (database: Database, actor: Actor) =>
+  Boolean(await database.getPdsRepo({ actorId: actor.id }))
+
 /**
  * Returns the authorization URL to send the browser to. `requestHost` is the
  * served host the request arrived on.
@@ -231,6 +254,9 @@ export const startBlueskyOAuth = async (
 ): Promise<string> => {
   if (!(await isBlueskyAllowed(database))) {
     throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
+  if (await hasHostedBlueskyAccount(database, actor)) {
+    throw new BlueskyLinkError(HOSTED_ACCOUNT_EXISTS_MESSAGE)
   }
   // Sign-in returns to the actor's own domain, where the session cookie must
   // be; one started on another served domain could not finish.
@@ -346,6 +372,7 @@ export const completeBlueskyOAuth = async (
   params: URLSearchParams
 ): Promise<BlueskyCallbackResult> => {
   if (!(await isBlueskyAllowed(database))) return 'failed'
+  if (await hasHostedBlueskyAccount(database, actor)) return 'failed'
   // The same canonical domain startBlueskyOAuth used: the session is tied to
   // that client_id.
   const client = getBlueskyOAuthClient(
@@ -411,6 +438,9 @@ export const linkBlueskyAppPassword = async (
 ) => {
   if (!(await isBlueskyAllowed(database))) {
     throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
+  }
+  if (await hasHostedBlueskyAccount(database, actor)) {
+    throw new BlueskyLinkError(HOSTED_ACCOUNT_EXISTS_MESSAGE)
   }
   // Only the app-password shape: a main password must never be stored.
   if (!BLUESKY_APP_PASSWORD_PATTERN.test(input.password.trim())) {

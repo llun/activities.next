@@ -268,3 +268,104 @@ export const isPdsAllowed = ({
 
   return false
 }
+
+/** Default PLC directory the embedded PDS submits `did:plc` operations to. */
+export const DEFAULT_PLC_DIRECTORY_URL = 'https://plc.directory'
+
+const PDS_ROTATION_KEY_PATTERN = /^[0-9a-fA-F]{64}$/
+
+let cachedRotationKeyRaw: string | undefined
+let hasCachedRotationKey = false
+let cachedRotationKey: string | null = null
+let didWarnAboutRotationKey = false
+
+/**
+ * The instance-wide secp256k1 private key that signs `did:plc` operations for
+ * hosted Bluesky accounts, as 64 lowercase hex characters, or `null` when it is
+ * unset or invalid. The value is a secret: it is never logged, and the warning
+ * for an invalid value names the variable only.
+ */
+export const getPdsRotationKeyHex = (): string | null => {
+  const raw = process.env.ACTIVITIES_BLUESKY_PDS_ROTATION_KEY?.trim()
+  if (hasCachedRotationKey && raw === cachedRotationKeyRaw) {
+    return cachedRotationKey
+  }
+  cachedRotationKeyRaw = raw
+  hasCachedRotationKey = true
+
+  if (!raw) {
+    cachedRotationKey = null
+    return null
+  }
+
+  if (!PDS_ROTATION_KEY_PATTERN.test(raw)) {
+    if (!didWarnAboutRotationKey) {
+      didWarnAboutRotationKey = true
+      logger.warn({
+        message:
+          'ACTIVITIES_BLUESKY_PDS_ROTATION_KEY must be a 64-character hex secp256k1 private key; hosted Bluesky accounts will be refused'
+      })
+    }
+    cachedRotationKey = null
+    return null
+  }
+
+  cachedRotationKey = raw.toLowerCase()
+  return cachedRotationKey
+}
+
+const normalizePlcDirectoryUrl = (value: string): string | null => {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'https:') return null
+  if (parsed.username !== '' || parsed.password !== '') return null
+  if (parsed.pathname !== '/' && parsed.pathname !== '') return null
+  if (parsed.search !== '' || parsed.hash !== '') return null
+  return parsed.origin
+}
+
+let cachedPlcDirectoryRaw: string | undefined
+let hasCachedPlcDirectory = false
+let cachedPlcDirectoryUrl = DEFAULT_PLC_DIRECTORY_URL
+let didWarnAboutPlcDirectory = false
+
+/**
+ * The PLC directory the embedded PDS submits `did:plc` operations to. An
+ * unset value uses `DEFAULT_PLC_DIRECTORY_URL`; an invalid value (not an https
+ * origin with no path, query, fragment or credentials) logs one warning and
+ * falls back to the default.
+ */
+export const getPlcDirectoryUrl = (): string => {
+  const raw = process.env.ACTIVITIES_BLUESKY_PLC_DIRECTORY_URL?.trim()
+  if (hasCachedPlcDirectory && raw === cachedPlcDirectoryRaw) {
+    return cachedPlcDirectoryUrl
+  }
+  cachedPlcDirectoryRaw = raw
+  hasCachedPlcDirectory = true
+
+  if (!raw) {
+    cachedPlcDirectoryUrl = DEFAULT_PLC_DIRECTORY_URL
+    return cachedPlcDirectoryUrl
+  }
+
+  const normalized = normalizePlcDirectoryUrl(raw)
+  if (!normalized) {
+    if (!didWarnAboutPlcDirectory) {
+      didWarnAboutPlcDirectory = true
+      logger.warn({
+        message: `ACTIVITIES_BLUESKY_PLC_DIRECTORY_URL must be an https origin with no path, query, fragment or credentials; using ${DEFAULT_PLC_DIRECTORY_URL}`
+      })
+    }
+    cachedPlcDirectoryUrl = DEFAULT_PLC_DIRECTORY_URL
+    return cachedPlcDirectoryUrl
+  }
+
+  cachedPlcDirectoryUrl = normalized
+  return cachedPlcDirectoryUrl
+}
