@@ -64,4 +64,29 @@ describe('JOBS registry', () => {
       }
     }
   })
+
+  // `import()` stays native under tsx/cjs, so a relative or `@/` specifier in a
+  // lazy load fails when the Bluesky OAuth client is first built from a script.
+  it('builds the Bluesky OAuth client in CommonJS', () => {
+    const script = `
+      const crypto = require('node:crypto')
+      const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' })
+      process.env.ACTIVITIES_BLUESKY_OAUTH_PRIVATE_KEYS = JSON.stringify({ ...privateKey.export({ format: 'jwk' }), kid: 'test', alg: 'ES256' })
+      process.env.ACTIVITIES_HOST = 'social.example'
+      process.env.ACTIVITIES_SECRET_PHASE = 'x'.repeat(40)
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'better-sqlite3'
+      process.env.ACTIVITIES_DATABASE_SQLITE_FILENAME = ':memory:'
+      const { getBlueskyOAuthClient } = require('./lib/services/bluesky/client.ts')
+      getBlueskyOAuthClient({}, 'social.example').then(
+        (client) => { process.stdout.write(typeof client.authorize); process.exit(0) },
+        (error) => { process.stderr.write(String(error && error.stack)); process.exit(1) }
+      )
+    `
+    const output = execFileSync(
+      process.execPath,
+      ['-r', 'tsx/cjs', '-e', script],
+      { cwd: process.cwd(), encoding: 'utf-8', stdio: 'pipe' }
+    )
+    expect(output).toBe('function')
+  })
 })

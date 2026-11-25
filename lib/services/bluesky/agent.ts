@@ -173,13 +173,16 @@ const createOAuthSend = (database: Database, actor: Actor, did: string) => {
       })
     } catch (error) {
       // Loaded here, not at the top: `@atproto/*` is ESM-only and this module
-      // is reached from CommonJS scripts through the job registry.
-      const { TokenInvalidError, TokenRefreshError, TokenRevokedError } =
-        await import('@atproto/oauth-client-node')
+      // is reached from CommonJS scripts through the job registry. A failed
+      // load must not replace the request's own error.
+      const tokenErrors = await import('@atproto/oauth-client-node').catch(
+        () => null
+      )
       if (
-        error instanceof TokenRefreshError ||
-        error instanceof TokenRevokedError ||
-        error instanceof TokenInvalidError
+        tokenErrors &&
+        (error instanceof tokenErrors.TokenRefreshError ||
+          error instanceof tokenErrors.TokenRevokedError ||
+          error instanceof tokenErrors.TokenInvalidError)
       ) {
         // Relinked with an app password while this request ran: the library
         // sees no OAuth session, but the new one is fine, so keep it.

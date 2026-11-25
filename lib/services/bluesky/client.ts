@@ -139,12 +139,16 @@ const buildClient = async (
   domain: string
 ) => {
   // Loaded on first use: `@atproto/*` is ESM-only (multiformats), and the job
-  // registry and actor deletion reach this module from CommonJS scripts.
-  const [{ JoseKey, NodeOAuthClient }, { createBlueskyIdentityResolver }] =
-    await Promise.all([
-      import('@atproto/oauth-client-node'),
-      import('./identityResolver')
-    ])
+  // registry and actor deletion reach this module from CommonJS scripts. Only
+  // bare package specifiers: under tsx/cjs `import()` stays native, so a
+  // relative or `@/` path would not resolve there.
+  const [
+    { AtprotoHandleResolverNode, JoseKey, NodeOAuthClient },
+    { createIdentityResolver }
+  ] = await Promise.all([
+    import('@atproto/oauth-client-node'),
+    import('@atproto-labs/identity-resolver')
+  ])
   const keyset = await Promise.all(
     config.bluesky.oauthPrivateKeys.map((jwk) => JoseKey.fromJWK(jwk))
   )
@@ -166,7 +170,11 @@ const buildClient = async (
     },
     keyset,
     fetch: blueskyFetch,
-    identityResolver: createBlueskyIdentityResolver(),
+    // The same resolver as `createBlueskyIdentityResolver` (identityResolver.ts).
+    identityResolver: createIdentityResolver({
+      fetch: blueskyFetch,
+      handleResolver: new AtprotoHandleResolverNode({ fetch: blueskyFetch })
+    }),
     stateStore: createStateStore(database),
     sessionStore: createSessionStore(database),
     requestLock: createBlueskyLock(database)
