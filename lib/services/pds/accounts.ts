@@ -207,15 +207,15 @@ const createChainedUpdate = async (
   })
 }
 
-// A live repo holding the handle, other than `ownDid`'s, refuses it. The
-// unique index on live handles backs this up across domains and races.
+// A live repo on any domain holding the handle, other than `ownDid`'s,
+// refuses it, before any PLC operation: the unique index on live handles is
+// global. The index still backs this up against a race.
 const assertHandleFree = async (
   database: Database,
   handle: string,
-  domain: string,
   ownDid: string | null
 ): Promise<void> => {
-  const holder = await database.getPdsRepoByHandle({ handle, domain })
+  const holder = await database.getPdsRepoByHandle({ handle })
   if (holder && holder.did !== ownDid) throw new PdsHandleTakenError()
 }
 
@@ -377,7 +377,7 @@ const createHostedRepoLocked = async ({
       'Choose one of the offered handles for a new account.'
     )
   }
-  await assertHandleFree(database, normalizedHandle, context.domain, null)
+  await assertHandleFree(database, normalizedHandle, null)
 
   await consumeHostedBlueskyRateLimit(database, actor.id, 'create')
   const signingKey = await createPdsSigningKey()
@@ -497,7 +497,7 @@ export const changeHostedBlueskyHandle = async ({
   if (repo.status !== 'active') throw new PdsHostedAccountInactiveError()
 
   const normalizedHandle = normalizeHandleInput(handle)
-  await assertHandleFree(database, normalizedHandle, repo.domain, repo.did)
+  await assertHandleFree(database, normalizedHandle, repo.did)
   const choices = await getHandleChoices(database, actor, context)
   const selfAnswered = choices.some(
     (choice) => choice.handle === normalizedHandle
@@ -629,12 +629,10 @@ export const deleteHostedBlueskyAccount = async ({
     throw new PdsConfirmHandleMismatchError()
   }
 
+  // The event goes first: if a later step fails, the repo is still live and
+  // the owner can delete it again. Once the status flips, retention finishes
+  // whatever content and blob files a failure left behind.
   await writeLiveRepo(database, repo.did, async () => {
-    const changed = await database.updatePdsRepoStatus({
-      did: repo.did,
-      status: 'deleted'
-    })
-    if (!changed) return false
     await database.appendPdsEvent({
       did: repo.did,
       type: 'account',
@@ -644,6 +642,11 @@ export const deleteHostedBlueskyAccount = async ({
         status: 'deleted'
       })
     })
+    const changed = await database.updatePdsRepoStatus({
+      did: repo.did,
+      status: 'deleted'
+    })
+    if (!changed) return false
     const storageKeys = await database.listPdsBlobStorageKeys({
       did: repo.did
     })

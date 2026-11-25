@@ -18,7 +18,9 @@ import {
   reactivateHostedBlueskyAccount,
   setHostedBlueskyRecoveryKey
 } from './accounts'
+import { deletePdsBlobFilesBestEffort } from './blobStorage'
 import { decodePdsEvent } from './events'
+import { withPdsRepoLock } from './lock'
 import {
   type PlcSignedOperation,
   cidForOperation,
@@ -28,6 +30,18 @@ import {
 import { pruneDeletedPdsRepos } from './retention'
 
 vi.mock('@/lib/utils/safeRemoteFetch', () => ({ safeRemoteFetch: vi.fn() }))
+// Pass-throughs the tests watch: lock entries and blob file deletes.
+vi.mock('@/lib/services/pds/lock', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./lock')>()
+  return { ...actual, withPdsRepoLock: vi.fn(actual.withPdsRepoLock) }
+})
+vi.mock('@/lib/services/pds/blobStorage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./blobStorage')>()
+  return {
+    ...actual,
+    deletePdsBlobFilesBestEffort: vi.fn(actual.deletePdsBlobFilesBestEffort)
+  }
+})
 vi.mock('@/lib/services/bluesky/identityResolver', () => ({
   createBlueskyIdentityResolver: vi.fn()
 }))
@@ -78,7 +92,11 @@ const ALLOWED_USERNAMES = [
   'hosted-taken-create',
   'hosted-taken-change',
   'hosted-taken-race',
-  'hosted-taken-race2'
+  'hosted-taken-race2',
+  'hosted-taken-crossdomain',
+  'hosted-gate-blocked',
+  'hosted-delete-order',
+  'hosted-delete-partial'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -1177,24 +1195,45 @@ describe('hosted Bluesky accounts', () => {
   it('runs one create per actor at a time, so a concurrent one registers no DID', async () => {
     const actor = await createActor('hosted-concurrent')
     const handle = pdsHandle('hosted-concurrent')
+    const lockKey = `actor:${actor.id}`
+
+    // The first submit stays open until the second create is either waiting
+    // at the actor lock or, with no lock, has passed its checks and submits.
+    let secondArrived!: () => void
+    const arrived = new Promise<void>((resolve) => {
+      secondArrived = resolve
+    })
+    let lockEntries = 0
+    const realLock = vi.mocked(withPdsRepoLock).getMockImplementation()!
+    vi.mocked(withPdsRepoLock).mockImplementation((db, key, fn, options) => {
+      if (key === lockKey && ++lockEntries === 2) secondArrived()
+      return realLock(db, key, fn, options)
+    })
+    let posts = 0
     const directory = vi.mocked(safeRemoteFetch).getMockImplementation()!
     vi.mocked(safeRemoteFetch).mockImplementation(async (options) => {
-      // A slow directory: both creates are past their first checks before
-      // either submit lands.
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      if (options.body && ++posts === 1) {
+        await arrived
+      } else if (options.body) {
+        secondArrived()
+      }
       return directory(options)
     })
 
-    const results = await Promise.allSettled([
-      createHostedBlueskyAccount({ database, actor, handle }),
-      createHostedBlueskyAccount({ database, actor, handle })
-    ])
+    try {
+      const results = await Promise.allSettled([
+        createHostedBlueskyAccount({ database, actor, handle }),
+        createHostedBlueskyAccount({ database, actor, handle })
+      ])
 
-    expect(submissions).toHaveLength(1)
-    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
-    expect(results.find((r) => r.status === 'rejected')).toMatchObject({
-      reason: { code: 'HostedAccountExists' }
-    })
+      expect(submissions).toHaveLength(1)
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+      expect(results.find((r) => r.status === 'rejected')).toMatchObject({
+        reason: { code: 'HostedAccountExists' }
+      })
+    } finally {
+      vi.mocked(withPdsRepoLock).mockImplementation(realLock)
+    }
   })
 
   // A live repo on this domain that already holds `handle`, as a moved custom
@@ -1284,5 +1323,128 @@ describe('hosted Bluesky accounts', () => {
     } finally {
       lookup.mockRestore()
     }
+  })
+
+  it('refuses a handle another domain’s live account holds before any PLC operation', async () => {
+    const actor = await createActor('hosted-taken-crossdomain')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-taken-crossdomain')
+    })
+    await database.createPdsRepo({
+      did: 'did:plc:takencrossdomainholder00',
+      actorId: 'https://other.example/users/holder',
+      domain: 'other.example',
+      signingKey: 'v1:key-crossdomain',
+      signingKeyDid: 'did:key:zQ3shCrossDomain',
+      handle: 'shared.example.com'
+    })
+    submissions = []
+
+    await expect(
+      changeHostedBlueskyHandle({
+        database,
+        actor,
+        handle: 'shared.example.com'
+      })
+    ).rejects.toMatchObject({ code: 'HandleTaken' })
+    expect(createBlueskyIdentityResolver).not.toHaveBeenCalled()
+    expect(submissions).toHaveLength(0)
+  })
+
+  it('refuses a handle or recovery key change for a suspended or unapproved actor', async () => {
+    const actor = await createActor('hosted-gate-blocked')
+    const handle = pdsHandle('hosted-gate-blocked')
+    await createHostedBlueskyAccount({ database, actor, handle })
+    submissions = []
+
+    for (const blocked of [
+      { ...actor, suspendedAt: Date.now() },
+      { ...actor, account: { ...actor.account!, approvedAt: null } }
+    ]) {
+      await expect(
+        changeHostedBlueskyHandle({ database, actor: blocked, handle })
+      ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
+      await expect(
+        setHostedBlueskyRecoveryKey({
+          database,
+          actor: blocked,
+          recoveryKeyDid: null
+        })
+      ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
+    }
+    expect(submissions).toHaveLength(0)
+  })
+
+  it('appends the #account deleted event before the status flips', async () => {
+    const actor = await createActor('hosted-delete-order')
+    const handle = pdsHandle('hosted-delete-order')
+    await createHostedBlueskyAccount({ database, actor, handle })
+    const append = vi.spyOn(database, 'appendPdsEvent')
+    const flip = vi.spyOn(database, 'updatePdsRepoStatus')
+    try {
+      await deleteHostedBlueskyAccount({
+        database,
+        actor,
+        confirmHandle: handle
+      })
+      expect(append).toHaveBeenCalledTimes(1)
+      expect(flip).toHaveBeenCalledTimes(1)
+      expect(append.mock.invocationCallOrder[0]).toBeLessThan(
+        flip.mock.invocationCallOrder[0]
+      )
+    } finally {
+      append.mockRestore()
+      flip.mockRestore()
+    }
+  })
+
+  it('lets retention finish a delete that failed after the status flip, blob files included', async () => {
+    const actor = await createActor('hosted-delete-partial')
+    const handle = pdsHandle('hosted-delete-partial')
+    await createHostedBlueskyAccount({ database, actor, handle })
+    const repo = await database.getPdsRepo({ actorId: actor.id })
+    const storageKey = `pds-blobs/${repo!.did}/bafkreipartial`
+    await database.createPdsBlob({
+      did: repo!.did,
+      cid: 'bafkreipartial',
+      mimeType: 'image/png',
+      size: 1,
+      storageKey
+    })
+    const removeContent = vi
+      .spyOn(database, 'deletePdsRepoContent')
+      .mockRejectedValueOnce(new Error('storage outage'))
+    try {
+      await expect(
+        deleteHostedBlueskyAccount({ database, actor, confirmHandle: handle })
+      ).rejects.toThrow('storage outage')
+    } finally {
+      removeContent.mockRestore()
+    }
+    expect((await database.getPdsRepo({ did: repo!.did }))?.status).toBe(
+      'deleted'
+    )
+    expect(
+      (await database.listPdsEvents({ did: repo!.did }))
+        .map(decodePdsEvent)
+        .at(-1)
+    ).toMatchObject({ type: 'account', active: false, status: 'deleted' })
+    vi.mocked(deletePdsBlobFilesBestEffort).mockClear()
+
+    expect(
+      await pruneDeletedPdsRepos(database, {
+        now: Date.now() + 8 * 24 * 60 * 60 * 1000
+      })
+    ).toBeGreaterThanOrEqual(1)
+
+    expect(await database.getPdsRepo({ did: repo!.did })).toBeNull()
+    expect(await database.listPdsBlobStorageKeys({ did: repo!.did })).toEqual(
+      []
+    )
+    expect(deletePdsBlobFilesBestEffort).toHaveBeenCalledWith([storageKey], {
+      context: { did: repo!.did, reason: 'expired_pds_tombstone' }
+    })
   })
 })

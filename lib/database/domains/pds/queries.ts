@@ -216,11 +216,12 @@ export const getPdsRepoByHandle = async (
 ): Promise<PdsRepo | null> => {
   const normalized = handle.trim().toLowerCase()
   if (!normalized) return null
-  const row = await db
+  let query = db
     .selectFrom('pds_repos')
     .select(PDS_REPO_COLUMNS)
     .where('handle', '=', normalized)
-    .where('domain', '=', domain)
+  if (domain !== undefined) query = query.where('domain', '=', domain)
+  const row = await query
     // A tombstone keeps its handle, which a new account may take again.
     .where('status', '!=', 'deleted')
     .executeTakeFirst()

@@ -1833,7 +1833,11 @@ describe('PDS database domain', () => {
         domain
       })
     ).toMatchObject({ did })
-    // Another domain's lookup does not reach it.
+    // Without a domain it is found on any; another domain's lookup does not
+    // reach it.
+    expect(
+      await database.getPdsRepoByHandle({ handle: 'bob.identity.example' })
+    ).toMatchObject({ did })
     expect(
       await database.getPdsRepoByHandle({
         handle: 'bob.identity.example',
