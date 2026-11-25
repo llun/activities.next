@@ -12,7 +12,7 @@ import {
 } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-import { PdsError } from './errors'
+import { PdsError, PdsLockTimeoutError } from './errors'
 import { PlcDirectoryError } from './plc'
 
 // The statuses a hosted-account action may answer with. A PdsError carries its
@@ -97,6 +97,18 @@ export const hostedBlueskyRouteResponse = async (
           error: 'The PLC directory could not be reached. Try again later.'
         },
         responseStatusCode: 502
+      })
+    }
+    // Another request holds this account's lock; its message names the DID.
+    if (error instanceof PdsLockTimeoutError) {
+      return apiResponse({
+        req,
+        allowedMethods,
+        data: {
+          error:
+            'Another change to this account is still running. Try again shortly.'
+        },
+        responseStatusCode: 409
       })
     }
     if (error instanceof PdsError) {

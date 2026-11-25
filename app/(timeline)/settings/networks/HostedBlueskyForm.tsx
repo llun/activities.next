@@ -391,7 +391,7 @@ export const HostedBlueskyForm = ({
       closeSwitch()
       setStatus(
         result.missingBlobs > 0
-          ? `Moved to ${result.movedTo}. ${result.missingBlobs} images or videos couldn't be copied.`
+          ? `Moved to ${result.movedTo}. ${result.missingBlobs} ${result.missingBlobs === 1 ? 'image or video' : 'images or videos'} couldn't be copied.`
           : `Moved to ${result.movedTo}.`
       )
     } catch (error) {
@@ -787,7 +787,7 @@ export const HostedBlueskyForm = ({
             {copy.failed > 0 ? (
               <Alert
                 tone="warning"
-                title={`${copy.failed} images or videos couldn't be copied to ${moveHost}.`}
+                title={`${copy.failed} ${copy.failed === 1 ? 'image or video' : 'images or videos'} couldn't be copied to ${moveHost}.`}
                 action={
                   <Button
                     type="button"
@@ -1069,7 +1069,7 @@ export const HostedBlueskyForm = ({
               After this, only {moveHost} can change your Bluesky identity. Your
               recovery key stays. Enter your current password to confirm.
               {copy.failed > 0
-                ? ` ${copy.failed} images or videos will be missing on ${moveHost}.`
+                ? ` ${copy.failed} ${copy.failed === 1 ? 'image or video' : 'images or videos'} will be missing on ${moveHost}.`
                 : null}
             </DialogDescription>
           </DialogHeader>

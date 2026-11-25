@@ -610,7 +610,7 @@ describe('HostedBlueskyForm', () => {
     show(state({ repo: activeRepo, moveOut: moveOut() }))
     expect(
       await screen.findByText(
-        "1 images or videos couldn't be copied to bsky.social."
+        "1 image or video couldn't be copied to bsky.social."
       )
     ).toBeInTheDocument()
     // The step is not ticked, but the settings still copy.
@@ -625,7 +625,7 @@ describe('HostedBlueskyForm', () => {
     const dialog = screen.getByRole('dialog')
     expect(
       within(dialog).getByText(
-        /1 images or videos will be missing on bsky\.social\./
+        /1 image or video will be missing on bsky\.social\./
       )
     ).toBeInTheDocument()
   })
@@ -670,6 +670,14 @@ describe('HostedBlueskyForm', () => {
         cursor: 'same',
         done: false
       })
+      // Called with 'same', it ran out of time and hands 'same' back: that is
+      // progress (it copied), not a stuck destination.
+      .mockResolvedValueOnce({
+        copied: 1,
+        failed: [],
+        cursor: 'same',
+        done: false
+      })
       .mockResolvedValueOnce({
         copied: 1,
         failed: [],
@@ -678,9 +686,13 @@ describe('HostedBlueskyForm', () => {
       })
     show(state({ repo: activeRepo, moveOut: moveOut() }))
     expect(
-      await screen.findByText('Images and videos: 2 copied')
+      await screen.findByText('Images and videos: 3 copied')
     ).toBeInTheDocument()
-    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(2)
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(3)
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ cursor: 'same' })
+    )
     expect(
       screen.queryByText(
         'The destination server stopped making progress. Try again.'

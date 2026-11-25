@@ -6,6 +6,7 @@ import { getHostedBlueskyAccountState } from '@/lib/services/pds/accounts'
 import {
   PdsAccountMovedError,
   PdsHostedRateLimitedError,
+  PdsLockTimeoutError,
   PdsMoveOutInProgressError,
   PdsMoveOutInvalidCredentialsError,
   PdsMoveOutInvalidServerUrlError,
@@ -308,6 +309,18 @@ describe('/api/v1/bluesky/hosted/move', () => {
       expect(startMoveOut).not.toHaveBeenCalled()
     }
   )
+
+  it('answers a busy account lock as 409 without naming the DID', async () => {
+    vi.mocked(sendMoveOutRepo).mockRejectedValue(
+      new PdsLockTimeoutError('did:plc:busyaccount')
+    )
+    const response = await call('POST', { step: 'repo' })
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error:
+        'Another change to this account is still running. Try again shortly.'
+    })
+  })
 
   it('DELETE cancels the move', async () => {
     vi.mocked(cancelMoveOut).mockResolvedValue({

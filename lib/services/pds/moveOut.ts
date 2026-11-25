@@ -86,16 +86,18 @@ import { XRPC_CAR_CONTENT_TYPE } from './xrpc'
 // The post-switch copy loop stops after this and counts the rest as missing.
 const FINISH_BLOB_BUDGET_MS = 5 * 60_000
 
-// Covers the finish sequence's network calls: the PLC read and submit, the
-// recommended credentials, the repo re-send, the post-switch blob budget with
-// the one upload still in flight when it runs out, and the activate.
+// Covers the finish sequence's network calls: the PLC read and submit; the
+// recommended credentials; the repo re-send; the post-switch blob budget plus
+// the list and upload in flight when it runs out; the remaining-blob count,
+// preferences, activate and revoke.
 const FINISH_LOCK_MS =
   2 * PLC_DIRECTORY_TIMEOUT_MS +
   REMOTE_JSON_WORST_MS +
   REMOTE_UPLOAD_WORST_MS +
   FINISH_BLOB_BUDGET_MS +
-  REMOTE_UPLOAD_WORST_MS +
   REMOTE_JSON_WORST_MS +
+  REMOTE_UPLOAD_WORST_MS +
+  4 * REMOTE_JSON_WORST_MS +
   30_000
 const REMOTE_MAX_BODY_BYTES = 2 * 1024 * 1024
 const MAX_BLOB_PAGES = 100
@@ -988,7 +990,6 @@ const copyBlobBatch = async (
     allowUnavailable?: boolean
   }
 ): Promise<BlobBatchResult> => {
-  const deadline = Date.now() + BLOB_BATCH_BUDGET_MS
   const listNsid = 'com.atproto.repo.listMissingBlobs'
   const listRes = await requestWithMoveAuth({
     database,
@@ -1023,6 +1024,9 @@ const copyBlobBatch = async (
   let copied = 0
   const failed: CopyMoveOutBlobFailure[] = []
 
+  // The budget covers the uploads, not the list: a slow list must not end a
+  // batch before it copied anything.
+  const deadline = Date.now() + BLOB_BATCH_BUDGET_MS
   for (const entry of parsed.blobs.slice(0, limit)) {
     const cid =
       isRecord(entry) && typeof entry.cid === 'string' ? entry.cid : null
@@ -1030,7 +1034,7 @@ const copyBlobBatch = async (
     seenCids.add(cid)
     const reportedCid = cid.slice(0, MAX_CID_LENGTH)
 
-    if (Date.now() > deadline) {
+    if (copied + failed.length > 0 && Date.now() > deadline) {
       // Out of time: the next call re-lists from the cursor the caller passed.
       return {
         copied,
@@ -1499,7 +1503,8 @@ export const finishMoveOut = async ({
                 move
               )
               move = remaining.session
-              missingBlobs += remaining.count
+              // The re-list includes earlier failures, so it replaces the sum.
+              missingBlobs = Math.max(missingBlobs, remaining.count)
               break
             }
             const batch = await copyBlobBatch(database, repo.did, move, {
