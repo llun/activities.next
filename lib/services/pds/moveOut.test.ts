@@ -106,7 +106,15 @@ const ALLOWED_USERNAMES = [
   'move-create-did',
   'move-domain-gate',
   'move-not-allowlisted',
-  'move-stage-plc'
+  'move-stage-plc',
+  'move-post-switch-blobs',
+  'move-post-switch-missing',
+  'move-delete-switched',
+  'move-cancel-no-key',
+  'move-blob-budget',
+  'move-stale-actor',
+  'move-not-copied',
+  'move-cancel-rotated'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -2240,5 +2248,513 @@ describe('hosted Bluesky account move-out', () => {
       pdsUrl: DEST_PDS,
       stage: 'started'
     })
+  })
+
+  it('copies a blob added after the blobs step when finishing', async () => {
+    const { actor, did } = await setupHostedAccount('move-post-switch-blobs')
+    const store = createMemoryBlobStore()
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+
+    const firstBlob = await uploadPdsBlob(
+      database,
+      { did, bytes: Buffer.from('first-image'), mimeType: 'image/png' },
+      { store }
+    )
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'first post',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [{ alt: 'one', image: firstBlob.blob }]
+        }
+      }
+    })
+
+    const currentRepo = await database.getPdsRepo({ did })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'post-switch.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: currentRepo!.rev,
+      switchedAt: null
+    })
+
+    // A post written after the blobs step brings a blob the destination lacks.
+    const lateBlob = await uploadPdsBlob(
+      database,
+      { did, bytes: Buffer.from('late-image'), mimeType: 'image/jpeg' },
+      { store }
+    )
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'late post',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [{ alt: 'late', image: lateBlob.blob }]
+        }
+      }
+    })
+
+    const uploaded: string[] = []
+    destHandler = (options) => {
+      if (
+        options.url.endsWith(
+          '/com.atproto.identity.getRecommendedDidCredentials'
+        )
+      ) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            services: {
+              atproto_pds: {
+                type: 'AtprotoPersonalDataServer',
+                endpoint: DEST_PDS
+              }
+            },
+            verificationMethods: { atproto: destSigningKey.did() },
+            alsoKnownAs: ['at://post-switch.dest.pds.example'],
+            rotationKeys: [destRotKey.did()]
+          })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.importRepo')) {
+        return okResponse(options.url, '')
+      }
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        return okResponse(
+          options.url,
+          JSON.stringify({ blobs: [{ cid: lateBlob.cid }] })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
+        uploaded.push(Buffer.from(options.bodyBytes ?? []).toString('utf8'))
+        return okResponse(
+          options.url,
+          JSON.stringify({ blob: { $type: 'blob' } })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+        return okResponse(options.url, '')
+      }
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    const finished = await finishMoveOut({ database, actor, store })
+
+    // The repo is deactivated by the switch, but its blobs still copy.
+    expect(uploaded).toEqual(['late-image'])
+    expect(finished.missingBlobs).toBe(0)
+  })
+
+  it('copies what it can and reports blobs it cannot read after the switch', async () => {
+    const { actor, did } = await setupHostedAccount('move-post-switch-missing')
+    const store = createMemoryBlobStore()
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+
+    const readable = await uploadPdsBlob(
+      database,
+      { did, bytes: Buffer.from('readable-image'), mimeType: 'image/png' },
+      { store }
+    )
+    const unreadable = await uploadPdsBlob(
+      database,
+      { did, bytes: Buffer.from('unreadable-image'), mimeType: 'image/png' },
+      { store }
+    )
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'two images',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [
+            { alt: 'one', image: readable.blob },
+            { alt: 'two', image: unreadable.blob }
+          ]
+        }
+      }
+    })
+
+    const currentRepo = await database.getPdsRepo({ did })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'post-switch.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: currentRepo!.rev,
+      switchedAt: null
+    })
+
+    // A post written after the blobs step changes the rev, so the switch
+    // re-sends the repo and copies what the destination still lacks.
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'late post',
+        createdAt: new Date().toISOString()
+      }
+    })
+
+    destHandler = (options) => {
+      if (
+        options.url.endsWith(
+          '/com.atproto.identity.getRecommendedDidCredentials'
+        )
+      ) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            services: {
+              atproto_pds: {
+                type: 'AtprotoPersonalDataServer',
+                endpoint: DEST_PDS
+              }
+            },
+            verificationMethods: { atproto: destSigningKey.did() },
+            alsoKnownAs: ['at://post-switch.dest.pds.example'],
+            rotationKeys: [destRotKey.did()]
+          })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.importRepo')) {
+        return okResponse(options.url, '')
+      }
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            blobs: [{ cid: readable.cid }, { cid: unreadable.cid }]
+          })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
+        uploaded.push(Buffer.from(options.bodyBytes ?? []).toString('utf8'))
+        return okResponse(
+          options.url,
+          JSON.stringify({ blob: { $type: 'blob' } })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+        return okResponse(options.url, '')
+      }
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    const uploaded: string[] = []
+    const throwingStore: PdsBlobObjectStore = {
+      ...store,
+      openRead: async (key) => {
+        if (key.includes(unreadable.cid)) throw new Error('disk exploded')
+        return store.openRead(key)
+      }
+    }
+
+    const finished = await finishMoveOut({
+      database,
+      actor,
+      store: throwingStore
+    })
+
+    expect(uploaded).toEqual(['readable-image'])
+    expect(finished.missingBlobs).toBe(1)
+    expect(finished.movedTo).toBe(DEST_HOST)
+  })
+
+  it('deletes a copy whose move already switched, revoking the stored move session', async () => {
+    const { actor, did, handle } = await setupHostedAccount(
+      'move-delete-switched'
+    )
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+
+    // A crash after the switch: the repo is deactivated and points at the
+    // destination, but the move session is still stored.
+    await database.updatePdsRepoIdentity({
+      did,
+      plcOperation: JSON.stringify({
+        type: 'plc_operation',
+        rotationKeys: [destRotKey.did()],
+        verificationMethods: { atproto: destSigningKey.did() },
+        alsoKnownAs: ['at://moved.dest.pds.example'],
+        services: {
+          atproto_pds: {
+            type: 'AtprotoPersonalDataServer',
+            endpoint: DEST_PDS
+          }
+        },
+        prev: 'bafyprev',
+        sig: 'sig'
+      })
+    })
+    await database.updatePdsRepoStatus({ did, status: 'deactivated' })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'moved.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'switched-refresh',
+      importedRev: null,
+      switchedAt: Date.now()
+    })
+
+    const revoked: string[] = []
+    destHandler = (options) => {
+      const headers = options.headers as Record<string, string>
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        revoked.push(headers.Authorization)
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    await deleteHostedBlueskyAccount({
+      database,
+      actor,
+      confirmHandle: handle
+    })
+
+    expect(await database.getPdsRepo({ actorId: actor.id })).toBeNull()
+    expect(await database.getBlueskySession({ did })).toBeNull()
+    expect(revoked).toEqual(['Bearer switched-refresh'])
+  })
+
+  it('cancels without the rotation key or an enabled domain', async () => {
+    const { actor, did } = await setupHostedAccount('move-cancel-no-key')
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'cancel.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+    delete process.env.ACTIVITIES_BLUESKY_PDS_ROTATION_KEY
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      [TEST_DOMAIN]: {
+        enabled: false,
+        hostname: PDS_HOSTNAME,
+        allowEmails: [],
+        allowActors: []
+      }
+    })
+    destHandler = (options) => okResponse(options.url, '')
+
+    const cancelled = await cancelMoveOut({ database, actor })
+
+    expect(cancelled.cancelled).toBe(true)
+    expect(await database.getBlueskySession({ did })).toBeNull()
+    expect((await database.getPdsRepo({ did }))?.status).toBe('active')
+  })
+
+  it('stops a blob batch at its wall-clock budget and hands the cursor back', async () => {
+    const { actor, did } = await setupHostedAccount('move-blob-budget')
+    const store = createMemoryBlobStore()
+    const blobs: Awaited<ReturnType<typeof uploadPdsBlob>>[] = []
+    for (const name of ['one', 'two', 'three']) {
+      blobs.push(
+        await uploadPdsBlob(
+          database,
+          { did, bytes: Buffer.from(`budget-${name}`), mimeType: 'image/png' },
+          { store }
+        )
+      )
+    }
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'three blobs',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: blobs.map((blob, index) => ({
+            alt: `image-${index}`,
+            image: blob.blob
+          }))
+        }
+      }
+    })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'alice.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+
+    let now = Date.now()
+    let uploads = 0
+    destHandler = (options) => {
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            cursor: 'next',
+            blobs: blobs.map((blob) => ({ cid: blob.cid }))
+          })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
+        uploads += 1
+        // The first upload spends the whole batch budget.
+        now += 61_000
+        return okResponse(
+          options.url,
+          JSON.stringify({ blob: { $type: 'blob' } })
+        )
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const batch = await copyMoveOutBlobs({ database, actor, store })
+    nowSpy.mockRestore()
+
+    expect(batch).toMatchObject({ copied: 1, cursor: null, done: false })
+    expect(uploads).toBe(1)
+  })
+
+  it('refuses a move step when the actor was suspended after it was loaded', async () => {
+    const { actor, did } = await setupHostedAccount('move-stale-actor')
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'alice.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+    // The caller's actor object still says active; the row does not.
+    await testDb
+      .db!.updateTable('actors')
+      .set({ suspendedAt: new Date() })
+      .where('id', '=', actor.id)
+      .execute()
+
+    await expect(sendMoveOutRepo({ database, actor })).rejects.toBeInstanceOf(
+      PdsHostedAccountInactiveError
+    )
+  })
+
+  it('refuses to finish before the posts are copied', async () => {
+    const { actor, did } = await setupHostedAccount('move-not-copied')
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'alice.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: null,
+      switchedAt: null
+    })
+    const plcCountBefore = plcOpsByDid.get(did)!.length
+
+    await expect(finishMoveOut({ database, actor })).rejects.toMatchObject({
+      code: 'MoveOutNotCopied',
+      statusCode: 409,
+      message: 'Copy your posts first.'
+    })
+    expect(plcOpsByDid.get(did)!.length).toBe(plcCountBefore)
+  })
+
+  it('revokes the refresh token a rotation left in the stored move when cancelling', async () => {
+    const { actor, did } = await setupHostedAccount('move-cancel-rotated')
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'cancel.dest.pds.example',
+      accessJwt: 'old-access',
+      refreshJwt: 'old-refresh',
+      importedRev: null,
+      switchedAt: null
+    })
+
+    const revoked: string[] = []
+    destHandler = (options) => {
+      const headers = options.headers as Record<string, string>
+      if (options.url.endsWith('/com.atproto.server.checkAccountStatus')) {
+        if (headers.Authorization === 'Bearer old-access') {
+          return okResponse(
+            options.url,
+            JSON.stringify({ error: 'ExpiredToken', message: 'Expired' }),
+            401
+          )
+        }
+        return okResponse(options.url, JSON.stringify({ activated: false }))
+      }
+      if (options.url.endsWith('/com.atproto.server.refreshSession')) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            did,
+            accessJwt: 'new-access',
+            refreshJwt: 'new-refresh'
+          })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        revoked.push(headers.Authorization)
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, '{}')
+    }
+
+    // The directory read inside cancel runs a refresh first, rotating the
+    // stored tokens after cancel read its copy of the move.
+    const base = vi.mocked(safeRemoteFetch).getMockImplementation()!
+    let rotated = false
+    vi.mocked(safeRemoteFetch).mockImplementation(async (options) => {
+      const parsed = new URL(options.url)
+      if (
+        parsed.origin === PLC_DIRECTORY &&
+        options.method === 'GET' &&
+        !rotated
+      ) {
+        rotated = true
+        await getMoveOutProgress({ database, actor })
+      }
+      return base(options)
+    })
+
+    await cancelMoveOut({ database, actor })
+
+    expect(revoked).toEqual(['Bearer new-refresh'])
   })
 })

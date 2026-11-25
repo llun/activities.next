@@ -169,6 +169,7 @@ describe('/api/v1/bluesky/hosted/move', () => {
     vi.mocked(finishMoveOut).mockResolvedValue({
       movedTo: 'dest.pds.example',
       handle: 'alice.dest.pds.example',
+      missingBlobs: 0,
       state: { ...state, movedTo: 'dest.pds.example' }
     })
 

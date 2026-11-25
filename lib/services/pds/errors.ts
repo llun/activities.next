@@ -293,6 +293,13 @@ export class PdsMoveOutSwitchedError extends PdsError {
   }
 }
 
+/** The repo has not been copied to the destination yet, so the switch would lose it. */
+export class PdsMoveOutNotCopiedError extends PdsError {
+  constructor() {
+    super('Copy your posts first.', 'MoveOutNotCopied', 409)
+  }
+}
+
 /** The destination PDS URL is not a valid external https origin. */
 export class PdsMoveOutInvalidServerUrlError extends PdsError {
   constructor(

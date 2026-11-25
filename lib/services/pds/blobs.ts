@@ -183,14 +183,19 @@ export type ReadPdsBlobResult = {
  * The repo is checked first, the same way the other sync reads check it: a
  * deactivated or taken-down repo's blobs are refused with `RepoDeactivated` /
  * `RepoTakendown` rather than served. `domain` scopes the lookup to one PDS
- * domain, as the reads do.
+ * domain, as the reads do. `allowUnavailable` is for the move's post-switch
+ * copy, which reads a repo this server has just deactivated.
  */
 export const readPdsBlob = async (
   database: Database,
   { did, cid, domain }: { did: string; cid: string; domain?: string },
-  options: { store?: PdsBlobObjectStore } = {}
+  options: { store?: PdsBlobObjectStore; allowUnavailable?: boolean } = {}
 ): Promise<ReadPdsBlobResult | null> => {
-  await assertPdsRepoAvailable(database, { did, domain })
+  await assertPdsRepoAvailable(database, {
+    did,
+    domain,
+    allowUnavailable: options.allowUnavailable ?? false
+  })
 
   const row = await database.getPdsBlob({ did, cid })
   if (!row) return null

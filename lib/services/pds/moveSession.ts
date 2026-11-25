@@ -5,6 +5,9 @@ import {
   readStoredBlueskySession,
   writeStoredBlueskySession
 } from '@/lib/services/bluesky/client'
+import { logger } from '@/lib/utils/logger'
+import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { PdsMoveOutNotFoundError } from './errors'
 import { withPdsRepoLock } from './lock'
@@ -19,14 +22,24 @@ export const REMOTE_UPLOAD_TIMEOUT_MS = 60_000
 export const DEFAULT_BLOB_BATCH_LIMIT = 20
 export const MAX_BLOB_BATCH_LIMIT = 100
 
-// Comfortably above one refresh request, so a refresh never outlives its lock.
-export const MOVE_REFRESH_LOCK_MS = 2 * REMOTE_JSON_TIMEOUT_MS
+// safeRemoteFetch applies the connect and read timeouts separately, so one
+// request can take up to twice its `timeoutInMilliseconds`.
+export const REMOTE_JSON_WORST_MS = 2 * REMOTE_JSON_TIMEOUT_MS
+export const REMOTE_UPLOAD_WORST_MS = 2 * REMOTE_UPLOAD_TIMEOUT_MS
 
-// Covers a whole blob batch: the missing-blobs list plus one upload per entry.
+// A blob batch stops taking new entries after this wall-clock budget.
+export const BLOB_BATCH_BUDGET_MS = 60_000
+
+// Covers one refresh request.
+export const MOVE_REFRESH_LOCK_MS = REMOTE_JSON_WORST_MS
+
+// Covers a whole blob batch: the missing-blobs list, the batch budget, and the
+// one upload still in flight when the budget runs out.
 export const MOVE_LOCK_MS =
-  REMOTE_JSON_TIMEOUT_MS +
-  MAX_BLOB_BATCH_LIMIT * REMOTE_UPLOAD_TIMEOUT_MS +
-  30_000
+  REMOTE_JSON_WORST_MS + BLOB_BATCH_BUDGET_MS + REMOTE_UPLOAD_WORST_MS + 30_000
+
+// How long a move or delete lock waits for its holder before giving up.
+export const MOVE_LOCK_WAIT_MS = 30_000
 
 const moveRefreshLock = <T>(
   database: Database,
@@ -35,7 +48,7 @@ const moveRefreshLock = <T>(
 ): Promise<T> =>
   withPdsRepoLock(database, `move-refresh:${did}`, fn, {
     ttlMs: MOVE_REFRESH_LOCK_MS,
-    waitMs: MOVE_REFRESH_LOCK_MS
+    waitMs: MOVE_LOCK_WAIT_MS
   })
 
 export const readMoveOutSession = async (
@@ -76,13 +89,54 @@ export const updateMoveOutSession = async (
 /**
  * Deletes the stored move under the move-refresh lock, re-reading the row
  * first, so a refresh already in flight cannot write it back afterwards.
+ * Returns the row it deleted, which is the one whose tokens the caller must
+ * revoke: a refresh may have rotated them since the caller read the move.
  */
 export const deleteMoveOutSession = async (
   database: Database,
   did: string
-): Promise<void> =>
+): Promise<StoredBlueskyMoveOutSession | null> =>
   moveRefreshLock(database, did, async () => {
     const current = await readMoveOutSession(database, did)
-    if (!current) return
+    if (!current) return null
     await deleteStoredBlueskySession(database, did, 'move-out')
+    return current
   })
+
+/**
+ * Best effort: the move is done either way, so a failure only leaves the
+ * destination session alive until it expires. Callers pass the row they
+ * deleted, not an in-memory copy a refresh may have replaced.
+ */
+export const revokeMoveOutTokens = async (
+  session: StoredBlueskyMoveOutSession | null
+): Promise<void> => {
+  if (!session) return
+  try {
+    const response = await safeRemoteFetch({
+      url: new URL('/xrpc/com.atproto.server.deleteSession', session.pdsUrl)
+        .href,
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${session.refreshJwt}`
+      },
+      maxRedirects: 0,
+      allowCrossHostRedirects: false,
+      timeoutInMilliseconds: REMOTE_JSON_TIMEOUT_MS
+    })
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      logger.warn({
+        message: 'Destination server refused to revoke the move session',
+        pdsUrl: session.pdsUrl,
+        statusCode: response.statusCode
+      })
+    }
+  } catch (error) {
+    logger.warn({
+      message: 'Could not revoke the move session on the destination server',
+      pdsUrl: session.pdsUrl,
+      err: toLoggableError(error)
+    })
+  }
+}

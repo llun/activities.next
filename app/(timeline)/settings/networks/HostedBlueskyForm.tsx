@@ -295,7 +295,13 @@ export const HostedBlueskyForm = ({
           done = result.done
           updateCopy({ copied: copyRef.current.copied + result.copied })
           // A server that keeps answering the same page must not loop forever.
-          if (!done && result.cursor === previousCursor) {
+          // A batch that copied something and handed the same cursor back only
+          // ran out of its time budget, so the next call re-lists and goes on.
+          if (
+            !done &&
+            result.cursor === previousCursor &&
+            result.copied === 0
+          ) {
             throw new Error(
               'The destination server stopped making progress. Try again.'
             )
@@ -383,7 +389,11 @@ export const HostedBlueskyForm = ({
       const result = await finishHostedBlueskyMoveOut(switchPassword)
       applyState(result.state)
       closeSwitch()
-      setStatus(`Moved to ${result.movedTo}.`)
+      setStatus(
+        result.missingBlobs > 0
+          ? `Moved to ${result.movedTo}. ${result.missingBlobs} images or videos couldn't be copied.`
+          : `Moved to ${result.movedTo}.`
+      )
     } catch (error) {
       setSwitchError(errorMessage(error))
       // A failed finish may have switched the identity before failing, so read

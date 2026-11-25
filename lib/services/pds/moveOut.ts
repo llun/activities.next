@@ -36,6 +36,7 @@ import {
   PdsMoveOutInProgressError,
   PdsMoveOutInvalidCredentialsError,
   PdsMoveOutInvalidServerUrlError,
+  PdsMoveOutNotCopiedError,
   PdsMoveOutNotFoundError,
   PdsMoveOutRemoteError,
   PdsMoveOutSwitchedError,
@@ -45,14 +46,19 @@ import { formatPdsAccountEvent, formatPdsIdentityEvent } from './events'
 import { loadPdsSigningKey } from './keys'
 import { withPdsRepoLock } from './lock'
 import {
+  BLOB_BATCH_BUDGET_MS,
   DEFAULT_BLOB_BATCH_LIMIT,
   MAX_BLOB_BATCH_LIMIT,
   MOVE_LOCK_MS,
+  MOVE_LOCK_WAIT_MS,
   MOVE_REFRESH_LOCK_MS,
   REMOTE_JSON_TIMEOUT_MS,
+  REMOTE_JSON_WORST_MS,
   REMOTE_UPLOAD_TIMEOUT_MS,
+  REMOTE_UPLOAD_WORST_MS,
   deleteMoveOutSession,
   readMoveOutSession,
+  revokeMoveOutTokens,
   updateMoveOutSession
 } from './moveSession'
 import { getMovedToHost, isPlcOperationPointingTo } from './moved'
@@ -76,15 +82,19 @@ import { XRPC_CAR_CONTENT_TYPE } from './xrpc'
 // password is sent only to `com.atproto.server.createAccount` and never
 // stored, logged, or echoed in errors.
 
+// The post-switch copy loop stops after this and counts the rest as missing.
+const FINISH_BLOB_BUDGET_MS = 5 * 60_000
+
 // Covers the finish sequence's network calls: the PLC read and submit, the
-// recommended credentials, the repo re-send, one blob page and the activate.
+// recommended credentials, the repo re-send, the post-switch blob budget with
+// the one upload still in flight when it runs out, and the activate.
 const FINISH_LOCK_MS =
-  PLC_DIRECTORY_TIMEOUT_MS +
-  REMOTE_JSON_TIMEOUT_MS +
-  REMOTE_UPLOAD_TIMEOUT_MS +
-  REMOTE_JSON_TIMEOUT_MS +
-  REMOTE_UPLOAD_TIMEOUT_MS +
-  REMOTE_JSON_TIMEOUT_MS +
+  2 * PLC_DIRECTORY_TIMEOUT_MS +
+  REMOTE_JSON_WORST_MS +
+  REMOTE_UPLOAD_WORST_MS +
+  FINISH_BLOB_BUDGET_MS +
+  REMOTE_UPLOAD_WORST_MS +
+  REMOTE_JSON_WORST_MS +
   30_000
 const REMOTE_MAX_BODY_BYTES = 2 * 1024 * 1024
 const MAX_BLOB_PAGES = 100
@@ -146,6 +156,8 @@ export interface MoveOutProgress {
 export interface FinishMoveOutResult {
   movedTo: string
   handle: string
+  /** Blobs the post-switch copy could not send, so the owner knows. */
+  missingBlobs: number
   state: HostedBlueskyAccountState
 }
 
@@ -423,7 +435,7 @@ const refreshMoveOutTokens = async (
       await writeStoredBlueskySession(database, did, next)
       return next
     },
-    { ttlMs: MOVE_REFRESH_LOCK_MS, waitMs: MOVE_REFRESH_LOCK_MS }
+    { ttlMs: MOVE_REFRESH_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
   )
 
 const requestWithMoveAuth = async ({
@@ -499,32 +511,33 @@ const readStreamToBuffer = async (stream: Readable): Promise<Buffer> => {
 
 const exportRepoCarSnapshot = async (
   database: Database,
-  did: string
+  did: string,
+  { allowUnavailable = false }: { allowUnavailable?: boolean } = {}
 ): Promise<{ rev: string | null; carBytes: Uint8Array }> =>
   withPdsRepoLock(database, did, async () => {
     const current = await database.getPdsRepo({ did })
     if (!current || current.status === 'deleted') {
       throw new PdsHostedAccountNotFoundError()
     }
-    // A deactivated repo still exports: the switch deactivates it here before
-    // the final re-send.
-    const carBytes = await getPdsRepoCar(database, {
-      did,
-      allowUnavailable: true
-    })
+    // Only the post-switch re-send may export a deactivated repo: the switch
+    // deactivates it here before that send.
+    const carBytes = await getPdsRepoCar(database, { did, allowUnavailable })
     return { rev: current.rev, carBytes }
   })
 
 const uploadRepoCar = async (
   database: Database,
   did: string,
-  session: StoredBlueskyMoveOutSession
+  session: StoredBlueskyMoveOutSession,
+  { allowUnavailable = false }: { allowUnavailable?: boolean } = {}
 ): Promise<{
   importedRev: string | null
   bytes: number
   session: StoredBlueskyMoveOutSession
 }> => {
-  const { rev, carBytes } = await exportRepoCarSnapshot(database, did)
+  const { rev, carBytes } = await exportRepoCarSnapshot(database, did, {
+    allowUnavailable
+  })
   await requestWithMoveAuth({
     database,
     did,
@@ -690,6 +703,20 @@ const buildNextRotationKeys = ({
 }
 
 /**
+ * The actor the caller passed may be stale by the time a step holds the lock:
+ * a suspension or deletion that landed meanwhile must be seen, so every step
+ * re-reads it and judges the repo's effective status against that.
+ */
+const requireFreshActor = async (
+  database: Database,
+  actor: Actor
+): Promise<Actor> => {
+  const fresh = await database.getActorFromId({ id: actor.id })
+  if (!fresh) throw new PdsHostedAccountNotFoundError()
+  return fresh
+}
+
+/**
  * Starts moving the actor's hosted Bluesky account to another PDS:
  * creates a deactivated account for the same DID on the destination PDS using
  * a short-lived ES256K service-auth JWT signed by the local repo key, and
@@ -736,12 +763,13 @@ export const startMoveOut = async ({
     database,
     `actor:${actor.id}`,
     async () => {
-      const repo = await requireHostedRepo(database, actor)
+      const currentActor = await requireFreshActor(database, actor)
+      const repo = await requireHostedRepo(database, currentActor)
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       assertPdsDomainEnabled(repo.domain)
       const movedTo = getMovedToHost(repo)
       if (movedTo) throw new PdsAccountMovedError(movedTo)
-      if (resolveEffectivePdsRepoStatus(repo, actor) !== 'active') {
+      if (resolveEffectivePdsRepoStatus(repo, currentActor) !== 'active') {
         throw new PdsHostedAccountInactiveError(
           'Turn the Bluesky account on before moving it.'
         )
@@ -876,7 +904,7 @@ export const startMoveOut = async ({
       await writeStoredBlueskySession(database, repo.did, session)
       return toMoveSummary(session)
     },
-    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_MS }
+    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
   )
 
   return {
@@ -900,7 +928,8 @@ export const sendMoveOutRepo = async ({
     database,
     `actor:${actor.id}`,
     async () => {
-      const repo = await requireHostedRepo(database, actor)
+      const currentActor = await requireFreshActor(database, actor)
+      const repo = await requireHostedRepo(database, currentActor)
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       const move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
@@ -912,7 +941,7 @@ export const sendMoveOutRepo = async ({
           'This account has already switched to the new server.'
         )
       }
-      if (resolveEffectivePdsRepoStatus(repo, actor) !== 'active') {
+      if (resolveEffectivePdsRepoStatus(repo, currentActor) !== 'active') {
         throw new PdsHostedAccountInactiveError(
           'Turn the Bluesky account on before copying its repository.'
         )
@@ -926,7 +955,7 @@ export const sendMoveOutRepo = async ({
       )
       return { importedRev, bytes }
     },
-    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_MS }
+    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
   )
 
 type BlobBatchResult = CopyMoveOutBlobsResult & {
@@ -936,6 +965,11 @@ type BlobBatchResult = CopyMoveOutBlobsResult & {
 /**
  * Copies one page of missing blobs. Individual blob failures are returned in
  * `failed` without stopping the page. The caller holds the repo lock.
+ *
+ * The page stops taking new entries once its wall-clock budget is spent and
+ * hands the input cursor back with `done: false`: the next call re-lists what
+ * is still missing, so a slow destination cannot hold the lock for a whole
+ * page of uploads.
  */
 const copyBlobBatch = async (
   database: Database,
@@ -944,9 +978,16 @@ const copyBlobBatch = async (
   {
     cursor,
     limit,
-    store
-  }: { cursor?: string; limit: number; store?: PdsBlobObjectStore }
+    store,
+    allowUnavailable = false
+  }: {
+    cursor?: string
+    limit: number
+    store?: PdsBlobObjectStore
+    allowUnavailable?: boolean
+  }
 ): Promise<BlobBatchResult> => {
+  const deadline = Date.now() + BLOB_BATCH_BUDGET_MS
   const listNsid = 'com.atproto.repo.listMissingBlobs'
   const listRes = await requestWithMoveAuth({
     database,
@@ -988,8 +1029,23 @@ const copyBlobBatch = async (
     seenCids.add(cid)
     const reportedCid = cid.slice(0, MAX_CID_LENGTH)
 
+    if (Date.now() > deadline) {
+      // Out of time: the next call re-lists from the cursor the caller passed.
+      return {
+        copied,
+        failed,
+        cursor: cursor ?? null,
+        done: false,
+        session: move
+      }
+    }
+
     try {
-      const blob = await readPdsBlob(database, { did, cid }, { store })
+      const blob = await readPdsBlob(
+        database,
+        { did, cid },
+        { store, allowUnavailable }
+      )
       if (!blob) {
         failed.push({
           cid: reportedCid,
@@ -1052,7 +1108,8 @@ export const copyMoveOutBlobs = async ({
     database,
     `actor:${actor.id}`,
     async () => {
-      const repo = await requireHostedRepo(database, actor)
+      const currentActor = await requireFreshActor(database, actor)
+      const repo = await requireHostedRepo(database, currentActor)
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       const move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
@@ -1064,7 +1121,7 @@ export const copyMoveOutBlobs = async ({
           'This account has already switched to the new server.'
         )
       }
-      if (resolveEffectivePdsRepoStatus(repo, actor) !== 'active') {
+      if (resolveEffectivePdsRepoStatus(repo, currentActor) !== 'active') {
         throw new PdsHostedAccountInactiveError(
           'Turn the Bluesky account on before copying media.'
         )
@@ -1092,7 +1149,7 @@ export const copyMoveOutBlobs = async ({
         done: batch.done
       }
     },
-    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_MS }
+    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
   )
 
 /**
@@ -1109,7 +1166,8 @@ export const copyMoveOutPreferences = async ({
     database,
     `actor:${actor.id}`,
     async () => {
-      const repo = await requireHostedRepo(database, actor)
+      const currentActor = await requireFreshActor(database, actor)
+      const repo = await requireHostedRepo(database, currentActor)
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       const move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
@@ -1121,7 +1179,7 @@ export const copyMoveOutPreferences = async ({
           'This account has already switched to the new server.'
         )
       }
-      if (resolveEffectivePdsRepoStatus(repo, actor) !== 'active') {
+      if (resolveEffectivePdsRepoStatus(repo, currentActor) !== 'active') {
         throw new PdsHostedAccountInactiveError(
           'Turn the Bluesky account on before copying preferences.'
         )
@@ -1142,7 +1200,7 @@ export const copyMoveOutPreferences = async ({
       })
       return { count: preferences.length }
     },
-    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_MS }
+    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
   )
 
 const toFiniteNumber = (value: unknown): number =>
@@ -1206,34 +1264,41 @@ export const getMoveOutProgress = async ({
   }
 }
 
-// Best effort: the move is done either way, so a failure only leaves the
-// destination session alive until it expires.
-const revokeMoveOutTokens = async (
+/**
+ * One last list, capped at a page, so a finish that ran out of its blob budget
+ * can still tell the owner how many files are missing.
+ */
+const countMissingBlobs = async (
+  database: Database,
+  did: string,
   session: StoredBlueskyMoveOutSession
-): Promise<void> => {
+): Promise<{ count: number; session: StoredBlueskyMoveOutSession }> => {
+  const nsid = 'com.atproto.repo.listMissingBlobs'
   try {
-    const response = await fetchDestination({
-      origin: session.pdsUrl,
-      nsid: 'com.atproto.server.deleteSession',
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${session.refreshJwt}`
-      }
+    const response = await requestWithMoveAuth({
+      database,
+      did,
+      session,
+      nsid,
+      method: 'GET',
+      params: { limit: MAX_BLOB_BATCH_LIMIT }
     })
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      logger.warn({
-        message: 'Destination server refused to revoke the move session',
-        pdsUrl: session.pdsUrl,
-        statusCode: response.statusCode
-      })
+    const parsed = parseJsonBody(nsid, response.body)
+    return {
+      count:
+        isRecord(parsed) && Array.isArray(parsed.blobs)
+          ? parsed.blobs.length
+          : 0,
+      session: response.session
     }
   } catch (error) {
     logger.warn({
-      message: 'Could not revoke the move session on the destination server',
-      pdsUrl: session.pdsUrl,
+      message: 'Could not count the blobs left to copy at the switch',
+      did,
       err: toLoggableError(error)
     })
+    // The copy stopped before `done`, so at least one file is still missing.
+    return { count: 1, session }
   }
 }
 
@@ -1246,7 +1311,8 @@ const revokeMoveOutTokens = async (
  * 3. Runs the local switch (idempotently): stores the operation, clears the
  *    local handle, sets status to `deactivated`, and emits `#identity` and
  *    `#account` (`active: false`, `status: 'deactivated'`).
- * 4. Re-sends the repo if its rev changed, then copies its missing blobs.
+ * 4. Re-sends the repo if its rev changed, then copies its missing blobs,
+ *    counting the ones it could not send.
  * 5. Calls `activateAccount` on the destination PDS, removes the hosted
  *    `bluesky_accounts` row, deletes the stored move session, and revokes the
  *    destination session.
@@ -1258,16 +1324,19 @@ const revokeMoveOutTokens = async (
  */
 export const finishMoveOut = async ({
   database,
-  actor
+  actor,
+  store
 }: {
   database: Database
   actor: Actor
+  store?: PdsBlobObjectStore
 }): Promise<FinishMoveOutResult> => {
   const result = await withPdsRepoLock(
     database,
     `actor:${actor.id}`,
     async () => {
-      const repo = await requireHostedRepo(database, actor)
+      const currentActor = await requireFreshActor(database, actor)
+      const repo = await requireHostedRepo(database, currentActor)
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       let move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
@@ -1282,7 +1351,9 @@ export const finishMoveOut = async ({
 
       let operation: PlcSignedOperation | null = null
       if (!alreadySwitched) {
-        if (resolveEffectivePdsRepoStatus(repo, actor) !== 'active') {
+        // The switch would leave the destination with an empty repo.
+        if (move.importedRev === null) throw new PdsMoveOutNotCopiedError()
+        if (resolveEffectivePdsRepoStatus(repo, currentActor) !== 'active') {
           throw new PdsHostedAccountInactiveError(
             'Turn the Bluesky account on before finishing the move.'
           )
@@ -1400,19 +1471,33 @@ export const finishMoveOut = async ({
       if (!latestRepo || latestRepo.status === 'deleted') {
         throw new PdsHostedAccountNotFoundError()
       }
+      let missingBlobs = 0
       if (latestRepo.rev !== move.importedRev) {
-        const uploaded = await uploadRepoCar(database, repo.did, move)
+        const uploaded = await uploadRepoCar(database, repo.did, move, {
+          allowUnavailable: true
+        })
         move = uploaded.session
+        const copyDeadline = Date.now() + FINISH_BLOB_BUDGET_MS
         let cursor: string | undefined
         for (let page = 0; page < MAX_BLOB_PAGES; page += 1) {
+          if (Date.now() > copyDeadline) {
+            // Out of time: activate anyway and report what is still missing.
+            const remaining = await countMissingBlobs(database, repo.did, move)
+            move = remaining.session
+            missingBlobs += remaining.count
+            break
+          }
           const batch = await copyBlobBatch(database, repo.did, move, {
             cursor,
-            limit: DEFAULT_BLOB_BATCH_LIMIT
+            limit: DEFAULT_BLOB_BATCH_LIMIT,
+            store,
+            // The switch deactivated the repo here; its blobs still copy.
+            allowUnavailable: true
           })
           move = batch.session
+          missingBlobs += batch.failed.length
           if (batch.done) break
           cursor = batch.cursor ?? undefined
-          if (!cursor) break
         }
       }
 
@@ -1425,19 +1510,23 @@ export const finishMoveOut = async ({
       })
       move = activateRes.session
 
+      // The account delete removes the DID's session row too, so the move goes
+      // first: the row it returns is the one whose tokens are revoked, fresher
+      // than this call's copy if a refresh rotated them.
+      const deletedMove = await deleteMoveOutSession(database, repo.did)
       await database.deleteBlueskyAccount({
         actorId: actor.id,
         hostedDid: repo.did
       })
-      await deleteMoveOutSession(database, repo.did)
-      await revokeMoveOutTokens(move)
+      await revokeMoveOutTokens(deletedMove)
 
       return {
         movedTo: new URL(move.pdsUrl).host,
-        handle: move.handle
+        handle: move.handle,
+        missingBlobs
       }
     },
-    { ttlMs: FINISH_LOCK_MS, waitMs: FINISH_LOCK_MS }
+    { ttlMs: FINISH_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
   )
 
   return {
@@ -1461,7 +1550,8 @@ export const cancelMoveOut = async ({
     database,
     `actor:${actor.id}`,
     async () => {
-      const repo = await requireHostedRepo(database, actor)
+      const currentActor = await requireFreshActor(database, actor)
+      const repo = await requireHostedRepo(database, currentActor)
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       const move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
@@ -1471,8 +1561,8 @@ export const cancelMoveOut = async ({
       ) {
         throw new PdsMoveOutSwitchedError()
       }
-      assertPdsDomainEnabled(repo.domain)
-      await requireRotationKeypair()
+      // Cancelling signs nothing, so it needs neither the rotation key nor an
+      // enabled domain: the owner must be able to back out either way.
       // The stored operation can lag the directory: a switch that landed there
       // but not here must still refuse the cancel.
       const last = await getLastPlcOperation(repo.did)
@@ -1480,10 +1570,12 @@ export const cancelMoveOut = async ({
         throw new PdsMoveOutSwitchedError()
       }
 
-      await deleteMoveOutSession(database, repo.did)
-      return { pdsUrl: move.pdsUrl, handle: move.handle, session: move }
+      // Revoke the row that was actually deleted: a refresh may have rotated
+      // its tokens since this call read the move.
+      const deleted = await deleteMoveOutSession(database, repo.did)
+      return { pdsUrl: move.pdsUrl, handle: move.handle, session: deleted }
     },
-    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_MS }
+    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
   )
 
   await revokeMoveOutTokens(cancelled.session)

@@ -13,6 +13,7 @@ import type { Database } from '@/lib/database/types'
 import { isUniqueConstraintError } from '@/lib/database/utils/isUniqueConstraintError'
 import { getClaimableHost } from '@/lib/services/bluesky/claimableHost'
 import { readStoredBlueskySession } from '@/lib/services/bluesky/client'
+import type { StoredBlueskyMoveOutSession } from '@/lib/services/bluesky/client'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import { getLocalDomainMatcher } from '@/lib/services/domains/localDomains'
 import {
@@ -56,8 +57,10 @@ import { createPdsSigningKey } from './keys'
 import { withPdsRepoLock } from './lock'
 import {
   MOVE_LOCK_MS,
+  MOVE_LOCK_WAIT_MS,
   deleteMoveOutSession,
-  readMoveOutSession
+  readMoveOutSession,
+  revokeMoveOutTokens
 } from './moveSession'
 import { getMovedToHost, isPlcOperationPointingTo } from './moved'
 import {
@@ -211,6 +214,23 @@ const assertNoMoveInProgress = async (
   did: string
 ): Promise<void> => {
   if (await readMoveOutSession(database, did)) {
+    throw new PdsMoveOutPendingError()
+  }
+}
+
+// Deleting is refused only while the move has not switched: after the switch
+// (or once the stored operation points at the destination) the copy here is
+// inert, and refusing would leave it undeletable.
+const assertNoUnswitchedMove = async (
+  database: Database,
+  repo: PdsRepo
+): Promise<void> => {
+  const move = await readMoveOutSession(database, repo.did)
+  if (
+    move &&
+    move.switchedAt === null &&
+    !isPlcOperationPointingTo(repo.plcOperation, move.pdsUrl)
+  ) {
     throw new PdsMoveOutPendingError()
   }
 }
@@ -775,13 +795,14 @@ export const deleteHostedBlueskyAccount = async ({
   actor: Actor
   confirmHandle: string
 }): Promise<HostedBlueskyAccountState> => {
+  let deletedMove: StoredBlueskyMoveOutSession | null = null
   await withPdsRepoLock(
     database,
     `actor:${actor.id}`,
     async () => {
       const repo = await requireHostedRepo(database, actor)
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
-      await assertNoMoveInProgress(database, repo.did)
+      await assertNoUnswitchedMove(database, repo)
 
       // A moved copy has no handle here (the switch cleared it), so there is
       // nothing to type back; a live account still confirms with its handle.
@@ -820,11 +841,13 @@ export const deleteHostedBlueskyAccount = async ({
         // flip leaves a live account whole. If this delete fails, the next state
         // read removes the hosted row that no longer has a live repo. An outside
         // link is not this account's.
+        // The account delete removes the DID's session row too, so the move
+        // goes first: the row it returns is the one whose tokens are revoked.
+        deletedMove = await deleteMoveOutSession(database, repo.did)
         await database.deleteBlueskyAccount({
           actorId: actor.id,
           hostedDid: repo.did
         })
-        await deleteMoveOutSession(database, repo.did)
         const storageKeys = await database.listPdsBlobStorageKeys({
           did: repo.did
         })
@@ -835,8 +858,12 @@ export const deleteHostedBlueskyAccount = async ({
         return true
       })
     },
-    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_MS }
+    { ttlMs: MOVE_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
   )
+
+  // The move's destination session goes with the copy here; best effort, since
+  // the account is deleted either way.
+  await revokeMoveOutTokens(deletedMove)
 
   return getHostedBlueskyAccountState({ database, actor })
 }

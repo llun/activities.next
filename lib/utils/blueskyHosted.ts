@@ -106,6 +106,8 @@ export interface HostedBlueskyMoveOutPreferencesResult {
 export interface HostedBlueskyMoveOutFinishResult {
   movedTo: string
   handle: string
+  /** Blobs the post-switch copy could not send. */
+  missingBlobs: number
   state: HostedBlueskyAccountState
 }
 

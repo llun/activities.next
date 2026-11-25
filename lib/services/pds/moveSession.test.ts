@@ -75,10 +75,13 @@ describe('move session storage', () => {
     ).rejects.toBeInstanceOf(PdsMoveOutNotFoundError)
   })
 
-  it('deletes only a move-out session and is a no-op when gone', async () => {
+  it('deletes only a move-out session, returns the row it deleted, and is a no-op when gone', async () => {
     await writeStoredBlueskySession(database, DID_C, moveSession())
-    await deleteMoveOutSession(database, DID_C)
+    await expect(deleteMoveOutSession(database, DID_C)).resolves.toMatchObject({
+      type: 'move-out',
+      refreshJwt: 'refresh-a'
+    })
     expect(await readMoveOutSession(database, DID_C)).toBeNull()
-    await expect(deleteMoveOutSession(database, DID_C)).resolves.toBeUndefined()
+    await expect(deleteMoveOutSession(database, DID_C)).resolves.toBeNull()
   })
 })

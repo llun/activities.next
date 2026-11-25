@@ -662,6 +662,32 @@ describe('HostedBlueskyForm', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('keeps copying when a batch only ran out of its time budget', async () => {
+    vi.mocked(copyHostedBlueskyMoveOutBlobs)
+      .mockResolvedValueOnce({
+        copied: 1,
+        failed: [],
+        cursor: 'same',
+        done: false
+      })
+      .mockResolvedValueOnce({
+        copied: 1,
+        failed: [],
+        cursor: null,
+        done: true
+      })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    expect(
+      await screen.findByText('Images and videos: 2 copied')
+    ).toBeInTheDocument()
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(2)
+    expect(
+      screen.queryByText(
+        'The destination server stopped making progress. Try again.'
+      )
+    ).not.toBeInTheDocument()
+  })
+
   it('stops when the destination stops making progress', async () => {
     vi.mocked(copyHostedBlueskyMoveOutBlobs).mockResolvedValue({
       copied: 0,
@@ -696,6 +722,7 @@ describe('HostedBlueskyForm', () => {
     vi.mocked(finishHostedBlueskyMoveOut).mockResolvedValue({
       movedTo: 'bsky.social',
       handle: 'alex.bsky.social',
+      missingBlobs: 0,
       state: state({
         repo: { ...activeRepo, status: 'deactivated' },
         movedTo: 'bsky.social'
@@ -720,10 +747,39 @@ describe('HostedBlueskyForm', () => {
     expect(await screen.findByText('Moved to bsky.social')).toBeInTheDocument()
   })
 
+  it('says how many files the switch could not copy', async () => {
+    vi.mocked(finishHostedBlueskyMoveOut).mockResolvedValue({
+      movedTo: 'bsky.social',
+      handle: 'alex.bsky.social',
+      missingBlobs: 2,
+      state: state({
+        repo: { ...activeRepo, status: 'deactivated' },
+        movedTo: 'bsky.social'
+      })
+    })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Switch to bsky.social' })
+    )
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Current password'), {
+      target: { value: 'hunter2' }
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Switch to bsky.social' })
+    )
+    expect(
+      await screen.findByText(
+        "Moved to bsky.social. 2 images or videos couldn't be copied."
+      )
+    ).toBeInTheDocument()
+  })
+
   it('finishes an interrupted switch after the current password', async () => {
     vi.mocked(finishHostedBlueskyMoveOut).mockResolvedValue({
       movedTo: 'bsky.social',
       handle: 'alex.bsky.social',
+      missingBlobs: 0,
       state: state({
         repo: { ...activeRepo, status: 'deactivated' },
         movedTo: 'bsky.social'
