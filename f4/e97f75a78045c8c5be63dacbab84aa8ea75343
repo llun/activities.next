@@ -1,0 +1,72 @@
+lib/services/pds/accounts.ts
+  s_f193227df3df34::t_9d7dc5ccfede86 5,14,38,40,46,50,55-57,59,72,103,111-124,137-139,143,153-157,176-184,186-189,191-192,194-196,198-199,202-215,274,299,311,318,364-369,379,396,400-405,411,419,432,437,442-448,456,463-464,469,478,486-488,499,518,525-526,531,564-569,586
+  s_f193227df3df34::t_da836db6df4f63 185,197
+  s_f193227df3df34::t_356c6d53192f59 457-458,519-520
+lib/services/pds/errors.ts
+  s_f193227df3df34::t_5228d2b2ad8a50 220
+  s_f193227df3df34::t_fbf336c05022a6 216-219,221-247
+lib/database/domains/pds/queries.ts
+  s_f193227df3df34::t_d6fb479777c7cb 301-302,325
+app/api/well-known/atproto-did/route.test.ts
+  s_f193227df3df34::t_82139cc346aa7e 15,20,24-39,87,112,131,155,161-195
+lib/client/blueskyHosted.ts
+  s_f193227df3df34::t_be836129e7e963 41-42
+app/api/well-known/atproto-did/route.ts
+  s_f193227df3df34::t_72b78c4247fcfb 6,33-39,54-55,71-76
+app/(timeline)/settings/networks/HostedBlueskyForm.tsx
+  s_f193227df3df34::t_be836129e7e963 57-63,118-130,132,134-135,139-144,337,357-359,361,396-461
+  s_f193227df3df34::t_356c6d53192f59 136-138
+app/(timeline)/settings/networks/HostedBlueskyForm.test.tsx
+  s_f193227df3df34::t_00e9c3f41cbd8d 175-184,193-194,197-198,202,205,213-214,217-218,224-236
+  s_f193227df3df34::t_bc706d5a431d5d 237-238
+lib/services/pds/host.test.ts
+  s_f193227df3df34::t_97ad7d57c59004 714-715
+  s_f193227df3df34::t_4576c4952a2bb9 13,710-713,716-740,742-746,748-751,754-761
+  s_f193227df3df34::t_512fb13ed33ed3 741,747,752-753
+  s_f193227df3df34::t_c603196f1f1f8f 762
+docs/architecture.md
+  s_f193227df3df34::t_492c57393649f4 1760,1867
+lib/services/pds/routeResponse.ts
+  s_f193227df3df34::t_fbf336c05022a6 14
+lib/database/domains/pds/pds.test.ts
+  s_f193227df3df34::t_c7f1bf75518ccf 1733-1767
+lib/services/email/templates/blueskyRecoveryKeyNotice.ts
+  s_f193227df3df34::t_76f1577bb84697 1-55
+lib/services/pds/host.ts
+  s_f193227df3df34::t_d08f1e6a43f804 178-187,193-195,199-200,214-223
+  s_f193227df3df34::t_82fb19beae7587 177
+lib/services/pds/rateLimit.ts
+  s_f193227df3df34::t_5228d2b2ad8a50 12-13,82-112
+  s_f193227df3df34::t_df72fe5b04355f 113
+app/api/v1/bluesky/hosted/route.ts
+  s_f193227df3df34::t_cf24a5086cca84 1,5-10,22,24-30,43-44,50-122,152-159,182,187-192
+  s_f193227df3df34::t_356c6d53192f59 4
+app/api/v1/bluesky/hosted/route.test.ts
+  s_f193227df3df34::t_97ad7d57c59004 104
+  s_f193227df3df34::t_ecb1176d5a6502 52-53
+  s_f193227df3df34::t_67a04d96492ca0 3-5,17,26-38,54-67,105-108,177-180,187-190,198-291
+  s_f193227df3df34::t_3ae80d14439299 292
+lib/services/pds/accounts.test.ts
+  s_f193227df3df34::t_1f52f78eeada8a 88-89,97-98,114,116-119,121-124
+  s_f193227df3df34::t_53d3d7635338f1 608,890,904
+  s_f193227df3df34::t_356c6d53192f59 682-686,734-738
+  s_f193227df3df34::t_0d30d88b06b40c 5-8,25,53-64,607,609-681,687-733,739-889,891-903,905
+lib/services/email/templates/blueskyRecoveryKeyNotice.test.ts
+  s_f193227df3df34::t_76f1577bb84697 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4e97f75a78045c8c5be63dacbab84aa8ea75343",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
