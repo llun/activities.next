@@ -10,6 +10,7 @@ import { logger } from '@/lib/utils/logger'
 import {
   getPdsDomainForRequest,
   getPdsRequestHost,
+  getPdsSubdomainHandle,
   resetPdsHostCollisionWarningsForTests
 } from './host'
 
@@ -705,5 +706,58 @@ describe('PDS host routing', () => {
     } finally {
       errorSpy.mockRestore()
     }
+  })
+
+  describe('getPdsSubdomainHandle', () => {
+    const servedHosts = {
+      host: 'social.example',
+      trustedHosts: [] as string[],
+      servedDomains: [] as string[]
+    }
+    const subdomain = (host: string, served = servedHosts) =>
+      getPdsSubdomainHandle(new Headers({ host }), undefined, served)
+
+    it('answers <username>.<PDS host> with its username and domain', () => {
+      expect(subdomain('alice.pds.social.example')).toEqual({
+        username: 'alice',
+        domain: 'social.example',
+        handle: 'alice.pds.social.example'
+      })
+    })
+
+    it('does not answer a handle that names a served domain', () => {
+      expect(
+        subdomain('alice.pds.social.example', {
+          ...servedHosts,
+          servedDomains: ['alice.pds.social.example']
+        })
+      ).toBeNull()
+    })
+
+    it('does not answer a handle that names another configured PDS hostname', () => {
+      process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+        'social.example': {
+          enabled: true,
+          hostname: 'pds.social.example',
+          allowEmails: [],
+          allowActors: []
+        },
+        'other.example': {
+          enabled: true,
+          hostname: 'alice.pds.social.example',
+          allowEmails: [],
+          allowActors: []
+        }
+      })
+      expect(subdomain('bob.pds.social.example')?.username).toBe('bob')
+      expect(subdomain('alice.pds.social.example')).toBeNull()
+    })
+
+    it('fails closed until the served-domain snapshot is fresh', () => {
+      resetServedDomainsForTests()
+      expect(
+        getPdsSubdomainHandle(new Headers({ host: 'alice.pds.social.example' }))
+      ).toBeNull()
+    })
   })
 })

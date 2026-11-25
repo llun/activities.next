@@ -11,7 +11,7 @@ import { PlcDirectoryError } from './plc'
 // The statuses a hosted-account action may answer with. A PdsError carries its
 // own; anything else (a 400 validation, a 404) is reported as 422 so the card
 // shows the message rather than a generic failure.
-const HOSTED_ERROR_STATUSES = new Set<number>([403, 409, 422])
+const HOSTED_ERROR_STATUSES = new Set<number>([403, 409, 422, 429])
 
 const hostedErrorStatus = (error: PdsError): StatusCode =>
   HOSTED_ERROR_STATUSES.has(error.statusCode)

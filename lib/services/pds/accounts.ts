@@ -2,6 +2,7 @@ import { Secp256k1Keypair, parseDidKey } from '@atproto/crypto'
 import { isValidHandle, normalizeHandle } from '@atproto/syntax'
 
 import {
+  type BlueskyPdsConfig,
   type BlueskyPdsDomainConfig,
   getPdsConfig,
   getPdsRotationKeyHex,
@@ -10,6 +11,7 @@ import {
 import type { PdsRepo } from '@/lib/database/domains/pds/types'
 import type { Database } from '@/lib/database/types'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
+import { getLocalDomainMatcher } from '@/lib/services/domains/localDomains'
 import {
   isActorConfirmationPending,
   isActorModerationBlocked
@@ -33,21 +35,28 @@ import {
   PdsHostedAccountExistsError,
   PdsHostedAccountLinkedError,
   PdsHostedAccountNotFoundError,
+  PdsIdentityMovedError,
   PdsNotAllowedError,
+  PdsPlcOperationInvalidError,
   PdsRecoveryKeyInvalidError,
   PdsRotationKeyMissingError,
   PdsValidationError
 } from './errors'
 import { formatPdsAccountEvent, formatPdsIdentityEvent } from './events'
+import { isReservedPdsSubdomainHandle } from './host'
 import { createPdsSigningKey } from './keys'
 import { withPdsRepoLock } from './lock'
 import {
+  type PlcOperationChanges,
   type PlcSignedOperation,
   cidForOperation,
   createGenesisOperation,
   createUpdateOperation,
-  submitPlcOperation
+  getLastPlcOperation,
+  submitPlcOperation,
+  verifyPlcOperationSignature
 } from './plc'
+import { consumeHostedBlueskyRateLimit } from './rateLimit'
 import { createPdsRepo } from './repo'
 
 // The hosted-account service behind Settings › Bluesky (D2.3a): creating a
@@ -60,6 +69,7 @@ const stripPort = (hostname: string): string => hostname.replace(/:\d+$/, '')
 type HostedAccountContext = {
   domain: string
   entry: BlueskyPdsDomainConfig
+  config: BlueskyPdsConfig
   pdsEnabled: boolean
   allowed: boolean
   blocked: boolean
@@ -90,11 +100,26 @@ const resolveHostedAccountContext = (
   return {
     domain,
     entry,
+    config,
     pdsEnabled: entry.enabled,
     allowed,
     blocked,
     available: entry.enabled && allowed && !blocked
   }
+}
+
+// The gate every hosted-account write passes: PDS enabled on the actor's
+// domain, the actor allowlisted, and not blocked (unconfirmed, unapproved,
+// suspended, disabled or being deleted).
+const requireUsableHostedContext = (actor: Actor): HostedAccountContext => {
+  const context = resolveHostedAccountContext(actor)
+  if (!context || !context.pdsEnabled) {
+    throw new PdsDisabledError(actor.domain)
+  }
+  if (!context.allowed || context.blocked) {
+    throw new PdsNotAllowedError(actor.id)
+  }
+  return context
 }
 
 const summarizeRepo = (
@@ -109,10 +134,13 @@ const summarizeRepo = (
       }
     : null
 
+const pdsSubdomainHandle = (actor: Actor, entry: BlueskyPdsDomainConfig) =>
+  `${actor.username}.${stripPort(entry.hostname)}`.toLowerCase()
+
 const getHandleChoices = async (
   database: Database,
   actor: Actor,
-  entry: BlueskyPdsDomainConfig
+  { entry, config }: Pick<HostedAccountContext, 'entry' | 'config'>
 ): Promise<HostedBlueskyHandleChoice[]> => {
   const choices: HostedBlueskyHandleChoice[] = []
   // The served domain this profile claimed in Settings › Other networks. A
@@ -122,9 +150,11 @@ const getHandleChoices = async (
   if (linked?.instanceHandle) {
     choices.push({ handle: linked.instanceHandle, kind: 'instance' })
   }
-  const pdsHandle =
-    `${actor.username}.${stripPort(entry.hostname)}`.toLowerCase()
-  choices.push({ handle: pdsHandle, kind: 'pds' })
+  const pdsHandle = pdsSubdomainHandle(actor, entry)
+  const isServedDomain = await getLocalDomainMatcher(database)
+  if (!isReservedPdsSubdomainHandle(pdsHandle, isServedDomain, config)) {
+    choices.push({ handle: pdsHandle, kind: 'pds' })
+  }
   return choices
 }
 
@@ -143,22 +173,45 @@ const requireRotationKeypair = async (): Promise<Secp256k1Keypair> => {
   return Secp256k1Keypair.import(Buffer.from(hex, 'hex'))
 }
 
-const parseStoredOperation = (repo: PdsRepo): PlcSignedOperation => {
-  if (!repo.plcOperation) {
-    throw new PdsValidationError(
-      'The account has no stored PLC operation to update.'
-    )
+/**
+ * Builds a server-signed update chained on the directory's last operation,
+ * not the stored one: a submit whose local write failed, or an operation the
+ * owner signed with their recovery key, would otherwise fork the chain. The
+ * update copies the fetched operation's fields, so only `changes` differ.
+ */
+const createChainedUpdate = async (
+  did: string,
+  rotationKeypair: Secp256k1Keypair,
+  changes: PlcOperationChanges
+): Promise<PlcSignedOperation> => {
+  const last = await getLastPlcOperation(did)
+  if (!(await verifyPlcOperationSignature(last, last.rotationKeys))) {
+    throw new PdsPlcOperationInvalidError()
   }
-  try {
-    return JSON.parse(repo.plcOperation) as PlcSignedOperation
-  } catch (error) {
-    throw new PdsValidationError(
-      'The stored PLC operation is invalid.',
-      'InvalidRequest',
-      { cause: error }
-    )
+  if (!last.rotationKeys.includes(rotationKeypair.did())) {
+    throw new PdsIdentityMovedError()
   }
+  return createUpdateOperation({
+    previous: last,
+    previousCid: await cidForOperation(last),
+    changes,
+    rotationKeypair
+  })
 }
+
+// Runs a repo write under the per-DID lock, re-reading the repo there: a
+// delete that landed after the caller's read leaves a tombstone, which no
+// write may touch. `write` answers whether it changed the row.
+const writeLiveRepo = (
+  database: Database,
+  did: string,
+  write: () => Promise<boolean>
+): Promise<boolean> =>
+  withPdsRepoLock(database, did, async () => {
+    const current = await database.getPdsRepo({ did })
+    if (!current || current.status === 'deleted') return false
+    return write()
+  })
 
 const normalizeHandleInput = (handle: string): string => {
   const normalized = normalizeHandle(handle.trim())
@@ -218,7 +271,7 @@ export const getHostedBlueskyAccountState = async ({
     pdsHostname: context.entry.hostname,
     rotationKeyConfigured,
     repo: summarizeRepo(repo),
-    handleChoices: await getHandleChoices(database, actor, context.entry),
+    handleChoices: await getHandleChoices(database, actor, context),
     customHandleAllowed: Boolean(repo && repo.status !== 'deleted')
   }
 }
@@ -243,14 +296,7 @@ export const createHostedBlueskyAccount = async ({
   actor: Actor
   handle: string
 }): Promise<HostedBlueskyAccountState> => {
-  const context = resolveHostedAccountContext(actor)
-  if (!context || !context.pdsEnabled) {
-    throw new PdsDisabledError(actor.domain)
-  }
-  if (!context.allowed || context.blocked) {
-    throw new PdsNotAllowedError(actor.id)
-  }
-
+  const context = requireUsableHostedContext(actor)
   const rotationKeypair = await requireRotationKeypair()
 
   const existing = await database.getPdsRepo({ actorId: actor.id })
@@ -262,13 +308,14 @@ export const createHostedBlueskyAccount = async ({
   }
 
   const normalizedHandle = normalizeHandleInput(handle)
-  const choices = await getHandleChoices(database, actor, context.entry)
+  const choices = await getHandleChoices(database, actor, context)
   if (!choices.some((choice) => choice.handle === normalizedHandle)) {
     throw new PdsHandleNotAllowedError(
       'Choose one of the offered handles for a new account.'
     )
   }
 
+  await consumeHostedBlueskyRateLimit(database, actor.id, 'create')
   const signingKey = await createPdsSigningKey()
   const { did, operation } = await createGenesisOperation({
     rotationKeys: [rotationKeypair.did()],
@@ -314,8 +361,12 @@ export const deactivateHostedBlueskyAccount = async ({
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
 
-  await withPdsRepoLock(database, repo.did, async () => {
-    await database.updatePdsRepoStatus({ did: repo.did, status: 'deactivated' })
+  await writeLiveRepo(database, repo.did, async () => {
+    const changed = await database.updatePdsRepoStatus({
+      did: repo.did,
+      status: 'deactivated'
+    })
+    if (!changed) return false
     await database.appendPdsEvent({
       did: repo.did,
       type: 'account',
@@ -325,6 +376,7 @@ export const deactivateHostedBlueskyAccount = async ({
         status: 'deactivated'
       })
     })
+    return true
   })
 
   return getHostedBlueskyAccountState({ database, actor })
@@ -341,24 +393,22 @@ export const reactivateHostedBlueskyAccount = async ({
   database: Database
   actor: Actor
 }): Promise<HostedBlueskyAccountState> => {
-  const context = resolveHostedAccountContext(actor)
-  if (!context || !context.pdsEnabled) {
-    throw new PdsDisabledError(actor.domain)
-  }
-  if (!context.allowed || context.blocked) {
-    throw new PdsNotAllowedError(actor.id)
-  }
-
+  requireUsableHostedContext(actor)
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
 
-  await withPdsRepoLock(database, repo.did, async () => {
-    await database.updatePdsRepoStatus({ did: repo.did, status: 'active' })
+  await writeLiveRepo(database, repo.did, async () => {
+    const changed = await database.updatePdsRepoStatus({
+      did: repo.did,
+      status: 'active'
+    })
+    if (!changed) return false
     await database.appendPdsEvent({
       did: repo.did,
       type: 'account',
       payload: formatPdsAccountEvent({ did: repo.did, active: true })
     })
+    return true
   })
 
   return getHostedBlueskyAccountState({ database, actor })
@@ -366,7 +416,7 @@ export const reactivateHostedBlueskyAccount = async ({
 
 /**
  * Changes the handle: a server-signed PLC update (alsoKnownAs) chained on the
- * stored operation, then `#identity`. A custom domain handle must resolve to
+ * directory's last operation, then `#identity`. A custom domain handle must resolve to
  * this DID first; the PDS handle and a claimed instance handle are answered by
  * this server and skip the check.
  */
@@ -379,18 +429,23 @@ export const changeHostedBlueskyHandle = async ({
   actor: Actor
   handle: string
 }): Promise<HostedBlueskyAccountState> => {
+  const context = requireUsableHostedContext(actor)
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
 
   const normalizedHandle = normalizeHandleInput(handle)
-  const context = resolveHostedAccountContext(actor)
-  if (!context) throw new PdsDisabledError(actor.domain)
-
-  const choices = await getHandleChoices(database, actor, context.entry)
+  const choices = await getHandleChoices(database, actor, context)
   const selfAnswered = choices.some(
     (choice) => choice.handle === normalizedHandle
   )
   if (!selfAnswered) {
+    // The PDS subdomain handle is left out of the choices only when another
+    // host owns that name.
+    if (normalizedHandle === pdsSubdomainHandle(actor, context.entry)) {
+      throw new PdsHandleNotAllowedError(
+        'That handle belongs to another domain on this server. Choose another handle.'
+      )
+    }
     const resolvedDid = await resolveHandleDid(normalizedHandle)
     if (resolvedDid !== repo.did) {
       throw new PdsHandleNotResolvedError(normalizedHandle)
@@ -398,23 +453,20 @@ export const changeHostedBlueskyHandle = async ({
   }
 
   const rotationKeypair = await requireRotationKeypair()
-  const previous = parseStoredOperation(repo)
-  const previousCid = await cidForOperation(previous)
-  const operation = await createUpdateOperation({
-    previous,
-    previousCid,
-    changes: { alsoKnownAs: [`at://${normalizedHandle}`] },
-    rotationKeypair
+  await consumeHostedBlueskyRateLimit(database, actor.id, 'handle')
+  const operation = await createChainedUpdate(repo.did, rotationKeypair, {
+    alsoKnownAs: [`at://${normalizedHandle}`]
   })
 
   await submitPlcOperation(repo.did, operation)
 
-  await withPdsRepoLock(database, repo.did, async () => {
-    await database.updatePdsRepoIdentity({
+  await writeLiveRepo(database, repo.did, async () => {
+    const changed = await database.updatePdsRepoIdentity({
       did: repo.did,
       handle: normalizedHandle,
       plcOperation: JSON.stringify(operation)
     })
+    if (!changed) return false
     await database.appendPdsEvent({
       did: repo.did,
       type: 'identity',
@@ -423,6 +475,7 @@ export const changeHostedBlueskyHandle = async ({
         handle: normalizedHandle
       })
     })
+    return true
   })
 
   return getHostedBlueskyAccountState({ database, actor })
@@ -430,7 +483,9 @@ export const changeHostedBlueskyHandle = async ({
 
 /**
  * Adds a `did:key` recovery key first in `rotationKeys`, or removes it when
- * `recoveryKeyDid` is null, through a server-signed PLC update.
+ * `recoveryKeyDid` is null, through a server-signed PLC update chained on the
+ * directory's last operation. The caller has already checked the account's
+ * current password.
  */
 export const setHostedBlueskyRecoveryKey = async ({
   database,
@@ -441,6 +496,7 @@ export const setHostedBlueskyRecoveryKey = async ({
   actor: Actor
   recoveryKeyDid: string | null
 }): Promise<HostedBlueskyAccountState> => {
+  requireUsableHostedContext(actor)
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
 
@@ -459,24 +515,20 @@ export const setHostedBlueskyRecoveryKey = async ({
       ? [recoveryKeyDid, serverKeyDid]
       : [serverKeyDid]
 
-  const previous = parseStoredOperation(repo)
-  const previousCid = await cidForOperation(previous)
-  const operation = await createUpdateOperation({
-    previous,
-    previousCid,
-    changes: { rotationKeys },
-    rotationKeypair
+  await consumeHostedBlueskyRateLimit(database, actor.id, 'recovery')
+  const operation = await createChainedUpdate(repo.did, rotationKeypair, {
+    rotationKeys
   })
 
   await submitPlcOperation(repo.did, operation)
 
-  await withPdsRepoLock(database, repo.did, async () => {
-    await database.updatePdsRepoIdentity({
+  await writeLiveRepo(database, repo.did, () =>
+    database.updatePdsRepoIdentity({
       did: repo.did,
       recoveryKeyDid,
       plcOperation: JSON.stringify(operation)
     })
-  })
+  )
 
   return getHostedBlueskyAccountState({ database, actor })
 }
@@ -509,7 +561,12 @@ export const deleteHostedBlueskyAccount = async ({
     throw new PdsConfirmHandleMismatchError()
   }
 
-  await withPdsRepoLock(database, repo.did, async () => {
+  await writeLiveRepo(database, repo.did, async () => {
+    const changed = await database.updatePdsRepoStatus({
+      did: repo.did,
+      status: 'deleted'
+    })
+    if (!changed) return false
     await database.appendPdsEvent({
       did: repo.did,
       type: 'account',
@@ -519,7 +576,6 @@ export const deleteHostedBlueskyAccount = async ({
         status: 'deleted'
       })
     })
-    await database.updatePdsRepoStatus({ did: repo.did, status: 'deleted' })
     const storageKeys = await database.listPdsBlobStorageKeys({
       did: repo.did
     })
@@ -527,6 +583,7 @@ export const deleteHostedBlueskyAccount = async ({
       context: { did: repo.did, reason: 'hosted_account_deleted' }
     })
     await database.deletePdsRepoContent({ did: repo.did })
+    return true
   })
 
   return getHostedBlueskyAccountState({ database, actor })

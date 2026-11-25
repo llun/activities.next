@@ -175,15 +175,29 @@ export const resetPdsHostCollisionWarningsForTests = (): void => {
 }
 
 /**
+ * Whether a `<username>.<PDS hostname>` handle names a served domain of this
+ * instance or another configured PDS hostname. Such a handle is never offered,
+ * accepted or answered: the name belongs to the other host.
+ */
+export const isReservedPdsSubdomainHandle = (
+  handle: string,
+  isServedDomain: (host: string) => boolean,
+  config: BlueskyPdsConfig
+): boolean => isServedDomain(handle) || isConfiguredPdsHostname(handle, config)
+
+/**
  * When the request host is `<username>.<PDS hostname>` for an enabled PDS
  * domain, returns the username, the served domain it belongs to and the
  * handle (the host without a port). Uses the same strict raw-host parsing as
  * `getPdsDomainForRequest`, so a comma list or an unnormalisable Host answers
- * null rather than a guess.
+ * null rather than a guess. A handle that names a served domain or another
+ * configured PDS hostname answers null, and so does any handle until the
+ * served-domain snapshot is fresh (fail closed, as `getPdsDomainForRequest`).
  */
 export const getPdsSubdomainHandle = (
   headers: HostHeaders,
-  config: BlueskyPdsConfig | null = getPdsConfig()
+  config: BlueskyPdsConfig | null = getPdsConfig(),
+  servedHostConfig?: ReturnType<typeof getServedHostConfig>
 ): { username: string; domain: string; handle: string } | null => {
   if (!config) return null
   const host = getPdsRequestHost(headers)
@@ -197,6 +211,16 @@ export const getPdsSubdomainHandle = (
     const username = hostname.slice(0, -(pdsHost.length + 1))
     // A handle's first label is one DNS label; a deeper name is not one of ours.
     if (!username || username.includes('.')) continue
+    if (servedHostConfig === undefined && !isServedDomainSnapshotFresh()) {
+      getServedHostConfig()
+      return null
+    }
+    const isServedDomain = createLocalDomainMatcher(
+      servedHostConfig ?? getServedHostConfig()
+    )
+    if (isReservedPdsSubdomainHandle(hostname, isServedDomain, config)) {
+      return null
+    }
     return { username, domain: entry.domain, handle: hostname }
   }
   return null

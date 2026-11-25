@@ -2,6 +2,10 @@ import { Secp256k1Keypair } from '@atproto/crypto'
 
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
+import {
+  resetServedDomainsForTests,
+  setServedDomainsForTests
+} from '@/lib/services/domains/servedDomainSnapshot'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
@@ -18,6 +22,7 @@ import { decodePdsEvent } from './events'
 import {
   type PlcSignedOperation,
   cidForOperation,
+  createUpdateOperation,
   verifyPlcOperationSignature
 } from './plc'
 import { pruneDeletedPdsRepos } from './retention'
@@ -45,7 +50,18 @@ const ALLOWED_USERNAMES = [
   'hosted-recreate',
   'hosted-moderation',
   'hosted-actordelete',
-  'hosted-state'
+  'hosted-state',
+  'hosted-gate-allow',
+  'hosted-gate-disabled',
+  'hosted-rate-create',
+  'hosted-rate-handle',
+  'hosted-rate-recovery',
+  'hosted-chain-stale',
+  'hosted-chain-moved',
+  'hosted-chain-badsig',
+  'hosted-collide',
+  'hosted-collide-pds',
+  'hosted-race'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -69,6 +85,8 @@ const okResponse = (url: string, body = '', statusCode = 200) => ({
 
 type Submission = { url: string; operation: PlcSignedOperation }
 
+const DIRECTORY = 'https://plc.directory'
+
 describe('hosted Bluesky accounts', () => {
   const testDb = createTestDatabase()
   const { database } = testDb
@@ -76,6 +94,8 @@ describe('hosted Bluesky accounts', () => {
   const originalRotationKey = process.env.ACTIVITIES_BLUESKY_PDS_ROTATION_KEY
   let rotationKeypair: Secp256k1Keypair
   let submissions: Submission[]
+  // The fake PLC directory: every accepted operation per DID, last one last.
+  const directoryLog = new Map<string, PlcSignedOperation[]>()
 
   beforeAll(async () => {
     await testDb.prepare()
@@ -91,13 +111,17 @@ describe('hosted Bluesky accounts', () => {
     submissions = []
     vi.mocked(safeRemoteFetch).mockReset()
     vi.mocked(safeRemoteFetch).mockImplementation(async ({ url, body }) => {
+      const did = url.slice(DIRECTORY.length + 1).replace(/\/log\/last$/, '')
       if (body) {
-        submissions.push({
-          url,
-          operation: JSON.parse(body) as PlcSignedOperation
-        })
+        const operation = JSON.parse(body) as PlcSignedOperation
+        submissions.push({ url, operation })
+        directoryLog.set(did, [...(directoryLog.get(did) ?? []), operation])
+        return okResponse(url)
       }
-      return okResponse(url)
+      const last = directoryLog.get(did)?.at(-1)
+      return last
+        ? okResponse(url, JSON.stringify(last))
+        : okResponse(url, '', 404)
     })
     vi.mocked(createBlueskyIdentityResolver).mockReset()
   })
@@ -579,5 +603,304 @@ describe('hosted Bluesky accounts', () => {
       { handle: pdsHandle('hosted-state'), kind: 'pds' }
     ])
     expect(state.customHandleAllowed).toBe(false)
+  })
+
+  const countEvents = async (did: string) =>
+    (await database.listPdsEvents({ did })).length
+
+  it('refuses a handle or recovery key change once the actor leaves the allowlist', async () => {
+    const actor = await createActor('hosted-gate-allow')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-gate-allow')
+    })
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      [TEST_DOMAIN]: {
+        enabled: true,
+        hostname: PDS_HOSTNAME,
+        allowEmails: [],
+        allowActors: []
+      }
+    })
+    submissions = []
+
+    await expect(
+      changeHostedBlueskyHandle({
+        database,
+        actor,
+        handle: pdsHandle('hosted-gate-allow')
+      })
+    ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
+    await expect(
+      setHostedBlueskyRecoveryKey({
+        database,
+        actor,
+        recoveryKeyDid: (await Secp256k1Keypair.create()).did()
+      })
+    ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
+    expect(submissions).toHaveLength(0)
+  })
+
+  it('refuses a handle or recovery key change on a disabled domain', async () => {
+    const actor = await createActor('hosted-gate-disabled')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-gate-disabled')
+    })
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      [TEST_DOMAIN]: {
+        ...JSON.parse(ENABLED_PDS_ENV)[TEST_DOMAIN],
+        enabled: false
+      }
+    })
+    submissions = []
+
+    await expect(
+      changeHostedBlueskyHandle({
+        database,
+        actor,
+        handle: pdsHandle('hosted-gate-disabled')
+      })
+    ).rejects.toMatchObject({ code: 'PdsDisabled' })
+    await expect(
+      setHostedBlueskyRecoveryKey({ database, actor, recoveryKeyDid: null })
+    ).rejects.toMatchObject({ code: 'PdsDisabled' })
+    expect(submissions).toHaveLength(0)
+  })
+
+  it('limits account creation to 3 a day', async () => {
+    const actor = await createActor('hosted-rate-create')
+    const handle = pdsHandle('hosted-rate-create')
+    // An attempt refused by validation does not count.
+    await expect(
+      createHostedBlueskyAccount({ database, actor, handle: 'other.example' })
+    ).rejects.toMatchObject({ code: 'HandleNotAllowed' })
+    for (let i = 0; i < 3; i++) {
+      await createHostedBlueskyAccount({ database, actor, handle })
+      await deleteHostedBlueskyAccount({
+        database,
+        actor,
+        confirmHandle: handle
+      })
+    }
+    submissions = []
+
+    await expect(
+      createHostedBlueskyAccount({ database, actor, handle })
+    ).rejects.toMatchObject({ code: 'RateLimited', statusCode: 429 })
+    expect(submissions).toHaveLength(0)
+    expect(await database.getPdsRepo({ actorId: actor.id })).toBeNull()
+  })
+
+  it('limits handle changes to 10 a day, counting only valid attempts', async () => {
+    const actor = await createActor('hosted-rate-handle')
+    const handle = pdsHandle('hosted-rate-handle')
+    await createHostedBlueskyAccount({ database, actor, handle })
+    for (let i = 0; i < 3; i++) {
+      await expect(
+        changeHostedBlueskyHandle({ database, actor, handle: 'not a handle' })
+      ).rejects.toMatchObject({ code: 'InvalidRequest' })
+    }
+    for (let i = 0; i < 10; i++) {
+      await changeHostedBlueskyHandle({ database, actor, handle })
+    }
+    submissions = []
+
+    await expect(
+      changeHostedBlueskyHandle({ database, actor, handle })
+    ).rejects.toMatchObject({ code: 'RateLimited', statusCode: 429 })
+    expect(submissions).toHaveLength(0)
+  })
+
+  it('limits recovery key changes to 10 a day, counting only valid attempts', async () => {
+    const actor = await createActor('hosted-rate-recovery')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-rate-recovery')
+    })
+    for (let i = 0; i < 3; i++) {
+      await expect(
+        setHostedBlueskyRecoveryKey({
+          database,
+          actor,
+          recoveryKeyDid: 'did:key:not-a-key'
+        })
+      ).rejects.toMatchObject({ code: 'RecoveryKeyInvalid' })
+    }
+    for (let i = 0; i < 10; i++) {
+      await setHostedBlueskyRecoveryKey({
+        database,
+        actor,
+        recoveryKeyDid: null
+      })
+    }
+    submissions = []
+
+    await expect(
+      setHostedBlueskyRecoveryKey({ database, actor, recoveryKeyDid: null })
+    ).rejects.toMatchObject({ code: 'RateLimited', statusCode: 429 })
+    expect(submissions).toHaveLength(0)
+  })
+
+  // An operation the owner signed with their own key and sent to the
+  // directory directly: this server never stored it.
+  const appendOwnerOperation = async (
+    did: string,
+    owner: Secp256k1Keypair,
+    rotationKeys: string[]
+  ) => {
+    const last = directoryLog.get(did)!.at(-1)!
+    const operation = await createUpdateOperation({
+      previous: last,
+      previousCid: await cidForOperation(last),
+      changes: { rotationKeys },
+      rotationKeypair: owner
+    })
+    directoryLog.get(did)!.push(operation)
+    return operation
+  }
+
+  it('chains an update on the directory’s last operation, not a stale stored one', async () => {
+    const actor = await createActor('hosted-chain-stale')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-chain-stale')
+    })
+    const repo = await database.getPdsRepo({ actorId: actor.id })
+    const owner = await Secp256k1Keypair.create()
+    const ownerOperation = await appendOwnerOperation(repo!.did, owner, [
+      owner.did(),
+      rotationKeypair.did()
+    ])
+    submissions = []
+
+    await changeHostedBlueskyHandle({
+      database,
+      actor,
+      handle: pdsHandle('hosted-chain-stale')
+    })
+
+    expect(submissions).toHaveLength(1)
+    const { operation } = submissions[0]
+    expect(operation.prev).toBe(await cidForOperation(ownerOperation))
+    // The owner's rotation keys are kept, not reverted to the stored ones.
+    expect(operation.rotationKeys).toEqual([owner.did(), rotationKeypair.did()])
+    expect(
+      (await database.getPdsRepo({ actorId: actor.id }))?.plcOperation
+    ).toBe(JSON.stringify(operation))
+  })
+
+  it('refuses an update once the directory no longer lists the server rotation key', async () => {
+    const actor = await createActor('hosted-chain-moved')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-chain-moved')
+    })
+    const repo = await database.getPdsRepo({ actorId: actor.id })
+    const owner = await Secp256k1Keypair.create()
+    await appendOwnerOperation(repo!.did, owner, [owner.did()])
+    submissions = []
+
+    await expect(
+      setHostedBlueskyRecoveryKey({ database, actor, recoveryKeyDid: null })
+    ).rejects.toMatchObject({ code: 'IdentityMoved' })
+    expect(submissions).toHaveLength(0)
+  })
+
+  it('refuses an update when the directory’s last operation does not verify', async () => {
+    const actor = await createActor('hosted-chain-badsig')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-chain-badsig')
+    })
+    const repo = await database.getPdsRepo({ actorId: actor.id })
+    const genesis = directoryLog.get(repo!.did)!.at(-1)!
+    directoryLog
+      .get(repo!.did)!
+      .push({ ...genesis, alsoKnownAs: ['at://evil.example'] })
+    submissions = []
+
+    await expect(
+      changeHostedBlueskyHandle({
+        database,
+        actor,
+        handle: pdsHandle('hosted-chain-badsig')
+      })
+    ).rejects.toMatchObject({ code: 'PlcOperationInvalid' })
+    expect(submissions).toHaveLength(0)
+  })
+
+  describe('a PDS handle another host owns', () => {
+    afterEach(() => {
+      resetServedDomainsForTests()
+    })
+
+    it('is not offered or accepted when it names a served domain', async () => {
+      const actor = await createActor('hosted-collide')
+      const handle = pdsHandle('hosted-collide')
+      setServedDomainsForTests([handle])
+
+      const state = await getHostedBlueskyAccountState({ database, actor })
+      expect(state.handleChoices).toEqual([])
+      await expect(
+        createHostedBlueskyAccount({ database, actor, handle })
+      ).rejects.toMatchObject({ code: 'HandleNotAllowed' })
+      expect(submissions).toHaveLength(0)
+    })
+
+    it('is not accepted on a handle change when it names another PDS hostname', async () => {
+      const actor = await createActor('hosted-collide-pds')
+      const handle = pdsHandle('hosted-collide-pds')
+      await createHostedBlueskyAccount({ database, actor, handle })
+      process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+        ...JSON.parse(ENABLED_PDS_ENV),
+        'other.example': {
+          enabled: true,
+          hostname: handle,
+          allowEmails: [],
+          allowActors: []
+        }
+      })
+      submissions = []
+
+      expect(
+        (await getHostedBlueskyAccountState({ database, actor })).handleChoices
+      ).toEqual([])
+      await expect(
+        changeHostedBlueskyHandle({ database, actor, handle })
+      ).rejects.toMatchObject({ code: 'HandleNotAllowed' })
+      expect(createBlueskyIdentityResolver).not.toHaveBeenCalled()
+      expect(submissions).toHaveLength(0)
+    })
+  })
+
+  it('leaves the tombstone untouched when a toggle or handle change lands after delete', async () => {
+    const actor = await createActor('hosted-race')
+    const handle = pdsHandle('hosted-race')
+    await createHostedBlueskyAccount({ database, actor, handle })
+    const stale = await database.getPdsRepo({ actorId: actor.id })
+    await deleteHostedBlueskyAccount({ database, actor, confirmHandle: handle })
+    const tombstone = await database.getPdsRepo({ did: stale!.did })
+    const eventsBefore = await countEvents(stale!.did)
+
+    // Each action read the repo before the delete landed.
+    const getPdsRepo = vi.spyOn(database, 'getPdsRepo')
+    try {
+      getPdsRepo.mockResolvedValueOnce(stale)
+      await deactivateHostedBlueskyAccount({ database, actor })
+      getPdsRepo.mockResolvedValueOnce(stale)
+      await changeHostedBlueskyHandle({ database, actor, handle })
+    } finally {
+      getPdsRepo.mockRestore()
+    }
+
+    expect(await database.getPdsRepo({ did: stale!.did })).toEqual(tombstone)
+    expect(await countEvents(stale!.did)).toBe(eventsBefore)
   })
 })

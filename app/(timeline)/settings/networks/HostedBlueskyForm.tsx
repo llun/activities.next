@@ -54,6 +54,13 @@ export const HostedBlueskyForm = ({
   const [editingHandle, setEditingHandle] = useState(false)
   const [handleDraft, setHandleDraft] = useState('')
   const [recoveryKey, setRecoveryKey] = useState('')
+  // The recovery key change waiting on the current password: the key to add,
+  // or null to remove it.
+  const [recoveryChange, setRecoveryChange] = useState<{
+    recoveryKeyDid: string | null
+  } | null>(null)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [recoveryError, setRecoveryError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmHandle, setConfirmHandle] = useState('')
   const [deleteError, setDeleteError] = useState('')
@@ -108,20 +115,33 @@ export const HostedBlueskyForm = ({
       setStatus('Handle changed.')
     })
 
-  const addRecoveryKey = () =>
-    void run('recovery', async () => {
-      applyState(
-        await updateHostedBlueskyAccount({ recoveryKeyDid: recoveryKey })
-      )
-      setRecoveryKey('')
-      setStatus('Recovery key added.')
-    })
+  const closeRecovery = () => {
+    setRecoveryChange(null)
+    setCurrentPassword('')
+    setRecoveryError('')
+  }
 
-  const removeRecoveryKey = () =>
-    void run('recovery', async () => {
-      applyState(await updateHostedBlueskyAccount({ recoveryKeyDid: null }))
-      setStatus('Recovery key removed.')
-    })
+  const submitRecovery = async () => {
+    if (!recoveryChange) return
+    const { recoveryKeyDid } = recoveryChange
+    setBusy('recovery')
+    setRecoveryError('')
+    setStatus('')
+    try {
+      applyState(
+        await updateHostedBlueskyAccount({ recoveryKeyDid, currentPassword })
+      )
+      closeRecovery()
+      if (recoveryKeyDid) setRecoveryKey('')
+      setStatus(
+        recoveryKeyDid ? 'Recovery key added.' : 'Recovery key removed.'
+      )
+    } catch (error) {
+      setRecoveryError(errorMessage(error))
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const closeDelete = () => {
     setConfirmDelete(false)
@@ -314,7 +334,7 @@ export const HostedBlueskyForm = ({
                   size="sm"
                   className="h-auto px-0"
                   disabled={busy !== null}
-                  onClick={removeRecoveryKey}
+                  onClick={() => setRecoveryChange({ recoveryKeyDid: null })}
                 >
                   Remove
                 </Button>
@@ -334,9 +354,11 @@ export const HostedBlueskyForm = ({
                   type="button"
                   variant="outline"
                   disabled={busy !== null || recoveryKey.trim() === ''}
-                  onClick={addRecoveryKey}
+                  onClick={() =>
+                    setRecoveryChange({ recoveryKeyDid: recoveryKey.trim() })
+                  }
                 >
-                  {busy === 'recovery' ? 'Adding…' : 'Add'}
+                  Add
                 </Button>
               </div>
             )}
@@ -371,6 +393,72 @@ export const HostedBlueskyForm = ({
     <div className="space-y-4">
       {error ? <Alert title={error} /> : null}
       {card}
+      <Dialog
+        open={recoveryChange !== null}
+        onOpenChange={(next) => (next ? undefined : closeRecovery())}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="motion-reduce:animate-none"
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {recoveryChange?.recoveryKeyDid
+                ? 'Add this recovery key?'
+                : 'Remove the recovery key?'}
+            </DialogTitle>
+            <DialogDescription>
+              Whoever holds the recovery key can move this account to another
+              server. Enter your current password to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            id="hosted-bluesky-recovery-form"
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submitRecovery()
+            }}
+          >
+            <FormRow
+              stacked
+              className="p-0"
+              label="Current password"
+              htmlFor="hosted-bluesky-current-password"
+            >
+              <Input
+                id="hosted-bluesky-current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+              />
+            </FormRow>
+            {recoveryError ? <Alert title={recoveryError} /> : null}
+          </form>
+          <DialogFooter separated>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy !== null}
+              onClick={closeRecovery}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="hosted-bluesky-recovery-form"
+              disabled={busy !== null || currentPassword === ''}
+            >
+              {busy === 'recovery'
+                ? 'Saving…'
+                : recoveryChange?.recoveryKeyDid
+                  ? 'Add recovery key'
+                  : 'Remove recovery key'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={confirmDelete}
         onOpenChange={(next) => (next ? undefined : closeDelete())}

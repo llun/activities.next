@@ -12,11 +12,29 @@ vi.mock('@/lib/services/pds/host', () => ({ getPdsSubdomainHandle: vi.fn() }))
 
 const getBlueskyAccountByInstanceHandle = vi.fn()
 const getActorFromUsername = vi.fn()
+const getActorFromId = vi.fn()
 const getPdsRepo = vi.fn()
 const database = {
   getBlueskyAccountByInstanceHandle,
   getActorFromUsername,
+  getActorFromId,
   getPdsRepo
+}
+
+// An actor whose hosted repo is effectively active: approved, not suspended,
+// disabled or being deleted.
+const activeActor = {
+  id: 'actor-a',
+  suspendedAt: null,
+  deletionStatus: null,
+  account: { approvedAt: 1, disabledAt: null, verificationCode: null }
+}
+const suspendedActor = { ...activeActor, suspendedAt: 2 }
+
+const subdomainHandle = {
+  username: 'alice',
+  domain: 'social.example',
+  handle: 'alice.pds.social.example'
 }
 
 const call = () =>
@@ -66,7 +84,7 @@ describe('GET /.well-known/atproto-did', () => {
       domain: 'social.example',
       handle: 'alice.pds.social.example'
     })
-    getActorFromUsername.mockResolvedValue({ id: 'actor-a' })
+    getActorFromUsername.mockResolvedValue(activeActor)
     getPdsRepo.mockResolvedValue({
       did: 'did:plc:hostedalice',
       status: 'active',
@@ -91,7 +109,7 @@ describe('GET /.well-known/atproto-did', () => {
       domain: 'social.example',
       handle: 'alice.pds.social.example'
     })
-    getActorFromUsername.mockResolvedValue({ id: 'actor-a' })
+    getActorFromUsername.mockResolvedValue(activeActor)
     getPdsRepo.mockResolvedValue({
       did: 'did:plc:hostedalice',
       status: 'active',
@@ -110,7 +128,7 @@ describe('GET /.well-known/atproto-did', () => {
       domain: 'social.example',
       handle: 'alice.pds.social.example'
     })
-    getActorFromUsername.mockResolvedValue({ id: 'actor-a' })
+    getActorFromUsername.mockResolvedValue(activeActor)
     getPdsRepo.mockResolvedValue({
       did: 'did:plc:hostedalice',
       status: 'deactivated',
@@ -134,10 +152,46 @@ describe('GET /.well-known/atproto-did', () => {
       status: 'active',
       handle: 'social.example'
     })
+    getActorFromId.mockResolvedValue(activeActor)
 
     const response = await call()
 
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('did:plc:hostedalice')
+    expect(getActorFromId).toHaveBeenCalledWith({ id: 'actor-a' })
+  })
+
+  it('answers 404 for a suspended actor’s hosted <username>.<PDS host> handle', async () => {
+    vi.mocked(getPdsSubdomainHandle).mockReturnValue(subdomainHandle)
+    getActorFromUsername.mockResolvedValue(suspendedActor)
+    // The stored status lags moderation; the effective status is takendown.
+    getPdsRepo.mockResolvedValue({
+      did: 'did:plc:hostedalice',
+      status: 'active',
+      handle: 'alice.pds.social.example'
+    })
+    getBlueskyAccountByInstanceHandle.mockResolvedValue(null)
+
+    const response = await call()
+
+    expect(response.status).toBe(404)
+  })
+
+  it('does not answer a suspended actor’s hosted DID for a claimed handle', async () => {
+    vi.mocked(headerHost).mockReturnValue('social.example')
+    getBlueskyAccountByInstanceHandle.mockResolvedValue({
+      did: 'did:plc:linkedoutside',
+      actorId: 'actor-a'
+    })
+    getPdsRepo.mockResolvedValue({
+      did: 'did:plc:hostedalice',
+      status: 'active',
+      handle: 'social.example'
+    })
+    getActorFromId.mockResolvedValue(suspendedActor)
+
+    const response = await call()
+
+    expect(await response.text()).not.toBe('did:plc:hostedalice')
   })
 })

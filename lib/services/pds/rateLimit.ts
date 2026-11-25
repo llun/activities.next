@@ -9,6 +9,8 @@ import type { Database } from '@/lib/database/types'
 import { getTrustedClientRateLimitKey } from '@/lib/utils/getTrustedClientIp'
 import { logger } from '@/lib/utils/logger'
 
+import { PdsHostedRateLimitedError } from './errors'
+
 export const PDS_SYNC_RATE_LIMIT = 60
 export const PDS_SYNC_BLOB_RATE_LIMIT = 120
 export const PDS_REPO_READ_RATE_LIMIT = 120
@@ -76,4 +78,36 @@ export const checkPdsSyncRateLimit = async (
     limit,
     windowMs: PDS_SYNC_RATE_LIMIT_WINDOW_MS
   })
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// Each one submits a PLC operation for the actor's DID, so the directory sees
+// every one of them: a day's budget per actor.
+export const HOSTED_BLUESKY_RATE_LIMITS = {
+  create: 3,
+  handle: 10,
+  recovery: 10
+} as const
+
+export type HostedBlueskyRateLimitAction =
+  keyof typeof HOSTED_BLUESKY_RATE_LIMITS
+
+/**
+ * Consumes one hosted-account action for the actor and throws
+ * `PdsHostedRateLimitedError` once the day's budget is spent. Call it only
+ * after validation, right before the PLC operation it counts.
+ */
+export const consumeHostedBlueskyRateLimit = async (
+  database: Database,
+  actorId: string,
+  action: HostedBlueskyRateLimitAction
+): Promise<void> => {
+  const result = await database.consumeRateLimit({
+    key: `${APP_RATE_LIMIT_KEY_PREFIX}pds-hosted-${action}:${digestClientKey(actorId)}`,
+    keyPrefix: APP_RATE_LIMIT_KEY_PREFIX,
+    limit: HOSTED_BLUESKY_RATE_LIMITS[action],
+    windowMs: DAY_MS
+  })
+  if (!result.allowed) throw new PdsHostedRateLimitedError()
 }

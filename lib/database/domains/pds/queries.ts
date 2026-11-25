@@ -298,6 +298,8 @@ export const updatePdsRepoStatus = async (
       ...(status === 'deleted' ? { actorId: `deleted:${did}` } : {})
     })
     .where('did', '=', did)
+    // A tombstone is final: no late write revives or rewrites it.
+    .where('status', '!=', 'deleted')
     .executeTakeFirst()
   return Number(result.numUpdatedRows) > 0
 }
@@ -320,6 +322,7 @@ export const updatePdsRepoIdentity = async (
     .updateTable('pds_repos')
     .set(updates)
     .where('did', '=', did)
+    .where('status', '!=', 'deleted')
     .executeTakeFirst()
   return Number(result.numUpdatedRows) > 0
 }

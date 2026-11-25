@@ -1730,6 +1730,41 @@ describe('PDS database domain', () => {
     }
   )
 
+  it('leaves a tombstone untouched: status and identity writes report no change', async () => {
+    const did = 'did:plc:tombstonetest00000000000'
+    await database.createPdsRepo({
+      did,
+      actorId: 'https://tombstone.example/users/alice',
+      domain: 'tombstone.example',
+      signingKey: 'v1:key-tombstone',
+      signingKeyDid: 'did:key:zQ3shTombstone',
+      handle: 'alice.tombstone.example'
+    })
+    expect(await database.updatePdsRepoStatus({ did, status: 'deleted' })).toBe(
+      true
+    )
+
+    expect(
+      await database.updatePdsRepoStatus({ did, status: 'deactivated' })
+    ).toBe(false)
+    expect(await database.updatePdsRepoStatus({ did, status: 'deleted' })).toBe(
+      false
+    )
+    expect(
+      await database.updatePdsRepoIdentity({
+        did,
+        handle: 'bob.tombstone.example',
+        plcOperation: '{"type":"plc_operation"}'
+      })
+    ).toBe(false)
+    expect(await database.getPdsRepo({ did })).toMatchObject({
+      status: 'deleted',
+      actorId: `deleted:${did}`,
+      handle: 'alice.tombstone.example',
+      plcOperation: null
+    })
+  })
+
   it('updates a repo identity, resolves it by handle case-insensitively, and clears fields with null', async () => {
     const did = 'did:plc:identitytest000000000000'
     await database.createPdsRepo({

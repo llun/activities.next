@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
 
+import { comparePassword } from '@/lib/services/auth/passwordHash'
+import { checkPasswordChangeRateLimit } from '@/lib/services/auth/routeRateLimits'
+import { sendMail } from '@/lib/services/email'
 import {
   changeHostedBlueskyHandle,
   createHostedBlueskyAccount,
@@ -11,6 +14,7 @@ import {
 } from '@/lib/services/pds/accounts'
 import {
   PdsHostedAccountExistsError,
+  PdsHostedRateLimitedError,
   PdsNotAllowedError,
   PdsRotationKeyMissingError
 } from '@/lib/services/pds/errors'
@@ -19,7 +23,19 @@ import type { HostedBlueskyAccountState } from '@/lib/utils/blueskyHosted'
 
 import { DELETE, GET, PATCH, POST } from './route'
 
-const currentActor = { id: 'actor-a', domain: 'social.example' }
+const currentActor: {
+  id: string
+  domain: string
+  account: { id: string; email: string; passwordHash: string | null }
+} = {
+  id: 'actor-a',
+  domain: 'social.example',
+  account: {
+    id: 'account-a',
+    email: 'alice@social.example',
+    passwordHash: 'stored-hash'
+  }
+}
 const database = {}
 const guardCalls: string[] = []
 
@@ -33,7 +49,22 @@ vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
 }))
 vi.mock('@/lib/config', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  getConfig: () => ({ host: 'social.example' })
+  getConfig: () => ({ host: 'social.example' }),
+  getBaseURL: () => 'https://social.example'
+}))
+vi.mock('@/lib/services/auth/passwordHash', () => ({
+  comparePassword: vi.fn()
+}))
+vi.mock('@/lib/services/auth/routeRateLimits', () => ({
+  checkPasswordChangeRateLimit: vi.fn()
+}))
+vi.mock('@/lib/services/email', () => ({ sendMail: vi.fn() }))
+vi.mock('@/lib/services/email/sender', () => ({
+  resolveEmailIdentity: async () => ({
+    brand: { name: 'Social', domain: 'social.example' },
+    from: 'noreply@social.example',
+    contactEmail: ''
+  })
 }))
 vi.mock('@/lib/services/pds/accounts', () => ({
   getHostedBlueskyAccountState: vi.fn(),
@@ -70,6 +101,11 @@ describe('/api/v1/bluesky/hosted', () => {
     vi.resetAllMocks()
     guardCalls.length = 0
     vi.mocked(getHostedBlueskyAccountState).mockResolvedValue(state)
+    vi.mocked(checkPasswordChangeRateLimit).mockResolvedValue({ allowed: true })
+    vi.mocked(comparePassword).mockImplementation(
+      async (password) => password === 'right-password'
+    )
+    currentActor.account.passwordHash = 'stored-hash'
   })
 
   it('GET answers the card state', async () => {
@@ -138,18 +174,119 @@ describe('/api/v1/bluesky/hosted', () => {
       handle: 'alice.example.com'
     })
 
-    await call('PATCH', { recoveryKeyDid: 'did:key:zRecovery' })
+    await call('PATCH', {
+      recoveryKeyDid: 'did:key:zRecovery',
+      currentPassword: 'right-password'
+    })
     expect(setHostedBlueskyRecoveryKey).toHaveBeenCalledWith({
       database,
       actor: currentActor,
       recoveryKeyDid: 'did:key:zRecovery'
     })
 
-    await call('PATCH', { recoveryKeyDid: null })
+    await call('PATCH', {
+      recoveryKeyDid: null,
+      currentPassword: 'right-password'
+    })
     expect(setHostedBlueskyRecoveryKey).toHaveBeenLastCalledWith({
       database,
       actor: currentActor,
       recoveryKeyDid: null
+    })
+  })
+
+  it.each([
+    ['missing', undefined, 'Current password is required'],
+    ['wrong', 'wrong-password', 'Current password is incorrect']
+  ])(
+    'PATCH refuses a recovery key change with a %s password',
+    async (_label, currentPassword, error) => {
+      for (const recoveryKeyDid of ['did:key:zRecovery', null]) {
+        const response = await call('PATCH', {
+          recoveryKeyDid,
+          ...(currentPassword ? { currentPassword } : {})
+        })
+
+        expect(response.status).toBe(403)
+        expect(await response.json()).toEqual({ error })
+      }
+      expect(setHostedBlueskyRecoveryKey).not.toHaveBeenCalled()
+      expect(sendMail).not.toHaveBeenCalled()
+    }
+  )
+
+  it('PATCH asks an account without a password to set one first', async () => {
+    currentActor.account.passwordHash = null
+
+    const response = await call('PATCH', {
+      recoveryKeyDid: null,
+      currentPassword: 'anything'
+    })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error:
+        'Set a password before changing your recovery key. Use "Forgot password" to set one; the link is sent to your email address.'
+    })
+    expect(setHostedBlueskyRecoveryKey).not.toHaveBeenCalled()
+  })
+
+  it('PATCH emails the owner after a recovery key change', async () => {
+    vi.mocked(setHostedBlueskyRecoveryKey).mockResolvedValue({
+      ...state,
+      repo: {
+        did: 'did:plc:abc123',
+        handle: 'alice.pds.social.example',
+        status: 'active',
+        recoveryKeyDid: 'did:key:zRecovery'
+      }
+    })
+
+    const response = await call('PATCH', {
+      recoveryKeyDid: 'did:key:zRecovery',
+      currentPassword: 'right-password'
+    })
+
+    expect(response.status).toBe(200)
+    expect(sendMail).toHaveBeenCalledTimes(1)
+    const [message] = vi.mocked(sendMail).mock.calls[0]
+    expect(message.to).toEqual(['alice@social.example'])
+    expect(message.subject).toBe(
+      'A recovery key was added to your Bluesky account'
+    )
+    expect(message.content.text).toContain('did:key:zRecovery')
+  })
+
+  it('PATCH still succeeds when the recovery key notice fails to send', async () => {
+    vi.mocked(setHostedBlueskyRecoveryKey).mockResolvedValue({
+      ...state,
+      repo: {
+        did: 'did:plc:abc123',
+        handle: 'alice.pds.social.example',
+        status: 'active',
+        recoveryKeyDid: null
+      }
+    })
+    vi.mocked(sendMail).mockRejectedValue(new Error('smtp down'))
+
+    const response = await call('PATCH', {
+      recoveryKeyDid: null,
+      currentPassword: 'right-password'
+    })
+
+    expect(response.status).toBe(200)
+  })
+
+  it('maps a hosted-account rate limit to 429 with a plain message', async () => {
+    vi.mocked(changeHostedBlueskyHandle).mockRejectedValue(
+      new PdsHostedRateLimitedError()
+    )
+
+    const response = await call('PATCH', { handle: 'alice.example.com' })
+
+    expect(response.status).toBe(429)
+    expect(await response.json()).toEqual({
+      error: 'Too many tries. Try again later.'
     })
   })
 

@@ -213,3 +213,35 @@ export class PdsConfirmHandleMismatchError extends PdsError {
     )
   }
 }
+
+/** The actor ran out of hosted-account actions of this kind for the day. */
+export class PdsHostedRateLimitedError extends PdsError {
+  constructor() {
+    super('Too many tries. Try again later.', 'RateLimited', 429)
+  }
+}
+
+/** The directory's last operation for the DID does not verify. */
+export class PdsPlcOperationInvalidError extends PdsError {
+  constructor() {
+    super(
+      'The PLC directory returned an operation for this account that does not verify. Try again later.',
+      'PlcOperationInvalid',
+      422
+    )
+  }
+}
+
+/**
+ * The directory's last operation no longer lists this server's rotation key:
+ * the owner moved the DID away, so this server cannot change it.
+ */
+export class PdsIdentityMovedError extends PdsError {
+  constructor() {
+    super(
+      'This account’s identity no longer lists this server’s rotation key, so it can’t be changed here.',
+      'IdentityMoved',
+      409
+    )
+  }
+}

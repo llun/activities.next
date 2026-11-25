@@ -38,6 +38,8 @@ export const createHostedBlueskyAccount = (
 export const updateHostedBlueskyAccount = (input: {
   handle?: string
   recoveryKeyDid?: string | null
+  /** Required with `recoveryKeyDid`. */
+  currentPassword?: string
   active?: boolean
 }): Promise<HostedBlueskyAccountState> =>
   send('PATCH', 'Unable to update the hosted Bluesky account.', input)

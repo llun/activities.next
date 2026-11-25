@@ -172,7 +172,16 @@ describe('HostedBlueskyForm', () => {
     expect(await screen.findByText('@alice.example.com')).toBeInTheDocument()
   })
 
-  it('adds a recovery key', async () => {
+  const confirmWithPassword = (button: string, password: string) => {
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Current password'), {
+      target: { value: password }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: button }))
+    return dialog
+  }
+
+  it('adds a recovery key after the current password', async () => {
     vi.mocked(updateHostedBlueskyAccount).mockResolvedValue(
       state({ repo: { ...activeRepo, recoveryKeyDid: 'did:key:zRecovery' } })
     )
@@ -181,15 +190,19 @@ describe('HostedBlueskyForm', () => {
       target: { value: 'did:key:zRecovery' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(updateHostedBlueskyAccount).not.toHaveBeenCalled()
+    confirmWithPassword('Add recovery key', 'hunter2')
     await waitFor(() =>
       expect(updateHostedBlueskyAccount).toHaveBeenCalledWith({
-        recoveryKeyDid: 'did:key:zRecovery'
+        recoveryKeyDid: 'did:key:zRecovery',
+        currentPassword: 'hunter2'
       })
     )
     expect(await screen.findByText('did:key:zRecovery')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('removes the recovery key', async () => {
+  it('removes the recovery key after the current password', async () => {
     vi.mocked(updateHostedBlueskyAccount).mockResolvedValue(
       state({ repo: activeRepo })
     )
@@ -197,12 +210,30 @@ describe('HostedBlueskyForm', () => {
       state({ repo: { ...activeRepo, recoveryKeyDid: 'did:key:zRecovery' } })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(updateHostedBlueskyAccount).not.toHaveBeenCalled()
+    confirmWithPassword('Remove recovery key', 'hunter2')
     await waitFor(() =>
       expect(updateHostedBlueskyAccount).toHaveBeenCalledWith({
-        recoveryKeyDid: null
+        recoveryKeyDid: null,
+        currentPassword: 'hunter2'
       })
     )
     expect(await screen.findByLabelText('Recovery key')).toBeInTheDocument()
+  })
+
+  it('shows a wrong password in the recovery key dialog', async () => {
+    vi.mocked(updateHostedBlueskyAccount).mockRejectedValue(
+      new Error('Current password is incorrect')
+    )
+    show(
+      state({ repo: { ...activeRepo, recoveryKeyDid: 'did:key:zRecovery' } })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    const dialog = confirmWithPassword('Remove recovery key', 'wrong')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Current password is incorrect'
+    )
+    expect(screen.getByText('did:key:zRecovery')).toBeInTheDocument()
   })
 
   it('deletes the account after typing its handle', async () => {
