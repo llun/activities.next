@@ -551,11 +551,8 @@ describe('HostedBlueskyForm', () => {
       expect(copyHostedBlueskyMoveOutPreferences).toHaveBeenCalled()
     )
     expect(sendHostedBlueskyMoveOutRepo).toHaveBeenCalledTimes(1)
-    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(1, {
-      limit: 100
-    })
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(1, {})
     expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(2, {
-      limit: 100,
       cursor: 'c1'
     })
     // The steps run in order: repo, then every blob page, then preferences.
@@ -651,15 +648,52 @@ describe('HostedBlueskyForm', () => {
       expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(2)
     )
     // The retry starts the blob step over, without the old cursor.
-    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(2, {
-      limit: 100
-    })
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(2, {})
     expect(
       await screen.findByText('Images and videos: 1 copied')
     ).toBeInTheDocument()
     expect(
       screen.queryByText(/couldn't be copied to bsky\.social/)
     ).not.toBeInTheDocument()
+  })
+
+  it('keeps earlier failures when a stopped copy resumes', async () => {
+    vi.mocked(copyHostedBlueskyMoveOutBlobs)
+      .mockResolvedValueOnce({
+        copied: 1,
+        failed: [
+          { cid: 'bafy1', reason: 'Upload failed.' },
+          { cid: 'bafy2', reason: 'Upload failed.' }
+        ],
+        cursor: 'c1',
+        done: false
+      })
+      .mockRejectedValueOnce(
+        new Error('Could not reach the destination server.')
+      )
+      .mockResolvedValueOnce({
+        copied: 1,
+        failed: [],
+        cursor: null,
+        done: true
+      })
+    show(state({ repo: activeRepo, moveOut: moveOut() }))
+    await screen.findByText('Could not reach the destination server.')
+    // The first "Try again" is the error's (resume); the second restarts the
+    // failed files from no cursor.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Try again' })[0])
+    // The resumed run carries on from the cursor and still knows the two.
+    await waitFor(() =>
+      expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(3)
+    )
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenNthCalledWith(3, {
+      cursor: 'c1'
+    })
+    expect(
+      await screen.findByText(
+        "2 images or videos couldn't be copied to bsky.social."
+      )
+    ).toBeInTheDocument()
   })
 
   it('stops when the first page has no cursor and does not end', async () => {
@@ -705,7 +739,7 @@ describe('HostedBlueskyForm', () => {
         'Copying images and videos took too many steps. Try again.'
       )
     ).toBeInTheDocument()
-    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(100)
+    expect(copyHostedBlueskyMoveOutBlobs).toHaveBeenCalledTimes(4000)
   })
 
   it('switches only after the current password', async () => {
@@ -713,6 +747,7 @@ describe('HostedBlueskyForm', () => {
       movedTo: 'bsky.social',
       handle: 'alex.bsky.social',
       missingBlobs: 0,
+      copyIncomplete: false,
       state: state({
         repo: { ...activeRepo, status: 'deactivated' },
         movedTo: 'bsky.social'
@@ -742,6 +777,7 @@ describe('HostedBlueskyForm', () => {
       movedTo: 'bsky.social',
       handle: 'alex.bsky.social',
       missingBlobs: 2,
+      copyIncomplete: false,
       state: state({
         repo: { ...activeRepo, status: 'deactivated' },
         movedTo: 'bsky.social'
@@ -770,6 +806,7 @@ describe('HostedBlueskyForm', () => {
       movedTo: 'bsky.social',
       handle: 'alex.bsky.social',
       missingBlobs: 0,
+      copyIncomplete: false,
       state: state({
         repo: { ...activeRepo, status: 'deactivated' },
         movedTo: 'bsky.social'

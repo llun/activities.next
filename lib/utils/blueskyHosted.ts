@@ -108,6 +108,8 @@ export interface HostedBlueskyMoveOutFinishResult {
   handle: string
   /** Blobs the post-switch copy could not send. */
   missingBlobs: number
+  /** The catch-up copy after the switch stopped on an error. */
+  copyIncomplete: boolean
   state: HostedBlueskyAccountState
 }
 

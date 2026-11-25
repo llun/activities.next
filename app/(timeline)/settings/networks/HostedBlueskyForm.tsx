@@ -80,10 +80,9 @@ const initialCopy: CopyState = {
   failedStep: null
 }
 
-// The route caps a blob page at 100; 100 pages is 10,000 blobs, past which the
-// copy stops with an error rather than looping.
-const BLOB_PAGE_LIMIT = 100
-const MAX_BLOB_PAGES = 100
+// The server copies a few blobs per page; 4,000 pages is 20,000 blobs, past
+// which the copy stops with an error rather than looping.
+const MAX_BLOB_PAGES = 4000
 
 const copyStepLabel: Record<CopyStep, string> = {
   repo: 'posts and follows',
@@ -277,7 +276,6 @@ export const HostedBlueskyForm = ({
       if (!copyRef.current.blobs) {
         let done = false
         let pages = 0
-        let failed = 0
         while (!done) {
           if (pages >= MAX_BLOB_PAGES) {
             throw new Error(
@@ -285,12 +283,12 @@ export const HostedBlueskyForm = ({
             )
           }
           const previousCursor = cursorRef.current
-          const result = await copyHostedBlueskyMoveOutBlobs({
-            limit: BLOB_PAGE_LIMIT,
-            ...(cursorRef.current ? { cursor: cursorRef.current } : {})
-          })
+          const result = await copyHostedBlueskyMoveOutBlobs(
+            cursorRef.current ? { cursor: cursorRef.current } : {}
+          )
           pages += 1
-          failed += result.failed.length
+          // Kept per page, so a resumed run after an error still knows them.
+          updateCopy({ failed: copyRef.current.failed + result.failed.length })
           cursorRef.current = result.cursor ?? undefined
           done = result.done
           updateCopy({ copied: copyRef.current.copied + result.copied })
@@ -304,11 +302,7 @@ export const HostedBlueskyForm = ({
         }
         // A batch that failed leaves blobs missing, so the step is not ticked;
         // the switch stays available and warns about what will be missing.
-        if (failed > 0) {
-          updateCopy({ failed })
-        } else {
-          updateCopy({ blobs: true })
-        }
+        if (copyRef.current.failed === 0) updateCopy({ blobs: true })
       }
       if (!copyRef.current.preferences) {
         await copyHostedBlueskyMoveOutPreferences()
@@ -387,7 +381,9 @@ export const HostedBlueskyForm = ({
       setStatus(
         result.missingBlobs > 0
           ? `Moved to ${result.movedTo}. ${result.missingBlobs} ${result.missingBlobs === 1 ? 'image or video' : 'images or videos'} couldn't be copied.`
-          : `Moved to ${result.movedTo}.`
+          : result.copyIncomplete
+            ? `Moved to ${result.movedTo}. Some images, videos or settings may not have been copied.`
+            : `Moved to ${result.movedTo}.`
       )
     } catch (error) {
       setSwitchError(errorMessage(error))

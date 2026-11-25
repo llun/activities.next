@@ -22,7 +22,7 @@ export const REMOTE_UPLOAD_TIMEOUT_MS = 60_000
 // Small batches keep each request (and the lock it holds) short; a page's
 // cursor always advances, so a blob that fails is passed over, not retried.
 export const DEFAULT_BLOB_BATCH_LIMIT = 5
-export const MAX_BLOB_BATCH_LIMIT = 10
+export const MAX_BLOB_BATCH_LIMIT = 5
 
 // safeRemoteFetch applies the connect and read timeouts separately, so one
 // request can take up to twice its `timeoutInMilliseconds`.
@@ -32,11 +32,11 @@ export const REMOTE_UPLOAD_WORST_MS = 2 * REMOTE_UPLOAD_TIMEOUT_MS
 // Covers one refresh request, with slack for the re-read and write around it.
 export const MOVE_REFRESH_LOCK_MS = REMOTE_JSON_WORST_MS + 15_000
 
-// Covers the longest move step: a blob batch (the list, a refresh, and one
-// upload per entry at the largest batch).
+// Covers the longest move step: a blob batch (the list, a refresh, one upload
+// per entry at the largest batch, and the request re-sent after a refresh).
 export const MOVE_LOCK_MS =
   2 * REMOTE_JSON_WORST_MS +
-  MAX_BLOB_BATCH_LIMIT * REMOTE_UPLOAD_WORST_MS +
+  (MAX_BLOB_BATCH_LIMIT + 1) * REMOTE_UPLOAD_WORST_MS +
   30_000
 
 // How long a move or delete lock waits for its holder before giving up.

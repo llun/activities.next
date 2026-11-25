@@ -11,6 +11,7 @@ import {
   sendMoveOutRepo,
   startMoveOut
 } from '@/lib/services/pds/moveOut'
+import { MAX_BLOB_BATCH_LIMIT } from '@/lib/services/pds/moveSession'
 import {
   MOVE_ERROR_STATUSES,
   checkCurrentPassword,
@@ -42,7 +43,7 @@ const MoveStepBody = z.discriminatedUnion('step', [
   z.object({
     step: z.literal('blobs'),
     cursor: z.string().min(1).optional(),
-    limit: z.number().int().min(1).max(100).optional()
+    limit: z.number().int().min(1).max(MAX_BLOB_BATCH_LIMIT).optional()
   }),
   z.object({
     step: z.literal('preferences')

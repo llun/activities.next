@@ -171,6 +171,7 @@ describe('/api/v1/bluesky/hosted/move', () => {
       movedTo: 'dest.pds.example',
       handle: 'alice.dest.pds.example',
       missingBlobs: 0,
+      copyIncomplete: false,
       state: { ...state, movedTo: 'dest.pds.example' }
     })
 
@@ -204,14 +205,14 @@ describe('/api/v1/bluesky/hosted/move', () => {
     const blobsRes = await call('POST', {
       step: 'blobs',
       cursor: 'c1',
-      limit: 10
+      limit: 5
     })
     expect(blobsRes.status).toBe(200)
     expect(copyMoveOutBlobs).toHaveBeenCalledWith({
       database,
       actor: currentActor,
       cursor: 'c1',
-      limit: 10
+      limit: 5
     })
 
     const prefsRes = await call('POST', { step: 'preferences' })

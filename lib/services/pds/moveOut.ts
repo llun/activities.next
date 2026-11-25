@@ -100,6 +100,8 @@ const FINISH_LOCK_MS =
   REMOTE_JSON_WORST_MS +
   DEFAULT_BLOB_BATCH_LIMIT * REMOTE_UPLOAD_WORST_MS +
   5 * REMOTE_JSON_WORST_MS +
+  // The request re-sent after a token refresh.
+  REMOTE_UPLOAD_WORST_MS +
   30_000
 const REMOTE_MAX_BODY_BYTES = 2 * 1024 * 1024
 const MAX_BLOB_PAGES = 100
@@ -163,6 +165,8 @@ export interface FinishMoveOutResult {
   handle: string
   /** Blobs the post-switch copy could not send, so the owner knows. */
   missingBlobs: number
+  /** The catch-up copy after the switch stopped on an error. */
+  copyIncomplete: boolean
   state: HostedBlueskyAccountState
 }
 
@@ -969,12 +973,8 @@ type BlobBatchResult = CopyMoveOutBlobsResult & {
 
 /**
  * Copies one page of missing blobs. Individual blob failures are returned in
- * `failed` without stopping the page. The caller holds the repo lock.
- *
- * The page stops taking new entries once its wall-clock budget is spent and
- * hands the input cursor back with `done: false`: the next call re-lists what
- * is still missing, so a slow destination cannot hold the lock for a whole
- * page of uploads.
+ * `failed` without stopping the page, and the page's cursor moves past them.
+ * The caller holds the actor lock.
  */
 const copyBlobBatch = async (
   database: Database,
@@ -1026,6 +1026,18 @@ const copyBlobBatch = async (
   let copied = 0
   const failed: CopyMoveOutBlobFailure[] = []
 
+  // A destination that ignores `limit` gets its extra entries reported as not
+  // copied: its cursor already points past them.
+  for (const entry of parsed.blobs.slice(limit)) {
+    const cid =
+      isRecord(entry) && typeof entry.cid === 'string' ? entry.cid : null
+    if (cid) {
+      failed.push({
+        cid: cid.slice(0, MAX_CID_LENGTH),
+        reason: 'Not copied: the server listed more than it was asked for.'
+      })
+    }
+  }
   for (const entry of parsed.blobs.slice(0, limit)) {
     const cid =
       isRecord(entry) && typeof entry.cid === 'string' ? entry.cid : null
@@ -1466,12 +1478,16 @@ export const finishMoveOut = async ({
         throw new PdsHostedAccountNotFoundError()
       }
       let missingBlobs = 0
+      let copyIncomplete = false
       // Only the move's own switch may open the copy here: a repo taken down
       // since, or an actor suspended or disabled, sends nothing more.
-      const copyAllowed =
-        latestRepo.status === 'deactivated' &&
-        !isActorModerationBlocked(currentActor)
-      if (copyAllowed) {
+      const isCopyAllowed = async () => {
+        const fresh = await database.getActorFromId({ id: actor.id })
+        return Boolean(fresh) && !isActorModerationBlocked(fresh!)
+      }
+      if (latestRepo.status === 'deactivated' && (await isCopyAllowed())) {
+        // The repo re-send stays fatal: a retry sends it again, and activating
+        // without it would lose the posts written during the move.
         if (latestRepo.rev !== move.importedRev) {
           const uploaded = await uploadRepoCar(database, repo.did, move, {
             allowUnavailable: true
@@ -1479,55 +1495,79 @@ export const finishMoveOut = async ({
           move = uploaded.session
         }
         // Finish does not trust the page to have run every copy step: it copies
-        // whatever the destination still lacks, then the preferences.
-        const copyDeadline = Date.now() + FINISH_BLOB_BUDGET_MS
+        // whatever the destination still lacks, then the preferences. Both are
+        // best effort: the DID already points at the destination, so a
+        // destination that keeps refusing them must not block activation.
         const failedCids = new Set<string>()
-        let cursor: string | undefined
-        let copyDone = false
-        for (
-          let page = 0;
-          page < MAX_BLOB_PAGES && Date.now() <= copyDeadline;
-          page += 1
-        ) {
-          // A suspension or disable that lands mid-copy stops it.
-          const pageActor = await database.getActorFromId({ id: actor.id })
-          if (!pageActor || isActorModerationBlocked(pageActor)) break
-          const batch = await copyBlobBatch(database, repo.did, move, {
-            cursor,
-            limit: DEFAULT_BLOB_BATCH_LIMIT,
-            store,
-            // The switch deactivated the repo here; its blobs still copy.
-            allowUnavailable: true
-          })
-          move = batch.session
-          for (const failure of batch.failed) failedCids.add(failure.cid)
-          if (batch.done) {
-            copyDone = true
-            break
+        try {
+          const copyDeadline = Date.now() + FINISH_BLOB_BUDGET_MS
+          let cursor: string | undefined
+          let copyDone = false
+          let moderated = false
+          for (
+            let page = 0;
+            page < MAX_BLOB_PAGES && Date.now() <= copyDeadline;
+            page += 1
+          ) {
+            // A suspension or disable that lands mid-copy stops it.
+            if (!(await isCopyAllowed())) {
+              moderated = true
+              break
+            }
+            const batch = await copyBlobBatch(database, repo.did, move, {
+              cursor,
+              limit: DEFAULT_BLOB_BATCH_LIMIT,
+              store,
+              // The switch deactivated the repo here; its blobs still copy.
+              allowUnavailable: true
+            })
+            move = batch.session
+            for (const failure of batch.failed) failedCids.add(failure.cid)
+            // A cursor that did not move is a stuck destination, not the end.
+            const stuck = batch.cursor !== null && batch.cursor === cursor
+            if (batch.done && !stuck) {
+              copyDone = true
+              break
+            }
+            if (batch.done) break
+            cursor = batch.cursor ?? undefined
           }
-          cursor = batch.cursor ?? undefined
-        }
-        if (copyDone) {
-          missingBlobs = failedCids.size
-        } else {
-          // Stopped early: everything still missing, failures included.
-          const remaining = await countMissingBlobs(database, repo.did, move)
-          move = remaining.session
-          missingBlobs = Math.max(failedCids.size, remaining.count)
-        }
-        const preferencesRes = await requestWithMoveAuth({
-          database,
-          did: repo.did,
-          session: move,
-          nsid: 'app.bsky.actor.putPreferences',
-          method: 'POST',
-          contentType: 'application/json',
-          body: JSON.stringify({
-            preferences:
-              (await database.getPdsPreferences({ did: repo.did })) ?? []
+          if (copyDone) {
+            missingBlobs = failedCids.size
+          } else {
+            // Stopped early: everything still missing, failures included.
+            const remaining = await countMissingBlobs(database, repo.did, move)
+            move = remaining.session
+            missingBlobs = Math.max(failedCids.size, remaining.count)
+          }
+          if (!moderated) {
+            const preferencesRes = await requestWithMoveAuth({
+              database,
+              did: repo.did,
+              session: move,
+              nsid: 'app.bsky.actor.putPreferences',
+              method: 'POST',
+              contentType: 'application/json',
+              body: JSON.stringify({
+                preferences:
+                  (await database.getPdsPreferences({ did: repo.did })) ?? []
+              })
+            })
+            move = preferencesRes.session
+          }
+        } catch (error) {
+          if (!(error instanceof PdsMoveOutRemoteError)) throw error
+          // Reported to the owner in the result; the session row may have a
+          // fresher token than `move`, so re-read it for the activate.
+          logger.warn({
+            message: 'The move catch-up copy did not finish; activating anyway',
+            did: repo.did,
+            err: toLoggableError(error)
           })
-        })
-        move = preferencesRes.session
+          copyIncomplete = true
+          missingBlobs = Math.max(missingBlobs, failedCids.size)
+          move = (await readMoveOutSession(database, repo.did)) ?? move
+        }
       }
 
       const activateRes = await requestWithMoveAuth({
@@ -1552,7 +1592,8 @@ export const finishMoveOut = async ({
       return {
         movedTo: new URL(move.pdsUrl).host,
         handle: move.handle,
-        missingBlobs
+        missingBlobs,
+        copyIncomplete
       }
     },
     { ttlMs: FINISH_LOCK_MS, waitMs: MOVE_LOCK_WAIT_MS }
