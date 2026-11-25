@@ -27,13 +27,17 @@ export class BlueskySessionEndedError extends Error {
  * "Host my Bluesky account here", not a new link.
  */
 export class BlueskyHostedAccountInactiveError extends BlueskySessionEndedError {
-  constructor(status: 'deactivated' | 'takendown' | 'gone') {
+  // off: the owner turned it off. unavailable: off for a reason the owner
+  // cannot undo there (not approved or confirmed yet, being deleted).
+  constructor(status: 'off' | 'unavailable' | 'takendown' | 'gone') {
     super(
-      status === 'deactivated'
+      status === 'off'
         ? 'Your Bluesky account on this server is off. Turn it on under “Host my Bluesky account here”.'
-        : status === 'takendown'
-          ? 'Your Bluesky account on this server is suspended.'
-          : 'Your Bluesky account on this server is no longer available.'
+        : status === 'unavailable'
+          ? 'Your Bluesky account on this server isn’t available right now.'
+          : status === 'takendown'
+            ? 'Your Bluesky account on this server is suspended.'
+            : 'Your Bluesky account on this server is no longer available.'
     )
     this.name = 'BlueskyHostedAccountInactiveError'
   }

@@ -124,12 +124,16 @@ const parseInput = <T>(nsid: string, schema: z.ZodType<T>, input: unknown) => {
   return parsed.data
 }
 
-const inactiveReason = (status: PdsRepoStatus) =>
-  status === 'deleted'
-    ? 'gone'
-    : status === 'takendown'
-      ? 'takendown'
-      : 'deactivated'
+// Only a repo its owner turned off (stored `deactivated`) says "turn it on";
+// an account-level block is effective `deactivated` over an active repo.
+const inactiveReason = (status: PdsRepoStatus, storedStatus?: PdsRepoStatus) =>
+  status === 'deactivated'
+    ? storedStatus === 'deactivated'
+      ? 'off'
+      : 'unavailable'
+    : status === 'deleted'
+      ? 'gone'
+      : 'takendown'
 
 // A local PDS failure, answered as an outside PDS would: a repo that is off,
 // gone, or on a domain whose PDS is off ends the session like a revoked one.
@@ -183,7 +187,9 @@ export const createHostedBlueskyAgent = async (
     const current = await database.getActorFromId({ id: actor.id })
     const status = resolveEffectivePdsRepoStatus(repo, current)
     if (status !== 'active') {
-      throw new BlueskyHostedAccountInactiveError(inactiveReason(status))
+      throw new BlueskyHostedAccountInactiveError(
+        inactiveReason(status, repo.status)
+      )
     }
   }
 

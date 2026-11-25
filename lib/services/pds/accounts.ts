@@ -297,7 +297,13 @@ const reconcileHostedAccountRow = async (
   if (!repo || repo.status === 'deleted') {
     // An orphan: a read that raced a delete wrote it after the delete removed
     // the row. It would block linking and fail every sync.
-    if (row) await database.deleteBlueskyAccount({ actorId: actor.id })
+    // Only that row: a link or a new hosted account written since stays.
+    if (row) {
+      await database.deleteBlueskyAccount({
+        actorId: actor.id,
+        hostedDid: row.did
+      })
+    }
     return
   }
   const pdsUrl = getHostedPdsUrl(repo)
@@ -725,19 +731,20 @@ export const deleteHostedBlueskyAccount = async ({
         status: 'deleted'
       })
     })
-    // The app's state for the account (its `bluesky_accounts` row, follows
-    // and interactions) goes with it, before the status flips: if the flip
-    // fails, the repo is still live and the next state read writes the row
-    // back. An outside link is not this account's.
-    const row = await database.getBlueskyAccount({ actorId: actor.id })
-    if (row?.authType === 'hosted' && row.did === repo.did) {
-      await database.deleteBlueskyAccount({ actorId: actor.id })
-    }
     const changed = await database.updatePdsRepoStatus({
       did: repo.did,
       status: 'deleted'
     })
     if (!changed) return false
+    // The app's state for the account (its `bluesky_accounts` row, follows
+    // and interactions) goes only once the status has flipped, so a failed
+    // flip leaves a live account whole. If this delete fails, the next state
+    // read removes the hosted row that no longer has a live repo. An outside
+    // link is not this account's.
+    await database.deleteBlueskyAccount({
+      actorId: actor.id,
+      hostedDid: repo.did
+    })
     const storageKeys = await database.listPdsBlobStorageKeys({
       did: repo.did
     })

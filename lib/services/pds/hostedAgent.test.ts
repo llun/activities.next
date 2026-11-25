@@ -49,7 +49,8 @@ const USERNAMES = [
   'hosted-agent-like',
   'hosted-agent-follow',
   'hosted-agent-sync',
-  'hosted-agent-off-copy'
+  'hosted-agent-off-copy',
+  'hosted-agent-unavailable'
 ]
 
 const json = (body: unknown, statusCode = 200) => ({
@@ -347,16 +348,28 @@ describe('hosted Bluesky client', () => {
         message: expect.stringContaining(`Only ${did}`)
       })
     }
-    // A method name that is not an NSID never reaches the AppView.
-    for (const nsid of ['app.bsky.feed.get timeline', 'app.bsky.feed/../x']) {
-      await expect(agent.get(nsid)).rejects.toMatchObject({
-        status: 400,
-        error: 'InvalidRequest'
-      })
-      await expect(agent.post(nsid, {})).rejects.toMatchObject({
-        status: 400,
-        error: 'InvalidRequest'
-      })
+    // A method name that is not an NSID never reaches the AppView, and no
+    // token is minted for it.
+    const serviceAuth = await import('@/lib/services/pds/serviceAuth')
+    const mint = vi.spyOn(serviceAuth, 'createServiceAuthToken')
+    const keyLoad = vi.spyOn(database, 'getPdsRepoSigningKey')
+    try {
+      for (const nsid of ['app.bsky.feed.get timeline', 'app.bsky.feed/../x']) {
+        await expect(agent.get(nsid)).rejects.toMatchObject({
+          status: 400,
+          error: 'InvalidRequest'
+        })
+        await expect(agent.post(nsid, {})).rejects.toMatchObject({
+          status: 400,
+          error: 'InvalidRequest'
+        })
+      }
+      expect(mint).not.toHaveBeenCalled()
+      expect(keyLoad).not.toHaveBeenCalled()
+      expect(safeRemoteFetch).not.toHaveBeenCalled()
+    } finally {
+      mint.mockRestore()
+      keyLoad.mockRestore()
     }
     expect(
       await database.listPdsRecords({ did, collection: 'app.bsky.feed.post' })
@@ -505,14 +518,29 @@ describe('hosted Bluesky client', () => {
       error: off
     })
     expect(
-      blueskyActionFailure(
-        new BlueskyHostedAccountInactiveError('deactivated'),
-        { lockPrefix: 'x', busy: 'busy' }
-      )
+      blueskyActionFailure(new BlueskyHostedAccountInactiveError('off'), {
+        lockPrefix: 'x',
+        busy: 'busy'
+      })
     ).toEqual({
       status: 422,
       error: off
     })
+    expect(safeRemoteFetch).not.toHaveBeenCalled()
+  })
+
+  it('says an account the owner cannot turn on is unavailable, not off', async () => {
+    const { actor, agent } = await createHosted('hosted-agent-unavailable')
+    // Being deleted: effective `deactivated` over a repo stored `active`.
+    await testDb.db
+      .updateTable('actors')
+      .set({ deletionStatus: 'scheduled' })
+      .where('id', '=', actor.id)
+      .execute()
+
+    await expect(agent.get('app.bsky.feed.getTimeline')).rejects.toThrow(
+      'Your Bluesky account on this server isn’t available right now.'
+    )
     expect(safeRemoteFetch).not.toHaveBeenCalled()
   })
 

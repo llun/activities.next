@@ -126,7 +126,10 @@ const ALLOWED_USERNAMES = [
   'hosted-row-stale',
   'hosted-row-guard',
   'hosted-row-orphan',
-  'hosted-row-race'
+  'hosted-row-flipfail',
+  'hosted-row-race',
+  'hosted-row-relinked',
+  'hosted-row-recreated'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -1759,6 +1762,39 @@ describe('hosted Bluesky accounts', () => {
       })
     })
 
+    it('keeps the hosted row when the status flip fails', async () => {
+      const actor = await createActor('hosted-row-flipfail')
+      const handle = pdsHandle('hosted-row-flipfail')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      const updateStatus = vi
+        .spyOn(database, 'updatePdsRepoStatus')
+        .mockRejectedValueOnce(new Error('database offline'))
+      try {
+        await expect(
+          deleteHostedBlueskyAccount({
+            database,
+            actor,
+            confirmHandle: handle
+          })
+        ).rejects.toThrow('database offline')
+      } finally {
+        updateStatus.mockRestore()
+      }
+
+      // The account is still live, so its app state (row, follows,
+      // interactions) must still be there.
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({ did: state.repo!.did, authType: 'hosted' })
+      expect((await database.getPdsRepo({ actorId: actor.id }))?.status).toBe(
+        'active'
+      )
+    })
+
     it('removes a hosted row a read wrote after the account was deleted', async () => {
       const actor = await createActor('hosted-row-orphan')
       const handle = pdsHandle('hosted-row-orphan')
@@ -1786,6 +1822,94 @@ describe('hosted Bluesky accounts', () => {
       await getHostedBlueskyAccountState({ database, actor })
 
       expect(await database.getBlueskyAccount({ actorId: actor.id })).toBeNull()
+    })
+
+    // An orphan hosted row of a deleted account, and a reconcile whose repo
+    // read lets `meanwhile` write a new row between its row read and its
+    // cleanup.
+    const reconcileOrphanWhile = async (
+      username: string,
+      meanwhile: (actorId: string) => Promise<void>
+    ) => {
+      const actor = await createActor(username)
+      const handle = pdsHandle(username)
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      await deleteHostedBlueskyAccount({
+        database,
+        actor,
+        confirmHandle: handle
+      })
+      await database.saveBlueskyAccount({
+        actorId: actor.id,
+        did: state.repo!.did,
+        handle,
+        pdsUrl: `https://${PDS_HOSTNAME}`,
+        authType: 'hosted',
+        domainHandle: false
+      })
+      const getPdsRepo = database.getPdsRepo.bind(database)
+      const spy = vi
+        .spyOn(database, 'getPdsRepo')
+        .mockImplementationOnce(async (params) => {
+          const repo = await getPdsRepo(params)
+          await meanwhile(actor.id)
+          return repo
+        })
+      try {
+        await getHostedBlueskyAccountState({ database, actor })
+      } finally {
+        spy.mockRestore()
+      }
+      return actor
+    }
+
+    it('keeps an outside link written after the orphan was read', async () => {
+      const linkedDid = 'did:plc:linkedafterreadaaaaaaaaa'
+      const actor = await reconcileOrphanWhile(
+        'hosted-row-relinked',
+        async (actorId) => {
+          await database.deleteBlueskyAccount({ actorId })
+          await database.saveBlueskyAccount({
+            actorId,
+            did: linkedDid,
+            handle: 'alice.bsky.social',
+            pdsUrl: 'https://bsky.social',
+            authType: 'oauth',
+            domainHandle: false
+          })
+          await database.setBlueskySession({ did: linkedDid, session: 's' })
+        }
+      )
+
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({ did: linkedDid, authType: 'oauth' })
+      expect(await database.getBlueskySession({ did: linkedDid })).toBe('s')
+    })
+
+    it('keeps a new hosted account’s row written after the orphan was read', async () => {
+      const newDid = 'did:plc:newhostedafterreadaaaaaa'
+      const actor = await reconcileOrphanWhile(
+        'hosted-row-recreated',
+        async (actorId) => {
+          await database.saveBlueskyAccount({
+            actorId,
+            did: newDid,
+            handle: 'new.example.com',
+            pdsUrl: `https://${PDS_HOSTNAME}`,
+            authType: 'hosted',
+            domainHandle: false
+          })
+        }
+      )
+
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({ did: newDid, authType: 'hosted' })
     })
 
     it('writes no row once a delete lands between the read and the write', async () => {

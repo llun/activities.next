@@ -104,8 +104,16 @@ export interface BlueskyAccountDatabase {
    * or unconfirmed.
    */
   listBlueskyAccountsToSync(): Promise<string[]>
-  /** Removes the link, its stored session, its follows and its interactions. */
-  deleteBlueskyAccount(params: { actorId: string }): Promise<void>
+  /**
+   * Removes the link, its stored session, its follows and its interactions.
+   * With `hostedDid`, only while the row is still the hosted account of that
+   * DID, read in the same transaction: a row written meanwhile (a link, or a
+   * new hosted account) stays. Answers whether a row was removed.
+   */
+  deleteBlueskyAccount(params: {
+    actorId: string
+    hostedDid?: string
+  }): Promise<boolean>
 
   getBlueskySession(params: { did: string }): Promise<string | null>
   setBlueskySession(params: { did: string; session: string }): Promise<void>

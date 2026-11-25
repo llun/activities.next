@@ -308,15 +308,21 @@ export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
 
 export const deleteBlueskyAccount = async (
   db: Db,
-  { actorId }: { actorId: string }
-): Promise<void> => {
-  await inTransaction(db, async (trx) => {
+  { actorId, hostedDid }: { actorId: string; hostedDid?: string }
+): Promise<boolean> =>
+  inTransaction(db, async (trx) => {
     const row = await trx
       .selectFrom('bluesky_accounts')
-      .select('did')
+      .select(['did', 'authType'])
       .where('actorId', '=', actorId)
       .executeTakeFirst()
-    if (!row) return
+    if (!row) return false
+    if (
+      hostedDid !== undefined &&
+      (row.authType !== 'hosted' || row.did !== hostedDid)
+    ) {
+      return false
+    }
     await trx
       .deleteFrom('bluesky_sessions')
       .where('did', '=', row.did)
@@ -333,8 +339,8 @@ export const deleteBlueskyAccount = async (
       .deleteFrom('bluesky_accounts')
       .where('actorId', '=', actorId)
       .execute()
+    return true
   })
-}
 
 export const getBlueskySession = async (
   db: Db,
