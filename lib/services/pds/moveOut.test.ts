@@ -108,6 +108,8 @@ const ALLOWED_USERNAMES = [
   'move-not-allowlisted',
   'move-stage-plc',
   'move-post-switch-blobs',
+  'move-finish-catch-up',
+  'move-retry-takendown',
   'move-post-switch-missing',
   'move-delete-switched',
   'move-cancel-no-key',
@@ -127,6 +129,11 @@ const ENABLED_PDS_ENV = JSON.stringify({
     )
   }
 })
+
+// What a destination answers for a call a test does not care about: nothing
+// missing, so finish's catch-up copy ends at once.
+const defaultDestBody = (url: string) =>
+  url.includes('/com.atproto.repo.listMissingBlobs') ? '{"blobs":[]}' : '{}'
 
 const okResponse = (url: string, body = '', statusCode = 200) => ({
   body,
@@ -401,7 +408,7 @@ describe('hosted Bluesky account move-out', () => {
           })
         )
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     fetchCalls.length = 0
@@ -504,7 +511,7 @@ describe('hosted Bluesky account move-out', () => {
           })
         )
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     await startMoveOut({
@@ -607,7 +614,7 @@ describe('hosted Bluesky account move-out', () => {
           })
         )
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const progress = await getMoveOutProgress({ database, actor })
@@ -745,7 +752,7 @@ describe('hosted Bluesky account move-out', () => {
         receivedPrefs = JSON.parse(options.body ?? '{}')
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     // Repo copy can be repeated without error or duplication.
@@ -976,7 +983,7 @@ describe('hosted Bluesky account move-out', () => {
         deleteSessionCalls += 1
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     await startMoveOut({
@@ -1164,7 +1171,7 @@ describe('hosted Bluesky account move-out', () => {
       if (options.url.endsWith('/com.atproto.server.activateAccount')) {
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     await finishMoveOut({ database, actor })
@@ -1227,7 +1234,7 @@ describe('hosted Bluesky account move-out', () => {
         }
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     // First attempt fails at activateAccount after PLC switch.
@@ -1296,7 +1303,7 @@ describe('hosted Bluesky account move-out', () => {
         deleteSessionCalls += 1
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const cancelled = await cancelMoveOut({ database, actor })
@@ -1456,7 +1463,7 @@ describe('hosted Bluesky account move-out', () => {
           JSON.stringify({ blob: { $type: 'blob' } })
         )
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const batch = await copyMoveOutBlobs({ database, actor, store })
@@ -1467,6 +1474,60 @@ describe('hosted Bluesky account move-out', () => {
       cid: blobA.cid,
       reason: expect.stringContaining('BlobTooLarge')
     })
+  })
+
+  it('sends nothing more after the switch once the repo was taken down', async () => {
+    const { actor, did } = await setupHostedAccount('move-retry-takendown')
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+
+    await database.updatePdsRepoIdentity({
+      did,
+      plcOperation: JSON.stringify({
+        type: 'plc_operation',
+        rotationKeys: [destRotKey.did()],
+        verificationMethods: { atproto: destSigningKey.did() },
+        alsoKnownAs: ['at://takendown.dest.pds.example'],
+        services: {
+          atproto_pds: {
+            type: 'AtprotoPersonalDataServer',
+            endpoint: DEST_PDS
+          }
+        },
+        prev: 'bafyprev',
+        sig: 'sig'
+      })
+    })
+    // An admin took the copy down after the switch, before activation.
+    await database.updatePdsRepoStatus({ did, status: 'takendown' })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'takendown.dest.pds.example',
+      accessJwt: 'access-td',
+      refreshJwt: 'refresh-td',
+      importedRev: 'stale-rev',
+      switchedAt: Date.now()
+    })
+
+    const copyCalls: string[] = []
+    let activateCalls = 0
+    destHandler = (options) => {
+      if (options.url.endsWith('/com.atproto.server.activateAccount')) {
+        activateCalls += 1
+        return okResponse(options.url, '')
+      }
+      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
+        return okResponse(options.url, '')
+      }
+      copyCalls.push(new URL(options.url).pathname)
+      return okResponse(options.url, defaultDestBody(options.url))
+    }
+
+    await finishMoveOut({ database, actor })
+    expect(activateCalls).toBe(1)
+    expect(copyCalls).toEqual([])
   })
 
   it('skips straight to activateAccount on retry when stored plcOperation already points to the destination even if switchedAt is null', async () => {
@@ -1513,12 +1574,18 @@ describe('hosted Bluesky account move-out', () => {
         activateCalls += 1
         return okResponse(options.url, '')
       }
-      // Revoking the destination session is part of cleanup, not a copy step.
-      if (options.url.endsWith('/com.atproto.server.deleteSession')) {
-        return okResponse(options.url, '')
+      // Revoking the destination session is part of cleanup, and finish always
+      // asks what is still missing and sends the preferences; none of these
+      // re-send the repo or sign anything.
+      if (
+        options.url.endsWith('/com.atproto.server.deleteSession') ||
+        options.url.includes('/com.atproto.repo.listMissingBlobs') ||
+        options.url.endsWith('/app.bsky.actor.putPreferences')
+      ) {
+        return okResponse(options.url, defaultDestBody(options.url))
       }
       otherCalls += 1
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const result = await finishMoveOut({ database, actor })
@@ -1573,7 +1640,7 @@ describe('hosted Bluesky account move-out', () => {
       if (options.url.endsWith('/com.atproto.server.activateAccount')) {
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     await finishMoveOut({ database, actor })
@@ -1811,7 +1878,7 @@ describe('hosted Bluesky account move-out', () => {
           JSON.stringify({ blob: { $type: 'blob' } })
         )
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const first = await copyMoveOutBlobs({ database, actor, limit: 2, store })
@@ -1887,7 +1954,7 @@ describe('hosted Bluesky account move-out', () => {
       if (options.url.endsWith('/com.atproto.server.deleteSession')) {
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     await finishMoveOut({ database, actor })
@@ -1942,7 +2009,7 @@ describe('hosted Bluesky account move-out', () => {
           })
         )
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     await expect(
@@ -2023,7 +2090,7 @@ describe('hosted Bluesky account move-out', () => {
       if (options.url.endsWith('/com.atproto.server.deleteSession')) {
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     await finishMoveOut({ database, actor })
@@ -2119,7 +2186,7 @@ describe('hosted Bluesky account move-out', () => {
           JSON.stringify({ blobs: [{ cid: blob.cid }] })
         )
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const batch = await copyMoveOutBlobs({
@@ -2202,7 +2269,7 @@ describe('hosted Bluesky account move-out', () => {
           JSON.stringify({ activated: false, validDid: false })
         )
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const state = await getHostedBlueskyAccountState({ database, actor })
@@ -2247,6 +2314,113 @@ describe('hosted Bluesky account move-out', () => {
     expect(started.moveOut).toMatchObject({
       pdsUrl: DEST_PDS,
       stage: 'started'
+    })
+  })
+
+  it('copies the blobs and preferences the page skipped when finishing', async () => {
+    const { actor, did } = await setupHostedAccount('move-finish-catch-up')
+    const store = createMemoryBlobStore()
+    const destSigningKey = await Secp256k1Keypair.create()
+    const destRotKey = await Secp256k1Keypair.create()
+
+    const blob = await uploadPdsBlob(
+      database,
+      { did, bytes: Buffer.from('skipped-image'), mimeType: 'image/png' },
+      { store }
+    )
+    await createPdsRecord(database, {
+      did,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 'post',
+        createdAt: new Date().toISOString(),
+        embed: {
+          $type: 'app.bsky.embed.images',
+          images: [{ alt: 'one', image: blob.blob }]
+        }
+      }
+    })
+    await database.putPdsPreferences({
+      did,
+      preferences: [
+        { $type: 'app.bsky.actor.defs#adultContentPref', enabled: false }
+      ]
+    })
+
+    // The repo step ran (rev unchanged since), but blobs and preferences never did.
+    const currentRepo = await database.getPdsRepo({ did })
+    await writeStoredBlueskySession(database, did, {
+      type: 'move-out',
+      pdsUrl: DEST_PDS,
+      destDid: DEST_DID,
+      handle: 'catch-up.dest.pds.example',
+      accessJwt: 'a',
+      refreshJwt: 'r',
+      importedRev: currentRepo!.rev,
+      switchedAt: null
+    })
+
+    const uploaded: string[] = []
+    const preferenceBodies: string[] = []
+    let importRepoCount = 0
+    destHandler = (options) => {
+      if (
+        options.url.endsWith(
+          '/com.atproto.identity.getRecommendedDidCredentials'
+        )
+      ) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            services: {
+              atproto_pds: {
+                type: 'AtprotoPersonalDataServer',
+                endpoint: DEST_PDS
+              }
+            },
+            verificationMethods: { atproto: destSigningKey.did() },
+            alsoKnownAs: ['at://catch-up.dest.pds.example'],
+            rotationKeys: [destRotKey.did()]
+          })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.importRepo')) {
+        importRepoCount += 1
+        return okResponse(options.url, '')
+      }
+      if (options.url.includes('/com.atproto.repo.listMissingBlobs')) {
+        return okResponse(
+          options.url,
+          JSON.stringify({
+            blobs: uploaded.length === 0 ? [{ cid: blob.cid }] : []
+          })
+        )
+      }
+      if (options.url.endsWith('/com.atproto.repo.uploadBlob')) {
+        uploaded.push(Buffer.from(options.bodyBytes ?? []).toString('utf8'))
+        return okResponse(
+          options.url,
+          JSON.stringify({ blob: { $type: 'blob' } })
+        )
+      }
+      if (options.url.endsWith('/app.bsky.actor.putPreferences')) {
+        preferenceBodies.push(String(options.body ?? ''))
+        return okResponse(options.url, '')
+      }
+      return okResponse(options.url, defaultDestBody(options.url))
+    }
+
+    const finished = await finishMoveOut({ database, actor, store })
+
+    expect(importRepoCount).toBe(0)
+    expect(uploaded).toEqual(['skipped-image'])
+    expect(finished.missingBlobs).toBe(0)
+    expect(preferenceBodies).toHaveLength(1)
+    expect(JSON.parse(preferenceBodies[0])).toEqual({
+      preferences: [
+        { $type: 'app.bsky.actor.defs#adultContentPref', enabled: false }
+      ]
     })
   })
 
@@ -2351,7 +2525,7 @@ describe('hosted Bluesky account move-out', () => {
       if (options.url.endsWith('/com.atproto.server.deleteSession')) {
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const finished = await finishMoveOut({ database, actor, store })
@@ -2463,7 +2637,7 @@ describe('hosted Bluesky account move-out', () => {
       if (options.url.endsWith('/com.atproto.server.deleteSession')) {
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const uploaded: string[] = []
@@ -2531,7 +2705,7 @@ describe('hosted Bluesky account move-out', () => {
         revoked.push(headers.Authorization)
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     await deleteHostedBlueskyAccount({
@@ -2636,7 +2810,7 @@ describe('hosted Bluesky account move-out', () => {
           JSON.stringify({ blob: { $type: 'blob' } })
         )
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
@@ -2733,7 +2907,7 @@ describe('hosted Bluesky account move-out', () => {
         revoked.push(headers.Authorization)
         return okResponse(options.url, '')
       }
-      return okResponse(options.url, '{}')
+      return okResponse(options.url, defaultDestBody(options.url))
     }
 
     // The directory read inside cancel runs a refresh first, rotating the

@@ -7,6 +7,7 @@ import type { Database } from '@/lib/database/types'
 import { readXrpcError } from '@/lib/services/bluesky/agent'
 import type { StoredBlueskyMoveOutSession } from '@/lib/services/bluesky/client'
 import { writeStoredBlueskySession } from '@/lib/services/bluesky/client'
+import { isActorModerationBlocked } from '@/lib/services/guards/accountState'
 import type { Actor } from '@/lib/types/domain/actor'
 import type {
   HostedBlueskyAccountState,
@@ -1472,33 +1473,61 @@ export const finishMoveOut = async ({
         throw new PdsHostedAccountNotFoundError()
       }
       let missingBlobs = 0
-      if (latestRepo.rev !== move.importedRev) {
-        const uploaded = await uploadRepoCar(database, repo.did, move, {
-          allowUnavailable: true
-        })
-        move = uploaded.session
-        const copyDeadline = Date.now() + FINISH_BLOB_BUDGET_MS
-        let cursor: string | undefined
-        for (let page = 0; page < MAX_BLOB_PAGES; page += 1) {
-          if (Date.now() > copyDeadline) {
-            // Out of time: activate anyway and report what is still missing.
-            const remaining = await countMissingBlobs(database, repo.did, move)
-            move = remaining.session
-            missingBlobs += remaining.count
-            break
-          }
-          const batch = await copyBlobBatch(database, repo.did, move, {
-            cursor,
-            limit: DEFAULT_BLOB_BATCH_LIMIT,
-            store,
-            // The switch deactivated the repo here; its blobs still copy.
+      // Only the move's own switch may open the copy here: a repo taken down
+      // since, or an actor suspended or disabled, sends nothing more.
+      const copyAllowed =
+        latestRepo.status === 'deactivated' &&
+        !isActorModerationBlocked(currentActor)
+      if (copyAllowed) {
+        if (latestRepo.rev !== move.importedRev) {
+          const uploaded = await uploadRepoCar(database, repo.did, move, {
             allowUnavailable: true
           })
-          move = batch.session
-          missingBlobs += batch.failed.length
-          if (batch.done) break
-          cursor = batch.cursor ?? undefined
+          move = uploaded.session
         }
+        // Finish does not trust the page to have run every copy step: it copies
+        // whatever the destination still lacks, then the preferences.
+        {
+          const copyDeadline = Date.now() + FINISH_BLOB_BUDGET_MS
+          let cursor: string | undefined
+          for (let page = 0; page < MAX_BLOB_PAGES; page += 1) {
+            if (Date.now() > copyDeadline) {
+              // Out of time: activate anyway and report what is still missing.
+              const remaining = await countMissingBlobs(
+                database,
+                repo.did,
+                move
+              )
+              move = remaining.session
+              missingBlobs += remaining.count
+              break
+            }
+            const batch = await copyBlobBatch(database, repo.did, move, {
+              cursor,
+              limit: DEFAULT_BLOB_BATCH_LIMIT,
+              store,
+              // The switch deactivated the repo here; its blobs still copy.
+              allowUnavailable: true
+            })
+            move = batch.session
+            missingBlobs += batch.failed.length
+            if (batch.done) break
+            cursor = batch.cursor ?? undefined
+          }
+        }
+        const preferencesRes = await requestWithMoveAuth({
+          database,
+          did: repo.did,
+          session: move,
+          nsid: 'app.bsky.actor.putPreferences',
+          method: 'POST',
+          contentType: 'application/json',
+          body: JSON.stringify({
+            preferences:
+              (await database.getPdsPreferences({ did: repo.did })) ?? []
+          })
+        })
+        move = preferencesRes.session
       }
 
       const activateRes = await requestWithMoveAuth({
