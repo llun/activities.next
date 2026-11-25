@@ -82,7 +82,9 @@ const state: HostedBlueskyAccountState = {
   rotationKeyConfigured: true,
   repo: null,
   handleChoices: [{ handle: 'alice.pds.social.example', kind: 'pds' }],
-  customHandleAllowed: false
+  customHandleAllowed: false,
+  movedTo: null,
+  moveOut: null
 }
 
 const call = (method: 'GET' | 'POST' | 'PATCH' | 'DELETE', body?: unknown) => {

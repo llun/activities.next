@@ -87,7 +87,8 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export const HOSTED_BLUESKY_RATE_LIMITS = {
   create: 3,
   handle: 10,
-  recovery: 10
+  recovery: 10,
+  move: 3
 } as const
 
 export type HostedBlueskyRateLimitAction =

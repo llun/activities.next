@@ -18,6 +18,12 @@ export interface HostedBlueskyRepoSummary {
   recoveryKeyDid: string | null
 }
 
+export interface HostedBlueskyMoveOutSummary {
+  pdsUrl: string
+  handle: string
+  stage: 'started' | 'switched'
+}
+
 export interface HostedBlueskyAccountState {
   // Whether the Settings card should show at all: the domain's PDS is on, the
   // actor is allowed, and the account is confirmed, approved and not blocked.
@@ -33,4 +39,9 @@ export interface HostedBlueskyAccountState {
   // accepted when changing an existing account's handle.
   handleChoices: HostedBlueskyHandleChoice[]
   customHandleAllowed: boolean
+  // The destination PDS hostname when this repo's PLC operation points away
+  // from this server, or null while it is hosted here.
+  movedTo: string | null
+  // Summary of an in-progress move to another PDS, or null when none.
+  moveOut: HostedBlueskyMoveOutSummary | null
 }

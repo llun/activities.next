@@ -70,7 +70,9 @@ describe('/settings/networks', () => {
       rotationKeyConfigured: true,
       repo: null,
       handleChoices: [],
-      customHandleAllowed: false
+      customHandleAllowed: false,
+      movedTo: null,
+      moveOut: null
     })
   })
 
@@ -113,7 +115,9 @@ describe('/settings/networks', () => {
       rotationKeyConfigured: true,
       repo: null,
       handleChoices: [{ handle: 'alice.pds.example.com', kind: 'pds' }],
-      customHandleAllowed: false
+      customHandleAllowed: false,
+      movedTo: null,
+      moveOut: null
     })
     render(await Page())
     expect(
@@ -141,7 +145,9 @@ describe('/settings/networks', () => {
         recoveryKeyDid: null
       },
       handleChoices: [],
-      customHandleAllowed: true
+      customHandleAllowed: true,
+      movedTo: null,
+      moveOut: null
     })
     render(await Page())
     expect(

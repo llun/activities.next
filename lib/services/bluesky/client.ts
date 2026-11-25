@@ -38,10 +38,23 @@ export const getBlueskyOAuthUrls = (domain: string) => {
 }
 
 // What `bluesky_sessions` holds for a DID, encrypted with the server secret.
-// The tag keeps an app-password session from ever being read as an OAuth one.
+// The tag keeps an app-password session, an OAuth session and an in-progress
+// move-out session from ever being read as one another.
+export type StoredBlueskyMoveOutSession = {
+  type: 'move-out'
+  pdsUrl: string
+  destDid: string
+  handle: string
+  accessJwt: string
+  refreshJwt: string
+  importedRev: string | null
+  switchedAt: number | null
+}
+
 export type StoredBlueskySession =
   | { type: 'oauth'; session: NodeSavedSession }
   | { type: 'app_password'; accessJwt: string; refreshJwt: string }
+  | StoredBlueskyMoveOutSession
 
 export const readStoredBlueskySession = async (
   database: Database,

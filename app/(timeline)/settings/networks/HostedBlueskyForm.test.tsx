@@ -46,6 +46,8 @@ const state = (
     { handle: 'alice.example.com', kind: 'instance' }
   ],
   customHandleAllowed: false,
+  movedTo: null,
+  moveOut: null,
   ...overrides
 })
 

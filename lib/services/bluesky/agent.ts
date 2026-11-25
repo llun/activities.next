@@ -354,7 +354,9 @@ export const getBlueskyAgent = async (
   }
   const { did, pdsUrl } = account
   const stored = await readStoredBlueskySession(database, did)
-  if (!stored) return null
+  if (!stored || (stored.type !== 'oauth' && stored.type !== 'app_password')) {
+    return null
+  }
   // The stored session's own tag decides how it is used.
   const send =
     stored.type === 'oauth'
