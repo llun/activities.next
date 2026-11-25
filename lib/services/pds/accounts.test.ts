@@ -5,8 +5,13 @@ import { GET as getAtprotoDid } from '@/app/api/well-known/atproto-did/route'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import {
+  BlueskyLinkError,
+  checkBlueskyHandle,
   getBlueskyAccountState,
-  setBlueskyInstanceHandle
+  linkBlueskyAppPassword,
+  setBlueskyInstanceHandle,
+  startBlueskyOAuth,
+  unlinkBluesky
 } from '@/lib/services/bluesky/account'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import {
@@ -115,7 +120,16 @@ const ALLOWED_USERNAMES = [
   'hosted-admin-a',
   'hosted-admin-b',
   'hosted-admin-c',
-  'hosted-plain'
+  'hosted-plain',
+  'hosted-row',
+  'hosted-row-backfill',
+  'hosted-row-stale',
+  'hosted-row-guard',
+  'hosted-row-orphan',
+  'hosted-row-flipfail',
+  'hosted-row-race',
+  'hosted-row-relinked',
+  'hosted-row-recreated'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -1664,6 +1678,323 @@ describe('hosted Bluesky accounts', () => {
       const response = await atprotoDid()
       expect(await response.text()).not.toBe(repo!.did)
       expect(await (await atprotoDid()).text()).toBe('did:plc:bareclaimadminc')
+    })
+  })
+
+  describe('the hosted account’s bluesky_accounts row', () => {
+    it('is written on create, follows the handle, stays while off and goes on delete', async () => {
+      const actor = await createActor('hosted-row')
+      const handle = pdsHandle('hosted-row')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      const did = state.repo!.did
+
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({
+        did,
+        handle,
+        pdsUrl: `https://${PDS_HOSTNAME}`,
+        authType: 'hosted',
+        domainHandle: false,
+        crosspostByDefault: false
+      })
+      // "Your Bluesky account" shows it as hosted, with no session to end and
+      // no server-handle claim.
+      expect(await getBlueskyAccountState(database, actor)).toMatchObject({
+        account: { did, handle, authType: 'hosted', sessionActive: true },
+        instanceHandle: null
+      })
+
+      vi.mocked(createBlueskyIdentityResolver).mockReturnValue({
+        resolve: async () => ({ did })
+      } as unknown as ReturnType<typeof createBlueskyIdentityResolver>)
+      await changeHostedBlueskyHandle({
+        database,
+        actor,
+        handle: 'row.example.com'
+      })
+      expect(
+        (await database.getBlueskyAccount({ actorId: actor.id }))?.handle
+      ).toBe('row.example.com')
+
+      await database.updateBlueskyCrosspostDefault({
+        actorId: actor.id,
+        crosspostByDefault: true
+      })
+      await deactivateHostedBlueskyAccount({ database, actor })
+      await reactivateHostedBlueskyAccount({ database, actor })
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({ did, authType: 'hosted', crosspostByDefault: true })
+
+      await deleteHostedBlueskyAccount({
+        database,
+        actor,
+        confirmHandle: 'row.example.com'
+      })
+      expect(await database.getBlueskyAccount({ actorId: actor.id })).toBeNull()
+    })
+
+    it('is written back for a hosted account that has none', async () => {
+      const actor = await createActor('hosted-row-backfill')
+      const handle = pdsHandle('hosted-row-backfill')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      // An account created before the row existed.
+      await database.deleteBlueskyAccount({ actorId: actor.id })
+
+      await getHostedBlueskyAccountState({ database, actor })
+
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({
+        did: state.repo!.did,
+        handle,
+        authType: 'hosted',
+        crosspostByDefault: false
+      })
+    })
+
+    it('keeps the hosted row when the status flip fails', async () => {
+      const actor = await createActor('hosted-row-flipfail')
+      const handle = pdsHandle('hosted-row-flipfail')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      const updateStatus = vi
+        .spyOn(database, 'updatePdsRepoStatus')
+        .mockRejectedValueOnce(new Error('database offline'))
+      try {
+        await expect(
+          deleteHostedBlueskyAccount({
+            database,
+            actor,
+            confirmHandle: handle
+          })
+        ).rejects.toThrow('database offline')
+      } finally {
+        updateStatus.mockRestore()
+      }
+
+      // The account is still live, so its app state (row, follows,
+      // interactions) must still be there.
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({ did: state.repo!.did, authType: 'hosted' })
+      expect((await database.getPdsRepo({ actorId: actor.id }))?.status).toBe(
+        'active'
+      )
+    })
+
+    it('removes a hosted row a read wrote after the account was deleted', async () => {
+      const actor = await createActor('hosted-row-orphan')
+      const handle = pdsHandle('hosted-row-orphan')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      await deleteHostedBlueskyAccount({
+        database,
+        actor,
+        confirmHandle: handle
+      })
+      // A Settings read that saw the repo active and the row gone, racing the
+      // delete, writes the row back after the delete removed it.
+      await database.saveBlueskyAccount({
+        actorId: actor.id,
+        did: state.repo!.did,
+        handle,
+        pdsUrl: `https://${PDS_HOSTNAME}`,
+        authType: 'hosted',
+        domainHandle: false
+      })
+
+      await getHostedBlueskyAccountState({ database, actor })
+
+      expect(await database.getBlueskyAccount({ actorId: actor.id })).toBeNull()
+    })
+
+    // An orphan hosted row of a deleted account, and a reconcile whose repo
+    // read lets `meanwhile` write a new row between its row read and its
+    // cleanup.
+    const reconcileOrphanWhile = async (
+      username: string,
+      meanwhile: (actorId: string) => Promise<void>
+    ) => {
+      const actor = await createActor(username)
+      const handle = pdsHandle(username)
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      await deleteHostedBlueskyAccount({
+        database,
+        actor,
+        confirmHandle: handle
+      })
+      await database.saveBlueskyAccount({
+        actorId: actor.id,
+        did: state.repo!.did,
+        handle,
+        pdsUrl: `https://${PDS_HOSTNAME}`,
+        authType: 'hosted',
+        domainHandle: false
+      })
+      const getPdsRepo = database.getPdsRepo.bind(database)
+      const spy = vi
+        .spyOn(database, 'getPdsRepo')
+        .mockImplementationOnce(async (params) => {
+          const repo = await getPdsRepo(params)
+          await meanwhile(actor.id)
+          return repo
+        })
+      try {
+        await getHostedBlueskyAccountState({ database, actor })
+      } finally {
+        spy.mockRestore()
+      }
+      return actor
+    }
+
+    it('keeps an outside link written after the orphan was read', async () => {
+      const linkedDid = 'did:plc:linkedafterreadaaaaaaaaa'
+      const actor = await reconcileOrphanWhile(
+        'hosted-row-relinked',
+        async (actorId) => {
+          await database.deleteBlueskyAccount({ actorId })
+          await database.saveBlueskyAccount({
+            actorId,
+            did: linkedDid,
+            handle: 'alice.bsky.social',
+            pdsUrl: 'https://bsky.social',
+            authType: 'oauth',
+            domainHandle: false
+          })
+          await database.setBlueskySession({ did: linkedDid, session: 's' })
+        }
+      )
+
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({ did: linkedDid, authType: 'oauth' })
+      expect(await database.getBlueskySession({ did: linkedDid })).toBe('s')
+    })
+
+    it('keeps a new hosted account’s row written after the orphan was read', async () => {
+      const newDid = 'did:plc:newhostedafterreadaaaaaa'
+      const actor = await reconcileOrphanWhile(
+        'hosted-row-recreated',
+        async (actorId) => {
+          await database.saveBlueskyAccount({
+            actorId,
+            did: newDid,
+            handle: 'new.example.com',
+            pdsUrl: `https://${PDS_HOSTNAME}`,
+            authType: 'hosted',
+            domainHandle: false
+          })
+        }
+      )
+
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({ did: newDid, authType: 'hosted' })
+    })
+
+    it('writes no row once a delete lands between the read and the write', async () => {
+      const actor = await createActor('hosted-row-race')
+      const handle = pdsHandle('hosted-row-race')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      const did = state.repo!.did
+      await database.deleteBlueskyAccount({ actorId: actor.id })
+      // The delete takes the repo lock first and tombstones the repo.
+      const realLock = vi.mocked(withPdsRepoLock).getMockImplementation()!
+      vi.mocked(withPdsRepoLock).mockImplementationOnce(
+        async (db, key, fn, options) => {
+          await database.updatePdsRepoStatus({ did, status: 'deleted' })
+          return realLock(db, key, fn, options)
+        }
+      )
+
+      await getHostedBlueskyAccountState({ database, actor })
+
+      expect(await database.getBlueskyAccount({ actorId: actor.id })).toBeNull()
+    })
+
+    it('does not stop a new account when the old one left its hosted row', async () => {
+      const actor = await createActor('hosted-row-stale')
+      await database.saveBlueskyAccount({
+        actorId: actor.id,
+        did: 'did:plc:stalehostedrowaaaaaaaaaa',
+        handle: 'old.example.com',
+        pdsUrl: `https://${PDS_HOSTNAME}`,
+        authType: 'hosted',
+        domainHandle: false
+      })
+
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle: pdsHandle('hosted-row-stale')
+      })
+
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({ did: state.repo!.did, authType: 'hosted' })
+    })
+
+    it('is never unlinked, relinked or claimed from "Your Bluesky account"', async () => {
+      const actor = await createActor('hosted-row-guard')
+      const handle = pdsHandle('hosted-row-guard')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle
+      })
+      const hostedMessage =
+        'Your Bluesky account is hosted on this server. Manage it under “Host my Bluesky account here”.'
+
+      await expect(unlinkBluesky(database, actor)).rejects.toThrow(
+        hostedMessage
+      )
+      await expect(checkBlueskyHandle(database, actor)).rejects.toThrow(
+        hostedMessage
+      )
+      await expect(
+        setBlueskyInstanceHandle(database, actor, true)
+      ).rejects.toBeInstanceOf(BlueskyLinkError)
+      await expect(
+        linkBlueskyAppPassword(database, actor, {
+          identifier: 'alice.bsky.social',
+          password: 'abcd-efgh-ijkl-mnop'
+        })
+      ).rejects.toThrow(/hosted on this server/)
+      await expect(
+        startBlueskyOAuth(database, actor, 'alice.bsky.social')
+      ).rejects.toThrow(/hosted on this server/)
+
+      // A second create is still refused as an existing account.
+      await expect(
+        createHostedBlueskyAccount({ database, actor, handle })
+      ).rejects.toMatchObject({ code: 'HostedAccountExists' })
+      expect(
+        await database.getBlueskyAccount({ actorId: actor.id })
+      ).toMatchObject({ did: state.repo!.did, authType: 'hosted' })
     })
   })
 })

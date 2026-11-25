@@ -269,14 +269,26 @@ export const setBlueskyInstanceHandle = async (
 export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
   const rows = await db
     .selectFrom('bluesky_accounts')
-    .innerJoin(
+    .leftJoin(
       'bluesky_sessions',
       'bluesky_sessions.did',
       'bluesky_accounts.did'
     )
+    .leftJoin('pds_repos', 'pds_repos.did', 'bluesky_accounts.did')
     .innerJoin('actors', 'actors.id', 'bluesky_accounts.actorId')
     .innerJoin('accounts', 'accounts.id', 'actors.accountId')
     .select('bluesky_accounts.actorId')
+    // A hosted account (on this server's PDS) has no stored session; it is
+    // synced only while turned on, so an off or taken-down one gets no job.
+    .where((eb) =>
+      eb.or([
+        eb('bluesky_sessions.did', 'is not', null),
+        eb.and([
+          eb('bluesky_accounts.authType', '=', 'hosted'),
+          eb('pds_repos.status', '=', 'active')
+        ])
+      ])
+    )
     // An actor that may not act (isActorModerationBlocked,
     // isActorConfirmationPending) or is being deleted is not synced.
     .where('actors.suspendedAt', 'is', null)
@@ -296,15 +308,21 @@ export const listBlueskyAccountsToSync = async (db: Db): Promise<string[]> => {
 
 export const deleteBlueskyAccount = async (
   db: Db,
-  { actorId }: { actorId: string }
-): Promise<void> => {
-  await inTransaction(db, async (trx) => {
+  { actorId, hostedDid }: { actorId: string; hostedDid?: string }
+): Promise<boolean> =>
+  inTransaction(db, async (trx) => {
     const row = await trx
       .selectFrom('bluesky_accounts')
-      .select('did')
+      .select(['did', 'authType'])
       .where('actorId', '=', actorId)
       .executeTakeFirst()
-    if (!row) return
+    if (!row) return false
+    if (
+      hostedDid !== undefined &&
+      (row.authType !== 'hosted' || row.did !== hostedDid)
+    ) {
+      return false
+    }
     await trx
       .deleteFrom('bluesky_sessions')
       .where('did', '=', row.did)
@@ -321,8 +339,8 @@ export const deleteBlueskyAccount = async (
       .deleteFrom('bluesky_accounts')
       .where('actorId', '=', actorId)
       .execute()
+    return true
   })
-}
 
 export const getBlueskySession = async (
   db: Db,

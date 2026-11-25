@@ -29,10 +29,12 @@ const Page = async ({
   if (!actor?.account) return redirect('/auth/signin')
   const callbackResult = (await searchParams)?.bluesky
 
-  const [accountState, sharingState, hostedState] = await Promise.all([
+  // The hosted state first: it writes a hosted account's `bluesky_accounts`
+  // row when one is missing, which "Your Bluesky account" then shows.
+  const hostedState = await getHostedBlueskyAccountState({ database, actor })
+  const [accountState, sharingState] = await Promise.all([
     getBlueskyAccountState(database, actor),
-    getBlueskySharingState(database, actor),
-    getHostedBlueskyAccountState({ database, actor })
+    getBlueskySharingState(database, actor)
   ])
 
   return (
@@ -67,7 +69,10 @@ const Page = async ({
           <HostedBlueskyForm
             key={actor.id}
             initialState={hostedState}
-            linked={accountState.account !== null}
+            linked={
+              accountState.account !== null &&
+              accountState.account.authType !== 'hosted'
+            }
           />
         </Section>
       ) : null}

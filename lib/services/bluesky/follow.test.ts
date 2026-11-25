@@ -2,6 +2,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import {
   type BlueskyAgent,
+  BlueskyHostedAccountInactiveError,
   BlueskyRequestError,
   BlueskySessionChangedError,
   BlueskySessionEndedError,
@@ -773,6 +774,23 @@ describe('Bluesky follow service', () => {
       status: 422,
       error: 'Bluesky ended this session. Link the account again in Settings.'
     })
+    // A hosted account says what is wrong with it, not "link again".
+    for (const [reason, error] of [
+      [
+        'off',
+        'Your Bluesky account on this server is off. Turn it on under “Host my Bluesky account here”.'
+      ],
+      [
+        'unavailable',
+        'Your Bluesky account on this server isn’t available right now.'
+      ],
+      ['takendown', 'Your Bluesky account on this server is suspended.'],
+      ['gone', 'Your Bluesky account on this server is no longer available.']
+    ] as const) {
+      expect(
+        blueskyFollowFailure(new BlueskyHostedAccountInactiveError(reason))
+      ).toEqual({ status: 422, error })
+    }
     expect(blueskyFollowFailure(new BlueskyFollowError('No'))).toEqual({
       status: 422,
       error: 'No'

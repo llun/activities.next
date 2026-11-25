@@ -244,3 +244,12 @@ export const getPdsSubdomainHandle = (
   }
   return null
 }
+
+/**
+ * The PDS a hosted account's repo is served from, `https://<PDS hostname>` as
+ * its DID document names it, or null when its domain has no PDS configured.
+ */
+export const getHostedPdsUrl = (repo: { domain: string }): string | null => {
+  const hostname = getPdsConfig()?.[repo.domain]?.hostname
+  return hostname ? `https://${hostname}` : null
+}

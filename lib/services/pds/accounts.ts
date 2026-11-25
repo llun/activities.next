@@ -47,7 +47,7 @@ import {
   PdsValidationError
 } from './errors'
 import { formatPdsAccountEvent, formatPdsIdentityEvent } from './events'
-import { isReservedPdsSubdomainHandle } from './host'
+import { getHostedPdsUrl, isReservedPdsSubdomainHandle } from './host'
 import { createPdsSigningKey } from './keys'
 import { withPdsRepoLock } from './lock'
 import {
@@ -278,9 +278,84 @@ const resolveHandleDid = async (handle: string): Promise<string | null> => {
 }
 
 /**
+ * Keeps the hosted account's `bluesky_accounts` row (authType `hosted`), which
+ * holds the app's Bluesky state for it (sync status, cross-post default), in
+ * step with its repo: writes it when missing (an account created before
+ * D2.3b, or a create whose row write failed), copies a changed handle, and
+ * removes a hosted row left with no live repo. A row for an outside account
+ * is left alone; the guards keep the two apart.
+ */
+const reconcileHostedAccountRow = async (
+  database: Database,
+  actor: Actor
+): Promise<void> => {
+  // The row first: a row written after this read comes from a repo that is
+  // already live, so the repo read below cannot see "no repo" for it.
+  const row = await database.getBlueskyAccount({ actorId: actor.id })
+  if (row && row.authType !== 'hosted') return
+  const repo = await database.getPdsRepo({ actorId: actor.id })
+  if (!repo || repo.status === 'deleted') {
+    // An orphan: a read that raced a delete wrote it after the delete removed
+    // the row. It would block linking and fail every sync.
+    // Only that row: a link or a new hosted account written since stays.
+    if (row) {
+      await database.deleteBlueskyAccount({
+        actorId: actor.id,
+        hostedDid: row.did
+      })
+    }
+    return
+  }
+  const pdsUrl = getHostedPdsUrl(repo)
+  if (!repo.handle || !pdsUrl) return
+  if (
+    row?.did === repo.did &&
+    row.handle === repo.handle &&
+    row.pdsUrl === pdsUrl
+  ) {
+    return
+  }
+  // Written under the repo lock, after reading the repo again, so a delete
+  // (which removes the row under the same lock) cannot be undone by it.
+  await withPdsRepoLock(database, repo.did, async () => {
+    const current = await database.getPdsRepo({ did: repo.did })
+    if (
+      !current ||
+      current.status === 'deleted' ||
+      current.actorId !== actor.id ||
+      !current.handle
+    ) {
+      return
+    }
+    const latest = await database.getBlueskyAccount({ actorId: actor.id })
+    if (latest && latest.authType !== 'hosted') return
+    if (latest?.did === current.did) {
+      await database.updateBlueskyAccountIdentity({
+        actorId: actor.id,
+        handle: current.handle,
+        pdsUrl,
+        domainHandle: false
+      })
+      return
+    }
+    // No row, or a stale hosted row of a deleted account: replaced.
+    await database.saveBlueskyAccount({
+      actorId: actor.id,
+      did: current.did,
+      handle: current.handle,
+      pdsUrl,
+      authType: 'hosted',
+      domainHandle: false,
+      crosspostByDefault: false
+    })
+  })
+}
+
+/**
  * The Settings › Bluesky card state: whether it should show, the PDS hostname,
  * the hosted repo (if any), the handles a new account may take and whether a
- * rotation key is configured.
+ * rotation key is configured. Every hosted-account action answers with it, so
+ * it also reconciles the account's `bluesky_accounts` row (above).
  */
 export const getHostedBlueskyAccountState = async ({
   database,
@@ -289,6 +364,7 @@ export const getHostedBlueskyAccountState = async ({
   database: Database
   actor: Actor
 }): Promise<HostedBlueskyAccountState> => {
+  await reconcileHostedAccountRow(database, actor)
   const context = resolveHostedAccountContext(actor)
   const repo = await database.getPdsRepo({ actorId: actor.id })
   const rotationKeyConfigured = getPdsRotationKeyHex() !== null
@@ -376,7 +452,10 @@ const createHostedRepoLocked = async ({
   if (existing && existing.status !== 'deleted') {
     throw new PdsHostedAccountExistsError()
   }
-  if (await database.getBlueskyAccount({ actorId: actor.id })) {
+  // Only an outside link refuses: a hosted row left by a deleted account is
+  // this server's own, and the new account's row replaces it.
+  const linked = await database.getBlueskyAccount({ actorId: actor.id })
+  if (linked && linked.authType !== 'hosted') {
     throw new PdsHostedAccountLinkedError()
   }
 
@@ -657,6 +736,15 @@ export const deleteHostedBlueskyAccount = async ({
       status: 'deleted'
     })
     if (!changed) return false
+    // The app's state for the account (its `bluesky_accounts` row, follows
+    // and interactions) goes only once the status has flipped, so a failed
+    // flip leaves a live account whole. If this delete fails, the next state
+    // read removes the hosted row that no longer has a live repo. An outside
+    // link is not this account's.
+    await database.deleteBlueskyAccount({
+      actorId: actor.id,
+      hostedDid: repo.did
+    })
     const storageKeys = await database.listPdsBlobStorageKeys({
       did: repo.did
     })

@@ -166,20 +166,24 @@ export const getBlueskyAccountState = async (
   actor: Actor
 ): Promise<BlueskyAccountState> => {
   const account = await database.getBlueskyAccount({ actorId: actor.id })
-  const session = account
-    ? await database.getBlueskySession({ did: account.did })
-    : null
+  // A hosted account has no session, and the server-handle claim is for a
+  // linked one: the hosted card manages its handle.
+  const hosted = account?.authType === 'hosted'
+  const session =
+    account && !hosted
+      ? await database.getBlueskySession({ did: account.did })
+      : null
   const host = getClaimableHost(actor)
   let instanceHandle: BlueskyAccountState['instanceHandle'] = null
   let hostedHolds = false
-  if (actor.account?.role === 'admin' && host) {
+  if (actor.account?.role === 'admin' && host && !hosted) {
     // A hosted account on this server whose holder may still hold the domain
     // decides it, over any claim (the atproto-did route answers it first).
-    const hosted = await database.getPdsRepoByHandle({ handle: host })
+    const hostedRepo = await database.getPdsRepoByHandle({ handle: host })
     hostedHolds =
-      hosted !== null &&
+      hostedRepo !== null &&
       (await database.isEligibleInstanceHandleHolder({
-        actorId: hosted.actorId,
+        actorId: hostedRepo.actorId,
         host
       }))
     const holder = hostedHolds
@@ -221,7 +225,7 @@ export const getBlueskyAccountState = async (
           pdsUrl: account.pdsUrl,
           authType: account.authType,
           domainHandle: account.domainHandle,
-          sessionActive: Boolean(session),
+          sessionActive: hosted || Boolean(session),
           lastSyncedAt: account.lastSyncedAt
             ? new Date(account.lastSyncedAt).toISOString()
             : null,
@@ -239,8 +243,30 @@ export const getBlueskyAccountState = async (
 const HOSTED_ACCOUNT_EXISTS_MESSAGE =
   'Your Bluesky account is hosted on this server. Delete it there before linking another one.'
 
+// The hosted account's own `bluesky_accounts` row (authType `hosted`) counts
+// too, so a link never overwrites it.
 const hasHostedBlueskyAccount = async (database: Database, actor: Actor) =>
-  Boolean(await database.getPdsRepo({ actorId: actor.id }))
+  Boolean(await database.getPdsRepo({ actorId: actor.id })) ||
+  (await database.getBlueskyAccount({ actorId: actor.id }))?.authType ===
+    'hosted'
+
+const HOSTED_ACCOUNT_MANAGED_MESSAGE =
+  'Your Bluesky account is hosted on this server. Manage it under “Host my Bluesky account here”.'
+
+// The actor's link, refusing a hosted account: it is managed by the hosted
+// card, not linked or unlinked here.
+const requireLinkedAccount = async (
+  database: Database,
+  actor: Actor,
+  message: string
+) => {
+  const account = await database.getBlueskyAccount({ actorId: actor.id })
+  if (!account) throw new BlueskyLinkError(message, 400)
+  if (account.authType === 'hosted') {
+    throw new BlueskyLinkError(HOSTED_ACCOUNT_MANAGED_MESSAGE, 400)
+  }
+  return account
+}
 
 /**
  * Returns the authorization URL to send the browser to. `requestHost` is the
@@ -515,8 +541,14 @@ export const linkBlueskyAppPassword = async (
 
 // Removes the link and the stored session only: the Bluesky account itself,
 // and any session the PDS still lists, are the user's to manage there.
-export const unlinkBluesky = (database: Database, actor: Actor) =>
-  database.deleteBlueskyAccount({ actorId: actor.id })
+// A hosted account is refused: its row goes with the account itself.
+export const unlinkBluesky = async (database: Database, actor: Actor) => {
+  const account = await database.getBlueskyAccount({ actorId: actor.id })
+  if (account?.authType === 'hosted') {
+    throw new BlueskyLinkError(HOSTED_ACCOUNT_MANAGED_MESSAGE, 400)
+  }
+  await database.deleteBlueskyAccount({ actorId: actor.id })
+}
 
 const DNS_NOT_FOUND = new Set(['ENOTFOUND', 'ENODATA'])
 
@@ -546,8 +578,11 @@ export const checkBlueskyHandle = async (
   database: Database,
   actor: Actor
 ): Promise<BlueskyHandleCheck> => {
-  const account = await database.getBlueskyAccount({ actorId: actor.id })
-  if (!account) throw new BlueskyLinkError('No Bluesky account is linked.', 400)
+  const account = await requireLinkedAccount(
+    database,
+    actor,
+    'No Bluesky account is linked.'
+  )
   if (!(await isBlueskyAllowed(database))) {
     throw new BlueskyLinkError(BLUESKY_NOT_ALLOWED_MESSAGE)
   }
@@ -600,9 +635,7 @@ export const setBlueskyInstanceHandle = async (
   if (!host) {
     throw new BlueskyLinkError('This server’s address cannot be a handle.', 400)
   }
-  if (!(await database.getBlueskyAccount({ actorId: actor.id }))) {
-    throw new BlueskyLinkError('Link a Bluesky account first.', 400)
-  }
+  await requireLinkedAccount(database, actor, 'Link a Bluesky account first.')
   const saved = await database.setBlueskyInstanceHandle({
     actorId: actor.id,
     host

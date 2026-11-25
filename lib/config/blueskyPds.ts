@@ -314,7 +314,7 @@ export const getPdsRotationKeyHex = (): string | null => {
   return cachedRotationKey
 }
 
-const normalizePlcDirectoryUrl = (value: string): string | null => {
+const normalizeHttpsOrigin = (value: string): string | null => {
   const trimmed = value.trim()
   if (!trimmed) return null
   let parsed: URL
@@ -354,7 +354,7 @@ export const getPlcDirectoryUrl = (): string => {
     return cachedPlcDirectoryUrl
   }
 
-  const normalized = normalizePlcDirectoryUrl(raw)
+  const normalized = normalizeHttpsOrigin(raw)
   if (!normalized) {
     if (!didWarnAboutPlcDirectory) {
       didWarnAboutPlcDirectory = true
@@ -368,4 +368,63 @@ export const getPlcDirectoryUrl = (): string => {
 
   cachedPlcDirectoryUrl = normalized
   return cachedPlcDirectoryUrl
+}
+
+/** Bluesky's AppView, which hosted accounts read timelines and views from. */
+export const DEFAULT_BLUESKY_APPVIEW_URL = 'https://api.bsky.app'
+/** The AppView's service reference, `<did>#<service id>`. */
+export const DEFAULT_BLUESKY_APPVIEW_DID = 'did:web:api.bsky.app#bsky_appview'
+
+// A DID with an optional `#service` fragment.
+const SERVICE_DID_PATTERN =
+  /^did:[a-z]+:[a-zA-Z0-9._:%-]*[a-zA-Z0-9._-](#[a-zA-Z0-9._~-]+)?$/
+
+const warnedAppViewVariables = new Set<string>()
+const warnAppViewOnce = (name: string, message: string) => {
+  if (warnedAppViewVariables.has(name)) return
+  warnedAppViewVariables.add(name)
+  logger.warn({ message })
+}
+
+/**
+ * The AppView a hosted account's `app.bsky.*` calls go to. An unset value uses
+ * `DEFAULT_BLUESKY_APPVIEW_URL`; an invalid one (not an https origin with no
+ * path, query, fragment or credentials) warns once and uses the default.
+ */
+export const getBlueskyAppViewUrl = (): string => {
+  const raw = process.env.ACTIVITIES_BLUESKY_APPVIEW_URL?.trim()
+  if (!raw) return DEFAULT_BLUESKY_APPVIEW_URL
+  const normalized = normalizeHttpsOrigin(raw)
+  if (normalized) return normalized
+  warnAppViewOnce(
+    'ACTIVITIES_BLUESKY_APPVIEW_URL',
+    `ACTIVITIES_BLUESKY_APPVIEW_URL must be an https origin with no path, query, fragment or credentials; using ${DEFAULT_BLUESKY_APPVIEW_URL}`
+  )
+  return DEFAULT_BLUESKY_APPVIEW_URL
+}
+
+/**
+ * The AppView's service DID, as `<did>#<service id>`, that service-auth
+ * tokens for hosted accounts are addressed to. An unset value uses
+ * `DEFAULT_BLUESKY_APPVIEW_DID`; an invalid one warns once and uses the
+ * default.
+ */
+export const getBlueskyAppViewDid = (): string => {
+  const raw = process.env.ACTIVITIES_BLUESKY_APPVIEW_DID?.trim()
+  if (!raw) {
+    // Tokens for another AppView addressed to Bluesky's would be refused.
+    if (process.env.ACTIVITIES_BLUESKY_APPVIEW_URL?.trim()) {
+      warnAppViewOnce(
+        'ACTIVITIES_BLUESKY_APPVIEW_DID unset',
+        `ACTIVITIES_BLUESKY_APPVIEW_URL is set but ACTIVITIES_BLUESKY_APPVIEW_DID is not; service-auth tokens are addressed to ${DEFAULT_BLUESKY_APPVIEW_DID}. Set both together.`
+      )
+    }
+    return DEFAULT_BLUESKY_APPVIEW_DID
+  }
+  if (raw.length <= 2048 && SERVICE_DID_PATTERN.test(raw)) return raw
+  warnAppViewOnce(
+    'ACTIVITIES_BLUESKY_APPVIEW_DID',
+    `ACTIVITIES_BLUESKY_APPVIEW_DID must be a DID with an optional #service fragment; using ${DEFAULT_BLUESKY_APPVIEW_DID}`
+  )
+  return DEFAULT_BLUESKY_APPVIEW_DID
 }

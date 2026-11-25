@@ -36,6 +36,7 @@ import { isRecord } from '@/lib/utils/typeGuards'
 import { BlueskyActionError } from './actionErrors'
 import {
   type BlueskyAgent,
+  BlueskyHostedAccountInactiveError,
   BlueskyRequestError,
   BlueskySessionEndedError,
   BlueskyUnexpectedAnswerError,
@@ -439,6 +440,7 @@ const isRetryableCrosspostError = (error: unknown): boolean => {
 }
 
 const failureMessage = (error: unknown): string => {
+  if (error instanceof BlueskyHostedAccountInactiveError) return error.message
   if (error instanceof BlueskySessionEndedError) {
     return BLUESKY_CROSSPOST_SESSION_ENDED_MESSAGE
   }

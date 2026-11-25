@@ -4,6 +4,7 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import {
+  BlueskyHostedAccountInactiveError,
   BlueskyRequestError,
   BlueskySessionChangedError,
   BlueskySessionEndedError
@@ -54,7 +55,10 @@ export const blueskyActionFailure = (
   if (error instanceof BlueskySessionEndedError) {
     return {
       status: 422,
-      error: 'Bluesky ended this session. Link the account again in Settings.'
+      error:
+        error instanceof BlueskyHostedAccountInactiveError
+          ? error.message
+          : 'Bluesky ended this session. Link the account again in Settings.'
     }
   }
   if (error instanceof BlueskyRequestError) {
