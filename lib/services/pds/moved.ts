@@ -46,26 +46,28 @@ const getLocalPdsOrigin = (domain: string): string | null => {
  * Returns `null` when the account is still hosted here or has no https
  * endpoint.
  *
- * A domain with no PDS config is treated as moved for any https endpoint: the
- * operator removed the PDS, so the copy here is inert either way. Failing
- * closed keeps a moved copy deletable and relinkable instead of looking live.
+ * Without the domain's PDS config this server's own origin is unknown, so the
+ * endpoint alone can't tell: the move's switch is then recognised by the
+ * handle it clears, and a live account (which keeps its handle) is not.
  */
 export const getMovedToHost = (repo: {
   domain: string
+  handle: string | null
   plcOperation: string | null
 }): string | null => {
   const endpoint = getPlcOperationPdsEndpoint(repo.plcOperation)
   if (!endpoint) return null
   const localOrigin = getLocalPdsOrigin(repo.domain)
-  if (!localOrigin) return endpoint.host
+  if (!localOrigin) return repo.handle === null ? endpoint.host : null
   return endpoint.origin !== localOrigin ? endpoint.host : null
 }
 
 /**
- * Whether a stored PLC operation's `services.atproto_pds.endpoint` points away
- * from this server for `domain`: an https endpoint that is not this server's
- * PDS origin. A domain with no PDS config counts as away for any https
- * endpoint, the same fail-closed rule as `getMovedToHost`.
+ * Whether a PLC operation (from the directory, or just signed) points
+ * `services.atproto_pds.endpoint` away from this server for `domain`: an https
+ * endpoint that is not this server's PDS origin. For a repo's stored operation
+ * use `getMovedToHost`. A domain with no PDS config counts as away; callers
+ * reach this only with the config present (move steps require it).
  */
 export const isPlcOperationPointingAway = (
   plcOperation: string | null,

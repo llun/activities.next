@@ -72,6 +72,7 @@ describe('moved', () => {
       expect(
         getMovedToHost({
           domain: TEST_DOMAIN,
+          handle: 'alex.pds.example',
           plcOperation: operation('https://bsky.social')
         })
       ).toBe('bsky.social')
@@ -81,6 +82,7 @@ describe('moved', () => {
       expect(
         getMovedToHost({
           domain: TEST_DOMAIN,
+          handle: 'alex.pds.example',
           plcOperation: operation('https://pds.example:8443')
         })
       ).toBe('pds.example:8443')
@@ -90,6 +92,7 @@ describe('moved', () => {
       expect(
         getMovedToHost({
           domain: TEST_DOMAIN,
+          handle: 'alex.pds.example',
           plcOperation: operation(`https://${PDS_HOSTNAME}`)
         })
       ).toBeNull()
@@ -97,18 +100,31 @@ describe('moved', () => {
 
     it('returns null without a stored operation', () => {
       expect(
-        getMovedToHost({ domain: TEST_DOMAIN, plcOperation: null })
+        getMovedToHost({
+          domain: TEST_DOMAIN,
+          handle: 'alex.pds.example',
+          plcOperation: null
+        })
       ).toBeNull()
     })
 
-    it('treats an https endpoint as moved when the domain has no PDS config', () => {
+    it('without the domain PDS config, counts a copy as moved only once the switch cleared its handle', () => {
       delete process.env.ACTIVITIES_BLUESKY_PDS
       expect(
         getMovedToHost({
           domain: 'unconfigured.example',
+          handle: null,
           plcOperation: operation('https://bsky.social')
         })
       ).toBe('bsky.social')
+      // A live account (its own endpoint, handle kept) is not moved.
+      expect(
+        getMovedToHost({
+          domain: 'unconfigured.example',
+          handle: 'alex.pds.unconfigured.example',
+          plcOperation: operation('https://pds.unconfigured.example')
+        })
+      ).toBeNull()
     })
   })
 

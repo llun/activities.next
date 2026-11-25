@@ -226,11 +226,7 @@ const assertNoUnswitchedMove = async (
   repo: PdsRepo
 ): Promise<void> => {
   const move = await readMoveOutSession(database, repo.did)
-  if (
-    move &&
-    move.switchedAt === null &&
-    !isPlcOperationPointingAway(repo.plcOperation, repo.domain)
-  ) {
+  if (move && move.switchedAt === null && !getMovedToHost(repo) !== null) {
     throw new PdsMoveOutPendingError()
   }
 }
@@ -425,8 +421,7 @@ export const getHostedBlueskyAccountState = async ({
         pdsUrl: stored.pdsUrl,
         handle: stored.handle,
         stage:
-          stored.switchedAt !== null ||
-          isPlcOperationPointingAway(liveRepo.plcOperation, liveRepo.domain)
+          stored.switchedAt !== null || getMovedToHost(liveRepo) !== null
             ? 'switched'
             : 'started'
       }

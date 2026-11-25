@@ -857,6 +857,18 @@ describe('hosted Bluesky account move-out', () => {
         alsoKnownAs: ['at://alice.dest.pds.example'],
         rotationKeys: [destRotationKey.did()]
       },
+      // The same host written as a fully qualified name
+      {
+        services: {
+          atproto_pds: {
+            type: 'AtprotoPersonalDataServer',
+            endpoint: `https://${PDS_HOSTNAME}.`
+          }
+        },
+        verificationMethods: { atproto: destSigningKey.did() },
+        alsoKnownAs: ['at://alice.dest.pds.example'],
+        rotationKeys: [destRotationKey.did()]
+      },
       // Invalid signing key
       {
         services: {

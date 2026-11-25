@@ -31,6 +31,7 @@ import { readPdsBlob } from './blobs'
 import { resolveEffectivePdsRepoStatus } from './effectiveStatus'
 import {
   PdsAccountMovedError,
+  PdsDisabledError,
   PdsHostedAccountInactiveError,
   PdsHostedAccountNotFoundError,
   PdsIdentityMovedError,
@@ -213,7 +214,8 @@ const sanitizeRemoteText = (
 const isOwnPdsHostname = (hostname: string): boolean => {
   const pdsConfig = getPdsConfig()
   if (!pdsConfig) return false
-  const targetHost = hostname.toLowerCase()
+  // A trailing dot names the same host (a fully qualified name).
+  const targetHost = hostname.toLowerCase().replace(/\.$/, '')
   return Object.values(pdsConfig).some(
     (entry) => stripHostPort(entry.hostname).toLowerCase() === targetHost
   )
@@ -952,10 +954,7 @@ export const sendMoveOutRepo = async ({
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       const move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
-      if (
-        move.switchedAt !== null ||
-        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
-      ) {
+      if (move.switchedAt !== null || getMovedToHost(repo) !== null) {
         throw new PdsMoveOutSwitchedError(
           'This account has already switched to the new server.'
         )
@@ -1132,10 +1131,7 @@ export const copyMoveOutBlobs = async ({
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       const move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
-      if (
-        move.switchedAt !== null ||
-        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
-      ) {
+      if (move.switchedAt !== null || getMovedToHost(repo) !== null) {
         throw new PdsMoveOutSwitchedError(
           'This account has already switched to the new server.'
         )
@@ -1190,10 +1186,7 @@ export const copyMoveOutPreferences = async ({
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       const move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
-      if (
-        move.switchedAt !== null ||
-        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
-      ) {
+      if (move.switchedAt !== null || getMovedToHost(repo) !== null) {
         throw new PdsMoveOutSwitchedError(
           'This account has already switched to the new server.'
         )
@@ -1261,8 +1254,7 @@ export const getMoveOutProgress = async ({
     pdsUrl: move.pdsUrl,
     handle: move.handle,
     stage:
-      move.switchedAt !== null ||
-      isPlcOperationPointingAway(repo.plcOperation, repo.domain)
+      move.switchedAt !== null || getMovedToHost(repo) !== null
         ? 'switched'
         : 'started',
     importedRev: move.importedRev,
@@ -1374,10 +1366,11 @@ export const finishMoveOut = async ({
 
       // Without this domain's PDS config "points away" can't tell this server
       // from the destination, so only a move that recorded its switch may go on.
-      if (move.switchedAt === null) assertPdsDomainEnabled(repo.domain)
+      if (move.switchedAt === null && !getPdsConfig()?.[repo.domain]) {
+        throw new PdsDisabledError(repo.domain)
+      }
       const alreadySwitched =
-        move.switchedAt !== null ||
-        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
+        move.switchedAt !== null || getMovedToHost(repo) !== null
 
       let operation: PlcSignedOperation | null = null
       if (!alreadySwitched) {
@@ -1669,10 +1662,7 @@ export const cancelMoveOut = async ({
       if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
       const move = await readMoveOutSession(database, repo.did)
       if (!move) throw new PdsMoveOutNotFoundError()
-      if (
-        move.switchedAt !== null ||
-        isPlcOperationPointingAway(repo.plcOperation, repo.domain)
-      ) {
+      if (move.switchedAt !== null || getMovedToHost(repo) !== null) {
         throw new PdsMoveOutSwitchedError()
       }
       // Cancelling signs nothing, so it needs neither the rotation key nor an
