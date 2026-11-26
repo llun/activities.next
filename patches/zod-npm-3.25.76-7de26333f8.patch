@@ -1,0 +1,68 @@
+diff --git a/v3/types.cjs b/v3/types.cjs
+index 11ed4dfc4745f9af1f1501874576b78b77d294ef..01613777f5eebd9b212b335ec09cd43bcf9ac7b3 100644
+--- a/v3/types.cjs
++++ b/v3/types.cjs
+@@ -1791,6 +1791,9 @@ class ZodArray extends ZodType {
+                     message: def.exactLength.message,
+                 });
+                 status.dirty();
++                // GHSA-mrhx-c7xc-m3w5 (backport of zod 4.6.6): an oversized array fails before any element is parsed
++                if (tooBig)
++                    return parseUtil_js_1.INVALID;
+             }
+         }
+         if (def.minLength !== null) {
+@@ -1816,7 +1819,8 @@ class ZodArray extends ZodType {
+                     exact: false,
+                     message: def.maxLength.message,
+                 });
+-                status.dirty();
++                // GHSA-mrhx-c7xc-m3w5 (backport of zod 4.6.6): an oversized array fails before any element is parsed
++                return parseUtil_js_1.INVALID;
+             }
+         }
+         if (ctx.common.async) {
+@@ -2843,7 +2847,8 @@ class ZodSet extends ZodType {
+                     exact: false,
+                     message: def.maxSize.message,
+                 });
+-                status.dirty();
++                // GHSA-mrhx-c7xc-m3w5 (backport of zod 4.6.6): an oversized set fails before any element is parsed
++                return parseUtil_js_1.INVALID;
+             }
+         }
+         const valueType = this._def.valueType;
+diff --git a/v3/types.js b/v3/types.js
+index 40b11c0f01b2af54e0ed48e198607bd8836d9a63..bc978ee102c3ca08ffcdb6489a62c2054f51a74a 100644
+--- a/v3/types.js
++++ b/v3/types.js
+@@ -1770,6 +1770,9 @@ export class ZodArray extends ZodType {
+                     message: def.exactLength.message,
+                 });
+                 status.dirty();
++                // GHSA-mrhx-c7xc-m3w5 (backport of zod 4.6.6): an oversized array fails before any element is parsed
++                if (tooBig)
++                    return INVALID;
+             }
+         }
+         if (def.minLength !== null) {
+@@ -1795,7 +1798,8 @@ export class ZodArray extends ZodType {
+                     exact: false,
+                     message: def.maxLength.message,
+                 });
+-                status.dirty();
++                // GHSA-mrhx-c7xc-m3w5 (backport of zod 4.6.6): an oversized array fails before any element is parsed
++                return INVALID;
+             }
+         }
+         if (ctx.common.async) {
+@@ -2814,7 +2818,8 @@ export class ZodSet extends ZodType {
+                     exact: false,
+                     message: def.maxSize.message,
+                 });
+-                status.dirty();
++                // GHSA-mrhx-c7xc-m3w5 (backport of zod 4.6.6): an oversized set fails before any element is parsed
++                return INVALID;
+             }
+         }
+         const valueType = this._def.valueType;

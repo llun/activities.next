@@ -8398,7 +8398,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^3.23.8":
+"zod@npm:3.25.76":
   version: 3.25.76
   resolution: "zod@npm:3.25.76"
   checksum: 10c0/5718ec35e3c40b600316c5b4c5e4976f7fee68151bc8f8d90ec18a469be9571f072e1bbaace10f1e85cf8892ea12d90821b200e980ab46916a6166a4260a983c
@@ -8409,5 +8409,12 @@ __metadata:
   version: 4.6.7
   resolution: "zod@npm:4.6.7"
   checksum: 10c0/4ce2eb14034317b7254e347ca37b5ad591cf8333147030cf05b9b5d31692d45073f7f2747aa50cf8c6b29012194d2b22978cecc89969cf34a0d18e89d0ee7d7b
+  languageName: node
+  linkType: hard
+
+"zod@patch:zod@npm%3A3.25.76#~/patches/zod-npm-3.25.76-7de26333f8.patch":
+  version: 3.25.76
+  resolution: "zod@patch:zod@npm%3A3.25.76#~/patches/zod-npm-3.25.76-7de26333f8.patch::version=3.25.76&hash=881336"
+  checksum: 10c0/9dd9a42bfb304c193ac52f9938f4565f3f120c3a6203495ceb0f6ec9e7cba0b694a8abeae66d4a0046e267c24c4002ecb43c7f73eebbea95f11f81cf8411b259
   languageName: node
   linkType: hard

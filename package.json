@@ -181,6 +181,7 @@
   },
   "packageManager": "yarn@4.18.1",
   "resolutions": {
-    "@trivago/prettier-plugin-sort-imports/minimatch": "^11.0.1"
+    "@trivago/prettier-plugin-sort-imports/minimatch": "^11.0.1",
+    "zod@npm:^3.23.8": "patch:zod@npm%3A3.25.76#~/patches/zod-npm-3.25.76-7de26333f8.patch"
   }
 }
