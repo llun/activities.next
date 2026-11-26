@@ -1,6 +1,7 @@
+import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 // The @atproto packages still depend on zod 3, which has no release fixing
@@ -10,8 +11,9 @@ import { describe, expect, it } from 'vitest'
 // resolution in package.json. If an @atproto upgrade moves to another zod 3
 // range, that resolution stops matching and this test fails: extend it to the
 // new range, or drop the patch once @atproto is on zod 4.6.6 or later.
+const requireFromRoot = createRequire(import.meta.url)
 const requireFromAtproto = createRequire(
-  createRequire(import.meta.url).resolve('@atproto/lexicon')
+  requireFromRoot.resolve('@atproto/lexicon')
 )
 const zodDirectory = path.dirname(
   requireFromAtproto.resolve('zod/package.json')
@@ -47,6 +49,32 @@ describe('zod 3 used by @atproto', () => {
     expectOversizedRejectedEarly(
       await import(pathToFileURL(path.join(zodDirectory, 'index.js')).href)
     )
+  })
+
+  it('is patched for every installed @atproto package that depends on zod 3', () => {
+    const nodeModules = fileURLToPath(
+      new URL('../node_modules', import.meta.url)
+    )
+    const dependents = ['@atproto', '@atproto-labs'].flatMap((scope) =>
+      fs
+        .readdirSync(path.join(nodeModules, scope))
+        .map((name) => path.join(nodeModules, scope, name, 'package.json'))
+        .filter((manifest) => {
+          const { dependencies = {} } = JSON.parse(
+            fs.readFileSync(manifest, 'utf8')
+          )
+          return /^\^?3\./.test(dependencies.zod ?? '')
+        })
+    )
+    expect(dependents.length).toBeGreaterThan(0)
+    for (const manifest of dependents) {
+      const zod = createRequire(manifest)('zod') as ZodV3
+      const result = zod.z.array(zod.z.string()).max(2).safeParse(oversized)
+      expect({ manifest, issues: result.error?.issues.length }).toEqual({
+        manifest,
+        issues: 1
+      })
+    }
   })
 
   it('still reports every bad element of an array within its limit', () => {
