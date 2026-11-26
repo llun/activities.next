@@ -200,7 +200,9 @@ describe('production archive scripts', () => {
       )
 
       expect(Buffer.isBuffer(revived.bytes)).toBe(true)
-      expect((revived.bytes as Buffer).equals(Buffer.from([0, 1, 127, 128, 255]))).toBe(true)
+      expect(
+        (revived.bytes as Buffer).equals(Buffer.from([0, 1, 127, 128, 255]))
+      ).toBe(true)
       expect(Buffer.isBuffer(revived.empty)).toBe(true)
       expect((revived.empty as Buffer).equals(Buffer.alloc(0))).toBe(true)
       expect(revived.nullable).toBeNull()
