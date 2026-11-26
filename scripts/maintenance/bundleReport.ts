@@ -87,9 +87,10 @@ export const PUBLIC_ROUTE_JS_BUDGETS: Record<string, RouteBudget> = {
   // Raw +1 KiB: fromNote's same-origin url check (status.ts) is in this bundle.
   // Raw +1 KiB again: the follow button shows the API's error (measured
   // 1248.3 KiB raw); +1 KiB more for the Bluesky reply handling in the shared
-  // status client (measured 1249.0 KiB raw).
-  '/[actor]/followers': { gzipBytes: kib(398), rawBytes: kib(1250) },
-  '/[actor]/following': { gzipBytes: kib(398), rawBytes: kib(1250) },
+  // status client (measured 1249.0 KiB raw); +1 KiB more for a dependency
+  // refresh that grew the shared client code (measured 1250.2 KiB raw).
+  '/[actor]/followers': { gzipBytes: kib(398), rawBytes: kib(1251) },
+  '/[actor]/following': { gzipBytes: kib(398), rawBytes: kib(1251) },
   '/[actor]/albums/[id]': { gzipBytes: kib(392), rawBytes: kib(1244) }
 }
 

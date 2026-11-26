@@ -43,6 +43,8 @@ COPY --chown=app:app packages/pg/package.json ./packages/pg/
 COPY --chown=app:app packages/qstash/package.json ./packages/qstash/
 COPY --chown=app:app packages/resend/package.json ./packages/resend/
 COPY --chown=app:app packages/ses/package.json ./packages/ses/
+# Yarn patches the lockfile points at (see patches/), applied during install.
+COPY --chown=app:app patches ./patches/
 RUN yarn config set -H enableGlobalCache true
 RUN yarn config set -H enableImmutableInstalls true
 RUN yarn workspaces focus ${WORKSPACES}
