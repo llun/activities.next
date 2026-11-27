@@ -30,7 +30,6 @@ const renderField = (
       kind="avatar"
       url={null}
       alt=""
-      initial="A"
       onUrlChange={onUrlChange}
       onAltChange={onAltChange}
       {...props}
@@ -47,6 +46,14 @@ const choose = (input: HTMLInputElement, file: File) =>
 
 describe('ProfileImageField', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('draws no thumbnail, since the live header shows the picture', () => {
+    const { container } = renderField({ url: MEDIA_URL })
+
+    expect(
+      container.querySelector('[data-slot="profile-image-preview"]')
+    ).toBeNull()
+  })
 
   it('names the avatar and header controls as the board does', () => {
     renderField({ kind: 'header' })
@@ -67,7 +74,6 @@ describe('ProfileImageField', () => {
         kind="avatar"
         url={MEDIA_URL}
         alt=""
-        initial="A"
         onUrlChange={vi.fn()}
         onAltChange={vi.fn()}
       />
@@ -196,7 +202,6 @@ describe('ProfileImageField', () => {
         kind="avatar"
         url={null}
         alt=""
-        initial="A"
         altError="Invalid avatarDescription"
         onUrlChange={vi.fn()}
         onAltChange={vi.fn()}

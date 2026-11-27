@@ -6,7 +6,6 @@ import { FC, useId, useRef, useState } from 'react'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
 import { uploadProfileImage } from '@/lib/components/settings/uploadProfileImage'
 import { FormRow } from '@/lib/components/surface/FormRow'
-import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Textarea } from '@/lib/components/ui/textarea'
 import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
@@ -18,8 +17,6 @@ interface Props {
   /** The image the draft holds, or null for none. */
   url: string | null
   alt: string
-  /** The letter shown on the avatar while it has no image. */
-  initial: string
   /** The save's message for the image itself (a rejected URL). */
   imageError?: string | null
   /** The save's message for the alt text (too long). */
@@ -50,16 +47,16 @@ const COPY = {
 } as const
 
 /**
- * One profile picture in the Photos box: a preview, Change (a file picker, the
- * same upload the composer uses), Remove, and the alt text behind its own
- * button. Uploading puts the new media URL in the editor's draft; nothing is
- * saved until the page's Save, and the file stays unattached until then.
+ * One profile picture in the Photos box: Change (a file picker, the same upload
+ * the composer uses), Remove, and the alt text behind its own button. The live
+ * header above the form shows the picture itself. Uploading puts the new media
+ * URL in the editor's draft; nothing is saved until the page's Save, and the
+ * file stays unattached until then.
  */
 export const ProfileImageField: FC<Props> = ({
   kind,
   url,
   alt,
-  initial,
   imageError,
   altError,
   onUrlChange,
@@ -107,24 +104,6 @@ export const ProfileImageField: FC<Props> = ({
     <FormRow label={copy.label} hint={copy.hint}>
       {({ labelledBy }) => (
         <div role="group" aria-labelledby={labelledBy} className="space-y-3">
-          {kind === 'header' ? (
-            <div
-              data-slot="profile-image-preview"
-              role="img"
-              aria-label={url ? 'Current header image' : 'No header image'}
-              className="bg-muted h-28 w-full rounded-md bg-cover bg-center"
-              style={url ? { backgroundImage: `url("${url}")` } : undefined}
-            />
-          ) : (
-            <Avatar
-              data-slot="profile-image-preview"
-              className="size-20 border"
-            >
-              {url ? <AvatarImage src={url} alt="" /> : null}
-              <AvatarFallback className="text-[34px]">{initial}</AvatarFallback>
-            </Avatar>
-          )}
-
           <div className="flex flex-wrap items-center gap-2">
             <Button
               ref={changeButtonRef}

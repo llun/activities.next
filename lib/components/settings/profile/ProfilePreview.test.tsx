@@ -4,6 +4,8 @@
 import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 
+import type { ProfileTabContent } from '@/lib/types/domain/profileTabs'
+
 import { ProfilePreview } from './ProfilePreview'
 import { type ProfileDraft, toDraft } from './profileDraft'
 
@@ -21,59 +23,94 @@ const DRAFT: ProfileDraft = toDraft({
   showFitness: true
 })
 
-const renderPreview = (draft: Partial<ProfileDraft> = {}) =>
+const ALL_CONTENT: ProfileTabContent = {
+  hasMedia: true,
+  hasGallery: true,
+  hasFitness: true
+}
+const NO_CONTENT: ProfileTabContent = {
+  hasMedia: false,
+  hasGallery: false,
+  hasFitness: false
+}
+
+const renderPreview = (
+  draft: Partial<ProfileDraft> = {},
+  tabContent: ProfileTabContent = ALL_CONTENT
+) =>
   render(
     <ProfilePreview
       draft={{ ...DRAFT, ...draft }}
+      actorId="https://llun.test/users/anna"
       username="anna"
       handle="@anna@llun.test"
+      tabContent={tabContent}
     />
   )
 
-const tabs = () =>
-  (document.querySelector('[data-slot="profile-preview-tabs"]') as HTMLElement)
-    .textContent
+const preview = () => screen.getByRole('region', { name: /Live preview/ })
+const tabLabels = () =>
+  within(preview())
+    .queryAllByRole('radio')
+    .map((radio) => radio.textContent)
 
 describe('ProfilePreview', () => {
+  it('has the caption and the note about other servers', () => {
+    renderPreview()
+
+    expect(
+      within(preview()).getByText('Live preview · updates as you type')
+    ).toBeInTheDocument()
+    expect(
+      within(preview()).getByText('Other servers see changes after you save.')
+    ).toBeInTheDocument()
+  })
+
+  it('is inert, a picture and not a second set of controls', () => {
+    renderPreview()
+
+    expect(
+      document.querySelector('[data-slot="profile-preview"]')
+    ).toHaveAttribute('inert')
+  })
+
   it('shows the name, handle and bio from the draft', () => {
     renderPreview()
 
-    expect(screen.getByText('Anna')).toBeInTheDocument()
-    expect(screen.getByText('@anna@llun.test')).toBeInTheDocument()
-    expect(screen.getByText('Wildlife photographer.')).toBeInTheDocument()
+    expect(within(preview()).getByText('Anna')).toBeInTheDocument()
+    expect(within(preview()).getByText('@anna@llun.test')).toBeInTheDocument()
+    expect(
+      within(preview()).getByText('Wildlife photographer.')
+    ).toBeInTheDocument()
   })
 
   it('falls back to the username without a display name, as the profile does', () => {
     renderPreview({ name: '  ' })
 
-    expect(screen.getByText('anna')).toBeInTheDocument()
+    expect(within(preview()).getByText('anna')).toBeInTheDocument()
   })
 
-  it('leaves out an empty bio', () => {
-    renderPreview({ summary: '' })
-
-    expect(
-      document.querySelector('[data-slot="profile-preview-bio"]')
-    ).toBeNull()
-  })
-
-  it('draws the header and avatar images when the draft has them', () => {
-    renderPreview({
-      headerImageUrl: 'https://llun.test/api/v1/files/h.jpg',
-      iconUrl: 'https://llun.test/api/v1/files/a.jpg'
-    })
-
-    expect(
-      document.querySelector<HTMLElement>(
-        '[data-slot="profile-preview-header"]'
-      )?.style.backgroundImage
-    ).toContain('https://llun.test/api/v1/files/h.jpg')
-  })
-
-  it('shows the initial while there is no avatar', () => {
+  it('shows the initials while there is no avatar', () => {
     renderPreview()
 
-    expect(screen.getByText('A')).toBeInTheDocument()
+    expect(within(preview()).getByText('A')).toBeInTheDocument()
+  })
+
+  it('draws the header image when the draft has one and nothing when it does not', () => {
+    const { unmount } = renderPreview()
+    expect(
+      screen.queryByRole('button', {
+        name: 'Open profile header image preview'
+      })
+    ).toBeNull()
+    unmount()
+
+    renderPreview({ headerImageUrl: 'https://llun.test/api/v1/files/h.jpg' })
+    expect(
+      screen.getByRole('button', {
+        name: 'Open profile header image preview'
+      })
+    ).toBeInTheDocument()
   })
 
   it('shows filled links on one line with the extras behind +N more', () => {
@@ -87,48 +124,51 @@ describe('ProfilePreview', () => {
       ]
     })
 
-    expect(screen.getByText('one.example')).toBeInTheDocument()
-    expect(screen.getByText('+2 more')).toBeInTheDocument()
-    expect(screen.queryByText('Half')).toBeNull()
+    expect(within(preview()).getByText('one.example')).toBeInTheDocument()
+    expect(within(preview()).getByText('+2 more')).toBeInTheDocument()
+    expect(within(preview()).queryByText('Half')).toBeNull()
   })
 
-  it('draws the tab strip from the toggles, with Posts always first', () => {
-    renderPreview()
-    expect(tabs()).toBe('PostsRepliesMediaGalleryFitness')
+  it('draws no tab strip when Posts is the only tab', () => {
+    renderPreview({ showReplies: false }, NO_CONTENT)
 
-    renderPreview({ showReplies: false, showFitness: false })
-    expect(screen.getAllByText('Posts').length).toBeGreaterThan(0)
-    expect(
-      [...document.querySelectorAll('[data-slot="profile-preview-tabs"]')].map(
-        (strip) => strip.textContent
-      )
-    ).toContain('PostsMediaGallery')
+    expect(within(preview()).queryByRole('radiogroup')).toBeNull()
   })
 
-  it('is inert, a picture and not a second set of controls', () => {
+  it('draws the tab strip from the switches and the tab content', () => {
     renderPreview()
 
-    expect(
-      document.querySelector('[data-slot="profile-preview"]')
-    ).toHaveAttribute('inert')
-  })
-
-  it('has the caption and the Set in Settings links', () => {
-    renderPreview()
-
-    const aside = screen.getByRole('complementary', { name: 'Preview' })
-    expect(
-      within(aside).getByText(
-        'Preview updates as you type. Other servers see the change after you save.'
-      )
-    ).toBeInTheDocument()
-    const links = within(
-      within(aside).getByRole('navigation', { name: 'Set in Settings' })
-    ).getAllByRole('link')
-    expect(links.map((link) => link.getAttribute('href'))).toEqual([
-      '/settings/privacy',
-      '/fitness/privacy',
-      '/gallery/privacy'
+    expect(tabLabels()).toEqual([
+      'Posts',
+      'Replies',
+      'Media',
+      'Gallery',
+      'Fitness'
     ])
+  })
+
+  it('shows a tab only when its switch is on and it has content', () => {
+    const { unmount } = renderPreview({ showMedia: true }, NO_CONTENT)
+    expect(tabLabels()).not.toContain('Media')
+    unmount()
+
+    renderPreview({ showMedia: false }, ALL_CONTENT)
+    expect(tabLabels()).not.toContain('Media')
+  })
+
+  it('shows Replies from its switch alone', () => {
+    const { unmount } = renderPreview({ showReplies: true }, NO_CONTENT)
+    expect(tabLabels()).toContain('Replies')
+    unmount()
+
+    renderPreview({ showReplies: false }, NO_CONTENT)
+    expect(tabLabels()).not.toContain('Replies')
+  })
+
+  it('has no Set in Settings card', () => {
+    renderPreview()
+
+    expect(within(preview()).queryByText('Set in Settings')).toBeNull()
+    expect(within(preview()).queryByText('Who can follow you')).toBeNull()
   })
 })

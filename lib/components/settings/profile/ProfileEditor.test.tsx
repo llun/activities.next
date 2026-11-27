@@ -88,6 +88,7 @@ const renderEditor = (
   render(
     <ProfileEditor
       actorId={ACTOR_ID}
+      tabContent={{ hasMedia: true, hasGallery: true, hasFitness: true }}
       {...extra}
       profile={profile}
       username="anna"
@@ -229,36 +230,29 @@ describe('ProfileEditor', () => {
       ).toHaveAttribute('href', '/gallery/privacy')
     })
 
-    it('shows a live preview with the Set in Settings card', () => {
+    it('shows the live preview above the form, with no Set in Settings card', () => {
       renderEditor()
 
-      const preview = screen.getByRole('complementary', { name: 'Preview' })
+      const preview = screen.getByRole('region', { name: /Live preview/ })
       expect(within(preview).getByText('Anna')).toBeInTheDocument()
       expect(
         within(preview).getByText('Wildlife photographer.')
       ).toBeInTheDocument()
       expect(
-        within(preview).getByText(
-          'Preview updates as you type. Other servers see the change after you save.'
-        )
+        within(preview).getByText('Other servers see changes after you save.')
       ).toBeInTheDocument()
-      const card = within(preview).getByRole('navigation', {
-        name: 'Set in Settings'
-      })
+      expect(within(preview).queryByText('Set in Settings')).toBeNull()
+      expect(within(preview).queryByText('Who can follow you')).toBeNull()
+
+      const form = name().closest('form') as HTMLFormElement
       expect(
-        within(card).getByRole('link', { name: /Who can follow you/ })
-      ).toHaveAttribute('href', '/settings/privacy')
-      expect(
-        within(card).getByRole('link', { name: /Fitness privacy/ })
-      ).toHaveAttribute('href', '/fitness/privacy')
-      expect(
-        within(card).getByRole('link', { name: /Gallery privacy/ })
-      ).toHaveAttribute('href', '/gallery/privacy')
+        preview.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
     })
 
     it('updates the preview as you type and as you flip a tab', () => {
       renderEditor()
-      const preview = screen.getByRole('complementary', { name: 'Preview' })
+      const preview = screen.getByRole('region', { name: /Live preview/ })
 
       type(name(), 'Anna K')
       type(bio(), 'New bio')
@@ -266,25 +260,11 @@ describe('ProfileEditor', () => {
 
       expect(within(preview).getByText('Anna K')).toBeInTheDocument()
       expect(within(preview).getByText('New bio')).toBeInTheDocument()
-      const strip = preview.querySelector(
-        '[data-slot="profile-preview-tabs"]'
-      ) as HTMLElement
-      expect(strip.textContent).toBe('PostsRepliesGalleryFitness')
-    })
-
-    it('sizes the preview column by a container query at 860px rather than viewport width', () => {
-      const { container } = renderEditor()
-
-      const preview = screen.getByRole('complementary', { name: 'Preview' })
-      const previewColumn = preview.parentElement as HTMLElement
-      expect(previewColumn).toHaveClass(
-        'sticky',
-        'top-[103px]',
-        'hidden',
-        '@min-[860px]:block'
-      )
-
-      expect(container.firstElementChild).toHaveClass('@container')
+      expect(
+        within(preview)
+          .getAllByRole('radio')
+          .map((radio) => radio.textContent)
+      ).toEqual(['Posts', 'Replies', 'Gallery', 'Fitness'])
     })
   })
 

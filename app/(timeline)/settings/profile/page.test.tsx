@@ -12,6 +12,12 @@ const getActorSettings = vi.fn()
 const getActorFromId = vi.fn()
 const mockDatabase = { getActorSettings, getActorFromId }
 
+const getOwnProfileTabContent = vi.fn()
+vi.mock('@/app/(timeline)/[actor]/getProfileData', () => ({
+  getOwnProfileTabContent: (...args: unknown[]) =>
+    getOwnProfileTabContent(...args)
+}))
+
 vi.mock('@/lib/database', () => ({
   getDatabase: vi.fn(() => mockDatabase)
 }))
@@ -69,6 +75,11 @@ describe('/settings/profile', () => {
     vi.clearAllMocks()
     vi.mocked(getActorFromSession).mockResolvedValue(ACTOR as never)
     getActorFromId.mockResolvedValue(ACTOR)
+    getOwnProfileTabContent.mockResolvedValue({
+      hasMedia: true,
+      hasGallery: false,
+      hasFitness: false
+    })
     getActorSettings.mockResolvedValue({
       avatarDescription: 'A smiling woman',
       fields: [
@@ -98,6 +109,7 @@ describe('/settings/profile', () => {
         handle: '@anna@llun.test',
         profileUrl: 'https://llun.test/@anna',
         profilePath: '/@anna@llun.test',
+        tabContent: { hasMedia: true, hasGallery: false, hasFitness: false },
         profile: {
           name: 'Anna',
           summary: 'Bio',
