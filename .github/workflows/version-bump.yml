@@ -171,6 +171,16 @@ jobs:
 
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
+          # actions/checkout persists the workflow token as an http extraheader,
+          # and git sends that header ahead of the PAT in the remote URL. A push
+          # made with the workflow token is attributed to github-actions[bot],
+          # whose pull_request CI runs wait for approval ("action_required") and
+          # never report a check, so the bump PR stays blocked. An empty
+          # extraheader clears the list, leaving the PAT as the only credential.
+          git_with_pat() {
+            git -c http.https://github.com/.extraheader= "$@"
+          }
+
           # Only same-repository PRs: a fork can open a PR from a branch with any
           # name, and this workflow must never close or edit one it does not own.
           gh pr list --state open --base main --json number,headRefName,isCrossRepository \
@@ -186,12 +196,12 @@ jobs:
 
           git commit -m "Bump version to v${NEW_VERSION}"
 
-          if git ls-remote --exit-code --heads origin "$VERSION_BUMP_BRANCH" >/dev/null 2>&1; then
-            git fetch --force origin "refs/heads/${VERSION_BUMP_BRANCH}:refs/remotes/origin/${VERSION_BUMP_BRANCH}"
+          if git_with_pat ls-remote --exit-code --heads origin "$VERSION_BUMP_BRANCH" >/dev/null 2>&1; then
+            git_with_pat fetch --force origin "refs/heads/${VERSION_BUMP_BRANCH}:refs/remotes/origin/${VERSION_BUMP_BRANCH}"
             REMOTE_BUMP_SHA=$(git rev-parse "refs/remotes/origin/${VERSION_BUMP_BRANCH}")
-            git push --force-with-lease="refs/heads/${VERSION_BUMP_BRANCH}:${REMOTE_BUMP_SHA}" origin "$VERSION_BUMP_BRANCH"
+            git_with_pat push --force-with-lease="refs/heads/${VERSION_BUMP_BRANCH}:${REMOTE_BUMP_SHA}" origin "$VERSION_BUMP_BRANCH"
           else
-            git push --force-with-lease="refs/heads/${VERSION_BUMP_BRANCH}" origin "$VERSION_BUMP_BRANCH"
+            git_with_pat push --force-with-lease="refs/heads/${VERSION_BUMP_BRANCH}" origin "$VERSION_BUMP_BRANCH"
           fi
 
           BODY_FILE=$(mktemp)

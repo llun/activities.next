@@ -154,6 +154,26 @@ describe('automatic version-bump policy', () => {
     expect(workflow).not.toMatch(/^\s+actions:\s*write\s*$/m)
   })
 
+  it('pushes the bump branch with the PAT, not the workflow token checkout persisted', () => {
+    const workflow = readFileSync('.github/workflows/version-bump.yml', 'utf8')
+    const bumpBranchGitLines = workflow
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(
+        (line) =>
+          /\bgit(_with_pat)? (push|fetch|ls-remote)\b/.test(line) &&
+          line.includes('VERSION_BUMP_BRANCH')
+      )
+
+    expect(workflow).toContain(
+      'git -c http.https://github.com/.extraheader= "$@"'
+    )
+    expect(bumpBranchGitLines).toHaveLength(4)
+    for (const line of bumpBranchGitLines) {
+      expect(line).toMatch(/\bgit_with_pat (push|fetch|ls-remote)\b/)
+    }
+  })
+
   describe('same-repository pull request filters', () => {
     const hasJq = spawnSync('jq', ['--version']).status === 0
     const workflow = readFileSync('.github/workflows/version-bump.yml', 'utf8')
