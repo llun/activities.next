@@ -34,7 +34,9 @@ const COPY = {
     change: 'Change avatar',
     remove: 'Remove avatar',
     altButton: 'Avatar alt text',
-    altLabel: 'Avatar alt text'
+    altLabel: 'Avatar alt text',
+    set: 'Avatar set',
+    unset: 'No avatar'
   },
   header: {
     label: 'Header image',
@@ -42,7 +44,9 @@ const COPY = {
     change: 'Change header',
     remove: 'Remove header',
     altButton: 'Alt text',
-    altLabel: 'Header alt text'
+    altLabel: 'Header alt text',
+    set: 'Header image set',
+    unset: 'No header image'
   }
 } as const
 
@@ -70,6 +74,7 @@ export const ProfileImageField: FC<Props> = ({
   const altId = `${id}-alt`
   const imageErrorId = `${id}-image-error`
   const altErrorId = `${id}-alt-error`
+  const statusId = `${id}-status`
   const fileInputRef = useRef<HTMLInputElement>(null)
   const changeButtonRef = useRef<HTMLButtonElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -103,7 +108,17 @@ export const ProfileImageField: FC<Props> = ({
   return (
     <FormRow label={copy.label} hint={copy.hint}>
       {({ labelledBy }) => (
-        <div role="group" aria-labelledby={labelledBy} className="space-y-3">
+        <div
+          role="group"
+          aria-labelledby={labelledBy}
+          aria-describedby={statusId}
+          className="space-y-3"
+        >
+          {/* The preview above the form is inert, so this is where a screen
+              reader learns whether the picture is set. */}
+          <p id={statusId} className="sr-only">
+            {url ? copy.set : copy.unset}
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               ref={changeButtonRef}

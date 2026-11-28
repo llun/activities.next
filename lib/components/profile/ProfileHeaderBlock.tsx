@@ -45,8 +45,8 @@ export const getInitials = (name: string, fallback: string) => {
  * the cover, the avatar overlapping it, the name and handle with the actions
  * beside them, the bio and the links. Directive-less so the server page and the
  * client editor render the same markup; the page-only extras (moved and Bluesky
- * badges, the software line, featured hashtags, the stat strip) come in through
- * `name`, `handle`, `actions` and `children`.
+ * badges, the software line, featured hashtags) come in through `name`,
+ * `handle` and `children`, and `actions` carries the Edit/Follow controls.
  */
 export const ProfileHeaderBlock: FC<Props> = ({
   cover,

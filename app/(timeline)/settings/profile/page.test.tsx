@@ -154,6 +154,10 @@ describe('/settings/profile', () => {
 
     expect(getActorFromId).toHaveBeenCalledWith({ id: ACTOR.id })
     expect(getActorSettings).toHaveBeenCalledWith({ actorId: ACTOR.id })
+    expect(getOwnProfileTabContent).toHaveBeenCalledWith(
+      mockDatabase,
+      expect.objectContaining({ id: ACTOR.id, name: 'Stored Anna' })
+    )
     expect(editorProps.mock.calls[0][0].profile).toEqual(
       expect.objectContaining({
         name: 'Stored Anna',

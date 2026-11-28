@@ -83,6 +83,45 @@ describe('ProfileImageField', () => {
     ).toBeInTheDocument()
   })
 
+  it('tells a screen reader whether the picture is set', () => {
+    const avatar = renderField({ kind: 'avatar', url: MEDIA_URL })
+    expect(screen.getByRole('group')).toHaveAccessibleDescription('Avatar set')
+    avatar.unmount()
+
+    renderField({ kind: 'avatar' })
+    expect(screen.getByRole('group')).toHaveAccessibleDescription('No avatar')
+  })
+
+  it('says the header image is set or not', () => {
+    const header = renderField({ kind: 'header', url: MEDIA_URL })
+    expect(screen.getByRole('group')).toHaveAccessibleDescription(
+      'Header image set'
+    )
+    header.unmount()
+
+    renderField({ kind: 'header' })
+    expect(screen.getByRole('group')).toHaveAccessibleDescription(
+      'No header image'
+    )
+  })
+
+  it('says the picture is gone once Remove is clicked', () => {
+    const { rerender } = renderField({ url: MEDIA_URL })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove avatar' }))
+    rerender(
+      <ProfileImageField
+        kind="avatar"
+        url={null}
+        alt=""
+        onUrlChange={vi.fn()}
+        onAltChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('group')).toHaveAccessibleDescription('No avatar')
+  })
+
   it('removes the image and hands focus to Change', () => {
     const { onUrlChange } = renderField({ url: MEDIA_URL })
 

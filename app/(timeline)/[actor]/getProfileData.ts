@@ -323,9 +323,7 @@ export const getProfileTabContentData = async (
         ? database.getAttachmentsForActor({
             actorId,
             ...visibilityScope,
-            ...(attachmentsLimit === undefined
-              ? {}
-              : { limit: attachmentsLimit })
+            limit: attachmentsLimit
           })
         : Promise.resolve([] as Attachment[]),
       tabVisibility.fitness

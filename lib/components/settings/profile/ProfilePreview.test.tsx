@@ -9,6 +9,19 @@ import type { ProfileTabContent } from '@/lib/types/domain/profileTabs'
 import { ProfilePreview } from './ProfilePreview'
 import { type ProfileDraft, toDraft } from './profileDraft'
 
+// Radix draws the <img> only once the picture has loaded, which jsdom never
+// does; draw it at once so its src and alt text can be read.
+vi.mock('@/lib/components/ui/avatar', () => ({
+  Avatar: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  AvatarImage: (props: { src?: string; alt?: string }) =>
+    props.src ? <img data-testid="avatar-image" {...props} /> : null,
+  AvatarFallback: ({ children }: { children: React.ReactNode }) => (
+    <span>{children}</span>
+  )
+}))
+
 const DRAFT: ProfileDraft = toDraft({
   name: 'Anna',
   summary: 'Wildlife photographer.',
@@ -48,7 +61,9 @@ const renderPreview = (
     />
   )
 
-const preview = () => screen.getByRole('region', { name: /Live preview/ })
+const preview = () =>
+  screen.getByText('Live preview · updates as you type')
+    .parentElement as HTMLElement
 const tabLabels = () =>
   within(preview())
     .queryAllByRole('radio')
@@ -94,6 +109,17 @@ describe('ProfilePreview', () => {
     renderPreview()
 
     expect(within(preview()).getByText('A')).toBeInTheDocument()
+  })
+
+  it('draws the avatar image from the draft, with its description as alt text', () => {
+    renderPreview({
+      iconUrl: 'https://llun.test/api/v1/files/a.jpg',
+      avatarDescription: ' A smiling woman '
+    })
+
+    const image = within(preview()).getByTestId('avatar-image')
+    expect(image).toHaveAttribute('src', 'https://llun.test/api/v1/files/a.jpg')
+    expect(image).toHaveAttribute('alt', 'A smiling woman')
   })
 
   it('draws the header image when the draft has one and nothing when it does not', () => {

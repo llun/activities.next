@@ -41,13 +41,25 @@ describe('ProfileHeaderBlock', () => {
   it('renders the actions beside the name', () => {
     renderBlock({ actions: <button type="button">Follow</button> })
 
-    expect(screen.getByRole('button', { name: 'Follow' })).toBeInTheDocument()
+    const name = screen.getByText('Anna')
+    const action = screen.getByRole('button', { name: 'Follow' })
+    expect(
+      name.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('renders the page-only extras after the links', () => {
-    renderBlock({ children: <p>Running v2</p> })
+    renderBlock({
+      fields: [{ name: 'Website', value: 'https://one.example' }],
+      children: <p>Running v2</p>
+    })
 
-    expect(screen.getByText('Running v2')).toBeInTheDocument()
+    const links = document.querySelector('[data-slot="profile-fields"]')
+    const extras = screen.getByText('Running v2')
+    expect(links).not.toBeNull()
+    expect(
+      links!.compareDocumentPosition(extras) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 })
 

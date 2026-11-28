@@ -2656,10 +2656,10 @@ false`), so users who never opted in are not advertised to remote servers
     in Settings" card: Who can follow you is in Settings > Privacy, and
     Fitness privacy (`/fitness/privacy`) and Gallery privacy
     (`/gallery/privacy`) are linked inline under Profile tabs. Below `md`
-    the bar is Cancel, "Edit profile" and Save, sticky under the settings
-    mobile bar and the connection strip (and `scroll-padding-top` grows by
-    its height while it is on the page), and the sticky bottom `SaveBar` is
-    hidden.
+    the editor's top action bar is Cancel, "Edit profile" and Save, sticky
+    under the settings mobile bar and the connection strip (and
+    `scroll-padding-top` grows by its height while it is on the page), and
+    the sticky bottom `SaveBar` is hidden.
     Settings are split into focused pages under `SectionLayout`: `/settings`
     is the index with a profile card and `SectionIndex`, appearance
     preferences live at `/settings/appearance`, and follower approval lives

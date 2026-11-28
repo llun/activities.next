@@ -233,7 +233,8 @@ describe('ProfileEditor', () => {
     it('shows the live preview above the form, with no Set in Settings card', () => {
       renderEditor()
 
-      const preview = screen.getByRole('region', { name: /Live preview/ })
+      const preview = screen.getByText('Live preview · updates as you type')
+        .parentElement as HTMLElement
       expect(within(preview).getByText('Anna')).toBeInTheDocument()
       expect(
         within(preview).getByText('Wildlife photographer.')
@@ -252,7 +253,8 @@ describe('ProfileEditor', () => {
 
     it('updates the preview as you type and as you flip a tab', () => {
       renderEditor()
-      const preview = screen.getByRole('region', { name: /Live preview/ })
+      const preview = screen.getByText('Live preview · updates as you type')
+        .parentElement as HTMLElement
 
       type(name(), 'Anna K')
       type(bio(), 'New bio')

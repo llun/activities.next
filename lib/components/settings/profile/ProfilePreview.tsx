@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useId, useMemo } from 'react'
+import { FC, useMemo } from 'react'
 
 import { ProfileCover } from '@/app/(timeline)/[actor]/ProfileCover'
 import { ProfileHeaderImage } from '@/app/(timeline)/[actor]/ProfileHeaderImage'
@@ -12,9 +12,8 @@ import {
   ProfileHeaderBlock,
   getInitials
 } from '@/lib/components/profile/ProfileHeaderBlock'
-import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
+import { ProfileTabStrip } from '@/lib/components/profile/ProfileTabStrip'
 import {
-  PROFILE_TAB_LABELS,
   type ProfileTabContent,
   getAvailableProfileTabs
 } from '@/lib/types/domain/profileTabs'
@@ -48,7 +47,6 @@ export const ProfilePreview: FC<Props> = ({
   tags,
   tabContent
 }) => {
-  const captionId = useId()
   const fields = useMemo(
     () =>
       draft.fields
@@ -72,12 +70,8 @@ export const ProfilePreview: FC<Props> = ({
   })
 
   return (
-    <section aria-labelledby={captionId} className="space-y-2">
-      <p
-        id={captionId}
-        className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide"
-      >
-        <span aria-hidden="true" className="bg-primary size-1.5 rounded-full" />
+    <div className="space-y-2">
+      <p className="font-mono text-xs uppercase tracking-[0.03em] text-muted-foreground">
         Live preview · updates as you type
       </p>
       <p className="text-muted-foreground text-xs">
@@ -105,7 +99,7 @@ export const ProfilePreview: FC<Props> = ({
             </ProfileCover>
           }
           avatarUrl={draft.iconUrl}
-          avatarAlt=""
+          avatarAlt={draft.avatarDescription.trim()}
           initials={getInitials(draft.name, username)}
           nameAs="p"
           name={<ActorDisplayName name={displayName} tags={tags} />}
@@ -116,20 +110,15 @@ export const ProfilePreview: FC<Props> = ({
         />
 
         {tabs.length > 1 ? (
-          <div className="px-4 pt-3">
-            <SegmentedControl
-              aria-label="Profile sections"
-              items={tabs.map((value) => ({
-                value,
-                label: PROFILE_TAB_LABELS[value]
-              }))}
+          <div className="pt-3 md:px-4">
+            <ProfileTabStrip
+              tabs={tabs}
               value="posts"
               onValueChange={() => {}}
-              className="sm:w-fit"
             />
           </div>
         ) : null}
       </div>
-    </section>
+    </div>
   )
 }

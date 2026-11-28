@@ -529,6 +529,10 @@ describe('getProfileData', () => {
           includeFollowersOnly: false,
           followersAudience: followersUrl
         })
+        // The profile page leaves the query's own default (25).
+        expect(
+          vi.mocked(mockDatabase.getAttachmentsForActor).mock.calls.at(-1)?.[0]
+        ).toHaveProperty('limit', undefined)
       })
 
       it('scopes a signed-in non-follower to what is addressed to them', async () => {
@@ -3114,5 +3118,33 @@ describe('getOwnProfileTabContent', () => {
     expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith(
       expect.objectContaining({ actorId: 'local-actor-id', limit: 1 })
     )
+  })
+
+  it('scopes every query to the owner, who sees their own private posts', async () => {
+    await getOwnProfileTabContent(mockDatabase, owner)
+
+    expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith({
+      actorId: 'local-actor-id',
+      limit: 1,
+      publicOnly: false,
+      visibleToActorId: null,
+      includeFollowersOnly: false,
+      followersAudience: null
+    })
+    expect(mockDatabase.getActorHasFitnessData).toHaveBeenCalledWith({
+      actorId: 'local-actor-id',
+      publicOnly: false,
+      visibleToActorId: null,
+      includeFollowersOnly: false,
+      followersAudience: null
+    })
+    expect(mockDatabase.getActorHasGalleryMedia).toHaveBeenCalledWith({
+      actorId: 'local-actor-id',
+      audience: { kind: 'owner' }
+    })
+    expect(mockDatabase.getActorHasVisibleGalleryAlbums).toHaveBeenCalledWith({
+      actorId: 'local-actor-id',
+      audience: { kind: 'owner' }
+    })
   })
 })

@@ -37,17 +37,16 @@ import {
   initialTimelineContext,
   mergeTimelineContext
 } from '@/lib/components/posts/timelineContext'
+import { ProfileTabStrip } from '@/lib/components/profile/ProfileTabStrip'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
-import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Button } from '@/lib/components/ui/button'
 import type { GallerySubview } from '@/lib/services/gallery/galleryEntities'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import {
-  PROFILE_TAB_LABELS,
   ProfileTab,
   ProfileTabVisibility,
   SHOW_ALL_PROFILE_TABS,
@@ -244,9 +243,13 @@ export const ActorTimelines: FC<Props> = ({
   const showActions = Boolean(currentActor)
   // Same rule as ProfileGalleryTab: an album link needs the handle, so without
   // one the tab would open blank.
-  const visibleGallerySubviews = handle
-    ? gallerySubviews
-    : gallerySubviews.filter((id) => id !== 'albums')
+  const visibleGallerySubviews = useMemo(
+    () =>
+      handle
+        ? gallerySubviews
+        : gallerySubviews.filter((id) => id !== 'albums'),
+    [handle, gallerySubviews]
+  )
 
   const mediaAttachments = useMemo(() => {
     const statusAttachments = currentStatuses
@@ -786,15 +789,10 @@ export const ActorTimelines: FC<Props> = ({
         onPointerEnter={hasGalleryPanelTab ? preloadGalleryPanels : undefined}
         onFocus={hasGalleryPanelTab ? preloadGalleryPanels : undefined}
       >
-        <SegmentedControl
-          aria-label="Profile sections"
-          items={availableTabs.map((value) => ({
-            value,
-            label: PROFILE_TAB_LABELS[value]
-          }))}
+        <ProfileTabStrip
+          tabs={availableTabs}
           value={effectiveActiveTab}
-          onValueChange={(value) => setActiveTab(value as ProfileTab)}
-          className="sm:w-fit"
+          onValueChange={setActiveTab}
         />
       </div>
 
