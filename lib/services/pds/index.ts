@@ -31,7 +31,10 @@ export {
   PDS_EVENT_RETENTION_MS
 } from './constants'
 export {
+  PdsAccountDeactivatedError,
   PdsAccountMovedError,
+  PdsAccountNotFoundError,
+  PdsAccountTakedownError,
   PdsBlobTooLargeError,
   PdsBlocksNotFoundError,
   PdsDisabledError,
@@ -148,6 +151,7 @@ export {
   resolvePdsRepoDidForDomain
 } from './reads'
 export { resolveEffectivePdsRepoStatus } from './effectiveStatus'
+export { type PdsPrincipal, requireActiveHostedPrincipal } from './principal'
 export {
   type ApplyPdsWriteResultItem,
   type ApplyPdsWritesInput,
@@ -175,6 +179,7 @@ export {
   xrpcCarResponse,
   xrpcErrorFromThrown,
   xrpcErrorResponse,
+  xrpcInvalidPathResponse,
   xrpcJsonResponse,
   xrpcMethodNotAllowedResponse,
   xrpcMethodNotImplementedResponse,

@@ -79,6 +79,27 @@ export class PdsRepoUnavailableError extends PdsError {
   }
 }
 
+/** The DID has no hosted account on this PDS. */
+export class PdsAccountNotFoundError extends PdsError {
+  constructor(did: string) {
+    super(`Account not found: ${did}`, 'AccountNotFound', 400)
+  }
+}
+
+/** The hosted account is suspended or disabled. */
+export class PdsAccountTakedownError extends PdsError {
+  constructor(did: string) {
+    super(`Account has been takendown: ${did}`, 'AccountTakedown', 400)
+  }
+}
+
+/** The hosted account is deactivated, deleting, unapproved, unconfirmed or moved out. */
+export class PdsAccountDeactivatedError extends PdsError {
+  constructor(did: string) {
+    super(`Account has been deactivated: ${did}`, 'AccountDeactivated', 400)
+  }
+}
+
 export class PdsRecordNotFoundError extends PdsError {
   constructor(uri: string) {
     super(`Could not locate record: ${uri}`, 'RecordNotFound', 400)
