@@ -1,0 +1,103 @@
+app/(timeline)/account/security/page.test.tsx
+  s_4fb28ab57323fe::t_3e7f369de1ba6c 91,94,96
+app/(timeline)/admin/domains/[domain]/page.tsx
+  s_4fb28ab57323fe::t_c224b6dd396fb9 8,118-120,128
+app/api/oauth/authorize/route.test.ts
+  s_4fb28ab57323fe::t_00cef949cd91a0 117,120,122
+app/api/v1/accounts/handle/route.test.ts
+  s_4fb28ab57323fe::t_95dbf4145386c7 47
+app/api/v1/accounts/route.test.ts
+  s_4fb28ab57323fe::t_e5746f0ecb0217 568,571,575
+app/api/v1/admin/domains/[domain]/route.test.ts
+  s_4fb28ab57323fe::t_596526ef85875a 271-374
+app/api/v1/admin/domains/[domain]/route.ts
+  s_4fb28ab57323fe::t_fe3a6e6ddd88fa 74-77,110-112
+app/api/v1/admin/domains/schema.ts
+  s_4fb28ab57323fe::t_1011c556514b4c 5,20-29,62-78,101-103
+app/api/v1/emails/confirmations/route.test.ts
+  s_4fb28ab57323fe::t_f4c0a5f6e271c0 566-568
+app/api/well-known/did.json/route.test.ts
+  s_4fb28ab57323fe::t_8200f11a6c3f59 226-227,229,238,266-268,278,285
+app/xrpc/[[...nsid]]/route.test.ts
+  s_4fb28ab57323fe::t_e7aee6a08d5c1a 675-677,700,706,714,716,732,746-747,749,772
+docs/environment-variables.md
+  s_4fb28ab57323fe::t_ffc33e7c0c8778 518-525
+docs/setup.md
+  s_4fb28ab57323fe::t_eef3eea1c8251b 384,389-398
+lib/client/adminDomains.ts
+  s_4fb28ab57323fe::t_50d4aae782baf2 5,131-140
+lib/components/admin/domains/DomainBlueskyHostingBox.test.tsx
+  s_4fb28ab57323fe::t_503b786dd6b5be 1-124
+lib/components/admin/domains/DomainBlueskyHostingBox.tsx
+  s_4fb28ab57323fe::t_6e960dfe0dccf0 1-204
+lib/components/admin/domains/DomainFeaturesBox.test.tsx
+  s_4fb28ab57323fe::t_1ad3aab5571386 34-36
+lib/components/admin/domains/DomainSettings.test.tsx
+  s_4fb28ab57323fe::t_08f743007421a8 91-93,147,693
+lib/components/admin/domains/DomainSettings.tsx
+  s_4fb28ab57323fe::t_3028e8a477bda3 49,85-86,860-861,956-974
+lib/config/blueskyPds.ts
+  s_4fb28ab57323fe::t_76541d74b894aa 241-245,248-249,253-254,258,265,273-298
+lib/database/domains/servedDomain/blueskyHostingPolicyMigration.test.ts
+  s_4fb28ab57323fe::t_b1bafcaf7e335b 1-83
+lib/database/domains/servedDomain/queries.ts
+  s_4fb28ab57323fe::t_5049ea0a913a9f 22,43-59,87-89,121-123,170-193,254,288
+lib/database/domains/servedDomain/types.ts
+  s_4fb28ab57323fe::t_4e1a2315f66c04 4,49-55,92-97,100-118
+lib/database/kysely/db.ts
+  s_4fb28ab57323fe::t_cbe57182b3152e 533-535
+lib/services/domains/adminDomainTypes.ts
+  s_4fb28ab57323fe::t_d6655766f1f999 9,53-57,103-110,114-115
+lib/services/domains/adminDomains.test.ts
+  s_4fb28ab57323fe::t_54b79f9df8ab95 232-234,243-245
+lib/services/domains/adminDomains.ts
+  s_4fb28ab57323fe::t_5790c0e03c80d4 108-110,175-176,187-190,193-206,379-397,399-403,411-413,415,439-447,471-473
+lib/services/domains/servedDomainSnapshot.test.ts
+  s_4fb28ab57323fe::t_2f46681fb517b2 15,26-27,29-30,33-34,67-88,103-104,106,130,132,134,142,144,147,151,157,160-161,163,168,172,180,183,185,190,196,200,205,211-212,216,220,223,229,231,235,240,267,272,275,307,309,311-312
+lib/services/domains/servedDomainSnapshot.ts
+  s_4fb28ab57323fe::t_a2ef1106f47f7f 2,4,43-45,53-59,100-116,119-122,124-127,206-221,278-294
+lib/services/pds/accounts.test.ts
+  s_4fb28ab57323fe::t_f8da70f2fa5772 20-21,137-140,1236-1294
+lib/services/pds/accounts.ts
+  s_4fb28ab57323fe::t_8a3c4ddaf56d9f 8,55,105
+lib/services/pds/host.test.ts
+  s_4fb28ab57323fe::t_c261bb1f360717 659,664,687
+lib/services/pds/hostingPolicy.test.ts
+  s_4fb28ab57323fe::t_7538bf28192972 1-224
+lib/services/pds/hostingPolicy.ts
+  s_4fb28ab57323fe::t_189ee46f107094 1-87
+lib/services/pds/hostingPolicyTypes.ts
+  s_4fb28ab57323fe::t_a32f7623dd9fbb 1-17
+lib/services/pds/repo.ts
+  s_4fb28ab57323fe::t_470b4bb5204ed2 12,43,143-145,175
+lib/utils/traceApiRoute.test.ts
+  s_4fb28ab57323fe::t_3b3e0189736874 163,166,168-170
+migrations/20261128101143_add_bluesky_hosting_policy.ts
+  s_4fb28ab57323fe::t_60d2207a938eb4 1-47
+migrations/index.ts
+  s_4fb28ab57323fe::t_d6600c29314515 37,82-83
+migrations/names.ts
+  s_4fb28ab57323fe::t_b5af6d7a62b951 37-38
+migrations/schema.sql
+  s_4fb28ab57323fe::t_63813f03eb6627 569-572
+migrations/schema.sqlite.sql
+  s_4fb28ab57323fe::t_9709a3f1c40064 320
+test/setup/vitest.setup.ts
+  s_4fb28ab57323fe::t_40a3bcc2be9939 316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a77d78a45642676c2d3db7ead98e4f0336ed712f",
+  "prompts": {},
+  "sessions": {
+    "s_4fb28ab57323fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "143ac5cb-61e1-4174-a644-dcb4b80dc66b",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
