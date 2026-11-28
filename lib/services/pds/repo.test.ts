@@ -174,6 +174,7 @@ describe('PDS repository service', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    await database.createServedDomain({ domain: TEST_DOMAIN, status: 'on' })
     fixedKey = await Secp256k1Keypair.import(FIXED_TEST_PRIVATE_KEY_BYTES, {
       exportable: true
     })

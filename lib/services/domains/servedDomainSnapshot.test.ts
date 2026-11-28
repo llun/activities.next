@@ -12,7 +12,6 @@ import {
   ensureServedDomainsFresh,
   getActiveServedDomainNames,
   getServedHostConfig,
-  getServedHostingPolicy,
   isServedDomainSnapshotFresh,
   refreshServedDomains,
   refreshServedDomainsAfterWrite,
@@ -62,28 +61,6 @@ describe('servedDomainSnapshot', () => {
       'run.example',
       'birds.example'
     ])
-  })
-
-  it('loads a saved hosting policy from a row stored off, and leaves the rest to the environment', async () => {
-    const getServedDomains = vi.fn(async () => [
-      row('run.example'),
-      {
-        domain: 'club.example',
-        status: 'off' as const,
-        blueskyHostingPolicy: 'everyone' as const,
-        blueskyHostingAllowEmails: ['alice@club.example'],
-        blueskyHostingAllowActors: []
-      }
-    ])
-    const database = { getServedDomains } as unknown as Database
-    await refreshServedDomains(database)
-
-    expect(getServedHostingPolicy('club.example')).toEqual({
-      policy: 'everyone',
-      allowEmails: ['alice@club.example'],
-      allowActors: []
-    })
-    expect(getServedHostingPolicy('run.example')).toBeNull()
   })
 
   it('makes an active domain a trusted header host, and an unknown one fall back', async () => {

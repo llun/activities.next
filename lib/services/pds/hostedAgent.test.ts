@@ -81,6 +81,7 @@ describe('hosted Bluesky client', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    await database.createServedDomain({ domain: TEST_DOMAIN, status: 'on' })
   })
 
   beforeEach(() => {

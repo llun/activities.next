@@ -394,7 +394,7 @@ The environment's `allowEmails` and `allowActors` are the fallback: they decide 
 - **Listed accounts** — only the email addresses and `username@domain` profiles entered there.
 - **Everyone on this domain** — any profile on the domain whose account is approved and confirmed. Suspended, unconfirmed, unapproved, disabled and deleting accounts are still refused.
 
-The setting only decides who. The PDS hostname, relays and whether the domain's PDS is on stay in `ACTIVITIES_BLUESKY_PDS`. Clearing the setting returns the domain to the environment's lists. The bare-domain handle stays admin-only, and `<name>.<PDS hostname>` handles need the wildcard DNS record and certificate below.
+The setting only decides who. It decides only who may create an account: existing hosted accounts keep working when it changes. The PDS hostname, relays and whether the domain's PDS is on stay in `ACTIVITIES_BLUESKY_PDS`. Clearing the setting returns the domain to the environment's lists. The bare-domain handle stays admin-only, and `<name>.<PDS hostname>` handles need the wildcard DNS record and certificate below.
 
 #### Rotation key
 

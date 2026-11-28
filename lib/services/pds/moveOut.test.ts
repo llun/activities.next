@@ -218,6 +218,7 @@ describe('hosted Bluesky account move-out', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    await database.createServedDomain({ domain: TEST_DOMAIN, status: 'on' })
   })
 
   afterAll(async () => {

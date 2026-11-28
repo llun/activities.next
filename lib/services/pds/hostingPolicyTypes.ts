@@ -8,10 +8,3 @@ export const BLUESKY_HOSTING_POLICIES = [
 ] as const
 
 export type BlueskyHostingPolicy = (typeof BLUESKY_HOSTING_POLICIES)[number]
-
-// A domain's saved setting, as the served-domain snapshot holds it.
-export type SavedBlueskyHostingPolicy = {
-  policy: BlueskyHostingPolicy
-  allowEmails: string[]
-  allowActors: string[]
-}

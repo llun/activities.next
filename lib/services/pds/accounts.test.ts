@@ -17,10 +17,13 @@ import { writeStoredBlueskySession } from '@/lib/services/bluesky/client'
 import { createBlueskyIdentityResolver } from '@/lib/services/bluesky/identityResolver'
 import {
   resetServedDomainsForTests,
-  setServedDomainsForTests,
-  setServedHostingPoliciesForTests
+  setServedDomainsForTests
 } from '@/lib/services/domains/servedDomainSnapshot'
-import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
+import {
+  TEST_DOMAIN,
+  TEST_DOMAIN_2,
+  TEST_PASSWORD_HASH
+} from '@/lib/stub/const'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import {
@@ -42,6 +45,7 @@ import {
   createUpdateOperation,
   verifyPlcOperationSignature
 } from './plc'
+import { putPdsRecord } from './repo'
 import { pruneDeletedPdsRepos } from './retention'
 
 vi.mock('@/lib/utils/safeRemoteFetch', () => ({ safeRemoteFetch: vi.fn() }))
@@ -137,7 +141,12 @@ const ALLOWED_USERNAMES = [
   'hosted-move-pending',
   'hosted-policy-nobody',
   'hosted-policy-everyone',
-  'hosted-policy-blocked'
+  'hosted-policy-blocked',
+  'hosted-policy-existing',
+  'hosted-policy-stale',
+  'hosted-policy-off',
+  'hosted-domain-mismatch',
+  'hosted-custom-served'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -176,6 +185,8 @@ describe('hosted Bluesky accounts', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    // Hosting needs a served domain: an `on` row (or an env pin).
+    await database.createServedDomain({ domain: TEST_DOMAIN, status: 'on' })
     rotationKeypair = await Secp256k1Keypair.import(
       Buffer.from(ROTATION_KEY_HEX, 'hex')
     )
@@ -200,6 +211,16 @@ describe('hosted Bluesky accounts', () => {
         : okResponse(url, '', 404)
     })
     vi.mocked(createBlueskyIdentityResolver).mockReset()
+  })
+
+  afterEach(async () => {
+    await database.updateServedDomain({
+      domain: TEST_DOMAIN,
+      status: 'on',
+      blueskyHostingPolicy: null,
+      blueskyHostingAllowEmails: null,
+      blueskyHostingAllowActors: null
+    })
   })
 
   afterAll(async () => {
@@ -684,7 +705,7 @@ describe('hosted Bluesky accounts', () => {
   const countEvents = async (did: string) =>
     (await database.listPdsEvents({ did })).length
 
-  it('refuses a handle or recovery key change once the actor leaves the allowlist', async () => {
+  it('keeps handle and recovery key changes working once the actor leaves the allowlist', async () => {
     const actor = await createActor('hosted-gate-allow')
     await createHostedBlueskyAccount({
       database,
@@ -701,21 +722,17 @@ describe('hosted Bluesky accounts', () => {
     })
     submissions = []
 
-    await expect(
-      changeHostedBlueskyHandle({
-        database,
-        actor,
-        handle: pdsHandle('hosted-gate-allow')
-      })
-    ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
-    await expect(
-      setHostedBlueskyRecoveryKey({
-        database,
-        actor,
-        recoveryKeyDid: (await Secp256k1Keypair.create()).did()
-      })
-    ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
-    expect(submissions).toHaveLength(0)
+    await changeHostedBlueskyHandle({
+      database,
+      actor,
+      handle: pdsHandle('hosted-gate-allow')
+    })
+    await setHostedBlueskyRecoveryKey({
+      database,
+      actor,
+      recoveryKeyDid: (await Secp256k1Keypair.create()).did()
+    })
+    expect(submissions).toHaveLength(2)
   })
 
   it('refuses a handle or recovery key change on a disabled domain', async () => {
@@ -967,6 +984,32 @@ describe('hosted Bluesky accounts', () => {
     })
   })
 
+  describe('a custom handle on a served domain', () => {
+    afterEach(() => {
+      resetServedDomainsForTests()
+    })
+
+    it('is refused unless the bare-domain holder check allows it', async () => {
+      const actor = await createActor('hosted-custom-served')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle: pdsHandle('hosted-custom-served')
+      })
+      setServedDomainsForTests([TEST_DOMAIN])
+      vi.mocked(createBlueskyIdentityResolver).mockReturnValue({
+        resolve: async () => ({ did: state.repo!.did })
+      } as unknown as ReturnType<typeof createBlueskyIdentityResolver>)
+      submissions = []
+
+      await expect(
+        changeHostedBlueskyHandle({ database, actor, handle: TEST_DOMAIN })
+      ).rejects.toMatchObject({ code: 'HandleNotAllowed' })
+      expect(createBlueskyIdentityResolver).not.toHaveBeenCalled()
+      expect(submissions).toHaveLength(0)
+    })
+  })
+
   it('leaves the tombstone untouched when a toggle or handle change lands after delete', async () => {
     const actor = await createActor('hosted-race')
     const handle = pdsHandle('hosted-race')
@@ -1114,7 +1157,7 @@ describe('hosted Bluesky accounts', () => {
     })
   }
 
-  it('lets a profile the server no longer offers accounts to turn its account off and delete it', async () => {
+  it('keeps an existing account working when the server no longer offers accounts to it', async () => {
     const actor = await createActor('hosted-limited')
     const handle = pdsHandle('hosted-limited')
     await createHostedBlueskyAccount({ database, actor, handle })
@@ -1125,11 +1168,39 @@ describe('hosted Bluesky accounts', () => {
     expect(state.repo?.status).toBe('active')
 
     await deactivateHostedBlueskyAccount({ database, actor })
-    await expect(
-      reactivateHostedBlueskyAccount({ database, actor })
-    ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
+    await reactivateHostedBlueskyAccount({ database, actor })
+    expect((await database.getPdsRepo({ actorId: actor.id }))?.status).toBe(
+      'active'
+    )
     await deleteHostedBlueskyAccount({ database, actor, confirmHandle: handle })
     expect(await database.getPdsRepo({ actorId: actor.id })).toBeNull()
+  })
+
+  it('refuses to reactivate a repo from a domain the actor has left', async () => {
+    const actor = await createActor('hosted-domain-mismatch')
+    await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-domain-mismatch')
+    })
+    await deactivateHostedBlueskyAccount({ database, actor })
+
+    const renamed = await database.recordActorHandleRename({
+      actorId: actor.id,
+      username: actor.username,
+      domain: TEST_DOMAIN_2,
+      now: new Date(),
+      cooldownMs: 0
+    })
+    expect(renamed.ok).toBe(true)
+    const moved = (await database.getActorFromId({ id: actor.id }))!
+
+    await expect(
+      reactivateHostedBlueskyAccount({ database, actor: moved })
+    ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
+    expect((await database.getPdsRepo({ actorId: actor.id }))?.status).toBe(
+      'deactivated'
+    )
   })
 
   it('reports the effective status on the card', async () => {
@@ -1234,15 +1305,19 @@ describe('hosted Bluesky accounts', () => {
   })
 
   describe('a domain’s saved hosting policy', () => {
+    const setPolicy = (policy: 'nobody' | 'listed' | 'everyone') =>
+      database.updateServedDomain({
+        domain: TEST_DOMAIN,
+        blueskyHostingPolicy: policy
+      })
+
     afterEach(() => {
       resetServedDomainsForTests()
     })
 
     it('lets a profile outside the environment lists host under "everyone"', async () => {
       const actor = await createActor('hosted-policy-everyone')
-      setServedHostingPoliciesForTests({
-        [TEST_DOMAIN]: { policy: 'everyone', allowEmails: [], allowActors: [] }
-      })
+      await setPolicy('everyone')
 
       const state = await createHostedBlueskyAccount({
         database,
@@ -1256,9 +1331,7 @@ describe('hosted Bluesky accounts', () => {
 
     it('refuses an allowlisted profile under "nobody"', async () => {
       const actor = await createActor('hosted-policy-nobody')
-      setServedHostingPoliciesForTests({
-        [TEST_DOMAIN]: { policy: 'nobody', allowEmails: [], allowActors: [] }
-      })
+      await setPolicy('nobody')
 
       await expect(
         createHostedBlueskyAccount({
@@ -1270,11 +1343,67 @@ describe('hosted Bluesky accounts', () => {
       expect(submissions).toHaveLength(0)
     })
 
+    it('refuses a saved "nobody" even when the served-domain snapshot is stale', async () => {
+      const actor = await createActor('hosted-policy-stale')
+      await setPolicy('nobody')
+      resetServedDomainsForTests()
+
+      await expect(
+        createHostedBlueskyAccount({
+          database,
+          actor,
+          handle: pdsHandle('hosted-policy-stale')
+        })
+      ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
+      expect(submissions).toHaveLength(0)
+    })
+
+    it('grants nothing under "everyone" on an off, non-pinned domain', async () => {
+      // TEST_DOMAIN is the env's primary, so it stays served whatever its row
+      // says; TEST_DOMAIN_2 has no env pin and only an off row.
+      process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+        [TEST_DOMAIN_2]: {
+          enabled: true,
+          hostname: `pds.${TEST_DOMAIN_2}`,
+          allowEmails: [],
+          allowActors: [`hosted-policy-off@${TEST_DOMAIN_2}`]
+        }
+      })
+      await database.createServedDomain({
+        domain: TEST_DOMAIN_2,
+        status: 'off',
+        blueskyHostingPolicy: 'everyone'
+      })
+      await database.createAccount({
+        email: `hosted-policy-off@${TEST_DOMAIN_2}`,
+        username: 'hosted-policy-off',
+        passwordHash: TEST_PASSWORD_HASH,
+        domain: TEST_DOMAIN_2,
+        privateKey: 'ap-priv-hosted-policy-off',
+        publicKey: 'ap-pub-hosted-policy-off'
+      })
+      const actor = (await database.getActorFromUsername({
+        username: 'hosted-policy-off',
+        domain: TEST_DOMAIN_2
+      }))!
+
+      try {
+        await expect(
+          createHostedBlueskyAccount({
+            database,
+            actor,
+            handle: `hosted-policy-off.pds.${TEST_DOMAIN_2}`
+          })
+        ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
+        expect(submissions).toHaveLength(0)
+      } finally {
+        await database.deleteServedDomain({ domain: TEST_DOMAIN_2 })
+      }
+    })
+
     it('still applies the blocked checks under "everyone"', async () => {
       const actor = await createActor('hosted-policy-blocked')
-      setServedHostingPoliciesForTests({
-        [TEST_DOMAIN]: { policy: 'everyone', allowEmails: [], allowActors: [] }
-      })
+      await setPolicy('everyone')
       const suspended = { ...actor, suspendedAt: Date.now() }
 
       expect(
@@ -1289,6 +1418,28 @@ describe('hosted Bluesky accounts', () => {
         })
       ).rejects.toMatchObject({ code: 'PdsNotAllowed' })
       expect(submissions).toHaveLength(0)
+    })
+
+    it('keeps an existing repo writable after the policy turns to "nobody"', async () => {
+      const actor = await createActor('hosted-policy-existing')
+      const state = await createHostedBlueskyAccount({
+        database,
+        actor,
+        handle: pdsHandle('hosted-policy-existing')
+      })
+      await setPolicy('nobody')
+
+      const written = await putPdsRecord(database, {
+        did: state.repo!.did,
+        collection: 'app.bsky.feed.post',
+        rkey: 'self',
+        record: {
+          $type: 'app.bsky.feed.post',
+          text: 'still here',
+          createdAt: '2026-11-28T00:00:00.000Z'
+        }
+      })
+      expect(written.cid).toBeTruthy()
     })
   })
 

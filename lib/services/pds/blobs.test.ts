@@ -96,6 +96,7 @@ describe('PDS blob storage', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    await database.createServedDomain({ domain: TEST_DOMAIN, status: 'on' })
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pds-blobs-test-'))
     fileStore = new FilePdsBlobObjectStore({
       type: MediaStorageType.LocalFile,

@@ -1,7 +1,5 @@
 import { type Config, getConfig } from '@/lib/config'
-import type { ServedDomainData } from '@/lib/database/domains/servedDomain/types'
 import { Database } from '@/lib/database/types'
-import type { SavedBlueskyHostingPolicy } from '@/lib/services/pds/hostingPolicyTypes'
 import {
   type HostRuleConfig,
   normalizeServedDomainChoice
@@ -40,9 +38,6 @@ export const SERVED_DOMAIN_MAX_STALE_MS = 5 * 60_000
 
 type Snapshot = {
   domains: readonly string[]
-  // The saved Bluesky hosting setting per domain, for the synchronous
-  // hosted-account checks. A domain absent here has none (env fallback).
-  hosting: ReadonlyMap<string, SavedBlueskyHostingPolicy>
   loadedAt: number
 }
 
@@ -50,11 +45,8 @@ type Snapshot = {
 // call and `getServedHostConfig` keeps returning the same object.
 const NO_DOMAINS: readonly string[] = Object.freeze([])
 
-const NO_HOSTING: ReadonlyMap<string, SavedBlueskyHostingPolicy> = new Map()
-
 const EMPTY_SNAPSHOT: Snapshot = {
   domains: NO_DOMAINS,
-  hosting: NO_HOSTING,
   loadedAt: 0
 }
 
@@ -97,34 +89,15 @@ const toTrustedDomains = (domains: readonly string[]): string[] => [
   )
 ]
 
-// Only a domain with a saved policy is in the map: a NULL policy means the
-// environment's allowlists decide, which is the caller's fallback.
-const toHostingPolicies = (
-  rows: ServedDomainData[]
-): ReadonlyMap<string, SavedBlueskyHostingPolicy> => {
-  const policies = new Map<string, SavedBlueskyHostingPolicy>()
-  for (const row of rows) {
-    if (!row.blueskyHostingPolicy) continue
-    policies.set(row.domain, {
-      policy: row.blueskyHostingPolicy,
-      allowEmails: row.blueskyHostingAllowEmails ?? [],
-      allowActors: row.blueskyHostingAllowActors ?? []
-    })
-  }
-  return policies
-}
-
 const loadSnapshot = async (database: Database): Promise<void> => {
   try {
     // Every row, not only the active ones: an env-pinned domain keeps its
-    // settings on a row stored off (its trust comes from the env), and its
-    // Bluesky hosting setting lives there too.
+    // settings on a row stored off (its trust comes from the env).
     const rows = await database.getServedDomains()
     state.snapshot = {
       domains: toTrustedDomains(
         rows.filter((row) => row.status === 'on').map((row) => row.domain)
       ),
-      hosting: toHostingPolicies(rows),
       loadedAt: Date.now()
     }
     state.lastLoadFailed = false
@@ -203,22 +176,6 @@ export const getActiveServedDomainNames = (): readonly string[] => {
   return state.snapshot.domains
 }
 
-/**
- * A domain's saved Bluesky hosting setting, or null when it has none (the
- * environment's allowlists decide) or the snapshot is past
- * `SERVED_DOMAIN_MAX_STALE_MS` (falling back to the env is the safe answer).
- */
-export const getServedHostingPolicy = (
-  domain: string
-): SavedBlueskyHostingPolicy | null => {
-  const now = Date.now()
-  if (state.registeredDatabase && shouldRefresh(now) && !state.inflight) {
-    void refreshServedDomains(state.registeredDatabase)
-  }
-  if (now - state.snapshot.loadedAt > SERVED_DOMAIN_MAX_STALE_MS) return null
-  return state.snapshot.hosting.get(domain) ?? null
-}
-
 /** Loads the snapshot now and keeps it fresh for the life of the process. */
 export const startServedDomainRefresher = (database: Database): void => {
   state.registeredDatabase = database
@@ -277,19 +234,6 @@ export const isServedDomainSnapshotFresh = (): boolean =>
 export const setServedDomainsForTests = (domains: readonly string[]) => {
   state.snapshot = {
     domains: toTrustedDomains(domains),
-    hosting: NO_HOSTING,
-    loadedAt: Date.now()
-  }
-  state.lastLoadFailed = false
-}
-
-/** Test helper: sets the saved Bluesky hosting settings of the snapshot. */
-export const setServedHostingPoliciesForTests = (
-  policies: Record<string, SavedBlueskyHostingPolicy>
-) => {
-  state.snapshot = {
-    ...state.snapshot,
-    hosting: new Map(Object.entries(policies)),
     loadedAt: Date.now()
   }
   state.lastLoadFailed = false

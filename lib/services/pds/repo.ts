@@ -172,12 +172,13 @@ export const createPdsRepo = async (
     isActorConfirmationPending(actor) ||
     actor.account.approvedAt == null ||
     Boolean(actor.deletionStatus) ||
-    !isHostingAllowed({
+    !(await isHostingAllowed({
+      database,
       email: actor.account.email,
       actorUsernameAtDomain: `${actor.username}@${actorDomain}`,
       domain: normalizedDomain,
       config: pdsConfig
-    })
+    }))
   ) {
     throw new PdsNotAllowedError(actorId)
   }

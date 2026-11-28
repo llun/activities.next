@@ -208,6 +208,9 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
   beforeAll(async () => {
     await testDb.prepare()
     await database.migrate()
+    // Hosting needs a served domain: an `on` row (or an env pin).
+    await database.createServedDomain({ domain: DOMAIN_A, status: 'on' })
+    await database.createServedDomain({ domain: DOMAIN_B, status: 'on' })
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pds-xrpc-test-'))
     fileStore = new FilePdsBlobObjectStore({
       type: MediaStorageType.LocalFile,

@@ -193,7 +193,9 @@ export const DomainBlueskyHostingBox: FC<Props> = ({
         </>
       ) : null}
       <p className="text-muted-foreground px-4 py-2.5 text-sm">
-        The bare domain handle stays admin-only. Handles of the form{' '}
+        This setting decides who may create an account; existing hosted accounts
+        keep working when it changes. The bare domain handle stays admin-only.
+        Handles of the form{' '}
         <span className="wrap-anywhere">name.{pdsHostname}</span> need a
         wildcard DNS record for{' '}
         <span className="wrap-anywhere">*.{pdsHostname}</span> and a certificate

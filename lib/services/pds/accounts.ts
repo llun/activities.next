@@ -93,16 +93,18 @@ type HostedAccountContext = {
   available: boolean
 }
 
-const resolveHostedAccountContext = (
+const resolveHostedAccountContext = async (
+  database: Database,
   actor: Actor
-): HostedAccountContext | null => {
+): Promise<HostedAccountContext | null> => {
   const domain = normalizeServedDomainChoice(actor.domain)
   if (!domain) return null
   const config = getPdsConfig()
   const entry = config?.[domain]
   if (!entry) return null
 
-  const allowed = isHostingAllowed({
+  const allowed = await isHostingAllowed({
+    database,
     email: actor.account?.email,
     actorUsernameAtDomain: `${actor.username}@${domain}`,
     domain,
@@ -128,8 +130,11 @@ const resolveHostedAccountContext = (
 // The gate every hosted-account write passes: PDS enabled on the actor's
 // domain, the actor allowlisted, and not blocked (unconfirmed, unapproved,
 // suspended, disabled or being deleted).
-const requireUsableHostedContext = (actor: Actor): HostedAccountContext => {
-  const context = resolveHostedAccountContext(actor)
+const requireUsableHostedContext = async (
+  database: Database,
+  actor: Actor
+): Promise<HostedAccountContext> => {
+  const context = await resolveHostedAccountContext(database, actor)
   if (!context || !context.pdsEnabled) {
     throw new PdsDisabledError(actor.domain)
   }
@@ -137,6 +142,39 @@ const requireUsableHostedContext = (actor: Actor): HostedAccountContext => {
     throw new PdsNotAllowedError(actor.id)
   }
   return context
+}
+
+// A management write (reactivate, handle, recovery key) acts on the repo's own
+// domain, not the actor's current one: an actor renamed onto another domain
+// must not manage the repo of the domain it left. The domain's PDS must be on
+// and the actor unblocked; the hosting policy is admission only, so an existing
+// account keeps working after an admin picks 'nobody'.
+const requireRepoDomainContext = (
+  actor: Actor,
+  repo: PdsRepo
+): {
+  domain: string
+  entry: BlueskyPdsDomainConfig
+  config: BlueskyPdsConfig
+} => {
+  const domain = normalizeServedDomainChoice(actor.domain)
+  if (!domain || domain !== repo.domain) {
+    throw new PdsNotAllowedError(actor.id)
+  }
+  const config = getPdsConfig()
+  const entry = config?.[domain]
+  if (!entry || !entry.enabled) {
+    throw new PdsDisabledError(domain)
+  }
+  if (
+    isActorModerationBlocked(actor) ||
+    isActorConfirmationPending(actor) ||
+    actor.account?.approvedAt == null ||
+    Boolean(actor.deletionStatus)
+  ) {
+    throw new PdsNotAllowedError(actor.id)
+  }
+  return { domain, entry, config }
 }
 
 // The card shows the effective status, so a suspended or disabled profile's
@@ -408,7 +446,7 @@ export const getHostedBlueskyAccountState = async ({
   actor: Actor
 }): Promise<HostedBlueskyAccountState> => {
   await reconcileHostedAccountRow(database, actor)
-  const context = resolveHostedAccountContext(actor)
+  const context = await resolveHostedAccountContext(database, actor)
   const repo = await database.getPdsRepo({ actorId: actor.id })
   const rotationKeyConfigured = getPdsRotationKeyHex() !== null
   const liveRepo = repo && repo.status !== 'deleted' ? repo : null
@@ -475,7 +513,7 @@ export const createHostedBlueskyAccount = async ({
   actor: Actor
   handle: string
 }): Promise<HostedBlueskyAccountState> => {
-  const context = requireUsableHostedContext(actor)
+  const context = await requireUsableHostedContext(database, actor)
   const rotationKeypair = await requireRotationKeypair()
 
   // One create per actor at a time: two that both passed the checks would
@@ -618,7 +656,7 @@ export const reactivateHostedBlueskyAccount = async ({
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
   const movedTo = getMovedToHost(repo)
   if (movedTo) throw new PdsAccountMovedError(movedTo)
-  requireUsableHostedContext(actor)
+  requireRepoDomainContext(actor, repo)
 
   await writeLiveRepo(database, repo.did, async (current) => {
     const currentMovedTo = getMovedToHost(current)
@@ -654,13 +692,13 @@ export const changeHostedBlueskyHandle = async ({
   actor: Actor
   handle: string
 }): Promise<HostedBlueskyAccountState> => {
-  const context = requireUsableHostedContext(actor)
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
   const movedTo = getMovedToHost(repo)
   if (movedTo) throw new PdsAccountMovedError(movedTo)
   if (repo.status !== 'active') throw new PdsHostedAccountInactiveError()
   await assertNoMoveInProgress(database, repo.did)
+  const context = requireRepoDomainContext(actor, repo)
 
   const normalizedHandle = normalizeHandleInput(handle)
   await assertHandleFree(database, normalizedHandle, repo.did)
@@ -676,9 +714,25 @@ export const changeHostedBlueskyHandle = async ({
         'That handle belongs to another domain on this server. Choose another handle.'
       )
     }
-    const resolvedDid = await resolveHandleDid(normalizedHandle)
-    if (resolvedDid !== repo.did) {
-      throw new PdsHandleNotResolvedError(normalizedHandle)
+    // A bare served domain is answered by this server, so DNS cannot prove
+    // ownership: only the bare-domain holder check may grant it.
+    const isServedDomain = await getLocalDomainMatcher(database)
+    if (isServedDomain(normalizedHandle)) {
+      if (
+        !(await database.canHoldInstanceHandle({
+          actorId: actor.id,
+          host: normalizedHandle
+        }))
+      ) {
+        throw new PdsHandleNotAllowedError(
+          'That handle is a domain this server serves. Choose another handle.'
+        )
+      }
+    } else {
+      const resolvedDid = await resolveHandleDid(normalizedHandle)
+      if (resolvedDid !== repo.did) {
+        throw new PdsHandleNotResolvedError(normalizedHandle)
+      }
     }
   }
 
@@ -732,12 +786,12 @@ export const setHostedBlueskyRecoveryKey = async ({
   actor: Actor
   recoveryKeyDid: string | null
 }): Promise<HostedBlueskyAccountState> => {
-  requireUsableHostedContext(actor)
   const repo = await requireHostedRepo(database, actor)
   if (repo.status === 'deleted') throw new PdsHostedAccountNotFoundError()
   const movedTo = getMovedToHost(repo)
   if (movedTo) throw new PdsAccountMovedError(movedTo)
   await assertNoMoveInProgress(database, repo.did)
+  requireRepoDomainContext(actor, repo)
 
   if (recoveryKeyDid !== null) {
     try {
