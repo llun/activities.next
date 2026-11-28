@@ -225,6 +225,15 @@ export const syncHostedBlueskyProfile = async (
   await withPdsRepoLock(database, repo.did, async () => {
     const latest = await database.getActorFromId({ id: actorId })
     if (!latest) return
+    // The images were prepared before the lock; if they changed since, the
+    // edit that changed them queued its own sync, so this one must not write
+    // the stale blobs.
+    if (
+      latest.iconUrl !== actor.iconUrl ||
+      latest.headerImageUrl !== actor.headerImageUrl
+    ) {
+      return
+    }
     const currentRepo = await database.getPdsRepo({ actorId })
     if (!currentRepo || currentRepo.status === 'deleted') return
     if (getMovedToHost(currentRepo)) return

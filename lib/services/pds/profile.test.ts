@@ -129,6 +129,7 @@ describe('syncHostedBlueskyProfile', () => {
           'profile-webp',
           'profile-disabled',
           'profile-overlap',
+          'profile-stale-image',
           'backfill-missing',
           'backfill-present',
           'backfill-disabled'
@@ -326,6 +327,58 @@ describe('syncHostedBlueskyProfile', () => {
     expect((await readProfile(did))?.value).toMatchObject({
       displayName: 'Second'
     })
+  })
+
+  it('writes nothing when the avatar changes after the images were prepared', async () => {
+    const { actor, did } = await createHosted('profile-stale-image')
+    const png = await sharp({
+      create: { width: 4, height: 4, channels: 3, background: '#ffffff' }
+    })
+      .png()
+      .toBuffer()
+    vi.mocked(readStoredImage).mockResolvedValue({
+      buffer: png,
+      mimeType: 'image/png'
+    })
+    vi.spyOn(database, 'ownsAccountExportMediaPath').mockResolvedValue(true)
+    await database.updateActor({
+      actorId: actor.id,
+      name: 'Alice',
+      iconUrl: `https://${TEST_DOMAIN}/api/v1/files/avatar.png`
+    })
+    await syncHostedBlueskyProfile(database, actor.id)
+    const before = await readProfile(did)
+    expect(before?.value?.avatar).toMatchObject({ $type: 'blob' })
+
+    // The avatar edit lands while the images are being prepared, before the
+    // locked write.
+    vi.mocked(uploadPdsBlob).mockImplementationOnce(async () => {
+      // The name changes too, so a write would change the record: without the
+      // guard this run would publish the new name with the stale avatar blob.
+      await database.updateActor({
+        actorId: actor.id,
+        name: 'Alice renamed',
+        iconUrl: `https://${TEST_DOMAIN}/api/v1/files/avatar-new.png`
+      })
+      return {
+        cid: 'cid',
+        mimeType: 'image/png',
+        size: png.byteLength,
+        storageKey: 'key',
+        blob: {
+          $type: 'blob',
+          ref: await cidForRawBytes(Buffer.from(png)),
+          mimeType: 'image/png',
+          size: png.byteLength
+        }
+      }
+    })
+
+    await syncHostedBlueskyProfile(database, actor.id)
+
+    const after = await readProfile(did)
+    expect(after?.cid).toBe(before?.cid)
+    expect(after?.value?.avatar).toEqual(before?.value?.avatar)
   })
 
   it('skips a repo that is not active', async () => {
