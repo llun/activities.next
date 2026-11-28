@@ -61,3 +61,5 @@ export const EMBED_SEARCH_DOCUMENTS_JOB_NAME = 'EmbedSearchDocumentsJob'
 export const SYNC_BLUESKY_HOME_JOB_NAME = 'SyncBlueskyHomeJob'
 export const CROSSPOST_BLUESKY_JOB_NAME = 'CrosspostBlueskyJob'
 export const DELETE_BLUESKY_CROSSPOST_JOB_NAME = 'DeleteBlueskyCrosspostJob'
+export const SYNC_HOSTED_BLUESKY_PROFILE_JOB_NAME =
+  'SyncHostedBlueskyProfileJob'

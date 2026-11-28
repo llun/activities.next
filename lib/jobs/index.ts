@@ -88,6 +88,7 @@ import {
   SEND_UPDATE_ACTOR_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME,
   SYNC_BLUESKY_HOME_JOB_NAME,
+  SYNC_HOSTED_BLUESKY_PROFILE_JOB_NAME,
   UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME,
@@ -119,6 +120,7 @@ import { sendUndoFollowJob } from './sendUndoFollowJob'
 import { sendUpdateActorJob } from './sendUpdateActorJob'
 import { sendUpdateNoteJob } from './sendUpdateNoteJob'
 import { syncBlueskyHomeJob } from './syncBlueskyHomeJob'
+import { syncHostedBlueskyProfileJob } from './syncHostedBlueskyProfileJob'
 import { updateActorJob } from './updateActorJob'
 import { updateNoteJob } from './updateNoteJob'
 import { updatePollJob } from './updatePollJob'
@@ -310,5 +312,8 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [DELETE_BLUESKY_CROSSPOST_JOB_NAME]() {
     return deleteBlueskyCrosspostJob
+  },
+  get [SYNC_HOSTED_BLUESKY_PROFILE_JOB_NAME]() {
+    return syncHostedBlueskyProfileJob
   }
 }

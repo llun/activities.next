@@ -49,13 +49,16 @@ const clampPositiveInt = (
   return Math.max(1, Math.floor(value))
 }
 
+export const isPdsDomainEnabled = (domain: string): boolean => {
+  const normalizedDomain = normalizeServedDomainChoice(domain)
+  return Boolean(
+    normalizedDomain && getPdsConfig()?.[normalizedDomain]?.enabled
+  )
+}
+
 export const assertPdsDomainEnabled = (domain: string): string => {
   const normalizedDomain = normalizeServedDomainChoice(domain)
-  const pdsConfig = getPdsConfig()
-  const domainConfig = normalizedDomain
-    ? pdsConfig?.[normalizedDomain]
-    : undefined
-  if (!normalizedDomain || !domainConfig?.enabled) {
+  if (!normalizedDomain || !isPdsDomainEnabled(normalizedDomain)) {
     throw new PdsDisabledError(domain)
   }
   return normalizedDomain
