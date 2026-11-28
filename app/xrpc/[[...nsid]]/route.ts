@@ -111,13 +111,23 @@ export const POST = traceApiRoute<Params>(
     if (!nsid) {
       return withXrpcHsts(xrpcInvalidPathResponse(), req)
     }
-    if (getPdsXrpcDispatchEntry('GET', nsid)?.category === 'public-read') {
-      return withXrpcHsts(
-        xrpcMethodNotAllowedResponse('GET, HEAD, OPTIONS'),
-        req
-      )
+    const entry = getPdsXrpcDispatchEntry('POST', nsid)
+    if (!entry) {
+      if (getPdsXrpcDispatchEntry('GET', nsid)?.category === 'public-read') {
+        return withXrpcHsts(
+          xrpcMethodNotAllowedResponse('GET, HEAD, OPTIONS'),
+          req
+        )
+      }
+      return withXrpcHsts(xrpcMethodNotImplementedResponse(), req)
     }
-    return withXrpcHsts(xrpcMethodNotImplementedResponse(), req)
+    if (!isPdsXrpcCategoryEnabled(entry, pdsDomain) || !entry.handler) {
+      return withXrpcHsts(xrpcMethodNotImplementedResponse(), req)
+    }
+    return withXrpcHsts(
+      await entry.handler({ req, pdsDomain, nsid, isHead: false }),
+      req
+    )
   },
   { addAttributes: traceAttributes }
 )

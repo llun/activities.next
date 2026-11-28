@@ -72,15 +72,15 @@ export const PDS_XRPC_DISPATCH: readonly PdsXrpcDispatchEntry[] = [
 
   pending('POST', 'com.atproto.server.createSession', 'session'),
   pending('POST', 'com.atproto.server.refreshSession', 'session'),
-  pending('POST', 'com.atproto.server.getSession', 'session'),
+  pending('GET', 'com.atproto.server.getSession', 'session'),
   pending('POST', 'com.atproto.server.deleteSession', 'session'),
-  pending('POST', 'com.atproto.server.getServiceAuth', 'session'),
-  pending('POST', 'com.atproto.server.checkAccountStatus', 'session'),
-  pending('POST', 'com.atproto.server.listAppPasswords', 'session'),
+  pending('GET', 'com.atproto.server.getServiceAuth', 'session'),
+  pending('GET', 'com.atproto.server.checkAccountStatus', 'session'),
+  pending('GET', 'com.atproto.server.listAppPasswords', 'session'),
   pending('POST', 'com.atproto.server.revokeAppPassword', 'session'),
 
-  pending('POST', 'com.atproto.identity.resolveHandle', 'authed-read'),
-  pending('POST', 'app.bsky.actor.getPreferences', 'authed-read'),
+  pending('GET', 'com.atproto.identity.resolveHandle', 'authed-read'),
+  pending('GET', 'app.bsky.actor.getPreferences', 'authed-read'),
 
   pending('POST', 'com.atproto.repo.createRecord', 'write'),
   pending('POST', 'com.atproto.repo.putRecord', 'write'),
@@ -100,9 +100,12 @@ const dispatchIndex = new Map(
   PDS_XRPC_DISPATCH.map((entry) => [`${entry.method} ${entry.nsid}`, entry])
 )
 
+const dispatchNsids = new Set(PDS_XRPC_DISPATCH.map((entry) => entry.nsid))
+
 /**
  * The entry for `method` + `nsid`, an exact match first and then the generic
- * proxy namespace, or `null` for a method the PDS does not answer.
+ * proxy namespace, or `null` for a method the PDS does not answer. A locally
+ * owned NSID never falls through to the proxy prefix on the other verb.
  */
 export const getPdsXrpcDispatchEntry = (
   method: PdsXrpcHttpMethod,
@@ -110,6 +113,7 @@ export const getPdsXrpcDispatchEntry = (
 ): PdsXrpcDispatchEntry | null => {
   const exact = dispatchIndex.get(`${method} ${nsid}`)
   if (exact) return exact
+  if (dispatchNsids.has(nsid)) return null
   if (PDS_XRPC_PROXY_NSID_PREFIXES.some((prefix) => nsid.startsWith(prefix))) {
     return { method, nsid, category: 'proxy', handler: null }
   }

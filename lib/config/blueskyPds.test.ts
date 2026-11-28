@@ -145,6 +145,13 @@ describe('Bluesky PDS config', () => {
         'example.com': { enabled: 'yes', hostname: 'pds.example.com' }
       }),
       JSON.stringify({
+        'example.com': {
+          enabled: true,
+          hostname: 'pds.example.com',
+          clientSignIn: 'true'
+        }
+      }),
+      JSON.stringify({
         'example.com': { enabled: true, hostname: '*.example.com' }
       }),
       JSON.stringify({

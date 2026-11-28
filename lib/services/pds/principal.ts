@@ -45,6 +45,10 @@ export const requireActiveHostedPrincipal = async (
     throw new PdsAccountNotFoundError(did)
   }
 
+  if (getMovedToHost(repo)) {
+    throw new PdsAccountDeactivatedError(did)
+  }
+
   const status = resolveEffectivePdsRepoStatus(repo, actor)
   if (status === 'takendown') {
     throw new PdsAccountTakedownError(did)
@@ -54,9 +58,6 @@ export const requireActiveHostedPrincipal = async (
   }
   if (status === 'deleted') {
     throw new PdsAccountNotFoundError(did)
-  }
-  if (getMovedToHost(repo)) {
-    throw new PdsAccountDeactivatedError(did)
   }
 
   return { repo, actor }

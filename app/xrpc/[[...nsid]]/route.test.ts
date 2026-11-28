@@ -1722,9 +1722,17 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
       })
 
       try {
-        const res = await callPost('com.atproto.server.createSession')
-        expect(res.status).toBe(501)
-        expect((await res.json()).error).toBe('MethodNotImplemented')
+        for (const res of [
+          await callPost('com.atproto.server.createSession'),
+          await callGet('com.atproto.server.getSession'),
+          await callGet('app.bsky.feed.getTimeline')
+        ]) {
+          expect(res.status).toBe(501)
+          expect(await res.json()).toEqual({
+            error: 'MethodNotImplemented',
+            message: 'Method Not Implemented'
+          })
+        }
       } finally {
         process.env.ACTIVITIES_BLUESKY_PDS = original
       }

@@ -2,6 +2,7 @@ import {
   PDS_XRPC_DISPATCH,
   PDS_XRPC_PROXY_NSID_PREFIXES,
   type PdsXrpcCategory,
+  type PdsXrpcHttpMethod,
   getPdsXrpcDispatchEntry,
   isPdsXrpcCategoryEnabled
 } from './dispatch'
@@ -21,23 +22,23 @@ const PUBLIC_READ_NSIDS = [
   'com.atproto.sync.getBlob'
 ]
 
-const PENDING_METHODS: Array<[string, PdsXrpcCategory]> = [
-  ['com.atproto.server.createSession', 'session'],
-  ['com.atproto.server.refreshSession', 'session'],
-  ['com.atproto.server.getSession', 'session'],
-  ['com.atproto.server.deleteSession', 'session'],
-  ['com.atproto.server.getServiceAuth', 'session'],
-  ['com.atproto.server.checkAccountStatus', 'session'],
-  ['com.atproto.server.listAppPasswords', 'session'],
-  ['com.atproto.server.revokeAppPassword', 'session'],
-  ['com.atproto.identity.resolveHandle', 'authed-read'],
-  ['app.bsky.actor.getPreferences', 'authed-read'],
-  ['com.atproto.repo.createRecord', 'write'],
-  ['com.atproto.repo.putRecord', 'write'],
-  ['com.atproto.repo.deleteRecord', 'write'],
-  ['com.atproto.repo.applyWrites', 'write'],
-  ['com.atproto.repo.uploadBlob', 'write'],
-  ['app.bsky.actor.putPreferences', 'write']
+const PENDING_METHODS: Array<[PdsXrpcHttpMethod, string, PdsXrpcCategory]> = [
+  ['POST', 'com.atproto.server.createSession', 'session'],
+  ['POST', 'com.atproto.server.refreshSession', 'session'],
+  ['GET', 'com.atproto.server.getSession', 'session'],
+  ['POST', 'com.atproto.server.deleteSession', 'session'],
+  ['GET', 'com.atproto.server.getServiceAuth', 'session'],
+  ['GET', 'com.atproto.server.checkAccountStatus', 'session'],
+  ['GET', 'com.atproto.server.listAppPasswords', 'session'],
+  ['POST', 'com.atproto.server.revokeAppPassword', 'session'],
+  ['GET', 'com.atproto.identity.resolveHandle', 'authed-read'],
+  ['GET', 'app.bsky.actor.getPreferences', 'authed-read'],
+  ['POST', 'com.atproto.repo.createRecord', 'write'],
+  ['POST', 'com.atproto.repo.putRecord', 'write'],
+  ['POST', 'com.atproto.repo.deleteRecord', 'write'],
+  ['POST', 'com.atproto.repo.applyWrites', 'write'],
+  ['POST', 'com.atproto.repo.uploadBlob', 'write'],
+  ['POST', 'app.bsky.actor.putPreferences', 'write']
 ]
 
 describe('PDS XRPC dispatch table', () => {
@@ -50,8 +51,9 @@ describe('PDS XRPC dispatch table', () => {
   })
 
   it('resolves every listed non-public method to its category without a handler', () => {
-    for (const [nsid, category] of PENDING_METHODS) {
-      const entry = getPdsXrpcDispatchEntry('POST', nsid)
+    for (const [method, nsid, category] of PENDING_METHODS) {
+      const entry = getPdsXrpcDispatchEntry(method, nsid)
+      expect(entry?.method).toBe(method)
       expect(entry?.category).toBe(category)
       expect(entry?.handler).toBeNull()
     }
@@ -82,6 +84,15 @@ describe('PDS XRPC dispatch table', () => {
     ).toBeNull()
   })
 
+  it('answers null for a locally owned NSID on the other HTTP method instead of the proxy', () => {
+    expect(
+      getPdsXrpcDispatchEntry('POST', 'app.bsky.actor.getPreferences')
+    ).toBeNull()
+    expect(
+      getPdsXrpcDispatchEntry('GET', 'app.bsky.actor.putPreferences')
+    ).toBeNull()
+  })
+
   it('routes app.bsky.* and chat.bsky.* to the generic proxy entry', () => {
     for (const prefix of PDS_XRPC_PROXY_NSID_PREFIXES) {
       for (const method of ['GET', 'POST'] as const) {
@@ -97,7 +108,7 @@ describe('PDS XRPC dispatch table', () => {
 
   it('prefers an exact entry over the proxy namespace', () => {
     expect(
-      getPdsXrpcDispatchEntry('POST', 'app.bsky.actor.getPreferences')?.category
+      getPdsXrpcDispatchEntry('GET', 'app.bsky.actor.getPreferences')?.category
     ).toBe('authed-read')
     expect(
       getPdsXrpcDispatchEntry('POST', 'app.bsky.actor.putPreferences')?.category

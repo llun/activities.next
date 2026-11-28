@@ -301,4 +301,25 @@ describe('requireActiveHostedPrincipal', () => {
       PdsAccountDeactivatedError
     )
   })
+
+  it('reports AccountDeactivated for a moved-out repo even when it is takendown', async () => {
+    await expectCode(
+      requireActiveHostedPrincipal(
+        makeDatabase({
+          repo: makeRepo({
+            status: 'takendown',
+            handle: null,
+            plcOperation: JSON.stringify({
+              services: {
+                atproto_pds: { endpoint: 'https://other.example' }
+              }
+            })
+          })
+        }),
+        { did: DID, domain: DOMAIN }
+      ),
+      'AccountDeactivated',
+      PdsAccountDeactivatedError
+    )
+  })
 })
