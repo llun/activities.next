@@ -1,0 +1,59 @@
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.test.ts
+  s_f193227df3df34::t_d139206b07dd0e 6,62,71-75,270-304
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.ts
+  s_f193227df3df34::t_4e2c7086d0b7a8 2-5,65-79
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_5536dcffd8423a 1400
+lib/actions/deleteStatus.test.ts
+  s_f193227df3df34::t_3da9ba078379b4 178,189,201,213,266,305,755,812,884
+lib/actions/deleteStatus.ts
+  s_f193227df3df34::t_4694d5eadbd226 65-68,76,80,89
+lib/actions/updateNoteVisibility.test.ts
+  s_f193227df3df34::t_fff87ea31055ae 331
+lib/actions/updateNoteVisibility.ts
+  s_f193227df3df34::t_800f52a41381c3 44-47,78-79,87
+lib/database/domains/bluesky/bluesky.test.ts
+  s_f193227df3df34::t_6f1bb8e3d6b0d5 758,766-792
+lib/database/domains/bluesky/blueskyMigration.test.ts
+  s_f193227df3df34::t_354ae5f2be72aa 5,178-287
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_ffea82db464a51 589,647-651,655-661,667-678,923
+lib/database/domains/bluesky/types.ts
+  s_f193227df3df34::t_586da25eb6ef64 72-74,181,186,188-195
+lib/database/kysely/db.ts
+  s_f193227df3df34::t_d57c0381d313cf 291
+lib/jobs/deleteBlueskyCrosspostJob.test.ts
+  s_f193227df3df34::t_54688b414fd50f 13,199-202,204-209,219
+lib/jobs/deleteBlueskyCrosspostJob.ts
+  s_f193227df3df34::t_6fb9fe09792d10 15,33-40,51-60
+lib/services/bluesky/crosspost.test.ts
+  s_f193227df3df34::t_c16c012038c8bb 16,149,152-153,2082-2152,2505-2508
+lib/services/bluesky/crosspost.ts
+  s_f193227df3df34::t_e665d8e942fb14 104-105,752-764,960-961
+migrations/20261128081836_add_bluesky_crosspost_did.ts
+  s_f193227df3df34::t_3ee428cb282790 1-90
+migrations/index.ts
+  s_f193227df3df34::t_e04d1b98a61437 36,80-81
+migrations/names.ts
+  s_f193227df3df34::t_9235676dda5e15 36-37
+migrations/schema.sql
+  s_f193227df3df34::t_7e3dff8c56d97c 270-271,2423-2424
+migrations/schema.sqlite.sql
+  s_f193227df3df34::t_f201c815fd4362 371,387
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a989e7ab9163ea9a3a10b3629a7cc03227aea33",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
