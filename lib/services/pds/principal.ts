@@ -59,6 +59,10 @@ export const requireActiveHostedPrincipal = async (
   if (status === 'deleted') {
     throw new PdsAccountNotFoundError(did)
   }
+  // Fail closed on any status the code does not know, not only the named ones.
+  if (status !== 'active' || repo.status !== 'active') {
+    throw new PdsAccountDeactivatedError(did)
+  }
 
   return { repo, actor }
 }

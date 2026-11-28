@@ -136,4 +136,8 @@ describe('PDS XRPC dispatch table', () => {
     )
     expect(isPdsXrpcCategoryEnabled(session, { clientSignIn: true })).toBe(true)
   })
+  it('answers null for a malformed NSID, even under a proxy prefix', () => {
+    expect(getPdsXrpcDispatchEntry('GET', 'app.bsky.')).toBeNull()
+    expect(getPdsXrpcDispatchEntry('POST', 'chat.bsky')).toBeNull()
+  })
 })

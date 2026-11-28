@@ -1,3 +1,4 @@
+import { isValidNsid } from '@atproto/syntax'
 import type { NextRequest } from 'next/server'
 
 import type { BlueskyPdsDomainConfig } from '@/lib/config/blueskyPds'
@@ -111,6 +112,7 @@ export const getPdsXrpcDispatchEntry = (
   method: PdsXrpcHttpMethod,
   nsid: string
 ): PdsXrpcDispatchEntry | null => {
+  if (!isValidNsid(nsid)) return null
   const exact = dispatchIndex.get(`${method} ${nsid}`)
   if (exact) return exact
   if (dispatchNsids.has(nsid)) return null

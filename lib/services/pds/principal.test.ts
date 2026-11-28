@@ -216,6 +216,19 @@ describe('requireActiveHostedPrincipal', () => {
     )
   })
 
+  it('fails closed on a repo status the code does not know', async () => {
+    await expectCode(
+      requireActiveHostedPrincipal(
+        makeDatabase({
+          repo: makeRepo({ status: 'suspended-later' as never })
+        }),
+        { did: DID, domain: DOMAIN }
+      ),
+      'AccountDeactivated',
+      PdsAccountDeactivatedError
+    )
+  })
+
   it('throws AccountDeactivated for a deleting actor', async () => {
     await expectCode(
       requireActiveHostedPrincipal(
