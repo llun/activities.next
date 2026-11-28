@@ -1,0 +1,31 @@
+app/xrpc/[[...nsid]]/route.test.ts
+  s_f193227df3df34::t_0311fb2f227047 1725-1735
+app/xrpc/[[...nsid]]/route.ts
+  s_f193227df3df34::t_51c0289e11f555 114-122,124-130
+lib/config/blueskyPds.test.ts
+  s_f193227df3df34::t_dbbaca23bd9b1b 147-153
+lib/services/pds/dispatch.test.ts
+  s_f193227df3df34::t_e9ea372b6578af 5,25-41,54-56,87-95,111
+lib/services/pds/dispatch.ts
+  s_f193227df3df34::t_69995b280c1714 75,77-79,82-83,103-104,107-108,116
+lib/services/pds/principal.test.ts
+  s_f193227df3df34::t_5b39d7ea66512b 304-324
+lib/services/pds/principal.ts
+  s_f193227df3df34::t_053c66974a938b 48-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0157549ca9bfe783491bb987198228fb4959e7c4",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
