@@ -1,0 +1,31 @@
+docs/mastodon-api-compatibility.md
+  s_4fb28ab57323fe::t_3cb753353d516d 1416
+lib/services/pds/accounts.test.ts
+  s_4fb28ab57323fe::t_1d0ed5e2de31c4 45,76-78,210,434-436
+lib/services/pds/accounts.ts
+  s_4fb28ab57323fe::t_2255d8497adf68 77,653-655
+lib/services/pds/profile.test.ts
+  s_4fb28ab57323fe::t_fd999114b96cdd 129-131,133-134,254-330,377-379,381-382,448-463
+lib/services/pds/profile.ts
+  s_4fb28ab57323fe::t_a56cc8a20f59ff 5,24,27-28,103-120,143,145,181-188,199,225-243,262
+lib/services/pds/reads.ts
+  s_4fb28ab57323fe::t_13aa8f9ca5e25d 52-58,61
+lib/services/pds/repo.ts
+  s_4fb28ab57323fe::t_0a70e636d43a20 524-528,555,561-568,570-576,578,580-585,587-591,593-598,601-620
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a444c81d6214948c376e1bccd03ae55d27ac6c15",
+  "prompts": {},
+  "sessions": {
+    "s_4fb28ab57323fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "143ac5cb-61e1-4174-a644-dcb4b80dc66b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
