@@ -268,6 +268,110 @@ describe('/api/v1/admin/domains/:domain identity and policies', () => {
     })
   })
 
+  describe('Bluesky hosting', () => {
+    it('saves a listed policy with normalised emails and profiles', async () => {
+      const response = await patch('run.example', {
+        blueskyHostingPolicy: 'listed',
+        blueskyHostingAllowEmails: [' Alice@Run.Example '],
+        blueskyHostingAllowActors: ['@Bob@Run.Example']
+      })
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        domain: 'run.example',
+        blueskyHostingPolicy: 'listed',
+        blueskyHostingAllowEmails: ['alice@run.example'],
+        blueskyHostingAllowActors: ['bob@run.example']
+      })
+      await expect((await get('run.example')).json()).resolves.toMatchObject({
+        blueskyHostingPolicy: 'listed',
+        blueskyHostingAllowActors: ['bob@run.example']
+      })
+    })
+
+    it('saves "everyone" and clears back to the server configuration with null', async () => {
+      await patch('run.example', { blueskyHostingPolicy: 'everyone' })
+      await expect((await get('run.example')).json()).resolves.toMatchObject({
+        blueskyHostingPolicy: 'everyone'
+      })
+
+      const response = await patch('run.example', {
+        blueskyHostingPolicy: null
+      })
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        blueskyHostingPolicy: null
+      })
+    })
+
+    it('saves the primary domain’s hosting setting on its own row', async () => {
+      const response = await patch('social.example', {
+        blueskyHostingPolicy: 'everyone'
+      })
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        domain: 'social.example',
+        source: 'primary',
+        blueskyHostingPolicy: 'everyone'
+      })
+    })
+
+    it('gives an env domain a row on its first hosting save', async () => {
+      const response = await patch('club.example', {
+        blueskyHostingPolicy: 'nobody'
+      })
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        domain: 'club.example',
+        source: 'env',
+        blueskyHostingPolicy: 'nobody'
+      })
+    })
+
+    it.each([
+      {
+        name: 'an unknown policy',
+        body: { blueskyHostingPolicy: 'some' },
+        field: 'blueskyHostingPolicy'
+      },
+      {
+        name: 'a profile without a domain',
+        body: {
+          blueskyHostingPolicy: 'listed',
+          blueskyHostingAllowActors: ['bob']
+        },
+        field: 'blueskyHostingAllowActors'
+      }
+    ])('refuses $name with 422', async ({ body, field }) => {
+      const response = await patch('run.example', body)
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toMatchObject({
+        code: 'invalid',
+        field
+      })
+    })
+
+    it('names the profile format when it refuses one', async () => {
+      const response = await patch('run.example', {
+        blueskyHostingPolicy: 'listed',
+        blueskyHostingAllowActors: ['bob']
+      })
+      expect(response.status).toBe(422)
+      await expect(response.json()).resolves.toEqual({
+        error: 'Enter a profile as username@domain.',
+        code: 'invalid',
+        field: 'blueskyHostingAllowActors'
+      })
+    })
+
+    it('is not mixed into a status change', async () => {
+      const response = await patch('run.example', {
+        status: 'off',
+        blueskyHostingPolicy: 'everyone'
+      })
+      expect(response.status).toBe(422)
+    })
+  })
+
   describe('disabled features', () => {
     it('collapses repeated values instead of answering 422', async () => {
       const response = await patch('run.example', {

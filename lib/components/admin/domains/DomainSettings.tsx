@@ -46,6 +46,7 @@ import type { AdminRule } from '@/lib/services/rules/adminRule'
 import { cn } from '@/lib/utils'
 
 import { DomainAnnouncementsBox } from './DomainAnnouncementsBox'
+import { DomainBlueskyHostingBox } from './DomainBlueskyHostingBox'
 import { DomainCheckItems } from './DomainCheckItems'
 import { DomainFeaturesBox } from './DomainFeaturesBox'
 import { DomainReportsBox } from './DomainReportsBox'
@@ -81,6 +82,8 @@ interface Props {
   primaryDomain: string | null
   server: ServerIdentityView
   scope: DomainPageScope
+  /** The domain's PDS hostname when ACTIVITIES_BLUESKY_PDS enables one. */
+  pdsHostname: string | null
 }
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -854,7 +857,8 @@ export const DomainSettings: FC<Props> = ({
   domain: initial,
   primaryDomain,
   server,
-  scope
+  scope,
+  pdsHostname
 }) => {
   const [domain, setDomain] = useState(initial)
   const checkBadge = getDomainCheckBadge(domain)
@@ -948,6 +952,25 @@ export const DomainSettings: FC<Props> = ({
           <RegistrationsBox domain={domain} onSaved={setDomain} />
         )}
       </Section>
+
+      {pdsHostname ? (
+        <Section
+          title="Bluesky hosting"
+          description={
+            <>
+              Who can host a Bluesky account on{' '}
+              <span className="wrap-anywhere">{domain.domain}</span>.
+            </>
+          }
+        >
+          <DomainBlueskyHostingBox
+            key={`bluesky-hosting-${domain.domain}`}
+            domain={domain}
+            pdsHostname={pdsHostname}
+            onSaved={setDomain}
+          />
+        </Section>
+      ) : null}
 
       <Section
         title="Identity"

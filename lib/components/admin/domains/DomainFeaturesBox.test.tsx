@@ -31,6 +31,9 @@ const RUN: AdminDomainDetail = {
   signupsOpen: true,
   allowedEmails: [],
   allowExistingUsers: true,
+  blueskyHostingPolicy: null,
+  blueskyHostingAllowEmails: null,
+  blueskyHostingAllowActors: null,
   lastCheckedAt: null,
   lastCheck: null
 }

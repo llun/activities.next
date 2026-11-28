@@ -5,6 +5,7 @@ import {
   DomainPageScope,
   DomainSettings
 } from '@/lib/components/admin/domains/DomainSettings'
+import { getPdsConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getAdminAnnouncement } from '@/lib/services/announcements/adminAnnouncement'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -114,6 +115,9 @@ const Page = async ({ params }: Props) => {
     currentTime
   }
 
+  const pdsEntry = getPdsConfig()?.[domain.domain]
+  const pdsHostname = pdsEntry?.enabled ? pdsEntry.hostname : null
+
   return (
     <DomainSettings
       key={domain.domain}
@@ -121,6 +125,7 @@ const Page = async ({ params }: Props) => {
       primaryDomain={getEnvDomains().primary}
       server={server}
       scope={scope}
+      pdsHostname={pdsHostname}
     />
   )
 }

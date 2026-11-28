@@ -12,6 +12,7 @@ import {
   ensureServedDomainsFresh,
   getActiveServedDomainNames,
   getServedHostConfig,
+  getServedHostingPolicy,
   isServedDomainSnapshotFresh,
   refreshServedDomains,
   refreshServedDomainsAfterWrite,
@@ -22,13 +23,15 @@ import {
 
 const config = { host: 'social.example', trustedHosts: ['club.example'] }
 
+const row = (domain: string) => ({ domain, status: 'on' as const })
+
 const databaseWith = (domains: string[]) => {
-  const getActiveServedDomains = vi.fn(async () =>
-    domains.map((domain) => ({ domain }))
+  const getServedDomains = vi.fn(async () =>
+    domains.map((domain) => ({ domain, status: 'on' as const }))
   )
   return {
-    database: { getActiveServedDomains } as unknown as Database,
-    getActiveServedDomains
+    database: { getServedDomains } as unknown as Database,
+    getServedDomains
   }
 }
 
@@ -61,6 +64,28 @@ describe('servedDomainSnapshot', () => {
     ])
   })
 
+  it('loads a saved hosting policy from a row stored off, and leaves the rest to the environment', async () => {
+    const getServedDomains = vi.fn(async () => [
+      row('run.example'),
+      {
+        domain: 'club.example',
+        status: 'off' as const,
+        blueskyHostingPolicy: 'everyone' as const,
+        blueskyHostingAllowEmails: ['alice@club.example'],
+        blueskyHostingAllowActors: []
+      }
+    ])
+    const database = { getServedDomains } as unknown as Database
+    await refreshServedDomains(database)
+
+    expect(getServedHostingPolicy('club.example')).toEqual({
+      policy: 'everyone',
+      allowEmails: ['alice@club.example'],
+      allowActors: []
+    })
+    expect(getServedHostingPolicy('run.example')).toBeNull()
+  })
+
   it('makes an active domain a trusted header host, and an unknown one fall back', async () => {
     const { database } = databaseWith(['run.example'])
     await refreshServedDomains(database)
@@ -75,10 +100,10 @@ describe('servedDomainSnapshot', () => {
 
   it('stops trusting a domain once a refresh no longer lists it', async () => {
     const domains = ['run.example']
-    const getActiveServedDomains = vi.fn(async () =>
-      domains.map((domain) => ({ domain }))
+    const getServedDomains = vi.fn(async () =>
+      domains.map((domain) => ({ domain, status: 'on' as const }))
     )
-    const database = { getActiveServedDomains } as unknown as Database
+    const database = { getServedDomains } as unknown as Database
     await refreshServedDomains(database)
     expect(getActiveServedDomainNames()).toEqual(['run.example'])
 
@@ -102,11 +127,11 @@ describe('servedDomainSnapshot', () => {
   })
 
   it('keeps the last good snapshot when a reload fails', async () => {
-    const getActiveServedDomains = vi
+    const getServedDomains = vi
       .fn()
-      .mockResolvedValueOnce([{ domain: 'run.example' }])
+      .mockResolvedValueOnce([row('run.example')])
       .mockRejectedValueOnce(new Error('database down'))
-    const database = { getActiveServedDomains } as unknown as Database
+    const database = { getServedDomains } as unknown as Database
     await refreshServedDomains(database)
     await refreshServedDomains(database)
     expect(getActiveServedDomainNames()).toEqual(['run.example'])
@@ -114,37 +139,37 @@ describe('servedDomainSnapshot', () => {
 
   it('ensureServedDomainsFresh queries only when the snapshot is stale', async () => {
     vi.useFakeTimers()
-    const { database, getActiveServedDomains } = databaseWith(['run.example'])
+    const { database, getServedDomains } = databaseWith(['run.example'])
     await refreshServedDomains(database)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
 
     await ensureServedDomainsFresh()
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS + 1)
     await ensureServedDomainsFresh()
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+    expect(getServedDomains).toHaveBeenCalledTimes(2)
   })
 
   // A database outage must not hold every request on a fresh failing query.
   it('ensureServedDomainsFresh waits out the refresh interval after a failed load', async () => {
     vi.useFakeTimers()
-    const getActiveServedDomains = vi
+    const getServedDomains = vi
       .fn()
       .mockRejectedValueOnce(new Error('database down'))
-      .mockResolvedValue([{ domain: 'run.example' }])
-    const database = { getActiveServedDomains } as unknown as Database
+      .mockResolvedValue([row('run.example')])
+    const database = { getServedDomains } as unknown as Database
     await refreshServedDomains(database)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
 
     await ensureServedDomainsFresh()
     vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS - 1)
     await ensureServedDomainsFresh()
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(2)
     await ensureServedDomainsFresh()
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+    expect(getServedDomains).toHaveBeenCalledTimes(2)
     expect(getActiveServedDomainNames()).toEqual(['run.example'])
   })
 
@@ -152,67 +177,67 @@ describe('servedDomainSnapshot', () => {
   // query (and an error log) per request.
   it('getActiveServedDomainNames waits out the refresh interval after a failed load', async () => {
     vi.useFakeTimers()
-    const getActiveServedDomains = vi
+    const getServedDomains = vi
       .fn()
       .mockRejectedValue(new Error('database down'))
-    const database = { getActiveServedDomains } as unknown as Database
+    const database = { getServedDomains } as unknown as Database
     await refreshServedDomains(database)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS - 1)
     getActiveServedDomainNames()
     await vi.advanceTimersByTimeAsync(0)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(2)
     getActiveServedDomainNames()
     getActiveServedDomainNames()
     await vi.advanceTimersByTimeAsync(0)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+    expect(getServedDomains).toHaveBeenCalledTimes(2)
   })
 
   it('shares one load between concurrent refreshes', async () => {
-    const { database, getActiveServedDomains } = databaseWith(['run.example'])
+    const { database, getServedDomains } = databaseWith(['run.example'])
     await Promise.all([
       refreshServedDomains(database),
       refreshServedDomains(database)
     ])
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
   })
 
   // A load that started before an admin write may have read the table before
   // the write committed; the write's own refresh must not just join it.
   it('loads again after an admin write instead of joining a load already in flight', async () => {
-    const beforeWrite = createDeferred<{ domain: string }[]>()
-    const getActiveServedDomains = vi
+    const beforeWrite = createDeferred<ReturnType<typeof row>[]>()
+    const getServedDomains = vi
       .fn()
       .mockReturnValueOnce(beforeWrite.promise)
       .mockResolvedValueOnce([])
-    const database = { getActiveServedDomains } as unknown as Database
+    const database = { getServedDomains } as unknown as Database
 
     const inflight = refreshServedDomains(database)
     const afterWrite = refreshServedDomainsAfterWrite(database)
-    beforeWrite.resolve([{ domain: 'run.example' }])
+    beforeWrite.resolve([row('run.example')])
     await Promise.all([inflight, afterWrite])
 
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+    expect(getServedDomains).toHaveBeenCalledTimes(2)
     expect(getActiveServedDomainNames()).toEqual([])
   })
 
   it('starts one background refresh when a sync read finds the snapshot stale', async () => {
     vi.useFakeTimers()
-    const { database, getActiveServedDomains } = databaseWith(['run.example'])
+    const { database, getServedDomains } = databaseWith(['run.example'])
     await refreshServedDomains(database)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS)
     getActiveServedDomainNames()
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(1)
     getActiveServedDomainNames()
     getActiveServedDomainNames()
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+    expect(getServedDomains).toHaveBeenCalledTimes(2)
   })
 
   it('returns the same config object until the domain list changes', () => {
@@ -239,15 +264,15 @@ describe('servedDomainSnapshot', () => {
 
   it('reloads on an interval, and a second start adds no timer', async () => {
     vi.useFakeTimers()
-    const { database, getActiveServedDomains } = databaseWith(['run.example'])
+    const { database, getServedDomains } = databaseWith(['run.example'])
     startServedDomainRefresher(database)
     startServedDomainRefresher(database)
     expect(vi.getTimerCount()).toBe(1)
     await vi.advanceTimersByTimeAsync(0)
-    const loads = getActiveServedDomains.mock.calls.length
+    const loads = getServedDomains.mock.calls.length
 
     await vi.advanceTimersByTimeAsync(SERVED_DOMAIN_REFRESH_MS)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(loads + 1)
+    expect(getServedDomains).toHaveBeenCalledTimes(loads + 1)
   })
 
   it('feeds headerHost', () => {
@@ -279,12 +304,12 @@ describe('servedDomainSnapshot', () => {
     vi.useFakeTimers()
     expect(isServedDomainSnapshotFresh()).toBe(false)
 
-    const getActiveServedDomains = vi
+    const getServedDomains = vi
       .fn()
-      .mockResolvedValueOnce([{ domain: 'run.example' }])
+      .mockResolvedValueOnce([row('run.example')])
       .mockRejectedValueOnce(new Error('db down'))
-      .mockResolvedValueOnce([{ domain: 'run.example' }])
-    const database = { getActiveServedDomains } as unknown as Database
+      .mockResolvedValueOnce([row('run.example')])
+    const database = { getServedDomains } as unknown as Database
 
     await refreshServedDomains(database)
     expect(isServedDomainSnapshotFresh()).toBe(true)

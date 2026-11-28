@@ -9,7 +9,7 @@ import {
   isValidRecordKey
 } from '@atproto/syntax'
 
-import { getPdsConfig, isPdsAllowed } from '@/lib/config/blueskyPds'
+import { getPdsConfig } from '@/lib/config/blueskyPds'
 import type {
   PdsCommitRecordWrite,
   PdsRepo
@@ -40,6 +40,7 @@ import {
   formatPdsCommitEvent,
   formatPdsIdentityEvent
 } from './events'
+import { isHostingAllowed } from './hostingPolicy'
 import {
   createPdsSigningKey,
   encryptPdsSigningKey,
@@ -139,9 +140,9 @@ const assertActiveRepoForWrite = async (
  *
  * Refuses unless the actor's served domain has PDS enabled in `getPdsConfig()`,
  * the local actor's domain matches the PDS domain, and the actor/account passes
- * the domain's `isPdsAllowed` allowlist. Atomically persists `pds_repos`, the
- * initial empty commit + MST blocks, and the initial `#identity`, `#account`
- * (active), and `#commit` events.
+ * the domain's hosting policy (`isHostingAllowed`). Atomically persists
+ * `pds_repos`, the initial empty commit + MST blocks, and the initial
+ * `#identity`, `#account` (active), and `#commit` events.
  */
 export const createPdsRepo = async (
   database: Database,
@@ -171,7 +172,7 @@ export const createPdsRepo = async (
     isActorConfirmationPending(actor) ||
     actor.account.approvedAt == null ||
     Boolean(actor.deletionStatus) ||
-    !isPdsAllowed({
+    !isHostingAllowed({
       email: actor.account.email,
       actorUsernameAtDomain: `${actor.username}@${actorDomain}`,
       domain: normalizedDomain,

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { ADMIN_DOMAIN_FIELD_LIMITS } from '@/lib/services/domains/adminDomainTypes'
 import { DOMAIN_FEATURES } from '@/lib/services/domains/domainFeatures'
+import { BLUESKY_HOSTING_POLICIES } from '@/lib/services/pds/hostingPolicyTypes'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
 // Request bodies of the Admin › Served domains API.
@@ -15,6 +16,16 @@ export const AddDomainRequest = z.object({
 // client forgot to switch back to "Same as server" is not saved silently.
 const override = (max: number) =>
   z.string().trim().min(1).max(max).nullable().optional()
+
+// A 'listed' profile: `username@domain`, stored lowercase without a leading @.
+const hostingActor = z
+  .string()
+  .trim()
+  .max(255)
+  .transform((value) => value.replace(/^@/, '').toLowerCase())
+  .refine((value) => /^[^@\s]+@[^@\s]+$/.test(value), {
+    message: 'Enter a profile as username@domain.'
+  })
 
 const IDENTITY_AND_POLICY_KEYS = [
   'name',
@@ -48,6 +59,23 @@ export const UpdateDomainRequest = z
           ? DOMAIN_FEATURES.filter((f) => features.includes(f))
           : features
       ),
+    // The Bluesky hosting box: null clears the setting back to the
+    // environment's allowlists.
+    blueskyHostingPolicy: z
+      .enum(BLUESKY_HOSTING_POLICIES)
+      .nullable()
+      .optional(),
+    blueskyHostingAllowEmails: z
+      .array(z.string().trim().max(255))
+      .max(1000)
+      .transform((emails) => emails.map(normalizeEmail).filter(Boolean))
+      .nullable()
+      .optional(),
+    blueskyHostingAllowActors: z
+      .array(hostingActor)
+      .max(1000)
+      .nullable()
+      .optional(),
     name: override(ADMIN_DOMAIN_FIELD_LIMITS.name),
     description: override(ADMIN_DOMAIN_FIELD_LIMITS.description),
     contactEmail: z
@@ -70,6 +98,9 @@ export const UpdateDomainRequest = z
         value.allowedEmails === undefined &&
         value.allowExistingUsers === undefined &&
         value.disabledFeatures === undefined &&
+        value.blueskyHostingPolicy === undefined &&
+        value.blueskyHostingAllowEmails === undefined &&
+        value.blueskyHostingAllowActors === undefined &&
         IDENTITY_AND_POLICY_KEYS.every((key) => value[key] === undefined)),
     { message: 'Send status on its own' }
   )

@@ -530,6 +530,9 @@ export interface DomainFederationRules {
 export interface Domains {
   allowExistingUsers: WithDefault<boolean>
   allowedEmails: WithDefault<string>
+  blueskyHostingAllowActors: Nullable<string>
+  blueskyHostingAllowEmails: Nullable<string>
+  blueskyHostingPolicy: Nullable<string>
   contactEmail: Nullable<string>
   createdAt: WithDefault<Timestamp>
   description: Nullable<string>

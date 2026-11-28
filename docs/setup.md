@@ -381,10 +381,20 @@ ACTIVITIES_BLUESKY_PDS='{
 
 - `enabled` turns the domain's PDS on (default `false`).
 - `hostname` is the PDS's own hostname; it must not collide with a served domain or another PDS hostname, and yields `did:web:<hostname>`.
-- `allowEmails` and `allowActors` decide who may create an account; empty lists allow nobody.
+- `allowEmails` and `allowActors` decide who may create an account when the domain has no saved setting of its own; empty lists allow nobody. See **Who can host** below.
 - `relays` is an optional list of HTTPS relay origins to ask for a crawl at start-up (default `https://bsky.network`; `[]` disables crawl requests).
 
 Unset or blank turns the PDS off; malformed JSON or an invalid entry turns it off and logs a warning, and a hostname used twice or equal to a served domain drops only that domain. See [Environment Variables](environment-variables.md) for the full schema.
+
+#### Who can host
+
+The environment's `allowEmails` and `allowActors` are the fallback: they decide only while the domain has no saved setting. An admin can set it per domain in **Admin › Served domains › Bluesky hosting**, which shows when that domain has an enabled PDS entry:
+
+- **Nobody** — no one may host an account on the domain.
+- **Listed accounts** — only the email addresses and `username@domain` profiles entered there.
+- **Everyone on this domain** — any profile on the domain whose account is approved and confirmed. Suspended, unconfirmed, unapproved, disabled and deleting accounts are still refused.
+
+The setting only decides who. The PDS hostname, relays and whether the domain's PDS is on stay in `ACTIVITIES_BLUESKY_PDS`. Clearing the setting returns the domain to the environment's lists. The bare-domain handle stays admin-only, and `<name>.<PDS hostname>` handles need the wildcard DNS record and certificate below.
 
 #### Rotation key
 

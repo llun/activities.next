@@ -71,7 +71,10 @@ const FIELD_LABELS: Record<string, string> = {
   termsOfService: 'Terms of service',
   privacyPolicy: 'Privacy policy',
   allowedEmails: 'Allowed emails',
-  disabledFeatures: 'Features'
+  disabledFeatures: 'Features',
+  blueskyHostingPolicy: 'Bluesky hosting',
+  blueskyHostingAllowEmails: 'Bluesky hosting emails',
+  blueskyHostingAllowActors: 'Bluesky hosting profiles'
 }
 
 // The first problem of a refused body, as a sentence the page can show. The
@@ -103,6 +106,9 @@ const describeInvalidRequest = (
   }
   if (issue.code === 'too_small') {
     return { field, message: `${label} cannot be blank.` }
+  }
+  if (issue.code === 'custom') {
+    return { field, message: issue.message }
   }
   return { field, message: `${label} is not valid.` }
 }

@@ -1,6 +1,7 @@
 // Parameter and result types of the served-domain domain: the `domains` table
 // behind Admin › Served domains. lib/types/database/operations.ts re-exports them.
 import type { DomainFeature } from '@/lib/services/domains/domainFeatures'
+import type { BlueskyHostingPolicy } from '@/lib/services/pds/hostingPolicyTypes'
 
 export type ServedDomainStatus = 'on' | 'off'
 
@@ -45,6 +46,13 @@ export type ServedDomainData = {
   // empty, so no caller may treat it as "anyone" (`signupsOpen` is then false).
   allowedEmails: string[] | null
   allowExistingUsers: boolean
+  // Who may host a Bluesky account on this domain; null means the domain has
+  // no setting of its own and ACTIVITIES_BLUESKY_PDS's allowlists decide.
+  blueskyHostingPolicy: BlueskyHostingPolicy | null
+  // The 'listed' policy's lists, null when not set. An unreadable stored value
+  // reads as an empty list, which allows nobody.
+  blueskyHostingAllowEmails: string[] | null
+  blueskyHostingAllowActors: string[] | null
   lastCheckedAt: number | null
   lastCheckStatus: 'passed' | 'failed' | null
   lastCheckResult: DomainCheckResult | null
@@ -81,23 +89,33 @@ type ServedDomainIdentityParams = {
   privacyPolicyUpdatedAt?: number | null
 }
 
-export type CreateServedDomainParams = ServedDomainIdentityParams & {
-  domain: string
-  status?: ServedDomainStatus
-  signupsOpen?: boolean
-  allowedEmails?: string[]
-  allowExistingUsers?: boolean
-  check?: DomainCheckResult | null
+// The Bluesky hosting columns a create or update may set. Undefined leaves a
+// column as it is (on create: null); null clears it.
+type ServedDomainHostingParams = {
+  blueskyHostingPolicy?: BlueskyHostingPolicy | null
+  blueskyHostingAllowEmails?: string[] | null
+  blueskyHostingAllowActors?: string[] | null
 }
 
-export type UpdateServedDomainParams = ServedDomainIdentityParams & {
-  domain: string
-  status?: ServedDomainStatus
-  signupsOpen?: boolean
-  allowedEmails?: string[]
-  allowExistingUsers?: boolean
-  check?: DomainCheckResult
-}
+export type CreateServedDomainParams = ServedDomainIdentityParams &
+  ServedDomainHostingParams & {
+    domain: string
+    status?: ServedDomainStatus
+    signupsOpen?: boolean
+    allowedEmails?: string[]
+    allowExistingUsers?: boolean
+    check?: DomainCheckResult | null
+  }
+
+export type UpdateServedDomainParams = ServedDomainIdentityParams &
+  ServedDomainHostingParams & {
+    domain: string
+    status?: ServedDomainStatus
+    signupsOpen?: boolean
+    allowedEmails?: string[]
+    allowExistingUsers?: boolean
+    check?: DomainCheckResult
+  }
 
 export type GetServedDomainParams = { domain: string }
 export type DeleteServedDomainParams = { domain: string }

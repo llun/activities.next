@@ -44,6 +44,7 @@ const mockDatabase = {
   ),
   getLatestActorHandleReplacedAt: vi.fn(async () => latestReplacedAt),
   getActiveServedDomains: vi.fn(async () => []),
+  getServedDomains: vi.fn(async () => []),
   recordActorHandleRename: vi.fn(async () => renameResult)
 }
 

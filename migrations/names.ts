@@ -34,7 +34,8 @@ export const MIGRATION_NAMES = [
   '20261124103009_add_bluesky_crossposts',
   '20261124234607_add_bluesky_pds',
   '20261125105453_add_bluesky_pds_accounts',
-  '20261128081836_add_bluesky_crosspost_did'
+  '20261128081836_add_bluesky_crosspost_did',
+  '20261128101143_add_bluesky_hosting_policy'
 ] as const
 
 export type MigrationName = (typeof MIGRATION_NAMES)[number]

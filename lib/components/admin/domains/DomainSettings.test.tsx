@@ -88,6 +88,9 @@ const RUN: AdminDomainDetail = {
   signupsOpen: true,
   allowedEmails: ['ana@mail.example'],
   allowExistingUsers: true,
+  blueskyHostingPolicy: null,
+  blueskyHostingAllowEmails: null,
+  blueskyHostingAllowActors: null,
   lastCheckedAt: Date.UTC(2026, 9, 18),
   lastCheck: {
     passed: true,
@@ -141,6 +144,7 @@ const renderPage = (
       primaryDomain="social.example"
       server={SERVER}
       scope={{ ...SCOPE, ...scope }}
+      pdsHostname={null}
     />
   )
 
@@ -686,6 +690,7 @@ describe('DomainSettings', () => {
             primaryDomain="social.example"
             server={SERVER}
             scope={SCOPE}
+            pdsHostname={null}
           />
         )
 

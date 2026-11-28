@@ -565,14 +565,14 @@ describe('POST /api/v1/accounts (web form) on an added domain', () => {
   it('refreshes a stale snapshot before deciding which domain the sign-up is on', async () => {
     resetServedDomainsForTests()
     // Loaded before the domain was turned on, so it does not list it.
-    const getActiveServedDomains = vi
+    const getServedDomains = vi
       .fn()
       .mockResolvedValueOnce([])
-      .mockResolvedValue([{ domain: 'run.example' }])
+      .mockResolvedValue([{ domain: 'run.example', status: 'on' }])
     const database = {
       ...createInMemoryRateLimitDatabase(),
       getServedDomain,
-      getActiveServedDomains
+      getServedDomains
     }
     mockDatabase = database
     await refreshServedDomains(database as unknown as Database)

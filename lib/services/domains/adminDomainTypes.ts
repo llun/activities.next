@@ -6,6 +6,7 @@ import type {
   DomainCheckResult
 } from '@/lib/database/domains/servedDomain/types'
 import type { DomainFeature } from '@/lib/services/domains/domainFeatures'
+import type { BlueskyHostingPolicy } from '@/lib/services/pds/hostingPolicyTypes'
 
 export type AdminDomainSource =
   // ACTIVITIES_HOST: always on, its sign-up settings are Admin › Server settings.
@@ -49,6 +50,11 @@ export type AdminDomainDetail = AdminDomain & {
   // The optional features this domain turns off ([] = none; always [] on the
   // primary, which has no switches of its own: Admin › Server settings).
   disabledFeatures: DomainFeature[]
+  // Who may host a Bluesky account on this domain. Null means the domain has
+  // no setting of its own and ACTIVITIES_BLUESKY_PDS's allowlists decide.
+  blueskyHostingPolicy: BlueskyHostingPolicy | null
+  blueskyHostingAllowEmails: string[] | null
+  blueskyHostingAllowActors: string[] | null
 }
 
 /**
@@ -94,10 +100,19 @@ export type AdminDomainFeaturesPatch = {
   disabledFeatures?: DomainFeature[] | null
 }
 
+// The Bluesky hosting box: the policy, and the 'listed' lists. Null clears a
+// field back to "not set" (the environment's allowlists decide).
+export type AdminDomainHostingPatch = {
+  blueskyHostingPolicy?: BlueskyHostingPolicy | null
+  blueskyHostingAllowEmails?: string[] | null
+  blueskyHostingAllowActors?: string[] | null
+}
+
 export type AdminDomainSettingsPatch = AdminDomainRegistrationsPatch &
   AdminDomainIdentityPatch &
   AdminDomainPoliciesPatch &
-  AdminDomainFeaturesPatch
+  AdminDomainFeaturesPatch &
+  AdminDomainHostingPatch
 
 export type AdminDomainUpdateBody =
   AdminDomainSettingsPatch | { status: 'on' | 'off' }

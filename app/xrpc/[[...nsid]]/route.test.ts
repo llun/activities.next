@@ -672,9 +672,9 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
       }
 
       // Register a DB whose active domains later include PDS_HOST_A.
-      const activeDomains: Array<{ domain: string }> = []
-      const getActiveServedDomains = vi.fn(async () => activeDomains)
-      const mockDb = { getActiveServedDomains } as unknown as Database
+      const activeDomains: Array<{ domain: string; status: 'on' }> = []
+      const getServedDomains = vi.fn(async () => activeDomains)
+      const mockDb = { getServedDomains } as unknown as Database
       await refreshServedDomains(mockDb)
 
       expect(
@@ -697,13 +697,13 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
 
       // Add a colliding served domain and advance past refresh interval:
       // OPTIONS and PUT/DELETE/PATCH must refresh before resolving the PDS host.
-      activeDomains.push({ domain: PDS_HOST_A })
+      activeDomains.push({ domain: PDS_HOST_A, status: 'on' })
       vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS + 1)
 
       expect(
         (await callOptions('com.atproto.server.describeServer')).status
       ).toBe(404)
-      expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+      expect(getServedDomains).toHaveBeenCalledTimes(2)
 
       // Reset to non-colliding, refresh, then collide again and verify PUT triggers refresh.
       activeDomains.length = 0
@@ -711,9 +711,9 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
       expect(
         (await callOptions('com.atproto.server.describeServer')).status
       ).toBe(204)
-      expect(getActiveServedDomains).toHaveBeenCalledTimes(3)
+      expect(getServedDomains).toHaveBeenCalledTimes(3)
 
-      activeDomains.push({ domain: PDS_HOST_A })
+      activeDomains.push({ domain: PDS_HOST_A, status: 'on' })
       vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS + 1)
       expect(
         (
@@ -729,7 +729,7 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
           )
         ).status
       ).toBe(404)
-      expect(getActiveServedDomains).toHaveBeenCalledTimes(4)
+      expect(getServedDomains).toHaveBeenCalledTimes(4)
     })
 
     it('answers 404 without touching the database when ACTIVITIES_BLUESKY_PDS is unset', async () => {
@@ -743,10 +743,10 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
 
     it('answers 404 without refreshing served domains on OPTIONS and unsupported methods when ACTIVITIES_BLUESKY_PDS is unset', async () => {
       vi.useFakeTimers()
-      const getActiveServedDomains = vi.fn(async () => [])
-      const mockDb = { getActiveServedDomains } as unknown as Database
+      const getServedDomains = vi.fn(async () => [])
+      const mockDb = { getServedDomains } as unknown as Database
       await refreshServedDomains(mockDb)
-      expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+      expect(getServedDomains).toHaveBeenCalledTimes(1)
 
       vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS + 1)
       delete process.env.ACTIVITIES_BLUESKY_PDS
@@ -769,7 +769,7 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
         )
         expect(res.status).toBe(404)
       }
-      expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+      expect(getServedDomains).toHaveBeenCalledTimes(1)
     })
   })
 

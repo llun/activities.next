@@ -566,7 +566,10 @@ CREATE TABLE public.domains (
     "termsOfServiceUpdatedAt" timestamp with time zone,
     "privacyPolicy" text,
     "privacyPolicyUpdatedAt" timestamp with time zone,
-    "disabledFeatures" text
+    "disabledFeatures" text,
+    "blueskyHostingPolicy" character varying(16),
+    "blueskyHostingAllowEmails" text,
+    "blueskyHostingAllowActors" text
 );
 
 CREATE TABLE public.endorsements (

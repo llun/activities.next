@@ -160,12 +160,14 @@ describe('traceApiRoute', () => {
   // `headerHost` reads the snapshot synchronously, so a stale one would hand
   // an added domain's request to the primary.
   it('refreshes a stale served-domain snapshot before the handler runs', async () => {
-    const getActiveServedDomains = vi.fn().mockResolvedValue([])
+    const getServedDomains = vi.fn().mockResolvedValue([])
     try {
       await refreshServedDomains({
-        getActiveServedDomains
+        getServedDomains
       } as unknown as Database)
-      getActiveServedDomains.mockResolvedValue([{ domain: 'run.example' }])
+      getServedDomains.mockResolvedValue([
+        { domain: 'run.example', status: 'on' }
+      ])
       const later = Date.now() + SERVED_DOMAIN_REFRESH_MS + 1
       vi.spyOn(Date, 'now').mockReturnValue(later)
 

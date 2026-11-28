@@ -88,12 +88,12 @@ describe('/account/security', () => {
   // the passkey chooser would miss it and "here" would be the primary.
   it('refreshes a stale served-domain snapshot before resolving the current domain', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    const getActiveServedDomains = vi
+    const getServedDomains = vi
       .fn()
       .mockResolvedValueOnce([])
-      .mockResolvedValue([{ domain: 'run.example' }])
+      .mockResolvedValue([{ domain: 'run.example', status: 'on' }])
     await refreshServedDomains({
-      getActiveServedDomains
+      getServedDomains
     } as unknown as Database)
     vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS + 1)
 

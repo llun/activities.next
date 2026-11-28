@@ -223,10 +223,10 @@ describe('GET /.well-known/did.json', () => {
 
   it('answers 404 without querying served domains on OPTIONS when ACTIVITIES_BLUESKY_PDS is unset', async () => {
     vi.useFakeTimers()
-    const getActiveServedDomains = vi.fn(async () => [])
-    const mockDb = { getActiveServedDomains } as unknown as Database
+    const getServedDomains = vi.fn(async () => [])
+    const mockDb = { getServedDomains } as unknown as Database
     await refreshServedDomains(mockDb)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS + 1)
     delete process.env.ACTIVITIES_BLUESKY_PDS
@@ -235,7 +235,7 @@ describe('GET /.well-known/did.json', () => {
       makeRequest({ host: 'pds.social.example' }, 'OPTIONS')
     )
     expect(optionsRes.status).toBe(404)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(1)
+    expect(getServedDomains).toHaveBeenCalledTimes(1)
   })
 
   it('fails closed when the served-domain snapshot is unloaded and refreshes on OPTIONS before checking host collision', async () => {
@@ -263,9 +263,9 @@ describe('GET /.well-known/did.json', () => {
     ).toBe(404)
 
     // Register a DB whose active domains later include pds.social.example.
-    const activeDomains: Array<{ domain: string }> = []
-    const getActiveServedDomains = vi.fn(async () => activeDomains)
-    const mockDb = { getActiveServedDomains } as unknown as Database
+    const activeDomains: Array<{ domain: string; status: 'on' }> = []
+    const getServedDomains = vi.fn(async () => activeDomains)
+    const mockDb = { getServedDomains } as unknown as Database
     await refreshServedDomains(mockDb)
 
     expect(
@@ -275,13 +275,13 @@ describe('GET /.well-known/did.json', () => {
 
     // After the refresh interval passes, OPTIONS must await ensureServedDomainsFresh()
     // and refuse the now-colliding hostname with 404.
-    activeDomains.push({ domain: 'pds.social.example' })
+    activeDomains.push({ domain: 'pds.social.example', status: 'on' })
     vi.advanceTimersByTime(SERVED_DOMAIN_REFRESH_MS + 1)
 
     const refreshedOpt = await OPTIONS(
       makeRequest({ host: 'pds.social.example' }, 'OPTIONS')
     )
     expect(refreshedOpt.status).toBe(404)
-    expect(getActiveServedDomains).toHaveBeenCalledTimes(2)
+    expect(getServedDomains).toHaveBeenCalledTimes(2)
   })
 })

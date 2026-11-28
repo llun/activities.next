@@ -2,6 +2,7 @@ import type {
   AdminDomain,
   AdminDomainDetail,
   AdminDomainFeaturesPatch,
+  AdminDomainHostingPatch,
   AdminDomainIdentityPatch,
   AdminDomainList,
   AdminDomainPoliciesPatch
@@ -124,6 +125,16 @@ export const updateAdminDomainPolicies = async (
 ): Promise<AdminDomainDetail> =>
   readResponse(
     await send(domainPath(domain), 'PATCH', policies),
+    'Failed to save changes. Please try again.'
+  )
+
+// Bluesky hosting: the policy and its 'listed' lists, null for "not set".
+export const updateAdminDomainHosting = async (
+  domain: string,
+  hosting: Required<AdminDomainHostingPatch>
+): Promise<AdminDomainDetail> =>
+  readResponse(
+    await send(domainPath(domain), 'PATCH', hosting),
     'Failed to save changes. Please try again.'
   )
 

@@ -656,12 +656,12 @@ describe('PDS host routing', () => {
       ).toBeNull()
 
       // 2. Loaded and fresh -> matches.
-      const getActiveServedDomains = vi
+      const getServedDomains = vi
         .fn()
         .mockResolvedValueOnce([])
         .mockRejectedValueOnce(new Error('database offline'))
         .mockResolvedValueOnce([])
-      const mockDb = { getActiveServedDomains } as unknown as Database
+      const mockDb = { getServedDomains } as unknown as Database
       await refreshServedDomains(mockDb)
       expect(
         getPdsDomainForRequest(new Headers({ host: 'pds.social.example' }))
@@ -684,7 +684,7 @@ describe('PDS host routing', () => {
         .mockRejectedValueOnce(new Error('db unreachable'))
         .mockResolvedValueOnce([])
       const db2 = {
-        getActiveServedDomains: failingRefresh
+        getServedDomains: failingRefresh
       } as unknown as Database
       await refreshServedDomains(db2)
       expect(

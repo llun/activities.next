@@ -238,6 +238,38 @@ export const getPdsDomainForHostname = (
   return null
 }
 
+/**
+ * Whether an email or `username@domain` profile is on an allowlist. Empty
+ * lists allow nobody.
+ */
+export const matchesPdsAllowList = ({
+  email,
+  actorUsernameAtDomain,
+  allowEmails,
+  allowActors
+}: {
+  email?: string | null
+  actorUsernameAtDomain?: string | null
+  allowEmails: readonly string[]
+  allowActors: readonly string[]
+}): boolean => {
+  if (email) {
+    const normalizedEmail = normalizeEmail(email)
+    if (normalizedEmail && allowEmails.includes(normalizedEmail)) {
+      return true
+    }
+  }
+
+  if (actorUsernameAtDomain) {
+    const normalizedActor = normalizeActorHandle(actorUsernameAtDomain)
+    if (normalizedActor && allowActors.includes(normalizedActor)) {
+      return true
+    }
+  }
+
+  return false
+}
+
 export const isPdsAllowed = ({
   email,
   actorUsernameAtDomain,
@@ -256,21 +288,12 @@ export const isPdsAllowed = ({
   const entry = config[normalizedDomain]
   if (!entry || !entry.enabled) return false
 
-  if (email) {
-    const normalizedEmail = normalizeEmail(email)
-    if (normalizedEmail && entry.allowEmails.includes(normalizedEmail)) {
-      return true
-    }
-  }
-
-  if (actorUsernameAtDomain) {
-    const normalizedActor = normalizeActorHandle(actorUsernameAtDomain)
-    if (normalizedActor && entry.allowActors.includes(normalizedActor)) {
-      return true
-    }
-  }
-
-  return false
+  return matchesPdsAllowList({
+    email,
+    actorUsernameAtDomain,
+    allowEmails: entry.allowEmails,
+    allowActors: entry.allowActors
+  })
 }
 
 /** Default PLC directory the embedded PDS submits `did:plc` operations to. */

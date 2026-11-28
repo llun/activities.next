@@ -313,6 +313,7 @@ vi.mock('@/lib/config', async () => {
       })
     ),
     getAuthScheme: vi.fn().mockReturnValue('https'),
+    getPdsConfig: vi.fn(() => null),
     buildBaseURL: vi.fn((host: string) =>
       host.includes('://') ? host : `https://${host}`
     ),

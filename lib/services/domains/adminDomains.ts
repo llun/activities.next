@@ -105,6 +105,9 @@ const emptyRow = (domain: string): ServedDomainData => ({
   signupsOpen: false,
   allowedEmails: [],
   allowExistingUsers: false,
+  blueskyHostingPolicy: null,
+  blueskyHostingAllowEmails: null,
+  blueskyHostingAllowActors: null,
   lastCheckedAt: null,
   lastCheckStatus: null,
   lastCheckResult: null,
@@ -169,7 +172,8 @@ export const getAdminDomainList = async (
  * One domain's page, with its own identity and policies; null when the domain
  * is neither in the env nor a row. On the primary, description, contact email
  * and policies are null (it uses the server's, Admin › Server settings); its name
- * mirrors the server's name.
+ * mirrors the server's name. Its Bluesky hosting setting is its own, so it
+ * comes from the row like any other domain's.
  */
 export const getAdminDomain = async (
   database: Database,
@@ -180,19 +184,26 @@ export const getAdminDomain = async (
   const { domains } = await getAdminDomainList(database)
   const item = domains.find((entry) => entry.domain === normalized)
   if (!item) return null
-  const row =
-    item.source === 'primary'
-      ? null
-      : await database.getServedDomainWithPolicies({ domain: normalized })
+  const row = await database.getServedDomainWithPolicies({
+    domain: normalized
+  })
+  const isPrimary = item.source === 'primary'
   return {
     ...item,
-    description: row?.description ?? null,
-    contactEmail: row?.contactEmail ?? null,
-    termsOfService: row?.termsOfService ?? null,
-    privacyPolicy: row?.privacyPolicy ?? null,
-    termsOfServiceUpdatedAt: row?.termsOfServiceUpdatedAt ?? null,
-    privacyPolicyUpdatedAt: row?.privacyPolicyUpdatedAt ?? null,
-    disabledFeatures: row?.disabledFeatures ?? []
+    description: isPrimary ? null : (row?.description ?? null),
+    contactEmail: isPrimary ? null : (row?.contactEmail ?? null),
+    termsOfService: isPrimary ? null : (row?.termsOfService ?? null),
+    privacyPolicy: isPrimary ? null : (row?.privacyPolicy ?? null),
+    termsOfServiceUpdatedAt: isPrimary
+      ? null
+      : (row?.termsOfServiceUpdatedAt ?? null),
+    privacyPolicyUpdatedAt: isPrimary
+      ? null
+      : (row?.privacyPolicyUpdatedAt ?? null),
+    disabledFeatures: isPrimary ? [] : (row?.disabledFeatures ?? []),
+    blueskyHostingPolicy: row?.blueskyHostingPolicy ?? null,
+    blueskyHostingAllowEmails: row?.blueskyHostingAllowEmails ?? null,
+    blueskyHostingAllowActors: row?.blueskyHostingAllowActors ?? null
   }
 }
 
@@ -365,12 +376,31 @@ const policyValues = (
     : { privacyPolicy: next, privacyPolicyUpdatedAt: updatedAt }
 }
 
+const HOSTING_KEYS = [
+  'blueskyHostingPolicy',
+  'blueskyHostingAllowEmails',
+  'blueskyHostingAllowActors'
+] as const
+
+const hasHostingFields = (patch: AdminDomainSettingsPatch) =>
+  HOSTING_KEYS.some((key) => patch[key] !== undefined)
+
+// The primary's sign-ups, identity and policies are Admin › Server settings,
+// but its Bluesky hosting setting is its own: a patch carrying only that is
+// saved on its row like any other domain's.
+const isHostingOnlyPatch = (patch: AdminDomainSettingsPatch) =>
+  hasHostingFields(patch) &&
+  !Object.entries(patch).some(
+    ([key, value]) =>
+      value !== undefined && !(HOSTING_KEYS as readonly string[]).includes(key)
+  )
+
 /**
- * Saves a domain's Registrations, Identity or Policies box: whatever `patch`
- * carries, the rest stays. Null on an identity or policy field means "Same as
- * server". A concrete env domain gets a row the first time (stored off: its
- * trust comes from the env, never from the row). The primary's settings are
- * Admin › Server settings.
+ * Saves a domain's Registrations, Identity, Policies or Bluesky hosting box:
+ * whatever `patch` carries, the rest stays. Null on an identity or policy
+ * field means "Same as server". A concrete env domain gets a row the first
+ * time (stored off: its trust comes from the env, never from the row). The
+ * primary's other settings are Admin › Server settings.
  */
 export const updateDomainSettings = async (
   database: Database,
@@ -378,9 +408,11 @@ export const updateDomainSettings = async (
   patch: AdminDomainSettingsPatch
 ): Promise<UpdateDomainSettingsResult> => {
   const kind = getEnvDomainKind(domain)
-  if (kind === 'primary') return { type: 'primary' }
+  if (kind === 'primary' && !isHostingOnlyPatch(patch)) {
+    return { type: 'primary' }
+  }
   const existing = await database.getServedDomainWithPolicies({ domain })
-  if (!existing && kind !== 'env') return { type: 'not-found' }
+  if (!existing && kind === null) return { type: 'not-found' }
 
   const now = Date.now()
   const values = {
@@ -403,6 +435,15 @@ export const updateDomainSettings = async (
       : null),
     ...(patch.disabledFeatures !== undefined
       ? { disabledFeatures: patch.disabledFeatures }
+      : null),
+    ...(patch.blueskyHostingPolicy !== undefined
+      ? { blueskyHostingPolicy: patch.blueskyHostingPolicy }
+      : null),
+    ...(patch.blueskyHostingAllowEmails !== undefined
+      ? { blueskyHostingAllowEmails: patch.blueskyHostingAllowEmails }
+      : null),
+    ...(patch.blueskyHostingAllowActors !== undefined
+      ? { blueskyHostingAllowActors: patch.blueskyHostingAllowActors }
       : null),
     ...policyValues(
       'termsOfService',
@@ -427,7 +468,9 @@ export const updateDomainSettings = async (
       await database.updateServedDomain({ domain, ...values })
     }
   }
-  // Identity writes change no trust, so the snapshot needs no refresh.
+  // Identity writes change no trust, so the snapshot needs no refresh; a
+  // hosting write does, since the hosted-account checks read it from there.
+  if (hasHostingFields(patch)) await refreshServedDomainsAfterWrite(database)
   invalidateDomainIdentityCache(database)
   const updated = await getAdminDomain(database, domain)
   return updated ? { type: 'updated', domain: updated } : { type: 'not-found' }

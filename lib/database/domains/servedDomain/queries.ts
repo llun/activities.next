@@ -19,6 +19,7 @@ import { type Db, inTransaction } from '@/lib/database/kysely'
 import type { Domains } from '@/lib/database/kysely/db'
 import { isLocalActor } from '@/lib/database/kysely/visibility/localActor'
 import { parseDisabledFeatures } from '@/lib/services/domains/domainFeatures'
+import type { BlueskyHostingPolicy } from '@/lib/services/pds/hostingPolicyTypes'
 import { logger } from '@/lib/utils/logger'
 
 // Null when the stored value is not a JSON array of strings: an empty list
@@ -38,6 +39,23 @@ const parseEmails = (value: string | null | undefined): string[] | null => {
   }
   return null
 }
+
+// A hosting list column: null when not set, an empty list when the stored
+// value cannot be read (fail closed: 'listed' then allows nobody).
+const parseHostingList = (
+  value: string | null | undefined
+): string[] | null => {
+  if (value === null || value === undefined) return null
+  const parsed = parseEmails(value)
+  return parsed ?? []
+}
+
+const parseHostingPolicy = (
+  value: string | null | undefined
+): BlueskyHostingPolicy | null =>
+  value === 'nobody' || value === 'listed' || value === 'everyone'
+    ? value
+    : null
 
 const parseCheck = (
   value: string | null | undefined
@@ -66,6 +84,9 @@ const SERVED_DOMAIN_COLUMNS = [
   'signupsOpen',
   'allowedEmails',
   'allowExistingUsers',
+  'blueskyHostingPolicy',
+  'blueskyHostingAllowEmails',
+  'blueskyHostingAllowActors',
   'lastCheckedAt',
   'lastCheckStatus',
   'lastCheckResult',
@@ -97,6 +118,9 @@ const toServedDomain = (row: ServedDomainRow): ServedDomainData => {
     signupsOpen: Boolean(allowedEmails && row.signupsOpen),
     allowedEmails,
     allowExistingUsers: Boolean(row.allowExistingUsers),
+    blueskyHostingPolicy: parseHostingPolicy(row.blueskyHostingPolicy),
+    blueskyHostingAllowEmails: parseHostingList(row.blueskyHostingAllowEmails),
+    blueskyHostingAllowActors: parseHostingList(row.blueskyHostingAllowActors),
     lastCheckedAt: row.lastCheckedAt ?? null,
     lastCheckStatus:
       row.lastCheckStatus === 'passed' || row.lastCheckStatus === 'failed'
@@ -140,6 +164,30 @@ const identityValues = ({
   ...(privacyPolicy !== undefined ? { privacyPolicy } : null),
   ...(privacyPolicyUpdatedAt !== undefined
     ? { privacyPolicyUpdatedAt: toDate(privacyPolicyUpdatedAt) }
+    : null)
+})
+
+// The Bluesky hosting columns a create or update was given, as Kysely values;
+// absent keys are left out so the row keeps what it has.
+const hostingValues = ({
+  blueskyHostingPolicy,
+  blueskyHostingAllowEmails,
+  blueskyHostingAllowActors
+}: CreateServedDomainParams | UpdateServedDomainParams) => ({
+  ...(blueskyHostingPolicy !== undefined ? { blueskyHostingPolicy } : null),
+  ...(blueskyHostingAllowEmails !== undefined
+    ? {
+        blueskyHostingAllowEmails: blueskyHostingAllowEmails
+          ? JSON.stringify(blueskyHostingAllowEmails)
+          : null
+      }
+    : null),
+  ...(blueskyHostingAllowActors !== undefined
+    ? {
+        blueskyHostingAllowActors: blueskyHostingAllowActors
+          ? JSON.stringify(blueskyHostingAllowActors)
+          : null
+      }
     : null)
 })
 
@@ -203,6 +251,7 @@ export const createServedDomain = async (
       status,
       name: null,
       ...identityValues(params),
+      ...hostingValues(params),
       signupsOpen,
       allowedEmails: JSON.stringify(allowedEmails),
       allowExistingUsers,
@@ -236,6 +285,7 @@ export const updateServedDomain = async (
     .set({
       ...(status !== undefined ? { status } : null),
       ...identityValues(params),
+      ...hostingValues(params),
       ...(signupsOpen !== undefined ? { signupsOpen } : null),
       ...(allowedEmails !== undefined
         ? { allowedEmails: JSON.stringify(allowedEmails) }

@@ -5,8 +5,7 @@ import {
   type BlueskyPdsConfig,
   type BlueskyPdsDomainConfig,
   getPdsConfig,
-  getPdsRotationKeyHex,
-  isPdsAllowed
+  getPdsRotationKeyHex
 } from '@/lib/config/blueskyPds'
 import type { PdsRepo } from '@/lib/database/domains/pds/types'
 import type { Database } from '@/lib/database/types'
@@ -53,6 +52,7 @@ import {
 } from './errors'
 import { formatPdsAccountEvent, formatPdsIdentityEvent } from './events'
 import { getHostedPdsUrl, isReservedPdsSubdomainHandle } from './host'
+import { isHostingAllowed } from './hostingPolicy'
 import { createPdsSigningKey } from './keys'
 import { withPdsRepoLock } from './lock'
 import {
@@ -102,7 +102,7 @@ const resolveHostedAccountContext = (
   const entry = config?.[domain]
   if (!entry) return null
 
-  const allowed = isPdsAllowed({
+  const allowed = isHostingAllowed({
     email: actor.account?.email,
     actorUsernameAtDomain: `${actor.username}@${domain}`,
     domain,

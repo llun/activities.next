@@ -229,9 +229,9 @@ describe('adminDomains', () => {
       await setDomainStatus(database, 'photos.example', 'on', passes)
       expect(getActiveServedDomainNames()).toEqual(['photos.example'])
 
-      const beforeWrite = createDeferred<{ domain: string }[]>()
-      vi.spyOn(database, 'getActiveServedDomains').mockReturnValueOnce(
-        beforeWrite.promise as ReturnType<Database['getActiveServedDomains']>
+      const beforeWrite = createDeferred<{ domain: string; status: 'on' }[]>()
+      vi.spyOn(database, 'getServedDomains').mockReturnValueOnce(
+        beforeWrite.promise as ReturnType<Database['getServedDomains']>
       )
       const inflight = refreshServedDomains(database)
       const update = database.updateServedDomain.bind(database)
@@ -240,7 +240,9 @@ describe('adminDomains', () => {
           const row = await update(params)
           // Settle the old read only once the write is done and its refresh
           // has started, as a slow read would.
-          setTimeout(() => beforeWrite.resolve([{ domain: 'photos.example' }]))
+          setTimeout(() =>
+            beforeWrite.resolve([{ domain: 'photos.example', status: 'on' }])
+          )
           return row
         }
       )

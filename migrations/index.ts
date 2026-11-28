@@ -34,6 +34,7 @@ import * as addBlueskyCrossposts from './20261124103009_add_bluesky_crossposts'
 import * as addBlueskyPds from './20261124234607_add_bluesky_pds'
 import * as addBlueskyPdsAccounts from './20261125105453_add_bluesky_pds_accounts'
 import * as addBlueskyCrosspostDid from './20261128081836_add_bluesky_crosspost_did'
+import * as addBlueskyHostingPolicy from './20261128101143_add_bluesky_hosting_policy'
 import type { MigrationName } from './names'
 
 // Every migration, registered by name (the file name without `.ts`). `yarn
@@ -78,5 +79,6 @@ export const migrations: MigrationRegistry = {
   '20261124103009_add_bluesky_crossposts': addBlueskyCrossposts,
   '20261124234607_add_bluesky_pds': addBlueskyPds,
   '20261125105453_add_bluesky_pds_accounts': addBlueskyPdsAccounts,
-  '20261128081836_add_bluesky_crosspost_did': addBlueskyCrosspostDid
+  '20261128081836_add_bluesky_crosspost_did': addBlueskyCrosspostDid,
+  '20261128101143_add_bluesky_hosting_policy': addBlueskyHostingPolicy
 } satisfies Record<MigrationName, MigrationModule>
