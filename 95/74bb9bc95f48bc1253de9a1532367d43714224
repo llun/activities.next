@@ -1,0 +1,26 @@
+lib/services/pds/dispatch.ts
+  s_f193227df3df34::t_995eefd65de31f 115
+  s_f193227df3df34::t_05528ff398f03f 1
+lib/services/pds/principal.test.ts
+  s_f193227df3df34::t_373db9f0d2e5b0 219-231
+lib/services/pds/dispatch.test.ts
+  s_f193227df3df34::t_05528ff398f03f 139-142
+lib/services/pds/principal.ts
+  s_f193227df3df34::t_995eefd65de31f 62-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9574bb9bc95f48bc1253de9a1532367d43714224",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
