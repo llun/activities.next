@@ -1,0 +1,35 @@
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.test.ts
+  s_f193227df3df34::t_8b9d2696c25e57 305-325
+app/api/v1/statuses/[id]/bluesky_crosspost/retry/route.ts
+  s_f193227df3df34::t_03a481cb3beae2 67-68,73
+lib/actions/deleteStatus.test.ts
+  s_f193227df3df34::t_ff18616add1724 318-368
+lib/actions/updateNoteVisibility.test.ts
+  s_f193227df3df34::t_d38e9b18ca7c96 770-821
+lib/database/domains/bluesky/queries.ts
+  s_f193227df3df34::t_05fd1ad9ddcebc 670,677-684
+lib/database/domains/bluesky/types.ts
+  s_f193227df3df34::t_3e8088fa2d8a2a 190-191,196
+lib/jobs/deleteBlueskyCrosspostJob.test.ts
+  s_f193227df3df34::t_013b43f4faf881 201-211,213-214,216-217,219-222
+lib/services/bluesky/crosspost.test.ts
+  s_f193227df3df34::t_9a902c70706c9e 2108-2135
+lib/services/bluesky/crosspost.ts
+  s_f193227df3df34::t_974bd84cc9be22 755-763
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17fd1319c2ccfa7f58d7366a34d4353440d32408",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
