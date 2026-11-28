@@ -30,7 +30,6 @@ const renderField = (
       kind="avatar"
       url={null}
       alt=""
-      initial="A"
       onUrlChange={onUrlChange}
       onAltChange={onAltChange}
       {...props}
@@ -47,6 +46,14 @@ const choose = (input: HTMLInputElement, file: File) =>
 
 describe('ProfileImageField', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('draws no thumbnail, since the live header shows the picture', () => {
+    const { container } = renderField({ url: MEDIA_URL })
+
+    expect(
+      container.querySelector('[data-slot="profile-image-preview"]')
+    ).toBeNull()
+  })
 
   it('names the avatar and header controls as the board does', () => {
     renderField({ kind: 'header' })
@@ -67,7 +74,6 @@ describe('ProfileImageField', () => {
         kind="avatar"
         url={MEDIA_URL}
         alt=""
-        initial="A"
         onUrlChange={vi.fn()}
         onAltChange={vi.fn()}
       />
@@ -75,6 +81,47 @@ describe('ProfileImageField', () => {
     expect(
       screen.getByRole('button', { name: 'Remove avatar' })
     ).toBeInTheDocument()
+  })
+
+  it('tells a screen reader whether the picture is set', () => {
+    const avatar = renderField({ kind: 'avatar', url: MEDIA_URL })
+    expect(screen.getByRole('group')).toHaveAccessibleDescription('Avatar set')
+    avatar.unmount()
+
+    renderField({ kind: 'avatar' })
+    expect(screen.getByRole('group')).toHaveAccessibleDescription('No avatar')
+  })
+
+  it('says the header image is set or not', () => {
+    const header = renderField({ kind: 'header', url: MEDIA_URL })
+    expect(screen.getByRole('group')).toHaveAccessibleDescription(
+      'Header image set'
+    )
+    header.unmount()
+
+    renderField({ kind: 'header' })
+    expect(screen.getByRole('group')).toHaveAccessibleDescription(
+      'No header image'
+    )
+  })
+
+  it('says the picture is gone once Remove is clicked', () => {
+    const { rerender, onUrlChange } = renderField({ url: MEDIA_URL })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove avatar' }))
+    expect(onUrlChange).toHaveBeenCalledWith(null)
+    // The page owns the URL: it re-renders the field with the cleared value.
+    rerender(
+      <ProfileImageField
+        kind="avatar"
+        url={null}
+        alt=""
+        onUrlChange={vi.fn()}
+        onAltChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('group')).toHaveAccessibleDescription('No avatar')
   })
 
   it('removes the image and hands focus to Change', () => {
@@ -196,7 +243,6 @@ describe('ProfileImageField', () => {
         kind="avatar"
         url={null}
         alt=""
-        initial="A"
         altError="Invalid avatarDescription"
         onUrlChange={vi.fn()}
         onAltChange={vi.fn()}

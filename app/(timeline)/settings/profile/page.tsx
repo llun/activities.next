@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { getOwnProfileTabContent } from '@/app/(timeline)/[actor]/getProfileData'
 import { getActorEmojiTags } from '@/lib/actions/utils'
 import { ProfileEditor } from '@/lib/components/settings/profile/ProfileEditor'
 import { SwitchedNotice } from '@/lib/components/settings/profile/SwitchedNotice'
@@ -44,7 +45,10 @@ const Page = async ({ searchParams }: Props) => {
   }
 
   const profile = getActorProfile(actor)
-  const settings = await database.getActorSettings({ actorId: actor.id })
+  const [settings, tabContent] = await Promise.all([
+    database.getActorSettings({ actorId: actor.id }),
+    getOwnProfileTabContent(database, actor)
+  ])
   const handle = `@${actor.username}@${actor.domain}`
   const switched = (await searchParams)?.switched === '1'
 
@@ -83,6 +87,7 @@ const Page = async ({ searchParams }: Props) => {
         profileUrl={getActorProfileUrl(actor)}
         profilePath={`/@${actor.username}@${actor.domain}`}
         tags={getActorEmojiTags(getPersonFromActor(actor))}
+        tabContent={tabContent}
       />
     </div>
   )

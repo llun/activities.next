@@ -31,7 +31,11 @@ import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
-import { getProfileData, getProfileIdentity } from './getProfileData'
+import {
+  getOwnProfileTabContent,
+  getProfileData,
+  getProfileIdentity
+} from './getProfileData'
 
 // Mock dependencies via Jest module name mapper aliases
 vi.mock('@/lib/activities/getActorCollectionCounts')
@@ -525,6 +529,10 @@ describe('getProfileData', () => {
           includeFollowersOnly: false,
           followersAudience: followersUrl
         })
+        // The profile page leaves the query's own default (25).
+        const calls = vi.mocked(mockDatabase.getAttachmentsForActor).mock.calls
+        expect(calls).not.toHaveLength(0)
+        expect(calls.at(-1)![0].limit).toBeUndefined()
       })
 
       it('scopes a signed-in non-follower to what is addressed to them', async () => {
@@ -3027,5 +3035,116 @@ describe('getProfileData reply-parent previews', () => {
         )
       }
     )
+  })
+})
+
+describe('getOwnProfileTabContent', () => {
+  const mockDatabase = {
+    getAttachmentsForActor: vi.fn(),
+    getActorHasFitnessData: vi.fn(),
+    getActorHasGalleryMedia: vi.fn(),
+    getActorHasVisibleGalleryAlbums: vi.fn()
+  } as unknown as Database
+
+  const owner = {
+    id: 'local-actor-id',
+    username: 'localuser',
+    domain: 'example.com',
+    account: { email: 'user@example.com' }
+  } as unknown as DomainActor
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(mockDatabase.getAttachmentsForActor).mockResolvedValue([])
+    vi.mocked(mockDatabase.getActorHasFitnessData).mockResolvedValue(false)
+    vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(false)
+    vi.mocked(mockDatabase.getActorHasVisibleGalleryAlbums).mockResolvedValue(
+      false
+    )
+  })
+
+  it('reports the tabs that have content', async () => {
+    vi.mocked(mockDatabase.getAttachmentsForActor).mockResolvedValue([
+      { id: 'attachment-id' } as Attachment
+    ])
+    vi.mocked(mockDatabase.getActorHasFitnessData).mockResolvedValue(true)
+    vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(true)
+
+    expect(await getOwnProfileTabContent(mockDatabase, owner)).toEqual({
+      hasMedia: true,
+      hasGallery: true,
+      hasFitness: true
+    })
+  })
+
+  it('reports nothing when there is no content', async () => {
+    expect(await getOwnProfileTabContent(mockDatabase, owner)).toEqual({
+      hasMedia: false,
+      hasGallery: false,
+      hasFitness: false
+    })
+  })
+
+  it('counts an album as gallery content', async () => {
+    vi.mocked(mockDatabase.getActorHasVisibleGalleryAlbums).mockResolvedValue(
+      true
+    )
+
+    expect(
+      (await getOwnProfileTabContent(mockDatabase, owner)).hasGallery
+    ).toBe(true)
+  })
+
+  it('queries every tab even when the saved switches are off', async () => {
+    await getOwnProfileTabContent(mockDatabase, {
+      ...owner,
+      showReplies: false,
+      showMedia: false,
+      showGallery: false,
+      showFitness: false
+    } as DomainActor)
+
+    expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledTimes(1)
+    expect(mockDatabase.getActorHasFitnessData).toHaveBeenCalledTimes(1)
+    expect(mockDatabase.getActorHasGalleryMedia).toHaveBeenCalledTimes(1)
+    expect(mockDatabase.getActorHasVisibleGalleryAlbums).toHaveBeenCalledTimes(
+      1
+    )
+  })
+
+  it('asks for a single attachment', async () => {
+    await getOwnProfileTabContent(mockDatabase, owner)
+
+    expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: 'local-actor-id', limit: 1 })
+    )
+  })
+
+  it('scopes every query to the owner, who sees their own private posts', async () => {
+    await getOwnProfileTabContent(mockDatabase, owner)
+
+    expect(mockDatabase.getAttachmentsForActor).toHaveBeenCalledWith({
+      actorId: 'local-actor-id',
+      limit: 1,
+      publicOnly: false,
+      visibleToActorId: null,
+      includeFollowersOnly: false,
+      followersAudience: null
+    })
+    expect(mockDatabase.getActorHasFitnessData).toHaveBeenCalledWith({
+      actorId: 'local-actor-id',
+      publicOnly: false,
+      visibleToActorId: null,
+      includeFollowersOnly: false,
+      followersAudience: null
+    })
+    expect(mockDatabase.getActorHasGalleryMedia).toHaveBeenCalledWith({
+      actorId: 'local-actor-id',
+      audience: { kind: 'owner' }
+    })
+    expect(mockDatabase.getActorHasVisibleGalleryAlbums).toHaveBeenCalledWith({
+      actorId: 'local-actor-id',
+      audience: { kind: 'owner' }
+    })
   })
 })

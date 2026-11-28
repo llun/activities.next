@@ -37,18 +37,20 @@ import {
   initialTimelineContext,
   mergeTimelineContext
 } from '@/lib/components/posts/timelineContext'
+import { ProfileTabStrip } from '@/lib/components/profile/ProfileTabStrip'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
-import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Button } from '@/lib/components/ui/button'
 import type { GallerySubview } from '@/lib/services/gallery/galleryEntities'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import {
+  ProfileTab,
   ProfileTabVisibility,
-  SHOW_ALL_PROFILE_TABS
+  SHOW_ALL_PROFILE_TABS,
+  getAvailableProfileTabs
 } from '@/lib/types/domain/profileTabs'
 import {
   Status,
@@ -160,7 +162,9 @@ interface Props {
 
 const LOAD_MORE_PAGE_LIMIT = 5
 
-type ProfileTab = 'posts' | 'replies' | 'media' | 'gallery' | 'fitness'
+// One shared empty list, so the default prop keeps the same identity across
+// renders and the memo below holds when no subviews are given.
+const NO_GALLERY_SUBVIEWS: GallerySubview[] = []
 
 const hasFitnessFile = (status: Status) =>
   status.type === StatusType.enum.Note && Boolean(status.fitness)
@@ -180,14 +184,6 @@ const appendUniqueStatuses = (
   ]
 }
 
-const PROFILE_TAB_LABELS: Record<ProfileTab, string> = {
-  posts: 'Posts',
-  replies: 'Replies',
-  media: 'Media',
-  gallery: 'Gallery',
-  fitness: 'Fitness'
-}
-
 export const ActorTimelines: FC<Props> = ({
   host,
   actorId,
@@ -202,7 +198,7 @@ export const ActorTimelines: FC<Props> = ({
   currentActor,
   isCurrentUser = false,
   hasFitnessData = false,
-  gallerySubviews = [],
+  gallerySubviews = NO_GALLERY_SUBVIEWS,
   tabVisibility = SHOW_ALL_PROFILE_TABS,
   handle,
   mapProvider = { type: 'osm' },
@@ -249,15 +245,15 @@ export const ActorTimelines: FC<Props> = ({
   const isLoadingRef = useRef<boolean>(false)
 
   const showActions = Boolean(currentActor)
-  const showFitnessTab = Boolean(hasFitnessData) && tabVisibility.fitness
   // Same rule as ProfileGalleryTab: an album link needs the handle, so without
   // one the tab would open blank.
-  const visibleGallerySubviews = handle
-    ? gallerySubviews
-    : gallerySubviews.filter((id) => id !== 'albums')
-  const showGalleryTab =
-    visibleGallerySubviews.length > 0 && tabVisibility.gallery
-  const showRepliesTab = Boolean(isInternalAccount) && tabVisibility.replies
+  const visibleGallerySubviews = useMemo(
+    () =>
+      handle
+        ? gallerySubviews
+        : gallerySubviews.filter((id) => id !== 'albums'),
+    [handle, gallerySubviews]
+  )
 
   const mediaAttachments = useMemo(() => {
     const statusAttachments = currentStatuses
@@ -275,30 +271,36 @@ export const ActorTimelines: FC<Props> = ({
       : attachments
   }, [attachments, currentStatuses])
 
-  const hasMedia = mediaAttachments.length > 0 && tabVisibility.media
-
   const hasLoadedMedia =
     attachments.length > 0 ||
     currentStatuses.some(
       (s) => s.type === StatusType.enum.Note && s.attachments.length > 0
     )
 
-  const availableTabs = useMemo(() => {
-    const tabs: ProfileTab[] = ['posts']
-    if (showRepliesTab) {
-      tabs.push('replies')
-    }
-    if (hasMedia) {
-      tabs.push('media')
-    }
-    if (showGalleryTab) {
-      tabs.push('gallery')
-    }
-    if (showFitnessTab) {
-      tabs.push('fitness')
-    }
-    return tabs
-  }, [showRepliesTab, hasMedia, showGalleryTab, showFitnessTab])
+  const availableTabs = useMemo(
+    () =>
+      getAvailableProfileTabs({
+        tabVisibility,
+        isInternalAccount: Boolean(isInternalAccount),
+        content: {
+          hasMedia: mediaAttachments.length > 0,
+          hasGallery: visibleGallerySubviews.length > 0,
+          hasFitness: Boolean(hasFitnessData)
+        }
+      }),
+    [
+      tabVisibility,
+      isInternalAccount,
+      mediaAttachments,
+      visibleGallerySubviews,
+      hasFitnessData
+    ]
+  )
+
+  const hasMedia = availableTabs.includes('media')
+  const showGalleryTab = availableTabs.includes('gallery')
+  const showFitnessTab = availableTabs.includes('fitness')
+  const showRepliesTab = availableTabs.includes('replies')
 
   // Warm only the gallery panels this profile has a tab for, at idle, so
   // switching to one renders at once instead of waiting out the Suspense reveal
@@ -791,15 +793,10 @@ export const ActorTimelines: FC<Props> = ({
         onPointerEnter={hasGalleryPanelTab ? preloadGalleryPanels : undefined}
         onFocus={hasGalleryPanelTab ? preloadGalleryPanels : undefined}
       >
-        <SegmentedControl
-          aria-label="Profile sections"
-          items={availableTabs.map((value) => ({
-            value,
-            label: PROFILE_TAB_LABELS[value]
-          }))}
+        <ProfileTabStrip
+          tabs={availableTabs}
           value={effectiveActiveTab}
-          onValueChange={(value) => setActiveTab(value as ProfileTab)}
-          className="sm:w-fit"
+          onValueChange={setActiveTab}
         />
       </div>
 

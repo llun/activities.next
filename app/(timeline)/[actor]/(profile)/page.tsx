@@ -24,13 +24,14 @@ import { getNonLocalActorRedirectTarget } from '@/app/(timeline)/[actor]/resolve
 import { getActorEmojiTags } from '@/lib/actions/utils'
 import { getUrl } from '@/lib/activities/note'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
-import { Bio } from '@/lib/components/bio/Bio'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
-import { ProfileFieldsBlock } from '@/lib/components/profile/ProfileFieldsBlock'
+import {
+  ProfileHeaderBlock,
+  getInitials
+} from '@/lib/components/profile/ProfileHeaderBlock'
 import { StatCell } from '@/lib/components/surface/StatCell'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
-import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
@@ -60,18 +61,6 @@ const numberFormatter = new Intl.NumberFormat('en-US')
 const formatNumber = (count: number): string => {
   if (typeof count !== 'number' || Number.isNaN(count)) return '0'
   return numberFormatter.format(Math.max(0, count))
-}
-
-const getInitials = (name: string, fallback: string) => {
-  const cleanName = name.replaceAll(/:[^\s:]{1,64}:/g, '').trim()
-  return (cleanName || fallback)
-    .trim()
-    .split(/\s+/)
-    .map((part) => Array.from(part)[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
 }
 
 export const generateMetadata = async ({
@@ -411,63 +400,58 @@ const Page: FC<Props> = async ({ params }) => {
           handle and bio on the page itself, then the counts as a stat strip
           whose cells open the lists. */}
       <section aria-label="Profile" className="flex flex-col gap-4">
-        <ProfileCover>
-          <ProfileHeaderImage
-            actorId={person.id}
-            imageUrl={headerImageUrl}
-            mediaType={headerImageMediaType}
-          />
-        </ProfileCover>
-
-        <div className="relative px-4">
-          <Avatar className="relative -mt-14 size-20 border-4 border-background">
-            <AvatarImage
-              src={iconImageUrl || undefined}
-              alt={avatarDescription || ''}
-            />
-            {/* The 4px border takes the avatar's content box down to 72px, so
-                the shared 42cqw initial would come out 30px; the Avatar board
-                draws the 80px monogram at 34. */}
-            <AvatarFallback className="text-[34px]">{initials}</AvatarFallback>
-          </Avatar>
-
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight break-words">
-                <ActorDisplayName
-                  name={person.name || person.preferredUsername}
-                  tags={getActorEmojiTags(person)}
-                />
-                {person.movedTo ? (
-                  <span className="text-info-text bg-info-surface ml-2 inline-flex items-center gap-1 rounded-sm border border-info/30 px-2 py-0.5 align-middle text-xs font-medium font-mono tabular-nums">
-                    <ArrowRightLeft className="size-3" aria-hidden="true" />
-                    moved
-                  </span>
-                ) : null}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {/* `max-w-full` + a truncating, shrinkable handle: a handle
+        <ProfileHeaderBlock
+          cover={
+            <ProfileCover>
+              <ProfileHeaderImage
+                actorId={person.id}
+                imageUrl={headerImageUrl}
+                mediaType={headerImageMediaType}
+              />
+            </ProfileCover>
+          }
+          avatarUrl={iconImageUrl}
+          avatarAlt={avatarDescription || ''}
+          initials={initials}
+          name={
+            <>
+              <ActorDisplayName
+                name={person.name || person.preferredUsername}
+                tags={getActorEmojiTags(person)}
+              />
+              {person.movedTo ? (
+                <span className="text-info-text bg-info-surface ml-2 inline-flex items-center gap-1 rounded-sm border border-info/30 px-2 py-0.5 align-middle text-xs font-medium font-mono tabular-nums">
+                  <ArrowRightLeft className="size-3" aria-hidden="true" />
+                  moved
+                </span>
+              ) : null}
+            </>
+          }
+          handle={
+            <>
+              {/* `max-w-full` + a truncating, shrinkable handle: a handle
                   longer than the column ellipsizes and the icon stays in view,
                   where a plain `truncate` on the paragraph clips the whole
                   inline-flex link (icon included). */}
-                <a
-                  href={profileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex max-w-full items-center gap-1 hover:underline hover:text-foreground"
-                  title="Open profile page"
-                >
-                  <span className="min-w-0 truncate">{profileHandle}</span>
-                  <ExternalLink className="size-3.5 shrink-0" />
-                </a>
-                {isBlueskyId(person.id) ? (
-                  <Badge tone="gray" className="ml-2 align-middle">
-                    Bluesky
-                  </Badge>
-                ) : null}
-              </p>
-            </div>
-            {isCurrentUser ? (
+              <a
+                href={profileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex max-w-full items-center gap-1 hover:underline hover:text-foreground"
+                title="Open profile page"
+              >
+                <span className="min-w-0 truncate">{profileHandle}</span>
+                <ExternalLink className="size-3.5 shrink-0" />
+              </a>
+              {isBlueskyId(person.id) ? (
+                <Badge tone="gray" className="ml-2 align-middle">
+                  Bluesky
+                </Badge>
+              ) : null}
+            </>
+          }
+          actions={
+            isCurrentUser ? (
               <Button variant="outline" asChild className="shrink-0">
                 <Link href="/settings/profile">Edit profile</Link>
               </Button>
@@ -484,19 +468,12 @@ const Page: FC<Props> = async ({ params }) => {
                 relationship={relationship}
                 targetMoved={Boolean(person.movedTo)}
               />
-            )}
-          </div>
-
-          <Bio summary={person.summary} tags={getActorEmojiTags(person)} />
-
-          {/* Each value is HTML (a local actor's is formatted from its raw
-              text), so both kinds go through the same sanitizer in the block.
-              `verifiedAt` comes from the stored actor row. */}
-          <ProfileFieldsBlock
-            fields={profileFields}
-            tags={getActorEmojiTags(person)}
-          />
-
+            )
+          }
+          summary={person.summary}
+          fields={profileFields}
+          tags={getActorEmojiTags(person)}
+        >
           {formattedSoftware && (
             <div className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground break-words">
               <Info className="size-3.5 shrink-0" aria-hidden="true" />
@@ -505,7 +482,7 @@ const Page: FC<Props> = async ({ params }) => {
           )}
 
           <FeaturedTagsBlock tags={featuredTags} />
-        </div>
+        </ProfileHeaderBlock>
 
         {countCells.length > 0 && (
           <StatStrip variant="counts" columns={countCells.length as 1 | 2 | 3}>

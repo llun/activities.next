@@ -8,6 +8,7 @@ import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
+import { getMastodonFeaturedTag } from '@/lib/services/mastodon/getMastodonFeaturedTag'
 import { Actor } from '@/lib/types/activitypub'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
@@ -1031,5 +1032,91 @@ describe('[actor] page moved banner', () => {
     const slot = screen.getByTestId('moved-banner-slot')
     expect(slot).not.toHaveClass('pt-[calc(env(safe-area-inset-top,0px)+64px)]')
     expect(slot).not.toHaveClass('md:pt-0')
+  })
+})
+
+describe('[actor] page badges and featured tags', () => {
+  const person = (id: string) =>
+    ({
+      id,
+      type: 'Person',
+      preferredUsername: 'river',
+      name: 'River',
+      summary: ''
+    }) as unknown as Actor
+
+  const profile = (p: Actor, isInternalAccount = false) => ({
+    person: p,
+    profileFields: [],
+    statuses: [],
+    statusesCount: 0,
+    statusPagination: { nextPageUrl: null, prevPageUrl: null },
+    attachments: [],
+    followingCount: 0,
+    followersCount: 0,
+    isInternalAccount,
+    hasFitnessData: false,
+    gallerySubviews: [],
+    isPixelfed: false
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerAuthSession.mockResolvedValue({
+      user: { email: 'viewer@llun.social' }
+    } as never)
+    mockGetActorFromSession.mockResolvedValue(null)
+    mockIsLocalFederationDomain.mockResolvedValue(false)
+    mockDatabase.getFeaturedTags.mockResolvedValue([])
+  })
+
+  const renderPage = async (actor = '@river@bsky.app') =>
+    render(await Page({ params: Promise.resolve({ actor }) }))
+
+  it('marks a Bluesky profile with its badge', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(
+        person('https://bsky.app/profile/did:plc:abcdefghijklmnopqrstuvwx')
+      )
+    )
+
+    await renderPage()
+
+    expect(screen.getByText('Bluesky')).toBeInTheDocument()
+  })
+
+  it('leaves the badge off a profile that is not Bluesky', async () => {
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://mastodon.social/users/river'))
+    )
+
+    await renderPage()
+
+    expect(screen.queryByText('Bluesky')).toBeNull()
+  })
+
+  it('renders the featured tags in the header', async () => {
+    mockIsLocalFederationDomain.mockResolvedValue(true)
+    mockGetProfileData.mockResolvedValue(
+      profile(person('https://llun.social/users/river'), true)
+    )
+    mockDatabase.getFeaturedTags.mockResolvedValue([
+      { id: 'tag-1', name: 'birds', statusesCount: 3, lastStatusAt: null }
+    ])
+    vi.mocked(getMastodonFeaturedTag).mockReturnValueOnce({
+      id: 'tag-1',
+      name: 'birds',
+      url: 'https://llun.social/@river/tagged/birds',
+      statuses_count: '3',
+      last_status_at: null
+    })
+
+    await renderPage('@river@llun.social')
+
+    expect(screen.getByText('Featured hashtags')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /#birds/ })).toHaveAttribute(
+      'href',
+      '/tags/birds'
+    )
   })
 })

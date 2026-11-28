@@ -30,6 +30,7 @@ import { GallerySubview } from '@/lib/services/gallery/galleryEntities'
 import { MAX_PINNED_STATUSES } from '@/lib/services/mastodon/constants'
 import { queueProfileLinkVerification } from '@/lib/services/profile-links/queueProfileLinkVerification'
 import {
+  ActorStatusesAudience,
   canActorReadStatus,
   resolveActorStatusesAudience
 } from '@/lib/services/statusAccess'
@@ -39,7 +40,11 @@ import { getTimelineContext } from '@/lib/services/timelines/getTimelineContext'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
-import { ProfileTabVisibility } from '@/lib/types/domain/profileTabs'
+import {
+  ProfileTabContent,
+  ProfileTabVisibility,
+  SHOW_ALL_PROFILE_TABS
+} from '@/lib/types/domain/profileTabs'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { TimelineContext } from '@/lib/types/domain/timeline'
 import { getActorProfileFields } from '@/lib/utils/activitypubActor'
@@ -274,6 +279,102 @@ export const getProfileIdentity = async (
   }
 }
 
+// What is behind each optional profile tab for one audience. Scoped by the
+// same audience as the statuses and attachments: whether the Fitness tab
+// exists is itself a disclosure, so a viewer who cannot read any of this
+// actor's fitness posts must not be told there are any. The owner's audience
+// carries no filter, which keeps their own tab unchanged. The gallery asks the
+// same question through its own scope (a posted, in-gallery photo on a status
+// this viewer may read). Albums are independent of the gallery switch: an
+// album can hold photos hidden from the gallery, so we check both gallery
+// media and visible gallery albums in parallel. The Gallery tab is offered to
+// exactly the viewers who would find something in it (either gallery media or
+// visible albums). A tab the owner hid is not offered to anyone, so its query
+// is skipped.
+export const getProfileTabContentData = async (
+  database: Database,
+  {
+    actorId,
+    audience,
+    tabVisibility,
+    attachmentsLimit
+  }: {
+    actorId: string
+    audience: ActorStatusesAudience
+    tabVisibility: ProfileTabVisibility
+    attachmentsLimit?: number
+  }
+): Promise<{
+  attachments: Attachment[]
+  hasFitnessData: boolean
+  hasGalleryMedia: boolean
+  hasGalleryAlbums: boolean
+}> => {
+  const visibilityScope = {
+    publicOnly: audience.publicOnly,
+    visibleToActorId: audience.visibleToActorId,
+    includeFollowersOnly: audience.includeFollowersOnly,
+    followersAudience: audience.followersAudience
+  }
+  const galleryAudience = toGalleryAudience(audience)
+  const [attachments, hasFitnessData, hasGalleryMedia, hasGalleryAlbums] =
+    await Promise.all([
+      tabVisibility.media
+        ? database.getAttachmentsForActor({
+            actorId,
+            ...visibilityScope,
+            limit: attachmentsLimit
+          })
+        : Promise.resolve([] as Attachment[]),
+      tabVisibility.fitness
+        ? database.getActorHasFitnessData({
+            actorId,
+            ...visibilityScope
+          })
+        : Promise.resolve(false),
+      tabVisibility.gallery
+        ? database.getActorHasGalleryMedia({
+            actorId,
+            audience: galleryAudience
+          })
+        : Promise.resolve(false),
+      tabVisibility.gallery
+        ? database.getActorHasVisibleGalleryAlbums({
+            actorId,
+            audience: galleryAudience
+          })
+        : Promise.resolve(false)
+    ])
+  return { attachments, hasFitnessData, hasGalleryMedia, hasGalleryAlbums }
+}
+
+// The tabs the owner's own profile would offer, for the Edit profile preview.
+// Resolved with the owner's audience so the preview matches what the owner
+// sees on their own profile. Every tab is checked regardless of the saved
+// switches: the draft can switch a tab back on.
+export const getOwnProfileTabContent = async (
+  database: Database,
+  actor: DomainActor
+): Promise<ProfileTabContent> => {
+  const audience = await resolveActorStatusesAudience({
+    database,
+    targetActor: actor,
+    currentActor: actor
+  })
+  const { attachments, hasFitnessData, hasGalleryMedia, hasGalleryAlbums } =
+    await getProfileTabContentData(database, {
+      actorId: actor.id,
+      audience,
+      tabVisibility: SHOW_ALL_PROFILE_TABS,
+      attachmentsLimit: 1
+    })
+  return {
+    hasMedia: attachments.length > 0,
+    hasGallery: hasGalleryMedia || hasGalleryAlbums,
+    hasFitness: hasFitnessData
+  }
+}
+
 const getLocalProfileData = async (
   database: Database,
   persistedActor: DomainActor,
@@ -313,25 +414,9 @@ const getLocalProfileData = async (
     followersAudience: audience.followersAudience
   }
 
-  // Scoped by the same audience as the statuses and attachments: whether the
-  // Fitness tab exists is itself a disclosure, so a viewer who cannot read
-  // any of this actor's fitness posts must not be told there are any. The
-  // owner's audience carries no filter, which keeps their own tab unchanged.
-  // The gallery asks the same question through its own scope (a posted,
-  // in-gallery photo on a status this viewer may read). Albums are independent
-  // of the gallery switch: an album can hold photos hidden from the gallery,
-  // so we check both gallery media and visible gallery albums in parallel.
-  // The Gallery tab is offered to exactly the viewers who would find something
-  // in it (either gallery media or visible albums).
-  const galleryAudience = toGalleryAudience(audience)
-  const [
-    scopedStatuses,
-    scopedPinnedStatuses,
-    attachments,
-    hasFitnessData,
-    hasGalleryMedia,
-    hasGalleryAlbums
-  ] = await Promise.all([
+  // The tab-content queries run beside the statuses, scoped by the same
+  // audience; see `getProfileTabContentData`.
+  const [scopedStatuses, scopedPinnedStatuses, tabContent] = await Promise.all([
     database.getActorStatuses({
       actorId: persistedActor.id,
       currentActorId: currentActor?.id,
@@ -345,31 +430,14 @@ const getLocalProfileData = async (
       pinned: true,
       ...visibilityScope
     }),
-    tabVisibility.media
-      ? database.getAttachmentsForActor({
-          actorId: persistedActor.id,
-          ...visibilityScope
-        })
-      : Promise.resolve([] as Attachment[]),
-    tabVisibility.fitness
-      ? database.getActorHasFitnessData({
-          actorId: persistedActor.id,
-          ...visibilityScope
-        })
-      : Promise.resolve(false),
-    tabVisibility.gallery
-      ? database.getActorHasGalleryMedia({
-          actorId: persistedActor.id,
-          audience: galleryAudience
-        })
-      : Promise.resolve(false),
-    tabVisibility.gallery
-      ? database.getActorHasVisibleGalleryAlbums({
-          actorId: persistedActor.id,
-          audience: galleryAudience
-        })
-      : Promise.resolve(false)
+    getProfileTabContentData(database, {
+      actorId: persistedActor.id,
+      audience,
+      tabVisibility
+    })
   ])
+  const { attachments, hasFitnessData, hasGalleryMedia, hasGalleryAlbums } =
+    tabContent
 
   const gallerySubviews: GallerySubview[] = []
   if (hasGalleryMedia) {

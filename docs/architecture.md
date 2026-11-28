@@ -2645,16 +2645,21 @@ false`), so users who never opted in are not advertised to remote servers
     page is out of date", with Reload), moves focus to it, turns the Save
     bar to "Couldn't save your profile." and keeps Save off, since every
     retry would 409; the draft stays so the text can be copied.
-  - **Layout:** when the editor is at least 860px wide (a container query
-    on the editor's own width) a live preview column (`ProfilePreview`:
-    avatar, header, name, handle, bio, the links through
-    `ProfileFieldsBlock` with "+N more", the tab strip, and a "Set in
-    Settings" card linking Who can follow you (`/settings/privacy`),
+  - **Layout:** a read-only live preview of the profile header sits above
+    the form at every width, built from the same `ProfileHeaderBlock` and
+    the profile's `ProfileCover`/`ProfileHeaderImage` as the profile page
+    (cover, avatar, name, handle, bio, the links through
+    `ProfileFieldsBlock` with "+N more", and the tab strip from
+    `getAvailableProfileTabs` with the owner's tab content from
+    `getOwnProfileTabContent`), so the two cannot drift. The Photos rows
+    have no thumbnails — the preview shows the pictures. There is no "Set
+    in Settings" card: Who can follow you is in Settings > Privacy, and
     Fitness privacy (`/fitness/privacy`) and Gallery privacy
-    (`/gallery/privacy`)) sits beside the form; below `md` the bar is
-    Cancel, "Edit profile" and Save, sticky under the settings mobile bar
-    and the connection strip (and `scroll-padding-top` grows by its height
-    while it is on the page), and the sticky bottom `SaveBar` is hidden.
+    (`/gallery/privacy`) are linked inline under Profile tabs. Below `md`
+    the editor's top action bar is Cancel, "Edit profile" and Save, sticky
+    under the settings mobile bar and the connection strip (and
+    `scroll-padding-top` grows by its height while it is on the page), and
+    the sticky bottom `SaveBar` is hidden.
     Settings are split into focused pages under `SectionLayout`: `/settings`
     is the index with a profile card and `SectionIndex`, appearance
     preferences live at `/settings/appearance`, and follower approval lives
@@ -3307,7 +3312,7 @@ moved` (`movedAccountResponse`): on `POST /api/v1/statuses` (the check
       Reordering or relabelling keeps `verifiedAt`, since
       `carryOverFieldVerification` matches by value.
     - The Edit profile page uses the same field with `showLinkChecks` and
-      no inline preview (it has its own live preview column), and its rows
+      no inline preview (it has its own live preview above the form), and its rows
       are reported to the page through `onRowsChange` and the saved values
       come back from the PATCH, so it submits JSON instead of the four
       hidden pairs. With link checks on, an https value that is new,

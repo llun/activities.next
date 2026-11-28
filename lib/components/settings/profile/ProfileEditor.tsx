@@ -16,10 +16,7 @@ import {
 import { ApiRequestError, updateProfile } from '@/lib/client'
 import type { CustomEmojiTextProps } from '@/lib/components/actors/ActorDisplayName'
 import { BackLink } from '@/lib/components/back-link'
-import {
-  SECTION_STICKY_TOP_CLASS,
-  breakoutStyle
-} from '@/lib/components/layout/chromeLayout'
+import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import { PageHeader } from '@/lib/components/page-header'
 import { ConfirmDialog } from '@/lib/components/photo-editor/ConfirmDialog'
 import { ProfileFieldsField } from '@/lib/components/settings/ProfileFieldsField'
@@ -33,8 +30,8 @@ import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
+import type { ProfileTabContent } from '@/lib/types/domain/profileTabs'
 import type { SavedProfile } from '@/lib/types/domain/savedProfile'
-import { cn } from '@/lib/utils'
 
 import { FeaturedTagsSection } from './FeaturedTagsSection'
 import { ProfileImageField } from './ProfileImageField'
@@ -76,6 +73,8 @@ interface Props {
   profilePath: string
   /** The actor's custom emoji, so link values show shortcodes as images. */
   tags?: CustomEmojiTextProps['tags']
+  /** What there is behind each optional tab, for the preview's tab strip. */
+  tabContent: ProfileTabContent
   /** The page was opened with `?switched=1`; the first save drops it. */
   switched?: boolean
 }
@@ -124,6 +123,7 @@ export const ProfileEditor: FC<Props> = ({
   profileUrl,
   profilePath,
   tags,
+  tabContent,
   switched = false
 }) => {
   const router = useRouter()
@@ -288,7 +288,6 @@ export const ProfileEditor: FC<Props> = ({
       })),
     [saved.fields]
   )
-  const initial = (draft.name.trim() || username).charAt(0).toUpperCase()
   const question = confirmingCancel || guard.pending
 
   const saveBar = (
@@ -323,7 +322,7 @@ export const ProfileEditor: FC<Props> = ({
   )
 
   return (
-    <div className="@container space-y-6">
+    <div className="space-y-6">
       {/* One polite region, always mounted, so the save is announced. */}
       <div role="status" aria-live="polite" className="sr-only">
         {toastId !== null ? (
@@ -395,252 +394,242 @@ export const ProfileEditor: FC<Props> = ({
         </div>
       ) : null}
 
-      {/* Sized by its container, not the viewport, so the preview column
-          appears only when the editor itself is wide enough (860px). */}
-      <div className="@min-[860px]:grid @min-[860px]:grid-cols-[minmax(0,1fr)_17rem] @min-[860px]:items-start @min-[860px]:gap-8">
-        <div className="min-w-0 space-y-6">
-          <form
-            ref={formRef}
-            id={formId}
-            className="space-y-6"
-            onSubmit={(event) => {
-              event.preventDefault()
-              handleSave()
-            }}
-          >
-            <Section
-              title="Photos"
-              description="Your avatar and the header across the top of your profile."
-            >
-              <Frame form>
-                <ProfileImageField
-                  kind="header"
-                  url={draft.headerImageUrl}
-                  alt={draft.headerDescription}
-                  initial={initial}
-                  imageError={errors.headerImageUrl}
-                  altError={errors.headerDescription}
-                  onUrlChange={(headerImageUrl) => {
-                    clearError('headerImageUrl')
-                    change({ headerImageUrl })
-                  }}
-                  onAltChange={(headerDescription) => {
-                    clearError('headerDescription')
-                    change({ headerDescription })
-                  }}
-                  onUploadingChange={(header) =>
-                    setUploads((current) => ({ ...current, header }))
-                  }
-                />
-                <ProfileImageField
-                  kind="avatar"
-                  url={draft.iconUrl}
-                  alt={draft.avatarDescription}
-                  initial={initial}
-                  imageError={errors.iconUrl}
-                  altError={errors.avatarDescription}
-                  onUrlChange={(iconUrl) => {
-                    clearError('iconUrl')
-                    change({ iconUrl })
-                  }}
-                  onAltChange={(avatarDescription) => {
-                    clearError('avatarDescription')
-                    change({ avatarDescription })
-                  }}
-                  onUploadingChange={(avatar) =>
-                    setUploads((current) => ({ ...current, avatar }))
-                  }
-                />
-              </Frame>
-            </Section>
+      <ProfilePreview
+        draft={draft}
+        actorId={actorId}
+        username={username}
+        handle={handle}
+        tags={tags}
+        tabContent={tabContent}
+      />
 
-            <Section
-              title="About you"
-              description="Shown at the top of your profile."
-            >
-              <Frame form>
-                <FormRow label="Display name" htmlFor="profileNameInput">
-                  {() => (
-                    <>
-                      <Input
-                        id="profileNameInput"
-                        type="text"
-                        value={draft.name}
-                        maxLength={NAME_MAX_LENGTH}
-                        placeholder={username}
-                        aria-invalid={errors.name ? true : undefined}
-                        aria-describedby={
-                          errors.name ? 'profileNameError' : undefined
-                        }
-                        onChange={(event) => {
-                          clearError('name')
-                          change({ name: event.target.value })
-                        }}
-                      />
-                      {errors.name ? (
-                        <p
-                          id="profileNameError"
-                          role="alert"
-                          className={FIELD_ERROR_CLASS}
-                        >
-                          {errors.name}
-                        </p>
-                      ) : null}
-                    </>
-                  )}
-                </FormRow>
-                <FormRow
-                  label="Bio"
-                  htmlFor="profileSummaryInput"
-                  className="sm:items-start"
-                >
-                  {() => (
-                    <>
-                      <Textarea
-                        id="profileSummaryInput"
-                        rows={3}
-                        value={draft.summary}
-                        maxLength={SUMMARY_MAX_LENGTH}
-                        placeholder="A brief description about yourself"
-                        aria-invalid={errors.summary ? true : undefined}
-                        aria-describedby={
-                          errors.summary ? 'profileSummaryError' : undefined
-                        }
-                        onChange={(event) => {
-                          clearError('summary')
-                          change({ summary: event.target.value })
-                        }}
-                      />
-                      {errors.summary ? (
-                        <p
-                          id="profileSummaryError"
-                          role="alert"
-                          className={FIELD_ERROR_CLASS}
-                        >
-                          {errors.summary}
-                        </p>
-                      ) : null}
-                    </>
-                  )}
-                </FormRow>
-                <FormRow
-                  label="Handle"
-                  htmlFor="profileHandleInput"
-                  hint="Your address on the fediverse. It can’t be changed."
-                >
-                  {({ describedBy }) => (
-                    <Input
-                      id="profileHandleInput"
-                      aria-describedby={describedBy}
-                      value={handle}
-                      disabled
-                    />
-                  )}
-                </FormRow>
-              </Frame>
-            </Section>
+      <form
+        ref={formRef}
+        id={formId}
+        className="space-y-6"
+        onSubmit={(event) => {
+          event.preventDefault()
+          handleSave()
+        }}
+      >
+        <Section
+          title="Photos"
+          description="Your avatar and the header across the top of your profile."
+        >
+          <Frame form>
+            <ProfileImageField
+              kind="header"
+              url={draft.headerImageUrl}
+              alt={draft.headerDescription}
+              imageError={errors.headerImageUrl}
+              altError={errors.headerDescription}
+              onUrlChange={(headerImageUrl) => {
+                clearError('headerImageUrl')
+                change({ headerImageUrl })
+              }}
+              onAltChange={(headerDescription) => {
+                clearError('headerDescription')
+                change({ headerDescription })
+              }}
+              onUploadingChange={(header) =>
+                setUploads((current) => ({ ...current, header }))
+              }
+            />
+            <ProfileImageField
+              kind="avatar"
+              url={draft.iconUrl}
+              alt={draft.avatarDescription}
+              imageError={errors.iconUrl}
+              altError={errors.avatarDescription}
+              onUrlChange={(iconUrl) => {
+                clearError('iconUrl')
+                change({ iconUrl })
+              }}
+              onAltChange={(avatarDescription) => {
+                clearError('avatarDescription')
+                change({ avatarDescription })
+              }}
+              onUploadingChange={(avatar) =>
+                setUploads((current) => ({ ...current, avatar }))
+              }
+            />
+          </Frame>
+        </Section>
 
-            <Section
-              title="Profile fields"
-              description="Up to 4, like a website, pronouns or where you are. Shown on your profile and on other servers."
-              headingId="profileFieldsHeading"
-            >
-              <Frame form>
-                <div className="px-4 py-2.5">
-                  <ProfileFieldsField
-                    fields={savedFields}
-                    profileUrl={profileUrl}
-                    labelledBy="profileFieldsHeading"
-                    tags={tags}
-                    showPreview={false}
-                    showLinkChecks
-                    pendingValues={pendingLinks}
-                    onRowsChange={handleRowsChange}
+        <Section
+          title="About you"
+          description="Shown at the top of your profile."
+        >
+          <Frame form>
+            <FormRow label="Display name" htmlFor="profileNameInput">
+              {() => (
+                <>
+                  <Input
+                    id="profileNameInput"
+                    type="text"
+                    value={draft.name}
+                    maxLength={NAME_MAX_LENGTH}
+                    placeholder={username}
+                    aria-invalid={errors.name ? true : undefined}
+                    aria-describedby={
+                      errors.name ? 'profileNameError' : undefined
+                    }
+                    onChange={(event) => {
+                      clearError('name')
+                      change({ name: event.target.value })
+                    }}
                   />
-                  {errors.fields ? (
-                    <p role="alert" className={FIELD_ERROR_CLASS}>
-                      {errors.fields}
+                  {errors.name ? (
+                    <p
+                      id="profileNameError"
+                      role="alert"
+                      className={FIELD_ERROR_CLASS}
+                    >
+                      {errors.name}
                     </p>
                   ) : null}
-                </div>
-              </Frame>
-            </Section>
-          </form>
-
-          {/* Outside the form: adding and removing a hashtag saves at once,
-              and its add bar is a form of its own. */}
-          <FeaturedTagsSection
-            actorId={actorId}
-            disabled={actorChanged}
-            onActorChanged={handleActorChanged}
-          />
-
-          <Section
-            title="Profile tabs"
-            description="Posts is always shown. Choose which other tabs visitors see."
-          >
-            <Frame form>
-              {TAB_ROWS.map((row) => (
-                <FormRow
-                  key={row.key}
-                  label={row.label}
-                  htmlFor={`${row.key}Switch`}
-                  hint={'hint' in row ? row.hint : undefined}
-                  inline
-                >
-                  {({ describedBy }) => (
-                    <Switch
-                      id={`${row.key}Switch`}
-                      aria-label={`Show ${row.label} tab`}
-                      aria-describedby={describedBy}
-                      checked={draft[row.key]}
-                      onCheckedChange={(checked) =>
-                        change({ [row.key]: checked } as Partial<ProfileDraft>)
-                      }
-                    />
-                  )}
-                </FormRow>
-              ))}
-              <p className="text-muted-foreground flex items-start gap-2 px-4 pt-1 pb-2.5 text-xs">
-                <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                <span>
-                  Hiding a tab only hides it on your profile. Posts keep their
-                  own visibility. To hide locations, use{' '}
-                  <Link
-                    href="/fitness/privacy"
-                    className="text-primary-text underline underline-offset-2"
-                  >
-                    Fitness privacy
-                  </Link>{' '}
-                  or{' '}
-                  <Link
-                    href="/gallery/privacy"
-                    className="text-primary-text underline underline-offset-2"
-                  >
-                    Gallery privacy
-                  </Link>
-                  .
-                </span>
-              </p>
-            </Frame>
-          </Section>
-
-          <Frame className="sticky bottom-0 z-10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] max-md:hidden">
-            {saveBar}
+                </>
+              )}
+            </FormRow>
+            <FormRow
+              label="Bio"
+              htmlFor="profileSummaryInput"
+              className="sm:items-start"
+            >
+              {() => (
+                <>
+                  <Textarea
+                    id="profileSummaryInput"
+                    rows={3}
+                    value={draft.summary}
+                    maxLength={SUMMARY_MAX_LENGTH}
+                    placeholder="A brief description about yourself"
+                    aria-invalid={errors.summary ? true : undefined}
+                    aria-describedby={
+                      errors.summary ? 'profileSummaryError' : undefined
+                    }
+                    onChange={(event) => {
+                      clearError('summary')
+                      change({ summary: event.target.value })
+                    }}
+                  />
+                  {errors.summary ? (
+                    <p
+                      id="profileSummaryError"
+                      role="alert"
+                      className={FIELD_ERROR_CLASS}
+                    >
+                      {errors.summary}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </FormRow>
+            <FormRow
+              label="Handle"
+              htmlFor="profileHandleInput"
+              hint="Your address on the fediverse. It can’t be changed."
+            >
+              {({ describedBy }) => (
+                <Input
+                  id="profileHandleInput"
+                  aria-describedby={describedBy}
+                  value={handle}
+                  disabled
+                />
+              )}
+            </FormRow>
           </Frame>
-        </div>
+        </Section>
 
-        {/* Sticks just under the sticky Settings header
-            (SECTION_STICKY_TOP_CLASS) so its top does not slide under it. */}
-        <div
-          className={cn(
-            'sticky hidden @min-[860px]:block',
-            SECTION_STICKY_TOP_CLASS
-          )}
+        <Section
+          title="Profile fields"
+          description="Up to 4, like a website, pronouns or where you are. Shown on your profile and on other servers."
+          headingId="profileFieldsHeading"
         >
-          <ProfilePreview draft={draft} username={username} handle={handle} />
-        </div>
-      </div>
+          <Frame form>
+            <div className="px-4 py-2.5">
+              <ProfileFieldsField
+                fields={savedFields}
+                profileUrl={profileUrl}
+                labelledBy="profileFieldsHeading"
+                tags={tags}
+                showPreview={false}
+                showLinkChecks
+                pendingValues={pendingLinks}
+                onRowsChange={handleRowsChange}
+              />
+              {errors.fields ? (
+                <p role="alert" className={FIELD_ERROR_CLASS}>
+                  {errors.fields}
+                </p>
+              ) : null}
+            </div>
+          </Frame>
+        </Section>
+      </form>
+
+      {/* Outside the form: adding and removing a hashtag saves at once,
+              and its add bar is a form of its own. */}
+      <FeaturedTagsSection
+        actorId={actorId}
+        disabled={actorChanged}
+        onActorChanged={handleActorChanged}
+      />
+
+      <Section
+        title="Profile tabs"
+        description="Posts is always shown. Choose which other tabs visitors see."
+      >
+        <Frame form>
+          {TAB_ROWS.map((row) => (
+            <FormRow
+              key={row.key}
+              label={row.label}
+              htmlFor={`${row.key}Switch`}
+              hint={'hint' in row ? row.hint : undefined}
+              inline
+            >
+              {({ describedBy }) => (
+                <Switch
+                  id={`${row.key}Switch`}
+                  aria-label={`Show ${row.label} tab`}
+                  aria-describedby={describedBy}
+                  checked={draft[row.key]}
+                  onCheckedChange={(checked) =>
+                    change({ [row.key]: checked } as Partial<ProfileDraft>)
+                  }
+                />
+              )}
+            </FormRow>
+          ))}
+          <p className="text-muted-foreground flex items-start gap-2 px-4 pt-1 pb-2.5 text-xs">
+            <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              Hiding a tab only hides it on your profile. Posts keep their own
+              visibility. To hide locations, use{' '}
+              <Link
+                href="/fitness/privacy"
+                className="text-primary-text underline underline-offset-2"
+              >
+                Fitness privacy
+              </Link>{' '}
+              or{' '}
+              <Link
+                href="/gallery/privacy"
+                className="text-primary-text underline underline-offset-2"
+              >
+                Gallery privacy
+              </Link>
+              .
+            </span>
+          </p>
+        </Frame>
+      </Section>
+
+      <Frame className="sticky bottom-0 z-10 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] max-md:hidden">
+        {saveBar}
+      </Frame>
 
       {toastId !== null ? (
         <ProfileSavedToast id={toastId} onDismiss={dismissToast} />

@@ -1,45 +1,51 @@
 'use client'
 
-import Link from 'next/link'
 import { FC, useMemo } from 'react'
 
-import { ProfileFieldsBlock } from '@/lib/components/profile/ProfileFieldsBlock'
-import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
-import { cn } from '@/lib/utils'
+import { ProfileCover } from '@/app/(timeline)/[actor]/ProfileCover'
+import { ProfileHeaderImage } from '@/app/(timeline)/[actor]/ProfileHeaderImage'
+import {
+  ActorDisplayName,
+  type CustomEmojiTextProps
+} from '@/lib/components/actors/ActorDisplayName'
+import {
+  ProfileHeaderBlock,
+  getInitials
+} from '@/lib/components/profile/ProfileHeaderBlock'
+import { ProfileTabStrip } from '@/lib/components/profile/ProfileTabStrip'
+import {
+  type ProfileTabContent,
+  getAvailableProfileTabs
+} from '@/lib/types/domain/profileTabs'
 import { formatProfileFieldValue } from '@/lib/utils/text/formatProfileFieldValue'
 
 import type { ProfileDraft } from './profileDraft'
 
 interface Props {
   draft: ProfileDraft
+  actorId: string
   username: string
   /** `@username@domain`. */
   handle: string
-  /** Where "Fitness privacy" and "Gallery privacy" lead. */
-  fitnessPrivacyHref?: string
-  galleryPrivacyHref?: string
+  /** The actor's custom emoji, so the name and links show shortcodes as images. */
+  tags?: CustomEmojiTextProps['tags']
+  /** What there is behind each optional tab, so the strip matches the profile. */
+  tabContent: ProfileTabContent
 }
 
-const TABS = [
-  { key: 'showReplies', label: 'Replies' },
-  { key: 'showMedia', label: 'Media' },
-  { key: 'showGallery', label: 'Gallery' },
-  { key: 'showFitness', label: 'Fitness' }
-] as const
-
 /**
- * The desktop column beside the editor: how the profile looks with what is in
- * the draft right now (avatar, header, name, handle, bio, the links on one line
- * with extras behind "+N more", and the tab strip), then the "Set in Settings"
- * card for the things this page does not edit. The card is inert, a picture of
- * the profile and not a second copy of its controls.
+ * The profile header at real size, above the editor's form: the same cover,
+ * avatar, name, handle, bio, links and tab strip the profile page draws, from
+ * the draft as it is right now. Inert, a picture of the profile and not a
+ * second copy of its controls.
  */
 export const ProfilePreview: FC<Props> = ({
   draft,
+  actorId,
   username,
   handle,
-  fitnessPrivacyHref = '/fitness/privacy',
-  galleryPrivacyHref = '/gallery/privacy'
+  tags,
+  tabContent
 }) => {
   const fields = useMemo(
     () =>
@@ -52,100 +58,65 @@ export const ProfilePreview: FC<Props> = ({
     [draft.fields]
   )
   const displayName = draft.name.trim() || username
-  const tabs = [
-    { key: 'posts', label: 'Posts' },
-    ...TABS.filter((tab) => draft[tab.key])
-  ]
+  const tabs = getAvailableProfileTabs({
+    tabVisibility: {
+      replies: draft.showReplies,
+      media: draft.showMedia,
+      gallery: draft.showGallery,
+      fitness: draft.showFitness
+    },
+    isInternalAccount: true,
+    content: tabContent
+  })
 
   return (
-    <aside aria-label="Preview" className="space-y-4">
+    <div className="space-y-2">
+      <p className="text-muted-foreground text-xs">
+        Live preview, updates as you type. Other servers see changes after you
+        save.
+      </p>
+
       <div
         data-slot="profile-preview"
         // `inert`: a picture of the profile, so its "+N more" button and tabs
         // are neither focusable nor read out as a second set of controls.
         inert
-        className="bg-background overflow-hidden rounded-lg border"
+        // From `md` up a bordered card, so it reads as a preview and not as
+        // part of the form; below `md` the cover runs full-bleed like the
+        // profile on a phone.
+        className="md:rounded-lg md:border md:pb-4"
       >
-        <div
-          data-slot="profile-preview-header"
-          className="bg-muted h-24 bg-cover bg-center"
-          style={
-            draft.headerImageUrl
-              ? { backgroundImage: `url("${draft.headerImageUrl}")` }
-              : undefined
+        <ProfileHeaderBlock
+          cover={
+            <ProfileCover className="md:rounded-b-none">
+              <ProfileHeaderImage
+                actorId={actorId}
+                imageUrl={draft.headerImageUrl}
+                mediaType={null}
+              />
+            </ProfileCover>
           }
+          avatarUrl={draft.iconUrl}
+          avatarAlt={draft.avatarDescription.trim()}
+          initials={getInitials(draft.name, username)}
+          nameAs="p"
+          name={<ActorDisplayName name={displayName} tags={tags} />}
+          handle={<span className="block truncate">{handle}</span>}
+          summary={draft.summary}
+          fields={fields}
+          tags={tags}
         />
-        <div className="px-4 pb-0">
-          <Avatar className="border-background -mt-9 size-[72px] border-4">
-            {draft.iconUrl ? <AvatarImage src={draft.iconUrl} alt="" /> : null}
-            <AvatarFallback className="text-[30px]">
-              {displayName.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <p className="mt-2 text-lg leading-tight font-semibold break-words">
-            {displayName}
-          </p>
-          <p className="text-muted-foreground text-sm break-all">{handle}</p>
-          {draft.summary.trim() ? (
-            <p
-              data-slot="profile-preview-bio"
-              className="mt-2 text-sm break-words whitespace-pre-line"
-            >
-              {draft.summary}
-            </p>
-          ) : null}
-          <ProfileFieldsBlock fields={fields} />
-        </div>
-        <div
-          data-slot="profile-preview-tabs"
-          className="mt-3 flex gap-4 overflow-hidden border-t px-4 text-sm"
-        >
-          {tabs.map((tab, index) => (
-            <span
-              key={tab.key}
-              className={cn(
-                'border-b-2 py-2.5',
-                index === 0
-                  ? 'border-primary text-foreground font-medium'
-                  : 'text-muted-foreground border-transparent'
-              )}
-            >
-              {tab.label}
-            </span>
-          ))}
-        </div>
+
+        {tabs.length > 1 ? (
+          <div className="pt-3 md:px-4">
+            <ProfileTabStrip
+              tabs={tabs}
+              value="posts"
+              onValueChange={() => {}}
+            />
+          </div>
+        ) : null}
       </div>
-
-      <p className="text-muted-foreground text-xs">
-        Preview updates as you type. Other servers see the change after you
-        save.
-      </p>
-
-      <nav
-        aria-label="Set in Settings"
-        className="bg-background rounded-lg border"
-      >
-        <p className="px-4 pt-3 text-sm font-semibold">Set in Settings</p>
-        <ul className="mt-2 divide-y border-t">
-          {[
-            { label: 'Who can follow you', href: '/settings/privacy' },
-            { label: 'Fitness privacy', href: fitnessPrivacyHref },
-            { label: 'Gallery privacy', href: galleryPrivacyHref }
-          ].map((link) => (
-            <li key={link.href}>
-              <Link
-                href={link.href}
-                className="hover:bg-accent focus-visible:ring-ring/50 flex items-center justify-between px-4 py-2.5 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-inset"
-              >
-                {link.label}
-                <span aria-hidden="true" className="text-muted-foreground">
-                  ›
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </aside>
+    </div>
   )
 }
