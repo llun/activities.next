@@ -315,6 +315,57 @@ describe('deleteStatusFromUserInput', () => {
       ).toEqual([])
     })
 
+    it('builds the deterministic delete uri from the row DID, not the account linked now', async () => {
+      const status = createMockStatus({
+        id: 'https://llun.test/users/me/statuses/db-crosspost-did',
+        actorId: CURRENT_ACTOR.id,
+        createdAt: 1_730_000_000_000
+      })
+      const database = createDatabase(status)
+      const linkedDid = `did:plc:${'b'.repeat(24)}`
+      vi.mocked(database.getBlueskyAccount).mockResolvedValue({
+        did: linkedDid
+      } as never)
+
+      await deleteStatusFromUserInput({
+        currentActor: CURRENT_ACTOR,
+        statusId: status.id,
+        database
+      })
+
+      const buildAdditionalQueueJobs = vi.mocked(
+        database.deleteStatusWithQueueJob
+      ).mock.calls[0][0].buildAdditionalQueueJobs!
+      const rowDid = `did:plc:${'a'.repeat(24)}`
+      const jobs = buildAdditionalQueueJobs({
+        deleted: true,
+        blueskyCrossposts: [
+          {
+            statusId: status.id,
+            actorId: CURRENT_ACTOR.id,
+            did: rowDid,
+            uri: null,
+            cid: null,
+            state: 'failed',
+            error: 'err',
+            createdAt: 0,
+            updatedAt: 0
+          }
+        ]
+      })
+
+      expect(jobs).toEqual([
+        expect.objectContaining({
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          payload: expect.objectContaining({
+            data: expect.objectContaining({
+              uri: `at://${rowDid}/app.bsky.feed.post/${deterministicTid(status.createdAt, status.id)}`
+            })
+          })
+        })
+      ])
+    })
+
     it('respects custom maxRetries from DatabaseQueueConfig', async () => {
       const queueConfig: DatabaseQueueConfig = {
         type: 'database',

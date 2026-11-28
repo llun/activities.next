@@ -2420,8 +2420,6 @@ CREATE INDEX blocks_target ON public.blocks USING btree ("targetActorId");
 
 CREATE INDEX bluesky_crossposts_actor_idx ON public.bluesky_crossposts USING btree ("actorId");
 
-CREATE INDEX bluesky_crossposts_did_state_idx ON public.bluesky_crossposts USING btree (did, state);
-
 CREATE INDEX bluesky_follows_target_idx ON public.bluesky_follows USING btree ("targetActorId");
 
 CREATE INDEX bluesky_interactions_status_idx ON public.bluesky_interactions USING btree ("statusId");

@@ -64,11 +64,13 @@ export const POST = traceApiRoute(
       const crosspost = await database.getBlueskyCrosspost({ statusId })
       // The row is pinned to the account it was queued for: retrying it through
       // another DID the actor linked since would post it to the wrong account.
+      // With no account linked the retry behaves as before and the job marks
+      // the row not linked.
       if (crosspost?.did) {
         const account = await database.getBlueskyAccount({
           actorId: currentActor.id
         })
-        if (account?.did !== crosspost.did) {
+        if (account && account.did !== crosspost.did) {
           return apiResponse({
             req,
             allowedMethods: CORS_HEADERS,

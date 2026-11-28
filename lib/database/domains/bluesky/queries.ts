@@ -667,13 +667,21 @@ export const claimBlueskyCrosspost = async (
 export const setBlueskyCrosspostDid = async (
   db: Db,
   { statusId, did }: { statusId: string; did: string }
-): Promise<void> => {
+): Promise<string | null> => {
   await db
     .updateTable('bluesky_crossposts')
     .set({ did })
     .where('statusId', '=', statusId)
     .where('did', 'is', null)
     .execute()
+  // Read back instead of trusting the write: a concurrent pin may have won, and
+  // the caller must post only through the DID the row actually holds.
+  const row = await db
+    .selectFrom('bluesky_crossposts')
+    .select('did')
+    .where('statusId', '=', statusId)
+    .executeTakeFirst()
+  return row?.did ?? null
 }
 
 export const beginBlueskyCrosspostAttempt = async (

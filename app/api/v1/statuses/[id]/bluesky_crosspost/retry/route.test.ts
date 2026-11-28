@@ -302,4 +302,25 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
 
     await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
   })
+
+  it('retries a row with a DID when no Bluesky account is linked, as before', async () => {
+    const did = `did:plc:${'c'.repeat(24)}`
+    const status = await seed('did-unlinked', ACTOR1_ID, did)
+    await database.markBlueskyCrosspostFailedIfAttemptable({
+      statusId: status.id,
+      error: 'Bluesky ended this session.'
+    })
+
+    const response = await callRetry(status.id)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      uri: status.id,
+      bluesky_crosspost: { state: 'pending', url: null, error: null }
+    })
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    await expect(
+      database.getBlueskyCrosspost({ statusId: status.id })
+    ).resolves.toMatchObject({ state: 'pending', did })
+  })
 })

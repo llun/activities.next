@@ -198,25 +198,28 @@ describe('deleteBlueskyCrosspostJob', () => {
   it("touches nothing for another account's record, an unlinked actor or a refused server", async () => {
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
 
-    // The actor relinked since: the copy belongs to the DID in its uri, and
-    // deleting it through the account linked now would touch another repo.
-    await run(`at://${OTHER_DID}/app.bsky.feed.post/3kother`)
-    expect(warn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: 'Skipped deleting a Bluesky cross-post of another account',
-        did: OTHER_DID
-      })
-    )
-    await run(`at://${OWN_DID}/app.bsky.feed.like/3klike`)
+    try {
+      // The actor relinked since: the copy belongs to the DID in its uri, and
+      // deleting it through the account linked now would touch another repo.
+      await run(`at://${OTHER_DID}/app.bsky.feed.post/3kother`)
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Skipped deleting a Bluesky cross-post of another account',
+          did: OTHER_DID
+        })
+      )
+      await run(`at://${OWN_DID}/app.bsky.feed.like/3klike`)
 
-    database.getBlueskyAccount.mockResolvedValueOnce(null)
-    await run(`at://${OWN_DID}/app.bsky.feed.post/3kunlinked`)
+      database.getBlueskyAccount.mockResolvedValueOnce(null)
+      await run(`at://${OWN_DID}/app.bsky.feed.post/3kunlinked`)
 
-    vi.mocked(isBlueskyAllowed).mockResolvedValueOnce(false)
-    await run(`at://${OWN_DID}/app.bsky.feed.post/3krefused`)
+      vi.mocked(isBlueskyAllowed).mockResolvedValueOnce(false)
+      await run(`at://${OWN_DID}/app.bsky.feed.post/3krefused`)
 
-    expect(post).not.toHaveBeenCalled()
-    warn.mockRestore()
+      expect(post).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it('refuses a missing or malformed uri or expectedCreatedAt in its data and touches nothing', async () => {

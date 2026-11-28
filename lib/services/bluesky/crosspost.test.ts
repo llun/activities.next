@@ -2105,6 +2105,34 @@ describe('Bluesky cross-post', () => {
       ).resolves.toMatchObject({ state: 'posted', did: OWN_DID })
     })
 
+    it('does not post a legacy row another writer pinned to another account first', async () => {
+      const status = await claim(await createNote({ text: 'Concurrent pin' }))
+      const setDid = database.setBlueskyCrosspostDid
+      const pin = vi
+        .spyOn(database, 'setBlueskyCrosspostDid')
+        .mockImplementation(async (params) => {
+          // A concurrent job pinned the row to another account between the read
+          // and the write; the pin returns the DID the row now holds.
+          await setDid({ ...params, did: OTHER_DID })
+          return OTHER_DID
+        })
+      try {
+        await crosspostStatus(database, status.id)
+      } finally {
+        pin.mockRestore()
+      }
+
+      expect(post).not.toHaveBeenCalled()
+      expect(uploadBlob).not.toHaveBeenCalled()
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE,
+        did: OTHER_DID
+      })
+    })
+
     it('does not post a row claimed for another account and marks it failed', async () => {
       const moved = await createAccount('movedaccount')
       await database.saveBlueskyAccount({

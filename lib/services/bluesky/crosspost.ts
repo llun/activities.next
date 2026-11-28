@@ -752,10 +752,15 @@ export const crosspostStatus = async (
         // The row is pinned to the account it was queued for, so it is never
         // posted through another DID the actor linked since. A row written
         // before the DID was recorded takes the current account once, before
-        // any upload.
-        if (current.did === null) {
-          await database.setBlueskyCrosspostDid({ statusId, did: agent.did })
-        } else if (current.did !== agent.did) {
+        // any upload; a concurrent pin may have set another DID first, so
+        // compare the DID the row holds after the write.
+        const did =
+          current.did ??
+          (await database.setBlueskyCrosspostDid({
+            statusId,
+            did: agent.did
+          }))
+        if (did !== agent.did) {
           await database.markBlueskyCrosspostFailedIfAttemptable({
             statusId,
             error: BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE

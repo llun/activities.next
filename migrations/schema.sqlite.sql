@@ -384,4 +384,3 @@ CREATE TABLE IF NOT EXISTS "pds_record_blobs" ("did" varchar(255) not null, "rec
 CREATE INDEX "pds_record_blobs_did_blob_cid_idx" on "pds_record_blobs" ("did", "blobCid");
 CREATE UNIQUE INDEX "pds_repos_handle_live_unique" on "pds_repos" ("handle") where "status" <> 'deleted' and "handle" is not null;
 CREATE TABLE IF NOT EXISTS "pds_preferences" ("did" varchar(255) primary key, "preferences" text not null, "updatedAt" datetime default CURRENT_TIMESTAMP not null);
-CREATE INDEX "bluesky_crossposts_did_state_idx" on "bluesky_crossposts" ("did", "state");

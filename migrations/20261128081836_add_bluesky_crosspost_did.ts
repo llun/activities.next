@@ -6,7 +6,6 @@ import type { Kysely } from 'kysely'
 //   account still has this DID, so a row queued for one account is never
 //   published to, retried on, or cleaned up through another the actor links
 //   later. NULL marks a row written before this column existed.
-// - `bluesky_crossposts_did_state_idx`: the (did, state) lookups.
 //
 // Backfill: a posted row's uri names its own DID; a row with no record yet
 // takes the DID of the actor's current linked account, when there is one.
@@ -27,13 +26,6 @@ export const up = async (db: Kysely<any>): Promise<void> => {
       .addColumn('did', 'varchar(255)')
       .execute()
   }
-
-  await db.schema
-    .createIndex('bluesky_crossposts_did_state_idx')
-    .ifNotExists()
-    .on('bluesky_crossposts')
-    .columns(['did', 'state'])
-    .execute()
 
   const rows = await db
     .selectFrom('bluesky_crossposts')
@@ -75,11 +67,6 @@ export const up = async (db: Kysely<any>): Promise<void> => {
 
 // oxlint-disable-next-line typescript/no-explicit-any
 export const down = async (db: Kysely<any>): Promise<void> => {
-  await db.schema
-    .dropIndex('bluesky_crossposts_did_state_idx')
-    .ifExists()
-    .execute()
-
   const columns =
     (await db.introspection.getTables()).find(
       (table) => table.name === 'bluesky_crossposts'

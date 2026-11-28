@@ -187,12 +187,13 @@ export interface BlueskyDatabase {
   }): Promise<boolean>
   /**
    * Pins a row that has no DID yet to `did`, before its first post. Never
-   * overwrites a DID already recorded.
+   * overwrites a DID already recorded. Returns the DID the row holds after the
+   * write: `did`, or the one a concurrent writer set first.
    */
   setBlueskyCrosspostDid(params: {
     statusId: string
     did: string
-  }): Promise<void>
+  }): Promise<string | null>
   /**
    * Atomically claims an exclusive posting attempt for a 'pending' row (or a
    * stale 'posting' row older than STALE_CROSSPOST_MS) and returns the new
