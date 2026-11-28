@@ -155,6 +155,14 @@ export const xrpcErrorResponse = ({
 }): Response =>
   xrpcJsonResponse({ error, message }, { status, isHead, headers })
 
+export const xrpcInvalidPathResponse = (isHead = false): Response =>
+  xrpcErrorResponse({
+    error: 'InvalidRequest',
+    message: 'Not Found',
+    status: 404,
+    isHead
+  })
+
 export const xrpcMethodNotImplementedResponse = (isHead = false): Response =>
   xrpcErrorResponse({
     error: 'MethodNotImplemented',

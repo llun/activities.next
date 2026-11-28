@@ -383,6 +383,7 @@ ACTIVITIES_BLUESKY_PDS='{
 - `hostname` is the PDS's own hostname; it must not collide with a served domain or another PDS hostname, and yields `did:web:<hostname>`.
 - `allowEmails` and `allowActors` decide who may create an account; empty lists allow nobody.
 - `relays` is an optional list of HTTPS relay origins to ask for a crawl at start-up (default `https://bsky.network`; `[]` disables crawl requests).
+- `clientSignIn` (default `false`) is reserved for signing in from Bluesky apps; nothing uses it yet.
 
 Unset or blank turns the PDS off; malformed JSON or an invalid entry turns it off and logs a warning, and a hostname used twice or equal to a served domain drops only that domain. See [Environment Variables](environment-variables.md) for the full schema.
 

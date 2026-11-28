@@ -121,7 +121,8 @@ describe('PDS host routing', () => {
       did: 'did:web:pds.social.example',
       allowEmails: [],
       allowActors: [],
-      relays: ['https://bsky.network']
+      relays: ['https://bsky.network'],
+      clientSignIn: false
     })
 
     const withPort = getPdsDomainForRequest(

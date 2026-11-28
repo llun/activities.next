@@ -84,7 +84,8 @@ describe('PDS requestCrawl', () => {
         did: 'did:web:pds.enabled.example',
         allowEmails: [],
         allowActors: [],
-        relays: ['https://bsky.network']
+        relays: ['https://bsky.network'],
+        clientSignIn: false
       },
       'disabled.example': {
         domain: 'disabled.example',
@@ -93,7 +94,8 @@ describe('PDS requestCrawl', () => {
         did: 'did:web:pds.disabled.example',
         allowEmails: [],
         allowActors: [],
-        relays: ['https://bsky.network']
+        relays: ['https://bsky.network'],
+        clientSignIn: false
       },
       'norelay.example': {
         domain: 'norelay.example',
@@ -102,7 +104,8 @@ describe('PDS requestCrawl', () => {
         did: 'did:web:pds.norelay.example',
         allowEmails: [],
         allowActors: [],
-        relays: []
+        relays: [],
+        clientSignIn: false
       }
     }
 
@@ -168,7 +171,8 @@ describe('PDS requestCrawl', () => {
         did: 'did:web:pds.example.com',
         allowEmails: [],
         allowActors: [],
-        relays: ['https://bsky.network']
+        relays: ['https://bsky.network'],
+        clientSignIn: false
       }
     }
 
@@ -195,7 +199,8 @@ describe('PDS requestCrawl', () => {
         did: 'did:web:pds.example.com',
         allowEmails: [],
         allowActors: [],
-        relays: ['https://bsky.network']
+        relays: ['https://bsky.network'],
+        clientSignIn: false
       }
     }
 

@@ -11,7 +11,8 @@ const RawBlueskyPdsDomainConfig = z.object({
   hostname: z.string().min(1),
   allowEmails: z.string().array().default([]),
   allowActors: z.string().array().default([]),
-  relays: z.string().array().optional()
+  relays: z.string().array().optional(),
+  clientSignIn: z.boolean().default(false)
 })
 
 export const BlueskyPdsDomainConfig = z.object({
@@ -21,7 +22,8 @@ export const BlueskyPdsDomainConfig = z.object({
   did: z.string(),
   allowEmails: z.string().array(),
   allowActors: z.string().array(),
-  relays: z.string().array()
+  relays: z.string().array(),
+  clientSignIn: z.boolean()
 })
 export type BlueskyPdsDomainConfig = z.infer<typeof BlueskyPdsDomainConfig>
 
@@ -159,7 +161,8 @@ const parseBlueskyPdsConfig = (
           entryResult.data.allowActors.map(normalizeActorHandle).filter(Boolean)
         )
       ),
-      relays
+      relays,
+      clientSignIn: entryResult.data.clientSignIn
     })
   }
 

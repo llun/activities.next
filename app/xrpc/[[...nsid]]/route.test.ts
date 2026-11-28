@@ -1674,6 +1674,14 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
       'com.atproto.server.refreshSession',
       'com.atproto.server.deleteSession',
       'com.atproto.server.getSession',
+      'com.atproto.server.getServiceAuth',
+      'com.atproto.server.checkAccountStatus',
+      'com.atproto.server.listAppPasswords',
+      'com.atproto.server.revokeAppPassword',
+      'com.atproto.identity.resolveHandle',
+      'app.bsky.actor.getPreferences',
+      'app.bsky.actor.putPreferences',
+      'app.bsky.feed.getTimeline',
       'com.atproto.server.createAccount',
       'com.example.unknownMethod'
     ])(
@@ -1703,6 +1711,23 @@ describe('XRPC PDS routes (/xrpc/[[...nsid]])', () => {
       expect(res.status).toBe(405)
       expect(res.headers.get('Allow')).toBe('GET, HEAD, OPTIONS')
       expect((await res.json()).error).toBe('InvalidRequest')
+    })
+
+    it('keeps non-public methods at 501 when clientSignIn is on', async () => {
+      const original = process.env.ACTIVITIES_BLUESKY_PDS
+      const parsed = JSON.parse(PDS_ENV) as Record<string, object>
+      process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+        ...parsed,
+        [DOMAIN_A]: { ...parsed[DOMAIN_A], clientSignIn: true }
+      })
+
+      try {
+        const res = await callPost('com.atproto.server.createSession')
+        expect(res.status).toBe(501)
+        expect((await res.json()).error).toBe('MethodNotImplemented')
+      } finally {
+        process.env.ACTIVITIES_BLUESKY_PDS = original
+      }
     })
 
     it('maps unexpected errors to 500 InternalServerError without leaking details', async () => {

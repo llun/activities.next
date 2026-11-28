@@ -81,7 +81,8 @@ describe('Bluesky PDS config', () => {
         did: 'did:web:pds.example.com',
         allowEmails: ['alice@example.com'],
         allowActors: ['alice@example.com', 'bob@example.com'],
-        relays: ['https://bsky.network']
+        relays: ['https://bsky.network'],
+        clientSignIn: false
       },
       'disabled.example.com': {
         domain: 'disabled.example.com',
@@ -90,7 +91,8 @@ describe('Bluesky PDS config', () => {
         did: 'did:web:pds.disabled.example.com',
         allowEmails: ['carol@example.com'],
         allowActors: [],
-        relays: ['https://bsky.network']
+        relays: ['https://bsky.network'],
+        clientSignIn: false
       }
     })
 
@@ -204,7 +206,8 @@ describe('Bluesky PDS config', () => {
         did: 'did:web:pds.ok.example.com',
         allowEmails: ['c@example.com'],
         allowActors: [],
-        relays: ['https://bsky.network']
+        relays: ['https://bsky.network'],
+        clientSignIn: false
       }
     })
     expect(getPdsDomainForHostname('self.example.com')).toBeNull()
@@ -311,6 +314,26 @@ describe('Bluesky PDS config', () => {
     ])
     expect(pds?.['none.example.com']?.relays).toEqual([])
     expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('defaults clientSignIn to false and parses an explicit true', async () => {
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      'example.com': {
+        enabled: true,
+        hostname: 'pds.example.com'
+      },
+      'signin.example.com': {
+        enabled: true,
+        hostname: 'pds.signin.example.com',
+        clientSignIn: true
+      }
+    })
+
+    const { getPdsConfig } = await import('./blueskyPds')
+
+    const pds = getPdsConfig()
+    expect(pds?.['example.com']?.clientSignIn).toBe(false)
+    expect(pds?.['signin.example.com']?.clientSignIn).toBe(true)
   })
 
   it('warns and disables the whole config when any relay URL is invalid', async () => {
