@@ -1,0 +1,47 @@
+app/xrpc/[[...nsid]]/route.test.ts
+  s_4fb28ab57323fe::t_ab0d832402b183 211-213
+lib/components/admin/domains/DomainBlueskyHostingBox.tsx
+  s_4fb28ab57323fe::t_692a11bba5fc4c 196-198
+lib/services/domains/adminDomains.ts
+  s_4fb28ab57323fe::t_d4b50d9df52e1d 1,18,30,33-34,429-430
+lib/services/domains/envDomains.ts
+  s_4fb28ab57323fe::t_3a28612c392362 1-51
+lib/services/pds/accounts.test.ts
+  s_4fb28ab57323fe::t_a8626c1895ce9d 20,22-26,48,144-149,188-189,216-225,708,725-735,987-1012,1160,1171-1174,1179-1205,1308-1313,1320,1334,1346-1403,1406,1422-1443
+lib/services/pds/accounts.ts
+  s_4fb28ab57323fe::t_1183fcde786706 96-97,99,106-107,133-137,147-179,449,516,659,701,717-735,794
+lib/services/pds/blobs.test.ts
+  s_4fb28ab57323fe::t_e8600a99adb8f5 99
+lib/services/pds/hostedAgent.test.ts
+  s_4fb28ab57323fe::t_b307f92a7337d0 84
+lib/services/pds/hostingPolicy.ts
+  s_4fb28ab57323fe::t_f67212229bf1c5 7-9,16-19,40-72,76,78-79,82,85-86,91-92,97-98,104,109,113-116
+lib/services/pds/moveOut.test.ts
+  s_4fb28ab57323fe::t_1f37dd2feedd4a 221
+lib/services/pds/repo.test.ts
+  s_4fb28ab57323fe::t_f8cad6a6e48395 177
+docs/setup.md
+  s_4fb28ab57323fe::t_5a936cc2de8bbe 397
+lib/services/domains/servedDomainSnapshot.ts
+  s_4fb28ab57323fe::t_bf05e4da2fe3ad 95
+lib/services/pds/hostingPolicy.test.ts
+  s_4fb28ab57323fe::t_d1f353d325e943 2-5,9-12,36-69,72-76,85-92,95,97-98,113-114,117-140,152,154-157,164,166-167,175,177-178,186-210,215,218-219,226-227,234-235,243,245-246,255-262,266-267,274-275,282-283,291-293,296-299,301-314
+lib/services/pds/repo.ts
+  s_4fb28ab57323fe::t_930134130faeeb 175-176,181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6323f709443e5410ddecab3be114697499da9a65",
+  "prompts": {},
+  "sessions": {
+    "s_4fb28ab57323fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "143ac5cb-61e1-4174-a644-dcb4b80dc66b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
