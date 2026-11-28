@@ -530,10 +530,9 @@ describe('getProfileData', () => {
           followersAudience: followersUrl
         })
         // The profile page leaves the query's own default (25).
-        const args = vi
-          .mocked(mockDatabase.getAttachmentsForActor)
-          .mock.calls.at(-1)?.[0]
-        expect(args?.limit).toBeUndefined()
+        const calls = vi.mocked(mockDatabase.getAttachmentsForActor).mock.calls
+        expect(calls).not.toHaveLength(0)
+        expect(calls.at(-1)![0].limit).toBeUndefined()
       })
 
       it('scopes a signed-in non-follower to what is addressed to them', async () => {

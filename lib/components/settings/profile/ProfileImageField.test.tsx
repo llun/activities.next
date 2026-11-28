@@ -106,9 +106,11 @@ describe('ProfileImageField', () => {
   })
 
   it('says the picture is gone once Remove is clicked', () => {
-    const { rerender } = renderField({ url: MEDIA_URL })
+    const { rerender, onUrlChange } = renderField({ url: MEDIA_URL })
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove avatar' }))
+    expect(onUrlChange).toHaveBeenCalledWith(null)
+    // The page owns the URL: it re-renders the field with the cleared value.
     rerender(
       <ProfileImageField
         kind="avatar"
