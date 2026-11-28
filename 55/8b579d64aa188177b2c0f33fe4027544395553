@@ -1,0 +1,21 @@
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_096a3a182d8b4c::t_c04f34cbbeb062 533-535
+lib/components/settings/profile/ProfileImageField.test.tsx
+  s_096a3a182d8b4c::t_c04f34cbbeb062 109,112-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "558b579d64aa188177b2c0f33fe4027544395553",
+  "prompts": {},
+  "sessions": {
+    "s_096a3a182d8b4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59ed076d-13ae-4577-b65d-8ec1d938be0c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
