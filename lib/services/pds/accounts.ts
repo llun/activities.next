@@ -73,6 +73,7 @@ import {
   getLastPlcOperation,
   submitPlcOperation
 } from './plc'
+import { syncHostedBlueskyProfile } from './profile'
 import { consumeHostedBlueskyRateLimit } from './rateLimit'
 import { createPdsRepo } from './repo'
 
@@ -493,6 +494,18 @@ export const createHostedBlueskyAccount = async ({
       }),
     { ttlMs: CREATE_LOCK_MS, waitMs: CREATE_LOCK_MS }
   )
+
+  // The account exists either way: a profile write that fails is logged and
+  // retried by the Settings card backfill, never by failing the creation.
+  try {
+    await syncHostedBlueskyProfile(database, actor.id)
+  } catch (error) {
+    logger.error({
+      message: 'Could not write the hosted Bluesky profile after creation',
+      actorId: actor.id,
+      err: toLoggableError(error)
+    })
+  }
 
   return getHostedBlueskyAccountState({ database, actor })
 }

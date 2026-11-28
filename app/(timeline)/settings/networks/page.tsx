@@ -8,6 +8,7 @@ import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getBlueskyAccountState } from '@/lib/services/bluesky/account'
 import { getBlueskySharingState } from '@/lib/services/blueskySharing'
 import { getHostedBlueskyAccountState } from '@/lib/services/pds/accounts'
+import { backfillHostedBlueskyProfile } from '@/lib/services/pds/profile'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { BlueskyAccountForm } from './BlueskyAccountForm'
@@ -32,6 +33,8 @@ const Page = async ({
   // The hosted state first: it writes a hosted account's `bluesky_accounts`
   // row when one is missing, which "Your Bluesky account" then shows.
   const hostedState = await getHostedBlueskyAccountState({ database, actor })
+  // A hosted account with no Bluesky profile record yet repairs itself here.
+  await backfillHostedBlueskyProfile(database, actor)
   const [accountState, sharingState] = await Promise.all([
     getBlueskyAccountState(database, actor),
     getBlueskySharingState(database, actor)

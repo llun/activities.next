@@ -188,7 +188,11 @@ const avoidCuttingUrl = (
   return limit
 }
 
-const cutToRoom = (text: string, room: number, byteRoom: number): string => {
+export const cutToRoom = (
+  text: string,
+  room: number,
+  byteRoom: number
+): string => {
   const graphemes = splitGraphemes(text)
   const fitting = longestFittingPrefix(graphemes, room, byteRoom)
   if (fitting >= graphemes.length) return text

@@ -1,4 +1,7 @@
-import { SEND_UPDATE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
+import {
+  SEND_UPDATE_ACTOR_JOB_NAME,
+  SYNC_HOSTED_BLUESKY_PROFILE_JOB_NAME
+} from '@/lib/jobs/names'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { getQueue } from '@/lib/services/queue'
 import { logger } from '@/lib/utils/logger'
@@ -36,6 +39,19 @@ describe('publishActorUpdate', () => {
         updatedAt: 1700000000000
       }
     })
+  })
+
+  it('queues the hosted Bluesky profile sync for the same actor', async () => {
+    publish.mockResolvedValue(undefined)
+
+    await publishActorUpdate({ actorId: 'https://llun.test/users/test1' })
+
+    expect(publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: SYNC_HOSTED_BLUESKY_PROFILE_JOB_NAME,
+        data: { actorId: 'https://llun.test/users/test1' }
+      })
+    )
   })
 
   it('logs instead of throwing when the queue refuses the job', async () => {

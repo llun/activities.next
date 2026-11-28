@@ -1,4 +1,5 @@
 import { SEND_UPDATE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
+import { enqueueHostedBlueskyProfileSync } from '@/lib/services/pds/profileQueue'
 import { getQueue } from '@/lib/services/queue'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { logger } from '@/lib/utils/logger'
@@ -30,4 +31,7 @@ export const publishActorUpdate = async ({
       err: toLoggableError(error)
     })
   }
+  // The one place every profile edit passes through: a hosted account's
+  // Bluesky profile record follows the same change, off the request's path.
+  await enqueueHostedBlueskyProfileSync({ actorId })
 }

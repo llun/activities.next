@@ -41,6 +41,7 @@ import {
   createUpdateOperation,
   verifyPlcOperationSignature
 } from './plc'
+import { syncHostedBlueskyProfile } from './profile'
 import { pruneDeletedPdsRepos } from './retention'
 
 vi.mock('@/lib/utils/safeRemoteFetch', () => ({ safeRemoteFetch: vi.fn() }))
@@ -67,6 +68,10 @@ vi.mock('@/lib/services/pds/blobStorage', async (importOriginal) => {
 vi.mock('@/lib/services/bluesky/identityResolver', () => ({
   createBlueskyIdentityResolver: vi.fn()
 }))
+vi.mock('./profile', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./profile')>()
+  return { ...actual, syncHostedBlueskyProfile: vi.fn() }
+})
 
 const ROTATION_KEY_HEX =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
@@ -133,7 +138,8 @@ const ALLOWED_USERNAMES = [
   'hosted-row-relinked',
   'hosted-row-recreated',
   'hosted-moved-guard',
-  'hosted-move-pending'
+  'hosted-move-pending',
+  'hosted-profile'
 ]
 
 const ENABLED_PDS_ENV = JSON.stringify({
@@ -196,6 +202,7 @@ describe('hosted Bluesky accounts', () => {
         : okResponse(url, '', 404)
     })
     vi.mocked(createBlueskyIdentityResolver).mockReset()
+    vi.mocked(syncHostedBlueskyProfile).mockReset().mockResolvedValue(undefined)
   })
 
   afterAll(async () => {
@@ -284,6 +291,22 @@ describe('hosted Bluesky accounts', () => {
       did: repo!.did,
       active: true
     })
+  })
+
+  it('writes the profile after creation, and still creates the account when that write fails', async () => {
+    const actor = await createActor('hosted-profile')
+    vi.mocked(syncHostedBlueskyProfile).mockRejectedValueOnce(
+      new Error('profile write failed')
+    )
+
+    const state = await createHostedBlueskyAccount({
+      database,
+      actor,
+      handle: pdsHandle('hosted-profile')
+    })
+
+    expect(state.repo?.status).toBe('active')
+    expect(syncHostedBlueskyProfile).toHaveBeenCalledWith(database, actor.id)
   })
 
   it('refuses creation without a rotation key', async () => {
