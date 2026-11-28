@@ -62,22 +62,20 @@ const renderPreview = (
   )
 
 const preview = () =>
-  screen.getByText('Live preview · updates as you type')
-    .parentElement as HTMLElement
+  document.querySelector('[data-slot="profile-preview"]') as HTMLElement
 const tabLabels = () =>
   within(preview())
     .queryAllByRole('radio')
     .map((radio) => radio.textContent)
 
 describe('ProfilePreview', () => {
-  it('has the caption and the note about other servers', () => {
+  it('has the caption', () => {
     renderPreview()
 
     expect(
-      within(preview()).getByText('Live preview · updates as you type')
-    ).toBeInTheDocument()
-    expect(
-      within(preview()).getByText('Other servers see changes after you save.')
+      screen.getByText(
+        'Live preview, updates as you type. Other servers see changes after you save.'
+      )
     ).toBeInTheDocument()
   })
 

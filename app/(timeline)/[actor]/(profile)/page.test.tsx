@@ -1045,7 +1045,7 @@ describe('[actor] page badges and featured tags', () => {
       summary: ''
     }) as unknown as Actor
 
-  const profile = (p: Actor) => ({
+  const profile = (p: Actor, isInternalAccount = false) => ({
     person: p,
     profileFields: [],
     statuses: [],
@@ -1054,7 +1054,7 @@ describe('[actor] page badges and featured tags', () => {
     attachments: [],
     followingCount: 0,
     followersCount: 0,
-    isInternalAccount: false,
+    isInternalAccount,
     hasFitnessData: false,
     gallerySubviews: [],
     isPixelfed: false
@@ -1070,10 +1070,8 @@ describe('[actor] page badges and featured tags', () => {
     mockDatabase.getFeaturedTags.mockResolvedValue([])
   })
 
-  const renderPage = async () =>
-    render(
-      await Page({ params: Promise.resolve({ actor: '@river@bsky.app' }) })
-    )
+  const renderPage = async (actor = '@river@bsky.app') =>
+    render(await Page({ params: Promise.resolve({ actor }) }))
 
   it('marks a Bluesky profile with its badge', async () => {
     mockGetProfileData.mockResolvedValue(
@@ -1098,13 +1096,14 @@ describe('[actor] page badges and featured tags', () => {
   })
 
   it('renders the featured tags in the header', async () => {
+    mockIsLocalFederationDomain.mockResolvedValue(true)
     mockGetProfileData.mockResolvedValue(
-      profile(person('https://llun.social/users/river'))
+      profile(person('https://llun.social/users/river'), true)
     )
     mockDatabase.getFeaturedTags.mockResolvedValue([
       { id: 'tag-1', name: 'birds', statusesCount: 3, lastStatusAt: null }
     ])
-    vi.mocked(getMastodonFeaturedTag).mockReturnValue({
+    vi.mocked(getMastodonFeaturedTag).mockReturnValueOnce({
       id: 'tag-1',
       name: 'birds',
       url: 'https://llun.social/@river/tagged/birds',
@@ -1112,7 +1111,7 @@ describe('[actor] page badges and featured tags', () => {
       last_status_at: null
     })
 
-    await renderPage()
+    await renderPage('@river@llun.social')
 
     expect(screen.getByText('Featured hashtags')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /#birds/ })).toHaveAttribute(

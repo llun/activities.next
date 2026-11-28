@@ -71,11 +71,9 @@ export const ProfilePreview: FC<Props> = ({
 
   return (
     <div className="space-y-2">
-      <p className="font-mono text-xs uppercase tracking-[0.03em] text-muted-foreground">
-        Live preview · updates as you type
-      </p>
       <p className="text-muted-foreground text-xs">
-        Other servers see changes after you save.
+        Live preview, updates as you type. Other servers see changes after you
+        save.
       </p>
 
       <div

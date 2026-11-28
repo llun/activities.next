@@ -162,6 +162,10 @@ interface Props {
 
 const LOAD_MORE_PAGE_LIMIT = 5
 
+// One shared empty list, so the default prop keeps the same identity across
+// renders and the memo below holds when no subviews are given.
+const NO_GALLERY_SUBVIEWS: GallerySubview[] = []
+
 const hasFitnessFile = (status: Status) =>
   status.type === StatusType.enum.Note && Boolean(status.fitness)
 
@@ -194,7 +198,7 @@ export const ActorTimelines: FC<Props> = ({
   currentActor,
   isCurrentUser = false,
   hasFitnessData = false,
-  gallerySubviews = [],
+  gallerySubviews = NO_GALLERY_SUBVIEWS,
   tabVisibility = SHOW_ALL_PROFILE_TABS,
   handle,
   mapProvider = { type: 'osm' },

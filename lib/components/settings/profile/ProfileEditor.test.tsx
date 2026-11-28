@@ -233,14 +233,17 @@ describe('ProfileEditor', () => {
     it('shows the live preview above the form, with no Set in Settings card', () => {
       renderEditor()
 
-      const preview = screen.getByText('Live preview · updates as you type')
-        .parentElement as HTMLElement
+      const preview = document.querySelector(
+        '[data-slot="profile-preview"]'
+      ) as HTMLElement
+      expect(
+        screen.getByText(
+          'Live preview, updates as you type. Other servers see changes after you save.'
+        )
+      ).toBeInTheDocument()
       expect(within(preview).getByText('Anna')).toBeInTheDocument()
       expect(
         within(preview).getByText('Wildlife photographer.')
-      ).toBeInTheDocument()
-      expect(
-        within(preview).getByText('Other servers see changes after you save.')
       ).toBeInTheDocument()
       expect(within(preview).queryByText('Set in Settings')).toBeNull()
       expect(within(preview).queryByText('Who can follow you')).toBeNull()
@@ -253,8 +256,9 @@ describe('ProfileEditor', () => {
 
     it('updates the preview as you type and as you flip a tab', () => {
       renderEditor()
-      const preview = screen.getByText('Live preview · updates as you type')
-        .parentElement as HTMLElement
+      const preview = document.querySelector(
+        '[data-slot="profile-preview"]'
+      ) as HTMLElement
 
       type(name(), 'Anna K')
       type(bio(), 'New bio')
