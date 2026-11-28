@@ -175,6 +175,7 @@ describe('deleteStatusFromUserInput', () => {
           {
             statusId: status.id,
             actorId: CURRENT_ACTOR.id,
+            did: null,
             uri,
             cid: 'bafy',
             state: 'posted',
@@ -185,6 +186,7 @@ describe('deleteStatusFromUserInput', () => {
           {
             statusId: `${status.id}/reply-posting`,
             actorId: CURRENT_ACTOR.id,
+            did: null,
             uri: null,
             cid: null,
             state: 'posting',
@@ -196,6 +198,7 @@ describe('deleteStatusFromUserInput', () => {
           {
             statusId: `${status.id}/reply-pending`,
             actorId: CURRENT_ACTOR.id,
+            did: null,
             uri: null,
             cid: null,
             state: 'pending',
@@ -207,6 +210,7 @@ describe('deleteStatusFromUserInput', () => {
           {
             statusId: `${status.id}/reply-failed`,
             actorId: CURRENT_ACTOR.id,
+            did: null,
             uri: null,
             cid: null,
             state: 'failed',
@@ -259,6 +263,7 @@ describe('deleteStatusFromUserInput', () => {
           {
             statusId: status.id,
             actorId: CURRENT_ACTOR.id,
+            did: null,
             uri: null,
             cid: null,
             state: 'failed',
@@ -297,6 +302,7 @@ describe('deleteStatusFromUserInput', () => {
             {
               statusId: status.id,
               actorId: CURRENT_ACTOR.id,
+              did: null,
               uri: null,
               cid: null,
               state: 'failed',
@@ -746,6 +752,7 @@ describe('deleteStatusFromUserInput', () => {
             {
               statusId: status.id,
               actorId: CURRENT_ACTOR.id,
+              did: null,
               uri,
               cid: 'bafy',
               state: 'posted',
@@ -802,6 +809,7 @@ describe('deleteStatusFromUserInput', () => {
           {
             statusId: status.id,
             actorId: CURRENT_ACTOR.id,
+            did: null,
             uri,
             cid: 'bafyfail',
             state: 'posted',
@@ -873,6 +881,7 @@ describe('deleteStatusFromUserInput', () => {
             {
               statusId: status.id,
               actorId: CURRENT_ACTOR.id,
+              did: null,
               uri: null,
               cid: null,
               state,

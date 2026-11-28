@@ -1,5 +1,8 @@
 import { CROSSPOST_BLUESKY_JOB_NAME } from '@/lib/jobs/names'
-import { BLUESKY_CROSSPOST_FAILED_MESSAGE } from '@/lib/services/bluesky/crosspost'
+import {
+  BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE,
+  BLUESKY_CROSSPOST_FAILED_MESSAGE
+} from '@/lib/services/bluesky/crosspost'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { refetchedStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
@@ -59,6 +62,21 @@ export const POST = traceApiRoute(
       }
 
       const crosspost = await database.getBlueskyCrosspost({ statusId })
+      // The row is pinned to the account it was queued for: retrying it through
+      // another DID the actor linked since would post it to the wrong account.
+      if (crosspost?.did) {
+        const account = await database.getBlueskyAccount({
+          actorId: currentActor.id
+        })
+        if (account?.did !== crosspost.did) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE },
+            responseStatusCode: 422
+          })
+        }
+      }
       if (!(await database.resetBlueskyCrosspostForRetry({ statusId }))) {
         return apiResponse({
           req,

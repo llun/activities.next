@@ -328,6 +328,7 @@ describe('Update note visibility action', () => {
         .mockResolvedValue({
           statusId,
           actorId: actor1.id,
+          did: null,
           uri: null,
           cid: null,
           state: 'posting',

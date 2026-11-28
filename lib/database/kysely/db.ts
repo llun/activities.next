@@ -288,6 +288,7 @@ export interface BlueskyCrossposts {
   attemptId: Nullable<string>
   cid: Nullable<string>
   createdAt: WithDefault<Timestamp>
+  did: Nullable<string>
   error: Nullable<string>
   state: string
   statusId: string

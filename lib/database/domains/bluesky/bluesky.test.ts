@@ -755,10 +755,38 @@ describe('Bluesky', () => {
       expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
         statusId,
         actorId,
+        did: null,
         uri: null,
         cid: null,
         state: 'pending',
         error: null
+      })
+    })
+
+    it('records the DID the row is claimed for and pins a row that has none', async () => {
+      await database.claimBlueskyCrosspost({
+        statusId,
+        actorId,
+        did: 'did:plc:claimedaccount1234'
+      })
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        did: 'did:plc:claimedaccount1234'
+      })
+
+      // A row written before the DID was recorded takes the first one it is
+      // given, and never a later one.
+      await database.deleteBlueskyCrosspost({ statusId })
+      await database.claimBlueskyCrosspost({ statusId, actorId })
+      await database.setBlueskyCrosspostDid({
+        statusId,
+        did: 'did:plc:firstaccount1234'
+      })
+      await database.setBlueskyCrosspostDid({
+        statusId,
+        did: 'did:plc:secondaccount1234'
+      })
+      expect(await database.getBlueskyCrosspost({ statusId })).toMatchObject({
+        did: 'did:plc:firstaccount1234'
       })
     })
 

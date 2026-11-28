@@ -101,6 +101,8 @@ export const BLUESKY_CROSSPOST_PARENT_NOT_READY_MESSAGE =
   'The parent post is not ready on Bluesky yet. Try again.'
 export const BLUESKY_CROSSPOST_COLLISION_MESSAGE =
   'A different post already exists at this Bluesky record key.'
+export const BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE =
+  'The Bluesky account changed; this post was not cross-posted.'
 
 type StrongRef = { uri: string; cid: string }
 
@@ -747,6 +749,19 @@ export const crosspostStatus = async (
           })
           return
         }
+        // The row is pinned to the account it was queued for, so it is never
+        // posted through another DID the actor linked since. A row written
+        // before the DID was recorded takes the current account once, before
+        // any upload.
+        if (current.did === null) {
+          await database.setBlueskyCrosspostDid({ statusId, did: agent.did })
+        } else if (current.did !== agent.did) {
+          await database.markBlueskyCrosspostFailedIfAttemptable({
+            statusId,
+            error: BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE
+          })
+          return
+        }
 
         let replyRefs: { root: StrongRef; parent: StrongRef } | null = null
         if (currentStatus.reply) {
@@ -942,7 +957,8 @@ export const enqueueBlueskyCrosspost = async (
   }
   const claimed = await database.claimBlueskyCrosspost({
     statusId: status.id,
-    actorId: actor.id
+    actorId: actor.id,
+    did: account.did
   })
   if (!claimed) return
   try {

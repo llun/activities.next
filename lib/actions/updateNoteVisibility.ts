@@ -41,9 +41,10 @@ interface UpdateNoteVisibilityFromUserInput {
 // - pending / posting / failed: a prior attempt may have written the record at
 //   the deterministic TID without recording it, so queue
 //   DELETE_BLUESKY_CROSSPOST_JOB_NAME for the deterministic uri with
-//   expectedCreatedAt when a Bluesky account is linked (the delete job verifies
-//   via getRecord and tolerates RecordNotFound); if no account is linked, drop
-//   the row with no job;
+//   expectedCreatedAt, under the DID the row was queued for (or the linked
+//   account's, for a row written before the DID was recorded); if neither is
+//   known, drop the row with no job. The delete job verifies via getRecord and
+//   tolerates RecordNotFound, and skips a DID the actor no longer has linked;
 // - on the database queue: delete the row and insert the queue job in one
 //   transaction so a queue write failure rolls back and keeps the row;
 // - on other queues: pending/posting rows are deleted first so an in-flight
@@ -74,10 +75,8 @@ const removeBlueskyCrosspost = async (
           data: { actorId, uri: crosspost.uri }
         }
       }
-      if (
-        !linkedDid ||
-        crosspost.error === BLUESKY_CROSSPOST_COLLISION_MESSAGE
-      ) {
+      const did = crosspost.did ?? linkedDid
+      if (!did || crosspost.error === BLUESKY_CROSSPOST_COLLISION_MESSAGE) {
         return null
       }
       return {
@@ -85,7 +84,7 @@ const removeBlueskyCrosspost = async (
         name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
         data: {
           actorId,
-          uri: `at://${linkedDid}/app.bsky.feed.post/${deterministicTid(createdAt, statusId)}`,
+          uri: `at://${did}/app.bsky.feed.post/${deterministicTid(createdAt, statusId)}`,
           expectedCreatedAt: new Date(createdAt).toISOString()
         }
       }

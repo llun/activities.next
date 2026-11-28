@@ -62,9 +62,10 @@ export const deleteStatusFromUserInput = async ({
     // - pending / posting / failed: a prior attempt may have written the record
     //   at the deterministic TID without recording it, so queue
     //   DELETE_BLUESKY_CROSSPOST_JOB_NAME for that deterministic uri with
-    //   expectedCreatedAt when a Bluesky account is linked (the delete job
-    //   verifies via getRecord and tolerates RecordNotFound); if no account is
-    //   linked, skip
+    //   expectedCreatedAt, under the DID the row was queued for (or the linked
+    //   account's, for a row written before the DID was recorded); if neither
+    //   is known, skip. The delete job verifies via getRecord and tolerates
+    //   RecordNotFound, and skips a DID the actor no longer has linked.
     // - absent: nothing reached Bluesky
     const buildBlueskyCrosspostDeleteJobMessage = (
       crosspost: DeletedBlueskyCrosspost,
@@ -72,10 +73,11 @@ export const deleteStatusFromUserInput = async ({
     ) => {
       let uri: string | null = null
       let expectedCreatedAt: string | undefined
+      const did = crosspost.did ?? linkedDid
       if (crosspost.state === 'posted' && crosspost.uri) {
         uri = crosspost.uri
       } else if (
-        linkedDid &&
+        did &&
         crosspost.error !== BLUESKY_CROSSPOST_COLLISION_MESSAGE
       ) {
         const statusCreatedAt =
@@ -84,7 +86,7 @@ export const deleteStatusFromUserInput = async ({
             ? originalStatus.createdAt
             : null)
         if (statusCreatedAt !== null) {
-          uri = `at://${linkedDid}/app.bsky.feed.post/${deterministicTid(statusCreatedAt, crosspost.statusId)}`
+          uri = `at://${did}/app.bsky.feed.post/${deterministicTid(statusCreatedAt, crosspost.statusId)}`
           expectedCreatedAt = new Date(statusCreatedAt).toISOString()
         }
       }

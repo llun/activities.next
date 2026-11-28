@@ -267,7 +267,8 @@ CREATE TABLE public.bluesky_crossposts (
     "attemptId" character varying(64),
     error text,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    did character varying(255)
 );
 
 CREATE TABLE public.bluesky_follows (
@@ -2418,6 +2419,8 @@ CREATE INDEX blocks_actor_created ON public.blocks USING btree ("actorId", "crea
 CREATE INDEX blocks_target ON public.blocks USING btree ("targetActorId");
 
 CREATE INDEX bluesky_crossposts_actor_idx ON public.bluesky_crossposts USING btree ("actorId");
+
+CREATE INDEX bluesky_crossposts_did_state_idx ON public.bluesky_crossposts USING btree (did, state);
 
 CREATE INDEX bluesky_follows_target_idx ON public.bluesky_follows USING btree ("targetActorId");
 

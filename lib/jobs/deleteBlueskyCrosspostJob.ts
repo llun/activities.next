@@ -12,6 +12,7 @@ import {
   parseAtUri
 } from '@/lib/services/bluesky/records'
 import { JobHandle } from '@/lib/services/queue/type'
+import { logger } from '@/lib/utils/logger'
 
 const POST_COLLECTION = 'app.bsky.feed.post'
 
@@ -29,11 +30,14 @@ export const JobData = z.object({
 })
 
 // Deletes the Bluesky copy of a local post after the local status is gone.
-// Only the linked account's own record is touched; a record already deleted on
-// Bluesky (RecordNotFound) is tolerated. When `expectedCreatedAt` is present
-// (a deterministic-URI delete queued for a non-posted row), skip if another
-// cross-post row owns the URI and verify the remote record via getRecord before
-// deleting so a foreign or colliding record is never removed.
+// Only the record's own account is touched: the uri names the DID the copy was
+// posted to, and a linked account with another DID (the actor relinked since)
+// is skipped and logged rather than deleting through the wrong account. A
+// record already deleted on Bluesky (RecordNotFound) is tolerated. When
+// `expectedCreatedAt` is present (a deterministic-URI delete queued for a
+// non-posted row), skip if another cross-post row owns the URI and verify the
+// remote record via getRecord before deleting so a foreign or colliding record
+// is never removed.
 export const deleteBlueskyCrosspostJob: JobHandle = createJobHandle(
   DELETE_BLUESKY_CROSSPOST_JOB_NAME,
   async (database, message) => {
@@ -44,7 +48,16 @@ export const deleteBlueskyCrosspostJob: JobHandle = createJobHandle(
     if (!at || at.collection !== POST_COLLECTION) return
 
     const account = await database.getBlueskyAccount({ actorId })
-    if (!account || account.did !== at.did) return
+    if (!account) return
+    if (account.did !== at.did) {
+      logger.warn({
+        message: 'Skipped deleting a Bluesky cross-post of another account',
+        actorId,
+        uri,
+        did: at.did
+      })
+      return
+    }
     if (!(await isBlueskyAllowed(database))) return
 
     if (expectedCreatedAt !== undefined) {
