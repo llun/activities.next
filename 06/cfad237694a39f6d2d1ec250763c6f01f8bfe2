@@ -1,0 +1,49 @@
+app/xrpc/[[...nsid]]/route.test.ts
+  s_f193227df3df34::t_0f44907dddedad 1677-1684,1716-1732
+app/xrpc/[[...nsid]]/route.ts
+  s_f193227df3df34::t_c26ad690297cb0 1,9,13,15-18,46-47,50,114
+docs/environment-variables.md
+  s_f193227df3df34::t_df1cf62d4b7152 518-525
+docs/setup.md
+  s_f193227df3df34::t_4ac5d5528c64bf 386
+lib/config/blueskyPds.test.ts
+  s_f193227df3df34::t_cfe36bf6a4b076 84-85,94-95,209-210,319-338
+lib/config/blueskyPds.ts
+  s_f193227df3df34::t_1bcb7daed93250 14-15,25-26,164-165
+lib/services/pds/dispatch.test.ts
+  s_f193227df3df34::t_a1db707f2b94fa 1-128
+lib/services/pds/dispatch.ts
+  s_f193227df3df34::t_ff5e9c6e9e4d70 1-126
+lib/services/pds/errors.ts
+  s_f193227df3df34::t_8a23dd00d55c47 82-102
+lib/services/pds/host.test.ts
+  s_f193227df3df34::t_01a91a5cfbd491 124-125
+lib/services/pds/index.ts
+  s_f193227df3df34::t_4ba43acb5e6619 34,36-37,154,182
+lib/services/pds/principal.test.ts
+  s_f193227df3df34::t_0803f443631d7b 1-304
+lib/services/pds/principal.ts
+  s_f193227df3df34::t_d4a74e2ef3c3a2 1-63
+lib/services/pds/publicRead.ts
+  s_f193227df3df34::t_6119b77e21624e 1-484
+lib/services/pds/requestCrawl.test.ts
+  s_f193227df3df34::t_e8a3aa814eb7ee 87-88,97-98,107-108,174-175,202-203
+lib/services/pds/xrpc.ts
+  s_f193227df3df34::t_a8ea52f0800685 158-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "06cfad237694a39f6d2d1ec250763c6f01f8bfe2",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
