@@ -1,0 +1,47 @@
+app/(timeline)/settings/networks/page.tsx
+  s_f193227df3df34::t_b66f2a3fc98130 11,36-37
+docs/mastodon-api-compatibility.md
+  s_f193227df3df34::t_8100e172920010 1416
+docs/setup.md
+  s_f193227df3df34::t_3f96d218d08f5a 435-436
+lib/jobs/index.ts
+  s_f193227df3df34::t_a10d8f6e3aa63b 91,123,315-317
+lib/jobs/names.ts
+  s_f193227df3df34::t_b2170f4ef1bc33 64-65
+lib/jobs/syncHostedBlueskyProfileJob.test.ts
+  s_f193227df3df34::t_16288f10baf188 1-36
+lib/jobs/syncHostedBlueskyProfileJob.ts
+  s_f193227df3df34::t_9e51d5bb180b94 1-47
+lib/services/actors/actorUpdate.test.ts
+  s_f193227df3df34::t_eaa3ace42d2182 1-4,44-56
+lib/services/actors/actorUpdate.ts
+  s_f193227df3df34::t_fcadac91184bcb 2,34-36
+lib/services/bluesky/crosspostText.ts
+  s_f193227df3df34::t_03e70379503dc3 191-195
+lib/services/pds/accounts.test.ts
+  s_f193227df3df34::t_e3cf690ec8939d 44,71-74,141-142,205,296-311
+lib/services/pds/accounts.ts
+  s_f193227df3df34::t_3a870628940e70 76,498-509
+lib/services/pds/profile.test.ts
+  s_f193227df3df34::t_ce4ebd580ca22b 1-363
+lib/services/pds/profile.ts
+  s_f193227df3df34::t_8a1c42c29b542a 1-248
+lib/services/pds/profileQueue.ts
+  s_f193227df3df34::t_8fe5bd95c9c278 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d445a5d08493ad692eb3670e3366b3a08801807",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
