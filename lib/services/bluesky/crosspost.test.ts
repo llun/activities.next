@@ -13,6 +13,7 @@ import {
   getPublicProfiles
 } from '@/lib/services/bluesky/appview'
 import {
+  BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE,
   BLUESKY_CROSSPOST_COLLISION_MESSAGE,
   BLUESKY_CROSSPOST_FAILED_MESSAGE,
   BLUESKY_CROSSPOST_IMAGE_FORMAT_MESSAGE,
@@ -145,10 +146,11 @@ describe('Bluesky cross-post', () => {
     })) as StatusNote
   }
 
-  const claim = async <T extends Status>(status: T) => {
+  const claim = async <T extends Status>(status: T, did?: string) => {
     await database.claimBlueskyCrosspost({
       statusId: status.id,
-      actorId: status.actorId
+      actorId: status.actorId,
+      ...(did !== undefined ? { did } : null)
     })
     return status
   }
@@ -2077,6 +2079,105 @@ describe('Bluesky cross-post', () => {
       expect(post).not.toHaveBeenCalled()
     })
 
+    it('posts through the account the row was claimed for and records its DID', async () => {
+      const status = await claim(await createNote({ text: 'Pinned' }), OWN_DID)
+      answerCreate('3kpinned')
+
+      await crosspostStatus(database, status.id)
+
+      expect(post).toHaveBeenCalledWith(
+        'com.atproto.repo.createRecord',
+        expect.objectContaining({ repo: OWN_DID })
+      )
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({ state: 'posted', did: OWN_DID })
+    })
+
+    it('pins a row written before the DID was recorded to the current account', async () => {
+      const status = await claim(await createNote({ text: 'Legacy' }))
+      answerCreate('3klegacy')
+
+      await crosspostStatus(database, status.id)
+
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({ state: 'posted', did: OWN_DID })
+    })
+
+    it('does not post a legacy row another writer pinned to another account first', async () => {
+      const status = await claim(await createNote({ text: 'Concurrent pin' }))
+      const setDid = database.setBlueskyCrosspostDid
+      const pin = vi
+        .spyOn(database, 'setBlueskyCrosspostDid')
+        .mockImplementation(async (params) => {
+          // A concurrent job pinned the row to another account between the read
+          // and the write; the pin returns the DID the row now holds.
+          await setDid({ ...params, did: OTHER_DID })
+          return OTHER_DID
+        })
+      try {
+        await crosspostStatus(database, status.id)
+      } finally {
+        pin.mockRestore()
+      }
+
+      expect(post).not.toHaveBeenCalled()
+      expect(uploadBlob).not.toHaveBeenCalled()
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE,
+        did: OTHER_DID
+      })
+    })
+
+    it('does not post a row claimed for another account and marks it failed', async () => {
+      const moved = await createAccount('movedaccount')
+      await database.saveBlueskyAccount({
+        actorId: moved.id,
+        did: OWN_DID,
+        handle: 'moved.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+      const status = await claim(
+        await createNote({ text: 'Moved', by: moved }),
+        OWN_DID
+      )
+
+      // The actor unlinks the account the post was queued for and links another.
+      await database.saveBlueskyAccount({
+        actorId: moved.id,
+        did: OTHER_DID,
+        handle: 'moved2.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+      vi.mocked(getBlueskyAgent).mockResolvedValue({
+        did: OTHER_DID,
+        pdsUrl: 'https://pds.example.net/',
+        get,
+        post,
+        uploadBlob
+      } as BlueskyAgent)
+
+      await crosspostStatus(database, status.id)
+
+      expect(post).not.toHaveBeenCalled()
+      expect(uploadBlob).not.toHaveBeenCalled()
+      await expect(
+        database.getBlueskyCrosspost({ statusId: status.id })
+      ).resolves.toMatchObject({
+        state: 'failed',
+        error: BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE,
+        did: OWN_DID
+      })
+    })
+
     it('drops the row of a post that is no longer public', async () => {
       const status = await claim(
         await createNote({ text: 'Followers', to: [`${actor.id}/followers`] })
@@ -2429,7 +2530,10 @@ describe('Bluesky cross-post', () => {
 
       await enqueueBlueskyCrosspost(database, { actor, status })
 
-      await expect(rowOf(status)).resolves.toMatchObject({ state: 'pending' })
+      await expect(rowOf(status)).resolves.toMatchObject({
+        state: 'pending',
+        did: OWN_DID
+      })
       expect(queue.publish).toHaveBeenCalledWith({
         id: getHashFromString(`${status.id}#bluesky-crosspost`),
         name: CROSSPOST_BLUESKY_JOB_NAME,

@@ -69,6 +69,9 @@ export type BlueskyCrosspostState = 'pending' | 'posting' | 'posted' | 'failed'
 export type BlueskyCrosspost = {
   statusId: string
   actorId: string
+  // The DID of the Bluesky account this row was claimed for; null on a row
+  // written before the column existed.
+  did: string | null
   // The Bluesky record, once it exists.
   uri: string | null
   cid: string | null
@@ -175,11 +178,22 @@ export interface BlueskyDatabase {
   /**
    * Inserts a 'pending' row for the status, or leaves the existing one alone.
    * Returns whether this call created it, so only one caller posts the status.
+   * `did` is the account the row is pinned to; omit it only for a legacy row.
    */
   claimBlueskyCrosspost(params: {
     statusId: string
     actorId: string
+    did?: string | null
   }): Promise<boolean>
+  /**
+   * Pins a row that has no DID yet to `did`, before its first post. Never
+   * overwrites a DID already recorded. Returns the DID the row holds after the
+   * write: `did`, or the one a concurrent writer set first.
+   */
+  setBlueskyCrosspostDid(params: {
+    statusId: string
+    did: string
+  }): Promise<string | null>
   /**
    * Atomically claims an exclusive posting attempt for a 'pending' row (or a
    * stale 'posting' row older than STALE_CROSSPOST_MS) and returns the new

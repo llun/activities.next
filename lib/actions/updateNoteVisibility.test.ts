@@ -328,6 +328,7 @@ describe('Update note visibility action', () => {
         .mockResolvedValue({
           statusId,
           actorId: actor1.id,
+          did: null,
           uri: null,
           cid: null,
           state: 'posting',
@@ -764,6 +765,58 @@ describe('Update note visibility action', () => {
           getHashFromString(`${unlinkedStatusId}#bluesky-crosspost-delete`)
         )
       ).toBeNull()
+    })
+
+    it('builds the deterministic delete uri from the row DID, not the account linked now', async () => {
+      if (!actor1) fail('Actor1 is required')
+
+      const rowDid = `did:plc:${'a'.repeat(24)}`
+      const linkedDid = `did:plc:${'b'.repeat(24)}`
+      await database.saveBlueskyAccount({
+        actorId: actor1.id,
+        did: linkedDid,
+        handle: 'actor1.bsky.social',
+        pdsUrl: 'https://pds.example.net/',
+        authType: 'app_password',
+        domainHandle: false
+      })
+      try {
+        const statusId = `${ACTOR1_ID}/statuses/crosspost-pending-row-did`
+        const createdAt = 1_730_000_400_000
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: actor1.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Pending post pinned to another account',
+          createdAt
+        })
+        await database.claimBlueskyCrosspost({
+          statusId,
+          actorId: actor1.id,
+          did: rowDid
+        })
+
+        await updateNoteVisibilityFromUserInput({
+          statusId,
+          currentActor: actor1,
+          visibility: 'private',
+          database
+        })
+
+        expect(getQueue().publish).toHaveBeenCalledWith({
+          id: getHashFromString(`${statusId}#bluesky-crosspost-delete`),
+          name: DELETE_BLUESKY_CROSSPOST_JOB_NAME,
+          data: {
+            actorId: actor1.id,
+            uri: `at://${rowDid}/app.bsky.feed.post/${deterministicTid(createdAt, statusId)}`,
+            expectedCreatedAt: new Date(createdAt).toISOString()
+          }
+        })
+      } finally {
+        await database.deleteBlueskyAccount({ actorId: actor1.id })
+      }
     })
 
     it('keeps a failed Bluesky cross-post row until publish succeeds on non-database queues, preserves it on publish failure, and deletes without publishing when unlinked or collision-failed', async () => {

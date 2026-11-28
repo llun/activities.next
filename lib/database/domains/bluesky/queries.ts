@@ -586,6 +586,7 @@ export const toBlueskyCrosspost = (
 ): BlueskyCrosspost => ({
   statusId: row.statusId,
   actorId: row.actorId,
+  did: row.did ?? null,
   uri: row.uri ?? null,
   cid: row.cid ?? null,
   state: row.state as BlueskyCrosspostState,
@@ -643,14 +644,44 @@ export const getBlueskyCrosspostsByStatusIds = async (
 
 export const claimBlueskyCrosspost = async (
   db: Db,
-  { statusId, actorId }: { statusId: string; actorId: string }
+  {
+    statusId,
+    actorId,
+    did
+  }: { statusId: string; actorId: string; did?: string | null }
 ): Promise<boolean> => {
   const result = await db
     .insertInto('bluesky_crossposts')
-    .values({ statusId, actorId, state: 'pending', updatedAt: new Date() })
+    .values({
+      statusId,
+      actorId,
+      did: did ?? null,
+      state: 'pending',
+      updatedAt: new Date()
+    })
     .onConflict((oc) => oc.column('statusId').doNothing())
     .executeTakeFirst()
   return Number(result.numInsertedOrUpdatedRows ?? 0) > 0
+}
+
+export const setBlueskyCrosspostDid = async (
+  db: Db,
+  { statusId, did }: { statusId: string; did: string }
+): Promise<string | null> => {
+  await db
+    .updateTable('bluesky_crossposts')
+    .set({ did })
+    .where('statusId', '=', statusId)
+    .where('did', 'is', null)
+    .execute()
+  // Read back instead of trusting the write: a concurrent pin may have won, and
+  // the caller must post only through the DID the row actually holds.
+  const row = await db
+    .selectFrom('bluesky_crossposts')
+    .select('did')
+    .where('statusId', '=', statusId)
+    .executeTakeFirst()
+  return row?.did ?? null
 }
 
 export const beginBlueskyCrosspostAttempt = async (
@@ -897,6 +928,7 @@ export const blueskyQueries = {
   getBlueskyCrosspostByUri,
   getBlueskyCrosspostsByStatusIds,
   claimBlueskyCrosspost,
+  setBlueskyCrosspostDid,
   beginBlueskyCrosspostAttempt,
   releaseBlueskyCrosspostAttempt,
   markBlueskyCrosspostPosted,

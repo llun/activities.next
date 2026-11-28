@@ -2,6 +2,7 @@ import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import * as blueskyNetworkMigration from '@/migrations/20261124004542_add_bluesky_network'
 import * as blueskyInteractionsMigration from '@/migrations/20261124060051_add_bluesky_interactions'
 import * as blueskyCrosspostsMigration from '@/migrations/20261124103009_add_bluesky_crossposts'
+import * as blueskyCrosspostDidMigration from '@/migrations/20261128081836_add_bluesky_crosspost_did'
 
 describe('add_bluesky_network migration', () => {
   const { database, db, prepare, destroy } = createTestDatabase()
@@ -172,5 +173,115 @@ describe('add_bluesky_crossposts migration', () => {
 
     const account = await database.getBlueskyAccount({ actorId })
     expect(account?.crosspostByDefault).toBe(true)
+  })
+})
+
+describe('add_bluesky_crosspost_did migration', () => {
+  const { database, db, prepare, destroy } = createTestDatabase()
+
+  beforeAll(async () => {
+    await prepare()
+    await database.migrate()
+  })
+
+  afterAll(async () => {
+    await destroy()
+  })
+
+  const crosspostColumns = async () =>
+    (await db.introspection.getTables())
+      .find((table) => table.name === 'bluesky_crossposts')
+      ?.columns.map((column) => column.name) ?? []
+
+  const insertCrosspost = async (values: {
+    statusId: string
+    actorId: string
+    uri?: string | null
+    state?: string
+  }) => {
+    await db
+      .insertInto('bluesky_crossposts')
+      .values({
+        statusId: values.statusId,
+        actorId: values.actorId,
+        uri: values.uri ?? null,
+        state: values.state ?? 'pending',
+        updatedAt: new Date()
+      })
+      .execute()
+  }
+
+  const readDid = async (statusId: string) =>
+    (
+      await db
+        .selectFrom('bluesky_crossposts')
+        .select('did')
+        .where('statusId', '=', statusId)
+        .executeTakeFirst()
+    )?.did ?? null
+
+  it('rolls down and back up cleanly', async () => {
+    await blueskyCrosspostDidMigration.down(db)
+    expect(await crosspostColumns()).not.toContain('did')
+
+    await blueskyCrosspostDidMigration.up(db)
+    // Calling up() again is idempotent.
+    await blueskyCrosspostDidMigration.up(db)
+    expect(await crosspostColumns()).toContain('did')
+  })
+
+  it('backfills a posted row from its uri and a pending row from the linked account', async () => {
+    await blueskyCrosspostDidMigration.down(db)
+
+    const linkedActorId = 'https://example.test/users/did-backfill'
+    await db
+      .insertInto('bluesky_accounts')
+      .values({
+        actorId: linkedActorId,
+        did: 'did:plc:backfilledaccount1234',
+        handle: 'backfill.bsky.social',
+        pdsUrl: 'https://bsky.social',
+        authType: 'oauth',
+        domainHandle: false
+      })
+      .execute()
+
+    await insertCrosspost({
+      statusId: 'https://example.test/users/did-backfill/statuses/posted',
+      actorId: linkedActorId,
+      uri: 'at://did:plc:postedrecord1234/app.bsky.feed.post/3kposted',
+      state: 'posted'
+    })
+    await insertCrosspost({
+      statusId: 'https://example.test/users/did-backfill/statuses/pending',
+      actorId: linkedActorId
+    })
+    await insertCrosspost({
+      statusId: 'https://example.test/users/did-backfill/statuses/unlinked',
+      actorId: 'https://example.test/users/no-account'
+    })
+    await insertCrosspost({
+      statusId: 'https://example.test/users/did-backfill/statuses/foreign-uri',
+      actorId: linkedActorId,
+      uri: 'at://example.com/app.bsky.feed.post/3kforeign',
+      state: 'posted'
+    })
+
+    await blueskyCrosspostDidMigration.up(db)
+
+    // The record's own DID wins over the account linked now.
+    await expect(
+      readDid('https://example.test/users/did-backfill/statuses/posted')
+    ).resolves.toBe('did:plc:postedrecord1234')
+    await expect(
+      readDid('https://example.test/users/did-backfill/statuses/pending')
+    ).resolves.toBe('did:plc:backfilledaccount1234')
+    // No account to take a DID from, and no record to read one from.
+    await expect(
+      readDid('https://example.test/users/did-backfill/statuses/unlinked')
+    ).resolves.toBeNull()
+    await expect(
+      readDid('https://example.test/users/did-backfill/statuses/foreign-uri')
+    ).resolves.toBeNull()
   })
 })

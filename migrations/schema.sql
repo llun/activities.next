@@ -267,7 +267,8 @@ CREATE TABLE public.bluesky_crossposts (
     "attemptId" character varying(64),
     error text,
     "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    did character varying(255)
 );
 
 CREATE TABLE public.bluesky_follows (

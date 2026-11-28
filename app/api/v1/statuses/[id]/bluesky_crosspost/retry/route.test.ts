@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import type { Database } from '@/lib/database/types'
 import { CROSSPOST_BLUESKY_JOB_NAME } from '@/lib/jobs/names'
+import { BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE } from '@/lib/services/bluesky/crosspost'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -58,7 +59,7 @@ const callRetry = (statusId: string) =>
 describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
   const { database, db, prepare } = createTestDatabase()
 
-  const seed = async (suffix: string, actorId = ACTOR1_ID) => {
+  const seed = async (suffix: string, actorId = ACTOR1_ID, did?: string) => {
     const status = await database.createNote({
       id: `${actorId}/statuses/bluesky-retry-${suffix}`,
       url: `${actorId}/statuses/bluesky-retry-${suffix}`,
@@ -67,7 +68,11 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: []
     })
-    await database.claimBlueskyCrosspost({ statusId: status.id, actorId })
+    await database.claimBlueskyCrosspost({
+      statusId: status.id,
+      actorId,
+      ...(did !== undefined ? { did } : null)
+    })
     return status
   }
 
@@ -261,5 +266,61 @@ describe('POST /api/v1/statuses/[id]/bluesky_crosspost/retry', () => {
       state: 'posting',
       error: null
     })
+  })
+
+  it('refuses retry when the actor linked another Bluesky account since', async () => {
+    const didA = `did:plc:${'a'.repeat(24)}`
+    const didB = `did:plc:${'b'.repeat(24)}`
+    const link = (did: string, handle: string) =>
+      database.saveBlueskyAccount({
+        actorId: ACTOR1_ID,
+        did,
+        handle,
+        pdsUrl: 'https://bsky.social',
+        authType: 'oauth',
+        domainHandle: false
+      })
+
+    await link(didA, 'retry-a.bsky.social')
+    const status = await seed('did-changed', ACTOR1_ID, didA)
+    await database.markBlueskyCrosspostFailedIfAttemptable({
+      statusId: status.id,
+      error: 'Bluesky ended this session.'
+    })
+    await link(didB, 'retry-b.bsky.social')
+
+    const response = await callRetry(status.id)
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toEqual({
+      error: BLUESKY_CROSSPOST_ACCOUNT_CHANGED_MESSAGE
+    })
+    expect(getQueue().publish).not.toHaveBeenCalled()
+    await expect(
+      database.getBlueskyCrosspost({ statusId: status.id })
+    ).resolves.toMatchObject({ state: 'failed', did: didA })
+
+    await database.deleteBlueskyAccount({ actorId: ACTOR1_ID })
+  })
+
+  it('retries a row with a DID when no Bluesky account is linked, as before', async () => {
+    const did = `did:plc:${'c'.repeat(24)}`
+    const status = await seed('did-unlinked', ACTOR1_ID, did)
+    await database.markBlueskyCrosspostFailedIfAttemptable({
+      statusId: status.id,
+      error: 'Bluesky ended this session.'
+    })
+
+    const response = await callRetry(status.id)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      uri: status.id,
+      bluesky_crosspost: { state: 'pending', url: null, error: null }
+    })
+    expect(getQueue().publish).toHaveBeenCalledTimes(1)
+    await expect(
+      database.getBlueskyCrosspost({ statusId: status.id })
+    ).resolves.toMatchObject({ state: 'pending', did })
   })
 })
