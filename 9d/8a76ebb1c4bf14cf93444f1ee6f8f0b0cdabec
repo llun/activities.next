@@ -1,0 +1,22 @@
+lib/services/pds/profile.test.ts
+  s_f193227df3df34::t_df7653aa0e5ef5 356-360
+  s_f193227df3df34::t_4fd97be00efedf 132,332-355,361-383
+lib/services/pds/profile.ts
+  s_f193227df3df34::t_805a92be53f4bd 228-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9d8a76ebb1c4bf14cf93444f1ee6f8f0b0cdabec",
+  "prompts": {},
+  "sessions": {
+    "s_f193227df3df34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbe81370-1886-4254-8a96-847487f9d822",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
