@@ -1,0 +1,47 @@
+app/(timeline)/[actor]/(profile)/page.test.tsx
+  s_096a3a182d8b4c::t_76c0d277372376 11,1037-1123
+app/(timeline)/[actor]/ActorTimelines.tsx
+  s_096a3a182d8b4c::t_77fa73360c1e05 40,246-252,792-793,795
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_096a3a182d8b4c::t_8152acd6dcdd9c 532-535,3122-3149
+app/(timeline)/[actor]/getProfileData.ts
+  s_096a3a182d8b4c::t_b82779968f7b7a 326
+app/(timeline)/settings/profile/page.test.tsx
+  s_096a3a182d8b4c::t_098eaf5625452a 157-160
+docs/architecture.md
+  s_096a3a182d8b4c::t_7cadd85af6110e 2659-2662
+lib/components/profile/ProfileHeaderBlock.test.tsx
+  s_096a3a182d8b4c::t_23c37d0791e529 44-48,52-55,57-62
+lib/components/profile/ProfileHeaderBlock.tsx
+  s_096a3a182d8b4c::t_dac520f1aaf6cc 48-49
+lib/components/profile/ProfileTabStrip.test.tsx
+  s_096a3a182d8b4c::t_a9ff4dda70febf 1-39
+lib/components/profile/ProfileTabStrip.tsx
+  s_096a3a182d8b4c::t_2199a985c98053 1-26
+lib/components/settings/profile/ProfileEditor.test.tsx
+  s_096a3a182d8b4c::t_7fdb6f422f079c 236-237,256-257
+lib/components/settings/profile/ProfileImageField.test.tsx
+  s_096a3a182d8b4c::t_b95191f209cd72 86-124
+lib/components/settings/profile/ProfileImageField.tsx
+  s_096a3a182d8b4c::t_7856ead7c2b6e5 37-39,47-49,77,111-121
+lib/components/settings/profile/ProfilePreview.test.tsx
+  s_096a3a182d8b4c::t_0b98a7feb42078 12-24,64-66,114-124
+lib/components/settings/profile/ProfilePreview.tsx
+  s_096a3a182d8b4c::t_ac1054c558b808 3,15,73-74,102,113-115,122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d9ab9c8af18247934205e8d886d37f5fcc505b5e",
+  "prompts": {},
+  "sessions": {
+    "s_096a3a182d8b4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "59ed076d-13ae-4577-b65d-8ec1d938be0c",
+        "model": "unknown"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
