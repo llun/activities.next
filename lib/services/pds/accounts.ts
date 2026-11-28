@@ -74,6 +74,7 @@ import {
   submitPlcOperation
 } from './plc'
 import { syncHostedBlueskyProfile } from './profile'
+import { enqueueHostedBlueskyProfileSync } from './profileQueue'
 import { consumeHostedBlueskyRateLimit } from './rateLimit'
 import { createPdsRepo } from './repo'
 
@@ -648,6 +649,9 @@ export const reactivateHostedBlueskyAccount = async ({
     })
     return true
   })
+
+  // Edits made while the account was off were skipped, so apply them now.
+  await enqueueHostedBlueskyProfileSync({ actorId: actor.id })
 
   return getHostedBlueskyAccountState({ database, actor })
 }

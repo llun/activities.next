@@ -42,6 +42,7 @@ import {
   verifyPlcOperationSignature
 } from './plc'
 import { syncHostedBlueskyProfile } from './profile'
+import { enqueueHostedBlueskyProfileSync } from './profileQueue'
 import { pruneDeletedPdsRepos } from './retention'
 
 vi.mock('@/lib/utils/safeRemoteFetch', () => ({ safeRemoteFetch: vi.fn() }))
@@ -72,6 +73,9 @@ vi.mock('./profile', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./profile')>()
   return { ...actual, syncHostedBlueskyProfile: vi.fn() }
 })
+vi.mock('./profileQueue', () => ({
+  enqueueHostedBlueskyProfileSync: vi.fn()
+}))
 
 const ROTATION_KEY_HEX =
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
@@ -203,6 +207,7 @@ describe('hosted Bluesky accounts', () => {
     })
     vi.mocked(createBlueskyIdentityResolver).mockReset()
     vi.mocked(syncHostedBlueskyProfile).mockReset().mockResolvedValue(undefined)
+    vi.mocked(enqueueHostedBlueskyProfileSync).mockReset()
   })
 
   afterAll(async () => {
@@ -426,6 +431,9 @@ describe('hosted Bluesky accounts', () => {
       .filter((event) => event.type === 'account')
       .at(-1)
     expect(reactivated).toMatchObject({ type: 'account', active: true })
+    expect(enqueueHostedBlueskyProfileSync).toHaveBeenCalledWith({
+      actorId: actor.id
+    })
   })
 
   it('changes the handle with a chained PLC update and #identity', async () => {

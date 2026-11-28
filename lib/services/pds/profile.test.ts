@@ -126,8 +126,12 @@ describe('syncHostedBlueskyProfile', () => {
           'profile-images',
           'profile-inactive',
           'profile-plain',
+          'profile-webp',
+          'profile-disabled',
+          'profile-overlap',
           'backfill-missing',
-          'backfill-present'
+          'backfill-present',
+          'backfill-disabled'
         ].map((username) => `${username}@${TEST_DOMAIN}`)
       }
     })
@@ -247,6 +251,83 @@ describe('syncHostedBlueskyProfile', () => {
     expect(uploadPdsBlob).toHaveBeenCalledTimes(2)
   })
 
+  it('re-fits a WebP that grows past the limit when converted to JPEG', async () => {
+    const { actor, did } = await createHosted('profile-webp')
+    const size = 1500
+    const raw = Buffer.alloc(size * size * 3)
+    let seed = 123456789
+    for (let i = 0; i < raw.length; i++) {
+      seed = (1103515245 * seed + 12345) & 0x7fffffff
+      raw[i] = seed & 0xff
+    }
+    const webp = await sharp(raw, {
+      raw: { width: size, height: size, channels: 3 }
+    })
+      .webp({ quality: 60 })
+      .toBuffer()
+    expect(webp.byteLength).toBeLessThanOrEqual(1_000_000)
+    vi.mocked(readStoredImage).mockResolvedValue({
+      buffer: webp,
+      mimeType: 'image/webp'
+    })
+    vi.spyOn(database, 'ownsAccountExportMediaPath').mockResolvedValue(true)
+    await database.updateActor({
+      actorId: actor.id,
+      iconUrl: `https://${TEST_DOMAIN}/api/v1/files/avatar.webp`
+    })
+
+    await syncHostedBlueskyProfile(database, actor.id)
+
+    const [, uploaded] = vi.mocked(uploadPdsBlob).mock.calls[0]
+    expect(uploaded.mimeType).toBe('image/jpeg')
+    expect(uploaded.bytes.byteLength).toBeLessThanOrEqual(1_000_000)
+    const avatar = (await readProfile(did))?.value?.avatar as {
+      mimeType: string
+      size: number
+    }
+    expect(avatar.mimeType).toBe('image/jpeg')
+    expect(avatar.size).toBeLessThanOrEqual(1_000_000)
+  })
+
+  it('skips a repo whose domain PDS is disabled', async () => {
+    const { actor, did } = await createHosted('profile-disabled')
+    await database.updateActor({ actorId: actor.id, name: 'Alice' })
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      [TEST_DOMAIN]: {
+        enabled: false,
+        hostname: `pds.${TEST_DOMAIN}`,
+        allowEmails: [],
+        allowActors: []
+      }
+    })
+
+    await expect(
+      syncHostedBlueskyProfile(database, actor.id)
+    ).resolves.toBeUndefined()
+
+    expect(
+      await database.getPdsRecord({
+        did,
+        collection: HOSTED_PROFILE_COLLECTION,
+        rkey: HOSTED_PROFILE_RKEY
+      })
+    ).toBeNull()
+  })
+
+  it('keeps the newest profile when two syncs overlap', async () => {
+    const { actor, did } = await createHosted('profile-overlap')
+    await database.updateActor({ actorId: actor.id, name: 'First' })
+
+    const first = syncHostedBlueskyProfile(database, actor.id)
+    await database.updateActor({ actorId: actor.id, name: 'Second' })
+    const second = syncHostedBlueskyProfile(database, actor.id)
+    await Promise.all([first, second])
+
+    expect((await readProfile(did))?.value).toMatchObject({
+      displayName: 'Second'
+    })
+  })
+
   it('skips a repo that is not active', async () => {
     const { actor, did } = await createHosted('profile-inactive')
     await database.updatePdsRepoStatus({ did, status: 'deactivated' })
@@ -293,8 +374,12 @@ describe('backfillHostedBlueskyProfile', () => {
           'profile-images',
           'profile-inactive',
           'profile-plain',
+          'profile-webp',
+          'profile-disabled',
+          'profile-overlap',
           'backfill-missing',
-          'backfill-present'
+          'backfill-present',
+          'backfill-disabled'
         ].map((username) => `${username}@${TEST_DOMAIN}`)
       }
     })
@@ -355,6 +440,22 @@ describe('backfillHostedBlueskyProfile', () => {
     const { actor } = await createHosted('backfill-present')
     await syncHostedBlueskyProfile(database, actor.id)
     publish.mockClear()
+
+    await backfillHostedBlueskyProfile(database, actor)
+
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('does not queue when the domain PDS is disabled', async () => {
+    const { actor } = await createHosted('backfill-disabled')
+    process.env.ACTIVITIES_BLUESKY_PDS = JSON.stringify({
+      [TEST_DOMAIN]: {
+        enabled: false,
+        hostname: `pds.${TEST_DOMAIN}`,
+        allowEmails: [],
+        allowActors: []
+      }
+    })
 
     await backfillHostedBlueskyProfile(database, actor)
 

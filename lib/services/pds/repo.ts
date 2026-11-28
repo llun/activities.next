@@ -521,7 +521,11 @@ export const createPdsRecord = async (
   }
 }
 
-export const putPdsRecord = async (
+/**
+ * The body of `putPdsRecord` for a caller that already holds the repo lock, so
+ * a read and the write it decides on happen under one lock.
+ */
+export const putPdsRecordLocked = async (
   database: Database,
   {
     did,
@@ -548,53 +552,71 @@ export const putPdsRecord = async (
   }
   const swapCommitCid = parseOptionalCid(swapCommit, 'swapCommit')
 
-  // Validate collection, rkey, and record payload up front before taking the lock.
+  // Validate collection, rkey, and record payload before touching the repo.
   const preparedTemplate = (await preparePdsWrite({
     did,
     write: { action: 'update', collection, rkey, record }
   })) as PreparedPdsUpdate
 
-  return withPdsRepoLock(database, did, async () => {
-    const repoRow = await assertActiveRepoForWrite(database, did)
-    const currentRootCid = parseCid(repoRow.rootCid as string)
-    if (swapCommitCid && !currentRootCid.equals(swapCommitCid)) {
-      throw new PdsInvalidSwapError(
-        `Commit was at ${currentRootCid.toString()}`,
-        currentRootCid.toString()
-      )
-    }
+  const repoRow = await assertActiveRepoForWrite(database, did)
+  const currentRootCid = parseCid(repoRow.rootCid as string)
+  if (swapCommitCid && !currentRootCid.equals(swapCommitCid)) {
+    throw new PdsInvalidSwapError(
+      `Commit was at ${currentRootCid.toString()}`,
+      currentRootCid.toString()
+    )
+  }
 
-    const existing = await database.getPdsRecord({ did, collection, rkey })
-    if (existing && existing.cid === preparedTemplate.cid.toString()) {
-      return {
-        uri: preparedTemplate.uri,
-        cid: preparedTemplate.cid.toString(),
-        commit: null,
-        seq: null
-      }
-    }
-
-    const prepared: PreparedPdsCreate | PreparedPdsUpdate = existing
-      ? preparedTemplate
-      : {
-          ...preparedTemplate,
-          action: WriteOpAction.Create
-        }
-
-    const applied = await commitPreparedWritesLocked(database, {
-      did,
-      preparedWrites: [prepared],
-      swapCommitCid,
-      blobStore: options.blobStore
-    })
+  const existing = await database.getPdsRecord({ did, collection, rkey })
+  if (existing && existing.cid === preparedTemplate.cid.toString()) {
     return {
-      uri: prepared.uri,
-      cid: prepared.cid.toString(),
-      commit: applied.commit,
-      seq: applied.seq
+      uri: preparedTemplate.uri,
+      cid: preparedTemplate.cid.toString(),
+      commit: null,
+      seq: null
     }
+  }
+
+  const prepared: PreparedPdsCreate | PreparedPdsUpdate = existing
+    ? preparedTemplate
+    : {
+        ...preparedTemplate,
+        action: WriteOpAction.Create
+      }
+
+  const applied = await commitPreparedWritesLocked(database, {
+    did,
+    preparedWrites: [prepared],
+    swapCommitCid,
+    blobStore: options.blobStore
   })
+  return {
+    uri: prepared.uri,
+    cid: prepared.cid.toString(),
+    commit: applied.commit,
+    seq: applied.seq
+  }
 }
+
+export const putPdsRecord = async (
+  database: Database,
+  input: {
+    did: string
+    collection: string
+    rkey: string
+    record: Record<string, unknown>
+    swapCommit?: string
+  },
+  options: { blobStore?: PdsBlobObjectStore } = {}
+): Promise<{
+  uri: string
+  cid: string
+  commit: { cid: string; rev: string } | null
+  seq: number | null
+}> =>
+  withPdsRepoLock(database, input.did, () =>
+    putPdsRecordLocked(database, input, options)
+  )
 
 export const deletePdsRecord = async (
   database: Database,
